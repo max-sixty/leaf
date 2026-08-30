@@ -590,8 +590,8 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert page.evaluate(
         "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
     )
-    # The captured target spends the short line's two slots on its actions; Escape still
-    # clears it below and remains in the complete reference.
+    # The captured target spends the short line's two contextual slots on its actions;
+    # Escape still clears it below and remains in the complete reference.
     line = key_line(page)
     assert "comment on the diagram" in line and "react" in line
     assert "unselect" not in line

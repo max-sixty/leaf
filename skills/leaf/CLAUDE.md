@@ -1311,6 +1311,14 @@ immediately after the target's rendered text block (or the target itself). Addin
 another target action must not add another absolute row, control type, or rail
 measurement.
 
+That ordered target collection is also the Page map's location count and the `g m`
+address list. A location's informational marker announces its position in that complete
+collection. Addressing an item opens its marker when it has one; an action-only item
+receives focus on its first available action without performing it. In the compact
+posture, an informational item opens the Page map sheet at that location instead of
+reviving the hidden desktop preview; an action-only item keeps its direct focus arrival
+on the action docked into the page.
+
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
 lifetime, so settling an action cannot shift the readable column. A temporary
@@ -1594,11 +1602,11 @@ Tab and Shift-Tab walk the visible target map and announce each item. Enter choo
 last one announced. A viewport change that removes or renames that target clears the
 announced choice before Enter can act on it.
 
-`/` inside selection opens a real search input over the whole page reading. Tab walks
-repeated occurrences and Enter makes a native browser Selection from the active match.
-Search is one layer inside item selection: Escape returns to the visible hints, then a
-second Escape closes selection. The mode keeps `?` available and claims the rest of the
-page's keyboard while it stands.
+`/` opens a real search input over the whole page reading, either directly from the page
+or from the visible item hints. Tab walks repeated occurrences and Enter makes a native
+browser Selection from the active match. Escape returns to the surface that opened search:
+the page after a direct `/`, or the visible hints after `s` then `/`. The mode keeps `?`
+available and claims the rest of the page's keyboard while it stands.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
@@ -1638,9 +1646,9 @@ way this press will go, and Escape takes the mode off through the rung ladder
 rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `c` comments on it, `t`/`T` and `a`/`A`
-walk its open sets, `d`/`u` move its reading, and `g` opens its destinations. A
-surface holds the presses
+the presses whose subject is the page: `/` searches its text, `s` names its visible
+items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `d`/`u` move its
+reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
@@ -1984,15 +1992,18 @@ upgrade.
 ### The key line and reference
 
 The key line is short help, not the keyboard reference. It walks outward from the
-reader's innermost scope, drops duplicate bindings shadowed there, and paints at
-most two hints: the first live row, then a promotable Escape or the next row.
-This makes locality the ordinary priority and promotes the way out by default. A
-captured target with both comment and reaction actions is the deliberate exception:
-`c` and `r` take the two visible slots while Escape remains live and listed in the
-complete reference. Projection-only `lineWhen` may hide a hint without changing the
-command's liveness or its place in that reference. Its hint chips are `aria-hidden`
-because placeholders and live announcements carry the same facts for assistive
-technology.
+reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
+the first live row, then a promotable Escape or the next row; rows declaring
+`linePriority: persistent` remain beside that context. An active chord instead shows
+every live row in its scope, so computed bindings, ranges, and capability filtering are
+the same ones dispatch and the reference use. `lineWhen` may hide only an ordinary hint
+without changing the command's liveness or its place in the reference. Hint chips are
+`aria-hidden` because placeholders and live announcements carry the same facts for
+assistive technology.
+
+The compact line wraps when persistent or chord rows need the room. Ordinary hints may
+yield from the end to stay within two rows, but persistent rows and active chord rows do
+not. `syncLayout` reserves the rendered height in each scroll region.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two
@@ -2135,14 +2146,14 @@ Threads, Asks, All leaves, and the Page map. The first three enter their panel o
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
 available, or opens the complete sheet where the compact layout has no rail. `m`, `h`,
 and `f` name the page's numbered
-page-map marker, hyperlink, and fold lists, and a decimal number names a member. `g g` and
+page-map item, hyperlink, and fold lists, and a decimal number names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
 An edge is one place, so the second key is the whole address; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
-`DIRECT_DESTINATIONS` is the direct-travel vocabulary. Each entry declares its
+`DIRECT_DESTINATIONS` is the direct-destination vocabulary. Each entry declares its
 mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
 vocabulary. Each entry declares:
 
@@ -2153,7 +2164,7 @@ vocabulary. Each entry declares:
 
 A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
-Adding a panel destination or a numbered list adds one entry to its vocabulary.
+Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
 the rows inside it.
 

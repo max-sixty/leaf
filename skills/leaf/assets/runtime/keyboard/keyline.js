@@ -1,4 +1,11 @@
-import { activeRows, bindings, labelOf, word } from "./bindings.js";
+import {
+  activeRows,
+  bindings,
+  commandPresentations,
+  commandRoutes,
+  labelOf,
+  word,
+} from "./bindings.js";
 
 export function createKeyline({
   announce,
@@ -13,19 +20,36 @@ export function createKeyline({
   stack,
 }) {
   // ---------- the key line ----------
-  // What the next press does, walked outward from where the reader stands. The full register
-  // has grown past what a glance can read, so this surface starts with two hints and unfolds
-  // the current scene before opening the complete reference. Locality supplies the ranking:
-  // the same innermost-first scope order the dispatcher uses. The default override is an
-  // available Escape after the first hint, because a mode whose way in is visible and whose
-  // way out is not is a trap. An Escape row may waive that promotion while remaining live
-  // and present in the full reference.
+  // What the next press does, walked outward from where the reader stands. Locality supplies
+  // the ordinary shortlist: the same innermost-first scope order the dispatcher uses, with
+  // rows the register marks persistent retained beside it. An active chord is already a
+  // compact reference to one mode, so every live row in that scope is shown. More unfolds the
+  // remaining ordinary scene before opening the complete reference.
   //
-  // The rows the line shows, innermost scope first: the ones carrying a word for it. A row
-  // is skipped where any of its bindings has been named already, so an inner scope's own
-  // word for a press wins and the generic one behind it stays quiet — for example, a
-  // numbered hyperlink address over an option's pick mark must not sit beside the mark's
-  // own "1–5 toggle the nth" promise for the same digit.
+  // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
+  // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
+  // row's other presses remain visible — for example, a numbered hyperlink address replaces
+  // an option's pick mark for the same digit without hiding the option row's other keys.
+  const sourceRows = new WeakMap();
+  const sourceRow = (row) => sourceRows.get(row) ?? row;
+  const effectiveRow = (row, declared, active) => {
+    if (active.length === declared.length) return row;
+    const routes = commandRoutes(row).filter((route) => active.includes(route.binding));
+    const route = routes.length === 1 ? routes[0] : null;
+    const projected = {
+      ...row,
+      keys: active,
+      routes,
+      // A custom group label cannot describe a binding removed by a nearer scope. A route
+      // may supply the short word for its remaining direction; otherwise the row's shared
+      // word still describes the reduced binding set.
+      label: route?.label,
+      does: route?.does ?? row.does,
+      line: route?.line ?? row.line,
+    };
+    sourceRows.set(projected, row);
+    return projected;
+  };
   function lineRows(scopes) {
     const named = new Set();
     const nearer = shadow();
@@ -36,10 +60,11 @@ export function createKeyline({
       // page is waiting on to then say nothing about it is the table's cost per paint. A
       // dead row names nothing, so it shadows nothing either. Keep all unshadowed rows in
       // the batch so activeRows still rejects two live meanings inside this reachable scope.
-      const reachable = scope.rows.filter((row) => {
-        if (!row.line || word(row.lineWhen) === false) return false;
+      const reachable = scope.rows.flatMap((row) => {
+        if (!row.line || (!scope.chord && word(row.lineWhen) === false)) return [];
         const bound = bindings(row);
-        return !bound.some((k) => named.has(k) || nearer.takes(k));
+        const active = bound.filter((k) => !named.has(k) && !nearer.takes(k));
+        return active.length ? [effectiveRow(row, bound, active)] : [];
       });
       for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
         const bound = bindings(row);
@@ -65,14 +90,34 @@ export function createKeyline({
       .find(
         (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false,
       );
-    const short = new Set([first, wayOut ?? candidates[1]].filter(Boolean));
+    const persistent = candidates.filter((row) => row.linePriority === "persistent");
+    const short = new Set(
+      [first, wayOut ?? candidates.find((row) => row !== first), ...persistent].filter(
+        Boolean,
+      ),
+    );
     const tail = withoutReference.includes(backRow) ? backRow : null;
     return { candidates, referenceAt, short, tail };
   };
+  const completeLine = (scopes, candidates) => {
+    const scope = scopes.find((candidate) => candidate.chord);
+    if (!scope) return null;
+    const owned = new Set(scope.rows);
+    const rows = new Set(candidates.filter((row) => owned.has(sourceRow(row))));
+    // A nearer modal scope can shadow the chord wholesale while keeping it armed beneath.
+    // In that state its own way out is the line, not an empty menu for the suspended chord.
+    if (!rows.size) return null;
+    return {
+      scope,
+      rows,
+    };
+  };
   function more() {
     if (!shortcutAvailable() || expanded) return reference.show(true);
-    const { candidates, short } = arrange(lineRows(stack()));
-    if (!candidates.some((row) => !short.has(row))) return reference.show(true);
+    const scopes = stack();
+    const { candidates, short } = arrange(lineRows(scopes));
+    const shown = completeLine(scopes, candidates)?.rows ?? short;
+    if (!candidates.some((row) => !shown.has(row))) return reference.show(true);
     expanded = true;
     paintHere();
     announce(
@@ -92,18 +137,28 @@ export function createKeyline({
     const rows = lineRows(scopes);
     if (!shortcutAvailable()) expanded = false;
     const shelf = expanded && !reference.open;
-    keylineEl.dataset.lfExpanded = String(shelf);
     // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
     // the register's hidden projection. In the shelf, the current Escape is drawn after that
     // control so both disclosure choices finish the second row.
     const { candidates, referenceAt, short, tail } = arrange(rows);
+    const complete = completeLine(scopes, candidates);
+    const shown = complete?.rows ?? short;
+    keylineEl.dataset.lfExpanded = String(shelf);
+    keylineEl.dataset.lfWrap = String(shelf || Boolean(complete) || shown.size > 2);
+    // Keep the two contextual hints together before persistent rows on the ordinary line.
+    // The shelf and a chord retain registry order because each is a fuller reading of one
+    // scene rather than a ranked shortlist.
+    const projected =
+      shelf || complete
+        ? candidates
+        : [...shown, ...candidates.filter((row) => !shown.has(row))];
     const ordered = [
-      ...candidates.filter((row) => !shelf || row !== tail),
+      ...projected.filter((row) => !shelf || row !== tail),
       ...(referenceAt === -1 ? [] : [referenceRow]),
     ];
     // Read where it is painted, like every other cell: the chord's chip says which stage the
     // reader is at (`g`, then `g h`), and a string fixed at declaration could only say one.
-    const chordScope = scopes.find((scope) => scope.chord);
+    const chordScope = complete?.scope;
     const chord = word(chordScope?.chord);
     const chordRows = new Set(chordScope?.rows ?? []);
     // Everything but More, which the reader may be standing on. `textContent = ""` takes
@@ -116,9 +171,14 @@ export function createKeyline({
     for (const node of [...keylineEl.childNodes])
       if (node !== keylineMore) node.remove();
     const seated = keylineMore.parentElement === keylineEl;
-    const chip = (key, said, armed, afterMore = false) => {
+    const chip = (key, said, armed, afterMore = false, row = null) => {
       const span = el("span", "lf-key");
       span.setAttribute("aria-hidden", "true");
+      if (row) {
+        const active = bindings(row);
+        const commands = commandPresentations(row, active).map(({ id }) => id);
+        span.dataset.lfCommands = commands.join(" ");
+      }
       const kbd = document.createElement("kbd");
       if (armed) kbd.className = "armed";
       kbd.textContent = key;
@@ -130,9 +190,15 @@ export function createKeyline({
     };
     if (chord) chip(chord, "", true);
     const drawn = ordered.map((row) => {
-      const span = chip(labelOf(row), word(row.line), chordRows.has(row));
-      span.hidden = row === referenceRow || (!shelf && !short.has(row));
-      return span;
+      const span = chip(
+        labelOf(row),
+        word(row.line),
+        chordRows.has(sourceRow(row)),
+        false,
+        row,
+      );
+      span.hidden = row === referenceRow || (!shelf && !shown.has(row));
+      return { row, span };
     });
     // The door is not useful behind the room it opens. While the reference stands, its
     // own Escape row is the short line and More leaves the focus order with the page. This
@@ -143,34 +209,56 @@ export function createKeyline({
 
     if (shelf && tail) chip(labelOf(tail), word(tail.line), false, true);
 
-    // Two hints, and then two rows, are ceilings rather than permission to clip. On a window
-    // narrower than the compact sentences, yield the lower-ranked hint and then the first;
-    // in the shelf, yield the lowest-ranked current commands until its two disclosure
-    // controls fit on the second row. Hidden rows remain available to inspection and the
-    // reference.
+    const visible = () =>
+      [...keylineEl.children].filter((node) => !node.hidden && node.checkVisibility());
+    const rowsUsed = () => {
+      const items = visible();
+      const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;
+      const tops = [];
+      for (const node of items)
+        if (tops.every((top) => Math.abs(top - node.offsetTop) > tolerance))
+          tops.push(node.offsetTop);
+      return tops.length;
+    };
+
+    // The shelf and ordinary line have two-row ceilings rather than permission to clip. The
+    // shelf yields its lowest-ranked current commands until both disclosure controls fit;
+    // hidden rows remain available to inspection and the reference. Active chords return
+    // below before any row can yield.
     if (shelf) {
-      const visible = () =>
-        [...keylineEl.children].filter(
-          (node) => !node.hidden && node.checkVisibility(),
-        );
-      const rowsUsed = () => {
-        const items = visible();
-        const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;
-        const tops = [];
-        for (const node of items)
-          if (tops.every((top) => Math.abs(top - node.offsetTop) > tolerance))
-            tops.push(node.offsetTop);
-        return tops.length;
-      };
-      const removable = drawn.filter((item) => !item.hidden).toReversed();
+      const removable = drawn
+        .filter(({ span }) => !span.hidden)
+        .map(({ span }) => span)
+        .toReversed();
       while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
+      return;
+    }
+    // A chord is the complete menu of the mode it names. Its live rows wrap rather than
+    // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
+    if (complete) return;
+    // Persistent rows stay on the ordinary line through contextual changes. When those
+    // extra hints wrap past the line's two-row bound, yield only ordinary rows, from the
+    // lowest-ranked one back toward the first.
+    if (shown.size > 2) {
+      const removable = drawn
+        .filter(({ row, span }) => !span.hidden && row.linePriority !== "persistent")
+        .map(({ span }) => span)
+        .toReversed();
+      while (
+        (rowsUsed() > 2 || keylineEl.scrollWidth > keylineEl.clientWidth) &&
+        removable.length
+      )
+        removable.shift().hidden = true;
       return;
     }
     // On a window narrower than those two
     // computed sentences, yield the lower-ranked hint and then the first; More is the one
     // control that always survives. At most two layouts are spent, independent of the size
     // of the register, while all hidden rows stay available to inspection and the reference.
-    for (const span of drawn.filter((item) => !item.hidden).toReversed()) {
+    for (const span of drawn
+      .filter(({ span }) => !span.hidden)
+      .map(({ span }) => span)
+      .toReversed()) {
       if (keylineEl.scrollWidth <= keylineEl.clientWidth) break;
       span.hidden = true;
     }

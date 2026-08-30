@@ -1,3 +1,5 @@
+import { clampedRow } from "./keyboard/bindings.js";
+
 let publishedNavigation;
 export const scrollerFor = (...args) => publishedNavigation.scrollerFor(...args);
 
@@ -76,15 +78,11 @@ export function createNavigation({
   function stepThread(dir) {
     if (!panelIsOpen()) setPanel(true);
     const threads = openThreads();
-    const at = threads.indexOf(document.activeElement?.closest?.(".lf-thread"));
-    const next =
-      threads[
-        at === -1
-          ? dir > 0
-            ? 0
-            : threads.length - 1
-          : Math.max(0, Math.min(threads.length - 1, at + dir))
-      ];
+    const next = clampedRow(
+      threads,
+      document.activeElement?.closest?.(".lf-thread"),
+      dir,
+    );
     // Landing the thread is the list's, off the focus it is about to take. A press at
     // either end of the walk is the exception the list cannot answer: it names the thread
     // the reader already stands on, so no focus moves and nothing fires, while the page

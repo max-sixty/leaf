@@ -635,10 +635,9 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
     page, errors = open_page(browser, url)
-    # Searching a list is a press on that list, so the key is the panel's: out on the
-    # prose it does nothing, and `c` is the whole route in — it stands the reader on the
-    # list, which is where the panel's own keys are live. Read against the same press
-    # landing two lines below, which is what makes the silence a rule.
+    # Slash belongs to the nearest search scope. Out on the prose it opens page search;
+    # Escape returns to the prose, and `c` is the route into the panel, where the same
+    # press opens that list's own search instead. Read the two landings against each other.
     #
     # A plain paragraph rather than the body's own middle, which is a widget on this
     # page: `c` goes to the box belonging to whatever the reader is standing in, so a
@@ -648,7 +647,10 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     # panel arriving ahead of the press that is meant to open it.
     page.locator("#how-store").click()
     page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
     expect(page.locator(".lf-panel")).not_to_be_visible()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("c")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -3111,8 +3113,8 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
 def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     browser, serve
 ):
-    """The two chips the line paints are what a reader standing on the list is offered,
-    and they have to be the keys that act on the list.
+    """The two contextual chips the line paints for a reader standing on the list have
+    to be the keys that act on the list; persistent page movement remains beside them.
 
     `c` brought them here so that `w` and `/` would be live — the general box is where
     the typing scope claims every letter, which is the whole reason the press stops at
@@ -3151,10 +3153,11 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(page.locator(".lf-threads")).to_be_focused()
 
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     # The list's own key leads: something is waiting, so `w` is live and nearest.
     expect(shown.nth(0)).to_contain_text("waiting on you")
     expect(shown.nth(1)).to_contain_text("close threads")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

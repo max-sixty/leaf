@@ -278,8 +278,9 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     page.wait_for_function("() => document.body.dataset.lfApplied === '2'")
 
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    # The key line has only two slots, and the focused grip's nearer commands may occupy
-    # both; waiting for the word "undo" there observes a transient repaint, not liveness.
+    # The key line has only two contextual slots, and the focused grip's nearer commands
+    # may occupy both; waiting for the word "undo" there observes a transient repaint, not
+    # liveness. Persistent navigation does not change that local ranking.
     # The withdrawal entering the wire is the durable edge that proves the press worked.
     sent = _traffic(page).sends
     page.keyboard.press("z")

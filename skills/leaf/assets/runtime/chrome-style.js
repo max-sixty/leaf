@@ -1226,10 +1226,11 @@ ${MARK_RULES}
     .lf-help kbd, .lf-keyline kbd { font-family: var(--mono); font-size: var(--t-6); background: var(--chip);
       color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
-    /* The key line: two hints about what keys do right now, rendered from the register
-       the dispatcher walks (see the module docstring). More unfolds the same current
-       register into two rows before it opens the complete reference. Each hint is the
-       eye's copy of facts spoken elsewhere and stays aria-hidden; More is a real control.
+    /* The key line: a contextual shortlist plus persistent rows, rendered from the
+       register the dispatcher walks (see the module docstring). A chord shows its whole
+       live scope; More unfolds the remaining current register before it opens the complete
+       reference. Each hint is the eye's copy of facts spoken elsewhere and stays
+       aria-hidden; More is a real control.
        syncLayout keeps the line out of a side-by-side thread panel and lifts it over a
        covering one, while body reserves its height so the document's last lines never
        end under it. Overflow remains a backstop for a window too narrow to hold even
@@ -1242,7 +1243,7 @@ ${MARK_RULES}
       overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
       background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
       padding: 5px 10px; }
-    .lf-keyline[data-lf-expanded="true"] { width: max-content; flex-wrap: wrap;
+    .lf-keyline[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
       row-gap: 6px; align-items: baseline; }
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }

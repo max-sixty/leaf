@@ -6,6 +6,7 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { shownBox, shownParts } from "./geometry.js";
+import { clampedRow } from "./keyboard/bindings.js";
 
 const KINDS = {
   action: { label: "Action", symbol: "·", priority: -1 },
@@ -280,7 +281,7 @@ export function createLivingMargin(dependencies) {
   const rows = new Map();
   const hosts = new Map();
   const inlineHosts = new Map();
-  let currentEntries = [];
+  let pageMapEntries = [];
   let previewEntry = null;
   let previewButton = null;
   let previewShowing = false;
@@ -291,30 +292,27 @@ export function createLivingMargin(dependencies) {
   let rovingFrame = 0;
   let sheetActivation = false;
 
-  function groupFor(groups, target, item = null) {
-    if (target && (!target.isConnected || inChrome(target))) target = null;
-    const lookup =
-      target ?? `detached:${item?.kind ?? "action"}:${item?.id ?? groups.size}`;
-    let group = groups.get(lookup);
+  function groupFor(groups, target) {
+    let group = groups.get(target);
     if (!group) {
-      const key = target ? targetPath(target) : lookup;
-      const kindWord = target ? itemWord(target) : "Detached item";
+      const key = targetPath(target);
+      const kindWord = itemWord(target);
       const word = kindWord === "decision" ? "ask" : kindWord;
-      const said = target ? itemSays(target) : "No longer placed in this version";
       group = {
         key,
         target,
-        title: trimmed([word, said].filter(Boolean).join(" · "), 72),
+        title: trimmed([word, itemSays(target)].filter(Boolean).join(" · "), 72),
         items: [],
         offers: [],
       };
-      groups.set(lookup, group);
+      groups.set(target, group);
     }
     return group;
   }
 
   function add(groups, target, item) {
-    const group = groupFor(groups, target, item);
+    if (!target?.isConnected || inChrome(target)) return;
+    const group = groupFor(groups, target);
     group.items.push(item);
   }
 
@@ -527,11 +525,28 @@ export function createLivingMargin(dependencies) {
     });
   }
 
-  function openMarginMarker(marker) {
-    const entry = marker?.lfEntry;
+  function pageMapItems() {
+    return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
+  }
+
+  function openPageMapItem(item) {
+    const entry = item?.lfEntry;
     if (!entry?.target) return;
     scrollToElement(entry.target, undefined, "nearest");
-    marker.click();
+    const marker = rows.get(entry.key);
+    if (marker && !marker.hidden) {
+      if (compact.matches) openSheet(entry);
+      else marker.click();
+      return;
+    }
+    const action = [...item.querySelectorAll(".lf-margin-action")].find(
+      (control) =>
+        control !== marker &&
+        !control.disabled &&
+        !control.hidden &&
+        control.checkVisibility(),
+    );
+    action?.focus({ preventScroll: true });
   }
 
   // Enter the rail without opening one addressed item. The roving marker is already the
@@ -551,14 +566,14 @@ export function createLivingMargin(dependencies) {
   }
 
   function pageMapOffered() {
-    return currentEntries.length > 0;
+    return pageMapEntries.length > 0;
   }
 
   // The Page map has one capability and two responsive surfaces. The margin rail is the
   // direct reading position where it exists; the compact sheet is the complete map where
   // the rail has deliberately left the layout.
   function enterPageMap() {
-    if (!focusPageMap() && pageMapOffered()) openPageMap();
+    if (!focusPageMap() && pageMapOffered()) openSheet();
   }
 
   function focusMapControl(entry = null) {
@@ -615,18 +630,12 @@ export function createLivingMargin(dependencies) {
   function walkMarkers(direction, edge = null) {
     const visible = visibleRows();
     if (!visible.length) return;
-    const current = visible.indexOf(document.activeElement);
-    const index =
+    const next =
       edge === "first"
-        ? 0
+        ? visible[0]
         : edge === "last"
-          ? visible.length - 1
-          : current < 0
-            ? direction > 0
-              ? 0
-              : visible.length - 1
-            : (current + direction + visible.length) % visible.length;
-    const next = visible[index];
+          ? visible.at(-1)
+          : clampedRow(visible, document.activeElement, direction);
     for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
     next.focus({ preventScroll: true });
   }
@@ -787,9 +796,8 @@ export function createLivingMargin(dependencies) {
     if (!nav.isConnected) chromeRoot.append(nav);
     placeMargin(main?.getBoundingClientRect());
     syncInlineOffers();
-    currentEntries = collectEntries();
-    const anchoredEntries = currentEntries.filter((entry) => entry.target);
-    const live = new Set(anchoredEntries.map((entry) => entry.key));
+    pageMapEntries = collectEntries().filter((entry) => entry.target);
+    const live = new Set(pageMapEntries.map((entry) => entry.key));
     for (const [key, marker] of rows)
       if (!live.has(key)) {
         const host = hosts.get(key);
@@ -800,7 +808,7 @@ export function createLivingMargin(dependencies) {
       }
     const externalDocks = new Map();
     let corePosition = 0;
-    anchoredEntries.forEach((entry, index) => {
+    pageMapEntries.forEach((entry, index) => {
       let marker = rows.get(entry.key);
       let host = hosts.get(entry.key);
       if (host) host.lfEntry = entry;
@@ -863,15 +871,15 @@ export function createLivingMargin(dependencies) {
           );
         corePosition += 1;
       }
-      paintMarker(marker, entry, index, anchoredEntries.length);
+      paintMarker(marker, entry, index, pageMapEntries.length);
     });
-    mapButton.hidden = currentEntries.length === 0;
-    mapButton.textContent = `Map (${currentEntries.length})`;
-    nav.hidden = anchoredEntries.length === 0;
-    nav.setAttribute("aria-label", `Page map, ${anchoredEntries.length} locations`);
+    mapButton.hidden = pageMapEntries.length === 0;
+    mapButton.textContent = `Map (${pageMapEntries.length})`;
+    nav.hidden = pageMapEntries.length === 0;
+    nav.setAttribute("aria-label", `Page map, ${pageMapEntries.length} locations`);
     if (sheet.open) renderSheet();
     if (previewEntry) {
-      const fresh = currentEntries.find((entry) => entry.key === previewEntry.key);
+      const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
       if (!fresh) closePreview(false);
       else {
         previewEntry = fresh;
@@ -1060,7 +1068,7 @@ export function createLivingMargin(dependencies) {
       : null;
     const heldScroll = sheetList.scrollTop;
     sheetList.replaceChildren(
-      ...currentEntries.map((entry) => {
+      ...pageMapEntries.map((entry) => {
         const group = el("section", "lf-page-map-group");
         group.append(el("h3", "", entry.title));
         const actions = el("div", "lf-page-map-actions");
@@ -1096,13 +1104,26 @@ export function createLivingMargin(dependencies) {
     }
   }
 
-  function openPageMap() {
+  function openSheet(entry = null) {
     renderSheet();
-    sheet.showModal();
-    sheetClose.focus({ preventScroll: true });
+    if (!sheet.open) sheet.showModal();
+    const index = entry
+      ? pageMapEntries.findIndex((candidate) => candidate.key === entry.key)
+      : -1;
+    const group = index < 0 ? null : sheetList.children[index];
+    if (group) {
+      const listBox = sheetList.getBoundingClientRect();
+      const groupBox = group.getBoundingClientRect();
+      if (groupBox.top < listBox.top) sheetList.scrollTop -= listBox.top - groupBox.top;
+      else if (groupBox.bottom > listBox.bottom)
+        sheetList.scrollTop += groupBox.bottom - listBox.bottom;
+    }
+    (group?.querySelector(".lf-page-map-action") ?? sheetClose).focus({
+      preventScroll: true,
+    });
     paintKeys();
   }
-  mapButton.onclick = openPageMap;
+  mapButton.onclick = () => openSheet();
   sheet.addEventListener("close", () => {
     paintKeys();
     if (sheetActivation) {
@@ -1158,8 +1179,8 @@ export function createLivingMargin(dependencies) {
 
   return {
     enterPageMap,
-    marginMarkers: availableRows,
-    openMarginMarker,
+    openPageMapItem,
+    pageMapItems,
     pageMapOffered,
     render,
   };

@@ -118,6 +118,7 @@ import {
   sendAction,
   tabStore,
   toast,
+  walkRows,
   worksInside,
   wrote,
 } from "/runtime/widget-api.js";
@@ -378,11 +379,7 @@ customElements.define(
             line: "walk the options",
             repeat: true,
             // Clamped at the ends, and the page must not scroll out from under the walk.
-            run: (binding) =>
-              marks[
-                marks.indexOf(document.activeElement) +
-                  (binding === "ArrowDown" ? 1 : -1)
-              ]?.focus(),
+            run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
           },
           {
             id: "option.toggle",

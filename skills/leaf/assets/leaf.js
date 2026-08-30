@@ -92,9 +92,10 @@
  * wheel/touch input, history restoration, and browser chrome therefore share the same
  * reading position; auxiliary workspaces keep their own nested scrollports. Runtime
  * reading position goes through pageScroller.
- * The page binds none of the browser's own scroll keys (Space, arrows, Home/End,
- * PageUp/Down); a focused control may, and a disclosure's arrows are core's own case of
- * that. The browser therefore owns ordinary reading travel and its native scroll context.
+ * The page binds `d` and `u` to move 60% of the visible page down and up at the browser's
+ * own paging pace through whichever of the two regions the reader's own scrolling moves.
+ * Space and the platform's remaining scroll keys keep their native meaning, including in
+ * focused controls.
  *
  * Keyboard: one register, and every surface is a projection of it. A row binds keys and
  * says what pressing one does; a scope is where the keyboard means something particular,
@@ -128,7 +129,8 @@
  * the current result into an ordinary native selection. Both routes end at the same
  * passage or item the pointer path uses, so the existing `c` comments on it and no second
  * anchor vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
- * document list. `g t`, `g d`, and `g l` land in Threads, Decisions, and All leaves.
+ * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves.
+ * `g m 3` opens the third page-map marker in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
  * Arming shows the whole offer: everything addressable the reader can see wears its whole
@@ -416,7 +418,7 @@ function receiveState(...args) {
 // A row:
 //   id    — its stable dotted identity. Words and keys may change without changing the
 //           route used by the reference and other projections.
-//   keys  — the bindings it answers: "d", "Escape", "Mod+Enter", "Shift+d", " ".
+//   keys  — the bindings it answers: "a", "Escape", "Mod+Enter", "Shift+a", "d".
 //           A function where the set is the page's (an option group's 1–N).
 //   routes— optional stable subcommands when those bindings mean different things. The
 //           keyline keeps the compact row; the reference presents each route separately.
@@ -1083,7 +1085,7 @@ function reserveBannerControls() {
   ]);
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Decisions (999)"]);
+  reserve(decisionsBtn, ["Asks (999)"]);
   reserve(othersBtn, ["All leaves (999)"]);
 }
 reserveBannerControls();
@@ -1849,13 +1851,14 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepThread } =
+const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
   createNavigation({
     BANNER_CLEAR,
     reducedMotion,
     scrollBehavior,
     beside,
     inChrome: (node) => inChrome(node),
+    inPanel,
     openOnItem,
     openThreads,
     pageScroller,
@@ -1872,6 +1875,7 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepThread } =
 const landInThreadReply = (thread) =>
   landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
 
+let livingMargin = null;
 const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   EVERYTHING,
   addressLayer,
@@ -1889,6 +1893,8 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   keylineEl,
   leavesOffered,
   letGo,
+  marginMarkers: () => livingMargin?.marginMarkers() ?? [],
+  openMarginMarker: (marker) => livingMargin?.openMarginMarker(marker),
   othersLinks,
   othersPanel,
   pageParts,
@@ -2171,7 +2177,7 @@ const TYPING = {
 };
 
 // The panel's own keys. What a press acts on is whose scope it belongs to: the page holds
-// the presses whose subject is the page — `t`/`T` and `d`/`D` walk its open sets, and
+// the presses whose subject is the page — `t`/`T` and `a`/`A` walk its open sets, and
 // `g` opens its destinations — while a surface holds presses for its own contents. `w`
 // narrows this list and `/` searches it, and a list the reader is not looking at is
 // neither a thing to narrow nor a thing to search. At page scope they were two bare
@@ -2204,7 +2210,7 @@ const PANEL = {
     {
       id: "thread.waiting.toggle",
       // `w` for the words the control says. It is the phrase the page already uses for
-      // the same question asked of its widgets (d/D), asked here of the conversation —
+      // the same question asked of its widgets (a/A), asked here of the conversation —
       // so the reader learns one idea and reaches it two ways rather than learning
       // "needs you" beside it.
       //
@@ -2562,24 +2568,40 @@ const PAGE = {
     },
     {
       id: "decision.walk",
-      keys: ["d", "Shift+d"],
+      keys: ["a", "Shift+a"],
       routes: [
         {
           id: "decision.next",
-          binding: "d",
-          does: "Next decision this page is waiting on you for",
+          binding: "a",
+          does: "Next ask this page is waiting on you for",
         },
         {
           id: "decision.previous",
-          binding: "Shift+d",
-          does: "Previous decision this page is waiting on you for",
+          binding: "Shift+a",
+          does: "Previous ask this page is waiting on you for",
         },
       ],
-      does: "Next / previous decision this page is waiting on you for",
-      line: "decisions",
+      does: "Next / previous ask this page is waiting on you for",
+      line: "asks",
       when: () => openDecisions().length > 0,
       repeat: true,
-      run: (binding) => stepDecision(binding === "d" ? 1 : -1),
+      run: (binding) => stepDecision(binding === "a" ? 1 : -1),
+    },
+    {
+      id: "page.down",
+      keys: ["d"],
+      does: "Move 60% of a page down",
+      line: "page down",
+      repeat: true,
+      run: () => stepPage(0.6),
+    },
+    {
+      id: "page.up",
+      keys: ["u"],
+      does: "Move 60% of a page up",
+      line: "page up",
+      repeat: true,
+      run: () => stepPage(-0.6),
     },
     {
       id: "version.approve",
@@ -3353,7 +3375,7 @@ anchorRuntime = createAnchors({
 });
 const { ITEM, NOTE } = anchorRuntime;
 
-createLivingMargin({
+livingMargin = createLivingMargin({
   anchorLabel,
   announce,
   approveBtn,

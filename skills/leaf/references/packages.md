@@ -191,7 +191,7 @@ widget tags. A later package can therefore add another goal or worker widget by 
 its entry into `$command.widgets`, without changing core.
 
 Set `decision: true` when the ready operation is a question the reader must answer. Leaf then
-puts that holder in the canonical Decisions projection only while its lifecycle is `ready`.
+puts that holder in the canonical Asks projection only while its lifecycle is `ready`.
 Acceptance hands the turn to the host, so `pending` and `completed` holders leave the
 reader's list; a failed receipt returns the lifecycle to `ready` and reopens the decision. A
 parent `x-awaits.rollup` reads that same lifecycle, so nested task and header projections

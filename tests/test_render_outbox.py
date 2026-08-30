@@ -1603,12 +1603,12 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (2)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (2)")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1618,7 +1618,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_text(
         "✓ Accept", use_inner_text=True
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "the rebuilt change hung a second row beside the one it replaced"
     )
@@ -1887,7 +1887,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(two.locator(".lf-decisions")).to_have_text("Asks (3)")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -1951,7 +1951,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again, errors = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(again.locator(".lf-decisions")).to_have_text("Asks (3)")
     assert errors == []
     again.close()
 

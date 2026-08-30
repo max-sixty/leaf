@@ -1251,7 +1251,7 @@ while nested scrollports report on their elements. Use `scrollerFor(el)` where a
 may be one an agent sent, since a widget in a message is scrolled by the panel's own list
 and by nothing else. Threads and trays are alternate auxiliary workspaces, so only one
 stands at a time. The
-strip-taking workspaces—Threads and Decisions—take room when the viewport can hold
+strip-taking workspaces—Threads and Asks—take room when the viewport can hold
 them and cover the page under their respective media query otherwise; Leaves
 always covers because its rows leave this page.
 The shell's inline size already reflects the margins a beside panel or tray takes.
@@ -1557,7 +1557,7 @@ over the whole keyboard, so the box's letters were never the page's to take back
 
 The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
-`g`. A panel mnemonic exchanges that window for its destination, so `g t` leaves
+`g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
 window instead: the armed chip reads `g` and then `g h`, the chips on the page
 narrow with it, and Escape returns to the destination menu before another Escape
@@ -1618,13 +1618,15 @@ the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
 that adds the capability.
 
-Directional walks use the category's letter, with case stating direction: lowercase
-advances and Shift goes back. `t`/`T` walks open threads and `d`/`D` walks open
-decisions. Keep these as single-key presses rather than prefix sequences; a walk is
-often repeated or held. Other letters come from words the surface says: `w`
-narrows to comments waiting on the reader, while `g t`, `g d`, and `g l` go to
-Threads, Decisions, and All leaves. A key spelling something nothing on screen says
-is a key nobody reaches for twice.
+Directional category walks use the category's letter, with case stating direction:
+lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
+walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
+is often repeated or held. `d` and `u` move down and up by 60% of the reading page,
+leaving native Space free for the platform and focused controls. Other letters come
+from words the surface says: `w` narrows to threads waiting on the reader, while panel
+destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
+Threads, Asks, and All leaves. A key spelling something nothing on screen says is a
+key nobody reaches for twice.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
@@ -1632,8 +1634,9 @@ way this press will go, and Escape takes the mode off through the rung ladder
 rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `c` comments on it, `t`/`T` and `d`/`D`
-walk its open sets, and `g` opens its destinations. A surface holds the presses
+the presses whose subject is the page: `c` comments on it, `t`/`T` and `a`/`A`
+walk its open sets, `d`/`u` move its reading, and `g` opens its destinations. A
+surface holds the presses
 whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
@@ -1654,7 +1657,7 @@ which is why they can be sorted by surface at all. One press is not like that:
 `c` follows the reader, and what it means is whatever they are standing in.
 
 That it reaches into the panel is not an exception. Page scope already crosses
-there: `t`/`T` can land on cards in Threads, and `d`/`D` can land on a decision an
+there: `t`/`T` can land on cards in Threads, and `a`/`A` can land on an ask an
 agent sent inside a thread. A page key that takes the reader somewhere owes them
 an answer once they are standing there.
 Rescoping `c` per surface would not even buy the tidiness it looks like — the
@@ -1892,7 +1895,7 @@ back, with nothing the reader did moving either. An answered decision parts from
 list, so a picked group gains no ring, and a press from one of its picks names the
 option under the focus rather than the question.
 
-The ring is therefore paintable on a decision the `d`/`D` walk will not step to and the
+The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to and the
 tray does not list, which is the accepted cost: the walk and the tray are the reader's
 list and this is not. Nothing strands the reader there — `markHere` looks its tray row
 up by id and finds none, the same as on every page with the tray shut, and the Escape
@@ -1914,7 +1917,7 @@ function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-the banner's Decisions button retains focus while the walk moves through the page.
+the banner's Asks button retains focus while the walk moves through the page.
 Clicking elsewhere removes the focus-derived ring without erasing the walk's
 useful continuation point.
 
@@ -2054,8 +2057,8 @@ authored-main nodes are replaced, so the semantic landmark—not a DOM node—is
 continuity guarantee.
 
 The left side holds one tray at a time. `showTray` owns `trayUp` and renders
-the complete outcome for leaves and decisions. The leaves tray overlays the
-document because its rows leave the page. The decisions tray takes a strip because
+the complete outcome for leaves and asks. The leaves tray overlays the
+document because its rows leave the page. The asks tray takes a strip because
 its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
@@ -2070,7 +2073,7 @@ Decision rows come from local `x-awaits` sources and ready holders declaring
 nested in an `x-decision` region, the row names the region: its heading, context, and
 evidence are the decision the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-tray row travels through the same decision-arrival function as `d` and `D`, so the
+tray row travels through the same decision-arrival function as `a` and `A`, so the
 panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
@@ -2101,7 +2104,7 @@ resolve the original thread. Threads owns the reader-facing clarification; the
 page's Decision remains the proposal with the agent rather than counting both.
 
 That combined reading is what `openDecisions` returns, so the
-banner, the tray and the `d`/`D` walk all follow it: those three are the reader's
+banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
 Three readings ask the other question — whether the request is *answered* — and all
@@ -2123,9 +2126,9 @@ region.
 
 ### Go-to chord
 
-`g` opens one destination mode. `t`, `d`, and `l` complete a direct trip to
-Threads, Decisions, and All leaves. `h` and `f` name the document's numbered
-hyperlink and fold lists, and a decimal number names a member. `g g` and
+`g` opens one destination mode. `T`, `A`, and `L` complete a direct trip to
+Threads, Asks, and All leaves. `m`, `h`, and `f` name the page's numbered
+page-map marker, hyperlink, and fold lists, and a decimal number names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2133,7 +2136,7 @@ beside-panel, `g p` returns focus to the page while keeping the panel and its na
 An edge is one place, so the second key is the whole address; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 `PANEL_DESTINATIONS` is the direct panel vocabulary. Each entry declares its
-mnemonic, words, capability, and landing. `ADDRESSES` is the numbered document-list
+mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
 vocabulary. Each entry declares:
 
 - its letter and user-facing name;
@@ -2167,6 +2170,10 @@ ground says the same thing while taking no advance — the block's padding is ca
 by an equal negative margin — so a press lights one more key and moves no glyph. Paid for
 in advance instead, the key crossing between the halves steps by that padding, which is the
 same fault one glyph smaller.
+
+While the chord stands, the key line uses that same accent ground for the leader and
+the visible continuation keys. The active colour belongs to the chord state rather than
+to one hard-coded key, so every future continuation inherits the cue.
 
 `chordKeys` is the one reading of how far a numbered address has come. The key
 line drops those keys after saying them in the chip that heads it, the reference

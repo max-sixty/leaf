@@ -11,7 +11,7 @@ const KINDS = {
   action: { label: "Action", symbol: "·", priority: -1 },
   change: { label: "Change", symbol: "Δ", priority: 0 },
   comment: { label: "Comment", symbol: "¶", priority: 1 },
-  decision: { label: "Decision", symbol: "?", priority: 2 },
+  decision: { label: "Ask", symbol: "?", priority: 2 },
   outcome: { label: "Outcome", symbol: "✓", priority: 3 },
   activity: { label: "Agent activity", symbol: "↻", priority: 4 },
 };
@@ -207,10 +207,7 @@ export function createLivingMargin(dependencies) {
   nav.setAttribute("aria-label", "Page map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute(
-    "aria-label",
-    "Changes, comments, decisions, outcomes, and activity",
-  );
+  toolbar.setAttribute("aria-label", "Changes, comments, asks, outcomes, and activity");
   nav.append(toolbar);
   chromeRoot.append(nav);
 
@@ -300,7 +297,8 @@ export function createLivingMargin(dependencies) {
     let group = groups.get(lookup);
     if (!group) {
       const key = target ? targetPath(target) : lookup;
-      const word = target ? itemWord(target) : "Detached item";
+      const kindWord = target ? itemWord(target) : "Detached item";
+      const word = kindWord === "decision" ? "ask" : kindWord;
       const said = target ? itemSays(target) : "No longer placed in this version";
       group = {
         key,
@@ -526,6 +524,13 @@ export function createLivingMargin(dependencies) {
       const box = row.getBoundingClientRect();
       return box.bottom > 0 && box.top < innerHeight;
     });
+  }
+
+  function openMarginMarker(marker) {
+    const entry = marker?.lfEntry;
+    if (!entry?.target) return;
+    scrollToElement(entry.target, undefined, "nearest");
+    marker.click();
   }
 
   function focusMapControl(entry = null) {
@@ -1100,5 +1105,5 @@ export function createLivingMargin(dependencies) {
   });
   render();
 
-  return { render };
+  return { marginMarkers: availableRows, openMarginMarker, render };
 }

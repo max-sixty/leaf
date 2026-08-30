@@ -103,7 +103,9 @@ export function createKeyline({
     ];
     // Read where it is painted, like every other cell: the chord's chip says which stage the
     // reader is at (`g`, then `g h`), and a string fixed at declaration could only say one.
-    const chord = word(scopes.find((s) => s.chord)?.chord);
+    const chordScope = scopes.find((scope) => scope.chord);
+    const chord = word(chordScope?.chord);
+    const chordRows = new Set(chordScope?.rows ?? []);
     // Everything but More, which the reader may be standing on. `textContent = ""` takes
     // it out of the document, and removing a focused element blurs it: it returns on the
     // same line as the same node, connected again, with the reader dropped to `body`. That
@@ -128,7 +130,7 @@ export function createKeyline({
     };
     if (chord) chip(chord, "", true);
     const drawn = ordered.map((row) => {
-      const span = chip(labelOf(row), word(row.line));
+      const span = chip(labelOf(row), word(row.line), chordRows.has(row));
       span.hidden = row === referenceRow || (!shelf && !short.has(row));
       return span;
     });

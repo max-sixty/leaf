@@ -17,6 +17,8 @@ export function createAddress({
   keylineEl,
   leavesOffered,
   letGo,
+  marginMarkers,
+  openMarginMarker,
   othersLinks,
   othersPanel,
   pageParts,
@@ -32,10 +34,10 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. A mnemonic completes a panel destination (`g t` Threads,
-  // `g d` Decisions, `g l` All leaves), while a document list takes a following decimal place
+  // g names one-off travel. An uppercase mnemonic completes a panel destination (`g T`
+  // Threads, `g A` Asks, `g L` All leaves), while a numbered list takes a following decimal place
   // (`g h 3` is the third hyperlink and `g f 2` the second fold). Repeated movement
-  // through threads and decisions belongs to their single-key category walks, t/T and d/D, so
+  // through threads and asks belongs to their single-key category walks, t/T and a/A, so
   // those categories do not also carry numbered addresses.
   //
   // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
@@ -74,7 +76,7 @@ export function createAddress({
   // address is a place in a list the reader counts down the authored page, so it stops at the
   // document where the scope crosses declared roots, and it counts the platform's spelling
   // where the scope also answers ARIA's. So a settled option group takes the arrows and takes
-  // no digit, and `g d` can say three where four things fold. Widening it is not free —
+  // no digit, and `g f` can say three where four things fold. Widening it is not free —
   // `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
   // the count a reader wants under `g` is of the sections the author wrote.
 
@@ -84,7 +86,7 @@ export function createAddress({
   const PANEL_DESTINATIONS = [
     {
       id: "navigation.panel.threads",
-      key: "t",
+      key: "Shift+t",
       does: "Go to the Threads panel",
       line: "Threads panel",
       when: () => true,
@@ -95,9 +97,9 @@ export function createAddress({
     },
     {
       id: "navigation.panel.decisions",
-      key: "d",
-      does: "Go to the Decisions panel",
-      line: "Decisions panel",
+      key: "Shift+a",
+      does: "Go to the Asks panel",
+      line: "Asks panel",
       when: decisionsOffered,
       go: () => {
         showTray("decisions");
@@ -106,7 +108,7 @@ export function createAddress({
     },
     {
       id: "navigation.panel.leaves",
-      key: "l",
+      key: "Shift+l",
       does: "Go to the All leaves panel",
       line: "All leaves panel",
       when: leavesOffered,
@@ -117,6 +119,14 @@ export function createAddress({
     },
   ];
   const ADDRESSES = [
+    {
+      id: "navigation.margin-marker",
+      key: "m",
+      word: "page-map markers",
+      does: "Open the nth page-map marker",
+      list: marginMarkers,
+      go: openMarginMarker,
+    },
     {
       id: "navigation.link",
       key: "h",
@@ -452,6 +462,7 @@ export function createAddress({
       ...PANEL_DESTINATIONS.map((destination) => ({
         id: destination.id,
         keys: [destination.key],
+        label: spell(destination.key),
         does: destination.does,
         line: destination.line,
         when: () => !aimedList && destination.when(),

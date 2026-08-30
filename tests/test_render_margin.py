@@ -6,6 +6,7 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from leaf import event_log as events_model
 from playwright.sync_api import expect
+from render_harness import EXAMPLES
 from render_support import (
     DECISION_PAGE,
     PANEL_PAGE,
@@ -52,6 +53,44 @@ ACTION_PAGE = SUGGESTION_PAGE.replace(
     </section></main>""",
 )
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
+
+
+def test_g_addresses_the_shipped_reconnect_thread_in_the_page_map(browser, serve):
+    """Every visible page-map marker is a numbered g destination, including threads."""
+    example = next(page for page in EXAMPLES if page.stem == "ship-review")
+    page, errors = open_page(browser, serve(example))
+    address = page.evaluate(
+        """() => {
+          const markers = [...document.querySelectorAll('.lf-margin-marker')]
+            .filter(marker => !marker.hidden && !marker.closest('.lf-waiting') &&
+              marker.checkVisibility());
+          const index = markers.findIndex(marker => marker.lfEntry?.target?.id ===
+            'off-t-resync');
+          const targetTop = document.querySelector('#off-t-resync')
+            .getBoundingClientRect().top;
+          return {number: index + 1, count: markers.length, targetTop,
+            viewportHeight: innerHeight};
+        }"""
+    )
+    assert address["number"] > 0, "the shipped reconnect thread has no page-map marker"
+    assert address["targetTop"] > address["viewportHeight"], (
+        "the target must begin off screen so this proves the address is page-wide"
+    )
+
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text(f"m 1–{address['count']}")
+    page.keyboard.press("m")
+    for digit in str(address["number"]):
+        page.keyboard.press(digit)
+    if address["number"] * 10 <= address["count"]:
+        page.keyboard.press("Enter")
+
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_contain_text("One reconnect in forty is worse")
+    expect(preview.locator("textarea").first).to_be_focused()
+    assert errors == []
+    page.close()
 
 
 def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(

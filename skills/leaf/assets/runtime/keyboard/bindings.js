@@ -43,7 +43,7 @@ export const parsed = (binding) => {
 // A modifier joins its key with nothing between them where its glyph is a symbol and with
 // a + where it is a word, so "⌘⏎" and "Ctrl+⏎" are each their own platform's spelling.
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
-// how this page's reference always has: the binding says Shift+d because that is what the
+// how this page's reference always has: the binding says Shift+a because that is what the
 // dispatcher must ask for, and the chip says A because that is what the reader presses.
 export const spell = (binding) => {
   const { key, mods } = parsed(binding);

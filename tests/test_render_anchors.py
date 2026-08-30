@@ -356,7 +356,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
 
     page.get_by_role("button", name="Close threads").click()
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Decisions (2)")
+    expect(decisions).to_have_text("Asks (2)")
     decisions.click()
     # The row names the broader Decision's opening context now, while the options inside it
     # still take focus and own the choice.
@@ -2831,7 +2831,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way g l opens the leaves tray, and lands
+    # v opens it from anywhere on the page, the way g L opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.

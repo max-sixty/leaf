@@ -742,7 +742,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
     )
-    page.keyboard.press("Space")
+    page.keyboard.press("d")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
     ), "the navigation factory kept its load-time motion preference"
@@ -759,7 +759,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
           document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
         }"""
     )
-    page.keyboard.press("Space")
+    page.keyboard.press("d")
     assert page.evaluate("() => window.__lfFrames.length") > 0
     page.emulate_media(reduced_motion="reduce")
     page.evaluate(
@@ -1358,7 +1358,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
     )
     page, errors = open_page(browser, url)
     # Off the reader's list, which is the whole reason the two readings differ here.
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (0)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
 
     page.get_by_role("checkbox", name=re.compile(r"^choose one: A")).click()
     round_trip(page)
@@ -1819,7 +1819,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     # The key is live once the list has arrived, which the button's count states.
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
     files_model.write_json(
@@ -1905,7 +1905,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
     files_model.write_json(
@@ -1920,7 +1920,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     # the fallback landing, and it promises no row walk while there is nothing to walk.
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_be_focused()
     expect(page.locator(".lf-keyline")).not_to_contain_text("walk the leaves")
     assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
@@ -1934,7 +1934,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
 
 
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
-    """The tray is a list, and a reader walks it without reaching for the mouse: g l
+    """The tray is a list, and a reader walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
     to the button that opened it. The go-to menu names the panel, and the key line names
@@ -1955,7 +1955,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     # The go-to menu carries the panel only while there is another leaf to show.
     page.keyboard.press("g")
     expect(keyline).to_contain_text("All leaves panel")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     # Titles order the tray, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
@@ -2052,7 +2052,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     )
     top = "() => document.scrollingElement.scrollTop"
 
-    # A reader reading: Space is Leaf's overlapping 60% page step.
+    # A reader reading: native Space still pages through the document from body.
     page.keyboard.press("Space")
     page.wait_for_function(SCROLLED)
     page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
@@ -2133,7 +2133,7 @@ def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_l
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     for _ in names:
         page.keyboard.press("ArrowDown")
@@ -2416,7 +2416,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # than pressed past: the close is animated, so the next surface would otherwise be read
     # with this one still sliding away behind it.
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
     sweep("standing in the leaves tray")
     page.keyboard.press("Escape")
@@ -3386,7 +3386,7 @@ RING_WALKS = (
     ("passage search", ("s", "/"), ("gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     ("the decisions tray", (), ("ship-review",)),
-    ("the leaves tray", ("g", "l"), ("gallery",)),
+    ("the leaves tray", ("g", "Shift+l"), ("gallery",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
     # from the row above it. The walk is clamped, so a second press at the top moves
@@ -3405,12 +3405,12 @@ RING_WALK_EXAMPLES = tuple(
 )
 # What each scope has to have opened before its walk means anything, and what the page
 # shows while its entry is available. A control with nothing to show is absent by
-# declaration — Decisions on a page waiting on nobody, `l` where the machine has one leaf — so
+# declaration — Asks on a page waiting on nobody, `L` where the machine has one leaf — so
 # the surface is asked for only where the page is offering it, and the corpus answers for
 # the rest. Without this a key that stops working leaves the walk re-walking the page and
 # contributing nothing, which the coverage floor catches only where that scope is a
 # rule's sole home: one guard over seven setup steps. The page and the comments raise no
-# surface of their own; `c` and `g t` land on the list, which the walk's own first stop
+# surface of their own; `c` and `g T` land on the list, which the walk's own first stop
 # reads.
 RING_SCOPE_SURFACE = {
     "passage search": (".lf-target-search:not([hidden])", None),

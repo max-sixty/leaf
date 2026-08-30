@@ -2345,7 +2345,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1)")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)

@@ -1259,7 +1259,8 @@ ${MARK_RULES}
        the whole thing off the page. */
     .lf-key-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
       outline-offset: calc(-1 * var(--here-ring-w)); }
-    .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
+    .lf-keyline kbd.armed { border-color: var(--accent); background: var(--accent);
+      color: var(--card); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for
        as long as they are the page shows its bones. Every item — a widget, a section, a
        heading with an id — wears a legend box: a dashed hairline in the chrome's layer,

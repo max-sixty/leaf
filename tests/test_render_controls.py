@@ -2542,6 +2542,19 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     # Navigation closes the covering workspace before it positions the page. Doing the
     # same scroll behind the lock produces the right numbers and the wrong product: the
     # promised passage remains invisible.
+    #
+    # The document says where it came to rest as it comes to rest there, which is the
+    # only thing that separates arriving from still travelling: the glide below reaches
+    # its destination a frame or more before the browser calls it over, and a wheel sent
+    # inside that window cancels the animation instead of scrolling — the reader's notch
+    # is spent stopping a glide that had already stopped moving.
+    page.evaluate("""() => {
+        window.lfRestedAt = null;
+        addEventListener("scrollend", event => {
+            if (event.target === document)
+                window.lfRestedAt = document.scrollingElement.scrollTop;
+        });
+    }""")
     page.locator(".lf-quote", has_text="Paragraph 40").click()
     panel_settled(page, open=False)
     # Arrived where it was aimed, which is the only thing about this the page states. The
@@ -2556,6 +2569,12 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.wait_for_function(
         """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                    return Math.abs(m.top + m.height / 2 - innerHeight / 2) < 1; }"""
+    )
+    # Centred, and the glide that centred it over: the first statement names where the
+    # instant scroll stopped, 232px short, so the one that names where the document
+    # stands now is the second and last.
+    page.wait_for_function(
+        "() => window.lfRestedAt === document.scrollingElement.scrollTop"
     )
     at_mark = page.evaluate("() => document.scrollingElement.scrollTop")
     assert at_mark != before

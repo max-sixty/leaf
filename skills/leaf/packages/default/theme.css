@@ -1459,17 +1459,19 @@ lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
 
 /* Upgraded widgets: pre-upgrade presentation, so a page degrades readably.
  *
- * 13px is the integrated theme's `pre`, restated rather than laddered; the argument, and
- * what the two copies moving apart would cost, are with that rule. The authored body
+ * The integrated theme's code tokens set the density here too. The authored body
  * inside these widgets is a <pre> that gives up the document's dressing and inherits from
- * here (the rule below), so this copy is the size such a page is set in until a module
+ * here (the rule below), so this is the size such a page is set in until a module
  * runs. */
 lf-diagram, lf-chart, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
-             font-family: var(--mono); font-size: 13px;
-             color: var(--muted); overflow-x: auto; }
-lf-diagram.lf-rendered, lf-chart.lf-rendered, lf-diff.lf-rendered, lf-tree.lf-rendered,
-lf-code.lf-rendered {
+             font-family: var(--mono); font-size: var(--code-size);
+             line-height: var(--code-line); font-variant-ligatures: none;
+             color: var(--code-muted); overflow-x: auto; }
+lf-diagram.lf-rendered, lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
+/* The diff renders its evidence inside a shadow tree, so its host keeps the code scale
+ * above while giving up only the pre-upgrade colour and overflow. */
+lf-diff.lf-rendered { color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
@@ -1558,11 +1560,12 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
 /* lf-shadow:start */
 :host(.lf-rendered) details,
 :host(.lf-rendered) .lf-diff-rename { margin: 8px 0; padding: 0; overflow: hidden;
-                              background: var(--card); border: 1px solid var(--border-2);
+                              background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
 :host(.lf-rendered) summary,
-:host(.lf-rendered) .lf-diff-rename { padding: 6px 12px; font-size: var(--t-5);
-                                     font-family: var(--sans); }
+:host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
+                                     font-family: var(--sans); color: var(--code-ink);
+                                     background: var(--code-chrome); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
@@ -1571,20 +1574,22 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
-.lf-diff-path { font-family: var(--mono); font-size: var(--t-6); }
-.lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
-                font-size: var(--t-6); }
+.lf-diff-path { font-family: var(--mono); font-size: var(--t-6);
+                overflow-wrap: anywhere; }
+.lf-diff-stat { color: var(--code-muted); font-weight: 400; margin-left: 8px;
+                font-size: var(--t-6); font-variant-numeric: tabular-nums;
+                white-space: nowrap; }
 :host(.lf-rendered) {
   --diffs-font-family: var(--mono);
-  --diffs-font-size: 13px;
-  --diffs-line-height: 20px;
+  --diffs-font-size: var(--code-size);
+  --diffs-line-height: var(--code-line);
   --diffs-bg: var(--pre-bg);
   --diffs-bg-buffer: var(--pre-bg);
   --diffs-bg-context: var(--pre-bg);
-  --diffs-bg-context-gutter: var(--pre-bg);
-  --diffs-bg-separator: var(--field);
-  --diffs-fg: var(--ink);
-  --diffs-fg-number: var(--muted);
+  --diffs-bg-context-gutter: color-mix(in srgb, var(--code-ink) 4%, var(--pre-bg));
+  --diffs-bg-separator: var(--code-chrome);
+  --diffs-fg: var(--code-ink);
+  --diffs-fg-number: var(--code-muted);
   --diffs-addition-base: var(--ok);
   --diffs-deletion-base: var(--danger);
   --diffs-bg-addition: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -1592,8 +1597,8 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
   --diffs-bg-addition-emphasis: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
   --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
 }
-:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--rule);
-                          border-radius: 0; overflow-x: auto; color: var(--ink); }
+:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
+                          border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
 :host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
@@ -1620,10 +1625,11 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
 
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
-   the `pre` contract again — the integrated theme's comment names this copy of it — and a
+   the `pre` contract again, and a
    tree's own reason for taking it is that its lines are paths, the same words a code block
    holds, set to the same measure beside them. */
-lf-tree.lf-rendered { font-family: var(--mono); font-size: 13px; }
+lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
+                      line-height: var(--code-line); color: var(--code-ink); }
 lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 lf-tree li { margin: 3px 0; }
@@ -1646,9 +1652,12 @@ lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--h
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
-             content: counter(lf-code-line); display: inline-block; width: 34px;
-             padding-right: 12px; text-align: right; color: var(--muted-2); }
+             content: counter(lf-code-line); display: inline-block; width: 38px;
+             margin-right: 8px; padding-right: 10px; box-sizing: border-box;
+             border-right: 1px solid var(--code-border); text-align: right;
+             color: var(--code-muted); font-variant-numeric: tabular-nums; }
 lf-code .lf-code-line.hi { background: var(--hi-tint); }
+lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
 /* A note is the author's sentence about a line, so it leaves the mono the block
    is set in and comes back to the document's own voice — it is prose, and a
    user quotes it like any other. Stated here rather than in the apparatus
@@ -1671,7 +1680,7 @@ lf-code lf-note { display: block; }
    without becoming runtime chrome, because the label is captured page data too. */
 lf-source { display: block; margin: 14px 0; min-height: 2px; }
 lf-source > .lf-source-document {
-  margin: 0; border: 1px solid var(--rule); border-radius: var(--r);
+  margin: 0; border: 1px solid var(--code-border); border-radius: var(--r);
   overflow: hidden; background: var(--pre-bg); --lf-frame: 1;
 }
 lf-source figcaption {

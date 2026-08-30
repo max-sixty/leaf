@@ -1297,6 +1297,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
+        nativeDisclosure: getComputedStyle(d.querySelector('summary')).display === 'list-item',
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -1322,6 +1323,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(file["summaryAligned"] for file in files), (
         "a file path and its change counts split across summary rows"
     )
+    assert all(file["nativeDisclosure"] for file in files), (
+        "a file summary lost its native disclosure indicator"
+    )
     assert all(file["statGenerated"] for file in files), (
         "derived change counts should be said but not read as authored words"
     )
@@ -1341,7 +1345,11 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const rendered = shadow.querySelector('pre[data-diff]');
       const statText = shadow.querySelector('.lf-diff-stat').textContent;
       const leafFont = getComputedStyle(reference).fontFamily;
+      const leafFontSize = getComputedStyle(reference).fontSize;
+      const leafLineHeight = getComputedStyle(reference).lineHeight;
       const leafBackground = getComputedStyle(reference).backgroundColor;
+      const backgroundChannels = leafBackground.match(/[0-9.]+/g).slice(0, 3).map(Number);
+      const pageBackground = getComputedStyle(document.body).backgroundColor;
       reference.remove();
       return {
         segmentCount: segments.length,
@@ -1358,9 +1366,17 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         coreSheets: shadow.querySelectorAll('style[data-core-css]').length,
         themeSheets: shadow.querySelectorAll('style[data-theme-css]').length,
         font: getComputedStyle(rendered).fontFamily,
+        fontSize: getComputedStyle(rendered).fontSize,
+        lineHeight: getComputedStyle(rendered).lineHeight,
         background: getComputedStyle(rendered).backgroundColor,
         leafFont,
+        leafFontSize,
+        leafLineHeight,
         leafBackground,
+        backgroundIsNearlyNeutral:
+          Math.max(...backgroundChannels) - Math.min(...backgroundChannels) <= 3,
+        backgroundLeansWarm: backgroundChannels[0] > backgroundChannels[2],
+        backgroundIsSeparateFromPage: leafBackground !== pageBackground,
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
@@ -1374,7 +1390,12 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     )
     assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
     assert reading["font"] == reading["leafFont"], reading
+    assert reading["fontSize"] == reading["leafFontSize"], reading
+    assert reading["lineHeight"] == reading["leafLineHeight"], reading
     assert reading["background"] == reading["leafBackground"], reading
+    assert reading["backgroundIsNearlyNeutral"], reading
+    assert reading["backgroundLeansWarm"], reading
+    assert reading["backgroundIsSeparateFromPage"], reading
 
     py = by_path["gateway/limits.py"]
     assert any(["kw", "if"] in line["roles"] for line in py), py

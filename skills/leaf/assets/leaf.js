@@ -2505,7 +2505,10 @@ const CHOOSER = {
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
-  run: () => versionBtn.onclick(),
+  // The control's own press, so the key and the pointer are one gesture: the menu is a
+  // popover the button declares, and the browser's invoker is what makes a second press a
+  // close and what hands focus back to the button when the menu goes.
+  run: () => versionBtn.click(),
 };
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row

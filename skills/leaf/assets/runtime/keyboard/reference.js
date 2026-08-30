@@ -122,6 +122,13 @@ export function createReference({
   // afterwards. A mode over the page keeps this one key (`allButTheReference`), and a kept key
   // that costs the reader their place is not much of an exemption.
   let helpFrom = null;
+  // The layers the reference was opened over. A modal dialog clears every auto popover on
+  // its way into the top layer — the platform's rule, not Leaf's — so the overlay that
+  // exists to say what the versions menu's keys are was also what took the menu away, and
+  // `helpFrom` then pointed into a layer that was no longer painted: the restore reached a
+  // row in a hidden popover and focus fell to the body. Note what stood, put it back before
+  // the restore, and the exemption costs the reader nothing again.
+  let helpLayers = [];
   const helpWords = (value) =>
     String(value ?? "")
       .toLocaleLowerCase()
@@ -156,8 +163,10 @@ export function createReference({
     const preserveSelection = open && Boolean(pageSelection());
     const restore =
       !open && restoreFocus && helpEl.contains(focused()) ? helpFrom : null;
+    const closing = !open && helpEl.open;
     if (open && !helpOpen) {
       helpFrom = focused();
+      helpLayers = [...document.querySelectorAll(":popover-open")];
       commandsAtOpen = availableCommands();
     }
     helpOpen = open;
@@ -412,6 +421,14 @@ export function createReference({
     helpEl.classList.toggle("open", open);
     if (open && !helpEl.open) helpEl.showModal();
     else if (!open && helpEl.open) helpEl.close();
+    // Back in the same order they were in: the dialog is out of the top layer by here, so a
+    // popover that is still on the page can stand again, and the restore below then reaches
+    // a control that is painted.
+    if (closing) {
+      for (const layer of helpLayers)
+        if (layer.isConnected && !layer.matches(":popover-open")) layer.showPopover();
+      helpLayers = [];
+    }
     // The reference is a list long enough to scroll, and anything a mouse can scroll a
     // keyboard has to reach. `reachScrollers` is the runtime's one answer to that and had
     // never been pointed at the chrome it builds after upgrade: its rows carry no control,

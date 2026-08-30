@@ -2717,11 +2717,15 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
 
-    # The way out is named while the reader is in it, and the walk — which has nowhere
-    # to step — is not offered beside it.
+    # The line is the menu's while the reader is in it: its own way out is named, the
+    # page's keys are gone with the presses the mode took, and the walk — which has
+    # nowhere to step — is not offered beside them. Escape is the popover's own
+    # dismissal and so is nobody's row to print; what the two presses above assert is
+    # that it lands.
     page.keyboard.press("v")
-    expect(line).to_contain_text("close versions")
+    expect(line).to_contain_text("leave versions")
     expect(line).not_to_contain_text("walk — marking changes")
+    expect(line).not_to_contain_text("page down")
     page.keyboard.press("Escape")
 
     # The control: a second version, where the walk is live and the layer is unchanged.
@@ -2918,7 +2922,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     line = page.locator(".lf-keyline")
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
-    for word in ["threads", "page down", "page up", "versions"]:
+    for word in ["threads", "page down / up", "versions"]:
         expect(line).to_contain_text(word)
 
     page.keyboard.press("v")
@@ -2928,8 +2932,8 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # The line narrows to the menu's own keys with the page's gone from it, which is the
     # same claim the dispatcher reads — one statement, both surfaces.
     expect(line).to_contain_text("walk — marking changes")
-    expect(line).to_contain_text("close versions")
-    for word in ["threads", "page down", "page up", "design mode"]:
+    expect(line).to_contain_text("open that version")
+    for word in ["threads", "page down / up", "design mode"]:
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the

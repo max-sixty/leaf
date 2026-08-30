@@ -108,8 +108,11 @@ export function createVersionNavigation({
     )?.focus();
   }
 
-  // The browser owns top-layer state, light dismissal, Escape, and invoker focus
-  // restoration. This helper expresses only Leaf's requested end state.
+  // The browser owns top-layer state, light dismissal, and Escape. What it restores focus
+  // to on a hide is the element that had it when the popover showed — not the `source`,
+  // which buys the anchor and the invoker relationship and nothing about focus — so the
+  // toggle below states the handback for the door that opens this from the page. This
+  // helper expresses only Leaf's requested end state.
   function showVersionMenu(open) {
     if (open && versionsOffered()) {
       if (!versionMenu.matches(":popover-open"))
@@ -119,10 +122,31 @@ export function createVersionNavigation({
   versionMenu.addEventListener("toggle", (event) => {
     versionMenuOpen = event.newState === "open";
     versionBtn.setAttribute("aria-expanded", String(versionMenuOpen));
-    if (versionMenuOpen) focusVersionRow();
+    // Focus is the menu's own only where nothing else has claimed it. An open lands on the
+    // row the comparison stands on — unless the reader is already inside, which is where the
+    // reference's restore puts them when it hands the menu back, and moving them off it
+    // would undo the whole point of the exemption.
+    if (versionMenuOpen) {
+      if (!versionMenu.contains(document.activeElement)) focusVersionRow();
+      // A close that leaves nothing focused is a close the browser had nowhere to restore
+      // to: `v` opens this from the page rather than from the press, so the element focused
+      // when the popover showed is the body, and the reader who Escapes out of the menu
+      // lands there instead of on the chooser they were working. The press it came from is
+      // the way back, and the pointer's route already ends here of its own accord.
+    } else if (
+      document.activeElement === document.body ||
+      versionMenu.contains(document.activeElement)
+    )
+      versionBtn.focus();
     paintHere();
   });
-  versionBtn.onclick = () => showVersionMenu(!versionMenu.matches(":popover-open"));
+  // The press is the popover's declared invoker rather than a click handler that toggles by
+  // reading the state: a press on the invoker of a standing auto popover is a light dismissal
+  // *and* a press, so a handler asking whether the menu is open is asked after the dismissal
+  // and opens it straight back — the menu could be pressed shut and never was. The browser
+  // knows the two are one gesture. It is also what makes the invoker the element focus goes
+  // back to when the menu closes, whichever door opened it.
+  versionBtn.popoverTargetElement = versionMenu;
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
@@ -201,7 +225,7 @@ export function createVersionNavigation({
   );
   // The mode represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
-  // not provide. Escape, light dismissal, and invoker focus restoration stay native.
+  // not provide. Escape and light dismissal stay native.
   const VERSIONS = {
     title: "In the versions menu",
     when: versionsOffered,

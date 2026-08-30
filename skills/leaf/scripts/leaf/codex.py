@@ -10,6 +10,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from xml.etree import ElementTree
 
 from .event_log import flocked, now_iso
 from .files import read_json, write_json
@@ -93,10 +94,9 @@ def _write_record(session_id: str, **fields) -> None:
 
 def _delivery_prompt(delivery_id: str, payload_path: Path, url: str | None) -> str:
     page = f" The live page is {url}." if url else ""
-    return (
-        "Leaf delivery "
-        + delivery_id
-        + " contains new reader input for this task."
+    delivery = ElementTree.Element("leaf-delivery", {"id": delivery_id})
+    delivery.text = (
+        "New reader input is available for this task."
         + page
         + " Read its exact JSONL batch from the `batch_jsonl` field in "
         + str(payload_path)
@@ -109,6 +109,7 @@ def _delivery_prompt(delivery_id: str, payload_path: Path, url: str | None) -> s
         "batch using the Leaf conversation-loop contract, continue the page in this "
         "same task, and return the page's exact URL in every user-facing update."
     )
+    return ElementTree.tostring(delivery, encoding="unicode")
 
 
 def capture_intent(session_id: str, reading) -> dict:

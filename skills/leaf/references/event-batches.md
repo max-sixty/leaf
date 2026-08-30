@@ -59,8 +59,9 @@ batch directly.
 - **Layer comment:** an event with `"about": "layer"` changes the relevant Leaf
   layer, followed by re-vendoring, a valid source activation, and an in-thread reply.
 - **Page action:** the reader already sees the action applied. Carry its standing
-  state into `index.html`. If you deliberately replace that state, use `restated`
-  and explain why when stamping the resulting checkpoint.
+  state into `index.html`, then continue the work the page says the action selects
+  or unblocks. If you deliberately replace that state, use `restated` and explain
+  why when stamping the resulting checkpoint.
 - **Reaction:** a `comment` or `reply` carrying `token` in place of `text`, with
   the token's meaning printed beside it as `means`. It is a mark, not a
   question: act on it — revise the passage a `cut` or `lost` stands on, expand

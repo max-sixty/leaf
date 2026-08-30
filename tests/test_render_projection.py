@@ -2587,7 +2587,10 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
     expect(body.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
-    expect(body.locator('a[href="https://example.com/notes"]')).to_have_count(1)
+    link = body.locator('a[href="https://example.com/notes"]')
+    expect(link).to_have_attribute("target", "_blank")
+    expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+    expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
     # The paragraph's asterisks are gone from the words, not merely hidden, and the
     # raw tag's characters are still among them: what the user can select is what
     # the message says.
@@ -3685,7 +3688,9 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
 
     coordinator = page.locator("#atlas-lead")
     expect(coordinator).to_be_visible()
-    head.get_by_role("button", name="2 running").click()
+    running = head.get_by_role("button", name="2 running")
+    running.focus()
+    page.keyboard.press("Enter")
     fleet = page.locator("#hub-plan > .lf-fleet-view")
     expect(fleet).to_have_attribute("open", "")
     expect(fleet.locator("summary")).to_be_in_viewport()
@@ -3693,7 +3698,9 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(fleet.locator("li")).to_have_count(2)
     expect(fleet).to_contain_text("atlas-lead")
     expect(fleet).to_contain_text("w-1")
-    head.get_by_role("button", name="5 workers").click()
+    workers_view = head.get_by_role("button", name="5 workers")
+    workers_view.focus()
+    page.keyboard.press("Space")
     expect(fleet).to_contain_text("Fleet · 5 live workers")
     expect(fleet.locator("li")).to_have_count(5)
     head.get_by_role("button", name="1 quiet").click()
@@ -3722,7 +3729,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     page.keyboard.press("Enter")
     expect(worktree.locator("#lf-tree-w-1-diff")).to_be_hidden()
     expect(worktree_head).to_be_focused()
-    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
     expect(worktree.locator("#lf-tree-w-1-diff")).to_be_visible()
     expect(worktree_head).to_be_focused()
 
@@ -4062,11 +4069,14 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
             "agent": "Relay",
             "parent": root["id"],
             "revision": 1,
-            "text": "The hunk is complete; the worker is parked.",
+            "text": "The hunk is complete; see https://example.com/run and park.",
         },
     )
     told(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
+    inline_link = conversation.locator('a[href="https://example.com/run"]')
+    expect(inline_link).to_have_attribute("target", "_blank")
+    expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
     page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(

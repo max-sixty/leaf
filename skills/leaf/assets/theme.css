@@ -59,6 +59,10 @@
      that the arrangement read as a centred page with something in the margin rather
      than as a page with a margin. */
   --note: 384px;
+  /* A page thread uses a wider reading card than an authored sidenote. The margin
+     includes the marker and the gutter between it and the 460px conversation. */
+  --thread-card: 460px;
+  --thread-margin: 520px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader
      while the document moves, so the whole left edge is spoken for wherever it is in
@@ -365,29 +369,30 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * every box: replay measures the page it will reveal rather than a display:none document
  * with no geometry.
  *
- * The hold is opted into by the canonical module tag as soon as the stylesheet can paint.
- * Waiting to infer it from JavaScript left one paint between HTML parse and module
- * evaluation. Runtime chrome is deliberately outside main: Threads remains usable while
- * widgets upgrade, and its panels stand above the waiting surface. A scriptless rendering
- * therefore stays ordinary prose, while a module that never evaluates or fails before
- * reading the log leaves a fixed recovery message rather than unread authored decisions.
- * Screen only: paper and an exported copy carry no live log to wait for. */
+ * The canonical module tag opts a live page into the hold as soon as the stylesheet can
+ * paint. The static showcase sets data-lf-eager in its published HTML: its immutable
+ * authored document remains ordinary readable HTML while illustrative state, widgets,
+ * and controls progressively arrive. Runtime chrome is deliberately outside main, so
+ * Threads remains usable on a held live page. A scriptless rendering stays ordinary
+ * prose, while a live module that fails before reading the log leaves a fixed recovery
+ * message rather than unread authored decisions. Screen only: paper and an exported copy
+ * carry no live log to wait for. */
 /* The anonymous layer is first in the merged theme, so its important declarations
    outrank every later layer and unlayered stylesheet declaration without reserving a
    named layer custom CSS could append to. Inline importance ranks higher still, so the
    version gate refuses it on the protected properties below. */
 @layer {
   @media screen {
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main,
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main * {
       visibility: hidden !important;
       opacity: 0 !important;
       interactivity: inert !important;
       pointer-events: none !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main *::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
@@ -429,7 +434,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
   }
 }
 @media screen {
-  html:has(script[type="module"][src="/leaf.js"])
+  html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
     body:not([data-lf-presented])::after {
     content: "Applying current decisions\2026  If this stays, reload the page.";
     visibility: visible;
@@ -490,6 +495,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main {
   --strip-l: 0px;
+  --lf-thread-beside: 0;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
     var(--claim-map, 0px), var(--lf-claim-right, 0px));
   --lf-shift: calc((var(--strip-l) - var(--strip-r)) / 2);
@@ -691,6 +697,13 @@ li { margin: 6px 0; }
 a { color: var(--accent); text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 a:hover { text-decoration-color: currentColor; }
+/* lf-shadow:start */
+.lf-external-mark { display: inline-block; width: .75em; height: .75em;
+                    margin-inline-start: .24em; vertical-align: .03em;
+                    fill: none; stroke: currentColor; stroke-width: 1.5;
+                    stroke-linecap: round; stroke-linejoin: round;
+                    overflow: visible; user-select: none; -webkit-user-select: none; }
+/* lf-shadow:end */
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 /* An identifier breaks where it must. A test name or a path is one word to the line
  * breaker, and a word a box cannot hold is either drawn past the box or holds the
@@ -1411,11 +1424,28 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen {
-  @container lf-shell (min-width: 1152px) {
+  /* 1208px leaves the document's 640px evidence floor beside the 520px thread
+     margin and the two 24px page gutters. Below it the marker offers a compact
+     handoff rather than covering the source. */
+  @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
-    ) > main {
-    --claim-map: var(--note);
+      :where(.lf-living-margin:not([hidden])
+        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+    ) > main:not(:has(> aside.sidebar)) {
+    --claim-map: var(--thread-margin);
+    --lf-thread-beside: 1;
+  }
+  }
+  /* A page-level sidebar claims another 264px on the opposite side. Wait for
+     that strip too: 1208 + 264 = 1472, so the same 640px document floor holds
+     when both contextual surfaces stand. */
+  @container lf-shell (min-width: 1472px) {
+  body:has(
+      :where(.lf-living-margin:not([hidden])
+        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+    ) > main:has(> aside.sidebar) {
+    --claim-map: var(--thread-margin);
+    --lf-thread-beside: 1;
   }
   }
 }

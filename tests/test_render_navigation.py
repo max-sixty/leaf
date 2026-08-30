@@ -27,6 +27,7 @@ from render_support import (
     SPENT,
     STANDS_BACK,
     TARGETS_PAGE,
+    TOKEN,
     WHERE_I_STAND_PAGE,
     _publish,
     card_body,
@@ -37,6 +38,7 @@ from render_support import (
     live_url,
     mark_point,
     open_page,
+    opened_tab,
     painted,
     panel_comment,
     panel_settled,
@@ -56,6 +58,50 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_leaf):
+    other_url, _ = other_leaf
+    destination = f"{other_url}/?t={TOKEN}"
+    url = serve(
+        leaf_page(
+            "external link",
+            f"""
+<h1 id="top">Links</h1>
+<p>Read the <a id="external" href="{destination}" aria-label="other leaf documentation"
+  aria-describedby="source-note">other leaf</a>.</p>
+<span id="source-note" hidden>curated source</span>
+<p>Return to <a id="fragment" href="#top">the heading</a>.</p>
+<svg viewBox="0 0 40 20" aria-label="map"><a id="svg-external" href="{destination}">
+  <text x="0" y="15">map</text>
+</a></svg>
+""",
+        )
+    )
+    page, errors = open_page(browser, url)
+    external = page.locator("#external")
+    mark = external.locator(":scope > .lf-external-mark")
+
+    expect(external).to_have_attribute("target", "_blank")
+    expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+    expect(external).to_have_accessible_name("other leaf documentation")
+    expect(external).to_have_accessible_description("curated source opens in a new tab")
+    expect(page.locator("#external + .lf-external-note")).to_be_hidden()
+    expect(mark).to_be_visible()
+    assert mark.evaluate("node => node.localName") == "svg"
+    expect(mark.locator(":scope > path")).to_have_count(1)
+    expect(mark).to_have_attribute("aria-hidden", "true")
+    expect(page.locator("#fragment > .lf-external-mark")).to_have_count(0)
+    expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
+    expect(page.locator("#svg-external > .lf-external-mark")).to_have_count(0)
+    expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
+
+    tab = opened_tab(page, external.click)
+    expect(tab).to_have_url(destination)
+    expect(page).to_have_url(url)
+    tab.close()
+    assert errors == []
+    page.close()
 
 
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):

@@ -56,6 +56,7 @@ from render_support import (
     round_trip,
     select,
     sent_events,
+    stamp_page,
     told,
     undo,
     wait_for_revision,
@@ -63,6 +64,187 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
+    """A data renderer runs after the initial page dressing, but what it contributes
+    is still part of the Leaf and should carry the same visible navigation contract."""
+    url = data_projection_page(serve)
+    module = serve.page_dir / "widgets" / "lf-feed.js"
+    module.write_text(
+        module.read_text()
+        .replace("({value}) => {", "({value}, prior) => {")
+        .replace(
+            "const row = document.createElement('p');\n"
+            "      row.append(value, offer('button', 'inspect', 'Inspect'));",
+            """const row = prior ?? document.createElement('p');
+      const link = row.querySelector('a') ?? document.createElement('a');
+      link.href = value === 'Ready' ? 'https://example.com/status' : '#title';
+      link.textContent = value;
+      if (!prior) {
+        link.target = '_self';
+        link.rel = 'author';
+        row.append(link, offer('button', 'inspect', 'Inspect'));
+      }""",
+        )
+    )
+
+    page, errors = open_page(browser, url)
+    links = page.locator('#deployments a[href="https://example.com/status"]')
+    expect(links).to_have_count(2)
+    expect(links.first).to_have_attribute("target", "_blank")
+    expect(links.first.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    api = page.locator('[data-lf-datum="api"] a')
+    api.evaluate("link => { link.target = '_parent'; link.rel = 'author next'; }")
+    expect(api).to_have_attribute("target", "_blank")
+    expect(api).to_have_attribute(
+        "rel", re.compile(r"(?=.*\bnext\b)(?=.*\bnoopener\b)")
+    )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    expect(api).to_have_attribute("href", "#title")
+    expect(api).to_have_attribute("target", "_parent")
+    expect(api).to_have_attribute("rel", "author next")
+    expect(api).not_to_have_attribute("aria-describedby", re.compile(".+"))
+    expect(api.locator(":scope > .lf-external-mark")).to_have_count(0)
+
+    worker = page.locator('[data-lf-datum="worker"] a')
+    detached_worker = worker.element_handle()
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [{"key": "api", "value": "Running"}],
+    )
+    expect(worker).to_have_count(0)
+    expect(page.locator(".lf-external-note")).to_have_count(0)
+    assert detached_worker.evaluate(
+        """link => ({
+          target: link.getAttribute('target'),
+          rel: link.getAttribute('rel'),
+          describedBy: link.getAttribute('aria-describedby'),
+          mark: link.querySelector('.lf-external-mark'),
+        })"""
+    ) == {"target": "_self", "rel": "author", "describedBy": None, "mark": None}
+
+    api.evaluate("link => { link.href = 'https://example.com/again'; }")
+    expect(api).to_have_attribute("target", "_blank")
+    detached_api = api.element_handle()
+    detached_api.evaluate("link => { link.href = '#title'; link.remove(); }")
+    expect(page.locator(".lf-external-note")).to_have_count(0)
+    assert detached_api.evaluate(
+        """link => ({
+          target: link.getAttribute('target'),
+          rel: link.getAttribute('rel'),
+          describedBy: link.getAttribute('aria-describedby'),
+          mark: link.querySelector('.lf-external-mark'),
+        })"""
+    ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
+    assert errors == []
+    page.close()
+
+
+def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
+    """The widget lifecycle has two presentation boundaries outside authored light DOM:
+    async work finishes after the first dress, and declared shadow words live beyond it."""
+    entry = {
+        "description": "A project-supplied link.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-upgrade": True,
+    }
+    settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
+    shadow = {
+        **entry,
+        "x-shadow": True,
+        "x-example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
+    }
+    authored = leaf_page(
+        "late links",
+        """
+<h1>Late links</h1>
+<lf-settled-link id="settled"></lf-settled-link>
+<lf-shadow-link id="shadow"></lf-shadow-link>
+""",
+    )
+    url = live_url(
+        serve(
+            authored,
+            layer_registry={"lf-settled-link": settled, "lf-shadow-link": shadow},
+            layer_widgets={
+                "lf-settled-link.js": """
+import {once, settle} from '/runtime/widget-api.js';
+customElements.define('lf-settled-link', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    settle(new Promise(resolve => setTimeout(() => {
+      const link = document.createElement('a');
+      link.id = 'settled-link';
+      link.href = 'https://example.com/settled';
+      link.textContent = 'settled destination';
+      this.replaceChildren(link);
+      resolve();
+    }, 25)));
+  }
+});
+""",
+                "lf-shadow-link.js": """
+import {once, shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-shadow-link', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const button = document.createElement('button');
+    button.textContent = 'Show shadow link';
+    button.onclick = () => {
+      const link = document.createElement('a');
+      link.id = 'shadow-link';
+      link.href = 'https://example.com/shadow';
+      link.textContent = 'shadow destination';
+      this.shadowRoot.append(link);
+    };
+    shadowStage(this, [button]);
+  }
+});
+""",
+            },
+        )
+    )
+
+    page, errors = open_page(browser, url)
+    settled_link = page.locator("#settled-link")
+    page.get_by_role("button", name="Show shadow link").click()
+    shadow_link = page.locator("#shadow-link")
+    for link, name in (
+        (settled_link, "settled destination"),
+        (shadow_link, "shadow destination"),
+    ):
+        expect(link).to_have_attribute("target", "_blank")
+        expect(link).to_have_accessible_name(name)
+        expect(link).to_have_accessible_description("opens in a new tab")
+        expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(shadow_link.locator(":scope > .lf-external-mark")).to_have_css(
+        "display", "inline-block"
+    )
+
+    stamp_page(serve.page_dir, authored.replace("Late links", "Later links"), "later")
+    wait_for_revision(page, 2)
+    expect(page.locator("#settled-link")).to_have_accessible_name("settled destination")
+    expect(page.locator("#settled-link")).to_have_accessible_description(
+        "opens in a new tab"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):

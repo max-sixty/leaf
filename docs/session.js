@@ -38,11 +38,38 @@ revisionMarker.name = "lf-revision";
 revisionMarker.content = String(REVISION);
 revisionMarker.dataset.lfRuntime = "";
 document.head.append(revisionMarker);
-const REGISTRY = await fetch("/registry.json").then((response) => response.json());
-const LAYER = REGISTRY.$layer.generation;
-const DATA = await fetch("../data.json")
-  .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
-  .catch(() => ({ revision: 0, sources: {} }));
+const realFetch = window.fetch.bind(window);
+
+// Begin every file read before installing the runtime. The local API below awaits this
+// one readiness promise only when the runtime asks for state, leaving its module graph
+// and the page's widget imports free to load alongside the static seed.
+let REGISTRY;
+let LAYER;
+let DATA;
+let events;
+const sessionReady = Promise.all([
+  realFetch("/registry.json").then((response) => response.json()),
+  realFetch("../data.json")
+    .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
+    .catch(() => ({ revision: 0, sources: {} })),
+  realFetch("../comments.jsonl")
+    .then((response) => (response.ok ? response.text() : ""))
+    .catch(() => "")
+    .then((text) =>
+      text
+        .split("\n")
+        .filter((line) => line.trim())
+        // seq is the line number, as `read_events` numbers a log it reads: the file
+        // holds none, and an event without one is invisible to the runtime's check for
+        // what a poll has brought that the last one hadn't.
+        .map((line, i) => ({ ...JSON.parse(line), seq: i + 1 })),
+    ),
+]).then(([registry, data, seededEvents]) => {
+  REGISTRY = registry;
+  LAYER = registry.$layer.generation;
+  DATA = data;
+  events = seededEvents;
+});
 
 // The name a reply in the panel wears, and nothing else. It is not the name of anyone
 // behind the page — nobody is — so the banner never speaks it: `unattended` below is what
@@ -66,27 +93,12 @@ It went into the log all the same, with your quote attached — which is exactly
 
 // What the page opens on, for an example that ships a thread beside it: the log the
 // build laid in the page directory, which a served page would hand over on the first
-// poll. Awaited at the top of the module, so it is in hand before the runtime beside
-// this one evaluates and asks — fetched after the first answer, the page would paint an
-// empty panel and then a full one, over a reader already reading it. A page with no
-// thread to open on has no file here, and the 404 is that answer.
+// poll. `sessionReady` puts it in the first answer while its file read overlaps runtime
+// startup. A page with no thread to open on has no file here, and the 404 is that answer.
 //
 // A reload deliberately starts again from this seed. Without the Python server there is
 // no durable authority to replay; browser storage would turn this illustrative session
 // into a second implementation of Leaf's persistence and version rules.
-const events = await fetch("../comments.jsonl")
-  .then((res) => (res.ok ? res.text() : ""))
-  .catch(() => "")
-  .then((text) =>
-    text
-      .split("\n")
-      .filter((line) => line.trim())
-      // seq is the line number, as `read_events` numbers a log it reads: the file
-      // holds none, and an event without one is invisible to the runtime's check for
-      // what a poll has brought that the last one hadn't.
-      .map((line, i) => ({ ...JSON.parse(line), seq: i + 1 })),
-  );
-
 // The streams open on this tab's log, told directly when it moves. A served page's
 // stream finds that out by looking at files; this log is in memory, and `append` is
 // the one place it changes.
@@ -437,8 +449,7 @@ const json = (body, status = 200) =>
     headers: { "Content-Type": "application/json", "Leaf-Layer": LAYER },
   });
 
-const realFetch = window.fetch;
-window.fetch = (input, init) => {
+window.fetch = async (input, init) => {
   const url = new URL(
     input instanceof Request ? input.url : String(input),
     location.href,
@@ -447,16 +458,18 @@ window.fetch = (input, init) => {
   // modules, another version's markup — is a file the host serves, and the runtime
   // reaches for it exactly as it would anywhere else.
   if (url.origin !== location.origin) return realFetch(input, init);
-  if (url.pathname === "/api/state") return Promise.resolve(json(state()));
+  if (!["/api/state", "/api/view", "/api/event"].includes(url.pathname))
+    return realFetch(input, init);
+
+  await sessionReady;
+  if (url.pathname === "/api/state") return json(state());
   if (url.pathname === "/api/view") {
     const browser = demoBrowser();
     const revision = Number(url.searchParams.get("revision"));
     const throughSeq = Number(url.searchParams.get("through_seq"));
     if (revision !== REVISION || throughSeq !== browser.basis.through_seq)
-      return Promise.resolve(
-        json({ error: "the static exhibit holds no such projection" }, 400),
-      );
-    return Promise.resolve(json({ browser }));
+      return json({ error: "the static exhibit holds no such projection" }, 400);
+    return json({ browser });
   }
   if (url.pathname === "/api/event") {
     const event = JSON.parse(init.body);
@@ -466,7 +479,7 @@ window.fetch = (input, init) => {
     // appended a second time. One line, because the log is this tab's own — what the
     // server spends a lock on here is the ordering two writers would need.
     if (event.attempt && events.some((e) => e.attempt === event.attempt)) {
-      return Promise.resolve(json({ ok: true, state: state() }));
+      return json({ ok: true, state: state() });
     }
     const minted = append(event, event.kind === "error" ? "page" : "user");
     // The reply is written after the send has been answered, and lands on the read its
@@ -489,17 +502,16 @@ window.fetch = (input, init) => {
     // crosses one boundary rather than "the append succeeded" followed by a read that
     // could fail on its own. The minted event is in there: this file's log and the
     // state's are one list.
-    return Promise.resolve(json({ ok: true, state: state() }));
+    return json({ ok: true, state: state() });
   }
-  return realFetch(input, init);
 };
 
 // The fourth door. A served page holds GET /api/news open and hears the page's reading
 // named each time it moves, then asks for state. Nothing here looks at a file: `append`
 // speaks to every open stream, and what it says is the reading `state` carries. No
-// `error` is ever dispatched, there being no server to lose, and no `alive`: the
-// runtime's watchdog reopens a silent stream after half a minute, which lands here
-// again.
+// connection can fail after startup, there being no server to lose; failed startup does
+// dispatch `error`. There is no `alive`: the runtime's watchdog reopens a silent stream
+// after half a minute, which lands here again.
 window.EventSource = class EventSource extends EventTarget {
   static CONNECTING = 0;
   static OPEN = 1;
@@ -508,12 +520,19 @@ window.EventSource = class EventSource extends EventTarget {
     super();
     this.readyState = EventSource.CONNECTING;
     ears.add(this);
-    queueMicrotask(() => {
-      if (this.readyState === EventSource.CLOSED) return;
-      this.readyState = EventSource.OPEN;
-      this.dispatchEvent(new Event("open"));
-      this.speak();
-    });
+    void sessionReady.then(
+      () =>
+        queueMicrotask(() => {
+          if (this.readyState === EventSource.CLOSED) return;
+          this.readyState = EventSource.OPEN;
+          this.dispatchEvent(new Event("open"));
+          this.speak();
+        }),
+      () => {
+        this.close();
+        this.dispatchEvent(new Event("error"));
+      },
+    );
   }
   speak() {
     if (this.readyState !== EventSource.OPEN) return;

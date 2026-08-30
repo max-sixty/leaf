@@ -30,12 +30,6 @@ export const elementsDeclaring = (root, key, { direct = false } = {}) => {
   return candidates.filter((el) => declarationFor(el, key) !== undefined);
 };
 
-export function closestDeclaring(el, key) {
-  for (let at = el; at; at = at.parentElement)
-    if (declarationFor(at, key) !== undefined) return at;
-  return null;
-}
-
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is an x- key
 // they carry, so the twelfth widget is covered by its entry alone — the alternative

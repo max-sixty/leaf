@@ -255,7 +255,6 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
           const entry = await import('/leaf.js');
           const names = [
             'clearDraft',
-            'closestDeclaring',
             'declarationFor',
             'elementsDeclaring',
             'layerFact',
@@ -276,7 +275,6 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
         name: {"api": "function", "entry": False}
         for name in [
             "clearDraft",
-            "closestDeclaring",
             "declarationFor",
             "elementsDeclaring",
             "layerFact",

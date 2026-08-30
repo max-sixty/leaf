@@ -1371,8 +1371,13 @@ ${MARK_RULES}
         padding: 4px calc(10px + var(--lf-safe-right)) 4px
           calc(10px + var(--lf-safe-left)); gap: 3px; }
       .lf-banner-actions > .lf-others { margin-inline-end: 0; }
-      .lf-banner-actions > .lf-btn { display: inline-flex; align-items: center;
-        justify-content: center; min-height: 40px; padding-inline: 6px; }
+      /* A shelf-wide display states the box of every control it reaches, including the
+         ones the page has taken away: hidden is a display of its own, and a rule that
+         states display without excluding it puts an absent control back on the shelf.
+         Centring is for the controls that are there. */
+      .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
+        align-items: center; justify-content: center; }
+      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 6px; }
       /* A pinned wide row reserves its future Latest address so publication cannot move
          controls. The phone shelf starts at the primary controls, so an unseen slot there
          is only blank scrolling; collapse it until the news itself is present. */

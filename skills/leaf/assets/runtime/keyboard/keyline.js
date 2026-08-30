@@ -152,10 +152,20 @@ export function createKeyline({
       shelf || complete
         ? candidates
         : [...shown, ...candidates.filter((row) => !shown.has(row))];
-    const ordered = [
-      ...projected.filter((row) => !shelf || row !== tail),
-      ...(referenceAt === -1 ? [] : [referenceRow]),
-    ];
+    const projectedRows = projected.filter((row) => !shelf || row !== tail);
+    const referenceRows = referenceAt === -1 ? [] : [referenceRow];
+    // In the ordinary line, keep the interactive disclosure with the contextual
+    // shortlist and let non-interactive persistent facts wrap after it. A wider system
+    // font must not push More onto a lower row beside a page or panel control, where two
+    // compact targets would no longer have the 24px separation either one owes.
+    const ordered =
+      shelf || complete
+        ? [...projectedRows, ...referenceRows]
+        : [
+            ...projectedRows.filter((row) => row.linePriority !== "persistent"),
+            ...referenceRows,
+            ...projectedRows.filter((row) => row.linePriority === "persistent"),
+          ];
     // Read where it is painted, like every other cell: the chord's chip says which stage the
     // reader is at (`g`, then `g h`), and a string fixed at declaration could only say one.
     const chordScope = complete?.scope;
@@ -166,8 +176,8 @@ export function createKeyline({
     // same line as the same node, connected again, with the reader dropped to `body`. That
     // lands one frame after they tabbed to it, because this runs under paintHere's frame —
     // so the walk is whole at synthetic speed and broken at every human one, which is the
-    // way round that hides from a suite. The line is cleared around it instead, and the
-    // chips are drawn in front of it.
+    // way round that hides from a suite. The line is cleared around the same seated node
+    // instead, and the chips are drawn around it.
     for (const node of [...keylineEl.childNodes])
       if (node !== keylineMore) node.remove();
     const seated = keylineMore.parentElement === keylineEl;
@@ -206,6 +216,12 @@ export function createKeyline({
     // is a state change rather than a repaint, and the help takes the focus anyway.
     if (reference.open) keylineMore.remove();
     else if (!seated) keylineEl.append(keylineMore);
+
+    // More is a real target while persistent hints are facts. Keep the target before those
+    // hints so a wider face wraps the fact, not the target, down beside page furniture.
+    if (!shelf && !complete && !reference.open)
+      for (const { row, span } of drawn)
+        if (row.linePriority === "persistent") keylineEl.append(span);
 
     if (shelf && tail) chip(labelOf(tail), word(tail.line), false, true);
 

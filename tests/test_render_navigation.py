@@ -2749,6 +2749,31 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     assert compact["rows"] <= 2, compact
     assert compact["scrollWidth"] <= compact["clientWidth"], compact
     assert compact["scrollHeight"] <= compact["clientHeight"], compact
+
+    # Linux's wider system face wraps this line at the smallest supported window. Keep
+    # the real disclosure control with the contextual hints so a persistent fact, rather
+    # than a second compact target, takes the lower row beside page or panel controls.
+    resized(page, 320, 800)
+    disclosure_order = page.evaluate(
+        """() => {
+          const more = document.querySelector('.lf-key-more');
+          const movement = document.querySelector(
+            '.lf-key:not([hidden])[data-lf-commands~="page.down"]'
+          );
+          return {
+            moreTop: more.offsetTop,
+            movementTop: movement.offsetTop,
+            before: Boolean(
+              more.compareDocumentPosition(movement)
+              & Node.DOCUMENT_POSITION_FOLLOWING
+            ),
+          };
+        }"""
+    )
+    assert disclosure_order["before"], disclosure_order
+    assert disclosure_order["moreTop"] <= disclosure_order["movementTop"], (
+        disclosure_order
+    )
     resized(page, 1280, 800)
     page.keyboard.press("?")
     page.keyboard.press("?")

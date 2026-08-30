@@ -1999,7 +1999,9 @@ assistive technology.
 
 The compact line wraps when persistent or chord rows need the room. Ordinary hints may
 yield from the end to stay within two rows, but persistent rows and active chord rows do
-not. `syncLayout` reserves the rendered height in each scroll region.
+not. The interactive More control stays before persistent hints, so a wider face wraps a
+visual fact rather than moving a compact target down beside page or panel furniture.
+`syncLayout` reserves the rendered height in each scroll region.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two

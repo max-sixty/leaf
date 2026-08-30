@@ -444,7 +444,7 @@ export function createTargetSelection({
     // Once a target is in hand, its actions own the two short-line slots. Search stays
     // live to replace that target and remains in the complete reference.
     lineWhen: () => !hasCapturedTarget(),
-    when: anchoringIsReady,
+    when: () => anchoringIsReady() && !searching,
     run: startSearching,
   };
 

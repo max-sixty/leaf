@@ -545,8 +545,8 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 
 
 def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):
-    """Direct search is one layer. Escape closes it and returns focus to the control
-    from which the reader pressed slash."""
+    """Direct search is one layer. A repeated slash cannot change that when focus has
+    left its box: Escape still closes search and returns to the original control."""
     html = leaf_page(
         "selection focus",
         '<button id="opener">Starting control</button><p>A passage to select.</p>',
@@ -557,6 +557,8 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
 
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+    page.locator("p").click()
+    page.keyboard.press("/")
     expect(page.locator(".lf-keyline")).to_contain_text("close search")
     expect(page.locator(".lf-keyline")).not_to_contain_text("back to hints")
     page.keyboard.press("Escape")

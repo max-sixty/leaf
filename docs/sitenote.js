@@ -8,9 +8,9 @@
  * width first (`docs/session.js`) — enough to say where a comment goes, not enough to say
  * what this whole thing is or how to get one.
  *
- * So the site puts its own label at the head of the page: what this is, that it works,
- * where the words go, and the way back to the site that published it — which an example
- * otherwise hasn't got at all, being a directory of its own with no link out of it.
+ * So the site puts its own label at the head of the page: what this is, where the words
+ * go, and the way back to the site that published it — which an example otherwise hasn't
+ * got at all, being a directory of its own with no link out of it.
  *
  * It stands inside <main>, at the document's own column and under a rule, which is where
  * and how every other page of this site wears its bar (`nav.sitenav` in docs/site.css, and
@@ -32,8 +32,8 @@
 
 const NOTE = `
   <p>
-    <strong>A live example of a leaf page.</strong> Every control works, but no agent
-    is behind it: nothing you do here leaves your own browser.
+    <strong>An example of a leaf page.</strong> No agent is behind it: nothing you do
+    here leaves your own browser.
   </p>
   <p class="sitenote-nav">
     <a href="/index.html">What leaf is</a> ·

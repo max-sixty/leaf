@@ -365,29 +365,30 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * every box: replay measures the page it will reveal rather than a display:none document
  * with no geometry.
  *
- * The hold is opted into by the canonical module tag as soon as the stylesheet can paint.
- * Waiting to infer it from JavaScript left one paint between HTML parse and module
- * evaluation. Runtime chrome is deliberately outside main: Threads remains usable while
- * widgets upgrade, and its panels stand above the waiting surface. A scriptless rendering
- * therefore stays ordinary prose, while a module that never evaluates or fails before
- * reading the log leaves a fixed recovery message rather than unread authored decisions.
- * Screen only: paper and an exported copy carry no live log to wait for. */
+ * The canonical module tag opts a live page into the hold as soon as the stylesheet can
+ * paint. The static showcase sets data-lf-eager in its published HTML: its immutable
+ * authored document remains ordinary readable HTML while illustrative state, widgets,
+ * and controls progressively arrive. Runtime chrome is deliberately outside main, so
+ * Threads remains usable on a held live page. A scriptless rendering stays ordinary
+ * prose, while a live module that fails before reading the log leaves a fixed recovery
+ * message rather than unread authored decisions. Screen only: paper and an exported copy
+ * carry no live log to wait for. */
 /* The anonymous layer is first in the merged theme, so its important declarations
    outrank every later layer and unlayered stylesheet declaration without reserving a
    named layer custom CSS could append to. Inline importance ranks higher still, so the
    version gate refuses it on the protected properties below. */
 @layer {
   @media screen {
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main,
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main * {
       visibility: hidden !important;
       opacity: 0 !important;
       interactivity: inert !important;
       pointer-events: none !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main *::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
@@ -429,7 +430,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
   }
 }
 @media screen {
-  html:has(script[type="module"][src="/leaf.js"])
+  html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
     body:not([data-lf-presented])::after {
     content: "Applying current decisions\2026  If this stays, reload the page.";
     visibility: visible;

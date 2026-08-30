@@ -4,9 +4,9 @@
 The site is the pages the repo already holds. `docs/` is written to be opened from
 a checkout — the worn assets (`WORN`) arrive by relative paths into the plugin
 payload, and payload and example links point into the checkout — so publishing is
-those substitutions plus the files the paths then name. Nothing here writes a page
-anyone reads: what is on the web is the file in the tree, which is why the pages can
-double as specimens of the theme.
+those substitutions plus the files the paths then name. An example keeps its authored
+document and gains only the site-only startup marker below; that narrow transformation
+lets the files in the tree remain the specimens of the theme.
 
 The examples are the files in the tree too, and they are live. A leaf page is a
 directory — the vendored layer at a root, the versions under it — and a static host
@@ -14,12 +14,14 @@ serves every part of that; the one thing it hasn't got is the process behind /ap
 /api/event, and /api/news. So the build lays one vendored layer at the site's root,
 where a page's absolute /theme.css and /leaf.js resolve, and puts each example at its
 own examples/<name>/versions/v1.html, which is where the runtime reads a version number
-from. What answers the three paths is `docs/session.js`, loaded in front of the runtime
-by `docs/leaf.js`: the log lives in the reader's own tab. Every control on the page is
-then the shipped one, working — the banner, the thread panel, a board that takes a drag
-and holds it. The half no host can supply is the agent at the other end: the page
-reports itself unattended and the banner says so in the runtime's own words, and
-`docs/sitenote.js` says the whole of it in the site's own label above the document.
+from. The published root wears `data-lf-eager`, so the shipped theme can paint the
+authored page before this site's JavaScript arrives without changing that rule for a
+served Leaf page. What answers the three paths is `docs/session.js`, loaded in front of
+the runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on
+the page is then the shipped one, working — the banner, the thread panel, a board that
+takes a drag and holds it. The half no host can supply is the agent at the other end:
+the page reports itself unattended and the banner says so in the runtime's own words,
+and `docs/sitenote.js` says the whole of it in the site's own label above the document.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -104,6 +106,19 @@ PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
 # A live server can keep the root address because it injects the exact projected-version
 # marker into that response; this static host has no changing root response to mark.
 EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
+
+# A static showcase has no server response that could reconcile a prior log before paint,
+# so its immutable authored version is safe to show while this site's in-tab session
+# starts. CSS needs the fact in the document before an external module arrives. A served
+# Leaf page retains the ordinary presentation gate because its source has no marker.
+EAGER_ROOT = re.compile(r"<html(?=[\s>])", flags=re.IGNORECASE)
+
+
+def eager_example(html: str) -> str:
+    if len(EAGER_ROOT.findall(html)) != 1:
+        raise ValueError("a published example must have exactly one html root")
+    return EAGER_ROOT.sub("<html data-lf-eager", html, count=1)
+
 
 # The static showcase has one version and no server response that can stamp a live root
 # with the version it projected, so the directory's index forwards to the immutable file.
@@ -301,12 +316,14 @@ def publish_pages(out: Path, env: dict) -> None:
                     event_log.write(seed_text)
             published = out / "examples" / source.stem
             (published / "versions").mkdir(parents=True)
-            shutil.copy2(version, published / "versions" / "v1.html")
+            (published / "versions" / "v1.html").write_text(
+                eager_example(version.read_text(encoding="utf-8")), encoding="utf-8"
+            )
             (published / "index.html").write_text(REDIRECT, encoding="utf-8")
             # The thread the page opens on. A served page hands its log to the browser
             # through /api/state, which is `docs/session.js`'s answer here, so the log
             # is a file beside the versions exactly as it is in a page directory and
-            # that file is what the session reads before the runtime asks.
+            # that file is what the session puts in the runtime's first answer.
             (published / "comments.jsonl").write_text(seed_text, encoding="utf-8")
             (published / "data.json").write_text(
                 data_file.read_text(encoding="utf-8")

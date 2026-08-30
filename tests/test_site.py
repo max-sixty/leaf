@@ -30,7 +30,7 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select
+from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select, watched
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
@@ -163,8 +163,8 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in authored_examples():
         version = site / "examples" / source.stem / "versions" / "v1.html"
-        assert version.read_text() == source.read_text(), (
-            f"{source.name} was published as something other than the file in the tree"
+        assert version.read_text() == site_build.eager_example(source.read_text()), (
+            f"{source.name} changed beyond the static showcase's root marker"
         )
         assert "versions/v1.html" in (version.parent.parent / "index.html").read_text()
 
@@ -280,6 +280,69 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
         page.close()
 
 
+def test_an_example_paints_while_every_stage_of_site_startup_is_held(
+    site, hosted, browser
+):
+    """The static showcase paints before JavaScript or its session is ready.
+
+    Holding /leaf.js proves widget upgrade cannot be what made the document visible.
+    The waiting pseudo-element's computed content proves the loading sheet does not
+    exist, without waiting for an animation threshold. Once JavaScript starts, holding
+    both seed files proves the runtime graph overlaps their reads. The shadow widget is
+    the second presentation boundary: it must progressively render before replay too.
+    """
+    boot = []
+    seeds = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    page.route("**/data.json", lambda route: seeds.append(route))
+    page.route("**/comments.jsonl", lambda route: seeds.append(route))
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(example_url(hosted, "pr-walkthrough"), wait_until="commit")
+        expect(page.locator("h1")).to_have_text("Per-token rate limits")
+        expect(page.locator("h1")).to_be_visible()
+
+        assert boot, "the positive control did not hold the site boot module"
+        assert page.locator("html").get_attribute("data-lf-eager") == ""
+        expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
+        assert (
+            page.evaluate("() => getComputedStyle(document.body, '::after').content")
+            == "none"
+        ), "the waiting sheet painted before the site boot module arrived"
+
+        with page.expect_request("**/runtime.js"):
+            boot.pop().continue_()
+
+        assert len(seeds) == 2, "both session seed requests were not still in flight"
+        assert page.locator("body").get_attribute("data-lf-presented") is None
+        expect(page.locator("#limits-diff")).to_have_class(
+            re.compile(r"\blf-rendered\b")
+        )
+        expect(page.locator("#limits-diff details").first).to_be_visible()
+
+        for route in seeds:
+            route.continue_()
+        seeds.clear()
+        page.wait_for_load_state("load")
+        page.wait_for_function(BOTH_STAMPS)
+        assert errors == []
+    finally:
+        if boot:
+            # If /leaf.js never started, do not let releasing it create new held seed
+            # requests after the cleanup snapshot below.
+            page.unroute("**/data.json")
+            page.unroute("**/comments.jsonl")
+        for route in boot:
+            route.continue_()
+        for route in seeds:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
+
+
 def test_the_banner_says_nobody_rather_than_claiming_a_watcher(site, hosted, browser):
     """A published example is waiting for nobody, and the banner has to say so in both
     of the things it says at once.
@@ -325,7 +388,7 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
         for source in examples:
             opened(page, errors, example_url(hosted, source.stem))
             label = page.locator("main > .sitenote")
-            expect(label).to_contain_text("A live example of a leaf page.")
+            expect(label).to_contain_text("An example of a leaf page.")
             expect(label).to_contain_text("nothing you do here leaves your own browser")
             published = site / "examples" / source.stem / "versions" / "v1.html"
             targets = label.locator("a").evaluate_all(
@@ -391,7 +454,7 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
         )
 
         label = drag_across(page, "main > .sitenote p")
-        assert "live example" in label["text"]
+        assert "example of a leaf page" in label["text"]
         # The word `c` carries with nothing in hand — it goes to the threads rather
         # than opening a box on anything, and "comment on the selection" does not
         # contain it, so the two readings still tell each other apart.
@@ -409,8 +472,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
     The thread is the one thing no markup describes, so a copy of the markup could never
     carry one however it was written — which is what put every published example's
     comment loop out of reach until the pages went live. The session reads the log the
-    build laid beside the versions before the runtime asks for it, so the panel is right
-    on the first paint rather than filling in under a reader already reading it.
+    build laid beside the versions into the runtime's first state answer, so the panel
+    never renders an empty state and then fills in.
 
     The anchor is the half that rots quietly: the quote is captured against the file, and
     a rewritten sentence leaves it resolving to nothing and the thread standing detached,

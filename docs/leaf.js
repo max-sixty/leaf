@@ -5,13 +5,11 @@
  * /runtime.js is the vendored entry file byte for byte.
  *
  * These are dynamic imports because the order is a dependency, not presentation.
- * /session.js pauses while it reads the page's seed files and must finish installing
- * its in-tab /api/state responder before the runtime makes its first poll. Static
- * sibling imports may evaluate concurrently across that top-level await; the old
- * runtime-to-entry cycle happened to serialize them, until splitting the runtime into
- * its real owners correctly removed that cycle. /sitenote.js goes last, so a fault in
- * the site's own furniture costs the label rather than the chrome, the panel and every
- * widget on the page.
+ * /session.js starts reading the page's seed files and installs its in-tab /api/state
+ * responder before the runtime asks. The responder waits for those files when asked,
+ * so their reads overlap the runtime graph and widget modules. /sitenote.js goes last,
+ * so a fault in the site's own furniture costs the label rather than the chrome, the
+ * panel and every widget on the page.
  */
 await import("/session.js");
 await import("/runtime.js");

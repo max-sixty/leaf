@@ -302,66 +302,24 @@ export function chromeStyle({
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
   .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
   .lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
-  /* The keyboard address: the keys that reach this thing right now, worn as a chip
-     off its holder's corner so an address arriving moves nothing. The g chord paints one
-     on every member of every list it offers and an option wears the one a pick
-     answers, which is the same promise made on the two sides of the chrome's scope line —
-     so it is stated here, at the level both can reach, rather than as the twelve
-     declarations each once carried. They had not drifted; nothing was going to say so if
-     they did. What a wearer keeps is where its chip sits and when it shows — the chord's
-     stand in a layer of their own, placed on each member's visible corner, an option's in
-     a column that option holds for it. This rule dresses; theirs place and paint.
-
-     The box follows the type rather than standing beside it, and --lf-key-box says how
-     (theme.css, where it is stated because an option's column has to read it back).
-     Height and the square floor are both that, so the ring keeps its
-     clearance and a one-key address comes out square whatever the type is set at. At --t-6
-     it lands on the 17px interior and 19px box this chip has always been drawn to, so
-     nothing moves today — but a package may redeclare the ladder, theme files being
-     concatenated, and a fixed interior beside a token font is a box its own glyphs grow out
-     of. They painted over the ring at about 14.6px, and the reference's keys (.lf-help kbd)
-     have no fixed height at all, so the two would have parted at the first override.
-
-     Stated as a height and not left to the content, because one wearer does not size itself
-     from its content at all: an option's digit in the row form is absolutely positioned
-     against top and bottom together and centred with auto margins, so a box with no height
-     of its own stretches to the whole row — 30px against the chord's 19 — and the auto
-     margins have nothing left to centre. 4px of side padding is what holds a glyph off the
-     ring, and it is the same 4 for both wearers: a pick's address is one digit, so its whole
-     width is the square floor, and two more pixels a side put it past that floor and drew a
-     rectangle. Nothing here is a chip's own to restate — the render suite holds the two
-     faces to being one declaration, padding included.
-
-     Border-box is what makes those numbers true on both sides of the scope line: the page
-     sets none, so the copy in an option came out two pixels wider than the chord's — the
-     drift this one rule was written to make impossible.
-
-     Mono and a 4px radius because this is a key chip, dressed as the line and the
-     reference dress theirs (.lf-help kbd, .lf-keyline kbd; the render suite compares the
-     two). The face is the half that had to be right: the chord's chips carry the letter
-     now, and in the sans a lowercase l is a bare stroke, so the second link on a page
-     wore what read as 12.
-
-     Wide enough for the keys it carries and no wider, down to that floor: a pick's
-     address is one digit and comes out square, the chord's is the whole motion — leader,
-     letter and digit — and comes out wide. Stated as a fixed width instead, the second
-     would have needed a rule of its own in the chord's layer, and the family would have
-     been dressed in two places. The keys hold one line, the box being shrink-to-fit and
-     placed from a corner — one near the window's right edge would otherwise break in
-     two.
-
-     --t-6 and not a number of its own: that is what the line and the reference already
-     set their keys at, and a key chip is one thing wherever the reader meets it. The 11px
-     it held was half a pixel under the surfaces it is meant to match.
-
-     The interior is two pixels deeper than the 15 it stood at, which is room for the lit
-     block a chord chip carries: an inline background paints the font's own box and not the
-     line's, so the block comes out inset from the chip's edge by itself, and the spare
-     height is what makes that inset visible rather than a hairline. A flex box would centre
-     it as surely and cost the space between the keys — flex drops a whitespace-only text
-     node, so the address rendered as "ga 1", correct in every rule here and wrong in the
-     one place a reader looks. */
-  .lf-address { display: none; box-sizing: border-box; min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: var(--t-6); line-height: 1.478; text-align: center; white-space: nowrap; z-index: 1; }
+  /* One sequential step keeps one geometry in options, the key line, page addresses and
+     the reference. A sequence composes these fixed boxes instead of making spaces inside
+     one keycap carry time. A compact choice label such as g / G remains one decision point. */
+  .lf-address, .lf-key-sequence > kbd, .lf-key-more kbd { box-sizing: border-box;
+    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
+    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
+    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
+    line-height: 1.478; text-align: center; white-space: nowrap; }
+  .lf-address { display: none; border-color: var(--accent); background: var(--card);
+    color: var(--accent); z-index: 1; }
+  .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
+    white-space: nowrap; }
+  .lf-key-sequence > kbd, .lf-key-more kbd { display: inline-flex; align-items: center;
+    justify-content: center; }
+  .lf-key-then { color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
+    line-height: 1; }
+  .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
+    background: var(--accent); color: var(--card); }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -1180,7 +1138,7 @@ ${MARK_RULES}
     .lf-help table { display: table; width: 100%; table-layout: fixed;
       border-collapse: collapse; }
     .lf-help td { padding: 3px 0; vertical-align: baseline; }
-    .lf-help td:first-child { width: 84px; white-space: nowrap; }
+    .lf-help td:first-child { width: 104px; white-space: nowrap; }
     .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
       border: 0; border-radius: 4px; background: transparent; color: inherit;
       font: inherit; text-align: left; cursor: pointer; }
@@ -1256,19 +1214,6 @@ ${MARK_RULES}
       .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
         outline: 2px solid Highlight; }
     }
-    /* The glyph states its own ink rather than taking the line's. A key chip is the
-       one word on either surface the reader has to read to press anything, and on
-       --chip the surrounding line's --muted came to 4.46:1 — under AA, and quietly,
-       since the hint is aria-hidden and the corpus sweep walks pages with it empty.
-       --ink-2 clears it on both schemes. The words beside the chips keep --muted:
-       they sit on --card, which it clears.
-
-       One size for both surfaces, because a key chip is one thing wherever the reader
-       meets it — the same reason .lf-address is stated once for the panel and the page.
-       It is the apparatus rung, where the 12px it held was half a pixel off one. */
-    .lf-help kbd, .lf-keyline kbd { font-family: var(--mono); font-size: var(--t-6); background: var(--chip);
-      color: var(--ink-2);
-      border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
     /* The key line: a contextual shortlist plus persistent rows, rendered from the
        register the dispatcher walks (see the module docstring). A chord shows its whole
        live scope; More unfolds the remaining current register before it opens the complete
@@ -1303,8 +1248,6 @@ ${MARK_RULES}
        the whole thing off the page. */
     .lf-key-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
       outline-offset: calc(-1 * var(--here-ring-w)); }
-    .lf-keyline kbd.armed { border-color: var(--accent); background: var(--accent);
-      color: var(--card); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for
        as long as they are the page shows its bones. Every item — a widget, a section, a
        heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
@@ -1321,55 +1264,13 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's numbered document destinations: a chip per addressable member of every
-       list it offers, narrowed to one list once a letter names it, in a layer of the chrome's
-       own so an address can hang on a link set mid-sentence without writing a span into the
-       paragraph. Fixed, because authored members can sit in the document or a widget's
-       overflow; one layer that follows neither lets a single pass place them from the
-       viewport rects it just read, then repaint when anything scrolls under it. Each chip
-       is centred on the corner its member starts at — the first line of a wrapping inline,
-       not the whole box it spans — half in and half out. Nothing here is pressable. */
+    /* The g chord's numbered document destinations. Each visible member shows the complete
+       suffix still needed to reach it at the corner where it starts. */
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
-    /* The two halves of an address: the keys already pressed, and the press that finishes
-       the motion. A chip carries the whole of it, so how far in the reader is has to be
-       said by how the keys are set. Muted rather than dropped, which is what the chip used
-       to do — the address it drew was then shorter than the complete chord, and the short
-       one reaches nothing from a standing start.
-
-       Ground and not size. Muted against accent is 1.45:1 in the light palette and 1.28:1
-       in the dark, which is a difference in hue and barely one in lightness: on a key this
-       small the two halves read as one word, and to a reader who does not separate those
-       hues they are one word. Size was the second channel for exactly that reason, and it
-       cost more than it bought — one box holding two type sizes reads as a fault rather
-       than a hierarchy, and because a press moves a key from one size to the other, naming
-       a list re-set every chip on screen: 2.4px narrower and, being centred on its corner,
-       1.2px further right, under the eye that was reading them. A lit ground says the same
-       thing and takes no advance at all.
-
-       Which is what the negative margin buys, and the whole of why it is here. The ground
-       the block paints is not room it occupies: the margin cancels the padding that would
-       have been advance, so the keys sit exactly where they would with no block at all and
-       the key crossing from one half to the other on a press does not move. Without it that
-       key stepped 3px — measured, and larger than the 1.2px slide this rule replaced, which
-       would have been the same fault rewritten one glyph smaller.
-
-       The leading edge alone, because that is the only side a glyph sits after. Nothing
-       follows the lit half — it ends the address — so its trailing padding costs no glyph a
-       pixel and is left to take its room, which is what stands the ground off the ring
-       without the chip having to widen its own inset and lose the square a one-key address
-       comes out as.
-
-       Keyed off .lf-spent's presence, the one question both halves turn on: a chord chip
-       always has a half behind it (the leader is pressed before any chip is drawn) and an
-       option's digit never does — it is one key, whole whenever it is drawn, and it wants
-       neither a muted half nor a block inside its own box. Both rules take the same selector
-       shape for that reason. Keyed differently, a chip could take the ground without the
-       muting and come out half dressed. */
-    .lf-address .lf-spent { color: var(--muted); }
-    .lf-address .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
-      border-radius: 3px; background: var(--accent); color: var(--card); }
+    .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
+      border: 0; background: transparent; }
     /* Under the banner there is no room to straddle the corner, so the chip hangs below
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */
@@ -1383,6 +1284,9 @@ ${MARK_RULES}
     .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-targets > .lf-target-hint { position: absolute; display: block;
       transform: translate(-50%, -50%); }
+    .lf-target-hint .lf-spent { color: var(--muted); }
+    .lf-target-hint .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
+      border-radius: 3px; background: var(--accent); color: var(--card); }
     .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
     .lf-targets > .lf-target-hint.lf-current { font-weight: 700;
       box-shadow: 0 0 0 2px var(--accent); }
@@ -1490,6 +1394,8 @@ ${MARK_RULES}
        product palette with forced-color-adjust. */
     @media (forced-colors: active) {
       .lf-dot { background: CanvasText !important; }
+      .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: Highlight;
+        background: Highlight; color: HighlightText; }
       :scope :focus-visible { outline: 2px solid Highlight !important;
         outline-offset: 2px !important; box-shadow: none !important; }
       :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {

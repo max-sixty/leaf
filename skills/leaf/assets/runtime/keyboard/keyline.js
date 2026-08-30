@@ -3,9 +3,9 @@ import {
   bindings,
   commandPresentations,
   commandRoutes,
-  labelOf,
   word,
 } from "./bindings.js";
+import { keySequence, neutralStates, pressedStates, rowSteps } from "./presentation.js";
 
 export function createKeyline({
   announce,
@@ -166,11 +166,10 @@ export function createKeyline({
             ...referenceRows,
             ...projectedRows.filter((row) => row.linePriority === "persistent"),
           ];
-    // Read where it is painted, like every other cell: the chord's chip says which stage the
-    // reader is at (`g`, then `g h`), and a string fixed at declaration could only say one.
+    // Read where it is painted, like every other cell. A chord says its completed prefix
+    // once; every row then keeps the ordinary face used for an available binding.
     const chordScope = complete?.scope;
-    const chord = word(chordScope?.chord);
-    const chordRows = new Set(chordScope?.rows ?? []);
+    const chord = word(chordScope?.chord) ?? [];
     // Everything but More, which the reader may be standing on. `textContent = ""` takes
     // it out of the document, and removing a focused element blurs it: it returns on the
     // same line as the same node, connected again, with the reader dropped to `body`. That
@@ -181,7 +180,7 @@ export function createKeyline({
     for (const node of [...keylineEl.childNodes])
       if (node !== keylineMore) node.remove();
     const seated = keylineMore.parentElement === keylineEl;
-    const chip = (key, said, armed, afterMore = false, row = null) => {
+    const chip = (steps, said, states, afterMore = false, row = null) => {
       const span = el("span", "lf-key");
       span.setAttribute("aria-hidden", "true");
       if (row) {
@@ -189,24 +188,19 @@ export function createKeyline({
         const commands = commandPresentations(row, active).map(({ id }) => id);
         span.dataset.lfCommands = commands.join(" ");
       }
-      const kbd = document.createElement("kbd");
-      if (armed) kbd.className = "armed";
-      kbd.textContent = key;
-      span.append(kbd);
+      span.append(keySequence(steps, states));
       if (said) span.append(el("span", "", said));
       if (afterMore && seated) keylineEl.append(span);
       else keylineEl.insertBefore(span, seated ? keylineMore : null);
       return span;
     };
-    if (chord) chip(chord, "", true);
+    if (chord.length) {
+      const prefix = chip(chord, "", pressedStates(chord));
+      prefix.classList.add("lf-chord-prefix");
+    }
     const drawn = ordered.map((row) => {
-      const span = chip(
-        labelOf(row),
-        word(row.line),
-        chordRows.has(sourceRow(row)),
-        false,
-        row,
-      );
+      const steps = rowSteps(row);
+      const span = chip(steps, word(row.line), neutralStates(steps), false, row);
       span.hidden = row === referenceRow || (!shelf && !shown.has(row));
       return { row, span };
     });
@@ -223,7 +217,10 @@ export function createKeyline({
       for (const { row, span } of drawn)
         if (row.linePriority === "persistent") keylineEl.append(span);
 
-    if (shelf && tail) chip(labelOf(tail), word(tail.line), false, true);
+    if (shelf && tail) {
+      const steps = rowSteps(tail);
+      chip(steps, word(tail.line), neutralStates(steps), true);
+    }
 
     const visible = () =>
       [...keylineEl.children].filter((node) => !node.hidden && node.checkVisibility());

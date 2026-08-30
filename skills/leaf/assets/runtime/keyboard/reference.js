@@ -3,11 +3,10 @@ import {
   clampedRow,
   commandPresentations,
   declaredBindings,
-  labelOf,
   live,
-  spell,
   word,
 } from "./bindings.js";
+import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
 
 export function createReference({
   byCommand,
@@ -216,21 +215,12 @@ export function createReference({
       emptyRow.hidden = true;
       const sections = [];
       let total = 0;
-      // A chord row is reached from the standing page, so its cell shows every press. A
-      // custom label already groups the row's remaining bindings (for example `c 1–2`);
-      // an ordinary row is expanded binding by binding so `g / G` becomes the unambiguous
-      // `g g / g G` rather than `g g / G`.
-      const referenceLabel = (row, route) => {
-        const chord = word(row.chord);
-        if (route) return [chord, spell(route.binding)].filter(Boolean).join(" ");
-        if (!chord) return labelOf(row);
-        const label = word(row.label);
-        return label == null
-          ? bindings(row)
-              .map((binding) => `${chord} ${spell(binding)}`)
-              .join(" / ")
-          : `${chord} ${label}`;
-      };
+      // A chord row is reached from the standing page, so its cell shows the complete route.
+      // Each physical press keeps its own keycap; an ordinary row remains one compact step.
+      const referenceSteps = (row, route) => [
+        ...(word(row.chord) ?? []),
+        ...completeRowSteps(row, route),
+      ];
       const commandButtons = [];
       const availableWhere = (row, scopeTitle, scopeReach) => {
         const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
@@ -248,13 +238,13 @@ export function createReference({
             tr.dataset.lfCommand = id;
             tr.id = `lf-help-row-${total + entries.length}`;
             tr.setAttribute("role", "row");
-            const kbd = document.createElement("kbd");
-            const label = referenceLabel(row, route);
-            kbd.textContent = label;
-            kbd.id = `lf-help-key-${total + entries.length}`;
+            const steps = referenceSteps(row, route);
+            const label = steps.join(" ");
+            const sequence = keySequence(steps, neutralStates(steps));
+            sequence.id = `lf-help-key-${total + entries.length}`;
             const keyCell = document.createElement("td");
             keyCell.setAttribute("role", "gridcell");
-            keyCell.append(kbd);
+            keyCell.append(sequence);
             const actionCell = document.createElement("td");
             actionCell.setAttribute("role", "gridcell");
             const available = commandsAtOpen.has(id);
@@ -265,7 +255,7 @@ export function createReference({
               command.dataset.lfCommand = id;
               command.dataset.lfAvailable = String(available);
               command.dataset.lfSelected = "false";
-              command.setAttribute("aria-describedby", kbd.id);
+              command.setAttribute("aria-describedby", sequence.id);
               command.title = available
                 ? "Run command"
                 : availableWhere(row, scopeTitle, scopeReach);
@@ -292,7 +282,7 @@ export function createReference({
                 `${id} ${scopeTitle} ${label} ${word(does)} ${word(route?.line ?? row.line)}`,
               ),
               familyWords: helpWords(
-                `${row.id} ${referenceLabel(row)} ${word(row.does)}`,
+                `${row.id} ${referenceSteps(row).join(" ")} ${word(row.does)}`,
               ),
             });
           }

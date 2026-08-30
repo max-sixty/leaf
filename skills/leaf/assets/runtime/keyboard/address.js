@@ -1,4 +1,5 @@
 import { labelOf, spell } from "./bindings.js";
+import { keySequence } from "./presentation.js";
 
 export function createAddress({
   EVERYTHING,
@@ -175,59 +176,14 @@ export function createAddress({
   const MAX_NUMBERED_ADDRESSES = 9;
   const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
-  // How far the chord has come: `g`, and the list's letter once one has named a list. Every
-  // surface that shows an address asks it — the chip that heads the key line, the ranges
-  // beside it, the reference's full chords and the dimmed half of a chip on the page — so
-  // none of them can disagree about which press comes next.
-  //
-  // The chord's stage and not the reader's presses, which is the reading the reference needs:
-  // `?` reaches it from a page nobody has armed (declaredStack walks every scope, live or
-  // not), where the reference puts that prefix in front of each row to show the complete
-  // chord. The key line instead speaks the prefix in its own armed chip and lets the rows say
-  // what remains inside the mode. A chip is the one surface with nothing around it to carry
-  // the leader, and it is drawn only while the window is up, so its two questions — how far
-  // in, and how much the surroundings already say — have one answer.
+  // How far the chord has come: `g`, and the list's letter once one has named a list. The
+  // key line shows this prefix once; the reference combines the standing-page prefix with
+  // each full route. Page chips omit that prefix and show the complete suffix still needed
+  // for their target.
   const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
-  // An address as the page wears it: the whole of it, the keys already pressed standing back
-  // and the ones still to come lit. The whole of it, because a chip is the address — the same
-  // one every address surface spells while the chord is armed.
-  //
-  // Both halves are set at the chip's one size, and the split is carried by ground: the spent
-  // keys sit on the chip's own, the live ones on a lit block. Size was the channel once — the
-  // spent keys two points smaller — and it cost more than it bought. One box held two type
-  // sizes, which reads as a fault rather than a hierarchy; and because the split moves a key
-  // from one size to the other, naming a list re-set every chip on screen, each one narrowing
-  // 2.4px and sliding 1.2px under the eye that was reading them. Ground carries the same
-  // distinction and takes no advance, so a press lights one more key and moves no glyph.
-  // That last part is the stylesheet's doing and not this function's: the lit block's padding
-  // is cancelled by an equal negative margin. Paid for in advance instead, the key crossing
-  // between the halves stepped 3px on the press — measured, and larger than the 1.2px slide
-  // this replaced, so the fault would have survived one glyph smaller.
-  //
-  // The space between the two halves belongs to the address. It is a text node and the box
-  // is block rather than flex for exactly that reason: flex drops a whitespace-only child, and
-  // the chip came out `ga 1`.
-  //
-  // `lf-lit` and not `lf-live`, which this layer already spends on the visually-hidden live
-  // region: a span wearing that name is clipped to a pixel by the stylesheet's own rule, so
-  // the half of the address still to be pressed would have been drawn nowhere at all.
-  //
-  // Built only inside the armed window, which is where the chord's own keys are never none —
-  // and, past the letter, only for the list the chord has named (paintAddresses narrows to
-  // `aimedList` there), which is what makes those keys a prefix of this address rather than a
-  // different list's. So `.lf-spent` is always present on a chord chip and never on the bare
-  // digit an options group wears, which is how one stylesheet dresses both.
   const addressChip = (entry, n) => {
-    const number = String(n);
-    let spent = labelOf(GOTO);
-    let live = `${entry.key} ${number}`;
-    const join = " ";
-    if (aimedList) {
-      spent += ` ${entry.key}`;
-      live = number;
-    }
-    const chip = el("span", "lf-address");
-    chip.append(el("span", "lf-spent", spent), join, el("span", "lf-lit", live));
+    const chip = el("span", "lf-address lf-chord-address");
+    chip.append(keySequence(aimedList ? [String(n)] : [entry.key, String(n)]));
     return chip;
   };
 
@@ -272,9 +228,10 @@ export function createAddress({
   // placed from the member's own visible box, so a chip cannot claim room the page has
   // already refused — a thread scrolled out of the panel's list, a card half out of a board.
   //
-  // Each carries its whole address, which is what lets every list paint at once: a bare
-  // digit promises nothing until a letter has named a list, so the chips could only follow
-  // the letter, and the press that opened the mode moved nothing the reader could see.
+  // At the first stage, every visible member shows its list letter and digit, the complete
+  // remaining suffix that distinguishes it from the other lists. Naming a list narrows those
+  // chips to the digit still needed. Every key in a chip remains neutral because none of its
+  // displayed suffix has been pressed.
   //
   // The layer is the chrome's rather than the page's own markup for the reason every mark is
   // (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
@@ -283,8 +240,8 @@ export function createAddress({
   //
   // Every chip is built detached and the layer takes them in one write, which is the rule
   // the legend states for this same layer: a chip in the tree is a DOM write, and the next
-  // member's rect read after one is a layout forced per member, on every list until a letter
-  // narrows them and on every scroll frame an armed window stands through.
+  // member's rect read after one is a layout forced per member, on every scroll frame a
+  // numbered-list window stands through.
   function paintAddresses() {
     const chips = [];
     if (chordArmed) {
@@ -296,10 +253,6 @@ export function createAddress({
       // nothing the reader can see there. So it rides the covered edge, and a member with
       // nothing left below that edge wears no chip at all.
       const covered = banner.getBoundingClientRect().bottom;
-      // Every list until one is named, and then that one alone: the offer narrows as the
-      // chord advances, and the addresses a reader was already reading keep their places.
-      // Narrows rather than summons: both numbered lists live in the authored document,
-      // while panel mnemonics complete their trip without painting numeric chips.
       for (const entry of aimedList ? [aimedList] : ADDRESSES) {
         for (const [i, member] of addressed(entry).entries()) {
           const r = startsAt(member, clips);
@@ -369,12 +322,12 @@ export function createAddress({
 
   // The chord: one scope, a row per panel and addressable list, a row for the page's two
   // edges, and the window's own way out. A panel's mnemonic completes its travel. A list
-  // row holds the whole motion — its letter names the list, and the one digit it
+  // row holds the route after g — its letter names the list, and the one digit it
   // then binds is the address into it. That is `v`'s shape,
   // a chooser whose second key belongs to the scope the first one stood up, and the reason
   // it is one row rather than two is that a digits row of its own could not name which list
   // it meant. The edges row is the same motion one key shorter: an edge is one place, so its
-  // letter is the whole address, and it is why the scope has no `when` — every page has a
+  // letter completes the route, and it is why the scope has no `when` — every page has a
   // top, so the window g arms is never empty.
   //
   // A row's `when` carries both questions here, where a scope usually carries one of them: a
@@ -388,7 +341,7 @@ export function createAddress({
   const GO = {
     title: "Go to",
     reach: "with g armed",
-    chord: () => chordKeys().join(" "),
+    chord: chordKeys,
     at: () => chordArmed,
     claims: EVERYTHING,
     rows: [
@@ -459,10 +412,12 @@ export function createAddress({
         },
         // The range the capped list actually holds, so the label cannot offer an address
         // no member wears.
-        label: () => {
-          const members = range(addressed(entry).length);
-          return aimedList === entry ? members : `${entry.key} ${members}`;
+        label: () => (aimedList === entry ? range(addressed(entry).length) : entry.key),
+        chordSteps: () => {
+          if (aimedList === entry) return [range(addressed(entry).length)];
+          return [entry.key];
         },
+        completeChordSteps: () => [entry.key, range(addressed(entry).length)],
         does: entry.does,
         line: entry.word,
         when: () => addressed(entry).length > 0 && (!aimedList || aimedList === entry),
@@ -500,12 +455,11 @@ export function createAddress({
       {
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
-        // inside it — the armed chip says so, reading `g` and then `g h`, and the chips on
-        // the page narrow with it — so one Escape gives the letter back and the next
-        // closes the window. It took both at once, which is the same drift `c` had at the
-        // panel: a reader who had narrowed to the wrong list wanted the other one, and
-        // cancelling put them back on the page, pressing `g` again to reach a window that
-        // had been standing the whole time.
+        // inside it — the pressed prefix grows and the page chips narrow to that list — so
+        // one Escape gives the letter back and the next closes the window. It took both at
+        // once, which is the same drift `c` had at the panel: a reader who had narrowed to
+        // the wrong list wanted the other one, and cancelling put them back on the page,
+        // pressing `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),
         line: () => (aimedList ? "back to the lists" : "cancel"),

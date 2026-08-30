@@ -13,7 +13,8 @@ from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids, spoken
 from leaf.projection import page_projection, state_projection
-from leaf.registry.contract import json_validator, visual_parts
+from leaf.registry.contract import schema_error, visual_parts
+from leaf.requests import request_lifecycles_for, request_phases
 from leaf.structure import parse_revision
 from leaf.thread_context import thread_roots, thread_structure, thread_widgets
 
@@ -49,13 +50,6 @@ def thread_state(events: list, registry: dict):
     return projection, byid, thread_of
 
 
-def detail_error(schema: dict, detail: dict):
-    """The first schema complaint about an event's detail payload, or None —
-    ordered so which one speaks doesn't depend on validator iteration order."""
-    error = min(json_validator(schema).iter_errors(detail), key=str, default=None)
-    return error.message if error else None
-
-
 def event_record_error(contract: dict, event: dict, browser: bool = False):
     """The first complaint from one event kind's stored-record contract."""
     schema = contract["record"]
@@ -71,7 +65,7 @@ def event_record_error(contract: dict, event: dict, browser: bool = False):
             "author": "page" if event.get("kind") == "error" else "user",
             "seq": 1,
         }
-    return detail_error(schema, instance)
+    return schema_error(schema, instance)
 
 
 def declared_event_error(
@@ -89,7 +83,7 @@ def declared_event_error(
         return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
             f"; it declares {sorted(declared)}" if kind == "report" and declared else ""
         )
-    if message := detail_error(spec["detail"], event["detail"]):
+    if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
     return None
 
@@ -216,11 +210,6 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     requirement = spec.get("requires")
     if not requirement:
         return None
-
-    # Imported here because request admission uses this module's schema helper.
-    # The transaction still has one canonical lifecycle reading; the local import
-    # only keeps that dependency from becoming an import cycle.
-    from leaf.requests import request_lifecycles_for, request_phases
 
     if page_rec:
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")

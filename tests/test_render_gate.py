@@ -1189,14 +1189,50 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
     assert not [f for f in failures if "inner-word" in f], (
         "a resident's own words were named for standing where their parent put them"
     )
-    # Clear of the column and clear of the window with it. Body is the page's scroller
-    # and scrollLeft never runs below zero, so the sideways reading is blind to this one
-    # and the margin exemption would carry it straight through.
+    # Clear of the column and clear of the window with it. The root scrollport never
+    # scrolls before its leading edge, so the sideways reading is blind to this one and
+    # the margin exemption would carry it straight through. The probe follows Leaf's
+    # canonical page scroller and names that role instead of its current platform tag.
     assert [
         f
         for f in failures
-        if "<div id=off-window> is drawn" in f and "outside <body>" in f
+        if "<div id=off-window> is drawn" in f and "outside <root scrollport>" in f
     ], "a float carried off the edge of the window went out with the handover"
+
+
+def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
+    """A narrow authored body is not the page's viewport. Its child can be wider than
+    that body while still fitting on screen, so measuring body would invent sideways
+    document overflow where the canonical root scrollport has none."""
+    source = leaf_page(
+        "root scrollport width",
+        """
+<style>
+body { width: 400px; }
+#wide-inside-window { width: 700px; }
+</style>
+<h1>Capacity plan</h1>
+<div id="wide-inside-window">Seven hundred pixels still fit in this viewport.</div>
+""",
+    )
+
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    overflow = page.evaluate(
+        """() => ({
+          body: document.body.scrollWidth - document.body.clientWidth,
+          root: document.scrollingElement.scrollWidth
+                - document.scrollingElement.clientWidth,
+        })"""
+    )
+    assert overflow["body"] > 0, "the two candidate measurements do not diverge"
+    assert overflow["root"] == 0, overflow
+    assert errors == []
+    page.close()
+
+    failures = render_gate_model.render_version(browser, url)
+
+    assert not [f for f in failures if "page scrolls sideways" in f], failures
 
 
 def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(

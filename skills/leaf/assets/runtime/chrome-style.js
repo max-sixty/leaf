@@ -168,15 +168,14 @@ export function chromeStyle({
      .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
      quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
      so it holds no room; the covered-words gate skips this class the way it skips the
-     runtime's own .lf-mark-note, which wears the same clip.
+     runtime's own .lf-mark-note, which keeps the same one-pixel geometry.
 
      And out of the selection, which the clip does not do on its own: a word standing
      among the page's own words is inside any selection drawn across them, so the
      runtime's reading skipped it and the user's clipboard did not — a copied task line
      came away carrying the word "done", and a copied code block would carry
      "highlighted" into whatever editor it was bound for. .lf-mark-note had answered
-     this the day it was written and the clip it shares had not — two copies of one
-     recipe, already drifted apart, which is why there is one of them here now.
+     this the day it was written and this recipe had not, so both inherit it here.
 
      No offsets, so the box keeps the static position its holder gives it. That place is
      read: shownBox reads it for a wrapper that draws no box of its own, and everything
@@ -188,8 +187,12 @@ export function chromeStyle({
      reachScrollers marks every static box that scrolls, and the theme positions the
      mark ([data-lf-holds]). */
   .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
-    overflow: hidden; clip-path: inset(50%); user-select: none; -webkit-user-select: none; }
-  .lf-quiet { white-space: nowrap; }
+    overflow: hidden; user-select: none; -webkit-user-select: none; }
+  /* A comment note is also a real button exposed through the accessibility tree. Keep
+     its resting box transparent instead of clipping it out of hit testing, so an
+     ordinary pointer press reaches the same click handler as Enter. */
+  .lf-mark-note { opacity: 0; }
+  .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -482,14 +485,16 @@ ${MARK_RULES}
   .lf-visual-actions { display: contents; }
   .lf-visual-action { pointer-events: none; }
   /* The one runtime word living inside the page's own elements, so its hiding cannot
-     come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
-     once above for both. It becomes a skip-link-style control on focus: a reader who
+     come from the chrome's scoped .lf-unseen. Its transparent one-pixel resting box is
+     still a real hit target for an ordinary pointer press. It becomes a skip-link-style
+     control on focus: a reader who
      hears the count can enter its first thread, then t/T through the rest. The rule
-     below states its whole visible form, so the resting native button adds nothing to
-     the clip. */
+     below states its whole visible form, so the transparent resting button adds no
+     paint of its own. */
   .lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
-    width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
+    width: auto; height: auto; padding: 6px 10px; overflow: visible;
+    opacity: 1;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-visual-action:focus-visible { position: fixed; z-index: 9050;

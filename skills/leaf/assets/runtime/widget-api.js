@@ -11,6 +11,7 @@ export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
 export { marginAction, registerMarginItem } from "./living-margin.js";
 export { scrollerFor } from "./navigation.js";
+export { pageScroller } from "./scrolling.js";
 export { announce, toast } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";

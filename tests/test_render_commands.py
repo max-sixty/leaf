@@ -58,12 +58,12 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     and every page the sweep above renders is a page with no comments on it.
 
     The pass hunting words drawn on other words has to know the same difference, and
-    knows it as a float the runtime hangs over the page. That line is clipped to nothing
-    and checkVisibility answers for display, visibility and opacity, so it reads as drawn,
-    and its characters fall down the document through the paragraphs under the passage.
-    Holding it out is the only thing keeping this page clean, so the reading is taken
-    twice: once as the gate runs it, and once with the hold defeated, where it has to
-    report.
+    knows it as a float the runtime hangs over the page. The resting control is transparent,
+    so the browser correctly omits it from a paint check. This test makes that control
+    visible to plant the fault it is about: its characters then fall down the document
+    through the paragraphs under the passage. Holding the runtime float out is the only
+    thing keeping the reading clean, so it is taken twice: once as the gate runs it, and
+    once with the hold defeated, where it has to report.
 
     The hold is the float predicate rather than a class named in the skip list, which is
     what the second reading has to reach for now: the line is out-of-flow chrome like a
@@ -81,13 +81,17 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
-    # The same reading with the hold defeated, taken while the page is up.
+    # Give the real runtime control paint so this tests the floating exemption rather
+    # than passing because the ordinary resting state is not drawn.
+    page.locator(".lf-mark-note").evaluate("note => note.style.opacity = '1'")
+    held = render_checks_model.evaluate_probe(page, "coveredWords")
     reported = render_checks_model.evaluate_probe(
         page, "coveredWords", {"holdFloating": False}
     )
     assert errors == []
     page.close()
     assert render_gate_model.render_version(browser, url) == []
+    assert held == []
     assert any("1 comment" in found for found in reported), (
         "the line falls on nobody, so a gate that never looked would pass this too"
     )

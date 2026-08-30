@@ -1,7 +1,10 @@
-import { shownBand, uiInside } from "/runtime/widget-api.js";
+import { pageScroller, shownBand, uiInside } from "/runtime/widget-api.js";
 
-export const bodyOverflow = () => document.body.scrollWidth - document.body.clientWidth;
-const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
+export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
+const at = (el) =>
+  el === pageScroller
+    ? "<root scrollport>"
+    : `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
 
 // Every box is drawn somewhere, and something has to answer for where. Three
 // readings ask it — of the column, of the room the page keeps for a wide widget,
@@ -262,9 +265,9 @@ export function misplacedBoxes() {
   //
   // The nearest container and no further, because past it what an outer box sees is
   // that container's own edges, and the container answers the same question on its
-  // own turn of the loop. Body is the page's scroller, so this is also where a float
-  // carried off the leading edge of the window is named — the sideways reading, which
-  // reads how far the page scrolls, cannot see one. Wholly inside, because a box half
+  // own turn of the loop. The root scrollport is also where a float carried off the
+  // leading edge of the window is named — the sideways reading, which reads how far
+  // the page scrolls, cannot see one. Wholly inside, because a box half
   // in the clip is half unreadable: the group above leaves 7px of a 192px note
   // showing, which is nothing an "overlaps at all" reading would have objected to.
   const scrolls = (s) => /^(auto|scroll)$/.test(s.overflowX);

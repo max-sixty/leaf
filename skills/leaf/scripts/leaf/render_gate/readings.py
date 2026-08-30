@@ -27,7 +27,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     missing_visual_providers = evaluate_probe(page, "missingVisualProviders", widgets)
     tiny = evaluate_probe(page, "tinyBoxes", widgets)
     unmarkable = evaluate_probe(page, "unmarkableItems")
-    overflow = evaluate_probe(page, "bodyOverflow")
+    overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
     withheld = evaluate_probe(page, "withheldRoom")
     squeezed = evaluate_probe(page, "squeezedTables")

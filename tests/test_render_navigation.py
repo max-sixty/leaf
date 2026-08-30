@@ -835,12 +835,18 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
     ), "the hidden line is painting on screen"
     note = page.locator("#p1 .lf-mark-note")
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(note).to_have_role("button")
+    note.click()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     note.focus()
     expect(note).to_be_focused()
     assert note.evaluate("el => el.getBoundingClientRect().width > 1"), (
         "the comment path stayed invisible when a keyboard reader reached it"
     )
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
     expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
     page.keyboard.press("t")

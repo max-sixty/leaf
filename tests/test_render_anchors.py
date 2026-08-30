@@ -2252,7 +2252,9 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.move(spot["x"], spot["y"])
     page.wait_for_function("() => document.body.classList.contains('lf-over-mark')")
-    page.evaluate("() => document.body.scrollBy({top: 900, behavior: 'instant'})")
+    page.evaluate(
+        "() => document.scrollingElement.scrollBy({top: 900, behavior: 'instant'})"
+    )
     page.wait_for_function(
         "() => !document.body.classList.contains('lf-over-mark')"
         " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"

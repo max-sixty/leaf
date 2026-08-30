@@ -250,7 +250,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
     in a horizontally scrollable row, but the two actions that complete the reading loop
     must be in the first view from a 320px phone through a small tablet. Above the covering
     breakpoint the same row must keep every crowded destination reachable, and the
-    document itself must never become its scroller.
+    document must never gain horizontal overflow.
     """
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -336,14 +336,14 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
     locked = actions.evaluate(
         """actions => {
           actions.scrollLeft = actions.scrollWidth;
-          document.body.scrollTop = 400;
-          const before = document.body.scrollTop;
+          document.scrollingElement.scrollTop = 400;
+          const before = document.scrollingElement.scrollTop;
           const event = new WheelEvent('wheel', {
             bubbles: true, cancelable: true, deltaY: 120
           });
           actions.dispatchEvent(event);
-          return {before, after: document.body.scrollTop,
-                  overflow: getComputedStyle(document.body).overflowY};
+          return {before, after: document.scrollingElement.scrollTop,
+                  overflow: getComputedStyle(document.scrollingElement).overflowY};
         }"""
     )
     assert locked == {
@@ -390,48 +390,31 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
     page.wait_for_function(
         "() => document.querySelector('.lf-banner-actions').scrollLeft > 0"
     )
-    # Once the shelf has spent the part it can consume, Chromium will not naturally
-    # chain the rest out of this overflow box. Leaf hands that remainder to its body
-    # scroller, while a browser zoom gesture remains wholly the browser's.
+    # Once the shelf reaches its edge, the uncancelled trusted wheel continues through
+    # the browser's native chain to the root scrollport. Browser zoom remains wholly the
+    # browser's as well.
     edge = page.evaluate(
         """() => {
           const actions = document.querySelector('.lf-banner-actions');
           actions.scrollLeft = actions.scrollWidth;
-          document.body.scrollTop = 200;
-          return {shelf: actions.scrollLeft, page: document.body.scrollTop};
+          document.scrollingElement.scrollTop = 200;
+          return {shelf: actions.scrollLeft, page: document.scrollingElement.scrollTop};
         }"""
     )
     page.mouse.wheel(0, 120)
     page.wait_for_function(
-        "(before) => document.body.scrollTop > before", arg=edge["page"]
+        "(before) => document.scrollingElement.scrollTop > before", arg=edge["page"]
     )
     assert actions.evaluate("el => el.scrollLeft") == edge["shelf"], (
         "the shelf moved past its end instead of handing the wheel to the page"
     )
-    shifted_page = page.evaluate("() => document.body.scrollTop")
+    shifted_page = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.down("Shift")
     page.mouse.wheel(0, 120)
     page.keyboard.up("Shift")
-    assert page.evaluate("() => document.body.scrollTop") == shifted_page, (
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == shifted_page, (
         "Shift+wheel at the shelf edge unexpectedly became vertical page scrolling"
     )
-    page_delta = actions.evaluate(
-        """actions => {
-          actions.scrollLeft = actions.scrollWidth;
-          document.body.scrollTop = 100;
-          const before = document.body.scrollTop;
-          const page = document.body.clientHeight;
-          const limit = document.body.scrollHeight - page;
-          actions.dispatchEvent(new WheelEvent('wheel', {
-            bubbles: true, cancelable: true, deltaMode: WheelEvent.DOM_DELTA_PAGE,
-            deltaY: 1
-          }));
-          return {before, after: document.body.scrollTop, page, limit};
-        }"""
-    )
-    assert page_delta["after"] == pytest.approx(
-        min(page_delta["limit"], page_delta["before"] + page_delta["page"]), abs=1
-    ), f"a page-unit shelf remainder used the shelf's width: {page_delta}"
     zoom = actions.evaluate(
         """actions => {
           actions.scrollLeft = 0;
@@ -481,6 +464,9 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
     # destinations must scroll the shelf by the same amount, keeping the keyboard's
     # current address visible and under its ring.
     heading = page.locator("#t")
+    heading.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
     heading_box = heading.bounding_box()
     select(
         page,
@@ -750,12 +736,14 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.emulate_media(reduced_motion="reduce")
     assert page.evaluate(reading) == {"reduced": True, "scroll": "instant"}
     step = page.evaluate(
-        "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
+        "() => (document.scrollingElement.clientHeight"
+        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
     )
-    page.evaluate("() => document.body.scrollTo({top: 0, behavior: 'instant'})")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+    )
     page.keyboard.press("Space")
-    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
     ), "the navigation factory kept its load-time motion preference"
 
@@ -768,7 +756,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
           window.requestAnimationFrame = callback =>
             (window.__lfFrames.push(callback), window.__lfFrames.length);
           window.cancelAnimationFrame = () => {};
-          document.body.scrollTo({top: 0, behavior: 'instant'});
+          document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
         }"""
     )
     page.keyboard.press("Space")
@@ -780,7 +768,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
           for (const callback of frames) callback(0);
         }"""
     )
-    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
     ), "an active glide kept moving after the reader asked for reduced motion"
     assert errors == []
@@ -849,12 +837,12 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
                     and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
                 ), f"the wide coarse {item} escaped its banner at {width}px: {geometry}"
 
-        # Body is Leaf's durable page scroller. Touch beginning in fixed chrome needs an
-        # explicit vertical bridge to it, while a horizontal shelf gesture stays native.
+        # The browser's root is Leaf's page scrollport. Native touch beginning in fixed
+        # chrome reaches it, while a horizontal shelf gesture stays with the shelf.
         cdp = context.new_cdp_session(page)
         resized(page, 390, 700)
         page.wait_for_function(
-            "() => getComputedStyle(document.body).overflowY !== 'hidden'"
+            "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden'"
         )
         actions = page.locator(".lf-banner-actions")
         page.evaluate(
@@ -874,14 +862,14 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         y = point["y"] + point["height"] / 2
         page.evaluate(
             "() => { const shelf = document.querySelector('.lf-banner-actions');"
-            " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"
+            " shelf.scrollLeft = 0; document.scrollingElement.scrollTop = 200; }"
         )
         _touch_drag(cdp, x, y, dy=-160)
-        page.wait_for_function("() => document.body.scrollTop > 200")
+        page.wait_for_function("() => document.scrollingElement.scrollTop > 200")
         vertical = page.evaluate(
             "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
-            " page: document.body.scrollTop,"
-            " overflow: getComputedStyle(document.body).overflowY})"
+            " page: document.scrollingElement.scrollTop,"
+            " overflow: getComputedStyle(document.scrollingElement).overflowY})"
         )
         assert (
             vertical["shelf"] == 0
@@ -890,7 +878,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         ), f"a vertical touch over the shelf never reached the page: {vertical}"
         page.evaluate(
             "() => { const shelf = document.querySelector('.lf-banner-actions');"
-            " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"
+            " shelf.scrollLeft = 0; document.scrollingElement.scrollTop = 200; }"
         )
         _touch_drag(cdp, x, y, dx=-160)
         page.wait_for_function(
@@ -898,23 +886,23 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         )
         horizontal = page.evaluate(
             "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
-            " page: document.body.scrollTop})"
+            " page: document.scrollingElement.scrollTop})"
         )
-        assert horizontal["shelf"] > 0 and horizontal["page"] == 200, (
-            f"the touch shelf lost its native horizontal pan: {horizontal}"
+        assert horizontal["shelf"] > abs(horizontal["page"] - 200), (
+            f"the native horizontal shelf gesture became page travel: {horizontal}"
         )
 
         resized(page, 1200, 700)
         status = page.locator(".lf-banner-status").bounding_box()
-        page.evaluate("() => { document.body.scrollTop = 200; }")
+        page.evaluate("() => { document.scrollingElement.scrollTop = 200; }")
         _touch_drag(
             cdp,
             status["x"] + status["width"] / 2,
             status["y"] + status["height"] / 2,
             dy=-160,
         )
-        page.wait_for_function("() => document.body.scrollTop > 200")
-        assert page.evaluate("() => document.body.scrollTop") > 200, (
+        page.wait_for_function("() => document.scrollingElement.scrollTop > 200")
+        assert page.evaluate("() => document.scrollingElement.scrollTop") > 200, (
             "the status half of the fixed banner remained a dead touch-scroll strip"
         )
         assert errors == []
@@ -1491,6 +1479,12 @@ def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
     expect(page.locator("#col-doing.lf-mark-el")).to_have_count(1)
     ink = token_colour(page, "--mark-ink")
     for ident in ("approach", "col-doing"):
+        # The root scrollport changes the page's reading position directly. Centre each
+        # specimen before taking the viewport-bounded pixel clip so this paint test does
+        # not depend on both fixtures happening to fit at the initial scroll position.
+        page.locator(f"#{ident}").evaluate(
+            "node => node.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+        )
         painted = page.evaluate(
             "(id) => getComputedStyle(document.getElementById(id)).outlineColor", ident
         )
@@ -1996,13 +1990,11 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
 
 
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
-    """`html` is `overflow: hidden` here so the document scrolls in `body`, and the
-    browser scrolls whichever box it last saw the reader put themselves in. On a fresh
-    load that is none of them, so Space, PageDown and the arrows did nothing whatever
-    until the reader happened to click somewhere in the page — while the runtime's own
-    Leaf's own page-step keys worked from the first frame, which is what kept it hidden: the keys Leaf
-    names were live and the keys every reader already knows were dead, which reads as a
-    page that has no keyboard scrolling rather than as a page with a bug.
+    """A fresh page gives ordinary keyboard scrolling to the browser's root scrollport.
+
+    Space, PageDown, and arrows work before a reader has clicked anywhere. Leaf still
+    places focus on body so there is a stable page location to return to after chrome,
+    but scrolling no longer depends on teaching the browser about a non-root box.
 
     All three keys, because they are one fact about which box the browser is scrolling
     rather than three rows in a table — a fix that reached only the key this test named
@@ -2019,7 +2011,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
     for key in ("Space", "PageDown", "ArrowDown"):
         # Programmatic, so the page is still one nobody has put themselves in: a click
         # to get back to the top would be the very thing this test says is not needed.
-        page.evaluate("() => { document.body.scrollTop = 0; }")
+        page.evaluate("() => { document.scrollingElement.scrollTop = 0; }")
         page.keyboard.press(key)
         try:
             page.wait_for_function(SCROLLED)
@@ -2049,19 +2041,16 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     reader is already holding it: the same key that unwound the chrome takes them out
     of it.
 
-    The scroll is what the rung has to hand back, and handing it back means naming a
-    box again: the document scrolls in `body` rather than in the viewport here, so the
-    browser needs to have seen the reader put themselves somewhere. A blur names
-    nowhere, and from `document.activeElement` the two are the same answer. The page
-    names one at load, which is the test above, and this one is about losing it to the
-    chrome and getting it back."""
+    The scroll is what the rung has to hand back. Root scrolling is native now, but a
+    focused button still owns Space; focus therefore returns to the page rather than
+    merely blurring to nowhere."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     toggle = page.locator(".lf-threads-toggle")
     panel = page.locator(".lf-panel")
     ringed = (
         "() => document.querySelector('.lf-threads-toggle').matches(':focus-visible')"
     )
-    top = "() => document.body.scrollTop"
+    top = "() => document.scrollingElement.scrollTop"
 
     # A reader reading: Space is Leaf's overlapping 60% page step.
     page.keyboard.press("Space")
@@ -2099,7 +2088,9 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     ), "landing on the page drew a ring around it"
     page.keyboard.press("Space")
     expect(panel).to_be_hidden()
-    page.wait_for_function("(was) => document.body.scrollTop > was", arg=was)
+    page.wait_for_function(
+        "(was) => document.scrollingElement.scrollTop > was", arg=was
+    )
     assert errors == []
     page.close()
 
@@ -2459,10 +2450,11 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
 
 def test_page_and_panel_scroll_in_separate_regions(browser, serve):
-    """The document scrolls its own column, not the viewport. If it scrolled the
-    viewport, its scrollbar would be drawn at the window's right edge — over the
-    panel, in the same pixels as the thread list's own — and the two thumbs would
-    stack. The regions must not share an edge."""
+    """The browser root scrolls the document and the panel keeps its own scrollport.
+
+    Body is the yielding layout shell rather than a third scroll region: beside a wide
+    panel its right edge ends where the panel begins, while native document scrolling
+    remains rooted in html."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=12))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2470,19 +2462,16 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     geom = page.evaluate("""() => {
         const box = el => el.getBoundingClientRect();
         const body = document.body, threads = document.querySelector('.lf-threads');
-        return { viewportScrolls: document.documentElement.scrollHeight > document.documentElement.clientHeight,
-                 bodyScrolls: body.scrollHeight > body.clientHeight,
+        return { rootIsScroller: document.scrollingElement === document.documentElement,
+                 rootScrolls: document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight,
+                 bodyOverflow: getComputedStyle(body).overflowY,
                  threadsScroll: threads.scrollHeight > threads.clientHeight,
                  bodyRight: box(body).right, threadsLeft: box(threads).left };
     }""")
 
-    assert not geom["viewportScrolls"], (
-        "the viewport is scrolling the document, so its scrollbar is drawn at the "
-        "window's right edge — on top of the panel"
-    )
-    assert geom["bodyScrolls"] and geom["threadsScroll"], (
-        "both regions must overflow for this test to mean anything"
-    )
+    assert geom["rootIsScroller"] and geom["rootScrolls"]
+    assert geom["bodyOverflow"] == "visible", geom
+    assert geom["threadsScroll"], "the panel did not establish its own scrollport"
     assert geom["bodyRight"] <= geom["threadsLeft"], (
         f"scroll regions overlap: the page ends at {geom['bodyRight']}px, "
         f"the thread list starts at {geom['threadsLeft']}px"
@@ -2505,8 +2494,8 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     # A reading position first, so surviving the sheet is observable.
     page.mouse.move(120, 300)
     page.mouse.wheel(0, 600)
-    page.wait_for_function("() => document.body.scrollTop > 0")
-    before = page.evaluate("() => document.body.scrollTop")
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2519,7 +2508,7 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.mouse.move(400, 300)
     page.mouse.wheel(0, 400)
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert page.evaluate("() => document.body.scrollTop") == before, (
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before, (
         "the page scrolled behind the covering sheet"
     )
 
@@ -2541,24 +2530,24 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
         """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                    return Math.abs(m.top + m.height / 2 - innerHeight / 2) < 1; }"""
     )
-    at_mark = page.evaluate("() => document.body.scrollTop")
+    at_mark = page.evaluate("() => document.scrollingElement.scrollTop")
     assert at_mark != before
 
     # Scrolling belongs to the visible page again immediately after that navigation.
     page.mouse.move(120, 300)
     page.mouse.wheel(0, 200)
-    page.wait_for_function(f"() => document.body.scrollTop > {at_mark}")
+    page.wait_for_function(f"() => document.scrollingElement.scrollTop > {at_mark}")
 
     # The resize path: narrowing onto an open panel locks, widening unlocks.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     resized(page, 1000, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.body).overflowY !== 'hidden' && getComputedStyle(document.body).marginRight !== '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden' && getComputedStyle(document.body).marginRight !== '0px'"
     )
     resized(page, 500, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.body).overflowY === 'hidden' && getComputedStyle(document.body).marginRight === '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).marginRight === '0px'"
     )
     page.close()
 

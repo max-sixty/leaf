@@ -100,11 +100,11 @@ OVER_WORDS = """(el, id) => {
 #
 # Two `bounding_box()` calls are two instants, and the page moves between them: a viewport
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
-# straight into the answer. `d` scrolls to the decision it steps to, the body is the scroller,
+# straight into the answer. `d` scrolls to the decision it steps to, the root is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
 # so the chip's offset came back a pixel out on about half of the runs, on whichever row
-# the frame happened to fall between. Nothing had moved by then except the window, which is
-# the one thing this measurement is not about.
+# the frame happened to fall between. Nothing had moved by then except the root scrollport,
+# which is the one thing this measurement is not about.
 #
 # Every reading is stated from the option's padding box, because that is where the chip is
 # placed from and where the option's own room starts: a joined cell wears the hairline
@@ -882,7 +882,7 @@ KEYS_PAGE = leaf_page(
 """,
 )
 SMOOTH_LONG_PAGE = LONG_PAGE.replace(
-    "</head>", "<style>body { scroll-behavior: smooth; }</style>\n</head>"
+    "</head>", "<style>html { scroll-behavior: smooth; }</style>\n</head>"
 )
 FIRST_PRESENTATION = """
   window.__lfPresentation = { frames: [], releases: 0 };

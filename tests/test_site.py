@@ -501,8 +501,10 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
         # The page's own scroller (the runtime's `pageScroller`), moved the way a
         # reader moves it far enough down that the landmark is worth restoring.
-        page.evaluate("() => document.body.scrollTo({top: 1500, behavior: 'instant'})")
-        assert page.evaluate("() => document.body.scrollTop") > 0, (
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
+        )
+        assert page.evaluate("() => document.scrollingElement.scrollTop") > 0, (
             "the document did not scroll, so the landmark under test was never written"
         )
 
@@ -516,7 +518,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
         )
         opened(page, errors, example_url(hosted, plain))
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
-        assert page.evaluate("() => document.body.scrollTop") == 0, (
+        assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
             "the ship review opened at the offset the reader left on another page"
         )
         assert not errors, errors[:3]

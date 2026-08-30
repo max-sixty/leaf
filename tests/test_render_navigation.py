@@ -1001,14 +1001,14 @@ def test_an_address_is_never_drawn_on_the_key_line(browser, serve):
              const hit = (a, b) => a.left < b.right && b.left < a.right
                                 && a.top < b.bottom && b.top < a.bottom;
              const out = [];
-             const room = document.body.scrollHeight - document.body.clientHeight;
+             const room = document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight;
              for (let i = 0; i <= 20; i++) {{
-               document.body.scrollTo(0, Math.round((room * i) / 20));
+               document.scrollingElement.scrollTo(0, Math.round((room * i) / 20));
                await ({RENDERED})();
                const bar = line();
                for (const chip of document.querySelectorAll('.lf-addresses > .lf-address'))
                  if (hit(chip.getBoundingClientRect(), bar))
-                   out.push(chip.textContent + ' at ' + Math.round(document.body.scrollTop));
+                   out.push(chip.textContent + ' at ' + Math.round(document.scrollingElement.scrollTop));
              }}
              return out;
            }}"""
@@ -1054,9 +1054,9 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(line).not_to_contain_text("1–3")
 
     # Wide enough that the panel will stand beside the page rather than over it, which is
-    # where a box in the chrome and the page's own scroller part company: body is narrowed
-    # to the column, the panel is fixed and is not inside it, and a chip placed by walking
-    # the page's clips came back with the whole reply box clipped away.
+    # where a box in the fixed chrome and the page's flow part company: body is narrowed
+    # as the layout shell, the panel is fixed and is not inside it, and a chip placed by
+    # walking the page's clips came back with the whole reply box clipped away.
     resized(page, 1280, 800)
 
     # Armed, the line names the available panels and document lists. Only list members
@@ -1119,7 +1119,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # corner a member starts at, which for an inline that wraps is the corner of its first
     # line and not of its bounding box — those run the width of the column, so a digit
     # placed there sits a line above the words it addresses, over somebody else's sentence.
-    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("h")
     expect(page.locator(CHIPS)).to_have_text(["g h 1", "g h 2"])
@@ -1151,7 +1151,9 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # the line would go stale about which digits are live every time the page scrolled.
     # The arrival is the focus, and the press that finishes the motion is the platform's:
     # named on the line, or the reader lands with nothing said.
-    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
     page.keyboard.press("g")
     expect(line).to_contain_text("h 1–2")
     page.keyboard.press("h")
@@ -1176,7 +1178,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # other member is reached through a reveal that opens the collapsed boxes on the way;
     # here the box is the member, so that same reveal is the whole motion, and the reader
     # who wanted a section open has it open having asked once.
-    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("f")
     expect(page.locator(CHIPS)).to_have_text(["g f 1"])
@@ -1220,7 +1222,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key is the whole address — G glides to the bottom, g to the top.
     foot = page.evaluate(
-        "() => document.body.scrollHeight - document.body.clientHeight"
+        "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
     )
     assert foot > 0, "the page must scroll for an edge to be a move at all"
     page.keyboard.press("g")
@@ -1229,11 +1231,11 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # which a real keyboard cannot do, and the dispatcher rightly reads it as g.
     page.keyboard.press("Shift+G")
     page.wait_for_function(
-        "foot => Math.abs(document.body.scrollTop - foot) < 1", arg=foot
+        "foot => Math.abs(document.scrollingElement.scrollTop - foot) < 1", arg=foot
     )
     page.keyboard.press("g")
     page.keyboard.press("g")
-    page.wait_for_function("() => document.body.scrollTop === 0")
+    page.wait_for_function("() => document.scrollingElement.scrollTop === 0")
 
     # A panel mnemonic completes the chord directly wherever the reader is on the page.
     page.keyboard.press("g")
@@ -1682,10 +1684,10 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     # And Space is consumed rather than scrolling the page out from under the press.
     page.evaluate("() => document.querySelector('#tab-bath').click()")
     tabs.first.focus()
-    before = page.evaluate("() => document.body.scrollTop")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press(" ")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
-    assert page.evaluate("() => document.body.scrollTop") == before, (
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before, (
         "Space scrolled the page instead of working the control it was promised on"
     )
     assert errors == []
@@ -1717,7 +1719,7 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
         """() => {
           const link = document.querySelector('#link-1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollBy(0, link.top - banner.bottom - 96);
+          document.scrollingElement.scrollBy(0, link.top - banner.bottom - 96);
         }"""
     )
 
@@ -1749,7 +1751,7 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
         """() => {
           const link = document.querySelector('#link-1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.body.scrollTop, top: link.top, bottom: link.bottom,
+          return {scroll: document.scrollingElement.scrollTop, top: link.top, bottom: link.bottom,
                   banner: banner.bottom, height: innerHeight};
         }"""
     )
@@ -1759,14 +1761,14 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     expect(page.locator("#link-1")).to_be_focused()
     stayed = page.evaluate(
         """() => ({
-          scroll: document.body.scrollTop,
+          scroll: document.scrollingElement.scrollTop,
           top: document.querySelector('#link-1').getBoundingClientRect().top,
         })"""
     )
     assert stayed["scroll"] == pytest.approx(visible["scroll"], abs=0.5)
     assert stayed["top"] == pytest.approx(visible["top"], abs=0.5)
 
-    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("h")
     page.keyboard.press("1")
@@ -2075,14 +2077,14 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         """() => {
           const passage = document.querySelector('#p1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollBy(0, passage.top - banner.bottom - 96);
+          document.scrollingElement.scrollBy(0, passage.top - banner.bottom - 96);
         }"""
     )
     before = page.evaluate(
         """() => {
           const passage = document.querySelector('#p1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.body.scrollTop, top: passage.top,
+          return {scroll: document.scrollingElement.scrollTop, top: passage.top,
                   bottom: passage.bottom, banner: banner.bottom, height: innerHeight};
         }"""
     )
@@ -2093,7 +2095,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     expect(quote).to_have_attribute("data-keyboard-activations", "2")
     after = page.evaluate(
         """() => ({
-          scroll: document.body.scrollTop,
+          scroll: document.scrollingElement.scrollTop,
           top: document.querySelector('#p1').getBoundingClientRect().top,
         })"""
     )
@@ -2106,14 +2108,14 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         """() => {
           const passage = document.querySelector('#p1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollBy(0, passage.bottom - banner.bottom - 1);
+          document.scrollingElement.scrollBy(0, passage.bottom - banner.bottom - 1);
         }"""
     )
     sliver = page.evaluate(
         """() => {
           const passage = document.querySelector('#p1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.body.scrollTop, top: passage.top,
+          return {scroll: document.scrollingElement.scrollTop, top: passage.top,
                   bottom: passage.bottom, banner: banner.bottom};
         }"""
     )
@@ -2121,7 +2123,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     page.keyboard.press("Enter")
     returned = page.evaluate(
         """() => ({
-          scroll: document.body.scrollTop,
+          scroll: document.scrollingElement.scrollTop,
           top: document.querySelector('#p1').getBoundingClientRect().top,
           banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
         })"""
@@ -2140,8 +2142,10 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     resolved_quote = details.locator(".lf-quote")
     expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "false")
-    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
-    placed_before = page.evaluate("() => document.body.scrollTop")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
+    placed_before = page.evaluate("() => document.scrollingElement.scrollTop")
     resolved_quote.focus()
     expect(page.locator(".lf-keyline")).to_contain_text("return to the passage")
     page.keyboard.press("Enter")
@@ -2150,7 +2154,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         """() => {
           const passage = document.querySelector('#p1').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.body.scrollTop, top: passage.top,
+          return {scroll: document.scrollingElement.scrollTop, top: passage.top,
                   bottom: passage.bottom, banner: banner.bottom, height: innerHeight};
         }"""
     )
@@ -2173,7 +2177,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
     assert resolved_quote.get_attribute("aria-keyshortcuts") is None
     expect(page.locator(".lf-panel")).to_be_visible()
-    stranded_before = page.evaluate("() => document.body.scrollTop")
+    stranded_before = page.evaluate("() => document.scrollingElement.scrollTop")
     quote_box = resolved_quote.bounding_box()
     assert quote_box is not None
     page.mouse.click(
@@ -2181,7 +2185,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         quote_box["y"] + quote_box["height"] / 2,
     )
     expect(page.locator(".lf-panel")).to_be_visible()
-    assert page.evaluate("() => document.body.scrollTop") == stranded_before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == stranded_before
     resolved_quote.focus()
     expect(page.locator(".lf-keyline")).not_to_contain_text("return to the passage")
     assert errors == []

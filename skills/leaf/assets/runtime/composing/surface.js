@@ -50,14 +50,13 @@ export function createSelectionSurface({
   visualAt,
 }) {
   // ---------- selection → comment ----------
-  // Floating UI stays inside the document's own box, which is body's client box: it
-  // already ends at the open panel's edge (syncLayout's margin) and inside a classic
-  // scrollbar's gutter, so a float clamped to it can't hand body a sideways scrollbar
-  // by overhanging either. The covering sheet is the one strip that box no longer
-  // states — body keeps its full width under it — so the sheet's own width comes off
-  // here, and a float raised from the strip beside it can't stand over the thread list.
+  // Floating UI stays inside the document layout shell. Body already ends at a standing
+  // panel's edge through its margin, while the root scrollport owns the browser's gutter.
+  // A covering sheet is the one strip body does not yield, so its width comes off here.
   const rightEdge = () =>
-    (panelCovers() ? innerWidth - panel.offsetWidth : pageScroller.clientWidth) - 8;
+    (panelCovers()
+      ? innerWidth - panel.offsetWidth
+      : document.body.getBoundingClientRect().right) - 8;
   // The floats live in the document — they scroll with the passage they stand beside —
   // while every caller reasons in viewport terms: rects, the pointer, the banner's own
   // band. Named, because four sites had the number written out and it is neither of the

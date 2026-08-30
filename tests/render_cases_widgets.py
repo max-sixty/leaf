@@ -661,10 +661,10 @@ RAIL_FIT = """() => {
 # the flow, so the reading is the flow's own: what stands above the page's first block and
 # what is left under its last.
 CHROME_ROOM = """() => {
-    const body = document.body;
+    const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();
-    return { head: box.top + body.scrollTop,
-             foot: body.scrollHeight - (box.bottom + body.scrollTop),
+    return { head: box.top + scroller.scrollTop,
+             foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
              banner: document.querySelector('.lf-banner').offsetHeight,
              line: document.querySelector('.lf-keyline').offsetHeight };
 }"""
@@ -851,7 +851,7 @@ def _painted_line(page):
     )
 
 
-SCROLLED = "() => document.body.scrollTop > 0"
+SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 
 
 WHERE_I_STAND_PAGE = leaf_page(

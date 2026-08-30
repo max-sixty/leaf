@@ -1106,7 +1106,7 @@ def other_leaf(live_leaf):
 # which is the whole of what CLAUDE.md's wait norm is about.
 SCROLL_SETTLE_MS = 50
 SCROLL_STILL = """(hold) => {
-  const at = document.body.scrollTop;
+  const at = document.scrollingElement.scrollTop;
   if (at !== window.__lfScrollAt) {
     window.__lfScrollAt = at;
     window.__lfScrollSince = performance.now();

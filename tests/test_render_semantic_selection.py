@@ -466,7 +466,7 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("initially announced heading")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
 
-    page.evaluate("() => { document.body.scrollTop = 1050; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1050; }")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("select target")
     page.keyboard.press("Enter")
@@ -539,8 +539,10 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
 """,
     )
     page, errors = open_page(browser, serve(html))
-    page.evaluate("() => { document.body.scrollTop = document.body.scrollHeight; }")
-    page.wait_for_function("() => document.body.scrollTop > 500")
+    page.evaluate(
+        "() => { document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight; }"
+    )
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 500")
 
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).to_have_count(0)
@@ -577,7 +579,7 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const range = document.createRange();
           range.selectNodeContents(text);
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollTop += range.getBoundingClientRect().top - (banner.bottom - 5);
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (banner.bottom - 5);
         }"""
     )
     page.keyboard.press("s")
@@ -598,7 +600,7 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const range = document.createRange();
           range.selectNodeContents(text);
           const keyline = document.querySelector('.lf-keyline').getBoundingClientRect();
-          document.body.scrollTop += range.getBoundingClientRect().top - (keyline.top - 5);
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (keyline.top - 5);
         }"""
     )
     page.keyboard.press("s")
@@ -633,7 +635,7 @@ def test_a_partly_banner_clipped_atomic_item_keeps_its_hint_below_the_banner(
         """() => {
           const visual = document.querySelector('#edge-visual').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollTop += visual.top - (banner.bottom - 8);
+          document.scrollingElement.scrollTop += visual.top - (banner.bottom - 8);
         }"""
     )
     page.keyboard.press("s")

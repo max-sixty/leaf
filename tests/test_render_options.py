@@ -2542,7 +2542,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             page.evaluate(
                 """([id, edge]) => {
                     const r = document.getElementById(id).getBoundingClientRect();
-                    document.body.scrollBy({
+                    document.scrollingElement.scrollBy({
                         top: (edge === 'top' ? r.top : r.bottom) - innerHeight / 2,
                         behavior: 'instant',
                     });

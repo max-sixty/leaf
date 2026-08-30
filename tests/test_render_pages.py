@@ -2008,15 +2008,15 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert roomy["sideways"] == 0
 
     page.evaluate(
-        "document.body.style.scrollBehavior = 'auto'; document.body.scrollTo(0, 900)"
+        "document.scrollingElement.style.scrollBehavior = 'auto'; document.scrollingElement.scrollTo(0, 900)"
     )
-    page.wait_for_function("() => document.body.scrollTop > 800")
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 800")
     stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
     assert 64 <= stuck <= 68, (
         f"the sidebar stuck at {stuck:.0f}px, not below the banner"
     )
 
-    page.evaluate("document.body.scrollTo(0, 0)")
+    page.evaluate("document.scrollingElement.scrollTo(0, 0)")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
@@ -2096,7 +2096,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
           left: parseFloat(getComputedStyle(document.body).paddingLeft),
           right: parseFloat(getComputedStyle(document.body).paddingRight),
         },
-        gutter: document.body.offsetWidth - document.body.clientWidth,
+        gutter: innerWidth - document.documentElement.clientWidth,
         sideways: document.documentElement.scrollWidth
           - document.documentElement.clientWidth,
       };
@@ -2112,8 +2112,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert tight["sideways"] == 0
 
     # The floor is a fact about the page's box, and the window is not that box wherever
-    # the platform draws a classic scrollbar: body is the document's scroller, so its bar
-    # comes out of the room the strips and the column divide between them. The column
+    # the platform draws a classic scrollbar: the root scrollport's client width already
+    # excludes its bar before the strips and the column divide the room. The column
     # keeps its full measure on both sides of that, which is what the strip is floored to
     # protect: given the room, both strips stand outside a full column, and short of it by
     # a bar's width the veto hands them back. So neither read subtracts a bar from what it
@@ -2127,27 +2127,10 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
         f"the floor exists to keep it out of: {at_floor}"
     )
 
-    # The runtime's own reading of the gutter, asked of the module that owns it, so the
-    # width this drives at is the one the veto is doing its arithmetic in by construction
-    # rather than by a second spelling that agrees on inspection. Its own evaluate and not
-    # a key on `reading`, which the script-free copy below shares and which has no module
-    # to ask; the window against body's padding box, the other candidate, would agree only
-    # while body carries no margin, and the panel's strip below is a body margin.
-    bar = page.evaluate(
-        "() => import('/runtime/scrolling.js').then(m => m.scrollerGutter())"
-    )
-    # Driving the page at a width the helper chose and then testing the veto that spends
-    # the same helper leaves one thing the reads below cannot see: an error in the helper
-    # itself, which lands on both sides and cancels. A gutter overread as 30 puts the page
-    # at 1446 and has stateStrip take 30 off it, so the floor is met on the nose and every
-    # measure here passes while the band from 1431 up is cramped for nothing. So the two
-    # spellings are held to each other first, at the one viewport both are read at, and
-    # `reading` keeps the key: it is a claim about what the gutter is rather than a second
-    # copy nothing checks, and it is what the failure dumps report a short measure against.
-    assert bar == at_floor["gutter"], (
-        "the module's gutter and the page's own reading of it have come apart, which "
-        f"would leave the widths below chosen and judged by the same error: {at_floor}"
-    )
+    # The root's client width is the runtime's authority, so a classic scrollbar has
+    # already come out of the floor. Add the platform-reported difference to give the
+    # document exactly 1416 usable pixels; overlay-scrollbar platforms add zero.
+    bar = at_floor["gutter"]
     resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [

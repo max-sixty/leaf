@@ -59,7 +59,6 @@ export function createChromeLayout({
   refreshHover,
   renderPanel,
   reserveListClearance,
-  scrollerGutter,
   showTray,
   syncReactLayout,
   syncGeneral,
@@ -131,18 +130,11 @@ export function createChromeLayout({
   // the strip the panel takes is a rule in the stylesheet.
   //
   // So it is called and not observed, and it is only as fresh as its callers — which is
-  // enough, because each fact it turns on either arrives on an occasion of its own or does
-  // not move at all. The window states the cap on a resize, and the panel its strip on the
-  // gesture that moves it. The scroller's gutter is the one with no occasion to arrive on:
-  // body gains or loses its bar as the document's height crosses the viewport, and replay
-  // retiring a slot, a widget settling late, or an image arriving can each do that with no
-  // resize and no chrome gesture behind it. What answers that is the stylesheet rather than
-  // a call from every such path — body is given scrollbar-gutter: stable in the same rule
-  // that makes it the scroller (chrome-style.js), so the room is reserved whether or not a
-  // bar is drawn in it and the difference between the two boxes holds still for the page's
-  // life. Joining layoutSizes would be the fix if it did not, and it is the one the rule
-  // above forbids: the strip this vetoes is padding on the observed box, and stateRoom can
-  // be observed only because it writes nothing that box is measured from.
+  // enough, because each fact it turns on arrives on an occasion of its own. The window
+  // states the cap on resize and the panel its strip on the gesture that moves it. The root
+  // reserves a stable scrollbar gutter in CSS, and documentElement.clientWidth already
+  // reports the usable viewport after it; page-height changes therefore add no separate
+  // geometry occasion.
   //
   // The strip is stated rather than measured off body, whose clientWidth is the box itself
   // and would be the natural reading. The margin transitions, so a measurement taken during
@@ -155,21 +147,11 @@ export function createChromeLayout({
   // blind — the runtime says how wide the page's box is and never learns which idiom hangs
   // something in the margin, so an idiom's own rule does its own arithmetic against it, the
   // way the wide rules already spend --lf-room. A query cannot see the panel or the
-  // scroller's own bar and this can, which is the whole of what the runtime adds; a page with
-  // no runtime behind it falls back to the viewport in each rule that reads it.
+  // browser's root viewport and this can account for the workspace strips, which is the
+  // whole of what the runtime adds; a page with no runtime behind it falls back to the
+  // viewport in each rule that reads it.
   function stateStrip() {
-    // The scroller's gutter, which stateRoom takes off for the same reason and by the same
-    // reading: body is the document's scroller, so a classic bar comes out of the room this
-    // page has while the window says nothing about it. The coarse answer owes it as much as
-    // the fine one. Without it the floor was met by a window with a bar's width less page
-    // behind it, and the strip came out of the column the floor exists to keep it out of —
-    // a sidenote page at exactly 1152px read at a 705px measure, and a sidebar and a note at
-    // 1416px did the same.
-    const avail =
-      document.documentElement.clientWidth -
-      scrollerGutter() -
-      panelStrip() -
-      trayStrip();
+    const avail = document.documentElement.clientWidth - panelStrip() - trayStrip();
     document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
     document.documentElement.style.setProperty("--lf-avail", avail + "px");
   }
@@ -274,17 +256,13 @@ export function createChromeLayout({
     if (!main) return;
     const body = getComputedStyle(document.body);
     const column = getComputedStyle(main);
-    // The gutter body reserves for its own scrollbar, which the window does not know about
-    // and the box in front of us has already given up. One reading (scrolling.js), because
-    // the veto above owes the same number and a second spelling of it here would be true by
-    // inspection rather than by construction.
+    // documentElement.clientWidth is the root scrollport's usable width: a classic
+    // scrollbar has already come out of it. Body contributes the animated shell width;
+    // the explicit reading contributes the width it is arriving at.
     const room =
       Math.min(
         document.body.clientWidth,
-        document.documentElement.clientWidth -
-          panelStrip() -
-          trayStrip() -
-          scrollerGutter(),
+        document.documentElement.clientWidth - panelStrip() - trayStrip(),
       ) -
       parseFloat(body.paddingLeft) -
       parseFloat(body.paddingRight) -
@@ -352,22 +330,44 @@ export function createChromeLayout({
   addEventListener("resize", () => {
     closeReactions();
     pageShifted();
+    syncLayout();
   });
   // field-sizing and every other rendered-size change feed the one geometry writer —
   // the key line included, whose height is the room the chrome reserves under it.
-  const layoutSizes = new ResizeObserver(syncLayout);
-  // The page's own box, which is what the room is measured from and what the floats hang
-  // in. Watched rather than derived, because an enumeration of the occasions the box moves
-  // fails twice over. It cannot be complete: the room followed such a list once — the
-  // panel, the window, the one call at the end of upgrade — and a widget that took a margin
-  // any other way got no restatement at all. And each entry on it is read at a moment
-  // somebody chose, which the panel's strip breaks by being motion: read where the slide
-  // began and again where it was expected to end, a slide the reader interrupted was
-  // answered at neither. Watching is every frame of it, the last frame included, and the
-  // window comes with them — body is the window's own height and width here, so a `resize`
-  // listener beside this would be one fact arriving twice. Nothing this observer calls may
-  // write this box, which is what the key line's reservation being a flow box and the
-  // panel's strip being the cascade's are both about.
+  let bodyContentWidth = Number.NaN;
+  let layoutFrame = 0;
+  const scheduleLayout = () => {
+    if (layoutFrame) return;
+    layoutFrame = requestAnimationFrame(() => {
+      layoutFrame = 0;
+      syncLayout();
+    });
+  };
+  const layoutSizes = new ResizeObserver((entries) => {
+    let shellChanged = false;
+    for (const { contentRect, target } of entries) {
+      if (target !== document.body) {
+        shellChanged = true;
+        continue;
+      }
+      // Padding is part of the shell's layout contract: a late margin resident takes
+      // content room without changing body's clientWidth. ResizeObserver reports the
+      // content box directly, which catches both that claim and an animated outer margin
+      // while remaining invariant under ordinary document-height growth.
+      if (contentRect.width !== bodyContentWidth) shellChanged = true;
+      bodyContentWidth = contentRect.width;
+    }
+    if (shellChanged) scheduleLayout();
+  });
+  // The shell's inline size is what the room and floats depend on. Its block size is now
+  // the document's content height rather than a fixed scrollport height, so observing
+  // every body resize would feed ordinary page growth back into a geometry writer that
+  // reserves more flow content. Filter the body to content-box width changes; this still
+  // hears both an outer strip and a padding rail. The window's own resize occasion is
+  // handled above. The panel's animated margin reports every frame and an interrupted
+  // slide still ends with a final reading. Writes land in the following animation frame,
+  // outside ResizeObserver delivery, so a reservation changing another watched chrome
+  // box cannot create an undelivered-notification loop.
   layoutSizes.observe(document.body);
   layoutSizes.observe(generalRow);
   layoutSizes.observe(keylineEl);

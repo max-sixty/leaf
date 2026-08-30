@@ -519,6 +519,7 @@ customElements.define(
 
     disconnectedCallback() {
       this.watching?.disconnect();
+      cancelAnimationFrame(this.paintFrame);
     }
 
     async draw() {
@@ -549,19 +550,28 @@ customElements.define(
         // drawing would scale with the box and take its labels below legibility with it,
         // which is what a diagram has to live with and a chart does not — it can simply
         // be drawn again. Only the width is watched, and only when it lands on a new
-        // whole pixel: redrawing changes the height, and a height this heard would be a
-        // loop.
+        // whole pixel. The redraw itself is scheduled after ResizeObserver delivery:
+        // painting changes the height, and feeding that geometry back through the same
+        // delivery cycle produces the browser's "undelivered notifications" warning
+        // even though this observer deliberately ignores height.
         let drawn = Math.round(this.clientWidth);
+        let pending = drawn;
         this.watching = new ResizeObserver(() => {
           const width = Math.round(this.clientWidth);
-          if (!width || width === drawn) return;
-          drawn = width;
-          try {
-            this.paint(Plot, table, axis);
-          } catch (err) {
-            this.watching.disconnect();
-            failSoft(this, err, source);
-          }
+          if (!width || width === pending) return;
+          pending = width;
+          if (this.paintFrame) return;
+          this.paintFrame = requestAnimationFrame(() => {
+            this.paintFrame = 0;
+            if (!this.isConnected || pending === drawn) return;
+            drawn = pending;
+            try {
+              this.paint(Plot, table, axis);
+            } catch (err) {
+              this.watching.disconnect();
+              failSoft(this, err, source);
+            }
+          });
         });
         this.watching.observe(this);
       } catch (err) {

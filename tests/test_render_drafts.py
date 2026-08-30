@@ -2086,11 +2086,11 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     is one step back."""
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
     step = page.evaluate(
-        "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
+        "() => (document.scrollingElement.clientHeight"
+        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
     )
     assert page.evaluate(
-        "() => document.body.scrollHeight > document.body.clientHeight * 3"
+        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
     ), "the page is too short for these steps to be told apart"
     # A callback's frame timestamp may predate performance.now() in the key handler.
     # Make that browser timing deterministic: a negative first fraction used to write
@@ -2115,13 +2115,13 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
         act()
         try:
             page.wait_for_function(
-                "e => Math.abs(document.body.scrollTop - e) < 1",
+                "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
                 arg=expected,
                 timeout=5000,
             )
         except PlaywrightTimeout:
             pass
-        return page.evaluate("() => document.body.scrollTop")
+        return page.evaluate("() => document.scrollingElement.scrollTop")
 
     assert rests_at(lambda: page.keyboard.press("Space"), step) == pytest.approx(
         step, abs=1
@@ -2141,7 +2141,9 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
 
     def taken():
         page.keyboard.press("Space")
-        page.evaluate("() => document.body.scrollTo({top: 400, behavior: 'instant'})")
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo({top: 400, behavior: 'instant'})"
+        )
 
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
         "the glide pressed on to its goal after the reader took the box"
@@ -2154,11 +2156,11 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     )
 
     foot = page.evaluate(
-        "() => document.body.scrollHeight - document.body.clientHeight"
+        "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
     )
     assert rests_at(
         lambda: page.evaluate(
-            "() => document.body.scrollTo({top: 1e9, behavior: 'instant'})"
+            "() => document.scrollingElement.scrollTo({top: 1e9, behavior: 'instant'})"
         ),
         foot,
     ) == pytest.approx(foot, abs=1)
@@ -2196,27 +2198,31 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
         "Emulation.setCPUThrottlingRate", {"rate": 20}
     )
     step = page.evaluate(
-        "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
+        "() => (document.scrollingElement.clientHeight"
+        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
     )
     start = round(step * 2)
     page.evaluate("""() => {
         window.lfFrames = [];
         const sample = () => {
-            window.lfFrames.push(document.body.scrollTop);
+            window.lfFrames.push(document.scrollingElement.scrollTop);
             requestAnimationFrame(sample);
         };
         requestAnimationFrame(sample);
     }""")
     for _ in range(5):
         page.evaluate(
-            "at => document.body.scrollTo({top: at, behavior: 'instant'})", start
+            "at => document.scrollingElement.scrollTo({top: at, behavior: 'instant'})",
+            start,
         )
-        page.wait_for_function("at => document.body.scrollTop === at", arg=start)
+        page.wait_for_function(
+            "at => document.scrollingElement.scrollTop === at", arg=start
+        )
         page.evaluate("() => (window.lfFrames = [])")
         page.keyboard.press("Space")
         page.wait_for_function(
-            "e => Math.abs(document.body.scrollTop - e) < 1", arg=start + step
+            "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
+            arg=start + step,
         )
         assert min(page.evaluate("() => window.lfFrames")) >= start - 1, (
             "the step painted the page above where the press found it"
@@ -2235,15 +2241,17 @@ def test_the_reading_page_keys_jump_under_reduced_motion(browser, serve):
     )
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
     step = page.evaluate(
-        "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
+        "() => (document.scrollingElement.clientHeight"
+        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
     )
     page.keyboard.press("Space")
-    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
     ), "Space had not moved 60% of the visible page when the press returned"
     page.keyboard.press("Shift+Space")
-    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(0, abs=1)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
+        0, abs=1
+    )
     assert errors == []
     page.close()
     context.close()
@@ -2270,7 +2278,7 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
 
     def offsets():
         return page.evaluate(
-            "() => [document.body.scrollTop,"
+            "() => [document.scrollingElement.scrollTop,"
             " document.querySelector('.lf-threads').scrollTop]"
         )
 
@@ -2287,7 +2295,7 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
         page.keyboard.press("Space")
         page.wait_for_function(
             "w => { const t = document.querySelector('.lf-threads');"
-            " return document.body.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
+            " return document.scrollingElement.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
             arg=was,
         )
         return was, offsets()
@@ -2333,7 +2341,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
 
     def offsets():
         return page.evaluate(
-            "() => [document.body.scrollTop,"
+            "() => [document.scrollingElement.scrollTop,"
             " document.querySelector('.lf-threads').scrollTop]"
         )
 
@@ -2341,13 +2349,15 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     # document's own step is a glide, and the position it is going to is the one place
     # it does not pass through early (the reading-page test says the rest).
     step = page.evaluate(
-        "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
+        "() => (document.scrollingElement.clientHeight"
+        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
     )
     page_was, threads_was = offsets()
     page.keyboard.press("Space")
     page.wait_for_function(
-        "e => Math.abs(document.body.scrollTop - e) < 1", arg=step, timeout=5000
+        "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
+        arg=step,
+        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert page_now > page_was, (
@@ -2365,7 +2375,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     page.keyboard.press("Space")
     page.wait_for_function(
         "w => { const t = document.querySelector('.lf-threads');"
-        " return document.body.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
+        " return document.scrollingElement.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
         arg=[page_was, threads_was],
     )
     thread_step = page.locator(".lf-threads").evaluate(
@@ -2374,7 +2384,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     page.wait_for_function(
         "w => { const t = document.querySelector('.lf-threads');"
         " return Math.abs(t.scrollTop - w[0]) < 1"
-        " || Math.abs(document.body.scrollTop - w[1]) >= 1; }",
+        " || Math.abs(document.scrollingElement.scrollTop - w[1]) >= 1; }",
         arg=[thread_step, page_was],
         timeout=5000,
     )
@@ -2394,7 +2404,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     page.keyboard.press("g")
     page.wait_for_function(
         "() => { const t = document.querySelector('.lf-threads');"
-        " return document.body.scrollTop < 1 || t.scrollTop < 1; }",
+        " return document.scrollingElement.scrollTop < 1 || t.scrollTop < 1; }",
         timeout=5000,
     )
     edge_page, edge_threads = offsets()

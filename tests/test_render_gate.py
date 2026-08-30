@@ -1118,7 +1118,7 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     """The reading neither of the gate's older ones can give. The window is the
     wider of the two boxes — 1200px against a 720px column — so content can stand
-    out in the margin with the body still not scrolling sideways, and the
+    out in the margin with the document still not scrolling sideways, and the
     static lint reads pinned pixels, which a vw width is not. The failure names
     the element and how far out it is, because "something overflows" sends its
     reader back to the browser to find out what."""

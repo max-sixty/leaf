@@ -422,7 +422,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         "aria-label", re.compile(r"Comment, Outcome, \d+ of")
     )
 
-    before = page.evaluate("() => document.body.scrollTop")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
     marker.hover()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
@@ -434,7 +434,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= main_box["x"] + main_box["width"]
     assert preview_box["x"] + preview_box["width"] <= page.evaluate("innerWidth")
-    assert page.evaluate("() => document.body.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 
     marker.click()
     expect(marker).to_have_attribute("aria-pressed", "true")
@@ -452,7 +452,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_be_focused()
     held = marker.get_attribute("aria-label")
     page.keyboard.press("ArrowDown")
-    assert page.evaluate("() => document.body.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert page.evaluate("() => document.activeElement.matches('.lf-margin-marker')")
     assert page.locator(":focus").get_attribute("aria-label") != held
 
@@ -554,7 +554,9 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
         return marker.bounding_box()["y"] - target.bounding_box()["y"]
 
     before = offset()
-    page.evaluate("() => document.body.scrollBy({top: 320, behavior: 'instant'})")
+    page.evaluate(
+        "() => document.scrollingElement.scrollBy({top: 320, behavior: 'instant'})"
+    )
     page.evaluate(
         "() => import('/runtime/margin-layout.js').then(({layoutMarginRows}) => layoutMarginRows())"
     )
@@ -578,12 +580,12 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
         "button => button.previousElementSibling.matches('.lf-signoff, .lf-threads-toggle')"
     ), "the small-screen map is not beside the primary feedback controls"
 
-    before = page.evaluate("() => document.body.scrollTop")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
     toggle.click()
     sheet = page.locator(".lf-page-map-sheet")
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-action").first).to_have_css("min-height", "44px")
-    assert page.evaluate("() => document.body.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 
     result = Axe().run(
         page,
@@ -601,7 +603,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     page.keyboard.press("Escape")
     expect(sheet).to_be_hidden()
     expect(toggle).to_be_focused()
-    assert page.evaluate("() => document.body.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert errors == []
     page.close()
 

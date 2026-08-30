@@ -104,7 +104,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
     page.locator("#live-reading").scroll_into_view_if_needed()
     page.evaluate(
-        """() => { document.body.scrollBy({
+        """() => { document.scrollingElement.scrollBy({
           top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
           behavior: 'instant'
         }); window.__leafDocument = 'the same runtime'; }"""
@@ -491,7 +491,7 @@ def test_the_decision_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # exact record still says the third Decision.
     page.evaluate("""() => {
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        document.body.scrollBy({top: earlier.bottom - 80, behavior: 'instant'});
+        document.scrollingElement.scrollBy({top: earlier.bottom - 80, behavior: 'instant'});
     }""")
 
     stamp_page(d, DECISIONS_PAGE, "two")
@@ -531,7 +531,7 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     # nearest id above them is the wrapper.
     page.evaluate("""() => { const r = document.createRange();
       r.selectNodeContents(document.getElementById('wrap'));
-      document.body.scrollTop += r.getBoundingClientRect().top + 50; }""")
+      document.scrollingElement.scrollTop += r.getBoundingClientRect().top + 50; }""")
     before = page.evaluate(WRAP_TOP)
 
     # The branch under test, stated rather than assumed. In-place activation carries this
@@ -675,11 +675,11 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     page.keyboard.press("d")
     expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
 
-    # A window tall enough to hold the whole page, so body is no scroll container and
-    # the browser will not focus it as a favour.
+    # A window tall enough to hold the whole page, so the root has no scroll range and the
+    # browser will not focus body as a scrolling affordance.
     resized(page, 1200, 2400)
     assert not page.evaluate(
-        "() => document.body.scrollHeight > document.body.clientHeight"
+        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
     ), "the page still scrolls, so this proves nothing about a short one"
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
@@ -727,7 +727,9 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     # Centred: the destination the travel computed, which a glide toward it passes
     # through no earlier position that could be mistaken for. Put it wholly out of sight
     # first: a readable destination now keeps the reader's place.
-    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
     assert page.locator("#flow").evaluate(
         "el => el.getBoundingClientRect().bottom <= 0"
     )
@@ -738,14 +740,14 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
                        && Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2; }"""
     )
 
-    page.evaluate("() => document.body.scrollTo(0, 0)")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     assert page.locator("#long-part").evaluate(
         "el => el.getBoundingClientRect().top >= innerHeight"
     )
     quote("long-part").click()
     page.wait_for_function(
         """() => { const r = document.getElementById('long-part').getBoundingClientRect();
-                   const clear = parseFloat(getComputedStyle(document.body).scrollPaddingTop);
+                   const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
                    return r.height > innerHeight && Math.abs(r.top - clear) < 2; }"""
     )
     assert errors == []
@@ -2659,11 +2661,11 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     # force, because locator.click refuses aria-disabled controls and that refusal is
     # the state under test. Nothing will happen, so there is no fact to consume: the
     # press is the edge, and the hash the browser would write is synchronous with it.
-    at = page.evaluate("() => document.body.scrollTop")
+    at = page.evaluate("() => document.scrollingElement.scrollTop")
     was = page.url  # the live jump left its own fragment, as a fragment jump does
     dead.click(force=True)
     assert page.url == was, page.url
-    assert page.evaluate("() => document.body.scrollTop") == at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == at
     assert errors == []
     page.close()
 
@@ -2673,15 +2675,14 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
 
     The browser answers it at parse time, when no widget has upgraded and nothing is
     collapsed yet — so the tab holding the target is still open, the document is
-    still its unupgraded height, and both facts stop being true a moment later. The
-    same staleness is why scroll restoration is manual; the fragment was the half of
-    that takeover never written.
+    still its unupgraded height, and both facts stop being true a moment later. Leaf
+    therefore re-aims a fresh fragment after upgrades, while ordinary reload and history
+    restoration remain native on the root scrollport.
 
-    Then the ranking, which is the browser's own. Arriving somewhere named is what a
-    fragment is for, and the reading position this tab kept — of whatever it last
-    left this page at — must not paint over it. Returning is the other way round: on
-    a reload the fragment is left over from a reference followed earlier, and the
-    reader's own position is the answer."""
+    Arriving somewhere named is what a fragment is for, and an older semantic landmark
+    from another revision must not paint over it. On reload the fragment is left over
+    from a reference followed earlier, so the browser's own restored reading position is
+    the answer."""
     url = serve(REF_PAGE)
     hidden = re.compile(".*")
     onscreen = """(id) => { const r = document.getElementById(id).getBoundingClientRect();
@@ -2696,7 +2697,9 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     # Read to the end and leave: the position is written down on the way out and the
     # tab keeps it. Coming back at a named place is what the ranking is for — that
     # position is real and recent, and still not what this URL asked for.
-    page.evaluate("() => document.body.scrollTo({top: 1e6, behavior: 'instant'})")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})"
+    )
     page.goto("about:blank")
     page.goto(f"{url}#p-bath")
     page.wait_for_function(BOTH_STAMPS)
@@ -2705,7 +2708,9 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     # The reader moves on, so the fragment is stale by the reload that carries it. The
     # bath tab stays open across that reload and says nothing about this — a tab
     # remembers its own panel, the same way the position is remembered here.
-    page.evaluate("() => document.body.scrollTo({top: 1e6, behavior: 'instant'})")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})"
+    )
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     page.wait_for_function(onscreen, arg="tail-end")
@@ -3984,7 +3989,7 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     schema.scroll_into_view_if_needed()
     before = page.evaluate(
         """() => ({
-          scroll: document.body.scrollTop,
+          scroll: document.scrollingElement.scrollTop,
           top: document.querySelector('#schema-operations').getBoundingClientRect().top,
           bottom: document.querySelector('#schema-operations').getBoundingClientRect().bottom,
           banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
@@ -3998,7 +4003,7 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     ).click()
     after = page.evaluate(
         """() => ({
-          scroll: document.body.scrollTop,
+          scroll: document.scrollingElement.scrollTop,
           top: document.querySelector('#schema-operations').getBoundingClientRect().top,
         })"""
     )

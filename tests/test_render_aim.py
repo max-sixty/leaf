@@ -642,11 +642,11 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page.keyboard.press("Escape")
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
-    # say. A fixed box is not clipped by the page's scroller, and body is that scroller
-    # narrowed to the column standing beside the panel — so the panel measured through its
-    # ancestors came back wholly clipped away, and a mode whose row promises a click on the
-    # chrome drew nothing over the chrome. Wide enough for the panel to stand beside the
-    # page, which is where body and the panel part company.
+    # say. A fixed box is not clipped by the root scrollport, while body is the layout shell
+    # narrowed to the column standing beside the panel — so the panel measured through the
+    # page flow's ancestors came back wholly clipped away, and a mode whose row promises a
+    # click on the chrome drew nothing over the chrome. Wide enough for the panel to stand
+    # beside the page, which is where the shell and the panel part company.
     resized(page, 1280, 800)
     page.locator(".lf-banner .lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -774,7 +774,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("i")
     page.wait_for_function(LEGEND_TRUE)
-    page.locator("body").evaluate("b => { b.scrollTop = 1200; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     p = page.locator("#p20")
     expect(p).to_be_in_viewport()
     expect(page.locator('.lf-legend-box[data-for="p20"]')).to_be_visible()
@@ -1105,10 +1105,10 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     assert first, "nothing promised under the parked pointer, so nothing is being aimed"
     # Three whole paragraphs of scroll, measured off the page: the paragraphs are
     # identical, so the pointer's offset into the outlined one becomes the same offset
-    # into the one three later, never the margin between two. body is the page's
-    # scroller, and scrollBy fires the same scroll events a wheel does.
+    # into the one three later, never the margin between two. The browser root is the
+    # page's scroller, and scrollBy fires the same scroll events a wheel does.
     page.evaluate(
-        """() => document.body.scrollBy(0, 3 *
+        """() => document.scrollingElement.scrollBy(0, 3 *
           (document.getElementById("p3").getBoundingClientRect().top -
            document.getElementById("p2").getBoundingClientRect().top))"""
     )

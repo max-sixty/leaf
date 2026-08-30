@@ -89,10 +89,11 @@
  * quotes the passage back when this version no longer has one to mark. Whether the box
  * is up is state the stylesheet renders, never state read back off the stylesheet.
  *
- * Scrolling: the document scrolls body, not the viewport, and body's margin keeps its
- * box clear of the open panel. Two scroll regions side by side, each scrollbar drawn
- * inside its own region — a viewport-scrolled document would paint its scrollbar over
- * the panel, stacked on the panel's own. Reading position goes through pageScroller.
+ * Scrolling: the browser's root is the document scrollport, while body is the layout
+ * shell whose margins keep the page clear of a standing panel or tray. Native fragments,
+ * wheel/touch input, history restoration, and browser chrome therefore share the same
+ * reading position; auxiliary workspaces keep their own nested scrollports. Runtime
+ * reading position goes through pageScroller.
  * The page binds none of the browser's own scroll keys (Space, arrows, Home/End,
  * PageUp/Down); a focused control may, and a disclosure's arrows are core's own case of
  * that. Space and Shift+Space are the runtime's, stepping 60% of the visible page at the
@@ -328,7 +329,7 @@ import {
   renderSaid,
 } from "./runtime/presentation.js";
 import { reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
-import { pageScroller, scrollerGutter } from "./runtime/scrolling.js";
+import { pageScroller } from "./runtime/scrolling.js";
 import {
   matchesWhen,
   registry,
@@ -687,9 +688,7 @@ const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");
 bannerStatus.append(dot, statusText);
 const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
-  banner,
   el,
-  pageScroller,
 });
 // The hidden pinned slot carries representative words as well as a measured width: an
 // empty button is shorter, so its first real label would still move vertically.
@@ -1138,7 +1137,6 @@ chromeLayout = createChromeLayout({
   refreshHover: (...args) => refreshHover(...args),
   renderPanel: (...args) => renderPanel(...args),
   reserveListClearance,
-  scrollerGutter,
   showTray,
   syncReactLayout: (...args) => syncReactLayout(...args),
   syncGeneral: (...args) => syncGeneral(...args),
@@ -1642,20 +1640,13 @@ const takesLetters = (node) =>
 // rung is for, and letting go of a decision names the act, since they were on the page all
 // along.
 //
-// Focus rather than blur, because the two differ in what Space does next: `html` is
-// `overflow: hidden` here so the document scrolls in `body`, and the browser scrolls
-// whichever box it last saw the reader put themselves in. A blur names none —
-// activeElement reads as body either way — and Space goes on doing nothing until the next
-// click in the page.
+// Focus rather than blur, because the two differ in what Space does next: a focused
+// control owns the key, while body hands it back to the browser's root scrollport. A blur
+// names no deliberate destination even when activeElement subsequently reads as body.
 //
-// Which asks that body be somewhere a reader can be put, and it is not one by default.
-// Chrome makes a scroll container focusable so the keyboard can scroll it, and that was
-// the whole of what made this call work: on a page long enough to scroll, focus landed on
-// body; on a page that fits the window, `body.focus()` moved nothing and the reader stayed
-// on the control the line had just promised to take them off — measured both ways on one
-// page, by shrinking its content until it fit. So the rung failed exactly where its own
-// reason for existing is strongest, a short page having no scroll to hand back and every
-// bit as much of a Space that presses whatever the reader was left standing on.
+// Body therefore needs to be somewhere a reader can be put even on a short page. The
+// explicit tab stop is programmatic only and gives every Escape handoff the same stable
+// page destination without adding a visible stop to the Tab order.
 document.body.tabIndex = -1;
 const letGo = () => document.body.focus({ preventScroll: true });
 // The Escape ladder, one definition for every scope that reaches past the focused control,
@@ -3605,20 +3596,13 @@ createArrangements({
   trayNames,
   traysEdge,
 });
-// Where the reader stands, which is the half of an arrival the browser cannot answer on
-// a page that moves its own scrolling: `html` is `overflow: hidden` so the document
-// scrolls in `body`, and the browser scrolls whichever box it last saw the reader put
-// themselves in — on a fresh load, none of them, so Space, PageDown and the arrows did
-// nothing at all until the reader happened to click somewhere in the page. Literally the
-// move the Escape ladder makes of letting go, since an arrival and a reader who has just
-// put something down are standing in the same place; `letGo` carries the reasons, the
-// focus rather than a blur among them, and CLAUDE.md's "The reader has to be standing
-// somewhere" holds the rest.
+// A fresh arrival starts on the page, the same stable focus destination the Escape ladder
+// uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
+// still does, since Space on a button presses it rather than scrolling the document.
 //
 // Here rather than in the start block below, which runs asynchronous upgrades with the
 // chrome clickable throughout: a reader who took a control in that window would have it
-// taken back off them. Main is withheld from paint, but body is the visible scroll box and
-// can name itself to Chrome now.
+// taken back off them. Main is withheld from paint, and body can name the page now.
 letGo();
 const { landArrival, savedView } = viewRuntime.installArrival({
   fragmentId,

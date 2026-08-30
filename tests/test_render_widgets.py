@@ -163,8 +163,8 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     """The authored element is only a request for navigation. The module reads the
     page's headings in document order, keeps their relative depth, and gives an
     id-less heading a generated target without writing state onto the heading itself.
-    A link also takes the runtime's reveal route, so a heading in a closed disclosure
-    is reachable rather than merely named."""
+    A real fragment link lets the browser reveal a heading in a closed disclosure, so
+    it is reachable rather than merely named."""
     source = leaf_page(
         "contents",
         """
@@ -246,6 +246,65 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     direct.close()
 
 
+def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
+    """A map link creates an ordinary fragment-history entry on the root scrollport.
+
+    Back restores the reading position from before the click and Forward restores the
+    fragment destination. Leaf keeps no competing pixel history and :target remains the
+    browser's state throughout."""
+    source = leaf_page(
+        "native contents history",
+        """
+<h1>Migration plan</h1>
+<aside class="sidebar"><lf-toc id="history-contents"></lf-toc></aside>
+<section><h2 id="prepare">Prepare the readers</h2><div style="height: 900px"></div></section>
+<section><h2 id="move">Move the readers</h2><div style="height: 900px"></div></section>
+<section><h2 id="verify">Verify the readers</h2><div style="height: 600px"></div></section>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 800)
+    assert page.evaluate("history.scrollRestoration") == "auto"
+
+    bookmark = 420
+    page.evaluate(
+        "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})",
+        bookmark,
+    )
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 1", arg=bookmark
+    )
+    navigation = page.get_by_role("navigation", name="On this page")
+    move = navigation.get_by_role("link", name="Move the readers")
+    navigation.hover()
+    expect(move).to_have_css("pointer-events", "auto")
+    move.click()
+    expect(page).to_have_url(re.compile(r"#move$"))
+    expect(page.locator(":target")).to_have_attribute("id", "move")
+    page.wait_for_function(
+        "() => document.getElementById('move').getBoundingClientRect().top < 150"
+    )
+    destination = page.evaluate("document.scrollingElement.scrollTop")
+    assert destination > bookmark + 400
+
+    page.evaluate("history.back()")
+    page.wait_for_function("() => location.hash === ''")
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=bookmark
+    )
+    assert page.locator(":target").count() == 0
+
+    page.evaluate("history.forward()")
+    page.wait_for_function("() => location.hash === '#move'")
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
+        arg=destination,
+    )
+    expect(page.locator(":target")).to_have_attribute("id", "move")
+    assert errors == []
+    page.close()
+
+
 def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it(
     browser, serve
 ):
@@ -259,7 +318,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "contents map",
         """
 <h1>Migration plan for the readers already in flight</h1>
-<style>body { scroll-behavior: smooth; }</style>
+<style>html { scroll-behavior: smooth; }</style>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
 <section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p>Take a snapshot.</p></section>
 <div style="height: 90px"></div>
@@ -379,27 +438,23 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert revealed_boxes == hidden_boxes
 
-    # A fixed sidebar is outside body's native wheel chain. The map forwards a vertical
-    # wheel to the document scroller while leaving its own coordinate system fixed.
-    page.evaluate("document.body.scrollTo({top: 0, behavior: 'instant'})")
+    # The browser's root scrollport keeps a wheel over fixed page furniture in the
+    # document's native chain. The rail stays fixed while the page moves beneath it.
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     page.mouse.move(nav_box["x"] + nav_box["width"] / 2, nav_box["y"] + 300)
     page.mouse.wheel(0, 260)
-    assert page.evaluate("document.body.scrollTop") >= 250, (
-        "the wheel bridge inherited the page's authored smooth-scroll delay"
-    )
+    page.wait_for_function("() => document.scrollingElement.scrollTop >= 250")
     page.mouse.wheel(0, 260)
     page.mouse.wheel(0, 260)
-    assert page.evaluate("document.body.scrollTop") >= 750, (
-        "rapid wheels were coalesced instead of accumulating"
-    )
+    page.wait_for_function("() => document.scrollingElement.scrollTop >= 750")
     assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
 
     # Map travel keeps the reader oriented rather than teleporting. This records the
     # browser's actual scroll sequence; it does not make a duration claim.
     page.evaluate(
-        "() => { document.body.scrollTo({top: 0, behavior: 'instant'}); "
+        "() => { document.scrollingElement.scrollTo({top: 0, behavior: 'instant'}); "
         "window.lfTocFrames = []; "
-        "const sample = () => { window.lfTocFrames.push(document.body.scrollTop); "
+        "const sample = () => { window.lfTocFrames.push(document.scrollingElement.scrollTop); "
         "if (window.lfTocFrames.length < 90) requestAnimationFrame(sample); }; "
         "requestAnimationFrame(sample); }"
     )
@@ -422,7 +477,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         < 150
     )
 
-    page.evaluate("document.body.scrollTo({top: 0, behavior: 'instant'})")
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     prepare.click()
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
@@ -543,7 +598,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     coarse.locator("aside.sidebar").evaluate(
         "node => { node.style.maxHeight = '80px'; node.scrollTop = 0; }"
     )
-    coarse.evaluate("document.body.scrollTo({top: 0, behavior: 'instant'})")
+    coarse.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     coarse_box = coarse.locator("aside.sidebar").bounding_box()
     assert coarse_box is not None
     coarse.mouse.move(coarse_box["x"] + 40, coarse_box["y"] + 40)
@@ -551,7 +606,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     coarse.wait_for_function(
         "() => document.querySelector('aside.sidebar').scrollTop > 0"
     )
-    assert coarse.evaluate("document.body.scrollTop") == 0, (
+    assert coarse.evaluate("document.scrollingElement.scrollTop") == 0, (
         "the in-flow ToC stole a wheel from its own overflowing sidebar"
     )
     assert coarse_errors == []
@@ -655,7 +710,9 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     assert first.evaluate(span) > 500
     assert second.evaluate(span) == 0
 
-    page.evaluate("document.body.scrollTop = document.body.scrollHeight")
+    page.evaluate(
+        "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
+    )
     expect(first).to_have_attribute("aria-current", "location")
     expect(second).not_to_have_attribute("aria-current", "location")
 
@@ -667,7 +724,9 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     assert page.locator("main").evaluate("node => node.scrollHeight") == main_height
     assert first.evaluate(span) == 0
     assert second.evaluate(span) > 400
-    page.evaluate("document.body.scrollTop = document.body.scrollHeight")
+    page.evaluate(
+        "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
+    )
     expect(second).to_have_attribute("aria-current", "location")
     expect(first).not_to_have_attribute("aria-current", "location")
     assert errors == []
@@ -1904,7 +1963,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
           const decision = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
           return {context: options.top - decision.top,
-                  room: document.body.scrollHeight - document.body.clientHeight};
+                  room: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight};
         }"""
     )
     assert before["context"] > 100, (
@@ -1924,7 +1983,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const decision = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          const clear = parseFloat(getComputedStyle(document.body).scrollPaddingTop);
+          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
           return {decision: decision.top, options: options.top, clear};
         }"""
     )
@@ -2737,7 +2796,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # true by a few dozen pixels, which made it a fact about how tall the blocks above the
     # change happened to be. Giving the question above it a label set one more line and
     # the precondition stopped holding, with nothing wrong anywhere.
-    was = page.evaluate("() => document.body.scrollTop")
+    was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 
     page.keyboard.press("d")
@@ -2757,7 +2816,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # change sits at the document's origin, so the reader is carried to the top of the
     # page — up from where they stood, with the change still below the fold.
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    assert page.evaluate("() => document.body.scrollTop") > was, (
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )
     assert page.evaluate(fully_shown), "the walk left the change out of the window"
@@ -2821,7 +2880,7 @@ def test_the_walk_travels_to_a_decision_a_page_left_boxless(browser, serve):
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-decision", "1"
     )
-    was = page.evaluate("() => document.body.scrollTop")
+    was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 
     page.keyboard.press("d")
@@ -2831,7 +2890,7 @@ def test_the_walk_travels_to_a_decision_a_page_left_boxless(browser, serve):
         " return [r.width, r.height]; }"
     ) == [0, 0], "the page's own style no longer takes the wrapper's box away"
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    assert page.evaluate("() => document.body.scrollTop") > was, (
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )
     assert page.evaluate(fully_shown), "the walk left the change out of the window"

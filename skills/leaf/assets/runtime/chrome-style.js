@@ -11,49 +11,28 @@ export function chromeStyle({
   TRAY_PROP,
 }) {
   return `
-  /* The document and the panel are two scroll regions side by side. If the document
-     scrolled the viewport, its scrollbar would paint at the viewport's right edge —
-     over the panel, in the same few pixels as the panel's own, so the two thumbs
-     stack. Body owns the document's scroll instead, and syncLayout keeps its box
-     clear of the panel, which puts each region's scrollbar inside that region.
+  /* The browser's root remains the document scrollport. That keeps native fragments,
+     history restoration, wheel/touch input, and browser chrome on one shared reading
+     position. Body is only the layout shell: its margins yield columns to standing
+     workspaces while those workspaces keep their own nested scrollports.
 
-     The gutter is stable because the column is measured off it: a page that grows
-     past the window mid-session — a suggestion accepted, a panel of tabs opened —
-     would otherwise gain a scrollbar, and the column would re-centre in what was
-     left. Stated rather than measured, because it can't be measured here: macOS
-     draws overlay scrollbars, which take no room and reserve none, so on this
-     machine the declaration is a no-op and the shift it prevents cannot be made to
-     happen (neither scrollbar-width nor a styled ::-webkit-scrollbar nor
-     --disable-features=OverlayScrollbar brings a room-taking one back). It is kept
-     on the platforms where scrollbars do take room, which is most of them, and on
-     the reasoning that reserving a gutter never costs more than the shift not
-     reserving it produces.
-
-     All of it is the live page's, and it is withheld from the other two media the way
-     every other affordance is. A copy has no panel to sit beside and no session to
-     grow in, and it carried the whole arrangement anyway: body scrolled it, reserving
-     a gutter against a change that can no longer happen and holding 54px of scroll
-     padding under a banner the file hasn't got — so wherever a scrollbar takes room
-     the copy's column sat 7.5px left of the centre of a page it had all of. Nothing
-     on this machine could say so, the declarations being no-ops here; the runner said
-     it, on every example at once. That is what pins this now
-     (test_an_exported_example_stands_on_its_own, and scripts/linux-suite.sh is where
-     to watch it fail), and paper needs no rule of its own, never having been handed
-     the arrangement to undo. Spelled :where(), because these declarations are the only
-     statement their properties get and the plain form would hand every one of them a
-     class the body rule below never had. */
+     The root's gutter is stable so content does not re-centre when a page grows past the
+     viewport mid-session. All of this belongs only to the live screen page. Copies have
+     no fixed banner or session chrome, and paper never receives the arrangement. */
   @media screen {
     :where(html:not(.lf-copy)) {
-      height: 100%;
-      overflow: hidden;
+      min-height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      scroll-padding-top: calc(var(--lf-banner-h) + 12px);
+      scroll-padding-bottom: var(--here-ring-room);
       /* The foot is the same claim the head makes, in the size a ring needs rather than
          a banner's: a control landed on at the fold had its border box put flush with
          the window's bottom edge and its ring in the strip past it, so the last row of
          a page was reached with the ring around it cut off. The panel's own list says
          the same thing about its own edges. */
-      body { height: 100%; overflow-y: auto; scrollbar-gutter: stable;
-             scroll-padding-top: calc(var(--lf-banner-h) + 12px);
-             scroll-padding-bottom: var(--here-ring-room); }
+      body { min-height: 100%; }
       /* The banner stands over the head of the document, so the page's first lines get
          room rather than starting under it, and the key line reserves the same at the
          foot (syncLayout). Both are boxes in the flow rather than padding on body, which
@@ -66,9 +45,9 @@ export function chromeStyle({
       body::before { content: ""; display: block; height: var(--lf-banner-h); }
     }
   }
-  /* position: relative makes body — the scroll container — the containing block for
-     the two floats that point into the document (the 💬 button and the composer), so
-     the browser scrolls them with the passage they stand beside. */
+  /* position: relative makes the document shell the containing block for the two floats
+     that point into it (the 💬 button and composer), so root scrolling carries them with
+     the passage they stand beside. */
   /* The banner's height, said once. Everything at the top edge derives from it — the
      bar itself, the panel starting under it, the focus-revealed mark note, the
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
@@ -82,7 +61,7 @@ export function chromeStyle({
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
-  body {
+  :root {
     --lf-safe-top: env(safe-area-inset-top, 0px);
     --lf-safe-right: env(safe-area-inset-right, 0px);
     --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -91,13 +70,13 @@ export function chromeStyle({
     --lf-ui-lh: 1.45;
   }
   @media screen and ${COVERING} {
-    body { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
+    :root { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
   }
   /* A wide touch layout keeps the desktop row, but its forty-four-pixel aims and their
      focus ring need a taller bar than the mouse-sized row. This one derived height moves
      the page, panels, anchored jumps, and the banner edge together. */
   @media screen and (pointer: coarse) and ${NON_COVERING} {
-    body { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
+    :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
   body { position: relative; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
@@ -110,14 +89,11 @@ export function chromeStyle({
      motion is handled globally by the theme's guard. */
   body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] {
     transition: margin-right .18s ease, margin-left .18s ease; }
-  /* The strip itself, and — where there is no room to yield one — the page handing
-     scrolling over to the sheet that covers it instead. A margin, not padding: body is
-     the document's scroll container, so this is what ends its box, and its scrollbar, at
-     the panel's edge rather than under it. Under a covering sheet one wheel gesture still
-     moves one region, and the region is the thread list; the page holds its place for
-     when the sheet closes — a hidden-overflow scroller keeps its position, and still
-     moves for a t/T walk or a version switch restoring where the user was, so the passage
-     behind the sheet is the one the panel is talking about.
+  /* The strip itself, and — where there is no room to yield one — the page locking its
+     root scrollport while the sheet covers it. Body's margin narrows the layout shell
+     without replacing the browser's document scroller. Under a covering sheet one wheel
+     gesture still moves one region, and the region is the thread list; the root keeps its
+     position for when the sheet closes.
 
      The cascade's, though syncLayout is the layout's one writer, because body's box is
      the one thing that writer may not write: it runs from an observation of that box, and
@@ -139,7 +115,7 @@ export function chromeStyle({
     body[data-lf-panel] { margin-right: var(${PANEL_PROP}); }
   }
   @media screen and ${COVERING} {
-    body[data-lf-panel] { overflow-y: hidden; }
+    :where(html:not(.lf-copy)):has(body[data-lf-panel]) { overflow-y: hidden; }
   }
   /* The slide stands down for as long as the reader is holding the edge. A drag is a hand
      on that edge, and 180ms of easing behind it is the page sliding out from under the
@@ -158,7 +134,7 @@ export function chromeStyle({
     ${STRIP_TRAY_RULE} { margin-left: var(${TRAY_PROP}); }
   }
   @media screen and ${TRAY_COVERING} {
-    ${STRIP_TRAY_RULE} { overflow-y: hidden; }
+    :where(html:not(.lf-copy)):has(${STRIP_TRAY_RULE}) { overflow-y: hidden; }
   }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -1196,6 +1172,7 @@ ${MARK_RULES}
     .lf-page-map-toggle { display: none; }
     .lf-margin-preview { position: fixed; z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
+      scroll-padding-block: var(--here-ring-room);
       padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
     .lf-margin-preview[hidden] { display: none; }

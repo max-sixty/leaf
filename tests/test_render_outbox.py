@@ -1977,7 +1977,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     # box and centred on it, which is the geometry the box can swallow whole.
     page.evaluate("""() => {
         const r = document.querySelector('#opt-strict').getBoundingClientRect();
-        document.body.scrollBy({top: r.top - 60, behavior: 'instant'});
+        document.scrollingElement.scrollBy({top: r.top - 60, behavior: 'instant'});
     }""")
     page.locator("#opt-strict").click(click_count=3)
     page.locator(".lf-fab").click()
@@ -2022,7 +2022,7 @@ def test_the_composer_scrolls_with_the_passage_it_is_about(browser, serve):
         const composer = document.querySelector('.lf-composer');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
-        document.body.scrollTop += 240;
+        document.scrollingElement.scrollTop += 240;
         return { composer: top(composer) - before.composer,
                  passage: top(passage) - before.passage };
     }""")

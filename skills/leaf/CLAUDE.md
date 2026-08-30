@@ -1237,27 +1237,26 @@ its place for the page's life. When a row runs out of room, the leftmost
 status-like item may yield its own width so controls to its right remain fixed.
 
 `syncLayout` derives floating placement and reservations from current boxes.
-`layoutSizes` observes the body and chrome elements that affect those results.
-Its callbacks write only chrome. Window changes need no parallel resize
-listener when body observation already represents them.
+`layoutSizes` observes the body's inline size and chrome elements that affect those
+results. It schedules chrome-only writes outside ResizeObserver delivery. Window
+resizes have their own occasion because a content-sized body no longer represents the
+viewport's block size.
 
-The document scrolls `body`, not the viewport. `pageScroller` is the shared
-answer for reading position, paging, and libraries. A library that guesses
-`document.scrollingElement` must be given `pageScroller` explicitly — through
-`scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
-message is scrolled by the panel's own list and by nothing else. Threads and
-trays are alternate auxiliary workspaces, so only one stands at a time. The
+The browser's root is the document scrollport. `pageScroller` is the shared answer for
+reading position and paging; native fragments, history restoration, wheel/touch input,
+and browser UI all use that same root. Root scroll events are reported on `document`,
+while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
+may be one an agent sent, since a widget in a message is scrolled by the panel's own list
+and by nothing else. Threads and trays are alternate auxiliary workspaces, so only one
+stands at a time. The
 strip-taking workspaces—Threads and Decisions—take room when the viewport can hold
 them and cover the page under their respective media query otherwise; Leaves
 always covers because its rows leave this page.
-`stateStrip` and `stateRoom` are the geometry readings, and both count every
-strip the chrome holds and the gutter the scroller's own bar takes — a window is
-the page's box on neither count; CSS owns the body's corresponding layout. The
-gutter has one reading, `scrollerGutter`, beside the scroller it is a fact about.
-`stateRoom` is restated by the observation of body's box; `stateStrip` writes
-that box's padding, so it is called instead, and the gutter it reads cannot go
-stale between calls because the stylesheet that makes body the scroller reserves
-the room whether or not a bar is drawn in it.
+`stateStrip` and `stateRoom` are the geometry readings, and both count every strip the
+chrome holds. `documentElement.clientWidth` is already the root scrollport's usable
+width after any classic scrollbar; CSS owns body's corresponding layout-shell margins.
+`stateRoom` is restated by observing body's inline size, while `stateStrip` writes the
+shell's margin posture and is called on the occasions that can change it.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a

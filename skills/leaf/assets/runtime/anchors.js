@@ -5,7 +5,6 @@ import { moveScrollerBy } from "./scrolling.js";
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
-export const followFragment = (...args) => publishedAnchors.followFragment(...args);
 // Anchors are shallow records of primitive coordinates. Compare the complete records:
 // reading only the left operand's keys made a whole-visual anchor equal the part anchor
 // that extended it, but not the other way around.
@@ -999,9 +998,8 @@ export function createAnchors(dependencies) {
   // no middle to show, and centring one puts its opening words above the top edge, so it
   // takes that same banner clearance instead and the reader starts at the start.
   //
-  // The viewport is the scroller's own box rather than the window's, which is the same
-  // number for the document — body is the page's scroller and is the window's height — and
-  // is the panel's list where that is what scrolls.
+  // The viewport is the scroller's own box: the browser viewport for the root, and the
+  // panel's list where that is what scrolls.
   //
   // It glides, because a page the reader is already holding is one the motion keeps their
   // place in — the same reason a restore doesn't (moveScrollerBy). An arrival passes
@@ -1011,8 +1009,8 @@ export function createAnchors(dependencies) {
   function centreBy(where, block = "center", box = pageScroller) {
     const rect =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    // The scroller's own box rather than the window's: the same number for the document,
-    // whose scroller is body, and the list's own where the list is what scrolls.
+    // The scroller's own box: the viewport for the document root, and the list's own where
+    // the list is what scrolls.
     const view = shownBox(box);
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     const place =
@@ -1036,27 +1034,6 @@ export function createAnchors(dependencies) {
     const box = scrollerFor(el);
     if (!under(el, box)) return;
     moveScrollerBy(box, centreBy(el, block, box), behavior);
-  }
-
-  // Follow a real fragment while keeping the whole journey visible. Setting location.hash
-  // preserves the platform's history and :target semantics. Measure the destination from
-  // its revealed box first, because an authored `scroll-behavior: smooth` makes the native
-  // fragment movement asynchronous and therefore cannot supply a synchronous goal. Cancel
-  // that native movement in the same task, before it can paint, then let the shared
-  // reading-page glide carry the reader between the two positions.
-  function followFragment(el, fragment, block = "start") {
-    reveal(el);
-    const box = scrollerFor(el);
-    if (!under(el, box)) return;
-    const goal = box.scrollTop + centreBy(el, block, box);
-    if (location.hash === fragment) {
-      glideTo(box, goal);
-      return;
-    }
-    const from = box.scrollTop;
-    location.hash = fragment;
-    box.scrollTo({ top: from, behavior: "instant" });
-    glideTo(box, goal);
   }
 
   // A comment destination already fully visible in its own scroller needs no travel.
@@ -1295,9 +1272,9 @@ export function createAnchors(dependencies) {
     queueLegend();
     if (actionAnchor()) queueActionPlacement();
   }
-  // At the document and at capture, because scroll does not bubble and body is not the
-  // page's only scroller: a board scrolls its columns sideways, and a card carried under
-  // a parked pointer that way is the same fact as the page scrolling under it. Capture is
+  // At the document and at capture, because scroll does not bubble and the root is not the
+  // page's only scroller: a board scrolls its columns sideways, and a card carried under a
+  // parked pointer that way is the same fact as the page scrolling under it. Capture is
   // the one place every scroller's event passes.
   document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
 
@@ -1324,7 +1301,6 @@ export function createAnchors(dependencies) {
     paintAnchors,
     fragmentId,
     markAt,
-    followFragment,
     scrollToElement,
     scrollToRange,
     scrollToThread,

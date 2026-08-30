@@ -13,16 +13,14 @@
  * signal. The map writes only to itself, never the main box it observes. The ordinary
  * in-flow list remains the script-free, narrow, and paper form.
  *
- * Every link keeps a real href for standalone copies. In a live page the shared fragment
- * travel preserves history and :target, reveals a disclosure or tab, and gives the move
- * the same short glide as Leaf's reading keys. On an initial load the shared arrival pass
- * runs after all widgets settle, so it can honor a generated target that did not exist
- * during HTML parsing. */
+ * Every link is a real fragment link in both live pages and standalone copies. The
+ * browser owns its navigation, history, :target state, wheel input, and scroll
+ * restoration; hidden-until-found reveals a disclosure or tab containing the target.
+ * On an initial load the shared arrival pass runs after all widgets settle, so it can
+ * honor a generated target that did not exist during HTML parsing. */
 import {
   LAYOUT,
-  followFragment,
   inChrome,
-  moveScrollerFromWheel,
   once,
   relabel,
   scrollerFor,
@@ -40,11 +38,11 @@ customElements.define(
     #sections = [];
     #positions = [];
     #shown = [];
-    #destinations = new Map();
     #contentStart = 0;
     #contentEnd = 1;
     #currentLink = null;
     #scroller;
+    #scrollSource;
     #watching;
     #measureFrame = 0;
     #paintFrame = 0;
@@ -54,26 +52,6 @@ customElements.define(
     #onToggle = () => this.#scheduleMeasure();
     #onLoad = () => this.#scheduleMeasure();
     #onLayout = () => this.#scheduleMeasure();
-    #onWheel = (event) => {
-      if (getComputedStyle(this).position !== "fixed") return;
-      if (moveScrollerFromWheel(this.#scroller, event)) event.preventDefault();
-    };
-    #onClick = (event) => {
-      const link = event.target.closest("a");
-      const destination = this.#destinations.get(link);
-      if (
-        !destination ||
-        event.defaultPrevented ||
-        event.button !== 0 ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey
-      )
-        return;
-      event.preventDefault();
-      followFragment(destination, link.hash, "start");
-    };
 
     connectedCallback() {
       if (once(this)) this.#build();
@@ -84,8 +62,7 @@ customElements.define(
     disconnectedCallback() {
       this.#watching?.disconnect();
       this.#watching = null;
-      this.#scroller?.removeEventListener("scroll", this.#onScroll);
-      this.#nav?.removeEventListener("wheel", this.#onWheel);
+      this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
@@ -132,7 +109,6 @@ customElements.define(
         ? pageTitle.id || this.#targetFor(pageTitle, 0)
         : this.#main.id || this.#targetFor(this.#main, 0);
       startLink.href = `#${startTarget}`;
-      this.#destinations.set(startLink, document.getElementById(startTarget));
       const startLabel = pageTitle ? wrote(pageTitle).trim() : "Top";
       startLink.dataset.lfLabel = startLabel;
       startLink.setAttribute("aria-label", startLabel);
@@ -150,7 +126,6 @@ customElements.define(
         );
         const link = document.createElement("a");
         link.href = `#${target}`;
-        this.#destinations.set(link, document.getElementById(target));
         link.textContent = label;
         row.append(link);
         list.append(row);
@@ -163,7 +138,6 @@ customElements.define(
       ];
       this.#rows.append(lens, start, list);
       this.#nav.append(heading, this.#rows);
-      this.#nav.addEventListener("click", this.#onClick);
       this.append(this.#nav);
     }
 
@@ -172,12 +146,16 @@ customElements.define(
       this.#main = this.closest("main");
       if (!this.#main) return;
       this.#scroller = scrollerFor(this);
+      // Root scrolling is reported on Document; nested scrollports report on the
+      // element itself. Keep one paint path while using the platform's event target for
+      // each kind of scroller.
+      this.#scrollSource =
+        this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
       for (const { heading } of this.#sections)
         if (heading !== this.#main) this.#watching.observe(heading);
-      this.#scroller.addEventListener("scroll", this.#onScroll, { passive: true });
-      this.#nav.addEventListener("wheel", this.#onWheel, { passive: false });
+      this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
       this.#main.addEventListener(LAYOUT, this.#onLayout);

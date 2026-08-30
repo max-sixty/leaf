@@ -14,6 +14,16 @@ import { uiInside } from "./passages.js";
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.
 export function shownBand(el) {
+  // The root element's border box travels with the document, while its scrollport stays
+  // pinned to the viewport. Every other scroller's visible band can be derived from its
+  // own box; the root is the platform-defined exception.
+  if (el === document.scrollingElement)
+    return {
+      left: 0,
+      top: 0,
+      right: document.documentElement.clientWidth,
+      bottom: document.documentElement.clientHeight,
+    };
   const s = getComputedStyle(el);
   if (
     s.overflowX === "visible" &&
@@ -46,6 +56,17 @@ export function shownBand(el) {
 // the element directly and centred the top of the document. One answer to "where is
 // this element", so there is no second way to ask.
 export function shownBox(el) {
+  if (el === document.scrollingElement)
+    return {
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: document.documentElement.clientWidth,
+      bottom: document.documentElement.clientHeight,
+      width: document.documentElement.clientWidth,
+      height: document.documentElement.clientHeight,
+    };
   const r = el.getBoundingClientRect();
   if (r.width || r.height) return r;
   const contents = document.createRange();
@@ -86,22 +107,20 @@ export function shownParts(el) {
 // answer of its own: an option's table box runs on under its group's overflow: hidden,
 // and a card half-scrolled out of a board is half gone. A box drawn from the raw rect
 // claims pixels the page has already refused, over the neighbour standing in them.
-// body is the page's own scroller, so its edge is one of these too: what is scrolled
-// off screen has no rect, and a legend draws boxes for what is on it and nothing for
-// the rest.
+// The root scrollport's viewport band is one of these too: what is scrolled off screen
+// has no rect, and a legend draws boxes for what is on it and nothing for the rest.
 //
 // The walk stops at a box the viewport holds rather than the document: nothing above a
 // `position: fixed` element clips it, so the ancestors past that one are answering about a
 // flow the element left. Every box in the chrome is behind one — the thread panel is
-// fixed, and body is the page's scroller narrowed to the column beside it — so a reply box
-// measured through body's band came back wholly clipped away, at any window wide enough for
-// the panel to stand beside the page rather than over it. The one caller before this asked
+// fixed, so a reply box measured through the page flow's ancestors came back wholly clipped
+// away at any window wide enough for the panel to stand beside the page rather than over
+// it. The one caller before this asked
 // only about the page's own items, none of which is ever inside a fixed box, which is why
 // the walk could be written as "every ancestor" and read as complete.
 //
 // Which leaves the viewport itself, applied to everything: for a box in the page it is
-// what body's own band already said, and for one in a fixed layer it is the whole of what
-// clips it.
+// the root's band, and for one in a fixed layer it is the whole of what clips it.
 //
 // `clips` caches each ancestor's answer for one pass: the legend asks for every item
 // on the page in one breath, and the items share their scrollers, so what a pass spends

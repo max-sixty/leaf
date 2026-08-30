@@ -1734,7 +1734,7 @@ BARE_PAGE = leaf_page("doc-change", CHANGE_HEAD)
 REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
 
 BOTH_BOXES = """() => ({
-  page: document.body.scrollTop,
+  page: document.scrollingElement.scrollTop,
   panel: document.querySelector('.lf-threads').scrollTop,
 })"""
 
@@ -1859,7 +1859,7 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    page.evaluate("() => { document.body.scrollTop = 1200; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
 
     # Where the travel says it is taking the widget: centred in the list, or as near
@@ -1916,7 +1916,9 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
 
     # The control: the page's own thread still moves the page.
     page.locator('.lf-thread[data-id="tv-on-page"] .lf-quote').click()
-    page.wait_for_function(f"() => document.body.scrollTop !== {before['page']}")
+    page.wait_for_function(
+        f"() => document.scrollingElement.scrollTop !== {before['page']}"
+    )
     assert errors == []
     page.close()
 
@@ -1986,7 +1988,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page.keyboard.down("Alt")
     expect(page.locator(".lf-keyline")).to_be_visible()
 
-    page.evaluate("() => { document.body.scrollTop = 1200; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     # Where the reader is standing when they press: the thread on screen, which is
     # also what the driver's own scroll-into-view would arrange. Read after it, so the
     # baseline is the page as the press finds it rather than as the test left it.
@@ -2561,7 +2563,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
         )
         target.evaluate("el => el.focus({preventScroll: true})")
 
-        before_page = page.evaluate("() => document.body.scrollTop")
+        before_page = page.evaluate("() => document.scrollingElement.scrollTop")
         page.keyboard.press("g")
         expect(
             page.locator(
@@ -2603,7 +2605,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
             f"the landable edge is {bottom['clear']:.1f}px"
         )
         expect(target).to_be_focused()
-        assert page.evaluate("() => document.body.scrollTop") == before_page
+        assert page.evaluate("() => document.scrollingElement.scrollTop") == before_page
         assert errors == []
         page.close()
     finally:
@@ -2902,7 +2904,9 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         # Keep the quoted passage outside the page's readable viewport. This test is the
         # drag/plain-press contrast: a readable destination deliberately stays put now,
         # so only an offscreen passage can prove the plain press still travels.
-        page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+        )
         page.evaluate(RENDERED)
         destination = page.evaluate(
             """() => {
@@ -2919,7 +2923,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
             f"the quoted passage is still readable, so a click need not travel: {destination}"
         )
 
-        where = "() => document.body.scrollTop"
+        where = "() => document.scrollingElement.scrollTop"
         before = page.evaluate(where)
         quote = page.locator(".lf-threads > .lf-thread .lf-quote").first
         span = quote.bounding_box()

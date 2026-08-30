@@ -387,7 +387,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         page.evaluate(
             """() => { const r = document.querySelector('lf-shot .lf-shotframe')
                                   .getBoundingClientRect();
-                       document.body.scrollBy(0, r.top - 140); }"""
+                       document.scrollingElement.scrollBy(0, r.top - 140); }"""
         )
         image_point = frame.evaluate(
             "el => { const r = el.getBoundingClientRect();"
@@ -399,11 +399,14 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             image_point,
         )
         was_checked = box.is_checked()
-        scroll_before = page.evaluate("document.body.scrollTop")
+        scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*image_point)
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert box.is_checked() is not was_checked
-        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+        assert (
+            abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
+            <= 1
+        )
 
         # Put the instruction just inside the viewport, then remove the focus left by
         # the image gesture. An implementation covering only the image would route this
@@ -412,7 +415,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             """() => { document.activeElement.blur();
                        const r = document.querySelector('lf-shot .lf-shotpick')
                                          .getBoundingClientRect();
-                       document.body.scrollBy(0, r.bottom - innerHeight + 60); }"""
+                       document.scrollingElement.scrollBy(0, r.bottom - innerHeight + 60); }"""
         )
         row_point = row.evaluate(
             "el => { const r = el.getBoundingClientRect();"
@@ -424,11 +427,14 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             row_point,
         )
         was_checked = box.is_checked()
-        scroll_before = page.evaluate("document.body.scrollTop")
+        scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*row_point)
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert box.is_checked() is not was_checked
-        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+        assert (
+            abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
+            <= 1
+        )
 
     assert errors == []
     page.close()

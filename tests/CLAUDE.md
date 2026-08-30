@@ -130,8 +130,8 @@ edge: overflow, paint containment, and `content-visibility`. `version check
 page paints to are one reading, and its comment records that the two copies before
 it disagreed twice. `RINGS_DRAWN` is a third consumer of it rather than a third
 copy of it, and it asks the window on the same terms as any other box: a fixed
-subtree is laid out against the window, and everything else reaches it through
-`body`, which is this page's scroller.
+subtree is laid out against the window, and everything else reaches it through the
+browser's root scrollport.
 
 A ring is also only drawn for a press. `element.focus()` sets `:focus` and not
 `:focus-visible`, so a control focused from script wears no ring at all, and every

@@ -992,6 +992,10 @@ ${MARK_RULES}
     .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
     .lf-compose { display: block; margin-top: 8px; }
     .lf-compose textarea { display: block; width: 100%; min-width: 0; }
+    /* The foot is a column of its own so the composer and the page's reaction strip keep
+       the flex-item margins they had as the panel's own children, and so the one box the
+       chrome measures for its lift is the one the reader sees standing there. */
+    .lf-panel-foot { display: flex; flex-direction: column; flex: none; }
     /* The general Send stays beside its field; a thread gives the field its own row. */
     .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-general textarea { flex: 1; min-width: 0; }

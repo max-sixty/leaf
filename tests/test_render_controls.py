@@ -2654,6 +2654,78 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
     page.close()
 
 
+def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve):
+    """Over a covering panel the key line stands on the sheet, lifted clear of what the
+    sheet keeps standing at its foot. That foot is two rows once the page offers
+    reactions: the general composer, and the page's own reaction strip above it. A lift
+    measured off the composer alone put the line's More on the strip's ellipsis — 8.8px
+    of clear space between two things to press, and the reader aiming at the reaction
+    got the keyboard reference.
+
+    The list above the foot scrolls, so it takes the line's room the way the trays' lists
+    and the document do: reserved at its end, and given back when the panel steps beside
+    the page and the line is capped clear of it instead."""
+    page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
+    resized(page, 420, 900)
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-page-strip .lf-react-trigger")).to_be_visible()
+
+    def boxes():
+        return page.evaluate("""() => {
+            const rect = selector => {
+                const r = document.querySelector(selector).getBoundingClientRect();
+                return {left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+                        height: r.height};
+            };
+            const list = document.querySelector(".lf-threads");
+            const style = getComputedStyle(list);
+            return {keyline: rect(".lf-keyline"), foot: rect(".lf-panel-foot"),
+                    general: rect(".lf-general"), list: rect(".lf-threads"),
+                    trigger: rect(".lf-page-strip .lf-react-trigger"),
+                    listPad: parseFloat(style.paddingBottom),
+                    listScrollPad: parseFloat(style.scrollPaddingBottom)};
+        }""")
+
+    covering = boxes()
+    # The foot is taller than its composer, or the lift below would be the same
+    # measurement either way and the test would prove nothing.
+    assert covering["foot"]["height"] > covering["general"]["height"] + 1, (
+        f"the panel's foot carried no strip to be lifted over: {covering}"
+    )
+    assert covering["keyline"]["bottom"] <= covering["foot"]["top"], (
+        f"the key line stood on the sheet's foot: {covering}"
+    )
+    assert covering["keyline"]["bottom"] <= covering["trigger"]["top"], (
+        f"the key line stood on the page's reaction strip: {covering}"
+    )
+    # The line reaches back over the list, so the list reserves at least as much of its
+    # own end as the line stands on — spent the wheel's way and the walk's way both.
+    covered = covering["list"]["bottom"] - covering["keyline"]["top"]
+    assert covered > 0, f"the line no longer reaches the list at all: {covering}"
+    assert covering["listPad"] >= covered, (
+        f"the sheet's list left its last thread under the key line: {covering}"
+    )
+    assert covering["listScrollPad"] >= covered, (
+        f"a walk to the last thread would stop under the key line: {covering}"
+    )
+
+    # Beside the page the line is capped left of the panel, so the list keeps the inset
+    # the stylesheet gives it rather than room for a line that never reaches it.
+    resized(page, 1200, 900)
+    page.wait_for_function(
+        """() => parseFloat(
+            getComputedStyle(document.querySelector('.lf-threads')).paddingBottom
+        ) < 20"""
+    )
+    beside = boxes()
+    assert beside["keyline"]["right"] <= beside["foot"]["left"] + 1, (
+        f"the line crossed into the panel it stands beside: {beside}"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
     """Runtime layout writes preserve the inset tokens stated by the stylesheet."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -2689,7 +2761,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
               return {toast: rect('.lf-toast'), keyline: rect('.lf-keyline'),
-                      footer: rect('.lf-general'), width: innerWidth, height: innerHeight,
+                      footer: rect('.lf-panel-foot'), width: innerWidth, height: innerHeight,
                       toastRight: getComputedStyle(document.querySelector('.lf-toast')).right};
         }"""
     )

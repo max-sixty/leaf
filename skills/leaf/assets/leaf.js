@@ -907,7 +907,14 @@ const generalRow = el("div", "lf-general");
 const generalInput = document.createElement("textarea");
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-panel.append(panelHead, findRow, threadsBox, generalRow);
+// The panel's foot: everything standing below the scrolling thread list. The general
+// box is what it holds at rest, and the page's own reaction strip joins it above that
+// box when the registry offers reactions. One box rather than two siblings, because the
+// chrome lifts the key line and the toast clear of the foot over a covering panel, and a
+// lift measured off the composer alone stood them on the strip's pills.
+const panelFoot = el("div", "lf-panel-foot");
+panelFoot.append(generalRow);
+panel.append(panelHead, findRow, threadsBox, panelFoot);
 
 // The floating Comment control names a selection before it has a stable target row.
 // Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
@@ -1129,12 +1136,13 @@ chromeLayout = createChromeLayout({
   currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
   focused,
-  generalRow,
   keylineEl,
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
   panel,
   panelFocusTarget: threadsBox,
+  panelFoot,
+  panelList: threadsBox,
   placeComposer: (...args) => placeComposer(...args),
   readerStore,
   refreshFab: (...args) => refreshFab(...args),

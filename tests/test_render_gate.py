@@ -2085,6 +2085,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "widget": "an-set",
             "action": "choose",
             "detail": {"options": ["an-chase", "an-say"]},
+            "generated": [],
         },
     )
     # The Done press. Recordless, and the last word on the group.

@@ -13,7 +13,7 @@ from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids, spoken
 from leaf.projection import page_projection, state_projection
-from leaf.registry.contract import schema_error, visual_parts
+from leaf.registry.contract import created_children, schema_error, visual_parts
 from leaf.requests import request_lifecycles_for, request_phases
 from leaf.structure import parse_revision
 from leaf.thread_context import thread_roots, thread_structure, thread_widgets
@@ -89,7 +89,11 @@ def declared_event_error(
 
 
 def declared_action_error(
-    event: dict, page_by_id: dict, thread_by_id: dict, registry: dict
+    event: dict,
+    page_by_id: dict,
+    thread_by_id: dict,
+    registry: dict,
+    prior_registry: dict | None = None,
 ):
     """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own immutable revision. Thread widgets
@@ -105,6 +109,38 @@ def declared_action_error(
     tag = rec["tag"]
     if error := declared_event_error(event, tag, registry, "action", "x-state"):
         return error
+    spec = registry[tag]["x-state"][event["action"]]
+    creates = spec.get("creates")
+    if creates:
+        if "generated" not in event:
+            return (
+                f"<{tag}> action {event['action']!r} declares generated children "
+                "but the event has no generated snapshot"
+            )
+        expected = sorted(created_children(event, spec))
+        if event["generated"] != expected:
+            return (
+                f"<{tag}> action {event['action']!r} generated snapshot must equal "
+                f"the sorted keys of detail field {creates['field']!r}: "
+                f"expected {expected}, found {event['generated']}"
+            )
+    elif "generated" in event:
+        return (
+            f"<{tag}> action {event['action']!r} has a generated snapshot but its "
+            "declaration creates no children"
+        )
+    if prior_registry is not None:
+        prior = (
+            prior_registry.get(tag, {})
+            .get("x-state", {})
+            .get(event["action"], {})
+            .get("creates")
+        )
+        if prior != creates:
+            return (
+                f"<{tag}> action {event['action']!r} changes its recorded creates "
+                f"declaration from {prior!r} to {creates!r}"
+            )
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader

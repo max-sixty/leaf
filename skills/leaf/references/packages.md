@@ -142,6 +142,14 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
+An `x-state` verb that lets the reader add real children declares
+`creates: {field, child}`. The named optional detail field has the canonical
+`{element-id: non-empty words}` map schema. The child tag admits the sender through
+`x-parent`, requires only its canonical `id`, and has `x-content: prose`. `sendAction`
+then records the map's sorted ids in `generated`, allowing registry-free historical
+folds to retain their liveness while version checks enforce the declared tag and
+direct-parent relation.
+
 Every row passed to `keys()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different

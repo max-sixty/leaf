@@ -40,6 +40,7 @@ OUTCOME_ON_DECISION = {
     "widget": "bracket",
     "action": "choose",
     "detail": {"options": ["br-steel"]},
+    "generated": [],
 }
 
 

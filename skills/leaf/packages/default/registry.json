@@ -231,6 +231,10 @@
         },
         "facet": "selection",
         "unit": "widget",
+        "creates": {
+          "field": "additions",
+          "child": "lf-option"
+        },
         "record": {
           "kind": "attribute",
           "attr": "chosen",

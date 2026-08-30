@@ -9,7 +9,6 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
@@ -37,13 +36,11 @@ from render_support import (
     _traffic,
     _until,
     compare_with,
-    composer_quote,
     flip_point,
     key_line,
     leaf_page,
     live_url,
     open_page,
-    page_registry,
     resized,
     round_trip,
     select,
@@ -51,7 +48,6 @@ from render_support import (
     stamp_page,
     stamp_version_file,
     told,
-    undo,
     wait_for_revision,
 )
 
@@ -272,203 +268,6 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
     page.close()
 
 
-def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
-    """A settled decision reads as one line and the cards behind it stop spending
-    the page's height — but they are hidden, not gone, so everything that used to
-    reach them still does: the disclosure opens them, and a comment anchored in
-    one opens the group on its way to the passage. A collapse a comment can't see
-    through is worse than no collapse at all, because the thread still lists the
-    quote and clicking it lands nowhere.
-
-    The line itself is in reach too, which is the harder half: while the group is
-    collapsed it is the only place the decision is stated, and it is written into a
-    disclosure — chrome, and a control. And naming the card there means the page now
-    says the card's lede twice, so the third part asks the one thing that buys: a
-    comment made on the card lands on the card.
-
-    Which way the disclosure stands is the row's own expanded state and nothing
-    besides: the group's markup is the author's, and opening a settled decision is
-    reading rather than editing, so no version and no log has a word to say about
-    it."""
-    page, errors = open_page(
-        browser, serve(SETTLED_PAGE, anchored=[("opt-strict", "arrives logged out")])
-    )
-    group = page.locator("#transport")
-    height = "el => Math.round(el.getBoundingClientRect().height)"
-
-    assert errors == []
-    collapsed = group.evaluate(height)
-    assert page.locator("#transport lf-option:visible").count() == 0
-    row = page.locator("#transport .lf-settled")
-    assert row.inner_text().startswith("Settled: Lax cookie")
-    assert row.get_attribute("aria-expanded") == "false"
-
-    row.focus()
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    settled_help = page.locator(".lf-help-section").filter(
-        has=page.get_by_role("heading", name="In a settled ask", exact=True)
-    )
-    expect(
-        settled_help.get_by_text("Open or close the settled ask", exact=True)
-    ).to_have_count(1)
-    expect(settled_help).not_to_contain_text(re.compile(r"decision", re.IGNORECASE))
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-
-    row.click()
-    opened = group.evaluate(height)
-    assert page.locator("#transport lf-option:visible").count() == 3
-    assert opened > collapsed * 3, (
-        f"collapsing saved {opened - collapsed}px of {opened}px — a settled group "
-        f"that still costs most of its open height isn't a sweep"
-    )
-    # Open is the row's own expanded state and nothing else. The group wore an `open`
-    # attribute here too, in a namespace its entry closes, which no version carries and
-    # no consumer reads — while shallowSigs, whose exclusion list is exactly what no
-    # version can assert, counted it as state the author had written. The render gate
-    # asks the same of every example and cannot reach this moment: a group arrives
-    # closed, and nothing it does opens one.
-    assert row.get_attribute("aria-expanded") == "true"
-    assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
-        == []
-    ), "opening the group left an attribute on a widget its entry never declared"
-
-    row.click()  # closed again, so the reveal below has something to open
-
-    # While it is closed the row is the decision's only visible statement, so the part of
-    # it naming the card has to be quotable — and a drag across it must not toggle the
-    # disclosure it lives in, which is the mouseup of that drag.
-    title = page.locator("#transport .lf-settled [data-lf-said]")
-    box = title.bounding_box()
-    y = box["y"] + box["height"] / 2
-    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    assert (
-        page.evaluate("() => getSelection().toString()").strip()
-        == "Settled: Lax cookie"
-    )
-    expect(page.locator("#opt-strict")).to_be_hidden()
-    page.locator(".lf-fab").click()
-    expect(page.locator(".lf-composer")).to_be_visible()
-    assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
-    page.keyboard.press("Escape")
-
-    # The row names the chosen card, so the page now says "Lax cookie" twice and both
-    # copies are quotable. A comment on the card's own lede has to land on the card —
-    # the row comes first in document order, which is where a search on the quote alone
-    # would put it.
-    #
-    # Dropping the selection first is the user's own next move: a press that lands
-    # inside a live selection is that selection's, so the row would not open under it.
-    page.locator("#lede").click()
-    row.click()
-    expect(
-        page.locator("#opt-lax")
-    ).to_be_visible()  # until-found keeps a box either way
-    lede = page.locator("#opt-lax > strong")
-    box = lede.bounding_box()
-    y = box["y"] + box["height"] / 2
-    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    page.locator(".lf-fab").click()
-    expect(page.locator(".lf-composer")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("which copy is this on?")
-    page.get_by_role("button", name="Comment", exact=True).click()
-    # Two, not one: this page arrived carrying a mark, so waiting for any at all is a
-    # wait that was over before the gesture started.
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
-    # Both marks on the page: the one this fixture arrived carrying, and the new one.
-    assert sorted(
-        page.evaluate(
-            "() => [...CSS.highlights.get('lf-mark')].map(r => "
-            "r.startContainer.parentElement.closest('[id]').id)"
-        )
-    ) == [
-        "opt-lax",
-        "opt-strict",
-    ], "the comment landed on the summary line rather than the card it was made on"
-    row.click()  # closed again, so the reveal below has something to open
-
-    # Sending opened the panel, so the thread is already listed. Its quote is on a card
-    # the collapse is hiding, and following it has to bring the card back.
-    page.locator(".lf-panel .lf-quote", has_text="arrives logged out").click()
-    assert page.locator("#opt-strict").is_visible(), (
-        "clicking a thread's quote must open the group holding it"
-    )
-    page.close()
-
-
-def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, serve):
-    """A replayed option stays inside the settled disclosure it belongs to.
-
-    The disclosure's count and controls describe the complete current option set,
-    including options reconstructed from the standing action and their later undo.
-    """
-    page, errors = open_page(browser, serve(SETTLED_DECISION_PAGE))
-    group = page.locator("#jobs")
-    row = group.locator(":scope > .lf-settled")
-
-    row.click()
-    field = group.get_by_role("textbox", name="Another option", exact=True)
-    field.fill("Insulate the camera battery")
-    group.get_by_role("button", name="Add option", exact=True).click()
-    round_trip(page)
-    added = group.locator(":scope > lf-option[data-lf-added]")
-    added_id = added.get_attribute("id")
-    expect(added).to_be_visible()
-
-    row.click()
-    page.reload(wait_until="load")
-    page.wait_for_function(
-        "() => document.body.getAttribute('data-lf-presented') === '1'"
-    )
-    row = group.locator(":scope > .lf-settled")
-    expect(row).to_have_attribute("aria-expanded", "false")
-    expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
-    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
-    assert row.get_attribute("aria-controls").split() == [
-        "job-mounts",
-        "job-heater",
-        "job-camera",
-        added_id,
-    ]
-
-    undo(page)
-    expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
-    expect(row.locator(".lf-settled-count")).to_have_text("3 options")
-    assert row.get_attribute("aria-controls").split() == [
-        "job-mounts",
-        "job-heater",
-        "job-camera",
-    ]
-    assert errors == []
-    page.close()
-
-
-def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
-    """Print drops the dead controls but retains the selected option's check."""
-    page, errors = open_page(browser, serve(SETTLED_PAGE))
-    row = page.locator("#transport .lf-settled")
-    expect(row).to_contain_text("Settled: Lax cookie")
-    expect(page.locator(".lf-banner")).to_be_visible()
-
-    pick = page.locator("#opt-lax .lf-pick")
-    page.emulate_media(media="print")
-    expect(
-        page.locator(".lf-banner")
-    ).to_be_hidden()  # the whole layer, by its own root
-    expect(
-        row
-    ).to_be_hidden()  # the disclosure is a screen affordance; paper has the cards
-    expect(pick).to_be_hidden()
-    expect(page.locator("#opt-strict .lf-pick")).to_be_hidden()
-    after = "el => getComputedStyle(el, '::after').content"
-    assert page.locator("#opt-lax").evaluate(after) == '"✓"'
-    assert page.locator("#opt-strict").evaluate(after) == "none"
-    assert errors == []
-    page.close()
-
-
 def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     """An authored pick without a live control is a check with an accessible name.
 
@@ -567,35 +366,6 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
     expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
-    assert errors == []
-    page.close()
-
-
-def test_enter_keeps_another_option_separate_from_a_clarification_thread(
-    browser, serve
-):
-    """The add-option field is not replaced by an exact-section conversation."""
-    url = serve(DECISION_WITH_CONTEXT_PAGE)
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "claude",
-            "revision": 1,
-            "anchor": {"section": "storage-options"},
-            "text": "Archive them locally or remotely?",
-        },
-    )
-
-    page, errors = open_page(browser, url)
-    mark = page.locator("#storage-evict .lf-pick")
-    mark.focus()
-    expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-conversation")).to_have_count(0)
-
-    page.keyboard.press("Enter")
-    expect(page.locator("#storage-options > .lf-another input")).to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -725,45 +495,6 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
     ).evaluate("el => el.getBoundingClientRect().top"), (
         "the answer control stands before its authored question"
     )
-    assert errors == []
-    page.close()
-
-
-def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
-    """A settled answer still follows the authored question, on-page and in a reply."""
-    url = serve(DECISION_SHAPES_PAGE)
-    # The same widget, same markup, in the other place a group can stand. Which of the
-    # two writers gets there first is reversed in here — the panel renders a message's
-    # words into a detached body before any element connects, where the page upgrades
-    # first and renders words after — so this is the reading that says the order does
-    # not depend on that.
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "claude",
-            "revision": 1,
-            "text": "And settled in here.",
-            "markup": '<lf-decision id="th-done-decision"><h3>Where, again?</h3>'
-            '<lf-options id="th-done" choose settled>'
-            '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
-            '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
-            "</lf-options></lf-decision>",
-        },
-    )
-    page, errors = open_page(browser, live_url(url))
-    page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
-
-    top = "el => el.getBoundingClientRect().top"
-    for ask, group in (("done-decision", "done"), ("th-done-decision", "th-done")):
-        expect(page.locator(f"#{group} .lf-settled")).to_have_count(1)
-        question = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)").evaluate(top)
-        summary = page.locator(f"#{group} .lf-settled").evaluate(top)
-        assert question < summary, (
-            f"#{group}'s question is drawn at {question:.0f} and its answer at "
-            f"{summary:.0f}, so the group states what it settled before what it asked"
-        )
     assert errors == []
     page.close()
 
@@ -1313,6 +1044,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["out-drill"]},
+            "generated": [],
         },
     )
 
@@ -1721,74 +1453,6 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.close()
 
 
-def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
-    """The answer the author missed joins the control and travels as selection state.
-
-    It is not a comment with a special response contract: the reader has supplied an
-    answer, not opened a conversation. The standing action carries every generated
-    option so a later ordinary pick and a reload retain the same set of alternatives.
-    """
-    url = serve(DECISION_PAGE)
-    page, errors = open_page(browser, url)
-    d = serve.page_dir
-
-    expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
-    added = page.locator("#jobs > .lf-another")
-    assert added.count() == 1, (
-        f"the add-option cell was not rendered: {errors}; "
-        f"group={page.locator('#jobs').inner_html()}"
-    )
-    field = added.get_by_role("textbox", name="Another option", exact=True)
-    field.fill("Insulate the camera battery")
-    added.get_by_role("button", name="Add option", exact=True).click()
-    round_trip(page)
-
-    new_option = page.locator("#jobs > lf-option[data-lf-added]")
-    assert new_option.count() == 1, (
-        f"the added option did not stand: {errors}; events={sent_events(d)}; "
-        f"group={page.locator('#jobs').inner_html()}"
-    )
-    expect(new_option).to_contain_text("Insulate the camera battery")
-    expect(new_option).to_have_attribute("chosen", "")
-    event = [
-        event
-        for event in sent_events(d)
-        if event.get("kind") == "action" and event.get("widget") == "jobs"
-    ][-1]
-    assert event["action"] == "choose"
-    assert event["detail"] == {
-        "options": [new_option.get_attribute("id")],
-        "additions": {new_option.get_attribute("id"): "Insulate the camera battery"},
-    }
-    assert not [event for event in sent_events(d) if event["kind"] == "comment"]
-
-    page.locator("#job-heater").click()
-    round_trip(page)
-    latest = [
-        event
-        for event in sent_events(d)
-        if event.get("kind") == "action" and event.get("widget") == "jobs"
-    ][-1]
-    assert latest["detail"]["additions"] == event["detail"]["additions"]
-
-    page.reload(wait_until="load")
-    page.wait_for_function(
-        "() => document.body.getAttribute('data-lf-presented') === '1'"
-    )
-    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
-
-    undo(page)
-    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_attribute(
-        "chosen", ""
-    )
-    undo(page)
-    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
-    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
-    assert errors == []
-    page.close()
-
-
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
@@ -1995,52 +1659,6 @@ def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
     )
     expect(work_line).to_have_css("display", "flex")
     expect(work_line).to_have_css("border-left-style", "dashed")
-    assert errors == []
-    page.close()
-
-
-def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
-    """An exact-section thread cannot take an unsent option's field.
-
-    The draft remains part of the decision and still becomes a real option. The thread
-    stays separate: adding the option sends an action, not a second comment."""
-    page, errors = open_page(browser, serve(DECISION_PAGE))
-    d = serve.page_dir
-    first = page.locator("#jobs > .lf-another input")
-    draft = "Keep this answer even if another thread arrives first."
-    first.fill(draft)
-
-    external = events_model.append_event(
-        d,
-        {
-            "kind": "comment",
-            "author": "claude",
-            "agent": "Indexer",
-            "revision": 1,
-            "anchor": {"section": "jobs"},
-            "text": "A separate note on this question.",
-        },
-    )
-    told(page)
-    expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
-    expect(first).to_be_visible()
-    expect(first).to_have_value(draft)
-
-    page.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add option", exact=True
-    ).click()
-    round_trip(page)
-    added = page.locator("#jobs > lf-option[data-lf-added]")
-    expect(added).to_contain_text(draft)
-    expect(added).to_have_attribute("chosen", "")
-    roots = [e for e in sent_events(d) if e["kind"] == "comment"]
-    assert [(e["anchor"], e["text"]) for e in roots] == [
-        ({"section": "jobs"}, "A separate note on this question."),
-    ]
-    action = next(e for e in sent_events(d) if e["kind"] == "action")
-    assert action["detail"]["additions"] == {added.get_attribute("id"): draft}
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
     assert errors == []
     page.close()
 

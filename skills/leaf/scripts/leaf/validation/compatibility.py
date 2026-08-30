@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from leaf import event_contracts
+from leaf.files import read_json
 from leaf.registry.contract import RegistryError, read_registry_entries
 from leaf.registry.layer import merge_layer_entries
 from leaf.registry.validation import validate_registry
@@ -76,6 +77,7 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     contracts = incoming["$events"]["kinds"]
     tokens = incoming.get("$reactions", {}).get("tokens", {})
     thread = thread_structure(events)
+    prior_registry = read_json(page_dir / "registry.json") or {}
     revisions = {}
 
     def page(revision):
@@ -126,7 +128,11 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"comment contract: {error}"
         elif kind == "action" and (
             error := event_contracts.declared_action_error(
-                e, page(e["revision"]).by_id, thread.by_id, incoming
+                e,
+                page(e["revision"]).by_id,
+                thread.by_id,
+                incoming,
+                prior_registry,
             )
         ):
             key = f"action contract: {error}"

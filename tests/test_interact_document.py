@@ -1827,6 +1827,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
+            "generated": [],
         },
     )
     assert check(page_dir).exit_code == 0
@@ -1872,6 +1873,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
+            "generated": [],
         },
     )
     write(2, b=" chosen", shim="The shim now has a bounded removal date.")
@@ -1922,6 +1924,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
                 "options": [added],
                 "additions": {added: "Use the reader's route."},
             },
+            "generated": [added],
         },
     )
     # A subsequent ordinary pick supersedes the selection, but it carries the
@@ -1938,6 +1941,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
                 "options": ["o-stage"],
                 "additions": {added: "Use the reader's route."},
             },
+            "generated": [added],
         },
     )
 
@@ -2028,6 +2032,7 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
                 "options": ["o-stage"],
                 "additions": {added: "o-shim"},
             },
+            "generated": [added],
         },
     )
 
@@ -2066,6 +2071,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": []},
+            "generated": [],
         },
     )
     write(2, shim="Fastest to ship, and we own the shim forever.")
@@ -2109,6 +2115,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
+            "generated": [],
         },
     )
 
@@ -2163,6 +2170,7 @@ def test_check_reports_record_lag_without_erroring(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
+            "generated": [],
         },
     )
     write(2)
@@ -2265,6 +2273,7 @@ def test_record_lag_uses_the_version_being_checked(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
+            "generated": [],
         },
     )
 
@@ -2302,6 +2311,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["outer-a"]},
+            "generated": [],
         },
     )
 
@@ -2355,6 +2365,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
+            "generated": [],
         },
     )
     state = state_json(page_dir)
@@ -2958,6 +2969,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
+            "generated": [],
         },
     )
     state = state_json(page_dir)
@@ -2971,7 +2983,9 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
     options["properties"]["overruled"] = {"type": "boolean"}
-    options["x-report"] = {"choose": options["x-state"]["choose"]}
+    report_choose = dict(options["x-state"]["choose"])
+    report_choose.pop("creates")
+    options["x-report"] = {"choose": report_choose}
     (page_dir / "registry.json").write_text(json.dumps(registry))
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
@@ -2990,6 +3004,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
+            "generated": [],
         },
     )
     events_model.append_event(
@@ -3001,6 +3016,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
+            "generated": [],
         },
     )
 
@@ -3161,6 +3177,7 @@ def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
+            "generated": [],
         },
     )
     assert state_json(page_dir)["decisions"] == [

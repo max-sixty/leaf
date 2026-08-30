@@ -706,6 +706,66 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
+def test_action_door_owns_generated_child_snapshots(server, page_dir):
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            "</lf-options></lf-decision></section>",
+        )
+    )
+    publish(page_dir)
+    base = {
+        "kind": "action",
+        "revision": 1,
+        "widget": "delivery",
+        "action": "choose",
+        "detail": {
+            "options": ["delivery-reader-z"],
+            "additions": {
+                "delivery-reader-z": "After the health check",
+                "delivery-reader-a": "Before the maintenance window",
+            },
+        },
+    }
+
+    correct = {
+        **base,
+        "generated": ["delivery-reader-a", "delivery-reader-z"],
+        "attempt": "attempt-generated-good",
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(correct).encode())[0] == 200
+
+    cases = [
+        ({**base, "attempt": "attempt-generated-missing"}, "no generated snapshot"),
+        (
+            {
+                **base,
+                "generated": ["delivery-foreign"],
+                "attempt": "attempt-generated-mismatch",
+            },
+            "must equal the sorted keys",
+        ),
+        (
+            {
+                **base,
+                "action": "answer",
+                "detail": {},
+                "generated": [],
+                "attempt": "attempt-generated-foreign",
+            },
+            "creates no children",
+        ),
+    ]
+    for sent, wanted in cases:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+        assert status == 400
+        assert wanted in json.loads(body)["error"]
+
+
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
     """The browser receives a reading, not a log it must interpret again.
 
@@ -730,6 +790,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "widget": "delivery",
         "action": "choose",
         "detail": {"options": ["delivery-now"]},
+        "generated": [],
         "attempt": "attempt-browser-view-1",
     }
 
@@ -783,6 +844,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "widget": "delivery",
                     "action": "choose",
                     "detail": {"options": [option]},
+                    "generated": [],
                     "attempt": attempt,
                 }
             ).encode(),
@@ -899,6 +961,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "widget": "delivery",
                     "action": "choose",
                     "detail": {"options": [option]},
+                    "generated": [],
                     "attempt": attempt,
                 }
             ).encode(),
@@ -1660,6 +1723,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
         "revision": 1,
         "action": "choose",
         "detail": {"options": ["thread-a"]},
+        "generated": [],
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -1755,8 +1819,10 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
         "widget": widget,
         "action": "choose",
         "detail": {"options": [option]},
+        "generated": [],
     }
     nonanswer = {**choose, "action": "defer", "detail": {}}
+    nonanswer.pop("generated")
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
@@ -1821,6 +1887,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
         "widget": "seated-options",
         "action": "choose",
         "detail": {"options": ["seated-a"]},
+        "generated": [],
     }
     status_code, body = fetch(f"{server}/api/event", data=json.dumps(choose).encode())
     assert status_code == 200, body
@@ -1992,6 +2059,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "widget": "quota-child-review",
         "action": "choose",
         "detail": {"options": ["quota-child-ready"]},
+        "generated": [],
     }
     assert (
         fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
@@ -2006,6 +2074,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "widget": "quota-intervention",
         "action": "choose",
         "detail": {"options": []},
+        "generated": [],
     }
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
     increase = {**event, "detail": {"slots": "4"}}
@@ -3208,6 +3277,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
         "widget": "choice",
         "action": "choose",
         "detail": {"options": ["flag-first"]},
+        "generated": [],
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()

@@ -70,6 +70,28 @@ from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
 
 
+def test_only_declared_generated_children_add_mapping_keys_to_liveness():
+    event = {
+        "widget": "group",
+        "detail": {
+            "part": "authored-child",
+            "metadata": {"coincidental-id": "ordinary mapping payload"},
+            "additions": {"reader-child": "Reader supplied words"},
+        },
+        "generated": ["reader-child", "reader-child"],
+    }
+    spec = {"creates": {"field": "additions", "child": "lf-option"}}
+
+    assert registry_contract.created_children(event, spec) == {
+        "reader-child": "Reader supplied words"
+    }
+    assert event_folds_model.action_rests_on(event, {"authored-child": ("group",)}) == [
+        "group",
+        "authored-child",
+        "reader-child",
+    ]
+
+
 def test_an_accept_carries_its_thread_resolution(page_dir):
     """One atomic event: the accept snapshots the thread it answers, because the
     honoring version retires the wrapper that held the `resolves` mapping and a
@@ -106,6 +128,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": "c1"},
+            "generated": [],
         },
     )
     spk = passages_model.spoken(
@@ -603,6 +626,60 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
     assert "detail" in result.output
 
 
+@pytest.mark.parametrize("mutation", ["drop", "field", "child"])
+def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    options = (
+        '<lf-decision id="route-decision"><h2>Which route?</h2>'
+        '<lf-options id="route" choose>'
+        '<lf-option id="route-authored">Authored route</lf-option>'
+        "</lf-options></lf-decision>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", options + "</section>")
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "route",
+            "action": "choose",
+            "detail": {
+                "options": ["route-reader"],
+                "additions": {"route-reader": "Reader route"},
+            },
+            "generated": ["route-reader"],
+        },
+    )
+
+    choose = registry["lf-options"]["x-state"]["choose"]
+    overlay_entries = {"lf-options": registry["lf-options"]}
+    if mutation == "drop":
+        del choose["creates"]
+    elif mutation == "field":
+        choose["creates"]["field"] = "extras"
+        choose["detail"]["properties"]["extras"] = choose["detail"]["properties"][
+            "additions"
+        ]
+    else:
+        registry["lf-option-alt"] = registry["lf-option"]
+        choose["creates"]["child"] = "lf-option-alt"
+        overlay_entries["lf-option-alt"] = registry["lf-option-alt"]
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir()
+    (overlay / "registry.json").write_text(json.dumps(overlay_entries))
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "action contract" in result.output
+
+
 def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_dir):
     """Eligibility governs fresh transitions, not the log's forever-contract.
 
@@ -631,6 +708,7 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
             "widget": "run-status",
             "action": "choose",
             "detail": {"options": ["rs-column"]},
+            "generated": [],
         },
     )
 
@@ -1770,6 +1848,58 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
         "<lf-options> x-state verb `choose` has an invalid detail schema"
         in result.output
     )
+
+
+def test_generated_child_declaration_is_valid_as_shipped(page_dir):
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing-member", "registry extensions are invalid"),
+        ("unknown-child", "creates unknown child <lf-missing>"),
+        ("required-field", "creates detail field `additions` must be optional"),
+        ("wrong-map", "canonical non-empty element-id to non-empty string map"),
+        ("wrong-parent", "x-parent does not admit the sender"),
+        ("non-prose", "must declare x-content prose"),
+        ("extra-required", "must require id and no other authored attributes"),
+        ("wrong-id", "required id must use the canonical element-id schema"),
+        ("report-creates", "registry extensions are invalid"),
+    ],
+)
+def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, message):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    choose = registry["lf-options"]["x-state"]["choose"]
+    option = registry["lf-option"]
+    if mutation == "missing-member":
+        del choose["creates"]["child"]
+    elif mutation == "unknown-child":
+        choose["creates"]["child"] = "lf-missing"
+    elif mutation == "required-field":
+        choose["detail"]["required"].append("additions")
+    elif mutation == "wrong-map":
+        choose["detail"]["properties"]["additions"]["minProperties"] = 0
+    elif mutation == "wrong-parent":
+        option["x-parent"] = ["lf-board"]
+    elif mutation == "non-prose":
+        option["x-content"] = "items"
+    elif mutation == "extra-required":
+        option["required"].append("for")
+    elif mutation == "wrong-id":
+        option["properties"]["id"]["pattern"] = "^option-.+$"
+    elif mutation == "report-creates":
+        registry["lf-agent"]["x-report"]["state"]["creates"] = {
+            "field": "doing",
+            "child": "lf-option",
+        }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
 
 
 def test_action_detail_schemas_match_the_post_object_contract(page_dir):

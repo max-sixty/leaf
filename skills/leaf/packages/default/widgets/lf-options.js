@@ -95,27 +95,22 @@
  * gates the action channel and not presentation.
  *
  * Authored content is never replaced, so there is no failSoft. */
+import { OptionAddition } from "./lf-options-addition.js";
+import { SettledOptions } from "./lf-options-settled.js";
 import {
-  DISCLOSE,
-  HIDDEN,
   actionStands,
   conversationInput,
   inChrome,
   keys,
   landInConversation,
-  loadDraft,
   offer,
   once,
   quoted,
   reachedForWords,
   relabel,
-  saveDraft,
   selectableOffer,
   sendAction,
-  sendDraft,
-  tabStore,
   toast,
-  watchDraft,
   walkRows,
   worksInside,
   wrote,
@@ -139,24 +134,17 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
-// The word the last cell wears while it is still empty, and the accessible name of the
-// box in it. Named for what the cell supplies rather than for the act of typing into it:
-// "Say something" put a chat box under a question, and a chat box beneath a menu reads as
-// somewhere to leave an aside — when what it takes is the one answer the menu hasn't got.
-const ANOTHER = "Another option";
-
-const SETTLED_KEY = "lf-settled:";
-
 const SECTION = "In a question's options";
 
 customElements.define(
   "lf-options",
   class extends HTMLElement {
-    #diffEvents = null;
-    #diffable = false;
-
     connectedCallback() {
-      if (!once(this)) return this.#listenForDiff();
+      if (!once(this)) {
+        this.#addition?.connect();
+        this.#settled?.connect();
+        return;
+      }
       // Quoted material is exhibited, not offered, so a specimen renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
@@ -166,15 +154,22 @@ customElements.define(
       // document's state, as a span.
       for (const option of this.#options())
         if (choosable || option.hasAttribute("chosen")) this.#mark(option, choosable);
+      this.#addition = new OptionAddition(this, {
+        offered: choosable && !inChrome(this),
+        commit: (detail, attempt) => {
+          this.#applyChoice(detail);
+          return sendAction(this, "choose", detail, { attempt });
+        },
+      });
+      this.#addition.connect();
       if (choosable) {
-        if (!inChrome(this)) {
-          this.#another = this.#anotherRow();
-          this.append(this.#another);
-        }
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
       }
-      if (this.hasAttribute("settled")) this.#settle();
+      if (this.hasAttribute("settled")) {
+        this.#settled = new SettledOptions(this, { label });
+        this.#settled.connect();
+      }
       if (!choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
@@ -197,24 +192,21 @@ customElements.define(
         if (was.has(option)) next.delete(option);
         else next.add(option);
         this.#pick(next);
-        this.#saveAnotherDraft(next);
+        this.#addition.remember(next);
         const name = label(option) || option.id;
         const said = !next.size
           ? "Cleared selection"
           : next.has(option)
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
-        sendAction(this, "choose", this.#choiceDetail(next)).then((ok) => {
+        sendAction(this, "choose", this.#addition.detailFor(next)).then((ok) => {
           if (ok) toast(`${said} — recorded`);
         });
       });
     }
 
-    #another = null; // the field where the reader adds a real option
-    #anotherInput = null;
-    #anotherContext = null;
-    #adding = false;
-    #stopDraftWatch = null;
+    #addition = null;
+    #settled = null;
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
 
@@ -235,131 +227,7 @@ customElements.define(
     // The words this question does not already list. On the page the group owns a plain
     // add field; in a thread the surrounding conversation still owns its reply box.
     #words() {
-      return this.#anotherInput ?? conversationInput(this);
-    }
-
-    #anotherRow() {
-      const row = offer("form", "lf-another");
-      const input = offer("input");
-      input.type = "text";
-      input.placeholder = ANOTHER;
-      input.setAttribute("aria-label", ANOTHER);
-      const add = offer("button", "lf-btn", "Add");
-      add.type = "submit";
-      add.setAttribute("aria-label", "Add option");
-      const context = `option:${this.id}`;
-      this.#anotherContext = context;
-      input.value = loadDraft(context) ?? "";
-      const sync = () => {
-        const disabled = this.#adding || !input.value.trim();
-        add.setAttribute("aria-disabled", String(disabled));
-        if (this.#adding) add.setAttribute("aria-busy", "true");
-        else add.removeAttribute("aria-busy");
-      };
-      input.addEventListener("input", () => {
-        this.#saveAnotherDraft();
-        sync();
-      });
-      row.addEventListener("submit", (event) => {
-        event.preventDefault();
-        void this.#addOption(context, sync);
-      });
-      this.#stopDraftWatch = watchDraft(context, (value) => {
-        if (!row.isConnected) return this.#stopDraftWatch?.();
-        input.value = value ?? "";
-        sync();
-      });
-      row.append(input, add);
-      this.#anotherInput = input;
-      sync();
-      return row;
-    }
-
-    // A draft generation owns the choice state it will submit as well as the words in
-    // its field. Without that payload, two tabs sharing one attempt could derive two
-    // different absolute choices from their independently timed DOM projections. A
-    // later local pick remints the generation with the new state, just as a keystroke
-    // remints it with new words.
-    #saveAnotherDraft(picked = this.#picked()) {
-      if (!this.#anotherInput || !this.#anotherContext) return;
-      if (!this.#anotherInput.value && loadDraft(this.#anotherContext) === null) return;
-      saveDraft(
-        this.#anotherContext,
-        this.#anotherInput.value,
-        this.#choiceDetail(picked),
-      );
-    }
-
-    #draftChoice(payload) {
-      if (
-        !payload ||
-        !Array.isArray(payload.options) ||
-        !payload.options.every((id) => typeof id === "string") ||
-        (payload.additions !== undefined &&
-          (!payload.additions ||
-            typeof payload.additions !== "object" ||
-            Array.isArray(payload.additions) ||
-            !Object.entries(payload.additions).every(
-              ([id, text]) => typeof id === "string" && typeof text === "string",
-            )))
-      )
-        return this.#choiceDetail(this.#picked());
-      return {
-        options: payload.options,
-        ...(Object.keys(payload.additions ?? {}).length
-          ? { additions: payload.additions }
-          : {}),
-      };
-    }
-
-    async #addOption(context, sync) {
-      if (this.#adding) return;
-      const raw = this.#anotherInput.value;
-      const text = raw.trim();
-      if (!text) return toast("Nothing to add — the field is empty");
-      this.#adding = true;
-      sync();
-      try {
-        const accepted = await sendDraft(
-          context,
-          () => this.#anotherInput.value === raw,
-          (attempt, payload) => {
-            const id = `${this.id}-option-${attempt}`;
-            const standing = this.#draftChoice(payload);
-            const additions = { ...(standing.additions ?? {}), [id]: text };
-            const picked = new Set(
-              this.hasAttribute("multiple") ? standing.options : [],
-            );
-            picked.add(id);
-            const detail = {
-              options: [...picked].map((option) => option.id ?? option),
-              additions,
-            };
-            this.#applyChoice(detail);
-            return sendAction(this, "choose", detail, { attempt });
-          },
-        );
-        if (accepted) toast(`Added “${text}” — recorded`);
-      } finally {
-        this.#adding = false;
-        sync();
-      }
-    }
-
-    #additions() {
-      return Object.fromEntries(
-        [...this.querySelectorAll(":scope > lf-option[data-lf-added]")].map(
-          (option) => [option.id, label(option)],
-        ),
-      );
-    }
-
-    #choiceDetail(picked) {
-      const additions = this.#additions();
-      return {
-        options: [...picked].map((option) => option.id),
-        ...(Object.keys(additions).length ? { additions } : {}),
-      };
+      return this.#addition.input ?? conversationInput(this);
     }
 
     // The one statement a live channel can't derive: the set is whole. One press,
@@ -457,8 +325,8 @@ customElements.define(
             id: "option.toggle-nth",
             runFromReference: false,
             // The digits this group has, so the row cannot offer an address no option
-            // wears. Stated rather than counted at each paint, because a group's options
-            // come from markup and do not change under the reader.
+            // wears. Generated-option reconciliation replaces these scopes after the
+            // live set changes, while surviving marks keep their element identity.
             keys: addresses,
             label: addresses.length > 1 ? `1–${addresses.length}` : "1",
             does: "Toggle the nth option",
@@ -476,7 +344,7 @@ customElements.define(
             line: "write another option",
             when: () => Boolean(this.#words()),
             run: () => {
-              if (this.#anotherInput) this.#anotherInput.focus();
+              if (this.#addition.input) this.#addition.input.focus();
               else
                 landInConversation(this.#words(), {
                   target: mark,
@@ -559,7 +427,7 @@ customElements.define(
         option.toggleAttribute("chosen", picked.has(option));
         this.#label(option);
       }
-      this.#retitle();
+      this.#settled?.sync();
       // A pick is an answer to what this group was asking. The banner's count and the
       // page's marks both follow from the same one signal, here rather than at the
       // sender, so a pick this tab rewound and one another tab made both reach them.
@@ -595,168 +463,15 @@ customElements.define(
       mark.setAttribute("aria-checked", String(chosen));
     }
 
-    // ---------- settled ----------
-
-    #row = null; // the one-line summary a settled group collapses to
-    #title = null; // the part of it naming the chosen option
-    #count = null; // the current option count beside the settled title
-    #isOpen = false; // this tab's reading of the group; #open renders it, the row's line says it
-
-    #settle() {
-      // A disclosure is a thing to work, and what it names — the chosen option — the
-      // options themselves say once paper opens the group. On screen they do not: the row
-      // is the decision's only visible statement while the group stays collapsed, so the
-      // part of it naming the option is the page speaking and says so, and the anchor pass
-      // reads it over the row's chrome. The count beside it is the runtime talking about
-      // the document, which is why the two are separate spans.
-      this.#row = selectableOffer("button", "lf-settled");
-      this.#title = document.createElement("span");
-      this.#count = document.createElement("span");
-      this.#count.className = "lf-settled-count";
-      this.#row.append(this.#title, this.#count);
-      // Which way it stands, before the scope below is declared: a row wearing
-      // role="button" and aria-expanded is the disclosure pattern, and DISCLOSE reads
-      // that pair to answer what works here. Written at birth rather than left to the
-      // first #open, so the row is never briefly a control the runtime cannot place.
-      this.#row.setAttribute("aria-expanded", "false");
-      this.#row.onclick = () => this.#open(!this.#isOpen, true);
-      // The same press the runtime's disclosure scope owns, re-worded in this group's
-      // terms. Its bindings come from DISCLOSE rather than from PRESS, which is what
-      // that primitive is for: a nearer scope keeps only the keys it names, so a row
-      // naming the pair alone took the arrow off the line and left the reader with
-      // "open or close" beside a stray "→ open" instead of one chip saying which way
-      // this section goes. Named through DISCLOSE the two cannot come apart, and the
-      // word follows the row the way the runtime's own does.
-      keys(this.#row, "In a settled ask", [
-        {
-          id: "option.toggle-settled",
-          keys: () => DISCLOSE(this.#row),
-          does: "Open or close the settled ask",
-          line: () => (this.#isOpen ? "close" : "open"),
-          run: () => this.#row.click(),
-        },
-      ]);
-      // The authored question is the heading outside this group. Inside the group the
-      // settled summary is therefore its first reading, before the options it folds.
-      this.prepend(this.#row);
-      // The browser found something inside (find-in-page, an anchor jump), or the
-      // runtime is about to scroll a comment anchor into view: open up. Listen at the
-      // group so options reconstructed from the event log need no separate wiring.
-      this.addEventListener("beforematch", () => this.#open(true, true), true);
-      this.addEventListener("lf-reveal", () => this.#open(true, true), true);
-      this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-      this.#retitle();
-      this.#open(tabStore.get(SETTLED_KEY + this.id) === "1", false);
-      // Δ badges follow the version diff; the runtime announces each toggle.
-      this.#diffable = true;
-      this.#listenForDiff();
-    }
-
     disconnectedCallback() {
-      this.#diffEvents?.abort();
-      this.#diffEvents = null;
-      this.#stopDraftWatch?.();
-      this.#stopDraftWatch = null;
-    }
-
-    #listenForDiff() {
-      if (!this.#diffable || this.#diffEvents) return;
-      this.#diffEvents = new AbortController();
-      document.addEventListener("lf-comparison", () => this.#delta(), {
-        signal: this.#diffEvents.signal,
-      });
-    }
-
-    #open(open, remember) {
-      this.#isOpen = open;
-      this.#syncSettledOptions();
-      // The row's bindings answer from this attribute, and the disclosure watcher hears the
-      // write: it repaints both surfaces that name a row's keys, so nothing local is owed.
-      this.#row.setAttribute("aria-expanded", open ? "true" : "false");
-      if (remember) tabStore.set(SETTLED_KEY + this.id, open ? "1" : "0");
-    }
-
-    // Settlement is view state over the current projection, not an authored-option
-    // snapshot. Re-read the option set whenever replay adds or removes one so the
-    // disclosure's contents and accessible description stay together.
-    #syncSettledOptions() {
-      if (!this.#row) return;
-      const options = [...this.#options()];
-      this.#count.textContent = `${options.length} option${options.length === 1 ? "" : "s"}`;
-      this.#row.setAttribute(
-        "aria-controls",
-        options.map((option) => option.id).join(" "),
-      );
-      // The reader's own option and the Done press go behind the collapse with the
-      // authored ones: all of them belong to the question, and a settled group asks
-      // nothing until the reader opens it again — a Done left standing was a button
-      // under a summary with nothing above it to be done with.
-      for (const el of [
-        ...this.#options(),
-        ...(this.#another ? [this.#another] : []),
-        ...(this.#done ? [this.#done] : []),
-      ])
-        if (this.#isOpen) el.removeAttribute("hidden");
-        else el.setAttribute("hidden", HIDDEN);
-    }
-
-    // The summary carries the decision, so it names whichever options hold it —
-    // including after a pick made in an opened group, which would otherwise leave the
-    // line contradicting the options it hides.
-    #retitle() {
-      if (!this.#title) return;
-      const names = [...this.#picked()].map(label).filter(Boolean);
-      relabel(this.#title, names.length ? `Settled: ${names.join(", ")}` : "Settled", {
-        says: true,
-      });
-    }
-
-    // One Δn chip on the row when the diff marks passages inside, so the toast's count is
-    // accounted for even where the marks sit behind the collapse.
-    #delta() {
-      this.#row.querySelector(".lf-settled-diff")?.remove();
-      const n = this.querySelectorAll(".lf-ins-block").length;
-      if (!n) return;
-      const chip = document.createElement("span");
-      chip.className = "lf-settled-diff";
-      chip.textContent = `Δ${n}`;
-      this.#row.append(chip);
-    }
-
-    // The generated options are part of the absolute choice state. Remove only nodes
-    // this action created: once an agent carries one into authored markup it has become
-    // an ordinary option, and replay must not replace the page's words with the event's
-    // older copy. Existing generated nodes keep their identity so focus and selection
-    // survive a routine replay.
-    #setAdditions(additions = {}) {
-      const wanted = new Map(Object.entries(additions));
-      for (const option of this.querySelectorAll(":scope > lf-option[data-lf-added]"))
-        if (!wanted.has(option.id)) option.remove();
-
-      for (const [id, text] of wanted) {
-        let option = document.getElementById(id);
-        if (option && option.parentElement !== this) continue;
-        if (!option) {
-          option = document.createElement("lf-option");
-          option.id = id;
-          option.dataset.lfAdded = "";
-          option.append(document.createTextNode(text));
-          this.insertBefore(option, this.#another ?? this.#done);
-          this.#mark(option, true);
-        } else if (option.hasAttribute("data-lf-added")) {
-          const words = [...option.childNodes].find(
-            (node) => node.nodeType === Node.TEXT_NODE,
-          );
-          if (words) words.data = text;
-          else option.prepend(document.createTextNode(text));
-        }
-      }
-      this.#syncSettledOptions();
-      this.#keys();
+      this.#addition?.disconnect();
+      this.#settled?.disconnect();
     }
 
     #applyChoice(detail) {
-      this.#setAdditions(detail.additions ?? {});
+      for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
+        this.#mark(option, true);
+      this.#keys();
       this.#pick(
         new Set(
           detail.options

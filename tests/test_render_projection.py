@@ -2787,6 +2787,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "widget": "rp-live",
             "action": "choose",
             "detail": {"options": ["rp-shim"]},
+            "generated": [],
         },
     )
     page, errors = open_page(browser, live_url(url))

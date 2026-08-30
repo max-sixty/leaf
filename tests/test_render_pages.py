@@ -1,6 +1,7 @@
 """File-authored anchors, drawings, width, and handover tests."""
 
 import json
+import math
 import re
 
 import pytest
@@ -2008,13 +2009,18 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         .filter(node => node.checkVisibility());
       const marginRight = Math.max(0,
         ...marginItems.map(node => node.getBoundingClientRect().right));
-      const probe = document.createElement('i');
-      probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--strip-l)';
-      main.append(probe);
-      const strip = probe.getBoundingClientRect().width;
-      probe.remove();
+      const measure = (value) => {
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:'
+          + value;
+        main.append(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return width;
+      };
+      const strip = measure('var(--strip-l)');
       return {
-        strip,
+        strip, rail: measure('var(--strip-r)'), pageWidth: measure('100cqi'),
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
         column: {
@@ -2051,10 +2057,25 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     # The rail claim is monotonic, so narrowing the same page carries its widest
     # right-margin row into the tighter layout. The sidebar and rail use the outer
-    # gutters before taking width from the reading column.
-    resized(page, 1200, 900)
+    # gutters before taking width from the reading column, so the page narrowed to
+    # exactly what the two residents and a whole column need still holds all three.
+    #
+    # That width is read rather than stated, because the rail's claim is a measured
+    # row rather than a token: it is the widest margin control the page carries, and
+    # its width is the width the host's UI font sets that control's words in. A stated
+    # 1200px window asks that claim to come in at 216px or narrower, which is a bet on
+    # one machine's fonts: this runner sets the same control 250px wide, and the 34px
+    # difference is width the column has to give up. The window adds back whatever the
+    # root scrollport holds outside the container query's own width.
+    exact = roomy["strip"] + 720 + roomy["rail"]
+    resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
     tighter = page.evaluate(reading)
-    assert tighter["column"]["right"] - tighter["column"]["left"] == 720
+    assert exact <= tighter["pageWidth"] <= exact + 1, (
+        f"the narrowed page is not the width the residents and column need: {tighter}"
+    )
+    assert tighter["column"]["right"] - tighter["column"]["left"] == 720, (
+        f"the page still had room for the column it narrowed: {tighter}"
+    )
     assert tighter["sidebar"]["left"] >= -1
     assert tighter["marginCount"] > 0
     assert tighter["marginRight"] <= tighter["viewportWidth"] + 1

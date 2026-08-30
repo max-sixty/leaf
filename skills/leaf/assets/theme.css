@@ -1438,7 +1438,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   body:has(
       :where(.lf-living-margin:not([hidden])
         .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
-    ) > main:not(:has(> aside.sidebar)) {
+    ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
   }
@@ -1450,7 +1450,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   body:has(
       :where(.lf-living-margin:not([hidden])
         .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
-    ) > main:has(> aside.sidebar) {
+    ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
   }

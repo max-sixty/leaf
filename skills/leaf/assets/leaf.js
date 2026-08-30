@@ -737,6 +737,7 @@ const {
 } = createTrays({
   beforeOpen: () => {
     if (chromeLayout?.panelIsOpen()) setPanel(false);
+    livingMargin?.closePreview();
   },
   drawnEdge,
   el,

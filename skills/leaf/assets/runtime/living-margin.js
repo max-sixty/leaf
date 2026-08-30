@@ -1027,11 +1027,16 @@ export function createLivingMargin(dependencies) {
       if (node === cursor) cursor = cursor.nextSibling;
       else previewList.insertBefore(node, cursor);
     }
-    if (focusedItem) {
+    if (focusedItem && !focusedNode?.isConnected) {
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-item]"),
       ].find((candidate) => candidate.dataset.lfMarginItem === focusedItem);
-      (replacement ?? previewClose).focus({ preventScroll: true });
+      const destination = replacement?.matches("button, textarea:not([disabled])")
+        ? replacement
+        : (replacement?.querySelector("textarea:not([disabled])") ??
+          replacement?.querySelector("button") ??
+          previewClose);
+      destination.focus({ preventScroll: true });
     }
   }
 

@@ -42,6 +42,23 @@ OUTCOME_ON_DECISION = {
     "detail": {"options": ["br-steel"]},
 }
 
+
+def resized_shell(page, inline_size, height):
+    """Resize by the container's own width, independent of scrollbar posture."""
+    viewport_width = page.viewport_size["width"]
+    resized(page, viewport_width, height)
+    for _ in range(3):
+        shell_width = page.evaluate("() => document.body.getBoundingClientRect().width")
+        difference = inline_size - shell_width
+        if abs(difference) <= 0.5:
+            return
+        viewport_width += round(difference)
+        resized(page, viewport_width, height)
+    assert page.evaluate(
+        "() => document.body.getBoundingClientRect().width"
+    ) == pytest.approx(inline_size, abs=0.5)
+
+
 ACTION_PAGE = SUGGESTION_PAGE.replace(
     "<main>", '<main><section id="action-section">'
 ).replace(
@@ -798,6 +815,34 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert abs(geometry["openTop"] - geometry["titleTop"]) <= 4, geometry
     assert not geometry["panelOpen"], geometry
 
+    send = preview.get_by_role("button", name="Send")
+    send.focus()
+    page.evaluate("() => dispatchEvent(new Event('resize'))")
+    expect(send).to_be_focused()
+
+    resized(page, 1440, 480)
+    capped = preview.evaluate(
+        """card => {
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          const box = card.getBoundingClientRect();
+          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
+                  clientHeight: card.clientHeight, scrollHeight: card.scrollHeight};
+        }"""
+    )
+    assert capped["top"] >= capped["bannerBottom"] + 7, capped
+    assert capped["bottom"] <= 472.5, capped
+    assert capped["scrollHeight"] > capped["clientHeight"], capped
+    resized(page, 1440, 900)
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Escape")
+
+    marker.click()
+    expect(preview).to_be_visible()
+
     open_in_threads.click()
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
@@ -808,20 +853,21 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_visible()
     expect(marker).to_be_focused()
 
-    resized(page, 1208, 900)
+    resized_shell(page, 1208, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainRight: main.right, cardLeft: card.left,
-                  cardRight: card.right, cardWidth: card.width};
+                  cardRight: card.right, cardWidth: card.width,
+                  shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
-    assert beside["cardRight"] <= 1208.5, beside
+    assert beside["cardRight"] <= beside["shellWidth"] + 0.5, beside
     assert beside["cardWidth"] >= 459, beside
 
-    resized(page, 1207, 900)
+    resized_shell(page, 1207, 900)
     expect(page.locator(".lf-margin-thread")).to_have_count(0)
     expect(preview.locator(".lf-margin-preview-action")).to_have_count(1)
     preview.locator(".lf-margin-preview-action").click()
@@ -939,19 +985,20 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(0)
     expect(page.locator(".lf-margin-preview-action")).to_have_count(2)
-    resized(page, 1472, 900)
+    resized_shell(page, 1472, 900)
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     composition = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainWidth: main.width - 48, mainRight: main.right,
-                  cardLeft: card.left, cardRight: card.right};
+                  cardLeft: card.left, cardRight: card.right,
+                  shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert composition["mainWidth"] >= 639.5, composition
     assert composition["mainRight"] <= composition["cardLeft"] + 0.5, composition
-    assert composition["cardRight"] <= 1472.5, composition
+    assert composition["cardRight"] <= composition["shellWidth"] + 0.5, composition
 
     assert errors == []
     page.close()

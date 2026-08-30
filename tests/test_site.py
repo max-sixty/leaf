@@ -288,7 +288,8 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     Holding /leaf.js proves widget upgrade cannot be what made the document visible.
     The waiting pseudo-element's computed content proves the loading sheet does not
     exist, without waiting for an animation threshold. Once JavaScript starts, holding
-    both seed files proves the runtime graph overlaps their reads.
+    both seed files proves the runtime graph overlaps their reads. The shadow widget is
+    the second presentation boundary: it must progressively render before replay too.
     """
     boot = []
     seeds = []
@@ -300,8 +301,8 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
     try:
         with page.expect_request("**/leaf.js"):
-            page.goto(example_url(hosted, "design-decision"), wait_until="commit")
-        expect(page.locator("h1")).to_have_text("Where sessions live")
+            page.goto(example_url(hosted, "pr-walkthrough"), wait_until="commit")
+        expect(page.locator("h1")).to_have_text("Per-token rate limits")
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"
@@ -317,6 +318,10 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
         assert len(seeds) == 2, "both session seed requests were not still in flight"
         assert page.locator("body").get_attribute("data-lf-presented") is None
+        expect(page.locator("#limits-diff")).to_have_class(
+            re.compile(r"\blf-rendered\b")
+        )
+        expect(page.locator("#limits-diff details").first).to_be_visible()
 
         for route in seeds:
             route.continue_()

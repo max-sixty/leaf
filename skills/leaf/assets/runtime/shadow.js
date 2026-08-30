@@ -114,7 +114,10 @@ export function createShadowStage(watchDisclosures) {
     // boundary either.
     watchDisclosures(root);
     const style = document.createElement("style");
-    style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
+    const presentationRules = document.documentElement.hasAttribute("data-lf-eager")
+      ? ""
+      : SHADOW_PRESENTATION_CSS;
+    style.textContent = presentationRules + shadowRules;
     root.replaceChildren(style, ...nodes);
     return root;
   };

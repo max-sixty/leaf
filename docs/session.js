@@ -509,9 +509,9 @@ window.fetch = async (input, init) => {
 // The fourth door. A served page holds GET /api/news open and hears the page's reading
 // named each time it moves, then asks for state. Nothing here looks at a file: `append`
 // speaks to every open stream, and what it says is the reading `state` carries. No
-// `error` is ever dispatched, there being no server to lose, and no `alive`: the
-// runtime's watchdog reopens a silent stream after half a minute, which lands here
-// again.
+// connection can fail after startup, there being no server to lose; failed startup does
+// dispatch `error`. There is no `alive`: the runtime's watchdog reopens a silent stream
+// after half a minute, which lands here again.
 window.EventSource = class EventSource extends EventTarget {
   static CONNECTING = 0;
   static OPEN = 1;

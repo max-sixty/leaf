@@ -287,10 +287,11 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     digit is level with its words, was checked by nothing.
 
     How far in it stands is the whole group's, and it is asked as the relation it is: the
-    gutter reads status rule, digit, then prose, so the digit is measured against those two
+    gutter reads cell edge, digit, then prose, so the digit is measured against those two
     neighbours and against the other form's seat. Pinned as the number the gutter came to,
-    the reading broke the day a status rule took the head of the column and the digit moved
-    along behind it — a move the page wanted, reported as a failure of the digit."""
+    the reading broke twice over a neighbour it was never about — once when a status rule
+    took the head of the column and the digit moved along behind it, and again when that
+    rule left and it moved back."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
     seats = {}
     for options, sitting in [
@@ -305,15 +306,14 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             assert cut is None, f"{id_}'s digit is cut: {cut}"
             # Never on the hairline the outer corner would have shared with the cells
             # around it, and never in either neighbour's room: the option's gutter opens
-            # with the status rule, and its words open at the column the option pads to.
-            # Read the row form here as well as the cards above; both reserve status,
+            # at the cell's own start, and its words open at the column the option pads
+            # to. Read the row form here as well as the cards above; both reserve
             # address, then prose in the same leading gutter.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
-            assert sits["afterStatus"] < sits["x"] < sits["ends"] < sits["opens"], (
-                f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter whose status "
-                f"rule ends at {sits['afterStatus']} and whose words open at "
-                f"{sits['opens']}, so the gutter is holding one of the three in another's "
-                "room"
+            assert 0 < sits["x"] < sits["ends"] < sits["opens"], (
+                f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter that starts "
+                f"at its cell's own edge and whose words open at {sits['opens']}, so the "
+                "gutter is holding one of the two in the other's room"
             )
             seats.setdefault(round(sits["x"], 1), []).append(id_)
             if sitting == "in the corner":
@@ -4555,16 +4555,13 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
 
     Two threads, and the reader in the second: with one there is no wrong answer to give,
     so the pair is what makes the assertion mean anything. The first phase is the control
-    — standing on the widget rather than in a thread still opens the composer on the
-    widget, so a green here is the standing being read and not every press landing in a
+    — a decision beside the seat, where standing on the widget opens the composer on that
+    widget, so a green below is the standing being read and not every press landing in a
     conversation.
 
     The agent has answered both remarks, so each thread here is a whole exchange. Nothing
-    in this test turns on that: `standingIn` reads the unanswered decisions rather than the
-    reader's list, so the group is what the reader is standing in whichever way the seat's
-    conversations are facing, and this control says the same thing before a reply and
-    after one. test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer is what holds
-    that, and it is why the replies are the exchange's shape and not a premise."""
+    in this test turns on that: the press reads where the reader is standing rather than
+    the reader's list, so the seat answers the same way before a reply and after one."""
     url = serve(
         leaf_page(
             "seated",
@@ -4575,6 +4572,10 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-decision>
+<lf-command id="hub" label="The rail">
+  <lf-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
+  Either crew can take it, and neither has said which week.</lf-task>
+</lf-command>
 """,
         )
     )
@@ -4588,7 +4589,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
                 "author": "user",
                 "revision": 1,
                 "text": text,
-                "anchor": {"section": "shape"},
+                "anchor": {"section": "fitting"},
             },
         )
         said.append(events_model.read_events(d)[-1]["id"])
@@ -4608,7 +4609,8 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     threads = page.locator(".lf-conversation-thread")
     expect(threads).to_have_count(2)
 
-    # The control: standing on the widget, not in either thread.
+    # The control: standing on a widget that seats nothing, so the press has no thread
+    # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
     expect(line).to_contain_text("comment on the decision")
     page.keyboard.press("c")

@@ -101,6 +101,48 @@ def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_lea
     page.close()
 
 
+def test_an_addressed_link_leaves_the_reader_at_its_destination(
+    browser, serve, other_leaf
+):
+    """A numbered link address completes the trip it names.
+
+    A fragment lands focus on its target, so the reader does not remain at the place they
+    left. An external link keeps its new-tab behavior and names that context change even
+    though the chord activates the link without first moving focus through it."""
+    other_url, _ = other_leaf
+    destination = f"{other_url}/?t={TOKEN}"
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "addressed links",
+                f"""
+<h1>Addressed links</h1>
+<p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
+<p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<h2 id="arrival">Conclusion</h2>
+<p>The internal trip ends here.</p>
+""",
+            )
+        ),
+    )
+
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    page.keyboard.press("1")
+    page.wait_for_url(re.compile(r"#arrival$"))
+    expect(page.locator("#arrival")).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    tab = opened_tab(page, lambda: page.keyboard.press("2"))
+    expect(tab).to_have_url(destination)
+    expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
+    tab.close()
+    assert errors == []
+    page.close()
+
+
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
     """The strip says which workstream is open, while one enclosing surface says how
     far that workstream runs. Without the shared frame and inset, an inline tab starts

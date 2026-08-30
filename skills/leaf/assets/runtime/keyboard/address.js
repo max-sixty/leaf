@@ -1,5 +1,6 @@
 import { labelOf, spell } from "./bindings.js";
 import { keySequence } from "./presentation.js";
+import { isExternalPageLink } from "../presentation.js";
 
 export function createAddress({
   EVERYTHING,
@@ -14,8 +15,10 @@ export function createAddress({
   enterPageMap,
   focused,
   focusedThread,
+  fragmentId,
   glideTo,
   inPanel,
+  itemSays,
   keylineEl,
   leavesOffered,
   letGo,
@@ -28,6 +31,7 @@ export function createAddress({
   paintHere,
   panelCovers,
   placeThreadEdge,
+  resolveAnchor,
   saying,
   seenScroller,
   setPanel,
@@ -83,6 +87,59 @@ export function createAddress({
   // no digit, and `g f` can say three where four things fold. Widening it is not free —
   // `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
   // the count a reader wants under `g` is of the sections the author wrote.
+
+  // A link keeps the platform activation that its author wrote. The chord adds only the
+  // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
+  // revealed, while an external link names the new tab that Leaf opens. A cancelled click
+  // does neither, because its handler has replaced the link's trip with one of its own.
+  function fragmentSection(link) {
+    try {
+      const url = new URL(link.getAttribute("href"), document.baseURI);
+      if (!url.hash) return null;
+      const here = new URL(location.href);
+      if (
+        url.origin !== here.origin ||
+        url.pathname !== here.pathname ||
+        url.search !== here.search
+      )
+        return null;
+      return fragmentId(url.hash);
+    } catch {
+      return null;
+    }
+  }
+  function focusDestination(destination) {
+    destination.focus({ preventScroll: true });
+    if (destination.matches(":focus")) return;
+    if (destination.hasAttribute("tabindex")) return;
+    destination.tabIndex = -1;
+    destination.focus({ preventScroll: true });
+    if (!destination.matches(":focus")) {
+      destination.removeAttribute("tabindex");
+      return;
+    }
+    destination.addEventListener(
+      "blur",
+      () => destination.removeAttribute("tabindex"),
+      { once: true },
+    );
+  }
+  function followLink(link) {
+    const section = fragmentSection(link);
+    let activation = null;
+    link.addEventListener("click", (event) => (activation = event), {
+      capture: true,
+      once: true,
+    });
+    link.click();
+    if (!activation || activation.defaultPrevented) return;
+    const destination = section && resolveAnchor({ section })?.element;
+    if (destination) return focusDestination(destination);
+    if (isExternalPageLink(link) && link.target === "_blank") {
+      const name = link.getAttribute("aria-label")?.trim() || itemSays(link) || "Link";
+      announce(`Opened ${name} in a new tab`);
+    }
+  }
 
   // One-off direct travel is one vocabulary too. The mnemonic completes the trip, and
   // every destination owns the liveness and landing that make its surface useful rather
@@ -147,8 +204,8 @@ export function createAddress({
       list: pageLinks,
       // Completing the address is the link's activation. Use the platform click method
       // so authored handlers, cancellation, fragments, targets, and downloads keep their
-      // anchor semantics.
-      go: (link) => link.click(),
+      // anchor semantics; followLink adds the chord's focus and announcement afterwards.
+      go: followLink,
     },
     {
       id: "navigation.fold",

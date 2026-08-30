@@ -2217,9 +2217,10 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it. Completing an address runs that list's destination: a hyperlink
-follows, a fold opens and takes focus, and a page-map item opens its marker or focuses
-its first available action.
+the rows inside it. Completing an address runs that list's destination: a
+same-document hyperlink follows and leaves focus on its fragment target, an external
+hyperlink names the tab it opens, a fold opens and takes focus, and a page-map item opens
+its marker or focuses its first available action.
 
 Arming the mode shows the available list and direct-destination mnemonics in the key line.
 Each visible numbered member also shows the complete suffix still needed to reach it, such

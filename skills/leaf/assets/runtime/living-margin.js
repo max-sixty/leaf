@@ -1092,7 +1092,17 @@ export function createLivingMargin(dependencies) {
     if (!preview.matches(":popover-open") && !previewShowing) {
       previewShowing = true;
       try {
-        preview.showPopover({ source: button });
+        // Shown without naming the marker as its source, though the marker is what opened
+        // it. An invoker relationship puts the card in the sequential focus order directly
+        // after the control that invoked it, and this card is not invoked: it opens on the
+        // marker merely taking focus, so a reader walking the margin was made to Tab
+        // through a close button and every action of a preview they had not asked for —
+        // three stops between one suggestion's controls and the next, with the card's
+        // contents changing under them as they went. The card stays reachable where it
+        // stands in the layer, which is where it was reachable before. Its position is
+        // the anchor-name written above rather than the implicit anchor a source would
+        // give, so the placement asks nothing of this.
+        preview.showPopover();
       } catch (error) {
         // Chromium also refuses a second popover operation in the same rendering turn,
         // even when it belongs to another surface. Keep the requested marker current and

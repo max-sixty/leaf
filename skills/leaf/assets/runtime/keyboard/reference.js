@@ -425,8 +425,18 @@ export function createReference({
     // popover that is still on the page can stand again, and the restore below then reaches
     // a control that is painted.
     if (closing) {
-      for (const layer of helpLayers)
-        if (layer.isConnected && !layer.matches(":popover-open")) layer.showPopover();
+      for (const layer of helpLayers) {
+        if (!layer.isConnected || layer.matches(":popover-open")) continue;
+        // A popover hands focus back to whatever had it when it was shown, and what the
+        // closing dialog leaves focused is the body — so a layer stood back up from here
+        // would have no way out, and the reader's exit from the menu would be the one thing
+        // the round trip cost. Stand it up from its invoker (`lfInvoker`), and only where
+        // the restore below is going back inside it, so a reader whose focus is somewhere
+        // else entirely is not moved to say so.
+        if (restore && layer.contains(restore))
+          layer.lfInvoker?.focus({ preventScroll: true });
+        layer.showPopover();
+      }
       helpLayers = [];
     }
     // The reference is a list long enough to scroll, and anything a mouse can scroll a

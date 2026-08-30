@@ -63,7 +63,6 @@ export function createVersionNavigation({
   versionBtn.setAttribute("aria-haspopup", "menu");
   versionBtn.setAttribute("aria-expanded", "false");
   const versionMenu = el("div", "lf-ui lf-version-menu");
-  versionMenu.id = "lf-version-menu";
   versionMenu.setAttribute("popover", "auto");
   versionMenu.setAttribute("role", "menu");
   versionMenu.setAttribute("aria-label", "Versions");
@@ -108,16 +107,19 @@ export function createVersionNavigation({
     )?.focus();
   }
 
-  // The browser owns top-layer state, light dismissal, and Escape. What it restores focus
-  // to on a hide is the element that had it when the popover showed — not the `source`,
-  // which buys the anchor and the invoker relationship and nothing about focus — so the
-  // toggle below states the handback for the door that opens this from the page. This
-  // helper expresses only Leaf's requested end state.
-  function showVersionMenu(open) {
-    if (open && versionsOffered()) {
-      if (!versionMenu.matches(":popover-open"))
-        versionMenu.showPopover({ source: versionBtn });
-    } else if (versionMenu.matches(":popover-open")) versionMenu.hidePopover();
+  // The browser owns top-layer state, light dismissal, Escape, and the handback. What it
+  // restores focus to on a hide is the element that had it when the popover showed — not
+  // the `source`, which buys the anchor and the invoker relationship and nothing about
+  // focus — so every door into this menu shows it from the button and the way back out is
+  // the platform's on all of them: the pointer because the press focuses the button first,
+  // `v` because the row focuses it before running that same press, and the reference
+  // because it stands a layer back up from that layer's invoker. Scoping the handback to
+  // the door rather than to the state is what keeps it off a light dismissal, which
+  // restores nothing on purpose: a reader who pressed away into the page is left where
+  // they pressed rather than moved to the chooser they pressed away from. Leaf is left
+  // with the close, which is the only end state it asks for.
+  function closeVersionMenu() {
+    if (versionMenu.matches(":popover-open")) versionMenu.hidePopover();
   }
   versionMenu.addEventListener("toggle", (event) => {
     versionMenuOpen = event.newState === "open";
@@ -126,27 +128,19 @@ export function createVersionNavigation({
     // row the comparison stands on — unless the reader is already inside, which is where the
     // reference's restore puts them when it hands the menu back, and moving them off it
     // would undo the whole point of the exemption.
-    if (versionMenuOpen) {
-      if (!versionMenu.contains(document.activeElement)) focusVersionRow();
-      // A close that leaves nothing focused is a close the browser had nowhere to restore
-      // to: `v` opens this from the page rather than from the press, so the element focused
-      // when the popover showed is the body, and the reader who Escapes out of the menu
-      // lands there instead of on the chooser they were working. The press it came from is
-      // the way back, and the pointer's route already ends here of its own accord.
-    } else if (
-      document.activeElement === document.body ||
-      versionMenu.contains(document.activeElement)
-    )
-      versionBtn.focus();
+    if (versionMenuOpen && !versionMenu.contains(document.activeElement))
+      focusVersionRow();
     paintHere();
   });
   // The press is the popover's declared invoker rather than a click handler that toggles by
   // reading the state: a press on the invoker of a standing auto popover is a light dismissal
   // *and* a press, so a handler asking whether the menu is open is asked after the dismissal
   // and opens it straight back — the menu could be pressed shut and never was. The browser
-  // knows the two are one gesture. It is also what makes the invoker the element focus goes
-  // back to when the menu closes, whichever door opened it.
+  // knows the two are one gesture. `lfInvoker` is the same relationship read from the other
+  // end, which is the end anything standing a layer back up has: it holds the layer and needs
+  // the control, and the platform offers no way back along its own link.
   versionBtn.popoverTargetElement = versionMenu;
+  versionMenu.lfInvoker = versionBtn;
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
@@ -253,7 +247,7 @@ export function createVersionNavigation({
         // fresh Tab; only the platform's focus move remains native.
         repeat: true,
         when: () => atVersionBoundary(-1),
-        run: () => showVersionMenu(false),
+        run: closeVersionMenu,
       },
       {
         id: "version.leave-backward",
@@ -263,7 +257,7 @@ export function createVersionNavigation({
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
-        run: () => showVersionMenu(false),
+        run: closeVersionMenu,
       },
     ],
   };
@@ -333,7 +327,7 @@ export function createVersionNavigation({
     if (liveRoot) {
       if (runtime.active.revision === runtime.currentRevision) return;
       forceActivation = true;
-      showVersionMenu(false);
+      closeVersionMenu();
       readAndApply();
       return;
     }
@@ -416,7 +410,7 @@ export function createVersionNavigation({
           if (runtime.currentRevision === revision)
             row.setAttribute("aria-current", "true");
           row.onclick = () => {
-            showVersionMenu(false);
+            closeVersionMenu();
             if (entry.active) goActive();
           };
           versionMenu.append(row);
@@ -439,7 +433,7 @@ export function createVersionNavigation({
         if (notes[version]) row.append(el("span", "lf-version-note", notes[version]));
         if (version === current) row.setAttribute("aria-current", "true");
         row.onclick = () => {
-          showVersionMenu(false);
+          closeVersionMenu();
           goVersion(version);
         };
         versionMenu.append(row);
@@ -457,7 +451,7 @@ export function createVersionNavigation({
           // hangs over, and a pointer has no walk to be standing in the middle of. The
           // keyboard's is the walk itself, which leaves the list up.
           press.onclick = () => {
-            showVersionMenu(false);
+            closeVersionMenu();
             pressComparison(version);
           };
           versionMenu.append(press);
@@ -492,11 +486,11 @@ export function createVersionNavigation({
     VERSIONS,
     activationIsForced,
     clearForcedActivation,
+    closeVersionMenu,
     goActive,
     goVersion,
     renderVersions,
     snapshotVersionNavigation,
-    showVersionMenu,
     versionBtn,
     versionLabel,
     versionMenu,

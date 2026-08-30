@@ -2834,7 +2834,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_text("Δ v2 ▾")
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
-    # from the banner rather than from the top of the document.
+    # from the banner rather than from the top of the document. This is the standing the
+    # reference handed back above, so the way out has been through a round trip the
+    # platform's own hand-back does not survive on its own: a popover restores focus to
+    # whatever had it when it showed, and the dialog closing leaves that as the body.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
@@ -2848,7 +2851,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # is v1 and the row carrying it is where an open lands. Landing on the version being
     # read would put the focus and the base on different rows, and the reader's next arrow
     # press would then move the base off the version they marked from — the whole reason
-    # the two are one thing (showVersionMenu).
+    # the two are one thing (focusVersionRow).
     page.keyboard.press("v")
     expect(menu).to_be_visible()
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
@@ -2881,6 +2884,17 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     page.mouse.click(30, 700)
     expect(menu).to_be_hidden()
     assert "/versions/v2.html" in page.url, "closing the menu navigated"
+
+    # The same press from the key's door, which is the one a hand-back can reach: opened
+    # with the pointer the reader was on the button going in, so nothing moves them either
+    # way. A press away from the menu is not a way back to the chooser — it is the reader
+    # going somewhere else — and a close that hands focus to the bar whenever it finds none
+    # takes them off the page they just pressed into. Escape says return; this does not.
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    page.mouse.click(30, 700)
+    expect(menu).to_be_hidden()
+    expect(btn).not_to_be_focused()
 
     # Choosing a row is exact historical navigation, including for the newest stamp.
     btn.click()

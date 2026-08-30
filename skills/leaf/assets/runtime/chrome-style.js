@@ -16,15 +16,27 @@ export function chromeStyle({
      position. Body is only the layout shell: its margins yield columns to standing
      workspaces while those workspaces keep their own nested scrollports.
 
-     The root's gutter is stable so content does not re-centre when a page grows past the
-     viewport mid-session. All of this belongs only to the live screen page. Copies have
-     no fixed banner or session chrome, and paper never receives the arrangement. */
+     The root keeps its bar standing so content does not re-centre when a page grows past
+     the viewport mid-session, and overflow-y: scroll is the spelling that asks for it
+     without reserving room the platform will not use. scrollbar-gutter: stable asked for
+     the room instead: Chromium holds the classic bar's width open even where the platform
+     draws overlay bars, and an overlay bar then draws over the strip rather than in it.
+     The width came out of the page while every window-relative coordinate kept the whole
+     window — pointer positions, innerWidth, and the root's own clientWidth — so a drawn
+     edge landed a bar's width off the hand that drew it, a covering sheet anchored to the
+     initial containing block's right edge left a blank strip at the window's, and a page
+     with nothing overflowing measured a bar's width narrower than the box it scrolled in.
+     A standing bar is a no-op where bars overlay, and where they take room it takes
+     exactly the room the bar does, which is the room innerWidth minus the root's
+     clientWidth already reports.
+
+     All of this belongs only to the live screen page. Copies have no fixed banner or
+     session chrome, and paper never receives the arrangement. */
   @media screen {
     :where(html:not(.lf-copy)) {
       min-height: 100%;
       overflow-x: hidden;
-      overflow-y: auto;
-      scrollbar-gutter: stable;
+      overflow-y: scroll;
       scroll-padding-top: calc(var(--lf-banner-h) + 12px);
       scroll-padding-bottom: var(--here-ring-room);
       /* The foot is the same claim the head makes, in the size a ring needs rather than

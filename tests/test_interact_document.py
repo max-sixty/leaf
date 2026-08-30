@@ -2630,6 +2630,54 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
         )
 
 
+def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
+    """The mutable source participates in the page currently being authored even before
+    its binding reaches an immutable revision. A reply becomes immutable immediately, so
+    admitting a different meaning there would leave set, clear, and source check reading
+    a conflict the reply door itself allowed."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    for revision in files_model.list_revisions(page_dir):
+        path = files_model.revision_path(page_dir, revision)
+        path.write_text(
+            path.read_text().replace(
+                '<lf-test-data id="test-data" source="project-feed"></lf-test-data>\n',
+                "",
+            )
+        )
+    immutable, errors = data_contracts_model.page_data_bindings(page_dir, registry)
+    assert errors == [] and "project-feed" not in immutable
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "draft-data-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Show another feed here.",
+        },
+    )
+
+    with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
+        conversation_model.cmd_reply(
+            page_dir,
+            "draft-data-question",
+            "Here it is.",
+            '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        )
+
+
 def test_data_set_validates_the_json_value_it_writes(page_dir):
     """The Python facade and CLI share one boundary. A caller may hand the facade a
     mapping key that json.dumps coerces, but the schema must judge the resulting JSON,

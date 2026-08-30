@@ -80,11 +80,10 @@ def page_data_snapshot_selections(
     page_dir: Path,
     registry: dict,
     events: list | None = None,
-    extra: list[tuple[list, str]] | None = None,
 ) -> dict:
     """Exact immutable selection at each document/widget/input coordinate."""
     selections = {}
-    for lf_elements, document in page_data_documents(page_dir, events, extra):
+    for lf_elements, document in page_data_documents(page_dir, events):
         for ordinal, rec in enumerate(lf_elements):
             for input_name, spec in (
                 registry.get(rec["tag"], {}).get("x-data", {}).items()
@@ -115,7 +114,7 @@ def page_data_snapshot_selections(
 def merge_data_bindings(
     documents: list[tuple[list, str]], registry: dict
 ) -> tuple[dict, list[str]]:
-    """Fold bindings from immutable documents into one page-lifetime identity map."""
+    """Fold document bindings into one page-lifetime identity map."""
     bindings = {}
     seats = {}
     errors = []
@@ -141,7 +140,6 @@ def merge_data_bindings(
 def page_data_documents(
     page_dir: Path,
     events: list | None = None,
-    extra: list[tuple[list, str]] | None = None,
 ) -> list[tuple[list, str]]:
     """The immutable page and thread documents that can consume external data."""
     documents = []
@@ -156,7 +154,25 @@ def page_data_documents(
                     f"event {event['id']!r} markup",
                 )
             )
-    documents.extend(extra or [])
+    return documents
+
+
+def working_data_documents(
+    page_dir: Path,
+    events: list | None = None,
+    *,
+    authored: list | None = None,
+    incoming: list[tuple[list, str]] | None = None,
+) -> list[tuple[list, str]]:
+    """Immutable documents plus the current source and boundary candidates."""
+    documents = page_data_documents(page_dir, events)
+    if authored is None:
+        source = page_dir / "index.html"
+        if source.exists():
+            authored = parse_structure(source.read_text(encoding="utf-8")).lf_elements
+    if authored is not None:
+        documents.append((authored, "index.html"))
+    documents.extend(incoming or [])
     return documents
 
 
@@ -164,24 +180,34 @@ def page_data_bindings(
     page_dir: Path,
     registry: dict,
     events: list | None = None,
-    extra: list[tuple[list, str]] | None = None,
 ) -> tuple[dict, list[str]]:
     """One source-to-contract map across versions and frozen thread documents."""
     return merge_data_bindings(
-        page_data_documents(page_dir, events, extra),
+        page_data_documents(page_dir, events),
         registry,
     )
 
 
-def page_data_snapshot_references(
+def working_data_bindings(
     page_dir: Path,
     registry: dict,
     events: list | None = None,
-    extra: list[tuple[list, str]] | None = None,
+) -> tuple[dict, list[str]]:
+    """Source contracts across immutable documents and the current source."""
+    return merge_data_bindings(
+        working_data_documents(page_dir, events),
+        registry,
+    )
+
+
+def working_data_snapshot_references(
+    page_dir: Path,
+    registry: dict,
+    events: list | None = None,
 ) -> dict:
-    """Immutable snapshot ids selected by page, draft, and thread documents."""
+    """Snapshot ids selected by immutable documents and the current source."""
     references = {}
-    for lf_elements, _document in page_data_documents(page_dir, events, extra):
+    for lf_elements, _document in working_data_documents(page_dir, events):
         for source, snapshots in declared_data_snapshot_references(
             lf_elements, registry
         ).items():
@@ -296,10 +322,17 @@ def data_binding_errors(
     registry: dict,
     stored: dict,
     events: list | None = None,
-    extra: list[tuple[list, str]] | None = None,
+    *,
+    authored: list | None = None,
+    incoming: list[tuple[list, str]] | None = None,
 ) -> list[str]:
-    """Page-lifetime conflicts and standing snapshots that contradict them."""
-    documents = page_data_documents(page_dir, events, extra)
+    """Working-document conflicts and standing snapshots that contradict them."""
+    documents = working_data_documents(
+        page_dir,
+        events,
+        authored=authored,
+        incoming=incoming,
+    )
     bindings, errors = merge_data_bindings(documents, registry)
     for source, contract in bindings.items():
         snapshot = stored["sources"].get(source)

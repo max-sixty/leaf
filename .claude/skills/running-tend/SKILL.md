@@ -7,10 +7,8 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 
 ## Landing
 
-`CLAUDE.md` says landing is `wt merge`, a direct squash merge, never a PR. That
-is written for a session at a workstation. Work from here lands as a pull
-request that a maintainer merges — the bot has write access, and the `Merge
-access` ruleset holds merging to admins.
+Work from Tend lands as a pull request that a maintainer merges. The bot has
+write access, and the `Merge access` ruleset holds merging to admins.
 
 ## Review threshold
 
@@ -49,12 +47,11 @@ about the run worth reporting, not a step to work around. `playwright install
 --with-deps` is the one that cannot work: it escalates, and the sandbox user has
 no sudo.
 
-## A red `ci` on main is the first signal, not the second
+## A red `ci` on main is live
 
-Nothing lands here through a pull request, so no CI run ever gates a change
-before it is on main — `wt merge`'s local hooks are the only gate, and they run
-on the maintainer's machine. That makes `ci-fix` the primary safety net rather
-than a backstop, and it means a red `ci` on main is already affecting whoever
+Pull requests run the everyday suite before merge, while `wt merge` runs that
+gate on the maintainer's machine. The complete nightly suite first runs after
+main moves on either path, so a red `ci` on main is already affecting whoever
 pulls next. Treat it as live.
 
 ## Reading a red suite
@@ -118,13 +115,12 @@ the browser dependencies produced by the vendor scripts, because their versions
 live in shell variables rather than a manifest. They drift silently, and this is
 the step that catches it.
 
-Read the pinned versions out of the scripts and compare them against upstream:
+Enumerate every version variable in every vendor script. For each result, read
+the package name from the script's npm command and run
+`npm view <package> version`:
 
 ```bash
-grep HLJS_VERSION scripts/vendor-highlight.sh    # against: npm view highlight.js version
-grep MARKED_VERSION scripts/vendor-marked.sh     # against: npm view marked version
-grep PIERRE_VERSION scripts/vendor-pierre.sh     # against: npm view @pierre/diffs version
-grep SHIKI_VERSION scripts/vendor-pierre.sh      # against: npm view shiki version
+grep -HnE '^[A-Z][A-Z_]*_VERSION=' scripts/vendor-*.sh
 ```
 
 On drift, bump the variable and rerun that script — the rebuilt bundle is the

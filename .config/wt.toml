@@ -1,6 +1,5 @@
-# `wt merge` straight to main is how the repo lands, so this is the last local check.
-# pre-merge rather than pre-commit, because it runs after the rebase: the tree it checks
-# is the one that becomes main.
+# For a direct local landing, `wt merge` runs these checks after rebasing, so the tree
+# they check is the one that becomes main.
 #
 # A hook that rewrites (prettier, ruff-format) fails the merge and leaves the rewrite
 # uncommitted in the worktree. Read it, then `wt merge` again — the squash sweeps it in.

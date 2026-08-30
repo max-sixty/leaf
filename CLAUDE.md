@@ -146,7 +146,8 @@ uv run pytest tests
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
 the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
-tree. CI adds the complete nightly suite after main moves.
+tree. Pull requests run the same gate in CI. CI adds the complete nightly suite
+after main moves.
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. Run `/ui-sweep` and inspect a composed page for any user-visible
@@ -157,11 +158,12 @@ change needs one sentence and an `lf-shot` before/after from the same fixture,
 viewport, and state. Add another state, width, recording, or live link only when
 the first comparison cannot show the behavior.
 
-Land with `wt merge`, a direct local squash merge to `main`, never a PR. Landing
-still requires the user's authorization. If a newer `main` dislodges a merge
-after this branch passed the local gate, `wt merge --no-hooks` may reuse that
-result; finish with `git push origin main:main` because the skipped hook normally
-pushes. `✗ Can't push to local main branch` is a fast-forward failure instead.
+Land through a pull request or with `wt merge`, which squash-merges directly to
+`main`. Landing requires the user's authorization. For a local merge, if a newer
+`main` dislodges the merge after this branch passed the local gate,
+`wt merge --no-hooks` may reuse that result; finish with
+`git push origin main:main` because the skipped hook normally pushes.
+`✗ Can't push to local main branch` is a fast-forward failure instead.
 
 Installed sessions load host caches, not the checkout. After pushing, Claude
 Code updates on its marketplace sweep. The post-merge hook refreshes an installed

@@ -1916,7 +1916,7 @@ up by id and finds none, the same as on every page with the tray shut, and the E
 rung reads focus rather than the list, so the way out is the one they always have.
 
 Working a decision and standing in one are different facts, and `markHere`'s ring
-answers the second. A reader who addressed a link inside a question has named
+answers the second. A reader who tabbed to a link inside a question has named
 something more particular than the question, so a press there means the link's
 own block; reading the ring instead overrode what they named, and made the same
 markup answer differently according to whether its question was still open. The
@@ -2170,7 +2170,9 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it.
+the rows inside it. Completing an address runs that list's destination: a hyperlink
+follows, a fold opens and takes focus, and a page-map item opens its marker or focuses
+its first available action.
 
 Arming the mode paints the whole offer. A direct mnemonic completes the travel and
 moves focus inside its destination. Every numbered list contributes chips for its first
@@ -2206,10 +2208,11 @@ only for addressable members whose `shownRect` is visible, but an off-screen mem
 within that prefix remains reachable by the same address. Chips live in runtime
 chrome rather than authored markup.
 
-`NATIVE` describes the platform controls a chord may land on and the immediate
-word for their next press. A summary says whether it will open or close from its
-current state. This avoids one scope per native tag while keeping the next press
-visible.
+`LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
+immediate word for their next press. An addressed fold lands on its summary after
+opening it; a link reached through Tab still says that Enter follows it. A summary
+says whether it will open or close from its current state. This avoids one scope per
+native tag while keeping the next press visible.
 
 The address mode has no timeout. A prefix with no competing complete binding
 remains active until a listed key completes it, Escape cancels it, or an

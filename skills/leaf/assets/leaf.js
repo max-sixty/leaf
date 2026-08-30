@@ -1487,14 +1487,14 @@ const focusedThread = () => {
   return active?.classList?.contains("lf-thread") ? active : null;
 };
 // The item the reader is standing in, which is what a press means when they have pointed
-// at nothing. The ⌥ aim reaches an item through the pointer and the keyboard reached none
-// at all: an address put the reader on an option and `c` still offered them the page.
+// at nothing. The ⌥ aim reaches an item through the pointer and focus used to reach none
+// at all: tabbing to a link in an option left `c` offering the page.
 //
 // The unanswered decision where the reader is standing on a control that works it, and the innermost
 // item everywhere else. The control the walk stands them on is one part of the question
 // (standOn), so a press made
 // from a pick, a ✓ or a mark means the question those answer. Standing *in* a decision is not
-// the same fact: a reader who addressed a hyperlink (`g h 3`) or tabbed to one has said
+// the same fact: a reader who tabbed to a hyperlink has said
 // something more particular than the question containing it, and answering the question
 // there both overrides what they named and made the same markup answer differently
 // according to whether its question was still open — a link in a settled group gave the
@@ -2355,11 +2355,11 @@ const THREAD = {
 
 // Where the reader is standing, when what they are standing on is one of the page's own
 // parts rather than a widget's own declaration. The control scope below cannot cover
-// these: it works a span `offer` made pressable, where these arrive with keys already
-// bound, and which keys differ — Enter follows an <a> while Space scrolls the page out
-// from under it, and both work a disclosure. `g` puts the reader on both of them by key,
-// and until a scope existed the line went quiet at exactly the moment they arrived, with
-// the press that finishes the motion unnamed.
+// these: it works a span `offer` made pressable, where these arrive with platform keys
+// already bound. Enter follows an <a> while Space scrolls the page out from under it;
+// both work a disclosure. `g f` puts the reader on a disclosure, and Tab can put them on
+// either. Until a scope existed the line went quiet at exactly the moment they arrived,
+// with the press that finishes the motion unnamed.
 //
 // The page's parts and not every one, which is the reading the addresses take as well:
 // the chrome's own links are the leaves tray's and its resolved comments are the panel's,

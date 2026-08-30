@@ -968,19 +968,18 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
         f"the crowded page drew {len(drawn)} of its five addresses ({drawn}): the pass "
         f"either dropped nothing or left too few to have checked a pair"
     )
-    # And the ones that survived still say what they reach: pressing the first link's own
-    # digit lands on that link and not on the neighbour whose chip it might have worn.
+    # And the ones that survived still say what they reach: pressing the first address's
+    # digit follows that link or lands on that fold, not on the neighbour whose chip it
+    # might have worn.
     first = piles["drawn"][0]
     _leader, letter, digit = first.split(" ")
     page.keyboard.press(letter)
     page.keyboard.press(digit)
-    assert page.evaluate("() => document.activeElement.id") in {
-        "fn1",
-        "fn2",
-        "fn3",
-        "lk-sum",
-        "dsc-head",
-    }, f"{first} did not reach an addressable member"
+    if letter == "h":
+        fragment = {"1": "s1", "2": "s2", "3": "s3", "4": "s1"}[digit]
+        page.wait_for_url(re.compile(rf"#{fragment}$"))
+    else:
+        expect(page.locator("#dsc-head")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1325,8 +1324,19 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # every scroll position and holds where no chip can be drawn for it — counted what is
     # in the window, `g h 2` would name a different link each time the reader moved, and
     # the line would go stale about which digits are live every time the page scrolled.
-    # The arrival is the focus, and the press that finishes the motion is the platform's:
-    # named on the line, or the reader lands with nothing said.
+    # Completing the address clicks the link. Its authored handler prevents navigation,
+    # so observing that handler distinguishes activation from assigning the href while the
+    # off-screen setup still proves the address names the whole document rather than the
+    # current window.
+    page.evaluate(
+        """() => {
+          window.addressedClicks = 0;
+          document.querySelector('#lk2').addEventListener('click', event => {
+            event.preventDefault();
+            window.addressedClicks += 1;
+          }, {once: true});
+        }"""
+    )
     page.evaluate(
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
@@ -1335,8 +1345,8 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("h")
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("2")
-    expect(page.locator("#lk2")).to_be_focused()
-    expect(line).to_contain_text("follow")
+    assert page.evaluate("() => window.addressedClicks") == 1
+    assert "#p2" not in page.url
 
     # The panel folds its resolved comments into a <details> of its own, and that box is
     # the chrome's. A list is what the document holds, so it is not addressed: read of the
@@ -1926,14 +1936,13 @@ def test_numbered_addresses_stop_at_nine_and_choose_in_one_press(browser, serve)
     page.keyboard.press("h")
     expect(page.locator(CHIPS)).to_have_text([f"g h {n}" for n in range(1, 10)])
     page.keyboard.press("1")
-    expect(page.locator("#link-1")).to_be_focused()
+    page.wait_for_url(re.compile(r"#link-1$"))
     expect(page.locator(CHIPS)).to_have_count(0)
-    expect(line).to_contain_text("follow")
 
     page.keyboard.press("g")
     page.keyboard.press("h")
     page.keyboard.press("9")
-    expect(page.locator("#link-9")).to_be_focused()
+    page.wait_for_url(re.compile(r"#link-9$"))
     revealed = page.locator("#link-9").bounding_box()
     assert revealed is not None
     assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
@@ -1943,9 +1952,9 @@ def test_numbered_addresses_stop_at_nine_and_choose_in_one_press(browser, serve)
     page.keyboard.press("g")
     page.keyboard.press("h")
     page.keyboard.press("1")
+    page.wait_for_url(re.compile(r"#link-1$"))
     page.keyboard.press("0")
-    expect(page.locator("#link-1")).to_be_focused()
-    expect(page.locator("#link-10")).not_to_be_focused()
+    assert page.url.endswith("#link-1")
     assert errors == []
     page.close()
 
@@ -3973,17 +3982,16 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 
 
 def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
-    """The keyboard reaches an element anchor. `c` read the 💬 alone, which only a
+    """Focus supplies an element anchor. `c` read the 💬 alone, which only a
     selection or a click on a visual ever raises, so a reader working from the keys
-    had two destinations where the pointer had three: a quote, or the whole page. An
-    address put them on an option and the box that opened still said "Comment on the
+    had two destinations where the pointer had three: a quote, or the whole page. A
+    focused link put them on an option and the box that opened still said "Comment on the
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
     Where they are standing is the unanswered decision first, because that is what the page
     has already told them: markHere rings the whole ask when a/A lands on its control.
-    Below a decision it is the innermost
-    item, which is the aim's own reading — so the link the walk stands on speaks for
-    the paragraph holding it, no id of its own being what an anchor needs.
+    Below a decision it is the innermost item, which is the aim's own reading — so a focused
+    link speaks for the paragraph holding it, no id of its own being what an anchor needs.
 
     One box either way: `openOnItem` writes `{section: item.id}`, which is the anchor a
     widget's own conversation seat collects, so a remark made here lands in that seat's
@@ -3997,8 +4005,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     would follow just as well from a composer that opened on everything.
 
     Focus is dropped between the phases rather than backed out of, because each press
-    lands the reader in a box: the typing scope owns the letter there, and the `g`
-    opening the next address would be a character in the last one's draft."""
+    lands the reader in a box and the typing scope owns the letter there."""
     page, errors = open_page(browser, serve(WHERE_I_STAND_PAGE))
     line = page.locator(".lf-keyline")
 
@@ -4033,8 +4040,12 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("Decided last week")
     drop()
 
-    # A decision with no seat: the composer, anchored on the decision rather than on the page.
-    page.keyboard.press("a")
+    # A decision with no seat: focus on its action names the rewrite, and the composer
+    # anchors there rather than on the page.
+    page.evaluate(RENDERED)
+    rewrite_action = page.locator('[data-lf-margin-for="sug-window"] .lf-sug-accept')
+    rewrite_action.focus()
+    expect(rewrite_action).to_be_focused()
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the rewrite")
     page.keyboard.press("c")
@@ -4043,15 +4054,21 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     drop()
 
     # A link inside a question, open and settled: the same markup, and the same answer.
-    # Standing in a decision is not working one — a reader who addressed a link has named
+    # Standing in a decision is not working one — a reader who focused a link has named
     # something more particular than the question around it, and answering the question
     # there both overrode what they named and made the reply turn on whether that question
     # happened to be open. The settled one is the contrast that shows it was the openness
     # doing it: it always said "option", and the open one used to say "options".
-    for expected_id, keys in (("sh-steel", "gh2"), ("st-keep", "gh3")):
+    for expected_id in ("sh-steel", "st-keep"):
         drop()
-        for key in keys:
-            page.keyboard.press(key)
+        page.evaluate(RENDERED)
+        if expected_id == "st-keep":
+            settled = page.locator("#settled .lf-settled")
+            settled.click()
+            expect(settled).to_have_attribute("aria-expanded", "true")
+        link = page.locator(f"#{expected_id} a")
+        link.focus()
+        expect(link).to_be_focused()
         expect(line).to_contain_text("comment on the option")
         page.keyboard.press("c")
         expect(page.locator(".lf-composer")).to_be_visible()
@@ -4060,10 +4077,11 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
         ).startswith("§ option · "), "the box named the question, not the option"
         drop()
 
-    # Below any ask, the innermost item: the paragraph the addressed link sits in.
-    for key in "gh1":
-        page.keyboard.press(key)
-    expect(page.locator("#p1 a")).to_be_focused()
+    # Below any ask, the innermost item: the paragraph the focused link sits in.
+    page.evaluate(RENDERED)
+    passage_link = page.locator("#p1 a")
+    passage_link.focus()
+    expect(passage_link).to_be_focused()
     expect(line).to_contain_text("comment on the paragraph")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("paragraph")

@@ -142,15 +142,12 @@ export function createAddress({
       id: "navigation.link",
       key: "h",
       word: "hyperlinks",
-      does: "Go to the nth hyperlink",
+      does: "Follow the nth hyperlink",
       list: pageLinks,
-      // Focus, not a follow: g says go, and what a focused link then answers is the
-      // platform's Enter, which the link scope names on the line. A press that navigated
-      // would be a door with no landing to look at first.
-      go: (link) => {
-        scrollToElement(link, undefined, "nearest");
-        link.focus({ preventScroll: true });
-      },
+      // Completing the address is the link's activation. Use the platform click method
+      // so authored handlers, cancellation, fragments, targets, and downloads keep their
+      // anchor semantics.
+      go: (link) => link.click(),
     },
     {
       id: "navigation.fold",

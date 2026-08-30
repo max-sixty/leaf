@@ -1,8 +1,8 @@
 version: 2
 
 # Nothing watched anything here before this file. The pinned versions that stay
-# outside it are `tend-weekly`'s, in `.claude/skills/running-tend/SKILL.md`: the
-# bundles under `assets/vendor/`, which are rebuilt by their scripts rather than
+# outside it are the browser bundles', in `scripts/vendor.py`'s PINS table, which
+# `tend-weekly` reads: they are fetched and built by that script rather than
 # resolved from a manifest.
 #
 # The uv entry watches the repository's one lock. Its runtime packages are what

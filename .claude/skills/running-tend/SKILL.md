@@ -111,28 +111,26 @@ reaches for one, the question to answer instead is what behaviour actually broke
 ## Weekly: vendored browser dependencies
 
 `.github/dependabot.yml` watches the action refs and `uv.lock`. It cannot watch
-the browser dependencies produced by the vendor scripts, because their versions
-live in shell variables rather than a manifest. They drift silently, and this is
-the step that catches it.
-
-Enumerate every version variable in every vendor script. For each result, read
-the package name from the script's npm command and run
-`npm view <package> version`:
+the browser dependencies, whose versions live in `scripts/vendor.py`'s PINS
+table rather than a manifest. They drift silently, and this is the step that
+catches it.
 
 ```bash
-grep -HnE '^[A-Z][A-Z_]*_VERSION=' scripts/vendor-*.sh
+scripts/vendor.py --pins
 ```
 
-On drift, bump the variable and rerun that script — the rebuilt bundle is the
-commit, not the version string on its own. `vendor-marked.sh` copies upstream's
-single ESM file, so its output tracks the version directly.
-`vendor-highlight.sh` is a real build, and it reads the language list out of the
-registry's `$languages.names`, so its output is a function of both the pin and
-the registry: rerunning it after an unrelated registry change is how the bundle
-and the lint stay unable to disagree.
-`vendor-pierre.sh` likewise builds Pierre and its bounded Shiki language set from
-that registry, and both pins must move together when their compatibility requires
-it.
+Each row is a package, its pin, the bundle to rebuild if it has moved, and
+upstream's latest where that differs. `esbuild` is the tool the three builds
+share rather than payload, so it moves when a bundle needs it rather than on
+every release.
+
+On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the
+rebuilt bundle is the commit, not the version string on its own. A copy's output tracks its version directly.
+`highlight` and `pierre` also read the language list out of the registry's
+`$languages.names`, so their output is a function of both the pin and the
+registry: rerunning them after an unrelated registry change is how the bundle
+and the lint stay unable to disagree. Pierre and Shiki must move together when
+their compatibility requires it.
 
 Run the suite afterwards. The browser tests load the bundles, so a bad rebuild
 surfaces there rather than in review.

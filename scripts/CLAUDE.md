@@ -31,19 +31,25 @@ keep it when the product can make those frames stale.
 
 ## Vendored bundles
 
-- `vendor-highlight.sh` rebuilds `skills/leaf/assets/vendor/highlight.esm.js` from
-  the registry's `$languages.names`.
-- `vendor-marked.sh` copies the dependency-free Markdown renderer used for
-  thread messages.
-- `vendor-mermaid.sh` copies the diagram renderer `lf-diagram` draws with. The
-  vendored file is the IIFE build, because the widget loads it through a
-  `<script src>` tag rather than importing it.
-- `vendor-pierre.sh` builds the bounded Pierre diff renderer and license notices
-  from the registry's `$languages.names` and the two shipped diff themes.
-- `vendor-plot.sh` bundles Observable Plot with d3 into
-  `skills/leaf/packages/default/vendor/plot.esm.js`; Plot's published ESM leaves
-  d3 as a bare external import, so copying it alone is not a browser-loadable
-  bundle.
+`vendor.py` rebuilds them — all of them by default, or the ones you name. Every
+pinned version sits in one table there, and the six divide by whether upstream's
+published file is already loadable:
 
-Run the owning script after changing its source dependency or registry input;
-do not patch generated bundles or `examples/corpus.html` directly.
+- Copies, where it is, so vendoring is three values: `marked`, the Markdown
+  renderer for thread messages; `mermaid`, the diagram renderer `lf-diagram`
+  draws with, taken as the IIFE build because the widget loads it through a
+  `<script src>` tag rather than importing it; and `sortable`, the drag library
+  `lf-board` moves cards with.
+- Builds, where it is not, or where what ships is cut down to what the registry
+  declares: `highlight` and `pierre`, both cut to `$languages.names`, and
+  `plot`, bundled with d3 because Plot's published ESM leaves d3 as a bare
+  external import.
+
+A bundle reproduces its tracked bytes exactly when every input it fetches is
+pinned, which holds for the three copies and for `highlight`, so a clean
+`git status` after a run is the check that the bundle still matches the script.
+`plot` and `pierre` reach npm's resolver for transitive dependencies and inherit
+its ranges, so a diff from either can be an upstream patch rather than drift.
+
+Rerun a bundle after changing its pin or the registry input it reads; do not
+patch a generated bundle or `examples/corpus.html` directly.

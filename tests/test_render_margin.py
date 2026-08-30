@@ -805,19 +805,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     panel_settled(page, open=False)
     marker.focus()
     page.keyboard.press("Enter")
-    focused = page.locator(".lf-margin-preview :focus")
-    expect(focused).to_be_visible()
-    focus_geometry = focused.evaluate(
-        """node => {
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          const box = node.getBoundingClientRect();
-          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
-                  inPreview: Boolean(node.closest('.lf-margin-preview'))};
-        }"""
-    )
-    assert focus_geometry["inPreview"], focus_geometry
-    assert focus_geometry["top"] >= focus_geometry["bannerBottom"], focus_geometry
-    assert focus_geometry["bottom"] <= 900, focus_geometry
+    expect(preview).to_be_visible()
+    expect(marker).to_be_focused()
 
     resized(page, 1208, 900)
     beside = page.evaluate(

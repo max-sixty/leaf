@@ -290,30 +290,27 @@ export function createLivingMargin(dependencies) {
   let rovingFrame = 0;
   let sheetActivation = false;
 
-  function groupFor(groups, target, item = null) {
-    if (target && (!target.isConnected || inChrome(target))) target = null;
-    const lookup =
-      target ?? `detached:${item?.kind ?? "action"}:${item?.id ?? groups.size}`;
-    let group = groups.get(lookup);
+  function groupFor(groups, target) {
+    let group = groups.get(target);
     if (!group) {
-      const key = target ? targetPath(target) : lookup;
-      const kindWord = target ? itemWord(target) : "Detached item";
+      const key = targetPath(target);
+      const kindWord = itemWord(target);
       const word = kindWord === "decision" ? "ask" : kindWord;
-      const said = target ? itemSays(target) : "No longer placed in this version";
       group = {
         key,
         target,
-        title: trimmed([word, said].filter(Boolean).join(" · "), 72),
+        title: trimmed([word, itemSays(target)].filter(Boolean).join(" · "), 72),
         items: [],
         offers: [],
       };
-      groups.set(lookup, group);
+      groups.set(target, group);
     }
     return group;
   }
 
   function add(groups, target, item) {
-    const group = groupFor(groups, target, item);
+    if (!target?.isConnected || inChrome(target)) return;
+    const group = groupFor(groups, target);
     group.items.push(item);
   }
 

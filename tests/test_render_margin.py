@@ -89,10 +89,7 @@ def test_g_addresses_the_shipped_page_map_in_its_announced_order(browser, serve)
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("One reconnect in forty is worse")
-    assert page.evaluate(
-        "() => document.querySelector('.lf-margin-preview')"
-        ".contains(document.activeElement)"
-    )
+    expect(preview.locator(".lf-conversation-open")).to_be_focused()
 
     page.keyboard.press("Escape")
     resized(page, 390, 760)

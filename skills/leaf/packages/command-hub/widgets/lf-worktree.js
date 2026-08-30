@@ -58,18 +58,24 @@ function renderDatum(tree, record, prior) {
     // answers from. The line below sets the live value on every render; this is the one
     // at birth, so the head is never briefly a control the runtime cannot place.
     head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
-    // The press the runtime's disclosure scope already owns, re-worded in this widget's
-    // terms and binding nothing: the arrows are that scope's, and a `run` over them
-    // would make them a second toggle rather than a direction. Its keys come from
-    // `DISCLOSE` rather than from `PRESS`, which is what that primitive is for — a
-    // nearer scope keeps only the keys it names, so the pair alone took the arrow off
-    // the line while it went on working.
+    // The same press the runtime's disclosure scope owns, re-worded in this widget's
+    // terms. Its keys come from `DISCLOSE` rather than from `PRESS`, which is what that
+    // primitive is for: a nearer scope keeps only the keys it names, so the pair alone
+    // took the arrow off the line while it went on opening the tree.
+    //
+    // And it keeps its own `run`, because this head is a span. `DISCLOSE` hands over
+    // only the arrow that changes the state, so a press here is a direction and never a
+    // second toggle; what it also answers for is where the head stands. In thread
+    // markup the disclosure scope refuses to reach — its `at` asks `!inChrome` — and a
+    // span has no platform half to fall back on the way `details > summary` does, so
+    // without this the frozen head names ⏎ / space and nothing runs them.
     keys(head, "On worktree evidence", [
       {
         id: "worktree.toggle",
         keys: () => DISCLOSE(head),
         does: "Open or close the worktree evidence",
         line: () => (tree.hasAttribute("data-lf-open") ? "close" : "open"),
+        run: () => head.click(),
       },
     ]);
     datum.prepend(head);

@@ -3223,7 +3223,14 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     declared, so a head that repaints the line still tells a screen reader about the
     arrow that no longer moves anything. Read once and never retried, for the reason
     `key_line` is: the heartbeat repaints scopes too, and an assertion that retries goes
-    green on whichever tick lands inside its budget."""
+    green on whichever tick lands inside its budget.
+
+    And both places the head stands, because the row's `run` is what carries it from one
+    to the other. The runtime's disclosure scope stops at the chrome, and this head is a
+    span, so a message's frozen copy has no platform pair underneath it the way a
+    `details > summary` does: the row's own press is the only thing there. Reading
+    `DISCLOSE` for the keys and leaving the press to that scope named ⏎ / space in the
+    panel over a head that answered neither."""
     command = leaf_page(
         "worker evidence",
         """
@@ -3255,6 +3262,44 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     expect(head).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("ArrowLeft")
     expect(head).to_have_attribute("aria-expanded", "false")
+
+    # The same head frozen into thread markup, where the runtime's disclosure scope does
+    # not reach: its `at` refuses anything in the chrome, so whatever the widget's row
+    # does not run there, nothing runs. `DISCLOSE` answers for that too and drops the
+    # arrow, leaving the pair — and the pair is the half a `details > summary` gets from
+    # the platform and a span gets from nowhere. So the row keeps its own `run`, and this
+    # is the surface that says whether it does.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-tree",
+            "author": "claude",
+            "revision": 1,
+            "text": "The worker's evidence, for the record.",
+            "markup": '<lf-roster id="msg-team"><lf-agent id="msg-worker" '
+            'state="working"><strong>worker</strong> Owned the remit.'
+            '<lf-worktree id="msg-proof" source="atlas-worktrees"></lf-worktree>'
+            "</lf-agent></lf-roster>",
+        },
+    )
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    frozen = page.locator("#msg-proof > .lf-worktree-snapshot > .lf-worktree-head")
+    frozen.focus()
+    expect(frozen).to_be_focused()
+    expect(frozen).to_have_attribute("aria-expanded", "false")
+    assert frozen.get_attribute("aria-keyshortcuts") == "Enter Space"
+
+    # The arrow the page has and the panel does not, first: it moves nothing here, so the
+    # press that follows cannot be read as the arrow arriving late.
+    page.keyboard.press("ArrowRight")
+    expect(frozen).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("Enter")
+    expect(frozen).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press(" ")
+    expect(frozen).to_have_attribute("aria-expanded", "false")
     assert errors == []
     page.close()
 

@@ -26,7 +26,7 @@ export function createLiveLeaves({
   // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
   // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
   // browser's, a row being a link, and the row says so with no `run` to give. The reader
-  // arrives here by key — `g l` lands focus on the first neighbour — so the scope names
+  // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
   // what activating does rather than leaving it to the platform's own contract.
   const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
   keys(

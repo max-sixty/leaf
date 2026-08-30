@@ -14,6 +14,7 @@ A page under /examples has to be reached over HTTP: its markup names /theme.css 
 besides. The docs pages are read as files, which is how a checkout reads them.
 """
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -41,6 +42,12 @@ _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
 
+_preview_spec = importlib.util.spec_from_file_location(
+    "example_previews", ROOT / "scripts" / "example-previews.py"
+)
+preview_build = importlib.util.module_from_spec(_preview_spec)
+_preview_spec.loader.exec_module(preview_build)
+
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
@@ -59,6 +66,16 @@ def pages_under(directory):
     pages = sorted(directory.glob("*.html"))
     assert pages, f"no pages under {directory}"
     return pages
+
+
+def authored_examples():
+    """The public examples, with the one generated browser-stress fixture removed."""
+    pages = pages_under(EXAMPLES)
+    corpus = [page for page in pages if page.stem == "corpus"]
+    authored = [page for page in pages if page.stem != "corpus"]
+    assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
+    assert authored, "excluding the corpus left no examples to publish"
+    return authored
 
 
 @pytest.fixture(scope="module")
@@ -144,7 +161,7 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     ), "the runtime the site serves is not the shipped file"
     for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
-    for source in pages_under(EXAMPLES):
+    for source in authored_examples():
         version = site / "examples" / source.stem / "versions" / "v1.html"
         assert version.read_text() == site_build.eager_example(source.read_text()), (
             f"{source.name} changed beyond the static showcase's root marker"
@@ -174,6 +191,73 @@ def test_a_directory_link_with_no_index_stops_the_build(site, tmp_path):
     assert "triage-board" in str(stopped.value)
 
 
+def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
+    site, hosted, browser
+):
+    """Every authored example appears once as a real preview and a standalone route.
+
+    The absence checks are held by positive populations: nine catalog entries, nine
+    loaded images, and the independently derived authored files. A vanished catalog
+    cannot pass merely because it also contains no iframe or tab widget.
+    """
+    expected = {source.stem for source in authored_examples()}
+    manifest = json.loads((DOCS / "example-previews.json").read_text())
+    assert set(manifest["previews"]) == expected
+    assert manifest["inputs_sha256"] == preview_build.digest(
+        preview_build.capture_input_files()
+    ), "preview inputs changed — rerun scripts/example-previews.py"
+    assert {path.name for path in DOCS.glob("example-*.jpg")} == {
+        f"example-{stem}.jpg" for stem in expected
+    }
+    for stem, record in manifest["previews"].items():
+        image = DOCS / record["file"]
+        assert record == {
+            "file": f"example-{stem}.jpg",
+            "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+            "width": 896,
+            "height": 560,
+        }
+
+    page = browser.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.goto(f"{hosted}/examples.html", wait_until="load")
+        entries = page.locator(".example-catalog > li .example-link")
+        assert entries.count() == len(expected)
+        pairs = entries.evaluate_all(
+            "links => links.map(link => ({"
+            " href: link.getAttribute('href'),"
+            " image: link.querySelector('img').getAttribute('src'),"
+            "}))"
+        )
+        reached = set()
+        for pair in pairs:
+            match = re.fullmatch(r"examples/([a-z0-9-]+)/", pair["href"])
+            assert match, pair
+            stem = match.group(1)
+            assert pair["image"] == f"example-{stem}.jpg"
+            reached.add(stem)
+        assert reached == expected
+
+        images = entries.locator("img")
+        assert images.count() == len(expected)
+        for index in range(images.count()):
+            image = images.nth(index)
+            image.scroll_into_view_if_needed()
+            expect(image).to_be_visible()
+            assert image.evaluate("img => [img.naturalWidth, img.naturalHeight]") == [
+                896,
+                560,
+            ]
+
+        assert page.locator("iframe, lf-tabs").count() == 0
+        assert not (site / "examples" / "corpus").exists()
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_every_example_stands_as_a_live_page(site, hosted, browser):
     """The reader gets the page working rather than a picture of it.
 
@@ -182,7 +266,7 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
     The version it names is the second half — the runtime reads that number off the
     document's own path, so a page published anywhere else would say nothing there while
     looking otherwise perfect."""
-    examples = pages_under(EXAMPLES)
+    examples = authored_examples()
     page, errors = open_page(browser, example_url(hosted, examples[0].stem))
     try:
         for source in examples:
@@ -293,7 +377,7 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
     build wrote, and these are written by a module, so a rename under `docs/` would send
     every example to a 404 with nothing anywhere to say so. The build's own resolver is
     what answers here, so a link in the label fails the way a link in a page does."""
-    examples = pages_under(EXAMPLES)
+    examples = authored_examples()
     page, errors = open_page(browser, example_url(hosted, examples[0].stem))
     try:
         for source in examples:
@@ -404,9 +488,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
         )
         expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({threads})")
         page.locator(".lf-threads-toggle").click()
-        # Named rather than taken first: the panel orders threads by where on the
-        # page they point, so the seed's other thread — a question about the diagram,
-        # which stands higher up — heads the list.
+        # Named rather than taken first: the assertion follows the shipped objection,
+        # independent of where a later seed might place another thread.
         thread = page.locator(".lf-panel .lf-thread").filter(
             has_text="One reconnect in forty is worse"
         )
@@ -570,9 +653,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
         # own doing or nobody's. Asked of the corpus rather than named, since a page
         # that gains a companion log would otherwise turn this into a test of the seed.
         plain = next(
-            p.stem
-            for p in pages_under(EXAMPLES)
-            if not p.with_suffix(".jsonl").exists()
+            p.stem for p in authored_examples() if not p.with_suffix(".jsonl").exists()
         )
         opened(page, errors, example_url(hosted, plain))
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")

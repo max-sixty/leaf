@@ -150,12 +150,14 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     nums = page.locator("#live-question .lf-address")
     expect(nums.first).to_be_hidden()
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
 
+    page.keyboard.press("ArrowUp")
+    expect(marks.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")
@@ -210,7 +212,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["c-heater", "c-cable", "c-hand"], "in the corner"),
         (["r-now", "r-later"], "centred"),
     ]:
-        page.keyboard.press("d")
+        page.keyboard.press("a")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
@@ -521,6 +523,16 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     # wears, so the two kinds of anchor answer one question and not two.
     page.keyboard.press("t")
     wait_standing(page, "", ["fig"])
+    page.keyboard.press("t")
+    expect(page.locator(".lf-thread").last).to_be_focused()
+    wait_standing(page, "", ["fig"])
+    page.keyboard.press("Shift+t")
+    wait_standing(page, "neighbouring block")
+    page.keyboard.press("Shift+t")
+    wait_standing(page, "bold text")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-thread").first).to_be_focused()
+    wait_standing(page, "bold text")
 
     # Standing in a comment while writing back to it is still standing in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
@@ -1023,7 +1035,7 @@ def test_an_address_is_never_drawn_on_the_key_line(browser, serve):
 def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     """A mnemonic completes one-off panel travel; a digit refines a document list.
 
-    Threads and decisions already have repeatable category walks, so their g chords land in
+    Threads and asks already have repeatable category walks, so their g chords land in
     the panels that hold those categories. Hyperlinks and folds have no such walk;
     their mnemonic opens the numbered address stage instead."""
     url = serve(ADDRESSED_PAGE)
@@ -1059,25 +1071,149 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # walking the page's clips came back with the whole reply box clipped away.
     resized(page, 1280, 800)
 
+    # The complete reference and the armed line are two projections of the register. Keep
+    # the command identities from the reference so the assertion below fails when a new
+    # live continuation reaches dispatch and help but not the visible chord menu.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    goto = page.locator(
+        ".lf-help-section", has=page.get_by_role("heading", name="Go to")
+    )
+    reference_commands = set(
+        goto.locator("tr[data-lf-command]").evaluate_all(
+            "rows => rows.map(row => row.dataset.lfCommand)"
+        )
+    )
+    assert reference_commands, "the page must contribute live Go to commands"
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
     # Armed, the line names the available panels and document lists. Only list members
     # wear numeric chips; a panel is one complete destination.
     page.keyboard.press("g")
-    expect(line).to_contain_text("t")
-    expect(line).to_contain_text("Threads panel")
-    expect(line).to_contain_text("d")
-    expect(line).to_contain_text("Decisions panel")
-    expect(line).to_contain_text("h 1–2")
-    expect(line).to_contain_text("hyperlinks")
-    expect(line).to_contain_text("f 1")
-    expect(line).to_contain_text("folds")
-    expect(page.locator(CHIPS)).to_have_text(["g h 1", "g h 2", "g f 1"])
+    key_line(page)
+    visible_chord = line.locator(".lf-key:not([hidden])")
+    visible_commands = set(
+        visible_chord.evaluate_all(
+            """hints => hints.flatMap(hint =>
+              (hint.dataset.lfCommands || '').split(' ').filter(Boolean))"""
+        )
+    )
+    assert visible_commands == reference_commands, (
+        "the armed line and live Go to register diverged: "
+        f"line={sorted(visible_commands)}, reference={sorted(reference_commands)}"
+    )
+    for command, label, words in [
+        ("navigation.panel.threads", "T", "Threads panel"),
+        ("navigation.panel.decisions", "A", "Asks panel"),
+        ("navigation.page-map-item", "m 1–3", "page-map items"),
+        ("navigation.link", "h 1–2", "hyperlinks"),
+        ("navigation.fold", "f 1", "folds"),
+        ("navigation.page.top", "g / G", "top / bottom"),
+        ("navigation.address.back", "esc", "cancel"),
+    ]:
+        hint = line.locator(f'.lf-key:not([hidden])[data-lf-commands~="{command}"]')
+        expect(hint).to_have_count(1)
+        expect(hint.locator("kbd")).to_have_text(label)
+        expect(hint).to_contain_text(words)
+    assert "navigation.panel.leaves" not in reference_commands
+
+    # The visible More control and its registered `?` command are one route. An unmatched
+    # key first disarms the chord and keeps its ordinary meaning; a pointer press must enter
+    # the same shelf rather than inspecting the still-armed stack and skipping to the full
+    # reference.
+    def disclosure_state():
+        return page.evaluate(
+            """() => ({
+              help: document.querySelector('.lf-help').open,
+              expanded: document.querySelector('.lf-keyline').dataset.lfExpanded,
+              armed: document.querySelectorAll('.lf-keyline kbd.armed').length,
+              commands: [...document.querySelectorAll('.lf-keyline .lf-key:not([hidden])')]
+                .flatMap(hint => (hint.dataset.lfCommands || '').split(' ').filter(Boolean)),
+            })"""
+        )
+
+    page.get_by_role("button", name="? more", exact=True).click()
+    page.evaluate(RENDERED)
+    pointer_disclosure = disclosure_state()
+    page.reload()
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
+    resized(page, 1280, 800)
+    page.keyboard.press("g")
+    page.keyboard.press("?")
+    page.evaluate(RENDERED)
+    key_disclosure = disclosure_state()
+    assert pointer_disclosure == key_disclosure, (
+        "the visible More control and its ? binding diverged: "
+        f"pointer={pointer_disclosure}, key={key_disclosure}"
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+
+    for width in (1280, 420):
+        resized(page, width, 800)
+        page.wait_for_function(
+            """() => {
+              const line = document.querySelector('.lf-keyline');
+              const chrome = document.querySelector('.lf-chrome');
+              return parseFloat(chrome.style.paddingBottom) >= line.offsetHeight + 19;
+            }"""
+        )
+        geometry = line.evaluate(
+            """node => {
+              const visible = [...node.children].filter(el => el.checkVisibility());
+              const tops = [];
+              const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
+              for (const el of visible)
+                if (tops.every(top => Math.abs(top - el.offsetTop) > tolerance))
+                  tops.push(el.offsetTop);
+              const box = node.getBoundingClientRect();
+              return {
+                rows: tops.length,
+                clientWidth: node.clientWidth,
+                scrollWidth: node.scrollWidth,
+                clientHeight: node.clientHeight,
+                scrollHeight: node.scrollHeight,
+                left: box.left,
+                right: box.right,
+                viewport: innerWidth,
+                height: box.height,
+              };
+            }"""
+        )
+        assert geometry["scrollWidth"] <= geometry["clientWidth"], geometry
+        assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
+        assert geometry["left"] >= 0 and geometry["right"] <= geometry["viewport"], (
+            geometry
+        )
+        assert geometry["rows"] <= (2 if width == 1280 else 4), geometry
+        assert geometry["height"] <= 800 * 0.2, geometry
+    resized(page, 1280, 800)
+    chord_keys = line.evaluate(
+        """line => {
+          const visible = node => node.checkVisibility();
+          const active = [...line.querySelectorAll('kbd.armed')].filter(visible);
+          const quiet = [...line.querySelectorAll('kbd:not(.armed)')].find(visible);
+          return {
+            keys: active.map(key => key.textContent),
+            grounds: [...new Set(active.map(key => getComputedStyle(key).backgroundColor))],
+            quiet: quiet ? getComputedStyle(quiet).backgroundColor : null,
+          };
+        }"""
+    )
+    assert {"g", "T"} <= set(chord_keys["keys"]), chord_keys
+    assert len(chord_keys["grounds"]) == 1, chord_keys
+    assert chord_keys["grounds"][0] != chord_keys["quiet"], chord_keys
+    expect(page.locator(CHIPS)).to_have_text(
+        ["g m 1", "g m 2", "g m 3", "g h 1", "g h 2", "g f 1"]
+    )
     # Whole, and saying how much of it is still to press: the leader is behind the reader
     # here, so it stands back on the chip's own paper and the two keys that finish the
     # motion are lit on a ground of their own. A chip set evenly would state an address and
     # leave the reader to work out for themselves which part of it they had already made —
     # and one that said it in type sizes would hold two of them in one box, and re-set every
     # chip on screen the moment the next press moved a key across.
-    assert page.evaluate(SPENT, CHIPS) == ["g", "g", "g"]
+    assert page.evaluate(SPENT, CHIPS) == ["g"] * 6
     assert page.evaluate(STANDS_BACK, CHIPS) == {
         "quieter": True,
         "lit": True,
@@ -1091,12 +1227,12 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # window opened and what it holds, off the same rows the line just drew — the ranges
     # among them, where a row whose label counts the page used to be read out key by key
     # while an option group's, written as a string, was spelled "1–3".
-    expect(page.locator(".lf-live")).to_contain_text("t Threads panel")
+    expect(page.locator(".lf-live")).to_contain_text("T Threads panel")
 
     # A panel mnemonic completes the chord and leaves the reader inside that panel, where
     # its own scoped keys are immediately available.
     expect(page.locator(".lf-panel")).not_to_be_visible()
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
@@ -1106,14 +1242,27 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-panel")).not_to_be_visible()
 
-    # The Decisions chord follows the same contract: show the panel and land on its first row.
+    # The Asks chord follows the same contract: show the panel and land on its first row.
     page.keyboard.press("g")
-    page.keyboard.press("d")
+    page.keyboard.press("Shift+a")
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     expect(page.locator(".lf-decisions-row").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-decisions-panel")).not_to_be_visible()
+
+    # Page-map items are the right-hand locations. An item with information opens the
+    # same preview as its marker, including a thread anchored at that location.
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    expect(page.locator(CHIPS)).to_have_text(["g m 1", "g m 2", "g m 3"])
+    page.keyboard.press("1")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    assert page.locator(".lf-margin-thread").count() >= 1
+    expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     # The hyperlinks, from the head of the page where both are on screen. A chip is hung on the
     # corner a member starts at, which for an inline that wraps is the corner of its first
@@ -1239,7 +1388,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
 
     # A panel mnemonic completes the chord directly wherever the reader is on the page.
     page.keyboard.press("g")
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
     # Typing contexts are untouched: in a box, the whole chord is text.
@@ -1261,7 +1410,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
 
     expect(page.locator(".lf-others-panel")).to_be_visible()
     expect(page.locator("a.lf-others-row").first).to_be_focused()
@@ -1270,7 +1419,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.close()
 
 
-def test_a_g_panel_destination_survives_an_empty_open_decisions_tray(browser, serve):
+def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     """An open panel remains reachable after working its last row removes that row."""
     page, errors = open_page(
         browser,
@@ -1286,7 +1435,7 @@ def test_a_g_panel_destination_survives_an_empty_open_decisions_tray(browser, se
     )
 
     page.keyboard.press("g")
-    page.keyboard.press("d")
+    page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-decisions-row")).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator("#only .lf-pick").first).to_be_focused()
@@ -1296,10 +1445,10 @@ def test_a_g_panel_destination_survives_an_empty_open_decisions_tray(browser, se
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text("Decisions panel")
-    page.keyboard.press("d")
+    expect(page.locator(".lf-keyline")).to_contain_text("Asks panel")
+    page.keyboard.press("Shift+a")
     expect(page.locator(".lf-decisions-panel")).to_be_focused()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("walk the decisions")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("walk the asks")
     assert (
         page.locator(".lf-decisions-panel").get_attribute("aria-keyshortcuts") is None
     )
@@ -1334,8 +1483,8 @@ def test_the_press_that_lights_a_key_moves_no_glyph(browser, serve):
     # under measurement is the same chip before and after and is drawn from the same box.
     # Its chip leads the layer, the table's order being the order they are painted in.
     page.keyboard.press("g")
-    expect(page.locator(CHIPS)).to_have_text(["g h 1", "g h 2", "g f 1"])
-    before = page.evaluate(GLYPH_OFFSETS, CHIPS)
+    expect(page.locator(CHIPS)).to_have_text(["g m 1", "g h 1", "g h 2", "g f 1"])
+    before = page.evaluate(GLYPH_OFFSETS, f"{CHIPS}:nth-child(2)")
 
     # The letter the chip itself names. What says the repaint has landed is the count and
     # not the text: this chip reads "g h 1" at both stages, so an assertion on what it says
@@ -1345,7 +1494,7 @@ def test_the_press_that_lights_a_key_moves_no_glyph(browser, serve):
     # every other list's chips go — and the paint is coalesced into one frame with it.
     page.keyboard.press("h")
     expect(page.locator(CHIPS)).to_have_text(["g h 1", "g h 2"])
-    after = page.evaluate(GLYPH_OFFSETS, CHIPS)
+    after = page.evaluate(GLYPH_OFFSETS, f"{CHIPS}:nth-child(1)")
 
     assert before and after, "the chord painted no chip to measure"
     # Half a pixel of tolerance, which is subpixel rounding rather than a step: the halves
@@ -1500,6 +1649,31 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
 
     page.keyboard.press("?")
     page.keyboard.press("?")
+    commands = help_el.locator(".lf-help-command:visible")
+    assert commands.count() > 1, "the command grid has no pair of rows to walk"
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    first_row = commands.first.locator("xpath=ancestor::tr")
+    expect(search).to_have_attribute(
+        "aria-activedescendant", first_row.get_attribute("id")
+    )
+    page.keyboard.press("ArrowUp")
+    expect(commands.first).to_have_attribute("data-lf-selected", "true")
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("?")
+    commands = help_el.locator(".lf-help-command:visible")
+    page.keyboard.press("ArrowUp")
+    expect(search).to_be_focused()
+    expect(commands.last).to_have_attribute("data-lf-selected", "true")
+    last_row = commands.last.locator("xpath=ancestor::tr")
+    expect(search).to_have_attribute(
+        "aria-activedescendant", last_row.get_attribute("id")
+    )
+    page.keyboard.press("ArrowDown")
+    expect(commands.last).to_have_attribute("data-lf-selected", "true")
+
     search.fill("resolve it")
     result = help_el.locator(
         '.lf-help-command[data-lf-command="thread.resolution.toggle"]'
@@ -1570,7 +1744,7 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
     assert page.locator(".lf-version-menu").get_attribute("aria-keyshortcuts") is None
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
     shortcuts = mark.get_attribute("aria-keyshortcuts").split()
     assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
@@ -1581,14 +1755,14 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     page.keyboard.press("?")
     expect(
         page.locator(
-            ".lf-help tr", has_text="Next decision this page is waiting on you for"
+            ".lf-help tr", has_text="Next ask this page is waiting on you for"
         ).locator("kbd")
-    ).to_have_text("d")
+    ).to_have_text("a")
     expect(
         page.locator(
-            ".lf-help tr", has_text="Previous decision this page is waiting on you for"
+            ".lf-help tr", has_text="Previous ask this page is waiting on you for"
         ).locator("kbd")
-    ).to_have_text("D")
+    ).to_have_text("A")
     page.keyboard.press("Escape")
 
     assert page.locator(".lf-decisions").get_attribute("aria-keyshortcuts") is None
@@ -1694,16 +1868,12 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     page.close()
 
 
-def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
-    """A list keeps every member addressable after its count passes nine.
+def test_numbered_addresses_stop_at_nine_and_choose_in_one_press(browser, serve):
+    """A numbered list has nine immediate choices even when the page holds more.
 
-    A digit that is both a complete address and the start of a longer one leaves the
-    choice open: Enter takes the exact address, another digit takes the longer one, and
-    Escape removes one entered digit. The page's chips and key line make that temporary
-    ambiguity visible, so the extra reach does not turn short addresses into a timeout or
-    an implicit guess."""
-    # One row per member keeps this test about decimal addressing. The crowded-address
-    # test above deliberately leaves collision survival to the platform's font metrics.
+    The cap keeps every address one digit long: `g h 1` is never an ambiguous prefix,
+    and the tenth document member does not acquire a hidden multi-key route that the
+    shown `1–9` range fails to name."""
     links = "".join(
         f'<li><a id="link-{n}" href="#link-{n}">link {n}</a></li>' for n in range(1, 13)
     )
@@ -1724,60 +1894,31 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     )
 
     page.keyboard.press("g")
-    expect(line).to_contain_text("h 1–12")
+    expect(line).to_contain_text("h 1–9")
+    expect(line).not_to_contain_text("h 1–12")
     page.keyboard.press("h")
-    expect(page.locator(CHIPS).first).to_have_text("g h 1 ⏎")
-    before = page.evaluate(GLYPH_OFFSETS, CHIPS)
+    expect(page.locator(CHIPS)).to_have_text([f"g h {n}" for n in range(1, 10)])
     page.keyboard.press("1")
-    expect(line).to_contain_text("0–2 / ⏎")
-    expect(line).to_contain_text("continue / choose 1")
-    expect(page.locator(CHIPS)).to_have_text(["g h 1 ⏎", "g h 10", "g h 11", "g h 12"])
-    after = page.evaluate(GLYPH_OFFSETS, CHIPS)
-    assert before["glyphs"].keys() == after["glyphs"].keys()
-    moved = {
-        key: (left, after["glyphs"][key])
-        for key, left in before["glyphs"].items()
-        if abs(left - after["glyphs"][key]) > 0.5
-    }
-    assert not moved, f"a key moved while the numeric prefix advanced: {moved}"
-    assert abs(before["width"] - after["width"]) <= 0.5
-    assert abs(before["left"] - after["left"]) <= 0.5
-
-    # One Escape gives back the digit and keeps the chosen list standing.
-    page.keyboard.press("Escape")
-    expect(line).to_contain_text("1–12")
-    page.keyboard.press("1")
-    visible = page.evaluate(
-        """() => {
-          const link = document.querySelector('#link-1').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.scrollingElement.scrollTop, top: link.top, bottom: link.bottom,
-                  banner: banner.bottom, height: innerHeight};
-        }"""
-    )
-    assert visible["top"] > visible["banner"] + 48
-    assert visible["bottom"] < visible["height"] - 48
-    page.keyboard.press("Enter")
     expect(page.locator("#link-1")).to_be_focused()
-    stayed = page.evaluate(
-        """() => ({
-          scroll: document.scrollingElement.scrollTop,
-          top: document.querySelector('#link-1').getBoundingClientRect().top,
-        })"""
-    )
-    assert stayed["scroll"] == pytest.approx(visible["scroll"], abs=0.5)
-    assert stayed["top"] == pytest.approx(visible["top"], abs=0.5)
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(line).to_contain_text("follow")
 
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    page.keyboard.press("9")
+    expect(page.locator("#link-9")).to_be_focused()
+    revealed = page.locator("#link-9").bounding_box()
+    assert revealed is not None
+    assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
+
+    # There is no decimal continuation: 1 completes at the first member, and a later 0
+    # is just an unrelated key rather than an address for member 10.
     page.keyboard.press("g")
     page.keyboard.press("h")
     page.keyboard.press("1")
-    page.keyboard.press("2")
-    expect(page.locator("#link-12")).to_be_focused()
-    revealed = page.locator("#link-12").bounding_box()
-    assert revealed is not None
-    assert revealed["y"] + revealed["height"] > page.viewport_size["height"] * 0.75
-    assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
+    page.keyboard.press("0")
+    expect(page.locator("#link-1")).to_be_focused()
+    expect(page.locator("#link-10")).not_to_be_focused()
     assert errors == []
     page.close()
 
@@ -1797,7 +1938,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     line = page.locator(".lf-keyline")
 
     page.keyboard.press("g")
-    expect(page.locator(CHIPS)).to_have_text(["g h 1", "g h 2", "g f 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g m 1", "g h 1", "g h 2", "g f 1"])
     expect(line).to_contain_text("cancel")
 
     # The letter narrows the window to its own list, which is the second layer.
@@ -1807,7 +1948,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
 
     # One press gives that back and no more: the window still stands, over every list.
     page.keyboard.press("Escape")
-    expect(page.locator(CHIPS)).to_have_text(["g h 1", "g h 2", "g f 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g m 1", "g h 1", "g h 2", "g f 1"])
     expect(line).to_contain_text("cancel")
     # And a letter still names one, so what came back is the window and not its ghost.
     page.keyboard.press("h")
@@ -2538,10 +2679,9 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
 
 
 def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
-    """One declaration per runtime binding, and every surface is a projection of it.
-
-    Browser-owned paging is absent from those surfaces; declared Leaf commands still
-    require the words the key line and reference need.
+    """One declaration per binding, and every surface is a projection of it. The d/u
+    reading-page pair is the case that named this: a runtime key must be visible wherever
+    the keyboard vocabulary is projected.
 
     It is refused now, where a scope is declared, so the next binding written without a
     word fails on the page that introduces it rather than going quiet on every page after
@@ -2549,11 +2689,63 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     and worth knowing and not what the next press does."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     line = page.locator(".lf-keyline")
-    expect(line).not_to_contain_text("page down")
-    expect(line).not_to_contain_text("page up")
+    movement = line.locator('.lf-key:not([hidden])[data-lf-commands~="page.down"]')
+    expect(movement).to_have_count(1)
+    expect(movement).to_have_attribute("data-lf-commands", re.compile(r"\bpage\.up\b"))
+    expect(movement.locator("kbd")).to_have_text("d / u")
+    expect(movement).to_contain_text("page down / up")
+    resized(page, 420, 800)
+    expect(movement).to_have_count(1)
+    compact = line.evaluate(
+        """node => {
+          const visible = [...node.children].filter(el => el.checkVisibility());
+          const tops = [];
+          const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
+          for (const el of visible)
+            if (tops.every(top => Math.abs(top - el.offsetTop) > tolerance))
+              tops.push(el.offsetTop);
+          return {
+            rows: tops.length,
+            clientWidth: node.clientWidth,
+            scrollWidth: node.scrollWidth,
+            clientHeight: node.clientHeight,
+            scrollHeight: node.scrollHeight,
+          };
+        }"""
+    )
+    assert compact["rows"] <= 2, compact
+    assert compact["scrollWidth"] <= compact["clientWidth"], compact
+    assert compact["scrollHeight"] <= compact["clientHeight"], compact
+
+    # Linux's wider system face wraps this line at the smallest supported window. Keep
+    # the real disclosure control with the contextual hints so a persistent fact, rather
+    # than a second compact target, takes the lower row beside page or panel controls.
+    resized(page, 320, 800)
+    disclosure_order = page.evaluate(
+        """() => {
+          const more = document.querySelector('.lf-key-more');
+          const movement = document.querySelector(
+            '.lf-key:not([hidden])[data-lf-commands~="page.down"]'
+          );
+          return {
+            moreTop: more.offsetTop,
+            movementTop: movement.offsetTop,
+            before: Boolean(
+              more.compareDocumentPosition(movement)
+              & Node.DOCUMENT_POSITION_FOLLOWING
+            ),
+          };
+        }"""
+    )
+    assert disclosure_order["before"], disclosure_order
+    assert disclosure_order["moreTop"] <= disclosure_order["movementTop"], (
+        disclosure_order
+    )
+    resized(page, 1280, 800)
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).not_to_contain_text("Move 60% of a page")
+    expect(page.locator(".lf-help")).to_contain_text("Move 60% of a page down")
+    expect(page.locator(".lf-help")).to_contain_text("Move 60% of a page up")
     expect(page.locator(".lf-help")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
     expect(line).not_to_contain_text("F7")
@@ -2599,6 +2791,49 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     assert "Ctrl is no modifier" in modified, modified
     assert "Mod, Alt, Shift" in modified, modified
 
+    # Routes split one compact row into separately addressable commands. Every declared
+    # binding therefore needs exactly one route: otherwise dispatch can gain a press that
+    # both the reference and key line omit from their shared presentation projection.
+    routed = page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          const declare = row => {
+            try {
+              keys(document.body, 'A routed project scope', [row]);
+              return 'declared';
+            } catch (e) {
+              return e.message;
+            }
+          };
+          return {
+            missing: declare({
+              id: 'test.missing-route', keys: ['F2', 'F3'],
+              does: 'Move either way', line: 'move either way', run: () => {},
+              routes: [{
+                id: 'test.missing-route.first', binding: 'F2',
+                does: 'Move one way', line: 'move one way',
+              }],
+            }),
+            duplicate: declare({
+              id: 'test.duplicate-route', keys: ['F4'],
+              does: 'Move once', line: 'move once', run: () => {},
+              routes: [
+                {
+                  id: 'test.duplicate-route.first', binding: 'F4',
+                  does: 'Move first', line: 'move first',
+                },
+                {
+                  id: 'test.duplicate-route.second', binding: 'F4',
+                  does: 'Move second', line: 'move second',
+                },
+              ],
+            }),
+          };
+        }"""
+    )
+    assert "has no route for F3" in routed["missing"], routed
+    assert "routes F4 twice" in routed["duplicate"], routed
+
     # A registered result may deliberately precede the platform's own half of a press.
     # It still enters through the same register — and therefore the same surfaces and
     # scoping — but the dispatcher must not cancel that native result. The versions menu
@@ -2625,6 +2860,45 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
         }"""
     )
     assert native == {"ran": 1, "prevented": False}, native
+    assert errors == []
+    page.close()
+
+
+def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
+    """Shadowing is per binding, so one local `d` must not hide the page row's live `u`.
+
+    Multi-key rows keep related commands compact, but presentation cannot treat that visual
+    grouping as dispatch ownership. The effective row retains the unshadowed route, its own
+    direction word, and the same command identity the reference exposes."""
+    html = NOTED_PAGE.replace("</main>", '<div style="height: 2400px"></div></main>')
+    page, errors = open_page(browser, serve(html))
+    page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          const target = document.createElement('button');
+          target.id = 'local-down';
+          target.textContent = 'Local down';
+          document.querySelector('main').prepend(target);
+          keys(target, 'On local down', [{
+            id: 'test.local-down', keys: ['d'], does: 'Local down', line: 'local down',
+            run: () => { target.dataset.pressed = '1'; },
+          }]);
+          target.focus();
+        }"""
+    )
+
+    line = page.locator(".lf-keyline")
+    up = line.locator('.lf-key:not([hidden])[data-lf-commands="page.up"]')
+    expect(up).to_have_count(1)
+    expect(up.locator("kbd")).to_have_text("u")
+    expect(up).to_contain_text("page up")
+    expect(line.locator('[data-lf-commands~="page.down"]')).to_have_count(0)
+
+    before = page.evaluate("() => { scrollTo(0, 1000); return scrollY; }")
+    assert before > 0
+    page.keyboard.press("u")
+    page.wait_for_function("before => scrollY < before", arg=before)
+    assert page.locator("#local-down").get_attribute("data-pressed") is None
     assert errors == []
     page.close()
 
@@ -2699,48 +2973,49 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     so rather than leaving the held press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
     page, errors = open_page(browser, serve(DECISIONS_PAGE, comments=3))
-    press = """([key, repeat]) => document.dispatchEvent(
-        new KeyboardEvent('keydown', {key, repeat, bubbles: true, cancelable: true}))"""
+    press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
+        new KeyboardEvent('keydown',
+          {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
 
     page.keyboard.press("t")
     expect(page.locator(".lf-thread").first).to_be_focused()
     page.evaluate(press, ["t", True])  # a walk repeats
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#live-question-decision[data-lf-decision]")).to_have_count(1)
-    page.evaluate(press, ["d", True])  # the same grammar repeats for decisions
+    page.evaluate(press, ["a", True])  # the same grammar repeats for asks
     expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
 
     tray = page.locator(".lf-others-panel")
     page.keyboard.press("g")
-    page.evaluate(press, ["l", True])  # a panel destination does not repeat
+    page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
     expect(tray).to_be_hidden()
-    page.evaluate(press, ["l", False])  # the same event, answered
+    page.evaluate(press, ["l", False, True])  # the same event, answered
     expect(tray).to_be_visible()
     assert errors == []
     page.close()
 
 
-def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
+def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_rest(
     browser, serve
 ):
-    """The short line is a glance, not the keyboard reference. It keeps two bindings:
-    first the innermost live action, then the way out when the current scene has one. One
-    `? more` unfolds a bounded shelf of current commands; `? all shortcuts` then opens
-    the complete searchable register.
+    """The short line is a glance, not the keyboard reference. It keeps the first
+    innermost live action and the way out when the current scene has one, plus the page
+    movement row the register marks persistent. One `? more` unfolds a bounded shelf of
+    current commands; `? all shortcuts` then opens the complete searchable register.
 
     The panel's general box is the causal contrast for the cap. A full page row crosses
-    into the panel and paints over the box; two hints end before it. The overlap is tested
-    before opening the reference so a searchable popup cannot make the symptom disappear
-    merely by covering both surfaces."""
+    into the panel and paints over the box; the bounded shortlist ends before it. The
+    overlap is tested before opening the reference so a searchable popup cannot make the
+    symptom disappear merely by covering both surfaces."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
     page.set_viewport_size({"width": 1200, "height": 800})
     page.get_by_role("button", name=re.compile("^Threads")).click()
 
     line = page.locator(".lf-keyline")
     visible_hints = line.locator(".lf-key:not([hidden])")
-    assert visible_hints.count() == 2, page.evaluate(
+    assert visible_hints.count() == 3, page.evaluate(
         """() => { const line = document.querySelector('.lf-keyline'); return {
           client: line.clientWidth, scroll: line.scrollWidth,
           max: getComputedStyle(line).maxWidth,
@@ -2749,6 +3024,8 @@ def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
           }))
         }; }"""
     )
+    expect(visible_hints.nth(2).locator("kbd")).to_have_text("d / u")
+    expect(visible_hints.nth(2)).to_contain_text("page down / up")
     assert not page.evaluate(
         """() => {
           const a = document.querySelector('.lf-keyline').getBoundingClientRect();
@@ -2758,18 +3035,18 @@ def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
         }"""
     ), "the key line covers the general comment box"
 
-    # Moving into the box changes the two most useful hints without introducing a
-    # second shortlist: the same scope order the dispatcher uses supplies them.
+    # Moving into the box changes the two contextual hints without introducing a second
+    # shortlist: the same scope order the dispatcher uses supplies them. The text-entry
+    # scope claims d and u, so the persistent row correctly disappears when its presses
+    # are no longer page movement.
     #
-    # Two presses, because the panel was opened by its button in the banner and that is
-    # where the reader is standing: focus in the chrome is not a place in the page, so
-    # the first `c` is the page's and goes to the list, and the second is the panel's
-    # and goes to the box. The line in between is the contrast — the list's own keys are
-    # what a reader gets for pressing once, which is the whole point of the two presses.
-    page.keyboard.press("c")
+    # Stand on the list directly: the banner button that opened the panel is chrome, and
+    # its `c` meaning is deliberately outside this key-line projection test.
+    page.locator(".lf-threads").focus()
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
     page.keyboard.press("c")
+    expect(visible_hints).to_have_count(2)
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to list")
 
@@ -2813,6 +3090,8 @@ def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
         assert geometry["scrollWidth"] <= geometry["clientWidth"], geometry
         assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
         assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
+    page.set_viewport_size({"width": 1200, "height": 800})
+    page.evaluate(RENDERED)
     more = page.get_by_role("button", name="? all shortcuts", exact=True)
     expect(more).to_have_attribute("aria-expanded", "true")
     more.click()
@@ -2848,7 +3127,7 @@ def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-expanded", "false"
     )
-    expect(visible_hints).to_have_count(2)
+    expect(visible_hints).to_have_count(3)
     assert errors == []
     page.close()
 
@@ -2871,7 +3150,7 @@ def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
     expect(line).to_have_attribute("data-lf-expanded", "true")
     page.keyboard.press("g")
     expect(line).to_have_attribute("data-lf-expanded", "false")
-    expect(line.locator("kbd.armed")).to_have_text("g")
+    expect(line.locator("kbd.armed").first).to_have_text("g")
     assert errors == []
     page.close()
 
@@ -3056,10 +3335,11 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     )
     page, errors = open_page(browser, serve(html))
     line = page.locator(".lf-keyline")
+    movement = line.locator('.lf-key:not([hidden])[data-lf-commands~="page.down"]')
 
     page.locator("#flip").focus()
-    expect(line).not_to_contain_text("page down")
-    expect(line).not_to_contain_text("page up")
+    expect(movement).to_have_count(1)
+    expect(movement).to_have_attribute("data-lf-commands", re.compile(r"\bpage\.up\b"))
     page.keyboard.press("Space")
     expect(page.locator("#flip")).to_be_checked()
     # The letter reaches the page, which is the whole claim; where it then goes is the
@@ -3075,8 +3355,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     # The box beside it, where every one of those letters is the reader's. The line
     # names none of them, which is the same register saying so.
     page.locator("#note").focus()
-    expect(line).not_to_contain_text("page down")
-    expect(line).not_to_contain_text("page up")
+    expect(movement).to_have_count(0)
     page.keyboard.press("c")
     expect(page.locator("#note")).to_have_value("c")
     expect(page.locator(".lf-help")).to_be_hidden()
@@ -3425,7 +3704,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.keyboard.press("?")
     expect(
         help_el.locator("tr", has_text="Go to the Threads panel").locator("kbd")
-    ).to_have_text("g t")
+    ).to_have_text("g T")
     expect(help_el).not_to_contain_text("link on screen")
     expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next open thread")
@@ -3659,7 +3938,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
     Where they are standing is the unanswered decision first, because that is what the page
-    has already told them: markHere rings the whole ask when d/D lands on its control.
+    has already told them: markHere rings the whole ask when a/A lands on its control.
     Below a decision it is the innermost
     item, which is the aim's own reading — so the link the walk stands on speaks for
     the paragraph holding it, no id of its own being what an anchor needs.
@@ -3693,7 +3972,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
 
     # A decision: the composer opens on the question rather than on the option the
     # walk happens to stand the reader on, and rather than on the page.
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
     page.keyboard.press("c")
@@ -3713,7 +3992,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     drop()
 
     # A decision with no seat: the composer, anchored on the decision rather than on the page.
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the rewrite")
     page.keyboard.press("c")
@@ -3811,7 +4090,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # The premise, from the reader's list itself: the group has left it, the picked group
     # was never on it, and the suggestion is what remains to be counted.
-    expect(decisions).to_have_text("Decisions (1)")
+    expect(decisions).to_have_text("Asks (1)")
     decisions.click()
     expect(page.locator("button.lf-decisions-row")).to_have_count(1)
     # Which row, not just how many: one row is also what a build listing the picked group
@@ -3859,7 +4138,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             },
         )
     told(page)
-    expect(decisions).to_have_text("Decisions (2)")
+    expect(decisions).to_have_text("Asks (2)")
     expect(page.locator("#shape .lf-pick").first).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
@@ -3886,7 +4165,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     its own, so a press meaning "say something about this" belongs to that box rather
     than to the page the panel stands over. `conversationBox` states the same rule from
     the other side when it declines to seat a widget standing inside a thread, and the
-    asks and the `d`/`D` walk include the ones an agent sent — without this the same
+    asks and the `a`/`A` walk include the ones an agent sent — without this the same
     question answered one way on the page and another in the panel.
 
     A resolved thread is the case that has to be asked separately, and the reason this
@@ -4142,8 +4421,8 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     """A page whose first poll cannot reach the server is a page the reader still writes
     on: the general box stands, its placeholder names the key that reaches it, and the
     banner says only that a comment will not send yet. What it has not got is a thread
-    list, so the panel's other two keys — narrow and find — are dead, and the scope used
-    to say that for all three at once.
+    list, so narrowing by what awaits the reader is dead. Find remains available as the
+    panel's empty search, and the scope used to take `c` down with the missing list.
 
     Both presses, because one of them is the whole defect: `c` takes the reader to the
     list, and with the panel's own row out of the stack the second `c` was the page's
@@ -4167,14 +4446,13 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         page.keyboard.press("c")
         expect(page.locator(".lf-general textarea")).to_be_focused()
 
-        # The two the missing list really does take away, so the scope is not simply
-        # live for everything: a green above has to be about `c` and not about the
-        # guard having been dropped altogether.
+        # The missing list takes away its waiting filter, but not the panel's own search:
+        # a search over nothing still belongs to the scope in front of the page.
         page.keyboard.press("Escape")
         expect(page.locator(".lf-threads")).to_be_focused()
         line = page.locator(".lf-keyline")
         expect(line).not_to_contain_text("waiting on you")
-        expect(line).not_to_contain_text("find")
+        expect(line).to_contain_text("find")
 
         assert errors == []
     finally:

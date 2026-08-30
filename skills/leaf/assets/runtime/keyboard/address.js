@@ -17,8 +17,10 @@ export function createAddress({
   keylineEl,
   leavesOffered,
   letGo,
+  openPageMapItem,
   othersLinks,
   othersPanel,
+  pageMapItems,
   pageParts,
   paintHere,
   panelCovers,
@@ -32,10 +34,10 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. A mnemonic completes a panel destination (`g t` Threads,
-  // `g d` Decisions, `g l` All leaves), while a document list takes a following decimal place
+  // g names one-off travel. An uppercase mnemonic completes a panel destination (`g T`
+  // Threads, `g A` Asks, `g L` All leaves), while a numbered list takes a following digit
   // (`g h 3` is the third hyperlink and `g f 2` the second fold). Repeated movement
-  // through threads and decisions belongs to their single-key category walks, t/T and d/D, so
+  // through threads and asks belongs to their single-key category walks, t/T and a/A, so
   // those categories do not also carry numbered addresses.
   //
   // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
@@ -57,9 +59,10 @@ export function createAddress({
   // means a different link at every scroll position, so a reader who has just learnt that the
   // PR is `g h 2` is wrong a moment later; and it would put the key line's own truth on the
   // scroll, since a row that goes dead as the page moves is a row the line has to be
-  // repainted to stop promising — a paint measured at 1.3ms on the gallery, on every scroll
-  // frame of every page, for one row. Decimal prefixes keep that stable document-order list
-  // reachable at any length.
+  // repainted to stop promising — a paint measured at 1.3ms on the corpus, on every scroll
+  // frame of every page, for one row. The numbered route therefore keeps document order
+  // stable and offers its first nine members; later members remain in the document's own
+  // navigation rather than making a one-digit address ambiguous.
   //
   // Above the table rather than beside the other readings below it, because an entry
   // holds the function itself and the array literal reads it as the module evaluates.
@@ -74,7 +77,7 @@ export function createAddress({
   // address is a place in a list the reader counts down the authored page, so it stops at the
   // document where the scope crosses declared roots, and it counts the platform's spelling
   // where the scope also answers ARIA's. So a settled option group takes the arrows and takes
-  // no digit, and `g d` can say three where four things fold. Widening it is not free —
+  // no digit, and `g f` can say three where four things fold. Widening it is not free —
   // `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
   // the count a reader wants under `g` is of the sections the author wrote.
 
@@ -84,7 +87,7 @@ export function createAddress({
   const PANEL_DESTINATIONS = [
     {
       id: "navigation.panel.threads",
-      key: "t",
+      key: "Shift+t",
       does: "Go to the Threads panel",
       line: "Threads panel",
       when: () => true,
@@ -95,9 +98,9 @@ export function createAddress({
     },
     {
       id: "navigation.panel.decisions",
-      key: "d",
-      does: "Go to the Decisions panel",
-      line: "Decisions panel",
+      key: "Shift+a",
+      does: "Go to the Asks panel",
+      line: "Asks panel",
       when: decisionsOffered,
       go: () => {
         showTray("decisions");
@@ -106,7 +109,7 @@ export function createAddress({
     },
     {
       id: "navigation.panel.leaves",
-      key: "l",
+      key: "Shift+l",
       does: "Go to the All leaves panel",
       line: "All leaves panel",
       when: leavesOffered,
@@ -117,6 +120,14 @@ export function createAddress({
     },
   ];
   const ADDRESSES = [
+    {
+      id: "navigation.page-map-item",
+      key: "m",
+      word: "page-map items",
+      does: "Go to the nth page-map item",
+      list: pageMapItems,
+      go: openPageMapItem,
+    },
     {
       id: "navigation.link",
       key: "h",
@@ -151,26 +162,12 @@ export function createAddress({
       },
     },
   ];
-  // A list's addressable members, and the range its label names. The whole list is the
-  // contract: numeric prefixes extend past nine, so adding a tenth member never removes
-  // the keyboard route the list promised for its tail.
-  const addressed = (entry) => entry.list();
+  // A list's addressable members, and the range its label names. Nine is the whole numbered
+  // vocabulary: every member has one digit, every digit completes immediately, and every
+  // consumer below reads this same prefix rather than applying its own cap.
+  const MAX_NUMBERED_ADDRESSES = 9;
+  const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
-  const addressNumbers = (entry) => addressed(entry).map((_, i) => String(i + 1));
-  const needsCommit = (entry, n) => Number(n) * 10 <= addressed(entry).length;
-  const nextAddressKeys = (entry) => {
-    const numbers = addressNumbers(entry);
-    const next = [
-      ...new Set(
-        numbers
-          .filter((number) => number.startsWith(addressDigits))
-          .map((number) => number[addressDigits.length])
-          .filter(Boolean),
-      ),
-    ];
-    if (addressDigits && numbers.includes(addressDigits)) next.push("Enter");
-    return next;
-  };
   // How far the chord has come: `g`, and the list's letter once one has named a list. Every
   // surface that shows an address asks it — the chip that heads the key line, the ranges
   // beside it, the reference's full chords and the dimmed half of a chip on the page — so
@@ -183,8 +180,7 @@ export function createAddress({
   // what remains inside the mode. A chip is the one surface with nothing around it to carry
   // the leader, and it is drawn only while the window is up, so its two questions — how far
   // in, and how much the surroundings already say — have one answer.
-  const chordKeys = () =>
-    [labelOf(GOTO), aimedList?.key, addressDigits || null].filter(Boolean);
+  const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
   // An address as the page wears it: the whole of it, the keys already pressed standing back
   // and the ones still to come lit. The whole of it, because a chip is the address — the same
   // one every address surface spells while the chord is armed.
@@ -218,17 +214,11 @@ export function createAddress({
     const number = String(n);
     let spent = labelOf(GOTO);
     let live = `${entry.key} ${number}`;
-    let join = " ";
+    const join = " ";
     if (aimedList) {
       spent += ` ${entry.key}`;
       live = number;
     }
-    if (addressDigits) {
-      spent += ` ${addressDigits}`;
-      live = number.slice(addressDigits.length);
-      join = "";
-    }
-    if (needsCommit(entry, n)) live += " ⏎";
     const chip = el("span", "lf-address");
     chip.append(el("span", "lf-spent", spent), join, el("span", "lf-lit", live));
     return chip;
@@ -246,7 +236,6 @@ export function createAddress({
   // other inside the functions that hold both.
   let chordArmed = false;
   let aimedList = null;
-  let addressDigits = "";
   // Arming, aiming and disarming are one call, because they are one window: naming a list
   // re-opens it rather than starting a second.
   //
@@ -263,18 +252,12 @@ export function createAddress({
     if (on && !chordArmed && claimsEsc(focused())) return;
     chordArmed = on;
     aimedList = on ? list : null;
-    addressDigits = "";
     // The chips are the eye's copy; the window itself is spoken, or the mode change is
     // silent to exactly the reader who can't see them. Off the rows either way, since the
     // rows are what the window answers now — the letters at the first stage, the named
     // list's digits at the second — and a sentence written here for the second would have
     // been the row's own words, restated where nothing could correct them.
     if (on) announce(`Go to — ${saying(GO.rows)}`);
-    paintHere();
-  }
-  function setAddressDigits(digits) {
-    addressDigits = digits;
-    announce(`Go to — ${saying(GO.rows)}`);
     paintHere();
   }
 
@@ -312,7 +295,6 @@ export function createAddress({
       // while panel mnemonics complete their trip without painting numeric chips.
       for (const entry of aimedList ? [aimedList] : ADDRESSES) {
         for (const [i, member] of addressed(entry).entries()) {
-          if (addressDigits && !String(i + 1).startsWith(addressDigits)) continue;
           const r = startsAt(member, clips);
           if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
           const chip = addressChip(entry, i + 1);
@@ -380,7 +362,7 @@ export function createAddress({
 
   // The chord: one scope, a row per panel and addressable list, a row for the page's two
   // edges, and the window's own way out. A panel's mnemonic completes its travel. A list
-  // row holds the whole motion — its letter names the list, and the decimal sequence it
+  // row holds the whole motion — its letter names the list, and the one digit it
   // then binds is the address into it. That is `v`'s shape,
   // a chooser whose second key belongs to the scope the first one stood up, and the reason
   // it is one row rather than two is that a digits row of its own could not name which list
@@ -452,6 +434,7 @@ export function createAddress({
       ...PANEL_DESTINATIONS.map((destination) => ({
         id: destination.id,
         keys: [destination.key],
+        label: spell(destination.key),
         does: destination.does,
         line: destination.line,
         when: () => !aimedList && destination.when(),
@@ -465,44 +448,20 @@ export function createAddress({
         runFromReference: false,
         keys: () => {
           if (aimedList !== entry) return [entry.key];
-          return nextAddressKeys(entry);
+          return addressed(entry).map((_, i) => String(i + 1));
         },
-        // The range the list actually holds, so the label cannot offer an address no member
-        // wears. Once a numeric prefix stands, the ordinary spelling of the remaining
-        // bindings is more useful than restating the full range.
+        // The range the capped list actually holds, so the label cannot offer an address
+        // no member wears.
         label: () => {
-          if (addressDigits) {
-            const next = nextAddressKeys(entry);
-            const digits = next.filter((key) => key !== "Enter");
-            const compact =
-              digits.length > 1 ? `${digits[0]}–${digits.at(-1)}` : digits[0];
-            return [compact, next.includes("Enter") ? spell("Enter") : null]
-              .filter(Boolean)
-              .join(" / ");
-          }
           const members = range(addressed(entry).length);
           return aimedList === entry ? members : `${entry.key} ${members}`;
         },
-        does: () =>
-          addressDigits && addressNumbers(entry).includes(addressDigits)
-            ? `Continue the address, or go to ${entry.word} ${addressDigits} with Enter`
-            : entry.does,
-        line: () =>
-          addressDigits && addressNumbers(entry).includes(addressDigits)
-            ? `continue / choose ${addressDigits}`
-            : addressDigits
-              ? "continue address"
-              : entry.word,
-        when: () => entry.list().length > 0 && (!aimedList || aimedList === entry),
+        does: entry.does,
+        line: entry.word,
+        when: () => addressed(entry).length > 0 && (!aimedList || aimedList === entry),
         run: (binding) => {
           if (aimedList !== entry) return setChord(true, entry);
-          const number = binding === "Enter" ? addressDigits : addressDigits + binding;
-          const numbers = addressNumbers(entry);
-          const longer = numbers.some(
-            (candidate) => candidate !== number && candidate.startsWith(number),
-          );
-          if (binding !== "Enter" && longer) return setAddressDigits(number);
-          const member = addressed(entry)[+number - 1];
+          const member = addressed(entry)[Number(binding) - 1];
           setChord(false); // before the travel, so the arrival's own scrolling paints nothing
           entry.go(member);
         },
@@ -541,21 +500,12 @@ export function createAddress({
         // cancelling put them back on the page, pressing `g` again to reach a window that
         // had been standing the whole time.
         keys: ["Escape"],
-        does: () =>
-          addressDigits
-            ? "Remove the last address digit"
-            : aimedList
-              ? "Back to the lists"
-              : "Cancel the chord",
-        line: () =>
-          addressDigits ? "back one digit" : aimedList ? "back to the lists" : "cancel",
+        does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),
+        line: () => (aimedList ? "back to the lists" : "cancel"),
         // Re-arming rather than a field of its own: `setChord` is where arming, aiming and
         // disarming already live, and re-opening the window with no list named is exactly
         // what the second stage backs out to.
-        run: () => {
-          if (addressDigits) return setAddressDigits(addressDigits.slice(0, -1));
-          setChord(Boolean(aimedList));
-        },
+        run: () => setChord(Boolean(aimedList)),
       },
     ],
   };

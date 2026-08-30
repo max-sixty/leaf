@@ -239,10 +239,10 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     The route's delay holds a post in the air so the navigation reliably lands
     on one; the assertion is Traffic's books balancing, and then `round_trip`
     returning on a page whose only unfinished trip ended at the reload."""
-    gallery = next(p for p in EXAMPLES if p.stem == "gallery")
+    corpus = next(p for p in EXAMPLES if p.stem == "corpus")
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
-    url = serve(gallery, seed_log=False)
+    url = serve(corpus, seed_log=False)
     # The console is not the subject here: a reload mid-post leaves Chrome's own
     # "Failed to load resource" behind, which is the navigation working.
     page, _ = open_page(browser, url)
@@ -785,7 +785,7 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     Asked of the authored markup and not of the upgraded page, so an idiom stands
     because an example writes it rather than because a widget's own rendering happens
     to match — a `<table>` a module builds demonstrates nothing about the shape an
-    author is being pointed at. The gallery is left out for the same reason it is left
+    author is being pointed at. The corpus is left out for the same reason it is left
     out of the widget floor: generated from the others, it can only repeat them.
 
     Every key is put to the engine, so a key that is not a selector fails here too.
@@ -803,7 +803,7 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     page = browser.new_page()
     held, invalid = set(), set()
     for example in EXAMPLES:
-        if example.stem == "gallery":
+        if example.stem == "corpus":
             continue
         page.set_content(example.read_text(), wait_until="domcontentloaded")
         answer = page.evaluate(
@@ -1611,7 +1611,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
 
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
     tray of one — the page the reader is already on — is not worth a control, so without
-    a neighbour `g l` is unavailable."""
+    a neighbour `g L` is unavailable."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     trays = EDGES[1]
     trays.stand(page)
@@ -1619,7 +1619,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
     draw_edge(page, trays, 160)
 
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_be_visible()
     page.wait_for_function(
         "() => document.querySelector('.lf-others-panel').getAnimations().length === 0"

@@ -26,7 +26,7 @@ suite: `version check --render` and `test_example_renders` drive the same
 `render_version` over the same files, so running it here would only repeat what
 the suite has already said about these exact pages.
 
-Usage: preview.py [example]  (default: gallery; Ctrl-C to stop)
+Usage: preview.py [example]  (default: design-decision; Ctrl-C to stop)
 """
 
 import json
@@ -111,7 +111,9 @@ def seed_log(source: Path, page: Path) -> None:
 
 
 def main() -> None:
-    name = (sys.argv[1] if len(sys.argv) > 1 else "gallery").removesuffix(".html")
+    name = (sys.argv[1] if len(sys.argv) > 1 else "design-decision").removesuffix(
+        ".html"
+    )
     source = ROOT / "examples" / f"{name}.html"
     if not source.exists():
         sys.exit(

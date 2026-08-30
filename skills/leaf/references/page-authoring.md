@@ -60,8 +60,8 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
-shortcuts, live-leaves tray, and open-decisions tray. Authors declare reader
-decisions through the registry's decision widgets and regions, but do not duplicate
+shortcuts, live-leaves tray, and open-asks tray. Authors declare reader
+asks through the registry's decision widgets and regions, but do not duplicate
 that chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. The theme scrolls a `<pre>` or a table
@@ -91,10 +91,10 @@ When broad context gives way to focused work, branch the live page with one
 intact into another `lf-tab` so its ids retain their comments and decisions. Put
 the current workstream first: ordering makes it the default for a reader with no
 saved panel or reading position. A saved panel or restored position takes
-precedence. Threads, decisions, versions, and sign-off still cover the whole page,
+precedence. Threads, asks, versions, and sign-off still cover the whole page,
 so none of that runtime chrome belongs inside a tab.
 
-## Decisions and sign-off
+## Asks and sign-off
 
 Put alternatives in `lf-options` with `choose`. Each option carries its title,
 case, and evidence in the option itself. When whole page sections are the
@@ -108,7 +108,7 @@ answer. In a thread the reply box is already that cell, so the group carries
 none of its own.
 
 Writing there is the reader dealing with the question, so the group stops being
-one of the page's open decisions and the ball is yours. Nothing is recorded by it:
+one of the page's open asks and the ball is yours. Nothing is recorded by it:
 the group still holds no new pick. Answer what they wrote in the authored page:
 carry their words in as another option and mark the pick it settled. If the reader
 explicitly rejects every option, settle the group without a pick. This thread
@@ -118,11 +118,11 @@ answer an originating open Decision, or change its declared answer when the Deci
 already answered. Reader actions before or after the proposal do not substitute
 for that revision, and an unrelated version cannot close it.
 
-A decision must name itself without context outside the decision. Begin `lf-decision` with one
+An ask must name itself without context outside the ask. Begin `lf-decision` with one
 ordinary heading, then include any introduction or evidence and the actionable
 widget. That heading is the question: it stays in the document's hierarchy, is
-available to selection and comments, names the Decisions tray row, and is where `d` /
-`D` arrives. The nested widget still owns the answer or request lifecycle. An
+available to selection and comments, names the Asks tray row, and is where `a` /
+`A` arrives. The nested widget still owns the answer or request lifecycle. An
 `lf-decision` has exactly one leading direct heading and one non-quoted local decision
 declared by `x-awaits` or `x-request.decision`.
 

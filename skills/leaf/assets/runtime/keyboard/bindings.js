@@ -43,7 +43,7 @@ export const parsed = (binding) => {
 // A modifier joins its key with nothing between them where its glyph is a symbol and with
 // a + where it is a word, so "⌘⏎" and "Ctrl+⏎" are each their own platform's spelling.
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
-// how this page's reference always has: the binding says Shift+d because that is what the
+// how this page's reference always has: the binding says Shift+a because that is what the
 // dispatcher must ask for, and the chip says A because that is what the reader presses.
 export const spell = (binding) => {
   const { key, mods } = parsed(binding);
@@ -78,6 +78,18 @@ export const bindings = (row) =>
   declaredBindings(row).filter(
     (binding) => characterShortcuts() || !characterBinding(binding),
   );
+// The command identities a visual presentation gives one row. Rows whose bindings are
+// distinct commands expand into routes; a compact row and one deliberately unavailable
+// from the reference keep their own identity. The reference and key line both consume this
+// projection so route additions cannot reach one surface without the other.
+export const commandPresentations = (row, active = bindings(row)) => {
+  const routes = commandRoutes(row);
+  if (row.runFromReference === false || !routes.length)
+    return [{ id: row.id, route: null }];
+  return routes
+    .filter((route) => active.includes(route.binding))
+    .map((route) => ({ id: route.id, route }));
+};
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
@@ -223,7 +235,10 @@ export function checked(rows, where) {
       );
     if (ids.has(row.id)) throw new Error(`leaf: ${where} declares ${row.id} twice`);
     ids.add(row.id);
-    for (const route of commandRoutes(row)) {
+    const declared = declaredBindings(row);
+    const routes = commandRoutes(row);
+    const routed = new Set();
+    for (const route of routes) {
       if (!route?.id || typeof route.id !== "string" || !COMMAND_ID.test(route.id))
         throw new Error(
           `leaf: route of ${row.id} names ${String(route?.id)}, which is not a stable command id`,
@@ -231,18 +246,30 @@ export function checked(rows, where) {
       if (ids.has(route.id))
         throw new Error(`leaf: ${where} declares ${route.id} twice`);
       ids.add(route.id);
-      if (!declaredBindings(row).includes(route.binding))
+      if (!declared.includes(route.binding))
         throw new Error(
           `leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`,
         );
+      if (routed.has(route.binding))
+        throw new Error(`leaf: ${row.id} routes ${route.binding} twice`);
+      routed.add(route.binding);
       if (!route.does)
         throw new Error(`leaf: route ${route.id} has no action sentence`);
+    }
+    if (routes.length) {
+      const missing = declared.filter((binding) => !routed.has(binding));
+      if (missing.length)
+        throw new Error(`leaf: ${row.id} has no route for ${missing.join(", ")}`);
     }
     if (row.run && !row.line)
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,
       );
-    for (const binding of declaredBindings(row)) {
+    if (row.linePriority != null && row.linePriority !== "persistent")
+      throw new Error(
+        `leaf: row ${i} of ${where} has unknown key-line priority ${String(row.linePriority)}`,
+      );
+    for (const binding of declared) {
       for (const mod of parsed(binding).mods)
         if (!MODIFIERS.includes(mod))
           throw new Error(
@@ -271,19 +298,25 @@ export function checked(rows, where) {
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
 
-// A clamped walk over a list of focusable rows: the row `dir` steps to from wherever
-// focus stands, or the end it is already on. Clamped rather than wrapping, because ↓ on
-// the last row must land where it already stands — the press stays the panel's, so the
-// list doesn't scroll out from under a walk that reached its end, which is also how t/T
-// walks threads. A walk that wraps is a fact about that walk (lf-tabs, per the ARIA tabs
-// pattern) and states its own; this is the one two panels share. It hands back the row it
-// landed on, for a walk that does more than move — the versions menu states a comparison
-// from it, and against the row focus was on, since the clamped press moved nothing.
+// The one-dimensional list policy. Every step inside the list clamps; a caller may name
+// the row where its own off-list arrival enters. Tabs and spatial grids own their cyclic
+// policies instead of passing through this primitive.
+export const clampedRow = (
+  rows,
+  current,
+  dir,
+  entry = dir > 0 ? 0 : rows.length - 1,
+) => {
+  if (!rows.length) return undefined;
+  const at = rows.indexOf(current);
+  const next = at < 0 ? entry : at + dir;
+  return rows[Math.max(0, Math.min(rows.length - 1, next))];
+};
+
+// Focus the clamped row and return it for list walks that also project something from the
+// landing, such as the version comparison.
 export const walkRows = (rows, dir) => {
-  const row =
-    rows[
-      Math.max(0, Math.min(rows.length - 1, rows.indexOf(document.activeElement) + dir))
-    ];
+  const row = clampedRow(rows, document.activeElement, dir, 0);
   row?.focus();
   return row;
 };

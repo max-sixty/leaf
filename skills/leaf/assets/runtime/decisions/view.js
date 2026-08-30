@@ -106,7 +106,7 @@ export function createDecisionView({
     // While the tray stands its button stands too, whatever the count just did — the
     // press that opened it has to be able to close it.
     showNews(decisionsBtn, decisionsOffered());
-    decisionsBtn.textContent = `Decisions (${decisions.length})`;
+    decisionsBtn.textContent = `Asks (${decisions.length})`;
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
@@ -115,7 +115,7 @@ export function createDecisionView({
       showNews(btn, Boolean(n));
       btn.textContent = `✓ ${label} all (${n})`;
     }
-    // The d/D row stands on this list, so the surfaces reading it are repainted
+    // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = decisionsOffered();
@@ -171,12 +171,12 @@ export function createDecisionView({
           const to = openDecisions().find((a) => a.id === decision.id);
           if (to) goToDecision(to, openDecisions());
         };
-        keys(row, "In the decisions tray", [
+        keys(row, "In the asks tray", [
           {
             id: "decision.open",
             keys: PRESS,
-            does: "Go to this decision and stand on the control that answers it",
-            line: "go to this decision",
+            does: "Go to this ask and stand on the control that answers it",
+            line: "go to this ask",
           },
         ]);
         decisionRowsById.set(decision.id, row);
@@ -184,7 +184,8 @@ export function createDecisionView({
       const [kind, says] = row.querySelectorAll(
         ".lf-decisions-kind, .lf-decisions-says",
       );
-      const word = itemWord(decision);
+      const item = itemWord(decision);
+      const word = item === "decision" ? "ask" : item;
       const said = itemSays(decision) || decision.id;
       // Written only on change: an unchanged poll must not feed the mutation stream a
       // screen reader rebuilds its buffer on.

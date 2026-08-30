@@ -58,12 +58,16 @@ pytestmark = pytest.mark.nightly
 # quietly shrinking the causal corpus.
 AIM_PRESS_CASES = (
     (
-        next(p for p in EXAMPLES if p.stem == "parallel-workstreams"),
-        frozenset({"option click", "tab click"}),
+        next(p for p in EXAMPLES if p.stem == "live-progress"),
+        frozenset({"tab click"}),
+    ),
+    (
+        next(p for p in EXAMPLES if p.stem == "release-notes"),
+        frozenset({"draft mousedown", "suggestion no-item control"}),
     ),
     (
         next(p for p in EXAMPLES if p.stem == "ship-review"),
-        frozenset({"draft mousedown", "standing mark", "suggestion no-item control"}),
+        frozenset({"option click", "standing mark"}),
     ),
 )
 

@@ -1255,7 +1255,7 @@ while nested scrollports report on their elements. Use `scrollerFor(el)` where a
 may be one an agent sent, since a widget in a message is scrolled by the panel's own list
 and by nothing else. Threads and trays are alternate auxiliary workspaces, so only one
 stands at a time. The
-strip-taking workspaces—Threads and Decisions—take room when the viewport can hold
+strip-taking workspaces—Threads and Asks—take room when the viewport can hold
 them and cover the page under their respective media query otherwise; Leaves
 always covers because its rows leave this page.
 The shell's inline size already reflects the margins a beside panel or tray takes.
@@ -1314,6 +1314,16 @@ several targets share a top-level block. At compact widths it returns the host t
 immediately after the target's rendered text block (or the target itself). Adding
 another target action must not add another absolute row, control type, or rail
 measurement.
+
+That ordered target collection is the Page map's complete location count and the source
+for the `g m` address list. A location's informational marker announces its position in
+the complete collection. The numbered chord exposes the collection's first nine
+locations; later locations remain in the Page map and ordinary focus order rather than
+making a one-digit chord ambiguous. Addressing an item opens its marker when it has one;
+an action-only item receives focus on its first available action without performing it.
+In the compact posture, an informational item opens the Page map sheet at that location
+instead of reviving the hidden desktop preview; an action-only item keeps its direct
+focus arrival on the action docked into the page.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
@@ -1561,7 +1571,7 @@ over the whole keyboard, so the box's letters were never the page's to take back
 
 The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
-`g`. A panel mnemonic exchanges that window for its destination, so `g t` leaves
+`g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
 window instead: the armed chip reads `g` and then `g h`, the chips on the page
 narrow with it, and Escape returns to the destination menu before another Escape
@@ -1598,11 +1608,11 @@ Tab and Shift-Tab walk the visible target map and announce each item. Enter choo
 last one announced. A viewport change that removes or renames that target clears the
 announced choice before Enter can act on it.
 
-`/` inside selection opens a real search input over the whole page reading. Tab walks
-repeated occurrences and Enter makes a native browser Selection from the active match.
-Search is one layer inside item selection: Escape returns to the visible hints, then a
-second Escape closes selection. The mode keeps `?` available and claims the rest of the
-page's keyboard while it stands.
+`/` opens a real search input over the whole page reading, either directly from the page
+or from the visible item hints. Tab walks repeated occurrences and Enter makes a native
+browser Selection from the active match. Escape returns to the surface that opened search:
+the page after a direct `/`, or the visible hints after `s` then `/`. The mode keeps `?`
+available and claims the rest of the page's keyboard while it stands.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
@@ -1622,13 +1632,15 @@ the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
 that adds the capability.
 
-Directional walks use the category's letter, with case stating direction: lowercase
-advances and Shift goes back. `t`/`T` walks open threads and `d`/`D` walks open
-decisions. Keep these as single-key presses rather than prefix sequences; a walk is
-often repeated or held. Other letters come from words the surface says: `w`
-narrows to comments waiting on the reader, while `g t`, `g d`, and `g l` go to
-Threads, Decisions, and All leaves. A key spelling something nothing on screen says
-is a key nobody reaches for twice.
+Directional category walks use the category's letter, with case stating direction:
+lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
+walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
+is often repeated or held. `d` and `u` move down and up by 60% of the reading page,
+leaving native Space free for the platform and focused controls. Other letters come
+from words the surface says: `w` narrows to threads waiting on the reader, while panel
+destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
+Threads, Asks, and All leaves. A key spelling something nothing on screen says is a
+key nobody reaches for twice.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
@@ -1636,8 +1648,9 @@ way this press will go, and Escape takes the mode off through the rung ladder
 rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `c` comments on it, `t`/`T` and `d`/`D`
-walk its open sets, and `g` opens its destinations. A surface holds the presses
+the presses whose subject is the page: `/` searches its text, `s` names its visible
+items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `d`/`u` move its
+reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
@@ -1658,7 +1671,7 @@ which is why they can be sorted by surface at all. One press is not like that:
 `c` follows the reader, and what it means is whatever they are standing in.
 
 That it reaches into the panel is not an exception. Page scope already crosses
-there: `t`/`T` can land on cards in Threads, and `d`/`D` can land on a decision an
+there: `t`/`T` can land on cards in Threads, and `a`/`A` can land on an ask an
 agent sent inside a thread. A page key that takes the reader somewhere owes them
 an answer once they are standing there.
 Rescoping `c` per surface would not even buy the tidiness it looks like — the
@@ -1896,7 +1909,7 @@ back, with nothing the reader did moving either. An answered decision parts from
 list, so a picked group gains no ring, and a press from one of its picks names the
 option under the focus rather than the question.
 
-The ring is therefore paintable on a decision the `d`/`D` walk will not step to and the
+The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to and the
 tray does not list, which is the accepted cost: the walk and the tray are the reader's
 list and this is not. Nothing strands the reader there — `markHere` looks its tray row
 up by id and finds none, the same as on every page with the tray shut, and the Escape
@@ -1918,7 +1931,7 @@ function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-the banner's Decisions button retains focus while the walk moves through the page.
+the banner's Asks button retains focus while the walk moves through the page.
 Clicking elsewhere removes the focus-derived ring without erasing the walk's
 useful continuation point.
 
@@ -1981,15 +1994,20 @@ upgrade.
 ### The key line and reference
 
 The key line is short help, not the keyboard reference. It walks outward from the
-reader's innermost scope, drops duplicate bindings shadowed there, and paints at
-most two hints: the first live row, then a promotable Escape or the next row.
-This makes locality the ordinary priority and promotes the way out by default. A
-captured target with both comment and reaction actions is the deliberate exception:
-`c` and `r` take the two visible slots while Escape remains live and listed in the
-complete reference. Projection-only `lineWhen` may hide a hint without changing the
-command's liveness or its place in that reference. Its hint chips are `aria-hidden`
-because placeholders and live announcements carry the same facts for assistive
-technology.
+reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
+the first live row, then a promotable Escape or the next row; rows declaring
+`linePriority: persistent` remain beside that context. An active chord instead shows
+every live row in its scope, so computed bindings, ranges, and capability filtering are
+the same ones dispatch and the reference use. `lineWhen` may hide only an ordinary hint
+without changing the command's liveness or its place in the reference. Hint chips are
+`aria-hidden` because placeholders and live announcements carry the same facts for
+assistive technology.
+
+The compact line wraps when persistent or chord rows need the room. Ordinary hints may
+yield from the end to stay within two rows, but persistent rows and active chord rows do
+not. The interactive More control stays before persistent hints, so a wider face wraps a
+visual fact rather than moving a compact target down beside page or panel furniture.
+`syncLayout` reserves the rendered height in each scroll region.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two
@@ -2058,8 +2076,8 @@ authored-main nodes are replaced, so the semantic landmark—not a DOM node—is
 continuity guarantee.
 
 The left side holds one tray at a time. `showTray` owns `trayUp` and renders
-the complete outcome for leaves and decisions. The leaves tray overlays the
-document because its rows leave the page. The decisions tray takes a strip because
+the complete outcome for leaves and asks. The leaves tray overlays the
+document because its rows leave the page. The asks tray takes a strip because
 its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
@@ -2074,7 +2092,7 @@ Decision rows come from local `x-awaits` sources and ready holders declaring
 nested in an `x-decision` region, the row names the region: its heading, context, and
 evidence are the decision the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-tray row travels through the same decision-arrival function as `d` and `D`, so the
+tray row travels through the same decision-arrival function as `a` and `A`, so the
 panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
@@ -2105,7 +2123,7 @@ resolve the original thread. Threads owns the reader-facing clarification; the
 page's Decision remains the proposal with the agent rather than counting both.
 
 That combined reading is what `openDecisions` returns, so the
-banner, the tray and the `d`/`D` walk all follow it: those three are the reader's
+banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
 Three readings ask the other question — whether the request is *answered* — and all
@@ -2127,9 +2145,9 @@ region.
 
 ### Go-to chord
 
-`g` opens one destination mode. `t`, `d`, and `l` complete a direct trip to
-Threads, Decisions, and All leaves. `h` and `f` name the document's numbered
-hyperlink and fold lists, and a decimal number names a member. `g g` and
+`g` opens one destination mode. `T`, `A`, and `L` complete a direct trip to
+Threads, Asks, and All leaves. `m`, `h`, and `f` name the page's numbered
+page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2137,7 +2155,7 @@ beside-panel, `g p` returns focus to the page while keeping the panel and its na
 An edge is one place, so the second key is the whole address; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 `PANEL_DESTINATIONS` is the direct panel vocabulary. Each entry declares its
-mnemonic, words, capability, and landing. `ADDRESSES` is the numbered document-list
+mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
 vocabulary. Each entry declares:
 
 - its letter and user-facing name;
@@ -2152,14 +2170,12 @@ The page-level `g` row promises only the mode; destinations and ranges belong to
 the rows inside it.
 
 Arming the mode paints the whole offer. A panel mnemonic completes the travel and
-moves focus inside the panel. Every numbered list contributes chips at once, and
-its mnemonic narrows them to that list. Further digits narrow the chips by numeric
-prefix. A number selects immediately when it is unambiguous. When an exact number
-also prefixes a longer one, Enter selects the exact member and another digit
-continues the address. Escape removes one digit before it backs out to the menu.
-A chip carries the whole address — leader, letter, number, and Enter when it is
-required — so it states which member this is and what remains to type. Every key
-on it is set at the chip's one size, and the split between what is
+moves focus inside the panel. Every numbered list contributes chips for its first
+nine members at once, and its mnemonic narrows them to that list. The following
+digit selects immediately. Escape backs out to the list menu before it closes the
+mode. A chip carries the whole address — leader, letter, and number — so it states
+which member this is and what remains to type. Every key on it is set at the chip's
+one size, and the split between what is
 behind the reader and what is still to press is carried by ground: the spent keys
 sit on the chip's own, the live ones on a lit block (`.lf-spent`, `.lf-lit`). Colour
 alone will not carry it — muted against accent is a difference in hue and barely one
@@ -2172,15 +2188,20 @@ by an equal negative margin — so a press lights one more key and moves no glyp
 in advance instead, the key crossing between the halves steps by that padding, which is the
 same fault one glyph smaller.
 
+While the chord stands, the key line uses that same accent ground for the leader and
+the visible continuation keys. The active colour belongs to the chord state rather than
+to one hard-coded key, so every future continuation inherits the cue.
+
 `chordKeys` is the one reading of how far a numbered address has come. The key
 line drops those keys after saying them in the chip that heads it, the reference
 puts them in front of each row so every entry shows the complete chord, and a
 chip on the page sets them back.
 
-Numbered addresses are stable within the document. The first addressable members
-do not change identity as the reader scrolls. Chips are painted only for members
-whose `shownRect` is visible, but an off-screen member remains reachable by the
-same address. Chips live in runtime chrome rather than authored markup.
+Numbered addresses are stable within the document and capped at nine per list. The
+first nine members do not change identity as the reader scrolls. Chips are painted
+only for addressable members whose `shownRect` is visible, but an off-screen member
+within that prefix remains reachable by the same address. Chips live in runtime
+chrome rather than authored markup.
 
 `NATIVE` describes the platform controls a chord may land on and the immediate
 word for their next press. A summary says whether it will open or close from its

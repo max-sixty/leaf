@@ -1665,6 +1665,12 @@ lf-source figcaption {
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
 lf-source pre { margin: 0; border: 0; border-radius: 0; }
+/* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
+   Keep its generic focus ring inside that frame: the figure clips at its rounded
+   corners, so an outside ring loses a pixel on three sides. */
+lf-source pre:is(:focus-visible, .lf-focus-visible) {
+  outline-offset: calc(-1 * var(--here-ring-w));
+}
 
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
    "editable"; the ✎ button is the accessible door (double-click is the fast path) and

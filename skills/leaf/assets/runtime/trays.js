@@ -82,10 +82,10 @@ export function createTrays({
   });
 
   // What the page is still waiting on the reader for, and the way to the next one — the
-  // same list d/D step and the "?" overlay names, counted here so a reader who
+  // same list a/A step and the "?" overlay names, counted here so a reader who
   // has not scrolled that far still knows there is something to answer.
   const decisionsBtn = el("button", "lf-btn lf-decisions", "");
-  decisionsBtn.title = "Show or hide what this page needs your input on";
+  decisionsBtn.title = "Show or hide this page's asks";
   // The machine's live leaves and what each is doing: a left panel of rows, each a
   // link opening that page in its own tab, judged by the same `presented` the banner
   // answers with, from the same facts — `others` on /api/state carries them for every
@@ -104,17 +104,17 @@ export function createTrays({
   othersPanel.tabIndex = -1;
   traysEdge.handle(othersPanel, () => othersBtn);
   const leavesList = trayList(othersPanel);
-  // A tray of the page's own open decisions, on the same edge: one row per thing the page is
+  // A tray of the page's own open asks, on the same edge: one row per thing the page is
   // waiting on the reader for, in the order the page asks them. The list is openDecisions() and
   // nothing else, so a widget joins the tray by declaring x-awaits and no row here knows
   // what kind of thing it is standing for.
   const decisionsPanel = el("nav", "lf-ui lf-tray-panel lf-decisions-panel");
-  decisionsPanel.setAttribute("aria-label", "What this page is waiting on you for");
+  decisionsPanel.setAttribute("aria-label", "Asks from this page");
   decisionsPanel.tabIndex = -1;
   traysEdge.handle(decisionsPanel, () => decisionsBtn);
   const decisionsList = trayList(decisionsPanel);
 
-  // The left edge holds one tray at a time. Leaves and decisions are the same furniture asking
+  // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
   // at two scopes — which page needs me, and what this page needs of me — and each has to
   // stand while the reader works, which is the whole reason either is a fixed edge rather
   // than a menu over the page. So which one is up is one fact held in one place. A boolean
@@ -195,7 +195,7 @@ export function createTrays({
   trayIs("decisions", decisionsPanel, decisionsBtn, renderDecisions);
   const trayNames = Object.freeze([...trays.keys()]);
 
-  // A persisted tray is state-dependent chrome: Decisions folds the log and Leaves comes from
+  // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
   // the first state response. Keep the remembered intent in trayUp, but restore its pixels
   // only once that response has produced the page's presentation. Unlike showTray, this
   // first paint does not animate — it is part of the page arriving, not a reader gesture.

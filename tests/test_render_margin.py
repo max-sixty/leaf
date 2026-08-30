@@ -12,6 +12,7 @@ from render_support import (
     SUGGESTION_PAGE,
     _publish,
     compare_with,
+    leaf_page,
     live_url,
     open_page,
     panel_settled,
@@ -52,6 +53,109 @@ ACTION_PAGE = SUGGESTION_PAGE.replace(
     </section></main>""",
 )
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
+PAGE_MAP_PAGE = leaf_page(
+    "Twelve Page-map locations",
+    "".join(
+        f'<section id="map-{n}" style="min-height: 420px">'
+        f"<h2>Location {n}</h2><p>Body {n}</p></section>"
+        for n in range(1, 13)
+    ),
+)
+PAGE_MAP_EVENTS = [
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": f"Map note {n}",
+        "anchor": {"section": f"map-{n}"},
+    }
+    for n in range(1, 13)
+]
+
+
+def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
+    """The first nine Page-map locations keep their announced position as address."""
+    page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    address = page.evaluate(
+        """() => {
+          const marker = [...document.querySelectorAll('.lf-margin-marker')]
+            .find(candidate => candidate.lfEntry?.target?.id === 'map-3');
+          const position = marker.getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
+          const mapCount = document.querySelector('.lf-living-margin')
+            .getAttribute('aria-label').match(/(\\d+) locations/);
+          const targetTop = document.querySelector('#map-3')
+            .getBoundingClientRect().top;
+          return {number: Number(position[1]), count: Number(position[2]),
+            mapCount: Number(mapCount[1]), targetTop,
+            viewportHeight: innerHeight};
+        }"""
+    )
+    assert address["count"] == address["mapCount"]
+    assert address["count"] == 12
+    assert address["number"] <= 9
+    assert address["targetTop"] > address["viewportHeight"], (
+        "the target must begin off screen so this proves the address is page-wide"
+    )
+
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("m 1–9")
+    page.keyboard.press("m")
+    page.keyboard.press(str(address["number"]))
+
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_contain_text("Map note 3")
+    expect(
+        preview.locator(
+            ".lf-margin-preview-list textarea, .lf-margin-preview-list button"
+        ).first
+    ).to_be_focused()
+
+    page.keyboard.press("Escape")
+    resized(page, 390, 760)
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press(str(address["number"]))
+    compact_item = page.locator(".lf-page-map-sheet .lf-page-map-action").filter(
+        has_text="Map note 3"
+    )
+    expect(page.locator(".lf-page-map-sheet")).to_be_visible()
+    expect(compact_item).to_be_focused()
+    expect(compact_item).to_be_in_viewport()
+    page.keyboard.press("Escape")
+    expect(page.locator("#map-3")).to_be_in_viewport()
+    assert errors == []
+    page.close()
+
+
+def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
+    """The page map is a vertical list: its arrows stop at its first and last markers,
+    while Home and End remain direct routes to those edges."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    markers = page.locator(".lf-margin-marker:visible")
+    assert markers.count() > 1, "the page map has no pair of visible markers to walk"
+
+    markers.first.click()
+    page.keyboard.press("Home")
+    first = page.locator(":focus").get_attribute("aria-label")
+    assert first and page.locator(":focus").evaluate(
+        "node => node.matches('.lf-margin-marker')"
+    )
+    page.keyboard.press("ArrowUp")
+    assert page.locator(":focus").get_attribute("aria-label") == first
+
+    page.keyboard.press("End")
+    last = page.locator(":focus").get_attribute("aria-label")
+    assert last and last != first
+    page.keyboard.press("ArrowDown")
+    assert page.locator(":focus").get_attribute("aria-label") == last
+
+    page.keyboard.press("Home")
+    assert page.locator(":focus").get_attribute("aria-label") == first
+    assert errors == []
+    page.close()
 
 
 def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
@@ -92,6 +196,22 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
     expect(draft_item.locator(".lf-draft-pencil .lf-margin-action-label")).to_have_text(
         "Edit"
     )
+
+    draft_address = draft_item.evaluate(
+        """item => {
+          const position = item.querySelector(':scope > .lf-margin-marker')
+            .getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
+          return {number: Number(position[1]), count: Number(position[2])};
+        }"""
+    )
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text(
+        f"m 1–{min(draft_address['count'], 9)}"
+    )
+    page.keyboard.press("m")
+    assert draft_address["number"] <= 9
+    page.keyboard.press(str(draft_address["number"]))
+    expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
 
     shapes = page.locator(
         ".lf-sug-accept, .lf-sug-reject, .lf-draft-pencil, "
@@ -204,6 +324,12 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press(str(draft_address["number"]))
+    expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
+    expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
 
     assert errors == []
     page.close()

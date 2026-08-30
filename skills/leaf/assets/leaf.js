@@ -92,9 +92,10 @@
  * wheel/touch input, history restoration, and browser chrome therefore share the same
  * reading position; auxiliary workspaces keep their own nested scrollports. Runtime
  * reading position goes through pageScroller.
- * The page binds none of the browser's own scroll keys (Space, arrows, Home/End,
- * PageUp/Down); a focused control may, and a disclosure's arrows are core's own case of
- * that. The browser therefore owns ordinary reading travel and its native scroll context.
+ * The page binds `d` and `u` to move 60% of the visible page down and up at the browser's
+ * own paging pace through whichever of the two regions the reader's own scrolling moves.
+ * Space and the platform's remaining scroll keys keep their native meaning, including in
+ * focused controls.
  *
  * Keyboard: one register, and every surface is a projection of it. A row binds keys and
  * says what pressing one does; a scope is where the keyboard means something particular,
@@ -123,12 +124,13 @@
  * reached at all.
  *
  * Two page modes make a destination explicit before acting on it. `s` draws short,
- * viewport-local hints on stable items and declared visual parts; `/`
- * inside that mode searches all page text, Tab walks repeated matches, and Enter turns
- * the current result into an ordinary native selection. Both routes end at the same
- * passage or item the pointer path uses, so the existing `c` comments on it and no second
- * anchor vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
- * document list. `g t`, `g d`, and `g l` land in Threads, Decisions, and All leaves.
+ * viewport-local hints on stable items and declared visual parts. `/` searches all page
+ * text directly or from those hints, Tab walks repeated matches, and Enter turns the
+ * current result into an ordinary native selection. Both routes end at the same passage
+ * or item the pointer path uses, so the existing `c` comments on it and no second anchor
+ * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
+ * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves.
+ * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
  * Arming shows the whole offer: everything addressable the reader can see wears its whole
@@ -140,14 +142,14 @@
  * first, so backing out is one layer per press and the promise cannot drift from the
  * press.
  *
- * What a key would do right now is state the user can read, not recall. The key line (one
- * quiet fixed line, bottom left) shows two hints: the first live row of the innermost
- * scope, then a promotable Escape or the next row. Escape normally takes that second slot;
- * a captured target keeps it for comment and reaction while Escape remains available in
- * the complete reference. `? more` unfolds up to two rows of current commands; `? all
- * shortcuts` then opens the complete reference, grouped by scope and searchable by key,
- * action, or scope. The hint chips are aria-hidden: they are the eye's copy of facts spoken
- * through placeholders and live announcements; More is the accessible disclosure control.
+ * What a key would do right now is state the user can read, not recall. The quiet fixed key
+ * line starts with the first live row of the innermost scope, then a promotable Escape or
+ * the next row, and retains registry rows marked persistent. An active chord shows every
+ * live row in its scope, including computed ranges. `? more` unfolds up to two rows of the
+ * remaining current commands; `? all shortcuts` opens the complete reference, grouped by
+ * scope and searchable by key, action, or scope. The hint chips are aria-hidden: they are
+ * the eye's copy of facts spoken through placeholders and live announcements; More is the
+ * accessible disclosure control.
  *
  * A message arrives as logged and renders here, in the same vendored layer that owns
  * the panel's styles — the two version together, and no wire vocabulary exists beyond
@@ -416,10 +418,12 @@ function receiveState(...args) {
 // A row:
 //   id    — its stable dotted identity. Words and keys may change without changing the
 //           route used by the reference and other projections.
-//   keys  — the bindings it answers: "d", "Escape", "Mod+Enter", "Shift+d", " ".
+//   keys  — the bindings it answers: "a", "Escape", "Mod+Enter", "Shift+a", "d".
 //           A function where the set is the page's (an option group's 1–N).
 //   routes— optional stable subcommands when those bindings mean different things. The
 //           keyline keeps the compact row; the reference presents each route separately.
+//           A route may override `line` and `label` for the case where a nearer scope
+//           shadows only its sibling binding.
 //   label — how it renders. Computed from `keys` unless the row is a chord whose second
 //           half is another scope's row, and then built from that row rather than typed.
 //   does  — the overlay's sentence.
@@ -434,6 +438,8 @@ function receiveState(...args) {
 //           double-click.
 //   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
 //           never changes whether the command dispatches or appears in the reference.
+//   linePriority — `persistent` keeps an essential row beside the contextual shortlist.
+//           An active chord shows every live row regardless of either line projection field.
 //   promoteEscape — whether an Escape row takes the line's second visible slot. On by
 //           default; a local action that happens to clear state can leave the slot to the
 //           next action on that state.
@@ -960,9 +966,9 @@ const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
 helpClose.title = "Close keyboard reference";
 helpClose.setAttribute("aria-label", "Close keyboard reference");
-// The key line — the register's short rendering. Its two fact chips are aria-hidden (the
-// spoken copies are placeholders, announcements, and the reference); More is a real button
-// because a visible door to the complete list should be a door every reader can work.
+// The key line — the register's short rendering. Its fact chips are aria-hidden (the spoken
+// copies are placeholders, announcements, and the reference); More is a real button because
+// a visible door to the complete list should be a door every reader can work.
 const keylineEl = el("div", "lf-ui lf-keyline");
 const keylineMore = el("button", "lf-key-more");
 keylineMore.type = "button";
@@ -973,7 +979,11 @@ keylineMoreKey.textContent = "?";
 const keylineMoreText = el("span", "", "more");
 keylineMore.append(keylineMoreKey, keylineMoreText);
 let keyline;
-keylineMore.onclick = () => keyline.more();
+keylineMore.onclick = () => {
+  setChord(false);
+  setReact(false);
+  keyline.more();
+};
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -986,9 +996,10 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
-// The g chord's numbered document destinations: a chip on every member of the list it has
-// aimed at, drawn here for the same reason the legend is (paintAddresses, its one writer).
-// The eye's copy of what the chord announces, so it says nothing to a screen reader.
+// The g chord's numbered document destinations: a chip on each addressable member of the
+// list it has aimed at, drawn here for the same reason the legend is (paintAddresses, its
+// one writer). The eye's copy of what the chord announces, so it says nothing to a screen
+// reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
@@ -1083,7 +1094,7 @@ function reserveBannerControls() {
   ]);
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Decisions (999)"]);
+  reserve(decisionsBtn, ["Asks (999)"]);
   reserve(othersBtn, ["All leaves (999)"]);
 }
 reserveBannerControls();
@@ -1849,13 +1860,14 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepThread } =
+const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
   createNavigation({
     BANNER_CLEAR,
     reducedMotion,
     scrollBehavior,
     beside,
     inChrome: (node) => inChrome(node),
+    inPanel,
     openOnItem,
     openThreads,
     pageScroller,
@@ -1872,6 +1884,7 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepThread } =
 const landInThreadReply = (thread) =>
   landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
 
+let livingMargin = null;
 const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   EVERYTHING,
   addressLayer,
@@ -1889,8 +1902,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   keylineEl,
   leavesOffered,
   letGo,
+  openPageMapItem: (item) => livingMargin?.openPageMapItem(item),
   othersLinks,
   othersPanel,
+  pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
   paintHere,
   panelCovers,
@@ -1904,33 +1919,35 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   threadsBox,
 });
 
-const { SELECT, isSelecting, paintTargets, startSelecting } = createTargetSelection({
-  activateAimTarget,
-  aimTargets,
-  allButTheReference,
-  anchoringIsReady: () => anchoringReady,
-  announce,
-  banner,
-  blockAt: (...args) => blockAt(...args),
-  contextAround: (...args) => contextAround(...args),
-  cut: (...args) => cut(...args),
-  el,
-  findText: (...args) => findText(...args),
-  focused,
-  inChrome: (node) => inChrome(node),
-  keyline: keylineEl,
-  pageText: (...args) => pageText(...args),
-  paintHere,
-  quoteFrom: (...args) => quoteFrom(...args),
-  rangeOf: (...args) => rangeOf(...args),
-  scrollToRange,
-  selectionInput,
-  selectionLayer,
-  selectionSearch,
-  selectionStatus,
-  shownRect: (...args) => shownRect(...args),
-  updateFab,
-});
+const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
+  createTargetSelection({
+    activateAimTarget,
+    aimTargets,
+    allButTheReference,
+    anchoringIsReady: () => anchoringReady,
+    announce,
+    banner,
+    blockAt: (...args) => blockAt(...args),
+    contextAround: (...args) => contextAround(...args),
+    cut: (...args) => cut(...args),
+    el,
+    findText: (...args) => findText(...args),
+    focused,
+    hasCapturedTarget,
+    inChrome: (node) => inChrome(node),
+    keyline: keylineEl,
+    pageText: (...args) => pageText(...args),
+    paintHere,
+    quoteFrom: (...args) => quoteFrom(...args),
+    rangeOf: (...args) => rangeOf(...args),
+    scrollToRange,
+    selectionInput,
+    selectionLayer,
+    selectionSearch,
+    selectionStatus,
+    shownRect: (...args) => shownRect(...args),
+    updateFab,
+  });
 
 // ---------- reactions ----------
 const {
@@ -2171,7 +2188,7 @@ const TYPING = {
 };
 
 // The panel's own keys. What a press acts on is whose scope it belongs to: the page holds
-// the presses whose subject is the page — `t`/`T` and `d`/`D` walk its open sets, and
+// the presses whose subject is the page — `t`/`T` and `a`/`A` walk its open sets, and
 // `g` opens its destinations — while a surface holds presses for its own contents. `w`
 // narrows this list and `/` searches it, and a list the reader is not looking at is
 // neither a thing to narrow nor a thing to search. At page scope they were two bare
@@ -2191,11 +2208,9 @@ const TYPING = {
 // Whether the page has this scope at all is not a question the log answers: every page
 // has a thread panel, and its general box stands and takes words from the first paint —
 // the offline banner says a comment will not send, not that there is nowhere to write it.
-// What the log answers is whether there is a list, which is `w`'s and `/`'s own condition
-// and is now said on each of them. Said once here for all three, it took `c` down with
-// them: the page's `c` stands the reader on the list, the panel's `c` was out of the
-// stack, and the second press was the page's own again, landing focus where it already
-// was. The box went on naming the key in its placeholder with no press able to reach it.
+// What the log answers is whether the waiting filter is useful, which is `w`'s own
+// condition and is now said on that row. The find box needs no such condition: searching
+// an empty list yields no matches, and its visible control remains available.
 
 const PANEL = {
   title: "In the thread panel",
@@ -2204,7 +2219,7 @@ const PANEL = {
     {
       id: "thread.waiting.toggle",
       // `w` for the words the control says. It is the phrase the page already uses for
-      // the same question asked of its widgets (d/D), asked here of the conversation —
+      // the same question asked of its widgets (a/A), asked here of the conversation —
       // so the reader learns one idea and reaches it two ways rather than learning
       // "needs you" beside it.
       //
@@ -2238,21 +2253,17 @@ const PANEL = {
       does: "Find in the threads",
       line: "find",
       also: findInput,
-      // A conversation with nothing in it has nothing to find in, and the panel says so
-      // itself; a page still reading the log is not yet a page with no comments, which
-      // the scope's own `when` answers for both rows here.
-      when: () => conversationRuntime.threadList.length > 0,
       run: () => {
         findInput.focus();
         findInput.select();
       },
     },
-    // Last, because the line paints two chips and the first is this scope's first live
-    // row. Standing here, `w` and `/` are the only rows that can ever hold that slot —
-    // inside a thread THREAD is nearer, inside a box TYPING claims the letters, outside
-    // the panel this scope is not standing — so a `c` in front of them is the two keys
-    // this landing exists to expose going unadvertised at the one place they work. The
-    // second press has a surface of its own: the box says the key in its placeholder.
+    // Last, because the first contextual chip is this scope's first live row. Standing
+    // here, `w` and `/` are the only rows that can ever hold that slot — inside a thread
+    // THREAD is nearer, inside a box TYPING claims the letters, outside the panel this scope
+    // is not standing — so a `c` in front of them is the two keys this landing exists to
+    // expose going unadvertised at the one place they work. The second press has a surface
+    // of its own: the box says the key in its placeholder.
     PANEL_SAY,
   ],
 };
@@ -2491,14 +2502,15 @@ const REFERENCE = {
     keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
   also: keylineMore,
-  run: () => keyline.more(),
+  run: () => keylineMore.click(),
 };
 const PAGE = {
   rows: [
+    PAGE_SEARCH,
     {
       id: "selection.open",
       keys: ["s"],
-      does: "Select a visible item by hint, or search all page text",
+      does: "Select a visible item by hint",
       line: "select item",
       // Once a target is in hand, its actions own the two short-line slots. Escape clears
       // it, while this projection-only gate leaves s live to replace the target and keeps
@@ -2562,24 +2574,47 @@ const PAGE = {
     },
     {
       id: "decision.walk",
-      keys: ["d", "Shift+d"],
+      keys: ["a", "Shift+a"],
       routes: [
         {
           id: "decision.next",
-          binding: "d",
-          does: "Next decision this page is waiting on you for",
+          binding: "a",
+          does: "Next ask this page is waiting on you for",
         },
         {
           id: "decision.previous",
-          binding: "Shift+d",
-          does: "Previous decision this page is waiting on you for",
+          binding: "Shift+a",
+          does: "Previous ask this page is waiting on you for",
         },
       ],
-      does: "Next / previous decision this page is waiting on you for",
-      line: "decisions",
+      does: "Next / previous ask this page is waiting on you for",
+      line: "asks",
       when: () => openDecisions().length > 0,
       repeat: true,
-      run: (binding) => stepDecision(binding === "d" ? 1 : -1),
+      run: (binding) => stepDecision(binding === "a" ? 1 : -1),
+    },
+    {
+      id: "page.move",
+      keys: ["d", "u"],
+      routes: [
+        {
+          id: "page.down",
+          binding: "d",
+          does: "Move 60% of a page down",
+          line: "page down",
+        },
+        {
+          id: "page.up",
+          binding: "u",
+          does: "Move 60% of a page up",
+          line: "page up",
+        },
+      ],
+      does: "Move 60% of a page down or up",
+      line: "page down / up",
+      linePriority: "persistent",
+      repeat: true,
+      run: (binding) => stepPage(binding === "d" ? 0.6 : -0.6),
     },
     {
       id: "version.approve",
@@ -3353,7 +3388,7 @@ anchorRuntime = createAnchors({
 });
 const { ITEM, NOTE } = anchorRuntime;
 
-createLivingMargin({
+livingMargin = createLivingMargin({
   anchorLabel,
   announce,
   approveBtn,

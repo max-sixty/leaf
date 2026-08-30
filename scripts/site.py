@@ -26,7 +26,7 @@ and `docs/sitenote.js` says the whole of it in the site's own label above the do
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
-Usage: site.py  (no arguments; writes .tmp/site)
+Usage: site.py [--serve]  (writes .tmp/site; --serve keeps a local preview open)
 """
 
 import json
@@ -36,7 +36,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from functools import partial
 from html.parser import HTMLParser
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -46,6 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
+INTERNAL_EXAMPLES = {"corpus"}
 OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the workflow uploads it as the Pages artifact
@@ -158,6 +161,13 @@ class Links(HTMLParser):
                 ]
 
 
+class QuietPreview(SimpleHTTPRequestHandler):
+    """Serve the local catalog without logging every module a full page imports."""
+
+    def log_message(self, *args):
+        pass
+
+
 def local_targets(html: str) -> list[str]:
     """The links a static host has to serve itself: same-origin, and naming a file."""
     parser = Links()
@@ -212,8 +222,20 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
+def example_sources() -> list[Path]:
+    """Authored examples the public site publishes, never derived test surfaces."""
+    sources = [
+        source
+        for source in sorted(EXAMPLES.glob("*.html"))
+        if source.stem not in INTERNAL_EXAMPLES
+    ]
+    if not sources:
+        sys.exit("examples/ holds no authored pages to publish")
+    return sources
+
+
 def publish_pages(out: Path, env: dict) -> None:
-    """The corpus's vendored layer at the site root, and every example under it."""
+    """The corpus's vendored layer and every authored example at the site root."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -230,7 +252,7 @@ def publish_pages(out: Path, env: dict) -> None:
             target = out / (RUNTIME if item.name == "leaf.js" else item.name)
             (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
 
-        for source in sorted(EXAMPLES.glob("*.html")):
+        for source in example_sources():
             # The temporary page is reused only for its vendored layer. Reset its
             # authored history so every independently published example starts at
             # r1/v1, then let the real stamp boundary create both immutable files.
@@ -312,7 +334,7 @@ def publish_pages(out: Path, env: dict) -> None:
             print(f"  {source.stem}")
 
 
-def build(out: Path) -> None:
+def build(out: Path, *, verify_links: bool = True) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
 
@@ -345,12 +367,25 @@ def build(out: Path) -> None:
         env["XDG_CONFIG_HOME"] = config_home
         publish_pages(out, env)
 
-    check_links(out)
+    if verify_links:
+        check_links(out)
 
 
 def main() -> None:
+    if sys.argv[1:] not in ([], ["--serve"]):
+        sys.exit("usage: site.py [--serve]")
     build(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
+    if sys.argv[1:] == ["--serve"]:
+        handler = partial(QuietPreview, directory=str(OUT))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples.html")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
 
 
 if __name__ == "__main__":

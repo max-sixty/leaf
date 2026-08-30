@@ -1460,7 +1460,7 @@ RING_NAMES = """() => {
 # reader reached, a joined option group wears the one its picks give up, and an element
 # a focused thread is anchored to wears it with no focus of its own — and a reading that
 # asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
-# cut planted on `.lf-thread:focus-within` passed all ten examples.
+# cut planted on `.lf-thread:focus-within` passed the entire example corpus.
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
 # platform draws and the layer never named is still measured.

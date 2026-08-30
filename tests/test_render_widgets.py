@@ -1258,9 +1258,9 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     was — on the previous decision's Accept — while the announce said otherwise, so
     Enter was aimed at a decision the reader had already seen."""
     page, errors = open_page(browser, serve(COLLAPSED_PAGE))
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("[data-lf-for='sug-now'] .lf-sug-accept")).to_be_focused()
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#later")).to_have_attribute("open", "")
     expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_focused()
     assert errors == []
@@ -1839,7 +1839,7 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     entry does not declare it."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Decisions (4)")
+    expect(decisions).to_have_text("Asks (4)")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
     expect(page.locator(".lf-answer-all")).to_have_text("✓ Accept all (1)")
@@ -1848,21 +1848,21 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     # count follows the click; the suggestion's outcome is in the log alone, so that
     # one follows the round trip.
     page.locator("#lq-token").click()
-    expect(decisions).to_have_text("Decisions (3)")
+    expect(decisions).to_have_text("Asks (3)")
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(decisions).to_have_text("Decisions (2)")
+    expect(decisions).to_have_text("Asks (2)")
     expect(page.locator(".lf-answer-all")).to_be_hidden()
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
     page.locator("#lq-token").click()
-    expect(decisions).to_have_text("Decisions (3)")
+    expect(decisions).to_have_text("Asks (3)")
     assert errors == []
     page.close()
 
 
-def test_a_key_walks_the_page_s_open_decisions(browser, serve):
-    """t/T step the open threads; d/D step the things the page is waiting on the reader
+def test_a_key_walks_the_page_s_open_asks(browser, serve):
+    """t/T step the open threads; a/A step the things the page is waiting on the reader
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
     It wraps rather than clamping, because a decision leaves the list as soon as it is
@@ -1879,7 +1879,7 @@ def test_a_key_walks_the_page_s_open_decisions(browser, serve):
         *DECISIONS_IN_ORDER,
         DECISIONS_IN_ORDER[0],
     ]:  # one past the end: it wraps
-        page.keyboard.press("d")
+        page.keyboard.press("a")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the decision this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
@@ -1906,7 +1906,7 @@ def test_a_key_walks_the_page_s_open_decisions(browser, serve):
     # block it decides, so a walk reading it where it hangs would step back onto the
     # change the reader is standing on.
     for expected in reversed(DECISIONS_IN_ORDER):
-        page.keyboard.press("Shift+d")
+        page.keyboard.press("Shift+a")
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
 
@@ -1929,14 +1929,14 @@ def test_a_key_walks_the_page_s_open_decisions(browser, serve):
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-keyline")).to_contain_text("decisions")
+    expect(page.locator(".lf-keyline")).to_contain_text("asks")
 
     # An answered decision leaves the walk: deciding the change on its own control is where
     # the reader now stands, and the next press reaches what followed it rather than the
     # change they have just settled.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
-    page.keyboard.press("d")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    page.keyboard.press("a")
     expect(page.locator("#t-baffles-review .lf-pick").first).to_be_focused()
     assert errors == []
     page.close()
@@ -1971,7 +1971,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     assert before["room"] > 500, "the page has no room to put the decision at its start"
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     expect(page.locator("#storage-decision")).to_have_attribute("data-lf-decision", "1")
     expect(page.locator("#storage-options")).not_to_have_attribute(
@@ -2021,7 +2021,7 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
     # it, not the question above it. They are standing *in* that suggestion, which is
     # why it is the decision they step off rather than the one they step to.
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-decision", "1"
     )
@@ -2030,7 +2030,7 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     page.locator(".lf-decisions").click()
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-decision", "1")
 
     # A selection outranks the mark, because it is the reader saying where they are
@@ -2044,12 +2044,12 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
         select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
     drag_over_the_done_task()
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-decision", "1"
     )
     drag_over_the_done_task()
-    page.keyboard.press("Shift+d")
+    page.keyboard.press("Shift+a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-decision", "1")
     assert errors == []
     page.close()
@@ -2522,7 +2522,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
         "sug-rewrite": "rewrite",
         "sug-insert": "insertion",
         "sug-delete": "deletion",
-        "shapes-decision": "decision",
+        "shapes-decision": "ask",
     }
     # The words beside the kind are still the element's own, and the two changes that
     # keep a current paragraph still open on it — the reading did not move, only what
@@ -2535,7 +2535,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
 
 def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve):
-    """The banner control shows the list d/D walk, so the reader can see what a page
+    """The banner control shows the list a/A walk, so the reader can see what a page
     wants without visiting each decision in turn and can take them in any order.
 
     The rows are openDecisions() and nothing else — the same list the banner counts — so
@@ -2560,7 +2560,7 @@ def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve
     expect(tray).to_be_visible()
     rows = page.evaluate(DECISION_ROW_SAYS)
     assert [r["at"] for r in rows] == DECISIONS_IN_ORDER, (
-        "the tray is openDecisions() in document order, the list d/D walk"
+        "the tray is openDecisions() in document order, the list a/A walk"
     )
     for row in rows:
         assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
@@ -2578,7 +2578,7 @@ def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve
     # Answered, and the row goes with the decision. The tray emptying is the progress, so
     # what is left on it is what is left to do — never a burn-down of everything done.
     page.locator("#lq-token").click()
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
     expect(page.locator("button.lf-decisions-row")).to_have_count(3)
     assert "live-question-decision" not in [
         r["at"] for r in page.evaluate(DECISION_ROW_SAYS)
@@ -2723,7 +2723,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
 
     The `other_leaf` fixture is the whole reason the leaves tray has anything to show:
     a tray of one — the page the reader is already on — is not worth a control, so
-    without a neighbour `g l` is unavailable and there is no second tray to be exclusive
+    without a neighbour `g L` is unavailable and there is no second tray to be exclusive
     with."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     decisions, leaves = (
@@ -2736,7 +2736,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(leaves).to_be_hidden()
 
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     expect(leaves).to_be_visible()
     expect(decisions).to_be_hidden()
     # The page has its room back the moment the decisions tray goes down.
@@ -2784,7 +2784,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
       const box = r.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-decision", "1"
     )
@@ -2799,7 +2799,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-decision", "1")
 
     # The condition everything below rests on, stated rather than assumed: put
@@ -2876,14 +2876,14 @@ def test_the_walk_travels_to_a_decision_a_page_left_boxless(browser, serve):
       const box = r.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-decision", "1"
     )
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-decision", "1")
     assert page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
@@ -2951,8 +2951,8 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     note = page.locator("#sug-refill .lf-mark-note")
     expect(note).to_have_count(1)
 
-    page.keyboard.press("d")
-    page.keyboard.press("d")
+    page.keyboard.press("a")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-decision", "1")
 
     # By tag rather than by class: the slots are wearing the comment's own outline too,

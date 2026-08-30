@@ -453,6 +453,14 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     ] == ["uv.lock"]
 
 
+def test_claude_and_codex_read_the_same_repository_skills():
+    claude_skills = ROOT / ".claude" / "skills"
+    codex_skills = ROOT / ".agents" / "skills"
+
+    assert codex_skills.is_symlink()
+    assert codex_skills.resolve() == claude_skills.resolve()
+
+
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
     installed = install_payload(tmp_path / "host" / "leaf")
 

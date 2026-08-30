@@ -465,7 +465,15 @@ function receiveState(...args) {
 // is; the scope answers that, and a row never restates it.
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
-// because `shadowStage` calls it, far above the key line it repaints for.
+// because `shadowStage` calls it, far above the surfaces it repaints for.
+// This pair is what DISCLOSE reads, so a toggle moves every row bound through it — and a
+// row's keys are named on two surfaces, the line the reader sees and the
+// `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
+// standing whichever way the row was when its scope was declared, naming the arrow that no
+// longer moves the section and withholding the one that does. `paintKeys()` is the superset
+// — it revalidates the connected scopes and ends in `paintHere()` — so the watcher that
+// already hears this write is the one place both surfaces are kept together, rather than a
+// repaint each DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
 // taking it for one closes a loop: paintCoreControls paints `aria-expanded` on the key
 // line's More control, so every paint scheduled the next one and the page repainted for
@@ -474,7 +482,7 @@ function receiveState(...args) {
 // record for its return leg carries the other value.
 const disclosureWatch = new MutationObserver((records) => {
   if (records.some((r) => r.target.getAttribute(r.attributeName) !== r.oldValue))
-    paintHere();
+    paintKeys();
 });
 const watchDisclosures = (root) =>
   disclosureWatch.observe(root, {
@@ -1580,7 +1588,7 @@ const commentDestination = () => {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
-      go: () => fab.onclick(),
+      go: () => fab.click(),
     };
   const said = standingConversation();
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
@@ -2064,7 +2072,7 @@ const HELP = {
       line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
       also: helpClose,
       runFromReference: false,
-      run: () => reference.show(false),
+      run: () => helpClose.click(),
     },
   ],
 };
@@ -2505,7 +2513,7 @@ const CHOOSER = {
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
-  run: () => versionBtn.onclick(),
+  run: () => versionBtn.click(),
 };
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row

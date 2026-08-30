@@ -163,10 +163,11 @@ Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. Run `/ui-sweep` and inspect a composed page for any user-visible
 layer change; a green suite does not judge visual quality.
 
-Hand off a visible change with the smallest preview that proves it. A static
-change needs one sentence and an `lf-shot` before/after from the same fixture,
-viewport, and state. Add another state, width, recording, or live link only when
-the first comparison cannot show the behavior.
+Hand off a visible change with the smallest rendered artifact that proves it.
+For an example, `scripts/preview.py [example] --export` prints a standalone HTML
+file; hand back that file. A static change needs one sentence and an `lf-shot`
+before/after from the same fixture, viewport, and state. Add another state, width,
+recording, or live link only when the first comparison cannot show the behavior.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
 `main`. Landing requires the user's authorization. For a local merge, if a newer

@@ -27,6 +27,7 @@ from render_support import (
     INLINE_PAGE,
     LONG_PAGE,
     NATIVE_CONTROL_PAGE,
+    RENDERED,
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -2074,6 +2075,15 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page.keyboard.press("Enter")
     expect(line).to_contain_text("show this file")
     assert not details.evaluate("el => el.open")
+    # The line is one of two surfaces naming this row's keys, and a listener reads the
+    # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
+    # and the repaint that keeps them together is the document's disclosure watch rather
+    # than anything this widget does, which is what leaves a widget free to declare a
+    # disclosure row and nothing else. Read once, by the same clock as the line: the
+    # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
+    # budget whether or not the watch painted anything.
+    page.evaluate(RENDERED)
+    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
 
     # The row also names an arrow, which no browser answers, so unlike the pair above it is
     # only ever as good as the scope that runs it — and that scope has to find a staged
@@ -2091,6 +2101,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     said = key_line(page)
     assert "⏎ / space / ←" in said, said
     assert "hide this file" in said, said
+    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
 
     # Neither control is handed a letter by any platform, so the page's own keyboard
     # stands behind both of them.

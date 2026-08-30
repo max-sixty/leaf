@@ -184,9 +184,12 @@ Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
 choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
-rendered chrome, and writes only chrome boxes. A `ResizeObserver` callback must
-not resize the box it observes, directly or through a class or attribute that
-changes that box.
+rendered chrome, and writes only chrome boxes. It hears the shell's inline size
+without deriving a posture from it: `layoutSizes` watches `document.body`'s
+content-box width so a float placed in the margin is re-placed while a panel's
+eased margin is still narrowing the page, and reads nothing else off that box. A
+`ResizeObserver` callback must not resize the box it observes, directly or
+through a class or attribute that changes that box.
 
 ## Startup and presentation
 
@@ -1245,8 +1248,22 @@ status-like item may yield its own width so controls to its right remain fixed.
 
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
-container, `main` composes its left and right claims, and container queries grant or
-withdraw margin postures. No JavaScript measures that shell or mirrors a cramped state.
+container, `main` composes its left and right claims, and queries grant or withdraw
+margin postures. JavaScript may hear that shell's inline size as a signal to re-run
+`syncLayout` — `layoutSizes` watches `document.body`'s content-box width, because a
+panel's eased margin goes on narrowing the box a float stands in after `setPanel` has
+returned and one synchronous pass at the press reads only the wide box — but it derives
+no posture from it and mirrors no cramped state.
+
+Which question a floor asks belongs to the posture it grants. A floor asking how much
+room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
+for the sidebar and sidenote strips, 1208 and 1472 for the thread's beside posture. The
+living margin's 900 asks the window instead, because it is half of a pair —
+`@media screen and (max-width: 899px)` stops drawing the margin at all, and a marker's
+presence is not something a container can be asked about without the answer depending on
+the strip the marker is asking for. Both halves of such a pair ask the same medium, or a
+panel narrowing `body` under the floor withdraws the strip while the window keeps the
+markers on screen with nothing reserved for them.
 
 The browser's root is the document scrollport. `pageScroller` is the shared answer for
 reading position and paging; native fragments, history restoration, wheel/touch input,
@@ -1831,6 +1848,12 @@ no Leaf activation binding. A `selectableOffer` registers its widget-specific ke
 A run-less row may still project a native press when that meaning is worth naming in
 help, but it never reimplements the press.
 
+When Leaf handles a binding that promises a visible control's activation, its command
+path calls that control's `click()`; it does not call the handler or reproduce its
+result. A platform-native press stays native. Arrival may focus or reveal the control
+before activation. Modality checks belong only to gesture guards before activation,
+such as refusing the mouseup that ends a text-selection drag.
+
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one
 behaviour. They sit on the row that already carries Enter and Space rather than
@@ -1862,6 +1885,12 @@ Which way a disclosure stands is watched as state, not heard as an event. A
 document listener, and an `aria-expanded` control fires nothing anywhere. Both
 keep that state in an attribute, so one `MutationObserver` over `open` and
 `aria-expanded` repaints for both, and `shadowStage` hands it each root.
+
+That watch repaints the register and not the line alone. A row bound through
+`DISCLOSE` answers from the state the watch is already reading, so both surfaces
+naming its keys turn over together — the line the reader sees and the
+`aria-keyshortcuts` a listener is read — and a widget declaring a disclosure row
+owes no repaint of its own.
 
 State, and not the write that carries it: the watch compares each record against
 the attribute's current value and repaints only where the two differ. The paint

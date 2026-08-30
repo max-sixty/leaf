@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Serve an example as a real leaf page, to review how it renders.
+"""Prepare an example as a live page or a standalone review file.
 
 An example is a page body, not a page directory: it links /theme.css and
 /leaf.js at the server root, which is where `page init` vendors them. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
-origin — nothing upgrades, and a tabbed page renders as every tab at once. So
-this builds the directory the runtime expects and hands it to `server run`, which
-serves in the foreground so Ctrl-C ends the preview. A session runs `server start`
-instead, and gets the same server in a process of its own.
+origin — nothing upgrades, and a tabbed page renders as every tab at once. This
+script builds the directory the runtime expects. By default it hands that page to
+`server run`, which serves in the foreground until Ctrl-C; `--export` writes the
+browser-drawn result as one standalone HTML file instead.
 
-The result is a page, not a picture of one: it takes comments. Served from an
-agent session, `leaf wait` on the same directory carries them to the agent and the
-example gets revised like any other page; run from a bare shell, they queue in
-the log until an agent next reads it. Which of those happens follows from the
+The live result is a page, not a picture of one: it takes comments. Served from
+an agent session, `leaf wait` on the same directory carries them to the agent and
+the example gets revised like any other page; run from a bare shell, they queue
+in the log until an agent next reads it. Which of those happens follows from the
 host identity the launcher puts in the environment.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
@@ -26,7 +26,7 @@ suite: `version check --render` and `test_example_renders` drive the same
 `render_version` over the same files, so running it here would only repeat what
 the suite has already said about these exact pages.
 
-Usage: preview.py [example]  (default: design-decision; Ctrl-C to stop)
+Usage: preview.py [example] [--export]  (default: design-decision)
 """
 
 import json
@@ -111,9 +111,13 @@ def seed_log(source: Path, page: Path) -> None:
 
 
 def main() -> None:
-    name = (sys.argv[1] if len(sys.argv) > 1 else "design-decision").removesuffix(
-        ".html"
-    )
+    args = sys.argv[1:]
+    standalone = "--export" in args
+    args = [arg for arg in args if arg != "--export"]
+    if len(args) > 1 or any(arg.startswith("-") for arg in args):
+        sys.exit("usage: preview.py [example] [--export]")
+    name = args[0] if args else "design-decision"
+    name = name.removesuffix(".html")
     source = ROOT / "examples" / f"{name}.html"
     if not source.exists():
         sys.exit(
@@ -139,6 +143,12 @@ def main() -> None:
         f"{source.name}, as it stands in the tree",
     )
     seed_log(source, PAGE)
+    if standalone:
+        out = ROOT / ".tmp" / f"example-{name}.html"
+        out.unlink(missing_ok=True)
+        leaf("version", "export", str(PAGE), "-o", str(out))
+        print(out.resolve())
+        return
     leaf("server", "run", str(PAGE))
 
 

@@ -110,6 +110,7 @@ import {
   measure,
   offer,
   once,
+  paintKeys,
   quoted,
   reachedForWords,
   relabel,
@@ -592,6 +593,12 @@ customElements.define(
         if (open) el.removeAttribute("hidden");
         else el.setAttribute("hidden", HIDDEN);
       this.#row.setAttribute("aria-expanded", open ? "true" : "false");
+      // The row's bindings read that attribute, and nothing else repaints them: the
+      // disclosure watcher repaints the line alone, so aria-keyshortcuts would keep
+      // whichever way the row was standing when it was declared — naming the arrow that
+      // no longer moves and withholding the one that does. This is the repaint `keys`
+      // asks of a control whose keys change with its state.
+      paintKeys();
       if (remember) tabStore.set(SETTLED_KEY + this.id, open ? "1" : "0");
     }
 

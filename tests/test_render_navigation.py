@@ -2130,11 +2130,24 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     # to retry can tell those apart.
     said = key_line(page)
     assert re.search(opened + r"\s*close", said), said
+    # The line is one of two surfaces naming this row's keys, and the other is read by
+    # somebody who cannot see the first. A row whose bindings answer from its own state
+    # has to repaint both when the state moves, and only the line had a watch: the
+    # attribute kept whichever way the row was standing when the scope was declared, so
+    # it went on promising the arrow that no longer moves this section and withholding
+    # the one that does.
+    #
+    # Read once for the reason the line is, and by the same clock: the heartbeat repaints
+    # scopes too, so a retrying assertion goes green on the tick that lands inside its
+    # budget and the fix it is meant to hold has nothing to fail against.
+    assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
     page.keyboard.press("ArrowRight")
     expect(row).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("ArrowLeft")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(page.locator("#st-keep")).to_be_hidden()
+    page.evaluate(RENDERED)
+    assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
 
     # A disclosure in a message, where the disclosure scope does not reach: thread markup
     # is a second document beside the version, and the arrows are the page's. A diff,

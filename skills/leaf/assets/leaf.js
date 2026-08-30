@@ -142,14 +142,14 @@
  * first, so backing out is one layer per press and the promise cannot drift from the
  * press.
  *
- * What a key would do right now is state the user can read, not recall. The key line (one
- * quiet fixed line, bottom left) shows two hints: the first live row of the innermost
- * scope, then a promotable Escape or the next row. Escape normally takes that second slot;
- * a captured target keeps it for comment and reaction while Escape remains available in
- * the complete reference. `? more` unfolds up to two rows of current commands; `? all
- * shortcuts` then opens the complete reference, grouped by scope and searchable by key,
- * action, or scope. The hint chips are aria-hidden: they are the eye's copy of facts spoken
- * through placeholders and live announcements; More is the accessible disclosure control.
+ * What a key would do right now is state the user can read, not recall. The quiet fixed key
+ * line starts with the first live row of the innermost scope, then a promotable Escape or
+ * the next row, and retains registry rows marked persistent. An active chord shows every
+ * live row in its scope, including computed ranges. `? more` unfolds up to two rows of the
+ * remaining current commands; `? all shortcuts` opens the complete reference, grouped by
+ * scope and searchable by key, action, or scope. The hint chips are aria-hidden: they are
+ * the eye's copy of facts spoken through placeholders and live announcements; More is the
+ * accessible disclosure control.
  *
  * A message arrives as logged and renders here, in the same vendored layer that owns
  * the panel's styles — the two version together, and no wire vocabulary exists beyond
@@ -422,6 +422,8 @@ function receiveState(...args) {
 //           A function where the set is the page's (an option group's 1–N).
 //   routes— optional stable subcommands when those bindings mean different things. The
 //           keyline keeps the compact row; the reference presents each route separately.
+//           A route may override `line` and `label` for the case where a nearer scope
+//           shadows only its sibling binding.
 //   label — how it renders. Computed from `keys` unless the row is a chord whose second
 //           half is another scope's row, and then built from that row rather than typed.
 //   does  — the overlay's sentence.
@@ -436,6 +438,8 @@ function receiveState(...args) {
 //           double-click.
 //   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
 //           never changes whether the command dispatches or appears in the reference.
+//   linePriority — `persistent` keeps an essential row beside the contextual shortlist.
+//           An active chord shows every live row regardless of either line projection field.
 //   promoteEscape — whether an Escape row takes the line's second visible slot. On by
 //           default; a local action that happens to clear state can leave the slot to the
 //           next action on that state.
@@ -962,9 +966,9 @@ const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
 helpClose.title = "Close keyboard reference";
 helpClose.setAttribute("aria-label", "Close keyboard reference");
-// The key line — the register's short rendering. Its two fact chips are aria-hidden (the
-// spoken copies are placeholders, announcements, and the reference); More is a real button
-// because a visible door to the complete list should be a door every reader can work.
+// The key line — the register's short rendering. Its fact chips are aria-hidden (the spoken
+// copies are placeholders, announcements, and the reference); More is a real button because
+// a visible door to the complete list should be a door every reader can work.
 const keylineEl = el("div", "lf-ui lf-keyline");
 const keylineMore = el("button", "lf-key-more");
 keylineMore.type = "button";
@@ -975,7 +979,11 @@ keylineMoreKey.textContent = "?";
 const keylineMoreText = el("span", "", "more");
 keylineMore.append(keylineMoreKey, keylineMoreText);
 let keyline;
-keylineMore.onclick = () => keyline.more();
+keylineMore.onclick = () => {
+  setChord(false);
+  setReact(false);
+  keyline.more();
+};
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -2253,12 +2261,12 @@ const PANEL = {
         findInput.select();
       },
     },
-    // Last, because the line paints two chips and the first is this scope's first live
-    // row. Standing here, `w` and `/` are the only rows that can ever hold that slot —
-    // inside a thread THREAD is nearer, inside a box TYPING claims the letters, outside
-    // the panel this scope is not standing — so a `c` in front of them is the two keys
-    // this landing exists to expose going unadvertised at the one place they work. The
-    // second press has a surface of its own: the box says the key in its placeholder.
+    // Last, because the first contextual chip is this scope's first live row. Standing
+    // here, `w` and `/` are the only rows that can ever hold that slot — inside a thread
+    // THREAD is nearer, inside a box TYPING claims the letters, outside the panel this scope
+    // is not standing — so a `c` in front of them is the two keys this landing exists to
+    // expose going unadvertised at the one place they work. The second press has a surface
+    // of its own: the box says the key in its placeholder.
     PANEL_SAY,
   ],
 };
@@ -2497,7 +2505,7 @@ const REFERENCE = {
     keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
   also: keylineMore,
-  run: () => keyline.more(),
+  run: () => keylineMore.click(),
 };
 const PAGE = {
   rows: [
@@ -2588,20 +2596,27 @@ const PAGE = {
       run: (binding) => stepDecision(binding === "a" ? 1 : -1),
     },
     {
-      id: "page.down",
-      keys: ["d"],
-      does: "Move 60% of a page down",
-      line: "page down",
+      id: "page.move",
+      keys: ["d", "u"],
+      routes: [
+        {
+          id: "page.down",
+          binding: "d",
+          does: "Move 60% of a page down",
+          line: "page down",
+        },
+        {
+          id: "page.up",
+          binding: "u",
+          does: "Move 60% of a page up",
+          line: "page up",
+        },
+      ],
+      does: "Move 60% of a page down or up",
+      line: "page down / up",
+      linePriority: "persistent",
       repeat: true,
-      run: () => stepPage(0.6),
-    },
-    {
-      id: "page.up",
-      keys: ["u"],
-      does: "Move 60% of a page up",
-      line: "page up",
-      repeat: true,
-      run: () => stepPage(-0.6),
+      run: (binding) => stepPage(binding === "d" ? 0.6 : -0.6),
     },
     {
       id: "version.approve",

@@ -1,7 +1,7 @@
 import {
   bindings,
   clampedRow,
-  commandRoutes,
+  commandPresentations,
   declaredBindings,
   labelOf,
   live,
@@ -241,14 +241,8 @@ export function createReference({
         t.setAttribute("role", "presentation");
         const entries = [];
         for (const row of rows) {
-          const routes =
-            row.runFromReference === false || !commandRoutes(row).length
-              ? [null]
-              : commandRoutes(row).filter((route) =>
-                  bindings(row).includes(route.binding),
-                );
-          for (const route of routes) {
-            const id = route?.id ?? row.id;
+          for (const presentation of commandPresentations(row)) {
+            const { id, route } = presentation;
             const does = route?.does ?? word(row.does);
             const tr = document.createElement("tr");
             tr.dataset.lfCommand = id;
@@ -295,7 +289,7 @@ export function createReference({
             entries.push({
               el: tr,
               directWords: helpWords(
-                `${id} ${scopeTitle} ${label} ${word(does)} ${word(row.line)}`,
+                `${id} ${scopeTitle} ${label} ${word(does)} ${word(route?.line ?? row.line)}`,
               ),
               familyWords: helpWords(
                 `${row.id} ${referenceLabel(row)} ${word(row.does)}`,

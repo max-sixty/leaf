@@ -1980,15 +1980,18 @@ upgrade.
 ### The key line and reference
 
 The key line is short help, not the keyboard reference. It walks outward from the
-reader's innermost scope, drops duplicate bindings shadowed there, and paints at
-most two hints: the first live row, then a promotable Escape or the next row.
-This makes locality the ordinary priority and promotes the way out by default. A
-captured target with both comment and reaction actions is the deliberate exception:
-`c` and `r` take the two visible slots while Escape remains live and listed in the
-complete reference. Projection-only `lineWhen` may hide a hint without changing the
-command's liveness or its place in that reference. Its hint chips are `aria-hidden`
-because placeholders and live announcements carry the same facts for assistive
-technology.
+reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
+the first live row, then a promotable Escape or the next row; rows declaring
+`linePriority: persistent` remain beside that context. An active chord instead shows
+every live row in its scope, so computed bindings, ranges, and capability filtering are
+the same ones dispatch and the reference use. `lineWhen` may hide only an ordinary hint
+without changing the command's liveness or its place in the reference. Hint chips are
+`aria-hidden` because placeholders and live announcements carry the same facts for
+assistive technology.
+
+The compact line wraps when persistent or chord rows need the room. Ordinary hints may
+yield from the end to stay within two rows, but persistent rows and active chord rows do
+not. `syncLayout` reserves the rendered height in each scroll region.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two

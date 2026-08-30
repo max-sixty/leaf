@@ -78,6 +78,18 @@ export const bindings = (row) =>
   declaredBindings(row).filter(
     (binding) => characterShortcuts() || !characterBinding(binding),
   );
+// The command identities a visual presentation gives one row. Rows whose bindings are
+// distinct commands expand into routes; a compact row and one deliberately unavailable
+// from the reference keep their own identity. The reference and key line both consume this
+// projection so route additions cannot reach one surface without the other.
+export const commandPresentations = (row, active = bindings(row)) => {
+  const routes = commandRoutes(row);
+  if (row.runFromReference === false || !routes.length)
+    return [{ id: row.id, route: null }];
+  return routes
+    .filter((route) => active.includes(route.binding))
+    .map((route) => ({ id: route.id, route }));
+};
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
@@ -223,7 +235,10 @@ export function checked(rows, where) {
       );
     if (ids.has(row.id)) throw new Error(`leaf: ${where} declares ${row.id} twice`);
     ids.add(row.id);
-    for (const route of commandRoutes(row)) {
+    const declared = declaredBindings(row);
+    const routes = commandRoutes(row);
+    const routed = new Set();
+    for (const route of routes) {
       if (!route?.id || typeof route.id !== "string" || !COMMAND_ID.test(route.id))
         throw new Error(
           `leaf: route of ${row.id} names ${String(route?.id)}, which is not a stable command id`,
@@ -231,18 +246,30 @@ export function checked(rows, where) {
       if (ids.has(route.id))
         throw new Error(`leaf: ${where} declares ${route.id} twice`);
       ids.add(route.id);
-      if (!declaredBindings(row).includes(route.binding))
+      if (!declared.includes(route.binding))
         throw new Error(
           `leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`,
         );
+      if (routed.has(route.binding))
+        throw new Error(`leaf: ${row.id} routes ${route.binding} twice`);
+      routed.add(route.binding);
       if (!route.does)
         throw new Error(`leaf: route ${route.id} has no action sentence`);
+    }
+    if (routes.length) {
+      const missing = declared.filter((binding) => !routed.has(binding));
+      if (missing.length)
+        throw new Error(`leaf: ${row.id} has no route for ${missing.join(", ")}`);
     }
     if (row.run && !row.line)
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,
       );
-    for (const binding of declaredBindings(row)) {
+    if (row.linePriority != null && row.linePriority !== "persistent")
+      throw new Error(
+        `leaf: row ${i} of ${where} has unknown key-line priority ${String(row.linePriority)}`,
+      );
+    for (const binding of declared) {
       for (const mod of parsed(binding).mods)
         if (!MODIFIERS.includes(mod))
           throw new Error(

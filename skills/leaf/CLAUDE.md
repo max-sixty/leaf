@@ -253,12 +253,16 @@ projection can commit while finite reconciliation animations are still settling.
 Any consumer that reads final boxes waits for upgraded, applied, presented, and
 no finite animation reported by `moving`.
 
-The authored `main` stays behind the presentation gate until the first state read
-has either applied or established that the server is unavailable. Fixed recovery
-chrome remains usable while it waits. `showModal()` calls from authored main are
-temporarily represented as measurable non-modal dialogs; `presentPage` promotes
-only connected, still-open dialogs whose reconciled branch remains visible.
-This prevents a modal's top-layer inertness from disabling the recovery chrome.
+The presentation gate hides the authored `main` and makes it inert until the first
+state read has either applied or established that the server is unavailable. The
+static showcase's build sets `data-lf-eager`, which lifts the gate whole, leaving its
+immutable authored document as ordinary readable HTML while its illustrative session,
+widgets, and controls progressively arrive. Fixed recovery chrome remains usable while
+a live page waits.
+`showModal()` calls from authored main are temporarily represented as measurable
+non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
+reconciled branch remains visible. This prevents a modal's top-layer inertness from
+disabling the recovery chrome.
 
 `presentPage` owns the one transition from arrival to live presentation. Motion
 helpers and the stylesheet collapse arrival animations until that boundary.

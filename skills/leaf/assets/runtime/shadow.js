@@ -94,7 +94,7 @@ export const MARK_RULES = `
 let publishedShadowStage;
 export const shadowStage = (...args) => publishedShadowStage(...args);
 
-export function createShadowStage(watchDisclosures) {
+export function createShadowStage(watchDisclosures, watchExternalLinks) {
   let markSheet;
   publishedShadowStage = function stageShadow(host, nodes) {
     if (!markSheet) {
@@ -114,8 +114,12 @@ export function createShadowStage(watchDisclosures) {
     // boundary either.
     watchDisclosures(root);
     const style = document.createElement("style");
-    style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
+    const presentationRules = document.documentElement.hasAttribute("data-lf-eager")
+      ? ""
+      : SHADOW_PRESENTATION_CSS;
+    style.textContent = presentationRules + shadowRules;
     root.replaceChildren(style, ...nodes);
+    watchExternalLinks(root);
     return root;
   };
   return publishedShadowStage;

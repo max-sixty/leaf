@@ -138,6 +138,13 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
+Before finishing a feature:
+
+- Keep the implementation, tests, and any owning protocol or reference aligned.
+- If the feature changes what an agent can do or how it should do it, update
+  `skills/leaf/SKILL.md` or the routed reference that owns the workflow.
+- Update any public docs, examples, or generated outputs the feature affects.
+
 The normal suite is:
 
 ```sh

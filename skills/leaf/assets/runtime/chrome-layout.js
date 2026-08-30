@@ -213,8 +213,16 @@ export function createChromeLayout({
     document.body.toggleAttribute("data-lf-panel", open);
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {
-      renderPanel();
+      // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
+      // shown yet is display:none, so anything rendered into it measures zero — and
+      // renderPanel is where the anchor pass runs for the threads it draws. A mark hangs
+      // on the boxes its element shows through (shownParts), so a widget an agent sent in
+      // a reply resolved to an element with no box, took no mark, and left the thread
+      // still open in the panel pointing at nothing on either side. Focus is asked for in
+      // the same call because its target is threadsBox, which the render fills rather
+      // than replaces.
       syncPanelLayer({ focus: true });
+      renderPanel();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) panel.close();
     syncLayout();
@@ -250,7 +258,36 @@ export function createChromeLayout({
       syncLayout();
     });
   };
-  const layoutSizes = new ResizeObserver(scheduleLayout);
+  // Body's own inline size is the first of them, because the strip the page yields to the
+  // panel is an eased margin: setPanel writes the attribute and returns, and the box the
+  // floats are placed in goes on narrowing for another fifth of a second. One synchronous
+  // syncLayout at the press reads the wide box, so a composer standing in a wide window's
+  // margin kept a place the narrowed page no longer has — an absolute child past body's
+  // client box, which is sideways-scrollable overflow, with the box standing on the panel
+  // that displaced it. Watched rather than heard through `transitionend` because an
+  // interrupted slide still reports its last frame, and a strip a margin resident claims
+  // moves this width with no transition to end.
+  //
+  // Filtered to the content box's width: body's block size is the document's content
+  // height, so hearing every body resize would feed ordinary page growth back into a
+  // writer that reserves flow content. The width still hears both an outer strip and a
+  // padding rail. Writes land in the following animation frame, outside ResizeObserver
+  // delivery, so a reservation changing another watched chrome box cannot create an
+  // undelivered-notification loop.
+  let bodyContentWidth = 0;
+  const layoutSizes = new ResizeObserver((entries) => {
+    let shellChanged = false;
+    for (const { contentRect, target } of entries) {
+      if (target !== document.body) {
+        shellChanged = true;
+        continue;
+      }
+      if (contentRect.width !== bodyContentWidth) shellChanged = true;
+      bodyContentWidth = contentRect.width;
+    }
+    if (shellChanged) scheduleLayout();
+  });
+  layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(keylineEl);
   // The composer grows under typing (field-sizing), and a box placed above its passage

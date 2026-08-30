@@ -59,6 +59,10 @@
      that the arrangement read as a centred page with something in the margin rather
      than as a page with a margin. */
   --note: 384px;
+  /* A page thread uses a wider reading card than an authored sidenote. The margin
+     includes the marker and the gutter between it and the 460px conversation. */
+  --thread-card: 460px;
+  --thread-margin: 520px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader
      while the document moves, so the whole left edge is spoken for wherever it is in
@@ -491,6 +495,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main {
   --strip-l: 0px;
+  --lf-thread-beside: 0;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
     var(--claim-map, 0px), var(--lf-claim-right, 0px));
   --lf-shift: calc((var(--strip-l) - var(--strip-r)) / 2);
@@ -1419,11 +1424,28 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen {
-  @container lf-shell (min-width: 1152px) {
+  /* 1208px leaves the document's 640px evidence floor beside the 520px thread
+     margin and the two 24px page gutters. Below it the marker offers a compact
+     handoff rather than covering the source. */
+  @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
-    ) > main {
-    --claim-map: var(--note);
+      :where(.lf-living-margin:not([hidden])
+        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+    ) > main:not(:has(> aside.sidebar)) {
+    --claim-map: var(--thread-margin);
+    --lf-thread-beside: 1;
+  }
+  }
+  /* A page-level sidebar claims another 264px on the opposite side. Wait for
+     that strip too: 1208 + 264 = 1472, so the same 640px document floor holds
+     when both contextual surfaces stand. */
+  @container lf-shell (min-width: 1472px) {
+  body:has(
+      :where(.lf-living-margin:not([hidden])
+        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+    ) > main:has(> aside.sidebar) {
+    --claim-map: var(--thread-margin);
+    --lf-thread-beside: 1;
   }
   }
 }

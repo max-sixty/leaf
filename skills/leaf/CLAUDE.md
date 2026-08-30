@@ -45,7 +45,7 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/living-margin.js` owns the page map, compact map sheet, inline margin threads,
+`runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
 and the one aggregated action, communication, and information item for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;

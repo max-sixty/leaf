@@ -51,6 +51,7 @@ export function createChromeLayout({
   pageShifted,
   paintHere,
   panel,
+  panelChanged,
   panelFocusTarget,
   panelFoot,
   panelList,
@@ -217,6 +218,7 @@ export function createChromeLayout({
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) panel.close();
     syncLayout();
+    panelChanged(open);
     readerStore.set(PANEL_KEY, open ? "1" : "0");
     paintHere();
     // The panel is one of the two surfaces the hover reads, so its arriving or going away

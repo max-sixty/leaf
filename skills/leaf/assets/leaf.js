@@ -667,6 +667,7 @@ const el = (tag, cls, text) => {
   return node;
 };
 let chromeLayout;
+let livingMargin = null;
 const syncLayout = (...args) => chromeLayout.syncLayout(...args);
 const setPanel = (...args) => chromeLayout.setPanel(...args);
 const drawnEdge = createDrawnEdge({ el, keys, readerStore, syncLayout });
@@ -741,6 +742,7 @@ const {
   readerStore,
   renderDecisions: () => renderDecisions(openDecisions()),
   syncLayout,
+  trayChanged: () => livingMargin?.render(),
   walkRows,
 });
 const { leavesOffered, othersLinks, renderOthers } = createLiveLeaves({
@@ -1143,6 +1145,9 @@ chromeLayout = createChromeLayout({
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
   panel,
+  panelChanged: (open) => {
+    if (open) livingMargin?.closePreview();
+  },
   panelFocusTarget: threadsBox,
   panelFoot,
   panelList: threadsBox,
@@ -1895,7 +1900,6 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
 const landInThreadReply = (thread) =>
   landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
 
-let livingMargin = null;
 const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   EVERYTHING,
   addressLayer,
@@ -3413,12 +3417,14 @@ livingMargin = createLivingMargin({
   keys,
   offer,
   openDecisions,
+  panelIsOpen: chromeLayout.panelIsOpen,
   pageScroller,
   paintKeys,
   placedAt,
   renderMarginThread: conversationRuntime.renderMarginThread,
   scrollBehavior,
   scrollToElement,
+  setPanel,
   showThread,
   stateProjection,
   threads: () => conversationRuntime.threadList,

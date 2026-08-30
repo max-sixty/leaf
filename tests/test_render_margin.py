@@ -8,6 +8,7 @@ from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
     DECISION_PAGE,
+    EXAMPLES,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
@@ -504,10 +505,12 @@ def test_the_preview_stands_in_the_room_the_page_has_beside_the_panel(browser, s
     resized(page, 1600, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="decision"]').first
     marker.hover()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
+    expect(page.locator(".lf-margin-thread")).to_have_count(0)
+    expect(page.locator(".lf-margin-preview-action")).to_have_count(1)
     preview_box = preview.bounding_box()
     panel_box = page.locator(".lf-panel").bounding_box()
     room_right = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -524,6 +527,11 @@ def test_the_preview_stands_in_the_room_the_page_has_beside_the_panel(browser, s
         f"the preview is off the left of the window: {preview_box}"
     )
 
+    page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]').click()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    expect(preview).to_be_visible()
+
     assert errors == []
     page.close()
 
@@ -539,12 +547,11 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     expect(marker).to_have_count(1)
     expect(marker.locator(".lf-margin-count")).to_have_text("2")
-    expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"Comment, Outcome, \d+ of")
-    )
+    expect(marker).to_have_attribute("aria-label", re.compile(r"Thread, Outcome, \d+ of"))
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     marker.hover()
@@ -553,15 +560,19 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()
-    assert preview_box["x"] < main_box["x"] + main_box["width"]
+    assert preview_box["x"] >= main_box["x"] + main_box["width"]
     assert preview_box["x"] >= 0
     assert preview_box["x"] + preview_box["width"] <= page.evaluate("innerWidth")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    expect(page.locator(".lf-margin-preview-action")).to_have_count(1)
 
     marker.click()
     expect(marker).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview-action")).to_have_count(1)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -582,19 +593,39 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.close()
 
 
-def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
-    """The anchored thread is the margin's primary interaction surface."""
+def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
+    browser, serve
+):
+    """The anchored thread is a complete conversation beside its source."""
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
     )
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-    marker.click()
+    marker.focus()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview textarea")).to_be_focused()
+    preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread")
     reply = thread.locator("textarea")
 
     expect(thread.locator(".lf-conversation-body")).to_have_text(
         COMMENT_ON_DECISION["text"]
     )
+    geometry = page.evaluate(
+        """() => {
+          const main = document.querySelector('main').getBoundingClientRect();
+          const marker = document.querySelector('[data-lf-kinds="comment"]')
+            .getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return {mainRight: main.right, markerRight: marker.right,
+                  cardLeft: card.left, cardWidth: card.width};
+        }"""
+    )
+    assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
+    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
+    assert geometry["cardWidth"] >= 459, geometry
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
     expect(reply).to_have_value("Yes. One visit can cover both jobs.")
@@ -606,6 +637,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
         "Yes. One visit can cover both jobs."
     )
     expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(preview).to_be_visible()
     root_id = thread.locator(".lf-conversation-thread").get_attribute("data-thread")
     replies = [
         event
@@ -620,12 +652,140 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     page.close()
 
 
+def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
+    browser, serve
+):
+    """The shipped exchange stays beside its source without covering the document."""
+    example = next(page for page in EXAMPLES if page.stem == "ship-review")
+    served = serve(example)
+    page, errors = open_page(browser, served)
+    resized(page, 1440, 900)
+    marker = page.get_by_role(
+        "group", name=re.compile(r"Page actions for task · iOS resync stall")
+    ).locator(":scope > .lf-margin-marker")
+    expect(marker).to_have_count(1)
+    marker.evaluate(
+        "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
+    )
+
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-margin-preview-title")).to_have_text(
+        "iOS resync stall"
+    )
+    expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
+    geometry = marker.evaluate(
+        """markerNode => {
+          const main = document.querySelector('main').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          const marker = markerNode.getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return {bannerBottom: banner.bottom, mainRight: main.right,
+                  markerRight: marker.right,
+                  markerMiddle: (marker.top + marker.bottom) / 2,
+                  cardLeft: card.left, cardRight: card.right, cardTop: card.top,
+                  cardBottom: card.bottom, cardWidth: card.width,
+                  cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
+                  panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
+        }"""
+    )
+    assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
+    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
+    assert geometry["cardRight"] <= 1440, geometry
+    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
+    assert geometry["cardBottom"] <= 892, geometry
+    assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], geometry
+    assert geometry["cardScroll"] == 0, geometry
+    assert not geometry["panelOpen"], geometry
+
+    send = preview.get_by_role("button", name="Send")
+    send.focus()
+    page.evaluate("() => dispatchEvent(new Event('resize'))")
+    expect(send).to_be_focused()
+
+    resized(page, 1440, 480)
+    capped = preview.evaluate(
+        """card => {
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          const box = card.getBoundingClientRect();
+          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
+                  clientHeight: card.clientHeight, scrollHeight: card.scrollHeight};
+        }"""
+    )
+    assert capped["top"] >= capped["bannerBottom"] + 7, capped
+    assert capped["bottom"] <= 472.5, capped
+    assert capped["scrollHeight"] > capped["clientHeight"], capped
+    resized(page, 1440, 900)
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Escape")
+
+    preview.get_by_role("button", name="Open interactive reply in Threads").click()
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.get_by_role("button", name="Close threads").click()
+    marker.focus()
+    page.keyboard.press("Enter")
+    focused = page.locator(".lf-margin-preview textarea:focus")
+    expect(focused).to_be_visible()
+    focus_geometry = focused.evaluate(
+        """node => {
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          const box = node.getBoundingClientRect();
+          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
+                  inPreview: Boolean(node.closest('.lf-margin-preview'))};
+        }"""
+    )
+    assert focus_geometry["inPreview"], focus_geometry
+    assert focus_geometry["top"] >= focus_geometry["bannerBottom"], focus_geometry
+    assert focus_geometry["bottom"] <= 900, focus_geometry
+    panel_settled(page, open=False)
+    marker.focus()
+
+    resized(page, 1208, 900)
+    beside = page.evaluate(
+        """() => {
+          const main = document.querySelector('main').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return {mainRight: main.right, cardLeft: card.left,
+                  cardRight: card.right, cardWidth: card.width};
+        }"""
+    )
+    assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
+    assert beside["cardRight"] <= 1208.5, beside
+    assert beside["cardWidth"] >= 459, beside
+
+    assert errors == []
+    resized(page, 1207, 900)
+    expect(page.locator(".lf-margin-thread")).to_have_count(0)
+    expect(preview.locator(".lf-margin-preview-action")).to_have_count(1)
+    preview.locator(".lf-margin-preview-action").click()
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.get_by_role("button", name="Close threads").click()
+    marker.hover()
+    expect(preview).to_be_hidden()
+    marker.click()
+    expect(preview.locator(".lf-margin-preview-action")).to_have_count(1)
+    expect(preview).to_be_visible()
+
+    assert errors == []
+    page.close()
+
+
 def test_an_unpinned_preview_leaves_with_keyboard_focus(browser, serve):
     """A preview reached from the margin is a stop on the page's Tab walk, not a layer
     left over the control the reader reaches next."""
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     preview = page.locator(".lf-margin-preview")
 
@@ -648,6 +808,7 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION])
     )
+    resized(page, 1440, 900)
 
     # The strip is a claim main resolves from the shell, so it is read off main rather
     # than off body's padding. A custom property computes to its unresolved expression,
@@ -666,11 +827,72 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
             }"""
         )
 
-    assert strip_right() == 57
+    assert strip_right() == pytest.approx(57, abs=0.5)
 
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)
-    assert strip_right() == 384
+    assert strip_right() == pytest.approx(520, abs=0.5)
+
+    assert errors == []
+    page.close()
+
+
+def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
+    browser, serve
+):
+    """A tray or authored sidebar spends room before the contextual thread does."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    marker.click()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+
+    page.locator(".lf-decisions").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-tray", "decisions")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    marker.click()
+    expect(page.locator(".lf-margin-thread")).to_have_count(0)
+    expect(page.locator(".lf-margin-preview-action")).to_have_count(2)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+    page.locator(".lf-margin-preview-close").click()
+    page.locator(".lf-decisions").click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-tray", "decisions")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    marker.click()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+    assert errors == []
+    page.close()
+
+    sidebar_page = DECISION_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page, errors = open_page(
+        browser,
+        serve(sidebar_page, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION]),
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    marker.click()
+    expect(page.locator(".lf-margin-thread")).to_have_count(0)
+    expect(page.locator(".lf-margin-preview-action")).to_have_count(2)
+    resized(page, 1472, 900)
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    composition = page.evaluate(
+        """() => {
+          const main = document.querySelector('main').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return {mainWidth: main.width - 48, mainRight: main.right,
+                  cardLeft: card.left, cardRight: card.right};
+        }"""
+    )
+    assert composition["mainWidth"] >= 639.5, composition
+    assert composition["mainRight"] <= composition["cardLeft"] + 0.5, composition
+    assert composition["cardRight"] <= 1472.5, composition
 
     assert errors == []
     page.close()
@@ -824,6 +1046,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.click()
     actions = page.locator(".lf-margin-preview-action")
@@ -859,6 +1082,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
         DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION]
     )
     page, errors = open_page(browser, live_url(version_url))
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.focus()
     expect(marker).to_be_focused()
@@ -880,6 +1104,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
         DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION]
     )
     page, errors = open_page(browser, live_url(version_url))
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.click()
     action = page.locator(".lf-margin-preview-action")

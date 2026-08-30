@@ -47,6 +47,7 @@ export function createTrays({
   readerStore,
   renderDecisions,
   syncLayout,
+  trayChanged,
   walkRows,
 }) {
   // The rows' own box, one per tray. Collected privately as they are made, because what
@@ -181,6 +182,7 @@ export function createTrays({
     // page's own box.
     if (key) document.body.dataset.lfTray = key;
     else delete document.body.dataset.lfTray;
+    trayChanged();
     paintKeys();
   }
   // Registration only. No tray opens while this factory evaluates: showTray runs from a
@@ -216,6 +218,7 @@ export function createTrays({
     // (an exported or pre-presented DOM) can restore immediately through the same function.
     trayUp = readerStore.get(TRAY_KEY) || null;
     if (trayUp) document.body.dataset.lfTray = trayUp;
+    trayChanged();
     if (pagePresented()) restoreTray();
   }
 

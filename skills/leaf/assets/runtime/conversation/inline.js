@@ -47,7 +47,11 @@ export function createInlineConversations({
     node.lfRevision = message.edited?.id ?? "";
     node.append(head, body);
     if (message.markup) {
-      const open = offer("button", "lf-btn lf-conversation-open", "Open in Threads");
+      const open = offer(
+        "button",
+        "lf-btn lf-conversation-open",
+        "Open interactive reply in Threads",
+      );
       open.onclick = () => showThread(message.id);
       node.append(open);
     }

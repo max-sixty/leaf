@@ -1175,6 +1175,12 @@ ${MARK_RULES}
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+    .lf-margin-preview[data-lf-thread] { position-area: inline-end;
+      position-try-fallbacks: none; align-self: start;
+      width: min(var(--thread-card), calc(100vw - 24px));
+      max-height: calc(100dvh - var(--lf-banner-h) - 16px);
+      margin: calc(var(--lf-banner-h) + 8px) 8px 8px;
+      border-left: 3px solid var(--mark-ink); }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
       justify-content: space-between; gap: 12px; }
     .lf-margin-preview-title { font-size: var(--t-5); line-height: 1.35; }
@@ -1189,8 +1195,6 @@ ${MARK_RULES}
     .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
     .lf-margin-thread .lf-say { align-items: flex-end; }
     .lf-margin-thread .lf-say textarea { min-width: 0; }
-    .lf-margin-thread-open { display: block; margin: 8px 0 0 auto; color: var(--muted);
-      font-size: var(--t-6); }
     .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

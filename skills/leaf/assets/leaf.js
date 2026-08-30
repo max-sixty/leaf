@@ -727,6 +727,7 @@ const {
 } = createTrays({
   beforeOpen: () => {
     if (chromeLayout?.panelIsOpen()) setPanel(false);
+    livingMargin?.closePreview();
   },
   drawnEdge,
   el,
@@ -740,6 +741,7 @@ const {
   readerStore,
   renderDecisions: () => renderDecisions(openDecisions()),
   syncLayout,
+  trayChanged: () => livingMargin?.render(),
   walkRows,
 });
 const { leavesOffered, othersLinks, renderOthers } = createLiveLeaves({
@@ -1142,6 +1144,9 @@ chromeLayout = createChromeLayout({
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
   panel,
+  panelChanged: (open) => {
+    if (open) livingMargin?.closePreview();
+  },
   panelFocusTarget: threadsBox,
   panelFoot,
   panelList: threadsBox,
@@ -3412,12 +3417,14 @@ livingMargin = createLivingMargin({
   keys,
   offer,
   openDecisions,
+  panelIsOpen: chromeLayout.panelIsOpen,
   pageScroller,
   paintKeys,
   placedAt,
   renderMarginThread: conversationRuntime.renderMarginThread,
   scrollBehavior,
   scrollToElement,
+  setPanel,
   showThread,
   stateProjection,
   threads: () => conversationRuntime.threadList,

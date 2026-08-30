@@ -2,9 +2,10 @@
  * rendering; the page binds that input to a source, while Leaf delivers its validated
  * snapshot and keeps datum comments attached across replacement. */
 import {
-  PRESS,
+  DISCLOSE,
   ago,
   keys,
+  paintKeys,
   projectData,
   relabel,
   selectableOffer,
@@ -52,13 +53,23 @@ function renderDatum(tree, record, prior) {
       tree.toggleAttribute("data-lf-open");
       tree.show(tree.snapshot);
     });
+    // Which way it stands, before the scope below reads it: a button wearing
+    // aria-expanded is ARIA's disclosure pattern, and that pair is what `DISCLOSE`
+    // answers from. The line below sets the live value on every render; this is the one
+    // at birth, so the head is never briefly a control the runtime cannot place.
+    head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
+    // The press the runtime's disclosure scope already owns, re-worded in this widget's
+    // terms and binding nothing: the arrows are that scope's, and a `run` over them
+    // would make them a second toggle rather than a direction. Its keys come from
+    // `DISCLOSE` rather than from `PRESS`, which is what that primitive is for — a
+    // nearer scope keeps only the keys it names, so the pair alone took the arrow off
+    // the line while it went on working.
     keys(head, "On worktree evidence", [
       {
         id: "worktree.toggle",
-        keys: PRESS,
+        keys: () => DISCLOSE(head),
         does: "Open or close the worktree evidence",
-        line: "open or close",
-        run: () => head.click(),
+        line: () => (tree.hasAttribute("data-lf-open") ? "close" : "open"),
       },
     ]);
     datum.prepend(head);
@@ -70,7 +81,15 @@ function renderDatum(tree, record, prior) {
       : `${tree.hasAttribute("data-lf-open") ? "▾" : "▸"} ${summary(record)}`,
     { says: true },
   );
-  head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
+  // The row's bindings answer from this attribute, and `aria-keyshortcuts` is written
+  // once when the scope is declared: without a repaint it keeps whichever way the tree
+  // was standing then, naming the arrow that no longer moves it and withholding the one
+  // that does. Only on a change, since every data update renders this head again.
+  const standing = String(tree.hasAttribute("data-lf-open"));
+  if (head.getAttribute("aria-expanded") !== standing) {
+    head.setAttribute("aria-expanded", standing);
+    paintKeys();
+  }
 
   let source = datum.querySelector(":scope > .lf-worktree-source");
   if (!source) {

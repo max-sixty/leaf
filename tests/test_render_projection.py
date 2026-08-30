@@ -64,6 +64,7 @@ from render_support import (
     compare_with,
     composer_quote,
     drifting_widget,
+    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -3206,6 +3207,54 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
         """worker => [...worker.children].map(child => child.classList.contains('lf-agent-line')
           ? 'line' : child.id).filter(Boolean)"""
     ) == ["line", "proof"]
+    assert errors == []
+    page.close()
+
+
+def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
+    """The head is a disclosure, so the keys that work it are `DISCLOSE`'s answer and not
+    a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
+    and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
+    Space alone took the arrow off both surfaces while the arrow went on opening the
+    tree — the shape `skills/leaf/CLAUDE.md` names as one promise rather than two.
+
+    Both surfaces, and both readings of each, because they fail apart: the line has a
+    watch on the attribute and `aria-keyshortcuts` is written once when the scope is
+    declared, so a head that repaints the line still tells a screen reader about the
+    arrow that no longer moves anything. Read once and never retried, for the reason
+    `key_line` is: the heartbeat repaints scopes too, and an assertion that retries goes
+    green on whichever tick lands inside its budget."""
+    command = leaf_page(
+        "worker evidence",
+        """
+<lf-roster id="team">
+  <lf-agent id="worker" state="working"><strong>worker</strong> Owns the remit.
+    <lf-worktree id="proof" source="atlas-worktrees"></lf-worktree>
+  </lf-agent>
+</lf-roster>
+""",
+    )
+    page, errors = open_page(browser, serve(command))
+    head = page.locator("#proof > .lf-worktree-snapshot > .lf-worktree-head")
+    head.focus()
+
+    expect(head).to_have_attribute("aria-expanded", "false")
+    assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    said = key_line(page)
+    assert re.search(r"⏎ / space / →\s*open", said), said
+
+    page.keyboard.press("ArrowRight")
+    expect(head).to_have_attribute("aria-expanded", "true")
+    said = key_line(page)
+    assert re.search(r"⏎ / space / ←\s*close", said), said
+    assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
+
+    # A direction and not a toggle: the press that must change nothing follows one that
+    # changed something, so a scope answering nothing at all could not pass this.
+    page.keyboard.press("ArrowRight")
+    expect(head).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowLeft")
+    expect(head).to_have_attribute("aria-expanded", "false")
     assert errors == []
     page.close()
 

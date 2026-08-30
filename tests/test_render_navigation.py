@@ -1906,19 +1906,18 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 
 
 def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, serve):
-    """What makes a press is `offer`'s own answer, and nothing that can be overwritten on
-    the way past. A tab is built by `offer("button", …)` and then wears `role="tab"`,
-    because that is what its strip is; its own scope declares the arrows and Home/End and
-    says nothing about Enter or Space, so the control scope is the only thing that gives a
-    tab a press at all — and the only thing that consumes Space, which is the page's
-    scroll.
+    """A tab is built by `offer("button", …)` and then wears `role="tab"`, because that is
+    what its strip is. The press it keeps is the strip's own row, declared beside the
+    arrows and Home/End that walk it, and it is the only thing that consumes Space —
+    which is otherwise the page's scroll.
 
-    Read off the role, that scope stopped seeing tabs: Enter did nothing and Space threw
-    the reader down the page from a control that looked like it had answered. Read off the
-    tabindex, which is the reading before it, the same scope claimed every focus target
-    `offer` builds, and led with "press it" over a conversation thread that answers
-    nothing. So the marker is the one `offer` writes for this and a widget has no reason
-    to touch.
+    That row is what a page-wide control scope used to supply, and the scope was the wrong
+    place for it: read off the role it stopped seeing tabs, so Enter did nothing and Space
+    threw the reader down the page from a control that looked like it had answered; read
+    off the tabindex it claimed every focus target `offer` builds and led with a press over
+    a conversation thread that answers nothing. Declared where the strip is, the press
+    cannot be lost to a rename or promised where nothing runs it, and the word on the line
+    is the strip's own — it names the tab rather than the control.
 
     Asserted from the state where the press is the only way back: the tab strip is walked
     with arrows, so a focused tab is usually the selected one. Revealing the *other* panel
@@ -1940,7 +1939,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
 
     # The line names the press, and the press re-selects the tab the reader is standing on.
-    expect(page.locator(".lf-keyline")).to_contain_text("press it")
+    expect(page.locator(".lf-keyline")).to_contain_text("open the tab")
     page.keyboard.press("Enter")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 

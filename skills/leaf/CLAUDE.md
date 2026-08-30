@@ -1623,10 +1623,14 @@ lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
 is often repeated or held. `d` and `u` move down and up by 60% of the reading page,
 leaving native Space free for the platform and focused controls. Other letters come
-from words the surface says: `w` narrows to threads waiting on the reader, while panel
+from words the surface says: `w` narrows to threads waiting on the reader, while direct
 destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
-Threads, Asks, and All leaves. A key spelling something nothing on screen says is a
-key nobody reaches for twice.
+Threads, Asks, and All leaves, and `g M` enters the Page map at its roving marker.
+Where the margin rail has left the compact layout, the same destination opens the complete
+Page-map sheet. A key spelling something nothing on screen says is a key nobody reaches for twice.
+Approval spends no page letter: its visible button is in the Tab order and takes native
+Enter or Space. In particular, a conditional chord mnemonic must not share its final key
+with a page action, or a dead destination can fall through into a different operation.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
@@ -2126,8 +2130,11 @@ region.
 
 ### Go-to chord
 
-`g` opens one destination mode. `T`, `A`, and `L` complete a direct trip to
-Threads, Asks, and All leaves. `m`, `h`, and `f` name the page's numbered
+`g` opens one destination mode. `T`, `A`, `L`, and `M` complete a direct trip to
+Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
+`M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
+available, or opens the complete sheet where the compact layout has no rail. `m`, `h`,
+and `f` name the page's numbered
 page-map marker, hyperlink, and fold lists, and a decimal number names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
@@ -2135,7 +2142,7 @@ place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
 An edge is one place, so the second key is the whole address; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
-`PANEL_DESTINATIONS` is the direct panel vocabulary. Each entry declares its
+`DIRECT_DESTINATIONS` is the direct-travel vocabulary. Each entry declares its
 mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
 vocabulary. Each entry declares:
 

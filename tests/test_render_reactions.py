@@ -349,10 +349,18 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
 
     page.keyboard.press("r")
     page.keyboard.press("ArrowLeft")
-    expect(
-        page.locator('.lf-margin-reactions .lf-react[data-token="this"]')
-    ).to_be_focused()
-    page.keyboard.press("Enter")
+    reaction = page.locator('.lf-margin-reactions .lf-react[data-token="this"]')
+    expect(reaction).to_be_focused()
+    page.evaluate("() => window.lfTestReactionClicked = false")
+    reaction.evaluate(
+        "button => button.addEventListener('click', () => "
+        "window.lfTestReactionClicked = true, {once: true})"
+    )
+    # The register owns Space on keydown. A miss here can look healthy after keyup,
+    # because Chromium's native button behavior then supplies a click of its own.
+    page.keyboard.down("Space")
+    assert page.evaluate("() => window.lfTestReactionClicked")
+    page.keyboard.up("Space")
     round_trip(page)
     expect(page.locator(".lf-live")).to_contain_text("this on Start request")
 

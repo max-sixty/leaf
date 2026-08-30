@@ -129,7 +129,8 @@
  * the current result into an ordinary native selection. Both routes end at the same
  * passage or item the pointer path uses, so the existing `c` comments on it and no second
  * anchor vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
- * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves.
+ * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
+ * `g M` enters the Page map at its roving marker, or its complete compact sheet.
  * `g m 3` opens the third page-map marker in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
@@ -1886,6 +1887,7 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   banner,
   claimsEsc,
   el,
+  enterPageMap: () => livingMargin?.enterPageMap(),
   focused,
   focusedThread,
   glideTo,
@@ -1898,6 +1900,7 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   othersLinks,
   othersPanel,
   pageParts,
+  pageMapOffered: () => livingMargin?.pageMapOffered() ?? false,
   paintHere,
   panelCovers,
   placeThreadEdge,
@@ -1952,6 +1955,7 @@ const {
 } = createReactions({
   CONTROL_WORD_CAP,
   EVERYTHING,
+  PRESS,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
   claimsEsc,
@@ -2602,15 +2606,6 @@ const PAGE = {
       line: "page up",
       repeat: true,
       run: () => stepPage(-0.6),
-    },
-    {
-      id: "version.approve",
-      keys: ["Shift+l"],
-      does: "Approve this version",
-      line: "looks good",
-      also: approveBtn,
-      when: () => signoff && !approveBtn.disabled,
-      run: () => approveBtn.click(),
     },
     {
       // The last thing the reader did to this page, put back. Its own key rather

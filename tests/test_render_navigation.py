@@ -1066,6 +1066,8 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(line).to_contain_text("Threads panel")
     expect(line).to_contain_text("A")
     expect(line).to_contain_text("Asks panel")
+    expect(line).to_contain_text("M")
+    expect(line).to_contain_text("Page map")
     expect(line).to_contain_text("m 1–3")
     expect(line).to_contain_text("page-map markers")
     expect(line).to_contain_text("h 1–2")
@@ -1131,8 +1133,34 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     expect(page.locator(".lf-decisions-row").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    asks_help = page.locator(".lf-help-section").filter(
+        has=page.get_by_role("heading", name="In the Asks tray", exact=True)
+    )
+    expect(asks_help.get_by_text("Previous ask", exact=True)).to_have_count(1)
+    expect(asks_help.get_by_text("Next ask", exact=True)).to_have_count(1)
+    expect(asks_help).not_to_contain_text(re.compile(r"decision", re.IGNORECASE))
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-decisions-panel")).not_to_be_visible()
+
+    # Uppercase M enters the Page map itself. Its existing roving-focus keys are live
+    # immediately; lowercase m continues to address and open an individual marker.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(page.locator(".lf-margin-marker:focus")).to_have_count(1)
+    assert page.locator(".lf-margin-marker:focus").evaluate(
+        """row => {
+          const box = row.getBoundingClientRect();
+          return box.bottom > 0 && box.top < innerHeight;
+        }"""
+    )
+    expect(line).to_contain_text("walk the page map")
+    expect(line).to_contain_text("first marker")
+    expect(line).to_contain_text("last marker")
+    page.keyboard.press("Escape")
 
     # Margin markers are the page map's right-hand blobs. Their addresses open the
     # same preview as the marker itself, including a thread anchored at that location.
@@ -2383,6 +2411,10 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {id: 'test.noncanonical', keys: ['Shift+Mod+x'], does: 'Noncanonical binding',
                line: 'work', run: () => {}},
             ]),
+            namedSpace: declare('named-space', [
+              {id: 'test.named-space', keys: ['Space'], does: 'Named space binding',
+               line: 'work', run: () => {}},
+            ]),
             immediateTransaction: keptInvalid('kept-immediate'),
             gatedTransaction: keptInvalid('kept-gated', () => true),
           };
@@ -2405,6 +2437,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         "upWithoutShift": False,
     }, answers
     assert "write the canonical Mod+Shift+x" in answers["noncanonical"], answers
+    assert 'write the canonical " "' in answers["namedSpace"], answers
     assert "two live meanings for F4" in answers["immediateTransaction"]["declaration"]
     assert answers["immediateTransaction"]["paints"] == ["painted", "painted"]
     assert answers["gatedTransaction"]["declaration"] == "declared"
@@ -2458,8 +2491,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page.close()
 
 
-def test_the_signoff_key_approves_the_version(browser, serve):
-    """The page-level decision has a direct, intentional key from its visible label."""
+def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, serve):
+    """Approval is a button action; a dead chord destination cannot turn into it."""
     html = NOTED_PAGE.replace(
         '<script type="module" src="/leaf.js"></script>',
         '<meta name="lf-review" content="sign-off">\n'
@@ -2467,12 +2500,22 @@ def test_the_signoff_key_approves_the_version(browser, serve):
     )
     page, errors = open_page(browser, serve(html))
     approve = page.locator(".lf-signoff")
-    expect(approve).to_have_attribute("aria-keyshortcuts", "Shift+l")
+    expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
 
+    # All leaves is conditional. With no neighbouring leaf, its chord must not be
+    # reinterpreted as a page action carrying the same final key.
+    page.keyboard.press("g")
     page.keyboard.press("Shift+l")
+    expect(approve).to_have_text("Approve version")
+    assert not [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"
+    ]
+
+    approve.focus()
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(approve).to_have_text("✓ Version approved")
-    expect(approve).not_to_have_attribute("aria-keyshortcuts", "Shift+l")
+    expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     assert "(L)" not in approve.get_attribute("title")
     done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
     assert len(done) == 1, done

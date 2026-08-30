@@ -15,6 +15,7 @@ export function paintReactionStanding(strip, standing) {
 export function createReactions({
   CONTROL_WORD_CAP,
   EVERYTHING,
+  PRESS,
   anchorLabel,
   announce,
   claimsEsc,
@@ -379,7 +380,7 @@ export function createReactions({
       {
         id: "reaction.activate",
         runFromReference: false,
-        keys: ["Enter", "Space"],
+        keys: PRESS,
         does: "Use the focused reaction",
         line: "choose",
         when: () => Boolean(focused()?.closest?.(".lf-react-palette .lf-react")),

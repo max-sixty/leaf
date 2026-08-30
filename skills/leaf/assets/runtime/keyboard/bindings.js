@@ -100,7 +100,11 @@ const COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
 // the identity remains here too so every defensive conflict check compares meanings rather
 // than source spelling.
 export const canonicalBinding = (binding) => {
-  const { key, mods } = parsed(binding);
+  const { key: declaredKey, mods } = parsed(binding);
+  // KeyboardEvent names Space with a literal blank. "Space" is ARIA's spelling and a
+  // tempting declaration, but `answers` can never match it; turn that known alias into
+  // the real key here so the declaration edge can reject it with a useful correction.
+  const key = declaredKey === "Space" ? " " : declaredKey;
   const letter = key.length === 1 && key.toLowerCase() !== key.toUpperCase();
   const named = key === " " || key.length > 1;
   const canonicalKey = letter ? key.toLowerCase() : key;
@@ -252,7 +256,9 @@ export function checked(rows, where) {
       const canonical = canonicalBinding(binding);
       if (binding !== canonical)
         throw new Error(
-          `leaf: row ${i} of ${where} binds ${binding}; write the canonical ${canonical}`,
+          `leaf: row ${i} of ${where} binds ${binding}; write the canonical ${
+            canonical.endsWith(" ") ? JSON.stringify(canonical) : canonical
+          }`,
         );
     }
   });

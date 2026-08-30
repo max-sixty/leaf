@@ -168,9 +168,9 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
     expect(button).to_have_attribute(
-        "title", "Approve this work; the page stays open for follow-up (L)"
+        "title", "Approve this work; the page stays open for follow-up"
     )
-    expect(button).to_have_attribute("aria-keyshortcuts", "Shift+l")
+    expect(button).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))

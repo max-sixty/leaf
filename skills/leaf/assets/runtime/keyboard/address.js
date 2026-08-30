@@ -10,6 +10,7 @@ export function createAddress({
   banner,
   claimsEsc,
   el,
+  enterPageMap,
   focused,
   focusedThread,
   glideTo,
@@ -22,6 +23,7 @@ export function createAddress({
   othersLinks,
   othersPanel,
   pageParts,
+  pageMapOffered,
   paintHere,
   panelCovers,
   placeThreadEdge,
@@ -34,9 +36,9 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. An uppercase mnemonic completes a panel destination (`g T`
-  // Threads, `g A` Asks, `g L` All leaves), while a numbered list takes a following decimal place
-  // (`g h 3` is the third hyperlink and `g f 2` the second fold). Repeated movement
+  // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
+  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a numbered list takes a
+  // following decimal place (`g h 3` is the third hyperlink and `g f 2` the second fold). Repeated movement
   // through threads and asks belongs to their single-key category walks, t/T and a/A, so
   // those categories do not also carry numbered addresses.
   //
@@ -80,10 +82,10 @@ export function createAddress({
   // `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
   // the count a reader wants under `g` is of the sections the author wrote.
 
-  // One-off panel travel is one vocabulary too. The mnemonic completes the trip, and
-  // every destination owns the liveness and landing that make its panel useful rather
-  // than leaving the dispatcher to know which furniture it opens.
-  const PANEL_DESTINATIONS = [
+  // One-off direct travel is one vocabulary too. The mnemonic completes the trip, and
+  // every destination owns the liveness and landing that make its surface useful rather
+  // than leaving the dispatcher to know which furniture it enters.
+  const DIRECT_DESTINATIONS = [
     {
       id: "navigation.panel.threads",
       key: "Shift+t",
@@ -116,6 +118,14 @@ export function createAddress({
         showTray("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
+    },
+    {
+      id: "navigation.page-map",
+      key: "Shift+m",
+      does: "Go to the Page map",
+      line: "Page map",
+      when: pageMapOffered,
+      go: enterPageMap,
     },
   ];
   const ADDRESSES = [
@@ -459,7 +469,7 @@ export function createAddress({
           letGo();
         },
       },
-      ...PANEL_DESTINATIONS.map((destination) => ({
+      ...DIRECT_DESTINATIONS.map((destination) => ({
         id: destination.id,
         keys: [destination.key],
         label: spell(destination.key),

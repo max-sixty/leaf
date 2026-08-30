@@ -527,11 +527,11 @@ customElements.define(
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
       this.#row.onclick = () => this.#open(!this.#isOpen, true);
-      keys(this.#row, "In a settled decision", [
+      keys(this.#row, "In a settled ask", [
         {
           id: "option.toggle-settled",
           keys: PRESS,
-          does: "Open or close the settled decision",
+          does: "Open or close the settled ask",
           line: "open or close",
           run: () => this.#row.click(),
         },

@@ -231,7 +231,7 @@ export function createTrays({
   // button — so the scope names what walking does and leaves the press to the button.
   keys(
     decisionsPanel,
-    "In the decisions tray",
+    "In the Asks tray",
     [
       {
         id: "decision.list-walk",
@@ -240,12 +240,12 @@ export function createTrays({
           {
             id: "decision.row-previous",
             binding: "ArrowUp",
-            does: "Previous decision",
+            does: "Previous ask",
           },
-          { id: "decision.row-next", binding: "ArrowDown", does: "Next decision" },
+          { id: "decision.row-next", binding: "ArrowDown", does: "Next ask" },
         ],
-        does: "Walk the decisions",
-        line: "walk the decisions",
+        does: "Walk the asks",
+        line: "walk the asks",
         repeat: true,
         run: (binding) => walkRows(decisionRows(), binding === "ArrowDown" ? 1 : -1),
       },

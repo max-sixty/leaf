@@ -285,6 +285,7 @@ export function createLivingMargin(dependencies) {
   let pageMapEntries = [];
   let previewEntry = null;
   let previewButton = null;
+  let previewShowing = false;
   let pinnedKey = null;
   let suppressedKey = null;
   let cardHovered = false;
@@ -556,6 +557,33 @@ export function createLivingMargin(dependencies) {
         control.checkVisibility(),
     );
     action?.focus({ preventScroll: true });
+  }
+
+  // Enter the rail without opening one addressed item. The roving marker is already the
+  // Page map's reading position; prefer its visible member so the Arrow/Home/End scope is
+  // live on arrival, and repair the tab stop when an earlier layout has not painted one.
+  function focusPageMap() {
+    const available = availableRows();
+    if (!available.length) return false;
+    const visible = visibleRows();
+    const candidates = visible.length ? visible : available;
+    const next = candidates.find((row) => row.tabIndex === 0) ?? candidates[0];
+    if (!visible.length && next.lfEntry?.target)
+      scrollToElement(next.lfEntry.target, "instant", "nearest");
+    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    next.focus({ preventScroll: true });
+    return true;
+  }
+
+  function pageMapOffered() {
+    return pageMapEntries.length > 0;
+  }
+
+  // The Page map has one capability and two responsive surfaces. The margin rail is the
+  // direct reading position where it exists; the compact sheet is the complete map where
+  // the rail has deliberately left the layout.
+  function enterPageMap() {
+    if (!focusPageMap() && pageMapOffered()) openSheet();
   }
 
   function focusMapControl(entry = null) {
@@ -955,7 +983,7 @@ export function createLivingMargin(dependencies) {
     highlighted?.classList.add("lf-margin-target");
   }
 
-  function showPreview(entry, button) {
+  function showPreview(entry, button, retry = true) {
     if (!entry || suppressedKey === entry.key) return;
     if (previewEntry?.key !== entry.key) buildPreview(entry);
     if (previewButton && previewButton !== button)
@@ -963,7 +991,29 @@ export function createLivingMargin(dependencies) {
     previewEntry = entry;
     previewButton = button;
     button.style.setProperty("anchor-name", "--lf-margin-preview");
-    if (!preview.matches(":popover-open")) preview.showPopover({ source: button });
+    // Focusing a marker can synchronously rebuild the preview, which may bring the same
+    // focus route back through here while the browser is still in its show operation.
+    // The open pseudo-class is not observable until that operation completes.
+    if (!preview.matches(":popover-open") && !previewShowing) {
+      previewShowing = true;
+      try {
+        preview.showPopover({ source: button });
+      } catch (error) {
+        // Chromium also refuses a second popover operation in the same rendering turn,
+        // even when it belongs to another surface. Keep the requested marker current and
+        // try the show once that turn has settled; a focus move meanwhile cancels it, and
+        // focus remains a usable Page-map arrival if the browser still refuses the preview.
+        if (!(error instanceof DOMException) || error.name !== "InvalidStateError")
+          throw error;
+        if (retry)
+          requestAnimationFrame(() => {
+            if (previewButton === button && button.isConnected)
+              showPreview(entry, button, false);
+          });
+      } finally {
+        previewShowing = false;
+      }
+    }
     highlight(entry.target);
     for (const [key, row] of rows) {
       row.setAttribute("aria-expanded", String(key === entry.key));
@@ -1085,7 +1135,6 @@ export function createLivingMargin(dependencies) {
     });
     paintKeys();
   }
-
   mapButton.onclick = () => openSheet();
   sheet.addEventListener("close", () => {
     paintKeys();
@@ -1151,5 +1200,12 @@ export function createLivingMargin(dependencies) {
   });
   render();
 
-  return { marginTargetAt, openPageMapItem, pageMapItems, render };
+  return {
+    enterPageMap,
+    marginTargetAt,
+    openPageMapItem,
+    pageMapItems,
+    pageMapOffered,
+    render,
+  };
 }

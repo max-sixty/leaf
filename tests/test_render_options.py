@@ -306,6 +306,19 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     assert row.inner_text().startswith("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
 
+    row.focus()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    settled_help = page.locator(".lf-help-section").filter(
+        has=page.get_by_role("heading", name="In a settled ask", exact=True)
+    )
+    expect(
+        settled_help.get_by_text("Open or close the settled ask", exact=True)
+    ).to_have_count(1)
+    expect(settled_help).not_to_contain_text(re.compile(r"decision", re.IGNORECASE))
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
     row.click()
     opened = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 3

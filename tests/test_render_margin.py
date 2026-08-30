@@ -715,9 +715,12 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     ), "the small-screen map is not beside the primary feedback controls"
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
-    toggle.click()
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("Page map")
+    page.keyboard.press("Shift+m")
     sheet = page.locator(".lf-page-map-sheet")
     expect(sheet).to_be_visible()
+    expect(sheet.get_by_role("button", name="Close")).to_be_focused()
     expect(sheet.locator(".lf-page-map-action").first).to_have_css("min-height", "44px")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 

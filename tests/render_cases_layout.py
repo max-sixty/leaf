@@ -623,16 +623,18 @@ def ceiling(limit, approvals):
 UNANSWERED_CODE_PAGE = COLORED_CODE_PAGE.replace(
     "</head>", "<style>[data-lf-syn] { color: inherit; }</style>\n</head>"
 )
-# What --syn-comment carried until this gate was written: 3.3:1 on --pre-bg, and the
-# reading a user reported as the highlighting being gone.
+# What --syn-comment carried until this gate was written: under 4.5:1 on --pre-bg, and
+# the reading a user reported as the highlighting being gone. The colour is stated and
+# the ratio is not, because the ratio is a reading of whatever --pre-bg currently is.
 FAINT_CODE_PAGE = COLORED_CODE_PAGE.replace(
     "</head>", '<style>[data-lf-syn="cm"] { color: #8b8577; }</style>\n</head>'
 )
 
 # A role that reads on the block and not on the tint one of its lines wears. The clean
-# line comes first on purpose: a gate that stopped at a role's first span would take the
-# 7.9:1 reading and never reach the 1.6:1 one two lines down, and a walkthrough's hi band
-# is the surface where a code line is most often set on something other than --pre-bg.
+# line comes first on purpose: a gate that stopped at a role's first span would take that
+# line's reading, which clears the threshold, and never reach the one two lines down, and
+# a walkthrough's hi band is the surface where a code line is most often set on something
+# other than --pre-bg.
 TINTED_LINE_PAGE = LONG_PAGE.replace(
     "</head>", "<style>:root { --hi-tint: #6f6a60; }</style>\n</head>"
 ).replace(

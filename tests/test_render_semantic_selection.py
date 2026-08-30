@@ -241,6 +241,48 @@ def test_nested_item_hints_do_not_cover_each_other(browser, serve):
     page.close()
 
 
+def test_selection_hints_name_only_items_shown_by_a_disclosure(browser, serve):
+    """A shut disclosure keeps its own hint but not hints for its contents. The same
+    rule applies after a prefix narrows the open disclosure's map."""
+    inside = "".join(f'<span id="inside-{i}">{i}</span>' for i in range(30))
+    html = leaf_page(
+        "disclosed targets",
+        f"""
+<h1 id="title">Visible targets</h1>
+<details id="evidence">
+  <summary>Supporting evidence</summary>
+  <div class="target-grid">{inside}</div>
+</details>
+""",
+        head="""
+<style>
+.target-grid { display: grid; grid-template-columns: repeat(10, 2rem); gap: 4px; }
+.target-grid span { display: block; }
+</style>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(2)  # heading and disclosure
+
+    page.keyboard.press("Escape")
+    page.locator("summary").click()
+    page.keyboard.press("s")
+    expect(hints).to_have_count(32)
+
+    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfTarget)")
+    tail = next(code for code in codes if len(code) > 1)
+    page.keyboard.press(tail[0])
+    expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    page.locator("summary").click()
+    expect(hints).to_have_count(0)
+
+    assert errors == []
+    page.close()
+
+
 def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
     """A declared picture part outranks its enclosing item without changing what aim
     means. Choosing its hint raises the shared action bar; Comment then opens the

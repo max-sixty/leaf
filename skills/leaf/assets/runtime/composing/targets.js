@@ -33,6 +33,7 @@ export function createTargetSelection({
   selectionLayer,
   selectionSearch,
   selectionStatus,
+  shownParts,
   shownRect,
   updateFab,
 }) {
@@ -67,6 +68,11 @@ export function createTargetSelection({
     const y = Math.max(covered(), Math.min(innerHeight - 1, box.top + 1));
     return !inChrome(document.elementFromPoint(x, y));
   };
+  // Chromium retains geometry for descendants suppressed by a closed disclosure.
+  // Require a part the browser paints before that stale box can enter or remain in the
+  // hint map. shownParts keeps display: contents items eligible through visible children.
+  const targetShown = ({ element }) =>
+    shownParts(element).some((part) => part.checkVisibility());
 
   function clippedRect(box, clip) {
     if (!box || !clip) return null;
@@ -113,6 +119,7 @@ export function createTargetSelection({
     const cache = clips();
     const targets = aimTargets()
       .filter(({ element }) => !inChrome(element))
+      .filter(targetShown)
       .map((target) => ({ ...target, rect: shownRect(target.element, cache) }))
       .filter(({ rect }) => exposed(rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
@@ -398,6 +405,7 @@ export function createTargetSelection({
       const cache = clips();
       for (const target of candidates) {
         if (!target.code.startsWith(prefix)) continue;
+        if (!targetShown(target)) continue;
         const rect = refreshed ? target.rect : shownRect(target.element, cache);
         if (!exposed(rect)) continue;
         const chip = hintChip(target);

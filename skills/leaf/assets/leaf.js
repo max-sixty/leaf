@@ -1953,6 +1953,7 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     selectionLayer,
     selectionSearch,
     selectionStatus,
+    shownParts,
     shownRect: (...args) => shownRect(...args),
     updateFab,
   });

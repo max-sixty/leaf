@@ -27,7 +27,6 @@ export function createAddress({
   othersPanel,
   pageMapItems,
   pageParts,
-  pageMapOffered,
   paintHere,
   panelCovers,
   placeThreadEdge,
@@ -183,7 +182,7 @@ export function createAddress({
       key: "Shift+m",
       does: "Go to the Page map",
       line: "Page map",
-      when: pageMapOffered,
+      when: () => true,
       go: enterPageMap,
     },
   ];

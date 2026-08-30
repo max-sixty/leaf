@@ -1602,6 +1602,30 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     page.close()
 
 
+def test_the_g_chord_opens_an_empty_page_map(browser, serve):
+    """A destination with no locations still shows that the command worked."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Empty page map", "<h1>Empty page map</h1><p>No activity yet.</p>"
+            )
+        ),
+    )
+
+    expect(page.locator(".lf-page-map-action")).to_have_count(0)
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("Page map")
+    page.keyboard.press("Shift+m")
+
+    sheet = page.locator(".lf-page-map-sheet")
+    expect(sheet).to_be_visible()
+    expect(sheet.get_by_role("button", name="Close")).to_be_focused()
+    expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_numbered_addresses_show_the_remaining_route_in_the_ordinary_key_face(
     browser, serve
 ):

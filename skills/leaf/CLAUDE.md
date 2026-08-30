@@ -1761,7 +1761,9 @@ A row has these meanings:
 - `keys` is a binding or computed list of bindings.
 - `does` is the sentence for the press, or a function when the current state
   changes the sentence.
-- `when` says whether the capability exists.
+- `when` says whether the capability exists. When a destination surface is available
+  independently of its members, its row stays live and opens the surface even when the
+  collection is empty. Member-dependent rows use the collection as their capability.
 - `at`, expressed by the current `readerIn` predicate, says whether this press
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
@@ -2195,8 +2197,8 @@ region.
 `g` opens one destination mode. `T`, `A`, `L`, and `M` complete a direct trip to
 Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
-available, or opens the complete sheet where the compact layout has no rail. `m`, `h`,
-and `f` name the page's numbered
+available, or opens the complete sheet where the compact layout has no rail or the map
+has no locations. `m`, `h`, and `f` name the page's numbered
 page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`

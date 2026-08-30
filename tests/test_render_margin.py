@@ -46,6 +46,7 @@ OUTCOME_ON_DECISION = {
 def resized_shell(page, inline_size, height):
     """Resize by the container's own width, independent of scrollbar posture."""
     viewport_width = page.viewport_size["width"]
+    resized(page, viewport_width, height)
     for _ in range(3):
         shell_width = page.evaluate("() => document.body.getBoundingClientRect().width")
         difference = inline_size - shell_width
@@ -859,11 +860,11 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainRight: main.right, cardLeft: card.left,
                   cardRight: card.right, cardWidth: card.width,
-                  viewportWidth: innerWidth};
+                  shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
-    assert beside["cardRight"] <= beside["viewportWidth"] + 0.5, beside
+    assert beside["cardRight"] <= beside["shellWidth"] + 0.5, beside
     assert beside["cardWidth"] >= 459, beside
 
     resized_shell(page, 1207, 900)
@@ -992,12 +993,12 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainWidth: main.width - 48, mainRight: main.right,
                   cardLeft: card.left, cardRight: card.right,
-                  viewportWidth: innerWidth};
+                  shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert composition["mainWidth"] >= 639.5, composition
     assert composition["mainRight"] <= composition["cardLeft"] + 0.5, composition
-    assert composition["cardRight"] <= composition["viewportWidth"] + 0.5, composition
+    assert composition["cardRight"] <= composition["shellWidth"] + 0.5, composition
 
     assert errors == []
     page.close()

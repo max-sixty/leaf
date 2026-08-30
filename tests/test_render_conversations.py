@@ -3113,8 +3113,8 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
 def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     browser, serve
 ):
-    """The two chips the line paints are what a reader standing on the list is offered,
-    and they have to be the keys that act on the list.
+    """The two contextual chips the line paints for a reader standing on the list have
+    to be the keys that act on the list; persistent page movement remains beside them.
 
     `c` brought them here so that `w` and `/` would be live — the general box is where
     the typing scope claims every letter, which is the whole reason the press stops at
@@ -3153,10 +3153,11 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(page.locator(".lf-threads")).to_be_focused()
 
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     # The list's own key leads: something is waiting, so `w` is live and nearest.
     expect(shown.nth(0)).to_contain_text("waiting on you")
     expect(shown.nth(1)).to_contain_text("close threads")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

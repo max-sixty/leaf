@@ -1962,6 +1962,8 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     expect(rows.first).to_be_focused()
     expect(keyline).to_contain_text("walk the leaves")
     expect(keyline).to_contain_text("open it in a tab")
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(rows.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")  # clamped at the end, never wrapped to the top
@@ -2176,6 +2178,8 @@ def test_a_walk_down_the_decisions_tray_stops_clear_of_the_key_line(browser, ser
     rows = page.locator("button.lf-decisions-row")
     expect(rows).to_have_count(24)
     rows.first.focus()
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
     for _ in range(24):
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()

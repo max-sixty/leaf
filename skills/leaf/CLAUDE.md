@@ -1311,6 +1311,14 @@ immediately after the target's rendered text block (or the target itself). Addin
 another target action must not add another absolute row, control type, or rail
 measurement.
 
+That ordered target collection is also the Page map's location count and the `g m`
+address list. A location's informational marker announces its position in that complete
+collection. Addressing an item opens its marker when it has one; an action-only item
+receives focus on its first available action without performing it. In the compact
+posture, an informational item opens the Page map sheet at that location instead of
+reviving the hidden desktop preview; an action-only item keeps its direct focus arrival
+on the action docked into the page.
+
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
 lifetime, so settling an action cannot shift the readable column. A temporary
@@ -1980,15 +1988,18 @@ upgrade.
 ### The key line and reference
 
 The key line is short help, not the keyboard reference. It walks outward from the
-reader's innermost scope, drops duplicate bindings shadowed there, and paints at
-most two hints: the first live row, then a promotable Escape or the next row.
-This makes locality the ordinary priority and promotes the way out by default. A
-captured target with both comment and reaction actions is the deliberate exception:
-`c` and `r` take the two visible slots while Escape remains live and listed in the
-complete reference. Projection-only `lineWhen` may hide a hint without changing the
-command's liveness or its place in that reference. Its hint chips are `aria-hidden`
-because placeholders and live announcements carry the same facts for assistive
-technology.
+reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
+the first live row, then a promotable Escape or the next row; rows declaring
+`linePriority: persistent` remain beside that context. An active chord instead shows
+every live row in its scope, so computed bindings, ranges, and capability filtering are
+the same ones dispatch and the reference use. `lineWhen` may hide only an ordinary hint
+without changing the command's liveness or its place in the reference. Hint chips are
+`aria-hidden` because placeholders and live announcements carry the same facts for
+assistive technology.
+
+The compact line wraps when persistent or chord rows need the room. Ordinary hints may
+yield from the end to stay within two rows, but persistent rows and active chord rows do
+not. `syncLayout` reserves the rendered height in each scroll region.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two
@@ -2128,7 +2139,7 @@ region.
 
 `g` opens one destination mode. `T`, `A`, and `L` complete a direct trip to
 Threads, Asks, and All leaves. `m`, `h`, and `f` name the page's numbered
-page-map marker, hyperlink, and fold lists, and a decimal number names a member. `g g` and
+page-map item, hyperlink, and fold lists, and a decimal number names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a

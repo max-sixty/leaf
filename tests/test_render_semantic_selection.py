@@ -68,11 +68,13 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab")).to_be_visible()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     expect(shown.nth(0).locator("kbd")).to_have_text("c")
     expect(shown.nth(0)).to_contain_text("comment on the paragraph")
     expect(shown.nth(1).locator("kbd")).to_have_text("r")
     expect(shown.nth(1)).to_contain_text("react")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
+    expect(shown.nth(2)).to_contain_text("page down / up")
 
     # Hiding s from the compact projection must not disable it. It can immediately
     # reopen the chooser to replace the captured item, and cancelling leaves the
@@ -118,7 +120,8 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
     """A layer may remove the complete reaction vocabulary. Then c is the only action
-    on the captured target, so the second short-line slot keeps its ordinary way out."""
+    on the captured target, so the second contextual slot keeps its ordinary way out and
+    the persistent page movement row remains beside both."""
     registry = json.loads(
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
@@ -136,11 +139,12 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
     expect(page.locator(".lf-live")).to_contain_text("Choose a response.")
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     expect(shown.nth(0).locator("kbd")).to_have_text("c")
     expect(shown.nth(0)).to_contain_text("comment on the heading")
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
     expect(shown.nth(1)).to_contain_text("unselect")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab")).to_be_hidden()

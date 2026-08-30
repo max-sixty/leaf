@@ -184,9 +184,12 @@ Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
 choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
-rendered chrome, and writes only chrome boxes. A `ResizeObserver` callback must
-not resize the box it observes, directly or through a class or attribute that
-changes that box.
+rendered chrome, and writes only chrome boxes. It hears the shell's inline size
+without deriving a posture from it: `layoutSizes` watches `document.body`'s
+content-box width so a float placed in the margin is re-placed while a panel's
+eased margin is still narrowing the page, and reads nothing else off that box. A
+`ResizeObserver` callback must not resize the box it observes, directly or
+through a class or attribute that changes that box.
 
 ## Startup and presentation
 
@@ -1245,8 +1248,22 @@ status-like item may yield its own width so controls to its right remain fixed.
 
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
-container, `main` composes its left and right claims, and container queries grant or
-withdraw margin postures. No JavaScript measures that shell or mirrors a cramped state.
+container, `main` composes its left and right claims, and queries grant or withdraw
+margin postures. JavaScript may hear that shell's inline size as a signal to re-run
+`syncLayout` — `layoutSizes` watches `document.body`'s content-box width, because a
+panel's eased margin goes on narrowing the box a float stands in after `setPanel` has
+returned and one synchronous pass at the press reads only the wide box — but it derives
+no posture from it and mirrors no cramped state.
+
+Which question a floor asks belongs to the posture it grants. A floor asking how much
+room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
+for the sidebar and sidenote strips, 1208 and 1472 for the thread's beside posture. The
+living margin's 900 asks the window instead, because it is half of a pair —
+`@media screen and (max-width: 899px)` stops drawing the margin at all, and a marker's
+presence is not something a container can be asked about without the answer depending on
+the strip the marker is asking for. Both halves of such a pair ask the same medium, or a
+panel narrowing `body` under the floor withdraws the strip while the window keeps the
+markers on screen with nothing reserved for them.
 
 The browser's root is the document scrollport. `pageScroller` is the shared answer for
 reading position and paging; native fragments, history restoration, wheel/touch input,

@@ -551,7 +551,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     expect(marker).to_have_count(1)
     expect(marker.locator(".lf-margin-count")).to_have_text("2")
-    expect(marker).to_have_attribute("aria-label", re.compile(r"Thread, Outcome, \d+ of"))
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"Thread, Outcome, \d+ of")
+    )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     marker.hover()
@@ -672,9 +674,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-title")).to_have_text(
-        "iOS resync stall"
-    )
+    expect(preview.locator(".lf-margin-preview-title")).to_have_text("iOS resync stall")
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
     geometry = marker.evaluate(
         """markerNode => {
@@ -697,7 +697,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
-    assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], geometry
+    assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
+        geometry
+    )
     assert geometry["cardScroll"] == 0, geometry
     assert not geometry["panelOpen"], geometry
 

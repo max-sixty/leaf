@@ -877,10 +877,7 @@ export function createLivingMargin(dependencies) {
         });
         marker.addEventListener("pointerleave", deferPreviewClose);
         marker.addEventListener("focus", () => {
-          if (
-            suppressedKey !== marker.lfEntry.key &&
-            !threadNeedsPress(marker.lfEntry)
-          )
+          if (suppressedKey !== marker.lfEntry.key && !threadNeedsPress(marker.lfEntry))
             showPreview(marker.lfEntry, marker);
         });
         marker.addEventListener("blur", deferPreviewClose);
@@ -960,10 +957,7 @@ export function createLivingMargin(dependencies) {
       ? trimmed(targetHeading || entry.title, 72)
       : entry.title;
     preview.toggleAttribute("data-lf-thread", inlineThread);
-    preview.setAttribute(
-      "aria-label",
-      inlineThread ? `Thread for ${title}` : title,
-    );
+    preview.setAttribute("aria-label", inlineThread ? `Thread for ${title}` : title);
     previewClose.setAttribute(
       "aria-label",
       inlineThread ? "Close thread" : "Close page-map preview",

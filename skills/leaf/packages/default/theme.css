@@ -159,7 +159,8 @@ lf-chip, .lf-chips span {
  * the card's hover turned it, and a status lost its stripe and grew a ring the group's
  * own clip cut down to a line above the cell. Declared, a rule states the case it is
  * true of and has nothing of the other case to undo. */
-lf-options { display: block; margin: 14px 0; --lf-joined: 0; }
+lf-options { display: block; margin: 14px 0; --lf-joined: 0;
+             container-type: inline-size; }
 lf-option { display: block; position: relative; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
@@ -724,6 +725,16 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
                      display: table; width: 100%; box-sizing: border-box;
                      border-spacing: var(--sp-2) 0;
                      padding: 5px 0; --lf-frame: 1; }
+/* A cramped row still has three cells: its words, the block reference, and the mark.
+ * Separate-border spacing also puts one gap outside each end, and those two empty gaps
+ * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
+ * page narrowed by the thread panel. Keep the ordinary gutter while there is room and
+ * use the compact spacing token when the group's own box is narrow; the cells retain a
+ * visible gap without clipping the mark the reader presses. */
+@container (max-width: 20rem) {
+  lf-options:not(:has(> lf-option > strong)) > lf-option {
+                     border-spacing: var(--sp-1) 0; }
+}
 /* The row's own ground: a corner to round and a wash to say its status in, both of which
  * are answers to standing alone. A joined row is a cell that butts its neighbours and
  * takes the group's stripe, so it is handed neither rather than having both undone. */

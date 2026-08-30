@@ -539,10 +539,10 @@ def test_no_example_writes_another_example_s_sentences():
     words, and the corpus is the one place a reader sees them side by side.
 
     A batch of them got in at once, and the cause was upstream of the corpus.
-    references/page-authoring.md's "Interactivity and evidence" entry quoted two model
-    sentences, and both reached shipped examples word for word; a phrase sitting ready
-    to paste is a phrase that gets pasted. That entry now names what the sentence must
-    carry instead, and this is what says whether it worked.
+    references/authoring-evidence.md's "Interactive and visual evidence" entry
+    quoted two model sentences, and both reached shipped examples word for word; a
+    phrase sitting ready to paste is a phrase that gets pasted. That entry now names
+    what the sentence must carry instead, and this is what says whether it worked.
 
     Twelve words, from a measurement rather than a guess: with those rewritten, the
     longest run any two examples share is seven, and nothing at all is shared at eight.

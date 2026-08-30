@@ -7,11 +7,30 @@ page succeeds only when both can recover the same meaning.
 ## Current observations
 
 The former `leaf page catalog` output was 92,130 bytes, 13,058 words, or about
-22,500 tokens under both `o200k_base` and `cl100k_base`. Before writing a page,
-an agent also reads the roughly 1,400-token skill and 3,100-token authoring
-reference. That made the required cold-start reading about 27,000 tokens before
-the user's material or the page itself. The conversation reference adds about
-3,800 tokens before the first wait.
+22,500 tokens under both `o200k_base` and `cl100k_base`. Before selective
+registry reading and phase-specific references, an agent also read the roughly
+1,400-token skill, 3,100-token authoring reference, and 3,800-token conversation
+reference. That made the required path about 30,800 tokens before the user's
+material or the page itself.
+
+The current cold path reads the skill, the core authoring reference, the handoff
+reference, and exactly one host contract. In Codex that is 390 lines and 2,934
+words; in Claude Code it is 398 lines and 2,991 words, before the selected
+registry entries. Decision authoring adds 48 lines when the page authors a new,
+unanswered ask or sign-off. Live revision rules add 57 lines only after a page
+has been handed over, or when a page proposes wording or carries reader state. Evidence
+authoring adds 75 lines only when the page uses measured, visual, source, or
+media evidence. Event, thread, and ending contracts load only after those phases
+begin. These counts measure context shape rather than broad success rates.
+
+Three context-blind, paired walkthroughs exercised a quick informational page, a
+finished decision record, and a mixed-event continuation against the former and
+split layouts. Both layouts produced the same correct lifecycle choices. The
+Codex informational path fell from 6,222 to 2,934 words; the decision path fell
+to 4,295 words. The mixed-event split initially caused one agent to load the
+first-handoff and new-decision references again, which led to grouping the
+router by operating phase and narrowing those triggers. These are small
+qualitative walkthroughs, not a substitute for the executable cases below.
 
 The former catalog combined three kinds of information:
 

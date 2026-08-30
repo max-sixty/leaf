@@ -214,8 +214,9 @@ group takes a pick. The sentence around the gesture must not repeat, because a
 page that borrows another page's sentence describes its own work in another
 page's words. The corpus is where the borrowing shows, being the one place a
 reader sees the examples side by side. The rule lives in
-references/page-authoring.md under "Interactivity and evidence", since it
-governs every page and not only these; what lives here is the check.
+references/authoring-evidence.md under "Interactive and visual evidence", since
+it governs every interactive page and not only these; what lives here is the
+check.
 
 A batch of borrowed sentences once arrived in a single commit, and the cause was
 upstream of the corpus: the authoring guidance quoted two model sentences, and

@@ -2154,6 +2154,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         message = delivery.text or ""
         assert str(intent_payload) in message
         assert "already handled in this task as a retry" in message
+        [delivery_reference] = re.findall(r"`(references/[^`]+\.md)`", message)
+        assert (SKILL_ROOT / delivery_reference).is_file()
         assert "hello adapter" in payload["batch_jsonl"]
         assert str(page) in payload["batch_jsonl"]
         assert len(prompt.encode()) < 4096

@@ -106,8 +106,9 @@ def _delivery_prompt(delivery_id: str, payload_path: Path, url: str | None) -> s
         "The detached Leaf adapter owns only the `leaf wait`/`leaf ack` carrier; "
         "do not run either command. You still own page status, replies, revisions, "
         "and the handoff back to `waiting` or `idle`. Process every event in that "
-        "batch using the Leaf conversation-loop contract, continue the page in this "
-        "same task, and return the page's exact URL in every user-facing update."
+        "batch using the Leaf `references/event-batches.md` contract, continue the "
+        "page in this same task, and return the page's exact URL in every "
+        "user-facing update."
     )
     return ElementTree.tostring(delivery, encoding="unicode")
 

@@ -95,10 +95,20 @@ export function createChromeLayout({
   function syncPanelLayer({ focus = false } = {}) {
     if (!panelOpen) return;
     const modal = panelCovers();
-    const active = panel.contains(document.activeElement)
-      ? document.activeElement
-      : null;
+    const standing = document.activeElement;
+    const active = panel.contains(standing) ? standing : null;
     const focusEnteredLayer = modal && !active;
+    // Where the reader was standing outside the layer, which raising it is not a request
+    // to leave. Both `show()` and `showModal()` run the dialog focusing steps, so the
+    // panel takes the focus off whatever raised it — beside the page that is the toggle,
+    // which then holds aria-expanded with no ring on it and hands the reader's next Space
+    // to a button they never chose. A covering panel is a mode and does take them in
+    // (focusEnteredLayer); a panel beside the page is a column that arrived. Body is not
+    // somewhere to put anyone back, so it is not carried.
+    const returning =
+      !active && standing instanceof HTMLElement && standing !== document.body
+        ? standing
+        : null;
     if (panel.open && panelModal === modal) {
       if (focus && modal) panelFocusTarget.focus({ preventScroll: true });
       return;
@@ -113,6 +123,7 @@ export function createChromeLayout({
     if ((focus && modal) || focusEnteredLayer || active === panelFocusTarget)
       panelFocusTarget.focus({ preventScroll: true });
     else if (active?.isConnected) active.focus({ preventScroll: true });
+    else if (returning?.isConnected) returning.focus({ preventScroll: true });
   }
   // A window that has changed is a cap that has changed, so each edge restates its
   // standing width. CSS container queries read the resulting body width directly.

@@ -3218,12 +3218,14 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     Space alone took the arrow off both surfaces while the arrow went on opening the
     tree — the shape `skills/leaf/CLAUDE.md` names as one promise rather than two.
 
-    Both surfaces, and both readings of each, because they fail apart: the line has a
-    watch on the attribute and `aria-keyshortcuts` is written once when the scope is
-    declared, so a head that repaints the line still tells a screen reader about the
-    arrow that no longer moves anything. Read once and never retried, for the reason
-    `key_line` is: the heartbeat repaints scopes too, and an assertion that retries goes
-    green on whichever tick lands inside its budget.
+    Both surfaces of that promise, because a row naming the wrong keys names them wrongly
+    on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —
+    and the row is the only thing here either one can be wrong about: the repaint that
+    turns them over together is the document's disclosure watch, held up by
+    `test_a_widgets_native_control_names_the_press_the_platform_makes`, and not anything
+    this widget does. Read once and never retried, for the reason `key_line` is: the
+    heartbeat repaints scopes too, and an assertion that retries goes green on whichever
+    tick lands inside its budget.
 
     And both places the head stands, because the row's `run` is what carries it from one
     to the other. The runtime's disclosure scope stops at the chrome, and this head is a

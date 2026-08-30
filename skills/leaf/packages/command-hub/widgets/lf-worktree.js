@@ -5,7 +5,6 @@ import {
   DISCLOSE,
   ago,
   keys,
-  paintKeys,
   projectData,
   relabel,
   selectableOffer,
@@ -55,8 +54,9 @@ function renderDatum(tree, record, prior) {
     });
     // Which way it stands, before the scope below reads it: a button wearing
     // aria-expanded is ARIA's disclosure pattern, and that pair is what `DISCLOSE`
-    // answers from. The line below sets the live value on every render; this is the one
-    // at birth, so the head is never briefly a control the runtime cannot place.
+    // answers from. Without it `DISCLOSE` reads a control it cannot place and hands
+    // back both arrows, which is what `aria-keyshortcuts` would be written with. The
+    // render below sets the live value; this is the one at birth.
     head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
     // The same press the runtime's disclosure scope owns, re-worded in this widget's
     // terms. Its keys come from `DISCLOSE` rather than from `PRESS`, which is what that
@@ -87,15 +87,12 @@ function renderDatum(tree, record, prior) {
       : `${tree.hasAttribute("data-lf-open") ? "▾" : "▸"} ${summary(record)}`,
     { says: true },
   );
-  // The row's bindings answer from this attribute, and `aria-keyshortcuts` is written
-  // once when the scope is declared: without a repaint it keeps whichever way the tree
-  // was standing then, naming the arrow that no longer moves it and withholding the one
-  // that does. Only on a change, since every data update renders this head again.
-  const standing = String(tree.hasAttribute("data-lf-open"));
-  if (head.getAttribute("aria-expanded") !== standing) {
-    head.setAttribute("aria-expanded", standing);
-    paintKeys();
-  }
+  // Which way it stands now. The row's bindings answer from this attribute, and so do
+  // both surfaces naming its keys: the document's disclosure watch hears this write and
+  // repaints them together, so a row bound through `DISCLOSE` owes no repaint of its
+  // own. Restating the same value is not a disclosure changing — the watch reads the
+  // old value to tell the two apart — so every render can write it.
+  head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
 
   let source = datum.querySelector(":scope > .lf-worktree-source");
   if (!source) {

@@ -100,6 +100,7 @@
  * Authored content is never replaced, so there is no failSoft. */
 import {
   HIDDEN,
+  PRESS,
   actionStands,
   conversationBox,
   conversationInput,
@@ -113,6 +114,7 @@ import {
   reachedForWords,
   relabel,
   reserve,
+  selectableOffer,
   sendAction,
   tabStore,
   toast,
@@ -423,7 +425,7 @@ customElements.define(
       // since the diff parses the base version unupgraded and would read any mark as text
       // that version lacked.
       const mark = pressable
-        ? offer("checkbox", "lf-pick")
+        ? selectableOffer("checkbox", "lf-pick")
         : document.createElement("span");
       if (!pressable) {
         mark.className = "lf-pick";
@@ -519,7 +521,7 @@ customElements.define(
       // part of it naming the option is the page speaking and says so, and the anchor pass
       // reads it over the row's chrome. The count beside it is the runtime talking about
       // the document, which is why the two are separate spans.
-      this.#row = offer("button", "lf-settled");
+      this.#row = selectableOffer("button", "lf-settled");
       this.#title = document.createElement("span");
       const options = [...this.#options()];
       const count = document.createElement("span");
@@ -528,6 +530,15 @@ customElements.define(
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
       this.#row.onclick = () => this.#open(!this.#isOpen, true);
+      keys(this.#row, "In a settled decision", [
+        {
+          id: "option.toggle-settled",
+          keys: PRESS,
+          does: "Open or close the settled decision",
+          line: "open or close",
+          run: () => this.#row.click(),
+        },
+      ]);
       // The authored question is the heading outside this group. Inside the group the
       // settled summary is therefore its first reading, before the options it folds.
       this.prepend(this.#row);

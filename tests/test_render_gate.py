@@ -1445,23 +1445,16 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
-    """The margin form is granted by a media query, which asks the window — and the
-    panel takes 420px off the page's box without the window changing at all. Held
-    through that, a 1024px window left this page's column 151px wide and its widest
-    widgets painting out past the edge of it. So syncLayout asks the theme's own floor
-    of the box instead and says whether the page is cramped, and the strip stands down
-    for as long as it is.
+    """The margin form is granted by a container query over the page's actual box. The
+    panel takes 420px from that box without changing the viewport, and CSS returns the
+    note to the flow once the remaining room crosses the theme's floor.
 
-    Nothing else can see this posture. `version check --render` and the render sweep
-    both open a 1200px window with no panel in it, which is the width the query is
-    right at, so the gate that reads a spill is reading the one layout where there
-    isn't one.
+    `version check --render` and the render sweep normally open with no panel, so this
+    test exercises the narrower container state they do not otherwise visit.
 
-    Three readings, because each of the other two designs passes one of them. A page
-    that never had a note in the margin passes the cramped read on its own; a strip
-    released on every open panel, room or no room, passes that one too — and it is the
-    third that says no, the room being there on a wide window and the notes staying
-    where the reader had them."""
+    Three readings distinguish a real container response from either never floating the
+    note or releasing it whenever the panel opens: the note begins in the margin, returns
+    to flow when space is tight, and stays in the margin when the wider box holds both."""
     example = next(p for p in EXAMPLES if p.stem == "design-decision")
     url = serve(example)
     page, errors = open_page(browser, url)
@@ -1469,7 +1462,6 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
         const note = document.querySelector('aside.sidenote');
         const main = document.querySelector('main'), s = getComputedStyle(main);
         return {float: getComputedStyle(note).float,
-                cramped: document.body.hasAttribute('data-lf-cramped'),
                 column: Math.round(main.getBoundingClientRect().width
                     - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
     }"""
@@ -1644,36 +1636,33 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
 
 
 def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser, serve):
-    """The theme's margin idioms are granted by a media query, which asks the window; what
-    they hang in is the page's own box, which is the window less whatever the chrome holds
-    of it. The panel's strip was counted there and the tray's was not, so a 1200px window
-    with a tray standing granted a sidenote its margin against a 900px page — 84px under
-    the floor the theme states, on the most ordinary window there is.
-
-    Read as the veto rather than as a note's position, because the veto is the fact and a
-    note is one idiom that spends it: a reading of the note would go on passing the day a
-    second idiom stopped asking. Both states, because the attribute standing permanently
-    would read the same way here and would cost every wide page its margins."""
+    """A tray narrows the shell that CSS margin queries see, and closing it restores the
+    same sidenote posture without a JavaScript cramped-state mirror."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
-    cramped = "() => document.body.hasAttribute('data-lf-cramped')"
-    room = page.evaluate(cramped)
+    page.evaluate("""() => {
+      const note = document.createElement('aside');
+      note.className = 'sidenote'; note.textContent = 'A marginal note.';
+      document.querySelector('main').prepend(note);
+    }""")
+    posture = "() => getComputedStyle(document.querySelector('aside.sidenote')).float"
+    room = page.evaluate(posture)
 
     page.locator(".lf-decisions").click()
     edge_settled(page, EDGES[1])
-    standing = page.evaluate(cramped)
+    standing = page.evaluate(posture)
 
     page.locator(".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_hidden()
     page.wait_for_function("() => document.body.getAnimations().length === 0")
-    given_back = page.evaluate(cramped)
+    given_back = page.evaluate(posture)
     page.close()
 
-    assert not room, "a 1200px window with no tray was already short of the floor"
-    assert standing, (
+    assert room == "right", "a 1200px shell did not grant the note its margin"
+    assert standing == "none", (
         "the tray took 300px out of a 1200px page and the margins were granted anyway"
     )
-    assert not given_back, "the page kept the veto after the tray gave its strip back"
+    assert given_back == "right", "the page kept the note in flow after the tray closed"
     assert errors == []
 
 

@@ -46,7 +46,6 @@ export function createTrays({
   PRESS,
   readerStore,
   renderDecisions,
-  stateStrip,
   syncLayout,
   walkRows,
 }) {
@@ -176,7 +175,6 @@ export function createTrays({
     // idioms hang in is body's own padding, which the observation's writer may not touch,
     // and a tray that covers the page moves body's box by nothing at all, so there is no
     // observation to deliver.
-    stateStrip();
     syncLayout();
     readerStore.set(TRAY_KEY, key ?? "");
     // Publish the tray this gesture chose so the stylesheet can say what it costs the
@@ -255,9 +253,6 @@ export function createTrays({
     () => decisionRows().length > 0,
   );
 
-  const trayStrip = () =>
-    STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;
-
   return {
     decisionRows,
     decisionsBtn,
@@ -275,6 +270,5 @@ export function createTrays({
     showTray,
     trayNames,
     traysEdge,
-    trayStrip,
   };
 }

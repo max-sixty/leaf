@@ -9,7 +9,6 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import session as session_model
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     BOTH_STAMPS,
@@ -1957,15 +1956,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
 
 def test_registered_control_keys_activate_once(browser, serve):
-    """The register supplies keys that generated controls do not receive from the browser.
-
-    For a span wearing role="button", the generic control scope supplies Enter and Space.
-    A specialised control declares its own rows instead: an option mark is a checkbox whose
-    Space row toggles it. Both routes use the same dispatcher, which must get activation and
-    key-repeat handling right.
-
-    Activation: the ✎ on a draft is the door a keyboard user uses, and if a span
-    swallowed Enter there would be no way in at all.
+    """A native draft button activates without a Leaf key binding. The selectable option
+    mark is the explicit exception and owns its Space row.
 
     Activation happens once per press however long the key is held. A keydown listener
     hears repeats, and a mark that toggles per repeat posts a `choose` for each one. Repeats
@@ -1973,7 +1965,10 @@ def test_registered_control_keys_activate_once(browser, serve):
     delivers this event with `repeat` set."""
     page, errors = open_page(browser, serve(KEYS_PAGE))
 
-    draft_controls(page).locator(".lf-draft-pencil").focus()
+    pencil = draft_controls(page).locator(".lf-draft-pencil")
+    assert pencil.evaluate("el => el.localName") == "button"
+    expect(pencil).to_have_attribute("type", "button")
+    pencil.focus()
     page.keyboard.press("Enter")
     expect(page.locator("#draft-ops textarea")).to_be_focused()
     assert page.locator("#draft-ops").evaluate(
@@ -2056,205 +2051,37 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
         "the positive-control shortcut was not consumed, so the probe did not "
         "observe the runtime dispatcher"
     )
-    assert observed.pop(" ") is True
+    assert observed.pop(" ") is False
     assert observed == dict.fromkeys(keys[1:-1], False)
     assert errors == []
     page.close()
 
 
-def test_the_reading_page_keys_step_with_overlap(browser, serve):
-    """Space and Shift+Space move 60% of the visible page — clientHeight less what
-    scroll-padding-top declares covered by the fixed banner — at the pace of the
-    browser's own paging keys, the runtime driving the motion itself (stepPage says
-    why). The page sets scroll-behavior: smooth on the box, as an authored page may —
-    a step whose writes ride that rule instead of stating `instant` never lands.
+def test_the_browser_pages_the_document_with_space(browser, serve):
+    """Space and Shift+Space are ordinary browser paging keys on authored content.
 
-    Every phase waits on its destination, never on scrollend or a timer: the glide
-    writes a frame at a time and Chrome answers each write with a scrollend, so
-    "scrolling ended" is a fact about a frame, while the destination is the one
-    position a glide approaching it never passes through early. A wrong step then
-    reads as the wrong number, which says what happened.
-
-    The second press follows the first with no wait between them, landing inside the
-    first glide, so presses have to add up from the goal rather than from wherever
-    the glide has got to. Taking the box mid-glide — programmatically, because the
-    cancel reads positions and any hand looks the same to it, and this one lands at
-    a number the assertion can hold — must stand the step down: the next press
-    measures from where the reader left the box, not from the goal it dropped, and a
-    glide that ignored the taking presses on to that goal and fails both reads.
-    Pressing on at the foot moves nothing and banks nothing, so Shift+Space from there
-    is one step back."""
+    Leaf does not prescribe a distance or animation. The browser chooses both; the
+    contract here is simply that the document moves down and then back up without the
+    runtime canceling either key."""
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
-    )
-    assert page.evaluate(
-        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
-    ), "the page is too short for these steps to be told apart"
-    # A callback's frame timestamp may predate performance.now() in the key handler.
-    # Make that browser timing deterministic: a negative first fraction used to write
-    # above the page, get clamped to zero, then cancel the glide as if the reader moved.
-    page.evaluate("""() => {
-      const raf = requestAnimationFrame;
-      let stale = false;
-      addEventListener('keydown', event => {
-        if (event.key === ' ') stale = true;
-      }, {capture: true});
-      window.requestAnimationFrame = callback => {
-        const firstAfterPress = stale;
-        stale = false;
-        return raf(now => callback(firstAfterPress ? -1 : now));
-      };
-    }""")
+    page.locator("body").focus()
 
-    def rests_at(act, expected):
-        """Position after `act`, awaited at `expected` and handed to the assertion:
-        the bounded wait consumes the arrival, and the assert is what speaks when
-        the step went somewhere else instead."""
-        act()
-        try:
-            page.wait_for_function(
-                "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
-                arg=expected,
-                timeout=5000,
-            )
-        except PlaywrightTimeout:
-            pass
+    def press_and_settle(key):
+        page.evaluate("""() => {
+          window.__lfScrollEnded = false;
+          addEventListener('scrollend', () => { window.__lfScrollEnded = true; },
+                           {once: true});
+        }""")
+        page.keyboard.press(key)
+        page.wait_for_function("() => window.__lfScrollEnded")
         return page.evaluate("() => document.scrollingElement.scrollTop")
 
-    assert rests_at(lambda: page.keyboard.press("Space"), step) == pytest.approx(
-        step, abs=1
-    )
-
-    def twice():
-        page.keyboard.press("Space")
-        page.keyboard.press("Space")
-
-    assert rests_at(twice, step * 3) == pytest.approx(step * 3, abs=1), (
-        "the second press measured from the glide in flight, so the two together "
-        "moved less than the page they promised"
-    )
-    assert rests_at(
-        lambda: page.keyboard.press("Shift+Space"), step * 2
-    ) == pytest.approx(step * 2, abs=1)
-
-    def taken():
-        page.keyboard.press("Space")
-        page.evaluate(
-            "() => document.scrollingElement.scrollTo({top: 400, behavior: 'instant'})"
-        )
-
-    assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
-        "the glide pressed on to its goal after the reader took the box"
-    )
-    assert rests_at(lambda: page.keyboard.press("Space"), 400 + step) == pytest.approx(
-        400 + step, abs=1
-    ), (
-        "the press after the reader took the box measured from the goal the taking "
-        "had cancelled rather than from where they left it"
-    )
-
-    foot = page.evaluate(
-        "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
-    )
-    assert rests_at(
-        lambda: page.evaluate(
-            "() => document.scrollingElement.scrollTo({top: 1e9, behavior: 'instant'})"
-        ),
-        foot,
-    ) == pytest.approx(foot, abs=1)
-    for _ in range(4):
-        page.keyboard.press("Space")  # nothing left to move, and nothing banked either
-    assert rests_at(
-        lambda: page.keyboard.press("Shift+Space"), foot - step
-    ) == pytest.approx(foot - step, abs=1), (
-        "presses at the foot of the page ran the destination past it, and Shift+Space spent "
-        "itself paying that back"
-    )
+    down = press_and_settle("Space")
+    assert down > 0, "the browser did not page the document down"
+    up = press_and_settle("Shift+Space")
+    assert up < down, "the browser did not page the document back up"
     assert errors == []
     page.close()
-
-
-def test_the_reading_page_step_never_paints_behind_where_it_started(browser, serve):
-    """The step's own frames, read at real speed from the middle of the page where the
-    box clamps nothing: Space may not paint the page above where the press found it. A rAF
-    tick carries its frame's own start, so a press handled inside a frame already under
-    way is stamped after the tick it schedules, and an ease reading that as elapsed time
-    walks back out through its own start (stepPage says the rest). At the ends of the box
-    that write is one the box clamps, and what the clamp does to the press is a resting
-    position the test above reads; in the middle every write lands, the glide arrives
-    exactly where it promised, and the reader is thrown up to most of a page the wrong
-    way on the route — which no resting position can see.
-
-    Whether a press loses that race is the platform's to say, so the window is stated
-    rather than run for: a throttled CPU is a longer frame, and a longer frame is a wider
-    gap between its start and the press dispatched inside it. Unfloored, this machine
-    flicked on one press in ten at its own speed and on eight in ten throttled, where a
-    floored clock flicks on none of either. The injection buys the record, not the wait,
-    which is still the destination's."""
-    page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 20}
-    )
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
-    )
-    start = round(step * 2)
-    page.evaluate("""() => {
-        window.lfFrames = [];
-        const sample = () => {
-            window.lfFrames.push(document.scrollingElement.scrollTop);
-            requestAnimationFrame(sample);
-        };
-        requestAnimationFrame(sample);
-    }""")
-    for _ in range(5):
-        page.evaluate(
-            "at => document.scrollingElement.scrollTo({top: at, behavior: 'instant'})",
-            start,
-        )
-        page.wait_for_function(
-            "at => document.scrollingElement.scrollTop === at", arg=start
-        )
-        page.evaluate("() => (window.lfFrames = [])")
-        page.keyboard.press("Space")
-        page.wait_for_function(
-            "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
-            arg=start + step,
-        )
-        assert min(page.evaluate("() => window.lfFrames")) >= start - 1, (
-            "the step painted the page above where the press found it"
-        )
-    assert errors == []
-    page.close()
-
-
-def test_the_reading_page_keys_jump_under_reduced_motion(browser, serve):
-    """Space moves through a page with enough overlap to keep the prior lines in view;
-    Shift+Space makes the same step upward. Under reduced motion both jump."""
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900},
-        color_scheme="light",
-        reduced_motion="reduce",
-    )
-    page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
-    )
-    page.keyboard.press("Space")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
-        step, abs=1
-    ), "Space had not moved 60% of the visible page when the press returned"
-    page.keyboard.press("Shift+Space")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
-        0, abs=1
-    )
-    assert errors == []
-    page.close()
-    context.close()
 
 
 def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, serve):
@@ -2311,109 +2138,6 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
         "the page moved behind the covering sheet, where the user cannot see it"
     )
     assert threads_now > threads_was, "the sheet did not move for the key it now owns"
-    assert errors == []
-    page.close()
-
-
-def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
-    """Which region the keys move is where the reader is standing, and covering is only
-    one of the two ways they come to be standing in the list. Beside the page — the wide
-    window, where the panel takes a strip of its own — a reader working down a long
-    conversation presses Space and the page behind them steps instead, which is the same
-    nothing the covering case was written to prevent: the region they are reading does
-    not move, and the document is somewhere else when they look back at it.
-
-    One factor separates the two halves here. The window, the layout, the panel and the
-    list are the same at both presses; only where the focus stands changes. So the first
-    press is the control that says the layout is beside — the reader stands on the page,
-    outside the panel, and the document is theirs to step — and the second is the subject.
-    The address chord then supplies the neighboring
-    contrast: focus changes which region Space/Shift+Space page through, but `g g` still names the
-    document's edge while both regions have somewhere observable to move."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator("body").focus()
-    assert page.evaluate(
-        "() => { const t = document.querySelector('.lf-threads');"
-        " return t.scrollHeight > t.clientHeight; }"
-    ), "the thread list does not overflow, so it could not be seen to scroll below"
-
-    def offsets():
-        return page.evaluate(
-            "() => [document.scrollingElement.scrollTop,"
-            " document.querySelector('.lf-threads').scrollTop]"
-        )
-
-    # The control, and the wait that makes the subject's baseline a resting one: the
-    # document's own step is a glide, and the position it is going to is the one place
-    # it does not pass through early (the reading-page test says the rest).
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
-    )
-    page_was, threads_was = offsets()
-    page.keyboard.press("Space")
-    page.wait_for_function(
-        "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
-        arg=step,
-        timeout=5000,
-    )
-    page_now, threads_now = offsets()
-    assert page_now > page_was, (
-        "the document did not move for a key pressed from outside the panel, so the "
-        "panel is not beside the page here and the case below is not the one named"
-    )
-    assert threads_now == threads_was, "the panel took a key aimed at the document"
-
-    # Into the panel, standing on its list rather than in a box — `c`'s own landing,
-    # which travels nothing, so the baseline below is the one the control left.
-    page.keyboard.press("c")
-    expect(page.locator(".lf-threads")).to_be_focused()
-
-    page_was, threads_was = offsets()
-    page.keyboard.press("Space")
-    page.wait_for_function(
-        "w => { const t = document.querySelector('.lf-threads');"
-        " return document.scrollingElement.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
-        arg=[page_was, threads_was],
-    )
-    thread_step = page.locator(".lf-threads").evaluate(
-        "t => (t.clientHeight - parseFloat(getComputedStyle(t).scrollPaddingTop)) * 0.6"
-    )
-    page.wait_for_function(
-        "w => { const t = document.querySelector('.lf-threads');"
-        " return Math.abs(t.scrollTop - w[0]) < 1"
-        " || Math.abs(document.scrollingElement.scrollTop - w[1]) >= 1; }",
-        arg=[thread_step, page_was],
-        timeout=5000,
-    )
-    page_now, threads_now = offsets()
-    assert threads_now > threads_was, (
-        "the list the reader is standing in did not move for the key they pressed"
-    )
-    assert page_now == pytest.approx(page_was, abs=1), (
-        "the page stepped behind a reader who was working down the comment list"
-    )
-
-    # Both regions now stand away from their top edge. A correct g g returns the page;
-    # the shared-scroller regression returns the panel instead. Wait for either answer so
-    # the failure reports both offsets rather than timing out while expecting only one.
-    assert page_now > 0 and threads_now > 0
-    page.keyboard.press("g")
-    page.keyboard.press("g")
-    page.wait_for_function(
-        "() => { const t = document.querySelector('.lf-threads');"
-        " return document.scrollingElement.scrollTop < 1 || t.scrollTop < 1; }",
-        timeout=5000,
-    )
-    edge_page, edge_threads = offsets()
-    assert edge_page == pytest.approx(0, abs=1), (
-        f"g g left the page at {edge_page} and moved the panel to {edge_threads}"
-    )
-    assert edge_threads == pytest.approx(threads_now, abs=1), (
-        f"g g moved the panel from {threads_now} to {edge_threads}"
-    )
     assert errors == []
     page.close()
 

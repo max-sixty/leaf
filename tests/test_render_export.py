@@ -189,25 +189,34 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
-        // A page gives up a strip of its own width for what it hangs in the margin, and
+        // A page gives up a CSS shell claim for what it hangs in the margin, and
         // a copy keeps only the strips whose residents came with it: a suggestion's
         // controls are gone from a file that can decide nothing, and its rail with them,
         // while sidenotes are the page's own words and stand in a copy exactly as they
         // stand on screen. So the reading is not that the column is centred — a page
         // carrying notes is deliberately not — but that no strip is held open for
-        // nothing. Asked of body's padding, which is where every strip is taken from,
-        // and of whatever is standing in it, whichever layer reserved it.
-        empty: ((b, s) => {
+        // nothing. Resolve the shell's custom-property lengths through a probe, then
+        // ask whether anything is actually standing in each claimed band.
+        empty: ((b, main) => {
             const box = b.getBoundingClientRect();
+            const length = (name) => {
+                const probe = document.createElement('i');
+                probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+                main.append(probe);
+                const width = probe.getBoundingClientRect().width;
+                probe.remove();
+                return width;
+            };
+            const left = length('--strip-l'), right = length('--strip-r');
             const held = (lo, hi) => hi - lo > 1 && ![...document.querySelectorAll('main *')]
                 .some(el => { const r = el.getBoundingClientRect();
                               return el.checkVisibility() && r.width > 1
                                      && r.left < hi - 1 && r.right > lo + 1; });
             return [
-                held(box.left, box.left + parseFloat(s.paddingLeft)) && 'left',
-                held(box.right - parseFloat(s.paddingRight), box.right) && 'right',
+                held(box.left, box.left + left) && 'left',
+                held(box.right - right, box.right) && 'right',
             ].filter(Boolean);
-        })(document.body, getComputedStyle(document.body)),
+        })(document.body, document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
@@ -381,7 +390,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
                 found[inline[i]] = inline.getPropertyValue(inline[i]);
         return found;
     }"""
-    session = ("--lf-room", "--lf-avail", "--lf-panel-w", "--lf-tray-w")
+    session = ("--lf-panel-w", "--lf-tray-w")
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")

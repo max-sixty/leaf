@@ -42,11 +42,9 @@
  * CLAUDE.md), because a pick mark is a control and a statement at once. render_version
  * compares the two media and reports what a page says on screen and not on paper.
  *
- * A control that says one of the page's words is never a <button>: Chrome starts no
- * pointer selection inside a form control, so its label would be unreachable however it is
- * marked. `offer` builds it as a selectable span carrying the control's role. The shared
- * scope wires button keys; a specialised control such as an option checkbox registers its
- * own keys.
+ * Native controls are the default. A control that also says selectable page words uses
+ * the explicit selectable-offer exception, because Chrome starts no pointer selection
+ * inside a form control; that widget owns its complete keyboard pattern.
  *
  * Passages and anchors: a comment points at an anchor (a section id, a quote, and the
  * neighbouring words where there are any). resolveAnchor is the only place the page is
@@ -96,8 +94,7 @@
  * reading position goes through pageScroller.
  * The page binds none of the browser's own scroll keys (Space, arrows, Home/End,
  * PageUp/Down); a focused control may, and a disclosure's arrows are core's own case of
- * that. Space and Shift+Space are the runtime's, stepping 60% of the visible page at the
- * browser's own paging pace through whichever of the two regions the reader's own scrolling moves.
+ * that. The browser therefore owns ordinary reading travel and its native scroll context.
  *
  * Keyboard: one register, and every surface is a projection of it. A row binds keys and
  * says what pressing one does; a scope is where the keyboard means something particular,
@@ -662,10 +659,9 @@ const el = (tag, cls, text) => {
   return node;
 };
 let chromeLayout;
-const stateStrip = (...args) => chromeLayout.stateStrip(...args);
 const syncLayout = (...args) => chromeLayout.syncLayout(...args);
 const setPanel = (...args) => chromeLayout.setPanel(...args);
-const drawnEdge = createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout });
+const drawnEdge = createDrawnEdge({ el, keys, readerStore, syncLayout });
 // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
 // the reader's choice in their own store rather than the tab's, because where a reader
 // keeps their conversations, and how much of the page they will give a tray, is the
@@ -721,7 +717,6 @@ const {
   showTray,
   trayNames,
   traysEdge,
-  trayStrip,
 } = createTrays({
   beforeOpen: () => {
     if (chromeLayout?.panelIsOpen()) setPanel(false);
@@ -737,7 +732,6 @@ const {
   PRESS,
   readerStore,
   renderDecisions: () => renderDecisions(openDecisions()),
-  stateStrip,
   syncLayout,
   walkRows,
 });
@@ -852,7 +846,7 @@ function stateSignoff(next) {
   syncLayout();
 }
 
-const panel = el("aside", "lf-ui lf-panel");
+const panel = el("dialog", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
 const closeBtn = Object.assign(el("button", "lf-btn", "×"), {
   title: "Close (Esc)",
@@ -1116,7 +1110,6 @@ const replaceClaimState = (...args) => updateRuntime.replaceClaimState(...args);
 const workClaimState = () => updateRuntime.workClaimState();
 
 chromeLayout = createChromeLayout({
-  banner,
   chromeRoot,
   closeReactions: () => setReact(false),
   commentsEdge,
@@ -1131,6 +1124,7 @@ chromeLayout = createChromeLayout({
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
   panel,
+  panelFocusTarget: threadsBox,
   placeComposer: (...args) => placeComposer(...args),
   readerStore,
   refreshFab: (...args) => refreshFab(...args),
@@ -1142,7 +1136,6 @@ chromeLayout = createChromeLayout({
   syncGeneral: (...args) => syncGeneral(...args),
   toastEl,
   toggleBtn,
-  trayStrip,
   traysEdge,
 });
 const { inPanel, panelCovers, panelIsOpen } = chromeLayout;
@@ -1649,6 +1642,12 @@ const takesLetters = (node) =>
 // page destination without adding a visible stop to the Tab order.
 document.body.tabIndex = -1;
 const letGo = () => document.body.focus({ preventScroll: true });
+// Auto popovers and modal dialogs already put Escape in the platform contract. When one
+// stands, let the browser dismiss the topmost layer and let that layer's toggle/close
+// event update Leaf state. Product modes with a nearer Escape row (the composer, help's
+// two-step shelf, a text box) still own their deliberate unwind step.
+const browserDismissesTopLayer = () =>
+  Boolean(document.querySelector(":popover-open, dialog:modal"));
 // The Escape ladder, one definition for every scope that reaches past the focused control,
 // so the thread's, the list's and the page's cannot disagree. It unwinds from where the
 // reader is standing, not from what happens to be open.
@@ -1723,7 +1722,7 @@ const BACK_OUT = {
   // thing the reader just chose. Keep both on the short line and leave this row in the full
   // reference until the target is gone.
   promoteEscape: () => !hasCapturedTarget() || reactionTokens().length === 0,
-  when: () => Boolean(rung()),
+  when: () => !browserDismissesTopLayer() && Boolean(rung()),
   run: () => rung().out(),
 };
 
@@ -1850,14 +1849,13 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
+const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepThread } =
   createNavigation({
     BANNER_CLEAR,
     reducedMotion,
     scrollBehavior,
     beside,
     inChrome: (node) => inChrome(node),
-    inPanel,
     openOnItem,
     openThreads,
     pageScroller,
@@ -2397,7 +2395,7 @@ const disclosed = (el) =>
 // one key fewer takes the rest off the line, and one key more promises what nothing runs.
 //
 // The press is answered wherever the element stands, being the platform's on a <summary>
-// and the control scope's on an offered span. The arrows are this scope's alone, so they
+// or native button. The arrows are this scope's alone, so they
 // are named where this scope reaches — the page, and not the runtime's own layer, where a
 // diff inside a comment message keeps the platform's pair and nothing more.
 //
@@ -2431,38 +2429,6 @@ const DISCLOSURE = standingOn("On a disclosure", DISCLOSURE_SELECTOR, [
     run: () => focused().click(),
   },
 ]);
-
-// Every press the runtime builds out of a span, in one declaration. `offer` writes
-// role="button" onto an element the platform gives no keys, so these two are the UA's
-// contract restored — and the survey's largest hole was that nine classes of control
-// across core and five widgets answered Space while one of them said so. Outermost of the
-// control scopes, so a widget whose press means something more (a grip grabs, a mark
-// toggles) names it in its own words and the walk's dedupe keeps this row from saying it
-// again.
-// `offer` says whether it built a press, and this is that answer read back. Neither the
-// tabindex nor the role can stand in for it: every focus target wears a tabindex, so this
-// scope promised "press it" on a seated conversation thread that answers nothing, and a
-// widget may specialise the role, so `lf-tabs` lost Enter and Space when this read it.
-const CONTROL_SELECTOR = '[data-lf-offer="button"]';
-const CONTROL = {
-  title: "On a control",
-  at: () => Boolean(focused()?.matches?.(CONTROL_SELECTOR)),
-  // The page has to have built one, or the reference names a place the reader can't
-  // stand. The query is the reference's cost and not the line's: `at` is asked first and
-  // answers false wherever this could be in doubt, so a paint never reaches it.
-  when: () => Boolean(document.querySelector(CONTROL_SELECTOR)),
-  rows: [
-    {
-      id: "control.activate",
-      keys: PRESS,
-      does: "Work the focused control",
-      line: "press it",
-      // Space would take the page out from under the press, which is why the row consumes
-      // it; the dispatcher does that for every row that runs.
-      run: () => focused().click(),
-    },
-  ],
-};
 
 // Design mode: a page mode the reader stands in for a batch of remarks about the layer.
 // Its Escape is the innermost rung while it stands — a composer opened in it closes
@@ -2527,13 +2493,6 @@ const REFERENCE = {
   also: keylineMore,
   run: () => keyline.more(),
 };
-// Space belongs to a native control while the reader is standing on one. Text entry is
-// different: its nearer scope already claims characters, so keeping the row live there
-// lets the complete reference still teach the page gesture without letting a typed space
-// escape the box. The same shadowing keeps it off the short line and unavailable to run.
-const pageReadingKeyAvailable = () =>
-  takesLetters(focused()) ||
-  !focused()?.matches?.("button, input, select, textarea, summary");
 const PAGE = {
   rows: [
     {
@@ -2621,26 +2580,6 @@ const PAGE = {
       when: () => openDecisions().length > 0,
       repeat: true,
       run: (binding) => stepDecision(binding === "d" ? 1 : -1),
-    },
-    {
-      id: "page.down",
-      keys: [" "],
-      does: "Move 60% of a page down",
-      line: "page down",
-      when: pageReadingKeyAvailable,
-      referenceWhen: () => true,
-      repeat: true,
-      run: () => stepPage(0.6),
-    },
-    {
-      id: "page.up",
-      keys: ["Shift+ "],
-      does: "Move 60% of a page up",
-      line: "page up",
-      when: pageReadingKeyAvailable,
-      referenceWhen: () => true,
-      repeat: true,
-      run: () => stepPage(-0.6),
     },
     {
       id: "version.approve",
@@ -2732,7 +2671,6 @@ const SCOPES = [
   PANEL,
   LINK,
   DISCLOSURE,
-  CONTROL,
   DESIGN,
   PAGE,
 ];
@@ -2931,7 +2869,6 @@ const { activateRevision, currentActivation, revisionDocument, trackActivation }
     settle,
     settling,
     stateSignoff,
-    stateStrip,
     style,
     syncLayout,
   });
@@ -3420,7 +3357,6 @@ createLivingMargin({
   anchorLabel,
   announce,
   approveBtn,
-  banner,
   blockAt,
   chromeRoot,
   claimState: workClaimState,
@@ -3647,20 +3583,6 @@ async function startPage() {
     // and a mark that arrived after it would leave the copy's tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
-  // The box the page ends up with is not the one it started in, because content modules
-  // contribute controls while upgrading and the shared margin then claims the widest
-  // target item. Every reader of the box is therefore re-run here rather than left
-  // holding the pre-upgrade one — the room a wide widget spends was the one that noticed,
-  // standing a diagram out over the rail on the first shipped page to carry both.
-  //
-  // The observer watches that box now, so the standing answer is not this line's. What
-  // is this line's is the timing: an observation is answered at the next rendering
-  // update, which is a frame past the stamp below, and the stamp is where `version check
-  // --render` and an exported copy read the page. So the observer keeps the room true for
-  // the page's life and this makes it true at the moment the page is called finished,
-  // which is what test_the_room_is_measured_after_a_late_rail holds it to. The strip is
-  // stated first, being padding on the box the room comes off.
-  stateStrip();
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

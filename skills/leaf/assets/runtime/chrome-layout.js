@@ -38,7 +38,6 @@ export const PANEL_PROP = "--lf-panel-w";
 export const PANEL_KEY = "lf-panel-open";
 
 export function createChromeLayout({
-  banner,
   chromeRoot,
   commentsEdge,
   composer,
@@ -53,6 +52,7 @@ export function createChromeLayout({
   pageShifted,
   paintHere,
   panel,
+  panelFocusTarget,
   placeComposer,
   readerStore,
   refreshFab,
@@ -64,31 +64,8 @@ export function createChromeLayout({
   syncGeneral,
   toastEl,
   toggleBtn,
-  trayStrip,
   traysEdge,
 }) {
-  // The width the theme wants a page's box to have before it takes a strip of it for the
-  // margin (theme.css's --strip-min, stated there because that is where the strips and
-  // their breakpoints are). Read blind: the runtime reports how wide the box is against
-  // the number the theme states and never learns which idiom spends it. A theme without
-  // the token leaves this NaN, every comparison against it false, and the media query
-  // alone deciding — which is the same answer a page with no runtime already gets. Read
-  // from body at the moment of the question rather than caching root's default: a composed
-  // margin posture may override the floor under the media query that grants it, and an
-  // arriving panel must ask that composed value without the runtime learning which idioms
-  // contributed it.
-  const stripMin = () =>
-    parseFloat(getComputedStyle(document.body).getPropertyValue("--strip-min"));
-
-  // The room the head of the document leaves for the bar, measured off the bar as
-  // rendered rather than stated as a number — --lf-banner-h is what the bar is drawn to
-  // and a second copy of it here would be a release behind it the day either moved. What
-  // spends this, and why it is spent as a box rather than as body's own padding, is the
-  // rule in chrome-style.js that reads it. The key line's reservation at the foot is the same
-  // arrangement, written by syncLayout because it is the same measurement every time the
-  // line's height changes.
-  document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
-
   // Until the first state answer, [] means "not read", not "no comments". Keep that
   // distinction for a Threads panel restored or opened during startup; its General
   // composer stays usable while the log-derived list says what it is waiting for.
@@ -111,58 +88,38 @@ export function createChromeLayout({
   // focus: beside the page the panel is a column of its own, and a reader working down the
   // list is in it whatever the window is wide enough to show behind them.
   const inPanel = () => panelOpen && containsAcross(panel, focused());
-  // The strip the page yields to the thread panel is its edge's width until the window is
-  // too narrow to give one up. One expression keeps the margin the rule takes and the room
-  // measured against it on the same terms.
-  const panelStrip = () => (panelOpen && !panelCovers() ? commentsEdge.width() : 0);
-  // Whether the page still has room for the margin the theme's idioms hang in. The strips
-  // are granted by a media query, which asks the window; the page's box is the window less
-  // whatever the panel holds of it, and this is the only thing that knows the difference. So
-  // it asks the theme's own floor of the box and vetoes the grant where the room has gone —
-  // a fact about the page rather than about any idiom that spends it. Without it a 1024px
-  // window with the panel beside it left a page carrying sidenotes a 151px column, painting
-  // its widest widgets out past the edge of one, and neither `version check --render` nor
-  // the render suite can see that posture: both open a 1200px window with no panel in it.
-  //
-  // Its own function, and not syncLayout's, because the strip it vetoes is body's own
-  // padding (theme.css) and syncLayout runs from an observation of that box — CLAUDE.md's
-  // "The one writer may not write the box the layout is measured from", and the same reason
-  // the strip the panel takes is a rule in the stylesheet.
-  //
-  // So it is called and not observed, and it is only as fresh as its callers — which is
-  // enough, because each fact it turns on arrives on an occasion of its own. The window
-  // states the cap on resize and the panel its strip on the gesture that moves it. The root
-  // reserves a stable scrollbar gutter in CSS, and documentElement.clientWidth already
-  // reports the usable viewport after it; page-height changes therefore add no separate
-  // geometry occasion.
-  //
-  // The strip is stated rather than measured off body, whose clientWidth is the box itself
-  // and would be the natural reading. The margin transitions, so a measurement taken during
-  // the slide is the posture flipping and flipping back across a fifth of a second, which is
-  // a page rewrapping its notes into the margin and out of it while the panel opens. Stated,
-  // it is the width being arrived at.
-  // Two answers from the one reading, because they are the same fact asked coarsely and
-  // finely: whether the page can afford a margin strip at all, and how much of one it still
-  // owes. The width is published rather than spent here for the reason the floor is read
-  // blind — the runtime says how wide the page's box is and never learns which idiom hangs
-  // something in the margin, so an idiom's own rule does its own arithmetic against it, the
-  // way the wide rules already spend --lf-room. A query cannot see the panel or the
-  // browser's root viewport and this can account for the workspace strips, which is the
-  // whole of what the runtime adds; a page with no runtime behind it falls back to the
-  // viewport in each rule that reads it.
-  function stateStrip() {
-    const avail = document.documentElement.clientWidth - panelStrip() - trayStrip();
-    document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
-    document.documentElement.style.setProperty("--lf-avail", avail + "px");
+  let panelModal = false;
+  let ignoreNextClose = false;
+  function syncPanelLayer({ focus = false } = {}) {
+    if (!panelOpen) return;
+    const modal = panelCovers();
+    const active = panel.contains(document.activeElement)
+      ? document.activeElement
+      : null;
+    const focusEnteredLayer = modal && !active;
+    if (panel.open && panelModal === modal) {
+      if (focus && modal) panelFocusTarget.focus({ preventScroll: true });
+      return;
+    }
+    if (panel.open) {
+      ignoreNextClose = true;
+      panel.close();
+    }
+    panelModal = modal;
+    if (modal) panel.showModal();
+    else panel.show();
+    if ((focus && modal) || focusEnteredLayer || active === panelFocusTarget)
+      panelFocusTarget.focus({ preventScroll: true });
+    else if (active?.isConnected) active.focus({ preventScroll: true });
   }
-  // A window that has changed is a cap that has changed, so the width each edge stands at
-  // is restated beside the veto — one listener, every fact on it being an answer to the same
-  // event, and none of them a reading of the box syncLayout measures.
+  // A window that has changed is a cap that has changed, so each edge restates its
+  // standing width. CSS container queries read the resulting body width directly.
   addEventListener("resize", () => {
     commentsEdge.state();
     traysEdge.state();
-    stateStrip();
+    syncPanelLayer();
   });
+  commentsEdge.over.addEventListener("change", () => syncPanelLayer());
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
@@ -189,13 +146,9 @@ export function createChromeLayout({
     // keeps it true when the line's face or its padding moves.
     const clear = keylineEl.offsetHeight + 20 + "px";
     // The document's, taken as the chrome container's own box rather than as padding on
-    // body: body's padding comes out of the box the room is measured from (stateRoom), so
-    // writing it here made this function a writer of the box it reads, and every page that
-    // watched that box — three do — was one change in the line's height from a
-    // ResizeObserver loop on the window's error channel. CLAUDE.md's "The one writer may not
-    // write the box the layout is measured from" carries the whole of it. The container is
-    // in the flow, holds nothing but out-of-flow chrome, and is watched by nobody, so what
-    // it takes is room the document has and no measurement's business.
+    // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
+    // watched by nobody, so what it takes is room the document has and no measurement's
+    // business.
     chromeRoot.style.paddingBottom = clear;
     // A tray's list is the page's other scroll region, in the corner the line is
     // written into, so it reserves the same room — and states it twice, because it reaches
@@ -207,71 +160,8 @@ export function createChromeLayout({
     // takes the tray's width off the line's: a busy scope already fills a laptop's, so
     // the room it gives up is chips clipped off the right-hand end.
     reserveListClearance(clear);
-    stateRoom();
     syncFloats();
     dockSeats();
-  }
-  // The room a widget declared wide may take: the document's own content box, less the
-  // gutter the column already gives its prose, so a breakout is centred on the column's
-  // axis and stops where the page stops.
-  //
-  // Measured, and measured here, because the panel is the thing no stylesheet can see: it
-  // holds whatever of the window the reader has drawn it to while it is open, and no query
-  // can ask that, and a rule written against 100vw would also spend the rail a suggestion
-  // hangs in and the classic scrollbar this platform doesn't draw. The three of them come
-  // off body's own box for free. That box is watched (layoutSizes), so the room is restated
-  // whenever it changes shape whatever changed it, for the same reason the floats are
-  // placed again.
-  //
-  // The gutter is read off the column rather than stated, since 24px is theme.css's number
-  // and a second copy here would be a release behind it. Below the column's own width the
-  // two coincide exactly, so the rule that spends this is a no-op on a narrow window rather
-  // than a case anyone has to write.
-  //
-  // The strips the chrome holds are the part of that box which isn't settled when this
-  // runs: each is handed over as motion, so body's margins are still the old ones for the
-  // length of the transition and the box in front of us is neither the width the page has
-  // nor the one it is going to. Both readings are wrong, in opposite directions and at
-  // different prices, so the room takes whichever of the two is smaller and the page never
-  // owes room it hasn't got. Both sides, because both yield one: the tray panel's margin
-  // eases exactly as the thread panel's does, and reading it off the box alone left every
-  // exhibit a tray's width too wide for the fifth of a second the tray took to arrive.
-  //
-  // The two readings are compared rather than added, which is the same arithmetic done in
-  // whole pixels. Subtracting the margin the box has already taken from the strip it is
-  // going to take says the same thing and says it in two number systems at once: a client
-  // box is an integer and a transitioning margin is not, so their sum flickered a pixel
-  // either way on every frame of a slide — and a property every wide exhibit is laid out
-  // from cannot flicker, because each flicker is a relayout inside the observation that
-  // asked for it. Opening, that is the width being arrived at, stated at once: the strip
-  // is being taken away, and an exhibit that waited out the slide would spend it hanging
-  // over the panel with a sideways scrollbar underneath. Closing, it is the width in front
-  // of us: the strip is coming back, and an exhibit that took it before the page had it
-  // scrolled sideways for a fifth of a second every time the panel was dismissed — which
-  // is what the suggestion sweep caught, on a window narrow enough for the returning strip
-  // to matter. What is given back is picked up as it is given: the box is watched, so every
-  // frame of the slide is a reading of it, and the growth lands the frame the room is real.
-  function stateRoom() {
-    const main = document.querySelector("main");
-    if (!main) return;
-    const body = getComputedStyle(document.body);
-    const column = getComputedStyle(main);
-    // documentElement.clientWidth is the root scrollport's usable width: a classic
-    // scrollbar has already come out of it. Body contributes the animated shell width;
-    // the explicit reading contributes the width it is arriving at.
-    const room =
-      Math.min(
-        document.body.clientWidth,
-        document.documentElement.clientWidth - panelStrip() - trayStrip(),
-      ) -
-      parseFloat(body.paddingLeft) -
-      parseFloat(body.paddingRight) -
-      parseFloat(column.paddingLeft) -
-      parseFloat(column.paddingRight);
-    document.documentElement.style.setProperty(
-      "--lf-room",
-      Math.max(0, Math.floor(room)) + "px",
-    );
   }
   // The floats live in the document, and syncLayout is where its box changes shape — the
   // panel takes or returns its strip, a resize moves every rect, the composer's own
@@ -302,22 +192,17 @@ export function createChromeLayout({
     // strip to, from a rule outside. A document-level rule naming .lf-panel would be a name
     // a page could coin and take the strip with, which is the leak
     // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
-    // body, beside data-lf-cramped.
+    // body, where page CSS can see it without naming private chrome.
     panel.classList.toggle("open", open);
     document.body.toggleAttribute("data-lf-panel", open);
     toggleBtn.setAttribute("aria-expanded", String(open));
-    // Both of the page's answers to the panel are made here rather than left to the
-    // observation, and for the same reason at each: the strip the idioms hang in is body's
-    // own padding, which the observation's writer may not touch, and the chrome's posture
-    // over a covering sheet follows an open that moves body's box by nothing at all — the
-    // sheet stands over the page, so there is no observation to deliver.
-    stateStrip();
-    syncLayout();
-    readerStore.set(PANEL_KEY, open ? "1" : "0");
     if (open) {
       renderPanel();
+      syncPanelLayer({ focus: true });
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
-    }
+    } else if (panel.open) panel.close();
+    syncLayout();
+    readerStore.set(PANEL_KEY, open ? "1" : "0");
     paintHere();
     // The panel is one of the two surfaces the hover reads, so its arriving or going away
     // is the pointer moving even when the pointer has not: closing it with the keyboard,
@@ -326,15 +211,20 @@ export function createChromeLayout({
     // renderPanel; this is the half that has no render.
     refreshHover();
   }
+  panel.addEventListener("close", () => {
+    if (ignoreNextClose) {
+      ignoreNextClose = false;
+      return;
+    }
+    if (panelOpen) setPanel(false);
+  });
   toggleBtn.onclick = () => setPanel(!panelOpen);
   addEventListener("resize", () => {
     closeReactions();
     pageShifted();
     syncLayout();
   });
-  // field-sizing and every other rendered-size change feed the one geometry writer —
-  // the key line included, whose height is the room the chrome reserves under it.
-  let bodyContentWidth = Number.NaN;
+  // Field sizing and every other chrome-size change feed the one chrome geometry writer.
   let layoutFrame = 0;
   const scheduleLayout = () => {
     if (layoutFrame) return;
@@ -343,37 +233,12 @@ export function createChromeLayout({
       syncLayout();
     });
   };
-  const layoutSizes = new ResizeObserver((entries) => {
-    let shellChanged = false;
-    for (const { contentRect, target } of entries) {
-      if (target !== document.body) {
-        shellChanged = true;
-        continue;
-      }
-      // Padding is part of the shell's layout contract: a late margin resident takes
-      // content room without changing body's clientWidth. ResizeObserver reports the
-      // content box directly, which catches both that claim and an animated outer margin
-      // while remaining invariant under ordinary document-height growth.
-      if (contentRect.width !== bodyContentWidth) shellChanged = true;
-      bodyContentWidth = contentRect.width;
-    }
-    if (shellChanged) scheduleLayout();
-  });
-  // The shell's inline size is what the room and floats depend on. Its block size is now
-  // the document's content height rather than a fixed scrollport height, so observing
-  // every body resize would feed ordinary page growth back into a geometry writer that
-  // reserves more flow content. Filter the body to content-box width changes; this still
-  // hears both an outer strip and a padding rail. The window's own resize occasion is
-  // handled above. The panel's animated margin reports every frame and an interrupted
-  // slide still ends with a final reading. Writes land in the following animation frame,
-  // outside ResizeObserver delivery, so a reservation changing another watched chrome
-  // box cannot create an undelivered-notification loop.
-  layoutSizes.observe(document.body);
+  const layoutSizes = new ResizeObserver(scheduleLayout);
   layoutSizes.observe(generalRow);
   layoutSizes.observe(keylineEl);
   // The composer grows under typing (field-sizing), and a box placed above its passage
   // grows downward, back over the mark it was moved off — so its own resize re-places it.
   layoutSizes.observe(composer);
 
-  return { inPanel, panelCovers, panelIsOpen, setPanel, stateStrip, syncLayout };
+  return { inPanel, panelCovers, panelIsOpen, setPanel, syncLayout };
 }

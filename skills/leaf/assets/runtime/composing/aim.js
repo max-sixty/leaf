@@ -125,10 +125,8 @@ export function createAim({
       if (aimedPress) standDown(ev.target);
     }
     if (!aimedPress) return;
-    // A click carrying no press belongs to the control it is on rather than to a press that
-    // has already finished: `offer` calls click() to supply the keys a span doesn't come
-    // with, and the user's Enter must reach the control they are on whatever the last
-    // press was.
+    // A click carrying no pointer press is keyboard activation and belongs to the control
+    // it is on; the user's Enter must reach that control whatever the last pointer did.
     if (ev.type === "click" && !ev.detail) return;
     // Not on pointerdown, whose cancellation takes the mouse events with it — the click this
     // aim ends on included. On mousedown, which is where the selection, the focus and a

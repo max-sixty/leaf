@@ -2027,11 +2027,9 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     """A key on screen is a key that works, and its inversion costs just as much: the
     press is real, the reader can make it, and no surface says so.
 
-    The runtime's control scope matches a tab stop of its own making, which is what
-    `offer` writes on the spans it builds. A control the widget takes from the platform
-    brings its own, so it matched nothing — and the widget's own declaration is what
-    names both the key and the word, the key being the platform's fact about that
-    control and the word being what the press does here.
+    A widget may still declare the meaning of a native press when that meaning is worth
+    naming in Leaf's keyboard reference. The row describes the platform fact without
+    reimplementing it.
 
     The two differ in what they answer, and saying so is the point: a <summary> is
     button-like and takes both keys, while a checkbox takes Space alone, Enter being

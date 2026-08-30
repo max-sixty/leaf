@@ -180,12 +180,13 @@ own `data-lf-*` state remains visible to replay and to the render gate. Add a
 runtime-authored attribute to `PAGE_PAINT_ATTRIBUTE` when its writer is added;
 do not broaden the exclusion to every `data-lf-*` attribute.
 
-Layout follows the same ownership rule. `syncLayout` may measure
-`document.body`, but it writes only chrome boxes. The banner's reservation is
-`body::before`, and the key line's reservation is padding on the chrome
-container. Panel and tray strips come from attributes and media queries. A
-`ResizeObserver` callback must not resize the box it observes, directly or
-through a class or attribute that changes that box.
+Layout follows the same ownership rule. CSS owns the document shell: `body` is
+the `lf-shell` container, `main` composes margin claims, and container queries
+choose their postures from the room actually left by panels and trays.
+`syncLayout` measures only chrome whose placement or reservation depends on
+rendered chrome, and writes only chrome boxes. A `ResizeObserver` callback must
+not resize the box it observes, directly or through a class or attribute that
+changes that box.
 
 ## Startup and presentation
 
@@ -1204,11 +1205,13 @@ settlement has emptied, and what a quote may name cannot come apart. An area gre
 either: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
 
-A control containing a page word is built by `offer` as a selectable span carrying
-its control role. A button gets Enter and Space from the shared scope; a specialised
-role such as a checkbox registers its own keys while `offer` still owns its role,
-tab stop, and chrome markers. `offer` distinguishes a click from the mouseup ending
-an active text selection by comparing the selection's focus end with the release. It
+A control is built by `offer` as the corresponding native element, so activation,
+disabled state, focus, and accessibility stay the browser's. The explicit
+`selectableOffer` exception is for a page word whose text must remain selectable, such
+as a tab name or chosen option; its widget owns the complete keyboard pattern. Both
+constructors mark generated chrome consistently. The shared drag guard distinguishes a
+click from the mouseup ending an active text selection by comparing the selection's
+focus end with the release. It
 does not suppress a press merely because an older selection contains the control or
 because the pointer landed beside selected text.
 
@@ -1236,11 +1239,10 @@ ink while retaining their cells. A status item that can appear later reserves
 its place for the page's life. When a row runs out of room, the leftmost
 status-like item may yield its own width so controls to its right remain fixed.
 
-`syncLayout` derives floating placement and reservations from current boxes.
-`layoutSizes` observes the body's inline size and chrome elements that affect those
-results. It schedules chrome-only writes outside ResizeObserver delivery. Window
-resizes have their own occasion because a content-sized body no longer represents the
-viewport's block size.
+`syncLayout` derives only floating chrome placement and reservations from current
+chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
+container, `main` composes its left and right claims, and container queries grant or
+withdraw margin postures. No JavaScript measures that shell or mirrors a cramped state.
 
 The browser's root is the document scrollport. `pageScroller` is the shared answer for
 reading position and paging; native fragments, history restoration, wheel/touch input,
@@ -1252,11 +1254,10 @@ stands at a time. The
 strip-taking workspaces—Threads and Decisions—take room when the viewport can hold
 them and cover the page under their respective media query otherwise; Leaves
 always covers because its rows leave this page.
-`stateStrip` and `stateRoom` are the geometry readings, and both count every strip the
-chrome holds. `documentElement.clientWidth` is already the root scrollport's usable
-width after any classic scrollbar; CSS owns body's corresponding layout-shell margins.
-`stateRoom` is restated by observing body's inline size, while `stateStrip` writes the
-shell's margin posture and is called on the occasions that can change it.
+The shell's inline size already reflects the margins a beside panel or tray takes.
+`--strip-l`, `--strip-r`, and `--lf-room` are CSS-owned readings resolved on `main`;
+`--lf-claim-right` is the project-layer extension claim. A script-free copy therefore
+answers the same layout from its own viewport without exporting session geometry.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a
@@ -1274,11 +1275,9 @@ which belongs to the side rather than to either tray.
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every
-tray list reserves the key line's room. `stateRoom` compares whole-pixel
-readings — the measured box against the window less every strip — rather than
-subtracting a transitioning margin from an integer box. Mixing the two flickers
-`--lf-room` by a pixel per frame, and each flip relayouts the page from inside
-the observation that asked for it.
+tray list reserves the key line's room. Wide content reads the shell's CSS value directly;
+there is no observed measurement loop or second number system to reconcile during a
+transition.
 
 The banner and key line reserve their space in normal flow. A fixed or absolute
 chrome surface may lie above that reservation, but the reservation itself
@@ -1377,8 +1376,8 @@ A wide widget reads the room declared by `x-wide`:
 - `box` fills the available box and clamps its contents there;
 - `drawing` may size from its source up to the room available to it.
 
-`markDeclared` exposes this declaration and `stateRoom` computes room after chrome
-strips and claimed margins. A drawing inside a framed box uses that box's room,
+`markDeclared` exposes this declaration and CSS computes room after chrome strips and
+claimed margins. A drawing inside a framed box uses that box's room,
 not the outer page's. Size the widget's box with `contain: inline-size` where its
 contents would otherwise make the box itself wider.
 
@@ -1794,16 +1793,22 @@ claim the relevant keys through their scope. A longer-lived menu keeps the
 reference available through `allButTheReference`. Closing an overlay restores
 focus to `helpFrom` so the reader returns to the control that opened it.
 
-Escape is an ordinary binding in the register. The innermost scope that binds it
+Escape is an ordinary binding in the register for Leaf-owned modes. The innermost scope that binds it
 owns one unwind step. A control-specific Escape, panel dismissal, decision release,
 and return to the page cannot cascade from one keypress. A scope does not need a
 private `keydown` listener or hand-written `preventDefault` to protect that
 contract.
 
-`offer` marks an injected span control with the contract that owns its keys.
-Button offers enter the shared `CONTROL` scope and receive `PRESS`; specialised
-controls such as a checkbox register their own rows. A link stays the browser's,
-and its run-less row only projects the platform press into help.
+Auto popovers and modal dialogs are the platform's modes. While one is the active top
+layer, the page rung stands down and browser Escape closes it; Leaf updates from the
+resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
+distinct inner step, such as leaving a text box before closing its dialog or collapsing
+the keyboard reference's expanded shelf.
+
+`offer` creates the native element named by the caller; ordinary buttons and links need
+no Leaf activation binding. A `selectableOffer` registers its widget-specific keys.
+A run-less row may still project a native press when that meaning is worth naming in
+help, but it never reimplements the press.
 
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one

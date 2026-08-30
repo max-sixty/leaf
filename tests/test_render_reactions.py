@@ -1165,7 +1165,7 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator("[data-lf-offer][tabindex]").first.focus()
+    bar.locator("button[data-lf-offer], [data-lf-offer][tabindex]").first.focus()
 
     page.keyboard.press("Escape")
     page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")

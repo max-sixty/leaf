@@ -94,7 +94,7 @@ export function dress(root) {
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
 // the widget kind says which it is (x-wide) and the theme spends the room the layout
-// measured (--lf-room, syncLayout). The value is the kind the entry declares, and the
+// resolved by the CSS shell (--lf-room). The value is the kind the entry declares, and the
 // theme's `[data-lf-wide="box"]` and `[data-lf-wide="drawing"]` rules read it.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What

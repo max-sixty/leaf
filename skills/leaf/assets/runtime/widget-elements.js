@@ -47,9 +47,8 @@ export function createMeasurements({ shownBox }) {
   // just the same, which is the question an IntersectionObserver would get wrong.
   //
   // The observation ends at the reading it was waiting for, so what a measurement writes
-  // cannot return through what triggered it. The loop the page's other geometry writer
-  // guards against (syncLayout, and the rule stated with it) needs a second delivery to
-  // the element that was just written, and after the unobserve there is none.
+  // cannot return through what triggered it: after the unobserve there is no second
+  // delivery to the element that was just written.
   const measurements = new WeakMap();
   const drawn = (el) => {
     const box = shownBox(el);
@@ -217,49 +216,34 @@ export function worksInside(node, container) {
 // A widget writes none of the three by hand: they are what make an element chrome,
 // and one of them going missing is invisible until something breaks.
 //
-// "button" and "checkbox" name control contracts, not elements. A real form control is a wall a
-// pointer's selection cannot cross — Chrome starts no selection inside a form
-// control and `user-select: text` does not move it — so any word inside one is
-// unreachable to a user whatever it is marked, and a control's label turns out
-// to be one of the page's own words often enough (a tab's name, the card a settled
-// group carries, the mark on a chosen option) that a widget cannot be trusted to
-// have picked the element with that in mind. So each is a span wearing its role. A button's
-// native keys are wired once below; a specialised checkbox supplies its widget-owned keys.
-// Nothing these controls do needed the element: no forms, no submit, and no `disabled` —
-// which a widget's control therefore cannot have (the .lf-btn:disabled rule is the
-// runtime's own buttons').
+// Native controls are the ordinary case. A widget gets their activation, disabled state,
+// focus behavior, and platform accessibility contract without Leaf recreating any of it.
 export function offer(tag, cls, label) {
-  const role = tag === "button" || tag === "checkbox" ? tag : null;
-  const node = document.createElement(role ? "span" : tag);
-  if (role) {
-    node.setAttribute("role", role);
-    node.tabIndex = 0;
-  }
+  const node = document.createElement(tag);
+  if (node instanceof HTMLButtonElement) node.type = "button";
   node.className = cls ? `${cls} lf-ui` : "lf-ui";
   node.dataset.lfGen = "1";
-  // Which control contract owns its keys, said in the one marker a widget has no reason
-  // to touch. The tabindex cannot say it — every focus target wears one, and a conversation
-  // thread wears one so t/T can land on it, which had the key line leading with "press it" over an
-  // element that answers nothing. Nor can the role: `offer` writes `button` and a widget is
-  // free to specialise it, which `lf-tabs` does (`role="tab"`), and reading the role took
-  // Enter and Space off every tab — Space then scrolling the page out from under the
-  // reader, which is the platform default this scope exists to consume.
-  //
-  // Every other consumer asks for the bare attribute, and `[data-lf-offer]` matches a
-  // valued one, so this narrows what the generic button scope owns without touching what
-  // chrome or a specialised control is.
-  node.dataset.lfOffer = role ?? "";
+  node.dataset.lfOffer = tag === "button" ? "button" : "";
   if (label !== undefined) node.textContent = label;
   return node;
 }
 
-// The keys a <button> came with and a span does not — Enter and Space activate — are the
-// CONTROL scope in the keyboard section below, one declaration covering every press any
-// widget builds. It was a listener of its own, and the surfaces had no channel to it: the
-// largest hole a survey of this runtime found was that Space activates nine classes of
-// control across core and five widgets and only one of them ever said so. As a scope it is
-// named once in the reference, and named on the line exactly while the reader stands on
-// one — which is where the walk through the page's decisions puts them.
+// Some page words also act as controls: a tab name, a chosen mark, or the title of a
+// settled decision. Chromium does not begin text selection inside a form control, so those
+// few controls deliberately remain spans and their owning widget supplies the complete
+// key contract. Keeping this constructor separate makes selectable control text a visible
+// design decision instead of the behavior of every injected control.
+export function selectableOffer(role, cls, label) {
+  const node = document.createElement("span");
+  node.setAttribute("role", role);
+  node.tabIndex = 0;
+  node.className = cls ? `${cls} lf-ui` : "lf-ui";
+  node.dataset.lfGen = "1";
+  node.dataset.lfOffer = role;
+  node.dataset.lfSelectableOffer = "";
+  if (label !== undefined) node.textContent = label;
+  return node;
+}
 
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the

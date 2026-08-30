@@ -392,27 +392,11 @@ def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
 
 
 def test_the_render_viewport_is_wide_enough_to_have_margins():
-    """The corpus is read at RENDER_VIEWPORT, and the margin strips only exist above
-    --strip-min: below that width `stateStrip` writes data-lf-cramped and the theme
-    takes the margins back. Everything the sweeps say about a margin resident — a
-    sidenote, a suggestion's controls, a wide exhibit's reach — is therefore said about
-    a page that had margins, and nothing else in the suite asks whether it did.
-
-    Nothing ties the two numbers, and they are set in different files for different
-    reasons, so either could move: raising the floor past the viewport, or narrowing the
-    viewport to the floor, would leave every one of those readings running against a
-    cramped page. They would not fail. They would stop being about the thing they name,
-    and the suite would stay green saying so."""
+    """The corpus viewport reaches the CSS shell query that grants one margin."""
     theme = (schema_model.ASSETS / "theme.css").read_text()
-    found = re.search(r"--strip-min:\s*(\d+)px", theme)
-    assert found, (
-        "the theme no longer states --strip-min, which the runtime reads by name"
-    )
+    found = re.search(r"@container\s+lf-shell\s*\(min-width:\s*(\d+)px\)", theme)
+    assert found, "the theme states no container floor for a margin"
     floor = int(found.group(1))
-    # The floor's own relation: `stateStrip` writes data-lf-cramped when avail is *below*
-    # --strip-min, and the theme's query is min-width, so a page exactly at the floor
-    # still has its margins. Written as a strict `>` this went red for a viewport that
-    # was fine.
     assert render_checks_model.RENDER_VIEWPORT["width"] >= floor, (
         f"the corpus is read at {render_checks_model.RENDER_VIEWPORT['width']}px and the "
         f"margins only exist above {floor}px, so every reading the sweeps make of a "

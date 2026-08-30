@@ -375,15 +375,13 @@ def test_the_preview_stands_in_the_room_the_page_has_beside_the_panel(browser, s
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
+    resized(page, 1600, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.hover()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    page.wait_for_function(
-        "() => Boolean(document.querySelector('.lf-margin-preview').style.left)"
-    )
     preview_box = preview.bounding_box()
     panel_box = page.locator(".lf-panel").bounding_box()
     room_right = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -427,12 +425,10 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
-    page.wait_for_function(
-        "() => Boolean(document.querySelector('.lf-margin-preview').style.left)"
-    )
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()
-    assert preview_box["x"] >= main_box["x"] + main_box["width"]
+    assert preview_box["x"] < main_box["x"] + main_box["width"]
+    assert preview_box["x"] >= 0
     assert preview_box["x"] + preview_box["width"] <= page.evaluate("innerWidth")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 

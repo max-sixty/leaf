@@ -2422,7 +2422,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
 
-    # The versions menu, whose way out this branch made live on a first version.
+    # The versions menu, including the first-version case browser Escape now dismisses.
     page.keyboard.press("v")
     expect(page.locator(".lf-version-menu")).to_be_visible()
     sweep("in the versions menu")
@@ -3416,7 +3416,7 @@ RING_SCOPE_SURFACE = {
     "passage search": (".lf-target-search:not([hidden])", None),
     "the decisions tray": (".lf-decisions-panel.open", ".lf-decisions"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
-    "the versions menu": (".lf-version-menu.open", None),
+    "the versions menu": (".lf-version-menu:popover-open", None),
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
 }

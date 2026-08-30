@@ -223,12 +223,9 @@ export function createDecisionView({
   // the page margin). Landing on it rather than on the decision puts the reader on something
   // that works it, and Tab walks the rest of that decision's own controls from there.
   //
-  // Focusable, not pressable, and that is why it reads the tabindex where `CONTROL_SELECTOR`
-  // reads `data-lf-offer="button"`. The two selectors look like one that drifted and are two
-  // questions: what the reader can be put on, and what answers a press. Aligning this one to
-  // its twin would leave the decision walk with nowhere to land on any decision whose only chrome is a
-  // focus target — which is what a conversation thread is.
-  const DECISION_CONTROL = "[data-lf-offer][tabindex]";
+  // Focusable offered chrome: native buttons carry their tab stop implicitly, while the
+  // selectable-control exception states one explicitly.
+  const DECISION_CONTROL = "button[data-lf-offer], [data-lf-offer][tabindex]";
   // Which decision such a control decides, where the widget hoisted it out of the element (the
   // attribute lf-suggestion writes on the row it hangs in the margin).
   const DECISION_ROW = "data-lf-for";

@@ -13,11 +13,13 @@
  * there is no failSoft. */
 import {
   HIDDEN,
+  PRESS,
   keys,
   layoutChanged,
   offer,
   once,
   relabel,
+  selectableOffer,
   tabStore,
 } from "/runtime/widget-api.js";
 
@@ -48,8 +50,7 @@ customElements.define(
       const strip = offer("div", "lf-tabstrip");
       strip.setAttribute("role", "tablist");
       for (const panel of panels) {
-        const btn = offer("button", "lf-tab-btn");
-        btn.setAttribute("role", "tab");
+        const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
         const name = document.createElement("span");
         relabel(name, panel.getAttribute("label"), { says: true });
@@ -77,6 +78,13 @@ customElements.define(
         next.click();
       };
       keys(strip, "On a tab", [
+        {
+          id: "tab.activate",
+          keys: PRESS,
+          does: "Open the focused tab",
+          line: "open the tab",
+          run: () => document.activeElement.click(),
+        },
         {
           id: "tab.walk",
           keys: ["ArrowLeft", "ArrowRight"],

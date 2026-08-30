@@ -60,11 +60,8 @@ export function createInput({ focused, keys, showToast, spell }) {
     sendBtn.title = `Send (${SEND_KEYS})`;
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
-    // aria-disabled rather than the property, because a widget's send button is a span
-    // wearing role="button" (see offer) and a span has no `disabled` to set — it would
-    // have looked live while submit() below refused it. The attribute reads on either
-    // element, and the guard in submit() is what actually holds; a focusable button
-    // saying it can't send yet is better than one the reader can't reach to find out.
+    // Keep a disabled send reachable so the reader can discover why it will not send;
+    // submit() is the behavioral guard and aria-disabled exposes the same state.
     const sync = () => {
       repaint();
       const disabled = String(sending || busy() || !ta.value.trim());

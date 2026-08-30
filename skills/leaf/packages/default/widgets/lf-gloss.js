@@ -7,10 +7,9 @@
  *
  * Hover is only the fastest route. The raised mark is an ordinary Leaf offer, so Tab,
  * Enter, and Space reach it; clicking either the phrase or mark pins the card for touch
- * and careful reading. The manual popover puts the card in the top layer, clear of
- * clipping widgets, while this module owns its viewport placement. */
+ * and careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
+ * CSS anchors keep the card with its phrase. */
 import {
-  keys,
   offer,
   once,
   paintKeys,
@@ -29,7 +28,6 @@ customElements.define(
     #focused = false;
     #hovered = false;
     #mark = null;
-    #openEvents = null;
     #pinned = false;
     #shown = false;
 
@@ -42,8 +40,6 @@ customElements.define(
     disconnectedCallback() {
       this.#events?.abort();
       this.#events = null;
-      this.#openEvents?.abort();
-      this.#openEvents = null;
       this.#hovered = false;
       this.#focused = false;
       this.#pinned = false;
@@ -62,26 +58,26 @@ customElements.define(
       this.#bubble.className = "lf-gloss-popover";
       this.#bubble.dataset.lfGen = "1";
       this.#bubble.dataset.lfSaid = "tip";
-      this.#bubble.setAttribute("popover", "manual");
+      this.#bubble.setAttribute("popover", "auto");
       this.#bubble.setAttribute("role", "note");
       this.#bubble.textContent = this.getAttribute("tip");
+      const anchor = `--lf-gloss-${nextId}`;
+      this.style.anchorName = anchor;
+      this.#bubble.style.positionAnchor = anchor;
       this.#mark.setAttribute("aria-controls", this.#bubble.id);
       this.#mark.setAttribute("aria-describedby", this.#bubble.id);
       // x-says="after" puts the tip directly after the authored body and before any
       // trailing generated chrome. Writing that declared span here lets this module
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);
-
-      keys(this.#mark, "On an explanation", [
-        {
-          id: "explanation.close",
-          keys: ["Escape"],
-          does: "Close this explanation",
-          line: "close explanation",
-          when: () => this.#shown,
-          run: () => this.#dismiss(),
-        },
-      ]);
+      this.#bubble.addEventListener("toggle", (event) => {
+        if (event.newState !== "closed" || !this.#shown) return;
+        this.#shown = false;
+        this.#pinned = false;
+        this.#dismissed = true;
+        this.#mark.setAttribute("aria-expanded", "false");
+        paintKeys();
+      });
     }
 
     #listen() {
@@ -161,85 +157,16 @@ customElements.define(
     #sync() {
       if (!this.#bubble?.isConnected) return;
       const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
-      if (show === this.#shown) {
-        if (show) this.#place();
-        return;
-      }
+      if (show === this.#shown) return;
       this.#shown = show;
       this.#mark.setAttribute("aria-expanded", String(show));
       paintKeys();
 
       if (show) {
         this.#bubble.showPopover();
-        this.#place();
-        this.#openEvents = new AbortController();
-        const { signal } = this.#openEvents;
-        window.addEventListener("resize", () => this.#place(), { signal });
-        window.addEventListener("scroll", () => this.#place(), {
-          capture: true,
-          passive: true,
-          signal,
-        });
-        // The scoped key row above owns Escape while its mark has focus. Hover opens
-        // the same surface without moving focus, so that scope cannot see the key. Let
-        // the one document dispatcher run first: an open composer or another nearer
-        // scope prevents the event, and the top-layer card takes only the unclaimed
-        // hover route that reaches window afterward.
-        window.addEventListener(
-          "keydown",
-          (event) => {
-            if (event.key !== "Escape" || document.activeElement === this.#mark) return;
-            // A nearer scope may already have used the key (the comment composer is
-            // the corpus case). It keeps ownership; the hover card merely leaves with
-            // it so the one Escape does not expose a second transient layer underneath.
-            if (!event.defaultPrevented) event.preventDefault();
-            this.#dismiss();
-          },
-          { signal },
-        );
-        document.addEventListener(
-          "pointerdown",
-          (event) => {
-            if (this.contains(event.target)) return;
-            this.#pinned = false;
-            this.#dismissed = true;
-            this.#sync();
-          },
-          { signal },
-        );
       } else {
-        this.#openEvents?.abort();
-        this.#openEvents = null;
         if (this.#bubble.matches(":popover-open")) this.#bubble.hidePopover();
-        this.#bubble.style.removeProperty("left");
-        this.#bubble.style.removeProperty("top");
-        if (!this.#bubble.style.length) this.#bubble.removeAttribute("style");
       }
-    }
-
-    #dismiss() {
-      this.#pinned = false;
-      this.#dismissed = true;
-      this.#sync();
-    }
-
-    #place() {
-      if (!this.#shown || !this.#bubble.matches(":popover-open")) return;
-      const anchor = this.getBoundingClientRect();
-      const card = this.#bubble.getBoundingClientRect();
-      const inset = 12;
-      const gap = 8;
-      const left = Math.min(
-        Math.max(anchor.left + anchor.width / 2 - card.width / 2, inset),
-        innerWidth - card.width - inset,
-      );
-      const below = anchor.bottom + gap;
-      const top =
-        below + card.height <= innerHeight - inset
-          ? below
-          : Math.max(inset, anchor.top - gap - card.height);
-      this.#bubble.style.left = `${Math.round(left)}px`;
-      this.#bubble.style.top = `${Math.round(top)}px`;
     }
   },
 );

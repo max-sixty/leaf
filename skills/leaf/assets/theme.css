@@ -64,8 +64,7 @@
      while the document moves, so the whole left edge is spoken for wherever it is in
      margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
      labels without making a second prose column. The rule beside aside.sidebar spends
-     it; --strip-min decides when the page can afford it, as it does for every margin
-     idiom. */
+     it; the shell's container query decides when the page can afford it. */
   --sidebar: 264px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
      main's width: the element itself, the strip arithmetic beside aside.sidenote, and
@@ -73,30 +72,14 @@
      the first. */
   --col: 720px;
   --col-pad: 24px;
-  /* The width a page's box needs before a strip is worth taking out of it: main's own
-     768px and the strip. Two things ask it and they cannot share one form — the media
-     query below asks it of the window, which is the only reading a file with no runtime
-     behind it can get, and syncLayout asks it of the page's own box, which is the window
-     less whatever the thread panel has taken of it. A query cannot read a token and a
-     token cannot see the panel, so the number is here for the runtime to read and
-     written out again in the query, and test_the_strip_floor_is_one_number holds them
-     together.
-     Read blind, so it is the page's floor for margin strips rather than the sidenote's:
-     an idiom that hangs something out there wants the same answer.
-     It follows --note, so widening the strip narrows the band of windows that get one:
-     with the panel beside the page a laptop's 1440px no longer clears it, where the
-     216px strip did. That is the price of the axis above and it is paid where the page
-     can see it — the note goes back into the flow, which is the form it has always
-     taken when the room runs out. */
-  --strip-min: 1152px;
   /* How wide a widget that lays its content out into the width it is given (x-wide:
      box) may stand — one number for the whole vocabulary, because a set of widths is
      what makes mixed measures read as a design rather than as an accident, and a width
      per widget is how a page becomes a ransom note. Unmistakably wider than the column
      on purpose: a near miss reads as a column that failed to line up, where half as much
-     again reads as a figure. --lf-room, the other half of the pair, is the room left
-     between the two strips above and is measured (syncLayout), so a widget stands clear
-     of both. A drawing (x-wide: drawing) is not held to this number, its width being
+     again reads as a figure. --lf-room, the other half of the pair, is resolved by CSS
+     from the shell and its claimed strips, so a widget stands clear of both. A drawing
+     (x-wide: drawing) is not held to this number, its width being
      its own; the rule beside the two below says what it is held to instead. */
   --wide: 1080px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
@@ -370,8 +353,7 @@
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
-       --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px), var(--claim-map, 0px));
-       padding-left: var(--strip-l, 0px); padding-right: var(--strip-r); }
+       container: lf-shell / inline-size; }
  /* The document arrives with authored initial state while the log may already hold
  * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
  * after the first poll has either replayed the log or said the server is offline, so a
@@ -506,8 +488,21 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * 640px — so prose set to a book's measure and evidence set to source's cannot both come
  * out of one column, and the way to have both would be two of them rather than a smaller
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
-main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
-       position: relative; --lf-frame: 1; --lf-column: 1; }
+main {
+  --strip-l: 0px;
+  --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
+    var(--claim-map, 0px), var(--lf-claim-right, 0px));
+  --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
+    - 2 * var(--col-pad)));
+  width: min(var(--col), var(--lf-room));
+  max-width: var(--col);
+  margin: 0 auto;
+  padding: 72px var(--col-pad) 96px;
+  left: calc((var(--strip-l) - var(--strip-r)) / 2);
+  position: relative;
+  --lf-frame: 1;
+  --lf-column: 1;
+}
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -552,22 +547,12 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
  * spoken for is asymmetric before the exhibit arrives — the column itself sits off the
  * window's centre by exactly the strip.
  *
- * Screen only, in both of its media. Paper has no window to take room from and a printed
- * page is the column's width, so leaving the rule out of print is the whole of what paper
- * needs — the same bargain it already has with every affordance a copy keeps. A copy is a
- * screen and does keep this, on its own reading of the room: it has no thread panel to
- * yield a strip to and no session to grow one in, so the viewport is an honest answer
- * there where on the live page it is a panel's width of lie. It is an estimate all the
- * same, since `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet
- * can ask how wide one is; 96px covers a gutter and any scrollbar a platform has, and the
- * floor above covers the estimate coming in under the column on a narrow window. The
- * strips are the half of it a window cannot show — an exported board stood 35px into a
- * decided change's rail at a laptop's width — so the room subtracts the same pair the
- * padding added, which is what those tokens are for. */
+ * Screen only. Paper has no window to take room from and a printed page is the column's
+ * width, so leaving the rule out of print is the whole of what paper needs. On screen,
+ * `body` is the size container. Its inline size already excludes any standing Leaf
+ * workspace, and `main` subtracts the page's own two margin claims from that one browser
+ * reading. A live page and a standalone copy therefore use the same arithmetic. */
 @media screen {
-  html.lf-copy body {
-    --lf-room: calc(100vw - 96px - var(--strip-l, 0px) - var(--strip-r, 0px));
-  }
   [data-lf-wide] {
     /* Half the surplus, because a side may only ever have half: the other half is the
        other side's whether or not it is taken, so a claim never makes the free side
@@ -894,14 +879,12 @@ dd { margin: 0 0 8px 0; }
    simply an aside where it was authored. On a roomy screen its box moves into the left
    strip and sticks beneath Leaf's banner, so it remains useful through a long page. The
    negative left margin and the right gutter sum with its width to zero, leaving the
-   prose's line boxes untouched; body's left padding is the room the box actually uses.
+   prose's line boxes untouched; the shell's left claim is the room the box uses.
 
    The claim is page-wide because a sticky box may occupy any height while the reader
    scrolls. That also gives a wide exhibit no invitation to paint through it: --lf-room
-   is measured after the strip has been taken. `data-lf-cramped` is the same runtime veto
-   sidenotes obey when a panel or tray has narrowed the page without narrowing the
-   viewport. With no runtime, the media query is
-   the complete answer. A sidebar and a sidenote together wait for 1416px, the ordinary
+   is resolved after the strip has been taken. A sidebar and a sidenote together wait
+   for 1416px of shell, the ordinary
    1152px margin floor plus the sidebar's 264px; granting both at the ordinary floor
    shrank the prose to 504px. The paired number is held to those two tokens in
    test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
@@ -916,13 +899,14 @@ dd { margin: 0 0 8px 0; }
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
-@media screen and (min-width: 1152px) {
+@media screen {
+  @container lf-shell (min-width: 1152px) {
   html:not(.lf-copy)
-    body:not([data-lf-cramped]):has(main > aside.sidebar):not(:has(aside.sidenote)) {
+    main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--sidebar);
   }
-  html:not(.lf-copy) body:not([data-lf-cramped]):not(:has(aside.sidenote))
-    main > aside.sidebar:nth-child(1 of aside.sidebar) {
+  html:not(.lf-copy) main:not(:has(aside.sidenote))
+    > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
@@ -931,22 +915,14 @@ aside.sidebar > :last-child { margin-bottom: 0; }
     overflow-y: auto;
     margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
   }
-}
-@media screen and (min-width: 1416px) {
-  html:not(.lf-copy) body:has(main > aside.sidebar):has(aside.sidenote) {
-    /* The media query answers for a static viewport. The runtime reads this override
-       from body on every stateStrip pass, so a panel or tray that leaves less than the
-       same combined floor vetoes both strips even though the viewport remains wide.
-       Independent of that veto: keying the floor itself on :not([data-lf-cramped])
-       makes the answer disappear as soon as it is used and the next pass flip back. */
-    --strip-min: 1416px;
   }
+  @container lf-shell (min-width: 1416px) {
   html:not(.lf-copy)
-    body:not([data-lf-cramped]):has(main > aside.sidebar):has(aside.sidenote) {
+    main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--sidebar);
   }
-  html:not(.lf-copy) body:not([data-lf-cramped]):has(aside.sidenote)
-    main > aside.sidebar:nth-child(1 of aside.sidebar) {
+  html:not(.lf-copy) main:has(aside.sidenote)
+    > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
@@ -954,6 +930,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
     overflow-y: auto;
     margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+  }
   }
 }
 /* What the margin is for is in the catalog beside the class; this is why it is the right
@@ -986,17 +963,10 @@ aside.sidebar > :last-child { margin-bottom: 0; }
    of the box the panel leaves, so a note moves exactly as far as the paragraph it
    annotates and no further.
 
-   The strip comes out of body's padding, as --rail does beside it, so the column
-   centres in what is left rather than hanging the note in whatever the centring happened
-   to leave over. It is held for as long as the page can afford it and no longer, and the
-   panel is what takes the room without the window saying so: its own width off the page's
-   box at an unchanged window width, and a width the reader is free to draw wider still.
-   Held through that, a 1024px window left the column 151px and its widest widgets painting
-   out past the edge of it — and `version check --render` cannot see any of it, rendering at
-   1200 with no panel to open. Handing the strip back the moment the panel opens is the
-   other wrong answer, since on a wide window that moves every note on the page for room the
-   page still has. So the floor is a width rather than a state (--strip-min), and syncLayout
-   asks it of the box the panel left.
+   The strip is a claim on the shell, so the column centres in what is left rather than
+   hanging the note in whatever the centring happened to leave over. A panel or tray
+   narrows that named container, and the same query therefore returns the note to flow
+   only when the page itself no longer has room.
 
    The breakpoint below is that same width asked of the window; under it the strip would
    come out of the column's own width. Under it, and on paper, the note is a small
@@ -1006,8 +976,9 @@ aside.sidebar > :last-child { margin-bottom: 0; }
    the render gate holds it to by reading both media. */
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
-@media screen and (min-width: 1152px) {
-  body:not([data-lf-cramped]):has(aside.sidenote) {
+@media screen {
+  @container lf-shell (min-width: 1152px) {
+  main:has(aside.sidenote) {
     --claim-note: var(--note);
     /* The whole strip is the claim, even where a centred column already leaves enough
        room to paint the note. The strip is the page's axis as well as the note's measure:
@@ -1068,14 +1039,12 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
      differently, for a shift nobody can see across a 24px gutter. `clear` is what
      stacks a second note under the first rather than over it.
 
-     data-lf-cramped is syncLayout's answer to --strip-min, and it is written as a veto
-     so that a page with nothing running behind it — an exported copy, a version opened
-     off disk — keeps the margin the query grants it. The in-flow form above is the
-     whole of what standing down means, which is why the veto qualifies the grant rather
-     than restating it: a reset here would be the same layout written twice. */
-  body:not([data-lf-cramped]) aside.sidenote {
+     The in-flow form above is the whole fallback. The shell query grants the margin on
+     both a live page and a script-free copy, with no runtime state to mirror. */
+  main aside.sidenote {
     float: right; clear: right; width: calc(var(--note) - var(--sp-4));
     margin: 0 calc(-1 * var(--note)) 12px 0; }
+  }
 }
 .facts { display: grid; grid-template-columns: max-content 1fr;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
@@ -1410,22 +1379,26 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     font: 600 10px/14px var(--sans); text-align: center; }
 .lf-margin-target { outline: var(--here-ring); --lf-here-ring: margin-target;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-@media screen and (min-width: 900px) {
-  body:has(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden])) {
+@media screen {
+  @container lf-shell (min-width: 900px) {
+  body:has(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden])) > main {
     /* The 30px marker hangs 22px off the column and its complete host keeps the
        shared focus-ring room at the outer edge. Claim all three, or opening a side
        panel leaves that last band past body's room and the layout hides the marker. */
     --claim-map: calc(52px + var(--here-ring-room));
   }
-  body:has(.lf-margin-item[data-lf-claims-rail]) {
+  main:has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);
   }
+  }
 }
-@media screen and (min-width: 1152px) {
-  body:not([data-lf-cramped]):has(
+@media screen {
+  @container lf-shell (min-width: 1152px) {
+  body:has(
       .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])
-    ) {
+    ) > main {
     --claim-map: var(--note);
+  }
   }
 }
 @media screen and (max-width: 899px) {

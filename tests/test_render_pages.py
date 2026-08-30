@@ -13,7 +13,6 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     AT_THE_HANDOVER,
@@ -989,11 +988,9 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     own padding it printed as a blank strip at each end, the banner's height over the
     first line and the key line's under the last.
 
-    Boxes in the document's flow fixed that, and the reason they are boxes is the other
-    one: body's padding comes out of the box the room a wide widget spends is measured
-    off, so the writer of that padding could not also be a reader of that box (the skill's
-    CLAUDE.md). A box goes where the chrome goes; a padding on the scroll container stays
-    behind.
+    The reservations now belong to the document box whose chrome they make room for,
+    rather than to the scroll container. The same CSS disappears with the chrome in
+    print, so paper cannot inherit an empty screen-only strip.
 
     The screen half is read as room rather than as a covered last line, which is where a
     reader would meet it, because the column's own bottom padding is taller than the line:
@@ -1119,10 +1116,7 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     laid_out = []
 
     def release_the_rail(route):
-        page.wait_for_function(
-            "() => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-room') !== ''"
-        )
+        page.wait_for_function("() => Boolean(document.querySelector('main'))")
         laid_out.append(
             page.evaluate(
                 "() => getComputedStyle(document.documentElement)"
@@ -1199,19 +1193,13 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         "the margin was taken before the page was handed over, which is the case the "
         f"call at the end of upgrade already covers: {at_stamp['rail']}"
     )
-    # On the room being read again, not on the margin that prompts it: the claim lands a
-    # frame ahead of the reading, and a wait on the padding would arrive in between. The
-    # timeout is left to fall through because the geometry below is the verdict and says
-    # what a timeout cannot — how far out the exhibit stood, and on what room.
-    try:
-        page.wait_for_function(
-            "(was) => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-room') !== was",
-            arg=at_stamp["room"],
-            timeout=5000,
-        )
-    except PlaywrightTimeout:
-        pass
+    # Container queries answer the new shell width in the same layout pass. Wait on the
+    # geometry the contract promises, rather than on a JavaScript-written token.
+    page.wait_for_function(
+        "() => { const f = ("
+        + RAIL_FIT
+        + ")(); return f.rail === '160px' && f.past <= 1; }"
+    )
 
     assert answered == [True], (
         "the widget never asked, so its claim rode nothing this test controls and the "
@@ -1783,11 +1771,9 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
         "prose still keeps the column beside an open panel"
     )
 
-    # Closing is the same hand-over the other way, and the anticipation that is right on
-    # the way in is wrong on the way out: the strip comes back over a fifth of a second,
-    # and an exhibit that took it before the page had it scrolls the document sideways
-    # for exactly as long. Read before the transition settles, because that is the whole
-    # of the window in which it is wrong.
+    # Closing is the same CSS hand-over in reverse. At every intermediate frame the
+    # document and its breakout must agree about the room, or the page briefly scrolls
+    # sideways.
     page.get_by_role("button", name="Close threads").click()
     assert page.evaluate(
         "() => document.body.scrollWidth <= document.body.clientWidth"
@@ -1991,10 +1977,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     wide exhibit in the control: it may use the other margins but not the one the sticky
     sidebar can occupy at any scroll position.
 
-    Opening the thread panel narrows the page without changing the viewport, which a
-    media query cannot see. The shared cramped veto must return the aside to the flow and
-    give its strip back. A narrow viewport proves the same fallback comes from CSS alone,
-    and print proves paper reserves no blank margin for a posture it cannot use."""
+    Opening the thread panel narrows the page without changing the viewport. The body's
+    container query sees the resulting content box and returns the aside to the flow. A
+    narrow viewport proves the same fallback comes from CSS alone, and print proves
+    paper reserves no blank margin for a posture it cannot use."""
     example = next(p for p in EXAMPLES if p.stem == "release-notes")
     page, errors = open_page(browser, serve(example))
     sidebar = page.locator("aside.sidebar")
@@ -2006,9 +1992,13 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
+      const probe = document.createElement('i');
+      probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--strip-l)';
+      main.append(probe);
+      const strip = probe.getBoundingClientRect().width;
+      probe.remove();
       return {
-        cramped: document.body.hasAttribute('data-lf-cramped'),
-        strip: parseFloat(getComputedStyle(document.body).paddingLeft),
+        strip,
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
         column: {
@@ -2023,7 +2013,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     resized(page, 1400, 900)
     roomy = page.evaluate(reading)
-    assert not roomy["cramped"]
     assert roomy["strip"] == 264
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
@@ -2048,7 +2037,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
-    assert cramped["cramped"]
     assert cramped["strip"] == 0
     assert cramped["float"] == "none" and cramped["position"] == "static"
     assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
@@ -2108,6 +2096,14 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);
       const mb = main.getBoundingClientRect();
+      const length = (name) => {
+        const probe = document.createElement('i');
+        probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+        main.append(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return width;
+      };
       return {
         sidebars: [...document.querySelectorAll('aside.sidebar')].map(node => {
           const s = getComputedStyle(node), b = node.getBoundingClientRect();
@@ -2121,8 +2117,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
           width: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
         },
         padding: {
-          left: parseFloat(getComputedStyle(document.body).paddingLeft),
-          right: parseFloat(getComputedStyle(document.body).paddingRight),
+          left: length('--strip-l'),
+          right: length('--strip-r'),
         },
         gutter: innerWidth - document.documentElement.clientWidth,
         sideways: document.documentElement.scrollWidth
@@ -2178,18 +2174,16 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panelled = page.evaluate(reading)
-    assert page.locator("body").get_attribute("data-lf-cramped") == ""
     assert [side["float"] for side in panelled["sidebars"]] == ["none", "none"]
-    assert panelled["noteFloat"] == "none"
-    assert panelled["padding"] == {"left": 0, "right": 0}
+    assert panelled["noteFloat"] == "right"
+    assert panelled["padding"] == {"left": 0, "right": 384}
     assert panelled["column"]["width"] == 720
     assert panelled["sideways"] == 0
     resized(page, 1699, 800)
     resized(page, 1700, 800)
     repeated = page.evaluate(reading)
-    assert page.locator("body").get_attribute("data-lf-cramped") == ""
     assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
-    assert repeated["noteFloat"] == "none"
+    assert repeated["noteFloat"] == "right"
     assert repeated["column"]["width"] == 720
     assert errors == []
     page.close()

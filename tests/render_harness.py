@@ -1363,11 +1363,10 @@ def primed(browser, prepare):
 def panel_settled(page, open=True):
     """Wait for the panel to reach `open` and the page to finish making room for it.
 
-    Two things happen, and they don't finish together: the class flips at once and the
-    document slides into its new width over about a fifth of a second (syncLayout). A
-    geometry read taken on the flip is a read of the page mid-flight — its right edge
-    still under the panel, its column still the width it had — so an assertion fed by
-    one is about a layout that exists for a sixth of a second and then doesn't.
+    Two things happen, and they don't finish together: the dialog's open state flips at
+    once and CSS eases the document into the room left beside it. A geometry read taken
+    on the flip is a read of the page mid-flight, so an assertion fed by one is about a
+    layout that exists briefly and then doesn't.
 
     Ask the transition itself, via getAnimations(): the call flushes pending style, so
     the transition the class just brought into play is visible to the very first read, a
@@ -1396,12 +1395,10 @@ def resized(page, width, height):
 
     The fact the page states here is the event reaching its listeners, counted by one
     added now: the runtime registered its own when it loaded, so this one runs after
-    them. The rest of the page's answer lands in the same rendering update — the strip
-    the panel holds is the stylesheet's, and syncLayout runs from an observation of the
-    box, which Chrome delivers before that update ends — so the whole of it is behind
-    us by the time the next command reaches the page at all. What the answer moved is a
-    separate question, and a test whose subject is the new layout still waits for the
-    piece of it that it is about; a margin easing into place is the ordinary case.
+    them. The rest of the answer is CSS container layout, resolved in that rendering
+    update. What moved is a separate question, and a test whose subject is the new
+    layout still waits for its transition; a margin easing into place is the ordinary
+    case.
 
     A window already the size asked for fires nothing, so waiting on it would hang out
     a whole timeout rather than return at once. The sweep that walks each example at

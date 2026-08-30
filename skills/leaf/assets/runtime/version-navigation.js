@@ -63,24 +63,15 @@ export function createVersionNavigation({
   versionBtn.setAttribute("aria-haspopup", "menu");
   versionBtn.setAttribute("aria-expanded", "false");
   const versionMenu = el("div", "lf-ui lf-version-menu");
+  versionMenu.id = "lf-version-menu";
+  versionMenu.setAttribute("popover", "auto");
   versionMenu.setAttribute("role", "menu");
   versionMenu.setAttribute("aria-label", "Versions");
   let versionMenuOpen = false;
-  // Two facts about the versions, which had been one comparison spelled in three places and
-  // read as though it answered both. Whether there is a menu to open is not whether there is
-  // anything in it to walk: a first version has no neighbour to step to, and its menu still
-  // holds that version and the note saying what it changed, which is the whole reason the
-  // chooser is a menu rather than a select.
-  //
-  // Conflated, they left the menu's way in live over a page its way out was not. `v` opened
-  // on any page while the mode binding the menu's Escape stood only above one version, so on
-  // the commonest page there is — a page with one version — `v` raised a menu no key could
-  // put down: the Escape chip read "back to the page", focus fell to body, and the menu
-  // stayed painted. A layer owes a way out over exactly the pages its way in is live on, and
-  // the way to keep that true is to stop asking one question for both.
-  //
-  // Named the way the trays name theirs (`leavesOffered`, `decisionsOffered`), so the next
-  // surface to ask reads the fact rather than spelling a comparison of its own.
+  // Whether there is a menu to open is not whether there is anything in it to walk: a
+  // first version has no neighbour, but its menu still explains that version. The
+  // browser owns dismissal; Leaf only enables its version-walk bindings when a
+  // neighbouring destination exists.
   const draftRevisions = () => {
     const revisions = new Set();
     if (runtime.currentStamp === null && runtime.currentRevision !== null)
@@ -105,37 +96,33 @@ export function createVersionNavigation({
     const stops = versionStops();
     return document.activeElement === stops.at(end);
   };
-  // One setter stating the whole outcome, per showComposer and showFab: nothing reads
-  // the class back to find out whether the menu is up.
-  function showVersionMenu(open) {
-    versionMenuOpen = open;
-    versionMenu.classList.toggle("open", open);
-    versionBtn.setAttribute("aria-expanded", String(open));
-    // Opening lands on the version being read, so the menu's own keys are the next
-    // press rather than a Tab-hunt — the same move o makes into the leaves tray.
-    //
-    // Or on the standing base, where a comparison is up, because inside this menu the focused
-    // row *is* the base (the walk below). Landing on the version being read instead left the
-    // two disagreeing at the one moment the reader cannot see it coming: their first arrow
-    // press would have moved the base off the version they had marked from to the neighbour of
-    // the one they are reading, silently, with the marks redrawn to match.
-    if (open)
-      (
-        versionRows().find(
-          (r) =>
-            (comparisonBase() !== null &&
-              r.dataset.lfVersion === String(comparisonBase())) ||
-            (comparisonBase() === null &&
-              r.dataset.lfRevision === String(runtime.currentRevision)),
-        ) ?? versionRows()[0]
-      )?.focus();
-    else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
-    paintHere();
+  function focusVersionRow() {
+    (
+      versionRows().find(
+        (r) =>
+          (comparisonBase() !== null &&
+            r.dataset.lfVersion === String(comparisonBase())) ||
+          (comparisonBase() === null &&
+            r.dataset.lfRevision === String(runtime.currentRevision)),
+      ) ?? versionRows()[0]
+    )?.focus();
   }
-  // The pointer's door, held to the same fact as the key's: a button that opened a menu
-  // nothing could close would put the trap back for the reader who never touches the
-  // keyboard.
-  versionBtn.onclick = () => showVersionMenu(versionsOffered() && !versionMenuOpen);
+
+  // The browser owns top-layer state, light dismissal, Escape, and invoker focus
+  // restoration. This helper expresses only Leaf's requested end state.
+  function showVersionMenu(open) {
+    if (open && versionsOffered()) {
+      if (!versionMenu.matches(":popover-open"))
+        versionMenu.showPopover({ source: versionBtn });
+    } else if (versionMenu.matches(":popover-open")) versionMenu.hidePopover();
+  }
+  versionMenu.addEventListener("toggle", (event) => {
+    versionMenuOpen = event.newState === "open";
+    versionBtn.setAttribute("aria-expanded", String(versionMenuOpen));
+    if (versionMenuOpen) focusVersionRow();
+    paintHere();
+  });
+  versionBtn.onclick = () => showVersionMenu(!versionMenu.matches(":popover-open"));
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
@@ -147,14 +134,9 @@ export function createVersionNavigation({
   // — outside it, v is already the chooser — and being the inner scope's is what shadows the
   // page's v, where the two listeners used to depend on one consuming the press.
   //
-  // The scope is live while there is a list to walk. The menu's *way out* is not — it is the
-  // mode's below, on the wider fact that there is a menu at all, because a layer's Escape
-  // has to hold wherever the layer does. Reading one predicate for both is what left `v`
-  // opening a menu on a page whose Escape no scope was live to bind: the reader's next press
-  // was the page's own rung, focus fell to body, and the menu stayed painted. So this scope
-  // answers "is there anything to walk" and the mode answers "is there a menu", and the
-  // reference's section is the two of them merged by title — on a first version, the way out
-  // and nothing else.
+  // This scope is live only while there is a list to walk. The mode below stays live for
+  // every open menu so page-level Leaf shortcuts remain suspended while the browser owns
+  // the transient layer.
   const NEWEST = {
     id: "version.current",
     keys: ["v"],
@@ -217,18 +199,13 @@ export function createVersionNavigation({
     ],
     versionsToWalk,
   );
-  // The way out is the menu standing, not whether it has multiple versions to walk. So the
-  // rung is a mode rather than the element scope's: on the common first version the menu
-  // still needs Escape even though there is no neighbouring row. The menu's walk stays the
-  // element scope's, because a walk has nothing to walk unless focus is on a row.
+  // The mode represents the menu standing, not whether it has multiple versions to walk.
+  // It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
+  // not provide. Escape, light dismissal, and invoker focus restoration stay native.
   const VERSIONS = {
     title: "In the versions menu",
-    // The way out is live wherever the way in is, which is the wider fact and not the walk's:
-    // a menu holding one version is still a layer the reader is standing in, and its Escape
-    // is the only key that ends it. Stated as the walk's liveness, this scope went quiet on
-    // exactly the page where the menu could not otherwise be closed.
     when: versionsOffered,
-    at: () => versionMenuOpen,
+    at: () => versionMenu.matches(":popover-open"),
     // A mode over the page suspends the page, which the two modes above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
     // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
@@ -262,13 +239,6 @@ export function createVersionNavigation({
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
-        run: () => showVersionMenu(false),
-      },
-      {
-        id: "version.close",
-        keys: ["Escape"],
-        does: "Close the versions menu",
-        line: "close versions",
         run: () => showVersionMenu(false),
       },
     ],

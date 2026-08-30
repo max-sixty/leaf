@@ -35,9 +35,11 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
 }
 .lf-gloss-popover {
-  position: fixed; inset: auto; box-sizing: border-box;
+  position: fixed; inset: auto; position-area: block-end center;
+  position-try-fallbacks: flip-block, flip-inline;
+  box-sizing: border-box;
   width: max-content; max-width: min(22rem, calc(100vw - 24px));
-  margin: 0; padding: 10px 13px 11px;
+  margin: 8px 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
   box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 14%, transparent);

@@ -2538,11 +2538,10 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
 
 
 def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
-    """One declaration per binding, and every surface is a projection of it — so a key
-    cannot be bound and go unnamed. The reading-page pair is the case that named this. It
-    stepped through a page for as long as the runtime had it while the reference alone
-    always carried them, while the always-visible line never did: the line's word was an
-    optional field, and its absence read exactly like a decision not to show the key.
+    """One declaration per runtime binding, and every surface is a projection of it.
+
+    Browser-owned paging is absent from those surfaces; declared Leaf commands still
+    require the words the key line and reference need.
 
     It is refused now, where a scope is declared, so the next binding written without a
     word fails on the page that introduces it rather than going quiet on every page after
@@ -2550,13 +2549,11 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     and worth knowing and not what the next press does."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     line = page.locator(".lf-keyline")
-    expect(line).to_contain_text("space")
-    expect(line).to_contain_text("page down")
-    expect(line).to_contain_text("page up")
+    expect(line).not_to_contain_text("page down")
+    expect(line).not_to_contain_text("page up")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("Move 60% of a page down")
-    expect(page.locator(".lf-help")).to_contain_text("Move 60% of a page up")
+    expect(page.locator(".lf-help")).not_to_contain_text("Move 60% of a page")
     expect(page.locator(".lf-help")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
     expect(line).not_to_contain_text("F7")
@@ -2663,24 +2660,14 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     )
 
 
-def test_the_reference_names_the_space_that_works_a_control(browser, serve):
-    """`offer` builds each button-contract press as a span wearing role="button", so the
-    keys the platform would have given a real button are the runtime's to supply — and it
-    supplied them through a listener no surface could see. Space activated nine classes
-    of control across core and five widgets, and exactly one of them said so anywhere.
-
-    The activation is a scope now, so the reference names it once for all of them, and a
-    widget whose press means more than "work this control" says so in its own words and
-    binds the same two keys. The grip is where that was wrong twice over: its handler
-    answered Space in both its states while both its declarations said Enter."""
+def test_native_controls_need_no_generic_space_binding(browser, serve):
+    """The reference has no synthetic generic-control command. Specialized controls
+    such as a board grip still declare the Space meaning that belongs to their widget."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
-    expect(help_el).to_contain_text("On a control")
-    expect(help_el.locator("tr", has_text="Work the focused control")).to_contain_text(
-        "space"
-    )
+    expect(help_el).not_to_contain_text("On a control")
     expect(help_el.locator("tr", has_text="Grab the card")).to_contain_text("space")
     page.keyboard.press("Escape")
 
@@ -2834,13 +2821,10 @@ def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
     expect(page.get_by_role("button", name="Back to more shortcuts")).to_be_visible()
     expect(help_el).not_to_contain_text("With more keyboard shortcuts")
 
-    search.fill("60% of a page")
-    expect(help_el.locator("tr:not([hidden])")).to_have_count(2)
-    expect(help_el.locator("tr:not([hidden])").nth(0)).to_contain_text(
-        "Move 60% of a page down"
-    )
-    expect(help_el.locator("tr:not([hidden])").nth(1)).to_contain_text(
-        "Move 60% of a page up"
+    search.fill("Cancel item selection")
+    expect(help_el.locator("tr:not([hidden])")).to_have_count(1)
+    expect(help_el.locator("tr:not([hidden])").first).to_contain_text(
+        "Cancel item selection"
     )
 
     search.fill("thread panel")
@@ -3411,15 +3395,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
-    # The chooser is the one version key a first version has: its menu holds this
-    # version and what it changed, where the menu's own keys have nothing to walk. So the
-    # section holds the one key the layer really has — the way out — and not the walk,
-    # which is the narrower fact and dead here. Both read one predicate once, and the
-    # reference then either named a walk with nowhere to go or went silent about the menu
-    # entirely; the silent reading is the one that shipped, and it took the Escape with
-    # it, leaving `v` opening a layer no key could close.
+    # A first version has a useful chooser but no neighbouring version to walk. Escape is
+    # the popover's native dismissal and therefore is not a Leaf shortcut row.
     expect(help_el).to_contain_text("The versions, and what each one changed")
-    expect(help_el).to_contain_text("Close the versions menu")
+    expect(help_el).not_to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
@@ -3458,8 +3437,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
-    # Still one version, so the menu's section holds its way out and not its walk.
-    expect(help_el).to_contain_text("Close the versions menu")
+    # Still one version, so there is no version walk to advertise.
+    expect(help_el).not_to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")

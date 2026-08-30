@@ -510,8 +510,8 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
 
     The second one no marker can fix, which is why it reads differently: a word inside a
     form control is unselectable in every engine, so a widget that reaches for <button>
-    has put its label somewhere the user cannot go. `offer` builds a press as a span
-    for exactly this reason, and this is what says so when a widget doesn't use it."""
+    has put its label somewhere the user cannot go. `selectableOffer` is the explicit
+    exception for such page words, and this says when a widget needed it."""
     assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )

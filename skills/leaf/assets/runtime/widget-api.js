@@ -69,5 +69,6 @@ export {
   reachedForWords,
   relabel,
   reserve,
+  selectableOffer,
   worksInside,
 } from "./widget-elements.js";

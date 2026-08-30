@@ -173,7 +173,6 @@ export function createLivingMargin(dependencies) {
     anchorLabel,
     announce,
     approveBtn,
-    banner,
     blockAt,
     chromeRoot,
     claimState,
@@ -241,7 +240,7 @@ export function createLivingMargin(dependencies) {
       preview.contains(document.activeElement);
     const sheetHeld = sheet.contains(document.activeElement);
     placeMapButton();
-    if (compact.matches && !preview.hidden) closePreview(false);
+    if (compact.matches && preview.matches(":popover-open")) closePreview(false);
     if (compact.matches && marginHeld) requestAnimationFrame(() => focusMapControl());
     if (!compact.matches && sheet.open) {
       sheetActivation = true;
@@ -255,7 +254,7 @@ export function createLivingMargin(dependencies) {
 
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = "lf-margin-preview";
-  preview.hidden = true;
+  preview.setAttribute("popover", "auto");
   const previewHead = el("div", "lf-margin-preview-head");
   const previewTitle = el("strong", "lf-margin-preview-title");
   const previewClose = el("button", "lf-btn lf-margin-preview-close", "×");
@@ -291,7 +290,6 @@ export function createLivingMargin(dependencies) {
   let suppressedKey = null;
   let cardHovered = false;
   let highlighted = null;
-  let previewFrame = 0;
   let rovingFrame = 0;
   let sheetActivation = false;
 
@@ -623,43 +621,7 @@ export function createLivingMargin(dependencies) {
       line: "last marker",
       run: () => walkMarkers(0, "last"),
     },
-    {
-      id: "margin.preview-close",
-      keys: ["Escape"],
-      does: "Close the page-map preview",
-      line: "close preview",
-      when: () => !preview.hidden,
-      run: () => closePreview(true),
-    },
   ];
-  keys(
-    preview,
-    "In a page-map preview",
-    [
-      {
-        id: "margin.card-close",
-        keys: ["Escape"],
-        does: "Close the page-map preview",
-        line: "close preview",
-        run: () => closePreview(true),
-      },
-    ],
-    () => !preview.hidden,
-  );
-  keys(
-    sheet,
-    "In the page map",
-    [
-      {
-        id: "margin.sheet-close",
-        keys: ["Escape"],
-        does: "Close the page map",
-        line: "close page map",
-        run: () => sheet.close(),
-      },
-    ],
-    () => sheet.open,
-  );
 
   function paintMarker(row, entry, index, anchored) {
     const markerKinds = kindsIn(entry, { markerOnly: true });
@@ -883,7 +845,6 @@ export function createLivingMargin(dependencies) {
         previewButton = rows.get(fresh.key) ?? previewButton;
         buildPreview(fresh);
         highlight(fresh.target);
-        placePreview();
       }
     }
     scheduleMarginLayout();
@@ -972,15 +933,17 @@ export function createLivingMargin(dependencies) {
   function showPreview(entry, button) {
     if (!entry || suppressedKey === entry.key) return;
     if (previewEntry?.key !== entry.key) buildPreview(entry);
+    if (previewButton && previewButton !== button)
+      previewButton.style.removeProperty("anchor-name");
     previewEntry = entry;
     previewButton = button;
-    preview.hidden = false;
+    button.style.setProperty("anchor-name", "--lf-margin-preview");
+    if (!preview.matches(":popover-open")) preview.showPopover({ source: button });
     highlight(entry.target);
     for (const [key, row] of rows) {
       row.setAttribute("aria-expanded", String(key === entry.key));
       row.setAttribute("aria-pressed", String(key === pinnedKey));
     }
-    placePreview();
     paintKeys();
   }
 
@@ -1002,7 +965,8 @@ export function createLivingMargin(dependencies) {
     pinnedKey = null;
     previewEntry = null;
     previewButton = null;
-    preview.hidden = true;
+    button?.style.removeProperty("anchor-name");
+    if (preview.matches(":popover-open")) preview.hidePopover();
     highlight(null);
     for (const row of rows.values()) {
       row.setAttribute("aria-expanded", "false");
@@ -1022,34 +986,6 @@ export function createLivingMargin(dependencies) {
         closePreview(false);
       if (!focusHeld && !pointerHeld) suppressedKey = null;
     }, 70);
-  }
-
-  function placePreview() {
-    cancelAnimationFrame(previewFrame);
-    previewFrame = requestAnimationFrame(() => {
-      previewFrame = 0;
-      if (preview.hidden || !previewButton?.isConnected) return;
-      const marker = previewButton.getBoundingClientRect();
-      const card = preview.getBoundingClientRect();
-      const bannerBottom = banner.getBoundingClientRect().bottom;
-      const minTop = Math.max(12, bannerBottom + 8);
-      const maxTop = Math.max(minTop, innerHeight - card.height - 12);
-      const top = Math.max(minTop, Math.min(maxTop, marker.top));
-      // The room is the page's own and not the window's, which is the side's version of
-      // the banner line two above. An open panel takes its strip out of the body rather
-      // than standing over it (chrome-style.js), so a card placed against the window
-      // stands in the panel — and one the reader left open covers the narrowing box at
-      // the top of it, where the ring of the box they are typing in goes under this
-      // card's ×. The margin's card belongs in the column the margin is drawn in.
-      const roomRight = document.body.getBoundingClientRect().right;
-      const rightRoom = roomRight - marker.right - 12;
-      const left =
-        rightRoom >= card.width + 8
-          ? marker.right + 8
-          : Math.max(12, marker.left - card.width - 8);
-      preview.style.left = `${Math.min(left, roomRight - card.width - 12)}px`;
-      preview.style.top = `${top}px`;
-    });
   }
 
   function activate(item, entry) {
@@ -1120,6 +1056,20 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
+  preview.addEventListener("toggle", (event) => {
+    if (event.newState !== "closed" || !previewEntry) return;
+    const button = previewButton;
+    pinnedKey = null;
+    previewEntry = null;
+    previewButton = null;
+    button?.style.removeProperty("anchor-name");
+    highlight(null);
+    for (const row of rows.values()) {
+      row.setAttribute("aria-expanded", "false");
+      row.setAttribute("aria-pressed", "false");
+    }
+    paintKeys();
+  });
   // Blur on a marker is delayed so focus can enter its preview. Once focus leaves the
   // preview too, that bridge is spent: a keyboard reader's next control must not sit
   // under an unpinned card that belongs to the previous stop.
@@ -1133,30 +1083,19 @@ export function createLivingMargin(dependencies) {
     cardHovered = false;
     deferPreviewClose();
   });
-  document.addEventListener("click", (event) => {
-    if (
-      pinnedKey &&
-      !preview.contains(event.target) &&
-      !event.target.closest?.(".lf-margin-marker")
-    )
-      closePreview(false);
-  });
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
   offerListeners.add(render);
-  document.addEventListener("lf-margin-layout", placePreview);
   document.addEventListener(
     "scroll",
     () => {
-      placePreview();
       scheduleRoving();
     },
     { capture: true, passive: true },
   );
   window.addEventListener("resize", () => {
     scheduleMarginLayout();
-    placePreview();
     scheduleRoving();
   });
   render();

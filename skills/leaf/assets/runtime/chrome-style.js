@@ -35,13 +35,9 @@ export function chromeStyle({
       body { min-height: 100%; }
       /* The banner stands over the head of the document, so the page's first lines get
          room rather than starting under it, and the key line reserves the same at the
-         foot (syncLayout). Both are boxes in the flow rather than padding on body, which
-         is the box the room a wide widget spends is measured from — CLAUDE.md's "The one
-         writer may not write the box the layout is measured from" carries why. A box also
-         adds to whatever padding the page declares at this edge, where a rule here would
-         replace it, and it is withheld from paper by the block it sits in: written as
-         padding it stayed behind, holding 42px of blank over the first line of every
-         printed page for a bar that was not on it. */
+         foot (syncLayout). Both are boxes in the flow rather than scroll-container
+         padding. They therefore add to authored page padding and disappear with the
+         screen-only chrome instead of leaving empty strips on paper. */
       body::before { content: ""; display: block; height: var(--lf-banner-h); }
     }
   }
@@ -95,15 +91,9 @@ export function chromeStyle({
      gesture still moves one region, and the region is the thread list; the root keeps its
      position for when the sheet closes.
 
-     The cascade's, though syncLayout is the layout's one writer, because body's box is
-     the one thing that writer may not write: it runs from an observation of that box, and
-     a write from inside that round is a resize of what was just reported — the round
-     breaks, and Chrome says so on the window's error channel and nowhere else (CLAUDE.md,
-     "The one writer may not write the box the layout is measured from"). Written in JS it
-     survived on a coincidence: the margin transitions, so the used value did not move
-     until the frame after the write, and the round the write landed in closed intact. A
-     stylesheet is where a fact about the shape of the page belongs anyway, and the panel
-     states only that it is open.
+     The cascade owns this shell geometry. JavaScript states only that the panel is open;
+     CSS determines the room left beside it and the document's container queries respond
+     directly to that result.
 
      The strip comes out of the page rather than being held aside for it, which makes
      opening the panel the largest movement in the product: the column re-centres by half
@@ -153,16 +143,12 @@ export function chromeStyle({
      the theme and wins that. A layered rule still outranks the UA's, which is all the
      clearing ever needed. */
   @layer lf-reset {
+    button.lf-ui { appearance: none; margin: 0; padding: 0; border: 0;
+      background: none; color: inherit; font: inherit; }
     .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
   }
-  /* A control a widget injects is a span wearing its ARIA role, so the box and the drag
-     that a native control supplied are stated here. Only .lf-btn needs the box because
-     every other control is a flex item or positioned. A native control also refuses a
-     drag, which is worth keeping wherever its words are the runtime's and is exactly what
-     must not happen where one of them is the page's. So selection goes off only where
-     nothing under the control is said: a descendant cannot win it back, since user-select
-     none on an ancestor takes the whole subtree out of a pointer's reach whatever the
-     descendant declares. */
+  /* Only .lf-btn needs a shared box because every other control is a flex item or
+     positioned. Selection goes off where nothing under a control is page text. */
   .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: inherit; display: inline-block; }
   .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
   .lf-btn:hover { background: var(--chip); }
@@ -224,7 +210,7 @@ export function chromeStyle({
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
      reaction mark and leaves the mark itself, so a hand hung on the class alone
      promises a press no file can answer. It reads the two ways a press is spelled
-     here: the platform's element, and the attribute offer() writes on a span. */
+     here: the platform's element, and the explicit selectable-offer exception. */
   .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
   .lf-margin-action:hover:not([aria-disabled="true"]) { background: var(--chip); }
   .lf-margin-action:is(:focus-visible, .lf-focus-visible) {
@@ -499,9 +485,8 @@ ${MARK_RULES}
      come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
      once above for both. It becomes a skip-link-style control on focus: a reader who
      hears the count can enter its first thread, then t/T through the rest. The rule
-     below states its whole visible form, so the resting one adds nothing to the clip —
-     the padding and border reset that stood here were a real button's, and the note has
-     been a span since offer() built it. */
+     below states its whole visible form, so the resting native button adds nothing to
+     the clip. */
   .lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
@@ -677,7 +662,7 @@ ${MARK_RULES}
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
-    .lf-version-menu.open { display: grid; }
+    .lf-version-menu:popover-open { display: grid; }
     /* Left-aligned text in a control that is otherwise a press: the rows are a list to
        read down, and a centred note re-ragged on every line is not one. */
     .lf-version-row { grid-column: 1; position: relative;
@@ -780,11 +765,15 @@ ${MARK_RULES}
        room the shelf above scrolls; clipping the one control instead left a visible
        eighteen-pixel button containing none of its words. */
     .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
-    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(${PANEL_PROP}); z-index: 8900;
-      background: var(--card); border-left: 1px solid var(--rule); display: none;
+    .lf-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
+      width: var(${PANEL_PROP}); height: auto; max-width: none; max-height: none; margin: 0;
+      box-sizing: border-box;
+      z-index: 8900; color: var(--ink); font: inherit;
+      background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
       flex-direction: column; padding-right: var(--lf-safe-right);
       padding-bottom: var(--lf-safe-bottom); }
-    .lf-panel.open { display: flex; }
+    .lf-panel[open] { display: flex; }
+    .lf-panel::backdrop { background: color-mix(in srgb, var(--ink) 12%, transparent); }
     /* An edge, offered as a thing to take hold of — the thread panel's on the right of
        the page, the trays' on the left, and nothing here knows which it is drawing except
        the two lines that place it. It draws nothing of its own: the region's inner border
@@ -1170,12 +1159,13 @@ ${MARK_RULES}
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
-    .lf-margin-preview { position: fixed; z-index: 9150; width: min(320px, calc(100vw - 24px));
+    .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
+      position-area: inline-start center; position-try-fallbacks: flip-inline, flip-block;
+      z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
-      padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
+      margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
-    .lf-margin-preview[hidden] { display: none; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
       justify-content: space-between; gap: 12px; }
     .lf-margin-preview-title { font-size: var(--t-5); line-height: 1.35; }

@@ -2004,6 +2004,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
+      const marginItems = [...document.querySelectorAll('.lf-margin-item')]
+        .filter(node => node.checkVisibility());
+      const marginRight = Math.max(0,
+        ...marginItems.map(node => node.getBoundingClientRect().right));
       const probe = document.createElement('i');
       probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--strip-l)';
       main.append(probe);
@@ -2017,6 +2021,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
+        marginCount: marginItems.length, marginRight,
+        viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
         sideways: document.documentElement.scrollWidth
           - document.documentElement.clientWidth,
@@ -2031,10 +2037,30 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"the sidebar entered the prose column: {roomy}"
     )
     assert roomy["sidebar"]["width"] == 240
+    assert (
+        abs(
+            (roomy["column"]["left"] + roomy["column"]["right"]) / 2
+            - roomy["viewportWidth"] / 2
+        )
+        <= 1
+    ), f"the sidebar moved a reading column that already had room: {roomy}"
     assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
     assert roomy["sideways"] == 0
+
+    # The rail claim is monotonic, so narrowing the same page carries its widest
+    # right-margin row into the tighter layout. The sidebar and rail use the outer
+    # gutters before taking width from the reading column.
+    resized(page, 1200, 900)
+    tighter = page.evaluate(reading)
+    assert tighter["column"]["right"] - tighter["column"]["left"] == 720
+    assert tighter["sidebar"]["left"] >= -1
+    assert tighter["marginCount"] > 0
+    assert tighter["marginRight"] <= tighter["viewportWidth"] + 1
+    assert tighter["sideways"] == 0
+
+    resized(page, 1400, 900)
 
     page.evaluate(
         "document.scrollingElement.style.scrollBehavior = 'auto'; document.scrollingElement.scrollTo(0, 900)"

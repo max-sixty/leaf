@@ -492,13 +492,14 @@ main {
   --strip-l: 0px;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
     var(--claim-map, 0px), var(--lf-claim-right, 0px));
+  --lf-shift: calc((var(--strip-l) - var(--strip-r)) / 2);
   --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
     - 2 * var(--col-pad)));
   width: min(var(--col), var(--lf-room));
   max-width: var(--col);
   margin: 0 auto;
   padding: 72px var(--col-pad) 96px;
-  left: calc((var(--strip-l) - var(--strip-r)) / 2);
+  left: var(--lf-shift);
   position: relative;
   --lf-frame: 1;
   --lf-column: 1;
@@ -543,9 +544,9 @@ main {
  * of the two would be centred and would be nothing at all, since every claim here leaves
  * its side a gutter: five of the seven shipped examples that carry a wide widget also
  * carry a claim, so the axis is what a symmetric rule would have cost the feature. An edge
- * flush with the column is an alignment the page already has, and a page whose margin is
- * spoken for is asymmetric before the exhibit arrives — the column itself sits off the
- * window's centre by exactly the strip.
+ * flush with the column is an alignment the page already has. An axis-setting sidenote
+ * makes the page asymmetric before the exhibit arrives. A sidebar instead borrows the
+ * existing gutter and moves the column only when the remaining room runs short.
  *
  * Screen only. Paper has no window to take room from and a printed page is the column's
  * width, so leaving the rule out of print is the whole of what paper needs. On screen,
@@ -904,6 +905,18 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy)
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--sidebar);
+    /* Keep the reading column on the page's axis while both margin residents fit in
+       its existing gutters. If they need more room, spend the outer page edges and
+       shift only far enough to keep each resident on screen before narrowing prose. */
+    --lf-sidebar-edge: clamp(0px,
+      calc((100cqi - var(--strip-l) - var(--strip-r) - var(--col)) / 2),
+      var(--col-pad));
+    --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
+      - 2 * var(--lf-sidebar-edge)));
+    --lf-gutter: calc((100cqi - min(var(--col), var(--lf-room))) / 2);
+    --lf-shift: calc(
+      max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
+      - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {

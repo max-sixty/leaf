@@ -2521,6 +2521,16 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     specimens = page.locator("lf-specimen").evaluate_all(
         "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
     )
+    if not specimens:
+        owners = page.locator("#corpus > lf-tab:has(lf-specimen)")
+        assert owners.count(), (
+            "this page declares a specimen but no visible exhibit or corpus panel owns it"
+        )
+        label = owners.first.get_attribute("label")
+        page.get_by_role("tab", name=label, exact=True).click()
+        specimens = page.locator("lf-specimen").evaluate_all(
+            "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
+        )
     assert specimens, "this page shows no specimen: the reading below asserts nothing"
 
     for spec in specimens:
@@ -2538,7 +2548,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             # `instant`, because the page asks for smooth scrolling and a read taken
             # while one is still gliding is of wherever it had got to — which passes on
             # a short page, where the glide is over before the next call lands, and
-            # failed on the gallery, where the same delta is thousands of pixels.
+            # failed on the corpus, where the same delta is thousands of pixels.
             page.evaluate(
                 """([id, edge]) => {
                     const r = document.getElementById(id).getBoundingClientRect();

@@ -415,7 +415,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
        rule whose rightmost compound is universal is weighed against every element on
        every recalculation and cannot know the window has closed. Measured on the
        shipped examples: 70ms of style recalculation became 83 on design-decision and
-       896 became 955 on the gallery, where these two selectors are inside the run to
+       896 became 955 on the corpus, where these two selectors are inside the run to
        run spread of the same pages. `transition` does not inherit, so what an
        unreached descendant can still play is a transition of its own declaring; that
        is the trade, and the check that finds one is the suite's rather than this

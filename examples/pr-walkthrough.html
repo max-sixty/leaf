@@ -34,7 +34,7 @@ gateway/
   middleware.py  +2 -1
   ratelimit.conf  +1 -1
   migrations/
-    0042_token_buckets.sql  +5
+    0042_token_buckets.sql  +6
 </pre>
         </lf-tree>
         <p id="p-shape">
@@ -92,6 +92,19 @@ gateway/
             </tr>
           </tbody>
         </table>
+        <details id="pr-config-evidence">
+          <summary>The reviewed rate-limit configuration</summary>
+          <p id="pr-config-note">
+            This is the exact branch snapshot the walkthrough was checked against, not a
+            second rendering of the diff.
+          </p>
+          <lf-source
+            id="pr-rate-config"
+            source="rate-limit-config"
+            snapshot="1"
+            language="toml"
+          ></lf-source>
+        </details>
       </section>
 
       <section id="core">
@@ -132,12 +145,13 @@ diff --git a/gateway/ratelimit.conf b/gateway/ratelimit.conf
 diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042_token_buckets.sql
 --- /dev/null
 +++ b/gateway/migrations/0042_token_buckets.sql
-@@ -0,0 +1,5 @@
+@@ -0,0 +1,6 @@
 +create table token_buckets (
 +  key text primary key,
 +  tokens integer not null,
 +  refilled_at timestamptz not null
 +);
++create index token_buckets_refilled_at_cleanup_idx on token_buckets (refilled_at) where tokens = 0;
 </pre>
         </lf-diff>
       </section>
@@ -209,7 +223,7 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         </p>
         <lf-code id="test-transcript" hi="3">
           <pre>
-$ pytest tests/ -m ratelimit -k two_tokens -q
+$ pytest tests/ratelimit/test_bucket_identity.py::test_two_tokens_behind_one_address_each_get_a_full_budget -q
 ..                                                                 [100%]
 2 passed in 1.84s
 </pre>

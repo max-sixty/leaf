@@ -20,9 +20,8 @@
       <h1>Where sessions live</h1>
       <p class="lede" id="decision-lede">
         The monolith split leaves session state homeless: today it rides the app
-        server's memory and dies with it. Three candidates, one recommendation — Redis
-        with a signed-cookie fallback. Click an option — or Tab to its mark and press
-        Enter — to decide; your pick reaches the agent directly.
+        server's memory and dies with it. The choice has narrowed to three operating
+        models, with Redis and a short signed-cookie fallback recommended.
       </p>
 
       <section id="constraints">
@@ -78,7 +77,7 @@
       </section>
 
       <section id="precedent">
-        <h2>The payments page is worth copying for its framing alone</h2>
+        <h2>The payments precedent is useful — and not equivalent</h2>
         <aside class="sidenote" id="sn-payments-page">
           Their page is still served, at payments/2024-03-session-store.
         </aside>
@@ -87,35 +86,10 @@
           a quarter.
         </aside>
         <p id="precedent-intro">
-          Payments settled the same question in March. Their page put it in two cards
-          with the operating cost on the front of each, which is a framing worth
-          copying. Their answer travels less well, since they had a tenth of our write
-          volume and nothing that had to survive the store going down.
+          Payments settled a similar question in March. Its answer does not travel
+          cleanly: payments had a tenth of our write volume and nothing that had to
+          survive the store going down.
         </p>
-        <lf-specimen id="payments-decision" label="payments, March">
-          <lf-options id="pay-store" choose>
-            <lf-option id="pay-redis"
-              ><lf-chip tone="ok">already on call for it</lf-chip>
-              <strong>Redis</strong> Revocation is a delete, and the idempotency keys
-              live there already.
-            </lf-option>
-            <lf-option id="pay-db"
-              ><lf-chip tone="warn">ledger primary</lf-chip>
-              <strong>Postgres table</strong> One table, but every request writes to the
-              instance the ledger is on.
-            </lf-option>
-          </lf-options>
-          <lf-suggestion id="pay-sug-expiry">
-            <lf-old
-              ><p id="pay-expiry-note">
-                Idempotency keys expire with the payment.
-              </p></lf-old
-            >
-            <lf-new
-              ><p>Idempotency keys expire a day after the payment settles.</p></lf-new
-            >
-          </lf-suggestion>
-        </lf-specimen>
         <lf-compare id="service-pair">
           <lf-variant id="var-payments-regime">
             <strong>Payments, March</strong>
@@ -168,12 +142,6 @@
                 (replication, expiry) still attached, and the account-takeover response
                 waiting on them.
               </p>
-              <lf-shot
-                id="jwt-sessions-shot"
-                alt="the support sessions panel, before and after sessions stop being stored"
-                before="/media/676977f1adde6fa1.png"
-                after="/media/128154edbb078102.png"
-              ></lf-shot>
               <p>
                 With nothing stored there is nothing to list, so the support console
                 loses its per-device Revoke and "log out all devices" waits on the
@@ -201,14 +169,6 @@
                   outage.</em
                 >
               </p>
-              <lf-diagram id="session-flow">
-                <pre>
-graph LR
-  S[Redis] -->|hit| H[handle]
-  S -->|miss| F[cookie]
-  F --> H
-</pre>
-              </lf-diagram>
             </lf-option>
             <lf-option id="opt-db"
               ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
@@ -249,51 +209,11 @@ graph LR
             signed snapshot; outlives a blip, never a revocation.</lf-variant
           >
         </lf-compare>
-        <p id="fallback-intro">
-          One revision is waiting on you below: accept or reject it with the controls in
-          the margin, and the next version carries whichever you chose.
-        </p>
-        <lf-suggestion id="sug-fallback-window">
-          <lf-old
-            ><aside class="callout" id="fallback-note">
-              The fallback cookie is read-only: it can keep a session alive through a
-              Redis blip, but revocation, rolling expiry, and new logins all require the
-              store. A revoked session survives at most the cookie's 5-minute lifetime.
-            </aside></lf-old
-          >
-          <lf-new
-            ><aside class="callout">
-              The fallback cookie is read-only: it can keep a session alive through a
-              Redis blip, but revocation, rolling expiry, and new logins all require the
-              store. A revoked session survives at most the cookie's 90-second lifetime
-              — short enough that support's "log out all devices" reads as immediate.
-            </aside></lf-new
-          >
-        </lf-suggestion>
-      </section>
-
-      <section id="next-up">
-        <lf-decision id="next-jobs-decision">
-          <h2>What I pick up next</h2>
-          <p id="next-intro">
-            Whichever store wins, three jobs stand behind it, and each is argued
-            somewhere above rather than in a card of its own. Pick the ones worth
-            starting — click a row, or Tab to its mark and press Enter — or write
-            another option in the last row if none of these is the job.
-          </p>
-          <lf-options id="next-jobs" choose multiple>
-            <lf-option id="nx-revoke" for="constraints"
-              >A revocation drill at support's volume.
-              <em>My take: start here.</em></lf-option
-            >
-            <lf-option id="nx-fallback" for="flow"
-              >Key rotation for the fallback cookie</lf-option
-            >
-            <lf-option id="nx-load" for="options"
-              >A write load test at request rate</lf-option
-            >
-          </lf-options>
-        </lf-decision>
+        <aside class="callout" id="fallback-note">
+          The fallback cookie is read-only: it can keep a session alive through a Redis
+          blip, but revocation, rolling expiry, and new logins all require the store. A
+          revoked session survives at most its 90-second lifetime.
+        </aside>
       </section>
     </main>
   </body>

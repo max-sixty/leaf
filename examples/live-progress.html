@@ -19,9 +19,9 @@
       <p class="eyebrow">live progress · rehearsal 4 of 5</p>
       <h1>Checkout cutover rehearsal</h1>
       <p class="lede" id="lp-lede">
-        The agent saves this page as each check finishes. The browser follows each valid
-        revision, so statuses and counts change without a refresh. The rollback drill is
-        running now.
+        The rollback proof is running now. This page follows the agent's valid saves, so
+        the release captain can watch checks, ownership, and the one blocked fixture
+        change without refreshing.
       </p>
 
       <lf-metrics id="lp-metrics">
@@ -29,75 +29,105 @@
           >checks complete</lf-metric
         >
         <lf-metric id="lp-k-running" value="2">running now</lf-metric>
-        <lf-metric id="lp-k-blocked" value="1">blocked</lf-metric>
+        <lf-metric id="lp-k-blocked" value="1" delta="+1" direction="up-bad"
+          >blocked</lf-metric
+        >
         <lf-metric id="lp-k-elapsed" value="31 min">elapsed</lf-metric>
       </lf-metrics>
 
-      <section id="lp-now">
-        <h2>Right now</h2>
-        <aside class="callout" id="lp-active">
-          <strong>Rollback drill is on step 3 of 4.</strong> Traffic is back on the old
-          checkout service. The agent is comparing order counts before it marks the
-          drill done.
-        </aside>
+      <section id="lp-crew">
+        <h2>On the rehearsal</h2>
+        <lf-roster id="lp-roster">
+          <lf-agent id="lp-agent-router" state="working">
+            <strong>router</strong> Comparing old and new order counts after rollback.
+          </lf-agent>
+          <lf-agent id="lp-agent-ledger" state="blocked">
+            <strong>ledger</strong> Waiting on one partially refunded order fixture.
+          </lf-agent>
+          <lf-agent id="lp-agent-observer" state="waiting">
+            <strong>observer</strong> Guardrails are green; watching the final sample.
+          </lf-agent>
+          <lf-agent id="lp-agent-scribe" state="idle">
+            <strong>scribe</strong> Ready to publish once the drill closes.
+          </lf-agent>
+          <lf-agent id="lp-agent-baseline" state="done">
+            <strong>baseline</strong> Captured the pre-cutover sample and handed it off.
+          </lf-agent>
+        </lf-roster>
       </section>
 
-      <section id="lp-work">
-        <h2>Work</h2>
-        <lf-milestones id="lp-milestones">
-          <lf-milestone id="lp-ms-baseline" status="done" when="14:02">
-            <strong>Capture the baseline</strong> Error rate, p95, order count, and
-            queue depth recorded before the rehearsal.
-          </lf-milestone>
-          <lf-milestone id="lp-ms-shadow" status="done" when="14:08">
-            <strong>Shadow production traffic</strong> New and old services agreed on
-            2,000 sampled checkouts.
-          </lf-milestone>
-          <lf-milestone id="lp-ms-cutover" status="done" when="14:19">
-            <strong>Cut traffic to the new service</strong> Guardrails held for ten
-            minutes at 100% traffic.
-          </lf-milestone>
-          <lf-milestone
-            id="lp-ms-rollback"
-            status="active"
-            when="running"
-            tags="rollback"
-          >
-            <strong>Prove rollback</strong> Old service is live again; order-count
-            comparison is still running.
-          </lf-milestone>
-          <lf-milestone
-            id="lp-ms-finance"
-            status="blocked"
-            when="waiting"
-            tags="finance"
-          >
-            <strong>Reconcile the finance export</strong> Needs a fixture with a
-            partially refunded order. Nothing else in the rehearsal waits on it, so the
-            agent left the check open and carried on.
-          </lf-milestone>
-          <lf-milestone id="lp-ms-report" status="planned" when="next">
-            <strong>Publish the rehearsal report</strong> Attach timings and name the
-            one blocked follow-up.
-          </lf-milestone>
-        </lf-milestones>
-      </section>
+      <lf-tabs id="lp-streams">
+        <lf-tab id="lp-tab-rollback" label="Rollback drill">
+          <aside class="callout" id="lp-active">
+            <strong>Step 3 of 4.</strong> Traffic is back on the old checkout service.
+            Order counts are within two of the baseline while the last comparison runs.
+          </aside>
+          <lf-milestones id="lp-milestones">
+            <lf-milestone id="lp-ms-baseline" status="done" when="14:02">
+              <strong>Capture the baseline</strong> Error rate, p95, order count, and
+              queue depth recorded.
+            </lf-milestone>
+            <lf-milestone id="lp-ms-shadow" status="done" when="14:08">
+              <strong>Shadow production traffic</strong> Both services agreed on 2,000
+              sampled checkouts.
+            </lf-milestone>
+            <lf-milestone id="lp-ms-cutover" status="done" when="14:19">
+              <strong>Cut traffic over</strong> Guardrails held for ten minutes at 100%.
+            </lf-milestone>
+            <lf-milestone id="lp-ms-rollback" status="active" when="running">
+              <strong>Prove rollback</strong> Old checkout is live; the final count is
+              still running.
+            </lf-milestone>
+            <lf-milestone
+              id="lp-ms-finance"
+              status="blocked"
+              when="waiting"
+              tags="finance"
+            >
+              <strong>Reconcile the finance export</strong> Waiting on the fixture in
+              the next tab.
+            </lf-milestone>
+            <lf-milestone id="lp-ms-report" status="planned" when="next" tags="handoff">
+              <strong>Publish the rehearsal report</strong> Attach the final sample and
+              name the finance follow-up.
+            </lf-milestone>
+          </lf-milestones>
+        </lf-tab>
 
-      <section id="lp-events">
-        <h2>Latest events</h2>
-        <lf-timeline id="lp-timeline">
-          <lf-event id="lp-e-cutover" at="14:19" kind="action">
-            <strong>Cutover complete</strong> New checkout took 100% of traffic.
-          </lf-event>
-          <lf-event id="lp-e-guardrails" at="14:29" kind="info">
-            <strong>Guardrails held</strong> Error rate 0.08%; p95 181 ms.
-          </lf-event>
-          <lf-event id="lp-e-rollback" at="14:31" kind="action">
-            <strong>Rollback started</strong> Traffic returned to the old service in 42
-            seconds.
-          </lf-event>
-        </lf-timeline>
-      </section>
+        <lf-tab id="lp-tab-finance" label="Finance fixture">
+          <h2>The only blocked check</h2>
+          <p id="lp-finance-note">
+            Traffic has returned successfully; only the final count comparison and
+            finance fixture remain open. Finance needs one order that was captured,
+            partly refunded, and then exported after the cutover. Your picks reach
+            Ledger now; this page stays blocked until the agent runs them and saves the
+            result.
+          </p>
+          <lf-decision id="lp-finance-decision">
+            <h3>Which cases should the fixture cover?</h3>
+            <lf-options id="lp-finance-cases" choose multiple>
+              <lf-option id="lp-finance-partial" for="lp-ms-finance"
+                >One partial refund after capture</lf-option
+              >
+              <lf-option id="lp-finance-two-refunds" for="lp-ms-finance"
+                >Two refunds against the same order</lf-option
+              >
+              <lf-option id="lp-finance-currency" for="lp-ms-finance"
+                >A refund settled in a second currency</lf-option
+              >
+            </lf-options>
+          </lf-decision>
+        </lf-tab>
+
+        <lf-tab id="lp-tab-handoffs" label="Handoffs">
+          <h2>When the drill closes</h2>
+          <ul id="lp-handoff-list">
+            <li>Observer attaches the final guardrail sample.</li>
+            <li>Ledger runs the selected finance cases without reopening cutover.</li>
+            <li>Scribe publishes timings and names the blocked follow-up.</li>
+          </ul>
+        </lf-tab>
+      </lf-tabs>
     </main>
   </body>
 </html>

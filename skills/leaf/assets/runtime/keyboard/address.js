@@ -59,7 +59,7 @@ export function createAddress({
   // means a different link at every scroll position, so a reader who has just learnt that the
   // PR is `g h 2` is wrong a moment later; and it would put the key line's own truth on the
   // scroll, since a row that goes dead as the page moves is a row the line has to be
-  // repainted to stop promising — a paint measured at 1.3ms on the gallery, on every scroll
+  // repainted to stop promising — a paint measured at 1.3ms on the corpus, on every scroll
   // frame of every page, for one row. Decimal prefixes keep that stable document-order list
   // reachable at any length.
   //

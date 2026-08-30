@@ -356,7 +356,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
-    reading and nothing in the other. The generated gallery derives its tab bodies from
+    reading and nothing in the other. The generated corpus derives its tab bodies from
     these sources; its generation check owns that composition, while this sweep keeps
     one file reading for every page an author can change."""
     # Suppress the shipped log while retaining companion data. This sweep

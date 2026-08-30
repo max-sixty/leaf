@@ -161,7 +161,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     """Every shipped example copied to a file and opened from disk, which is the whole
     contract: no server answers, so anything still reaching for one is a hole, and the
     console is where a hole says so. Driven over the corpus rather than one page because
-    what a copy loses is per-widget — the gallery alone would pass while the widget only
+    what a copy loses is per-widget — the corpus alone would pass while the widget only
     it lacks was the broken one.
 
     A copy over-promising is the other half of that, and it went unread for as long as

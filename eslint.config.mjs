@@ -125,7 +125,7 @@ const ownerBoundary = {
 export default [
   {
     ignores: [
-      "examples/gallery.html",
+      "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
       "skills/leaf/packages/*/vendor/**",
     ],

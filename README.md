@@ -61,5 +61,7 @@ contract.
 ## Examples
 
 [`examples/`](examples/) holds a complete page for each kind of work, including a
-dashboard meant to change as work finishes. They are live at
-<https://leaf.page/examples.html>, and `gallery.html` puts them on one page as tabs.
+dashboard meant to change as work finishes. They are live in the visual index at
+<https://leaf.page/examples.html>; every example opens as its own complete page.
+From a checkout, `scripts/site.py --serve` previews that catalog and all its routes;
+`scripts/preview.py triage-board` serves one page with the real agent loop behind it.

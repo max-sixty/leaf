@@ -3668,13 +3668,12 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(page.locator("#hub-plan > .lf-stopped-view")).not_to_contain_text(
         "age unknown"
     )
-    expect(page.locator('#hub-plan > .lf-command-head [role="button"]')).to_have_count(
-        4
-    )
+    expect(
+        page.locator('#hub-plan > .lf-command-head [data-lf-offer="button"]')
+    ).to_have_count(4)
     expect(
         page.locator(
-            '#hub-plan > .lf-command-head [role="button"]'
-            ":not([data-lf-offer][data-lf-said])"
+            '#hub-plan > .lf-command-head [data-lf-offer="button"]:not([data-lf-said])'
         )
     ).to_have_count(0)
     expect(

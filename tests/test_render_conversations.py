@@ -2204,7 +2204,8 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
         "its own to state it from"
     )
     floors = (
-        "() => [...document.querySelectorAll('.lf-sug-actions [role=button]')]"
+        "() => [...document.querySelectorAll("
+        "'.lf-sug-actions [data-lf-offer=button]')]"
         ".map((b) => b.style.minWidth)"
     )
     in_reply = page.evaluate(floors)

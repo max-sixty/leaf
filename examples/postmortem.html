@@ -17,15 +17,12 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">postmortem · draft 3</p>
+      <p class="eyebrow">postmortem · final review</p>
       <h1>The 12 June export delays</h1>
       <p class="lede" id="pm-lede">
-        The findings are settled and stand below; what customers read is not. Four edits
-        wait in the margin — a plainer wording, a deleted sentence, two added paragraphs
-        — and ✓ or ✗ decides each. The summary and the status-page notice are yours to
-        write, and two decisions are still open: who this goes to, and whether we put a
-        date on the last fix. Sign off and I publish the writeup — the drafts as you
-        left them, each proposal as you decided it.
+        One export that could never succeed returned to the head of the queue for 94
+        minutes. This is the settled incident record: mechanism, impact, chronology, and
+        the changes that prevent one bad job from holding every export behind it.
       </p>
 
       <dl class="facts">
@@ -37,71 +34,15 @@
         <dd>exports only; imports and sync unaffected</dd>
       </dl>
 
-      <section id="pm-summary">
-        <h2>Summary</h2>
-        <p id="pm-summary-note">
-          The only paragraph most customers will read, and it goes out in your voice:
-          double-click it (or its ✎) and rewrite it.
-        </p>
-        <lf-draft id="pm-summary-draft">
-          <pre>
-On the morning of 12 June, exports were delayed for 94 minutes. Nothing was lost: anything you exported in that window arrived late, but it arrived. One stuck job held up the queue, and the fault was in how we retry failures. We've changed how that works; the details are below. We're sorry for the delay.
-</pre>
-        </lf-draft>
-        <lf-suggestion id="pm-sug-nothing-needed">
-          <lf-new
-            ><p id="pm-nothing-needed">
-              There is nothing you need to do. Every delayed export was delivered by
-              10:48 UTC; if something downstream of you noticed the gap, reply on your
-              support thread and we'll pull the delivery log for your workspace.
-            </p></lf-new
-          >
-        </lf-suggestion>
-      </section>
-
       <section id="pm-happened">
         <h2>What happened</h2>
         <p id="pm-cause">
-          Exports run through a queue. At 09:14 our monitoring flagged it backing up,
-          and by 10:48 everything delayed had been delivered. The fault was in how we
-          retry a failing export.
+          A workspace uploaded attachment metadata that our validator accepted but the
+          export worker could not serialize. The worker treated every failure as
+          retryable, so the same job returned to the front of the queue every 45 seconds
+          and all later exports waited behind it.
         </p>
-        <lf-suggestion id="pm-sug-plain">
-          <lf-old
-            ><p id="pm-jargon">
-              The failing job re-entered the queue at its head position on each retry
-              attempt, serialized ahead of all subsequent export jobs for the duration
-              of the incident window.
-            </p></lf-old
-          >
-          <lf-new
-            ><p>
-              Each retry put the failing export back at the front of the line, and every
-              export behind it waited — the longest for 81 minutes — on a job that was
-              never going to finish.
-            </p></lf-new
-          >
-        </lf-suggestion>
-        <lf-suggestion id="pm-sug-blame">
-          <lf-old
-            ><p id="pm-blame">
-              The trigger was a workspace containing malformed attachment metadata that
-              our systems did not expect.
-            </p></lf-old
-          >
-        </lf-suggestion>
-        <p id="pm-blame-why">
-          I'm proposing the deletion because the sentence points at a customer's data,
-          and the fault wasn't theirs: our validator accepted the attachment at upload,
-          and our worker retried a job that could never succeed. The paragraph before it
-          already says everything a reader needs.
-        </p>
-        <p id="pm-mechanism-note">
-          The mechanism below stays internal. The worker treats every failure as
-          retryable, so a job that can never succeed comes back to the head of the queue
-          every 45 seconds.
-        </p>
-        <lf-diagram id="pm-failure-path">
+        <lf-diagram id="pm-failure-path" parts="node:Q node:W node:R node:B">
           <pre>
 graph LR
   Q[queue head] --> W[worker]
@@ -111,13 +52,12 @@ graph LR
 </pre>
         </lf-diagram>
         <details id="pm-evidence">
-          <summary>
-            A declared attachment size of −1 fails serialization every time
-          </summary>
+          <summary>Why a declared attachment size of −1 fails every attempt</summary>
           <p id="pm-evidence-body">
-            The upload predates the size check added in March, and two other workspaces
-            carry one; both are quarantined now. This is what the sentence proposed for
-            deletion was pointing at, and it reads as blame however it is worded.
+            The upload predates the size check added in March. Two other workspaces held
+            the same shape; both were quarantined before their next export. The customer
+            data triggered the path, but our validator and retry policy made it an
+            incident.
           </p>
         </details>
       </section>
@@ -151,42 +91,27 @@ graph LR
             </tr>
           </tbody>
         </table>
-        <p id="pm-impact-note">
-          How these read was settled in draft 2; the record is folded below.
-        </p>
-        <lf-options id="pm-numbers" choose settled>
-          <lf-option id="pm-num-counts" chosen
-            ><strong>Counts, not percentages</strong> "1,204 exports" is the incident as
-            the affected workspaces met it. "0.9% of the week's exports" is also true,
-            and reads as chosen to sound small.
-            <em>My take: lead with what affected workspaces actually experienced.</em>
-          </lf-option>
-          <lf-option id="pm-num-pct"
-            ><strong>Percentages</strong> Honest about scale, and it holds only until a
-            reply quotes the absolute number.
-          </lf-option>
-        </lf-options>
       </section>
 
       <section id="pm-timeline">
         <h2>Timeline</h2>
         <p id="pm-timeline-note">
-          Trimmed to times and actions. The fix that didn't work stays in; leaving it
-          out would be conspicuous.
+          The first fix stays in the record because it briefly drained the queue without
+          removing the job that was filling it again.
         </p>
         <lf-timeline id="pm-public-timeline">
           <lf-event id="pm-e-detect" at="09:14" kind="warning">
-            <strong>Monitoring flagged the export queue backing up</strong>
+            <strong>Queue-depth alert fired</strong> Export delay crossed ten minutes.
           </lf-event>
           <lf-event id="pm-e-cause" at="09:26" kind="info">
-            <strong>Cause found</strong> One export, retrying at the front of the queue.
+            <strong>Cause found</strong> One export was retrying at the front.
           </lf-event>
           <lf-event id="pm-e-wrong" at="09:51" kind="failure">
-            <strong>First fix didn't hold</strong> We added workers, which drained the
-            queue briefly; the stuck job still failed first, and the backlog returned.
+            <strong>Adding workers did not hold</strong> The queue drained briefly, then
+            the same job blocked it again.
           </lf-event>
           <lf-event id="pm-e-fix" at="10:32" kind="action">
-            <strong>Stuck job set aside</strong> The queue drained at its normal rate.
+            <strong>Stuck job set aside</strong> The queue resumed its normal rate.
           </lf-event>
           <lf-event id="pm-e-clear" at="10:48" kind="info">
             <strong>Every delayed export delivered</strong>
@@ -195,98 +120,21 @@ graph LR
       </section>
 
       <section id="pm-changes">
-        <h2>What we've changed</h2>
+        <h2>What changed</h2>
         <ol class="steps" id="pm-fixes">
           <li>
-            We no longer retry a job that cannot succeed; we set it aside and page a
-            person.
+            A job that cannot succeed is now set aside and pages a person instead of
+            retrying.
           </li>
           <li>
-            A retried job now rejoins the queue at the back, so no single export can
-            hold up the rest again. Both changes shipped on 13 June.
+            Every retry rejoins at the back, so a single export cannot hold the queue.
+            Both changes shipped on 13 June.
           </li>
           <li>
-            We are adding an alert on any one job failing repeatedly — on 12 June,
-            nothing fired until the queue behind the stuck job was long enough to
-            notice.
+            A new alert fires when one job fails repeatedly, before queue depth becomes
+            the first visible symptom.
           </li>
         </ol>
-        <lf-suggestion id="pm-sug-followup">
-          <lf-new
-            ><p id="pm-followup">
-              This writeup is the record of the incident, so when the alerting change
-              ships we will note it here rather than in a new post.
-            </p></lf-new
-          >
-        </lf-suggestion>
-      </section>
-
-      <section id="pm-decisions">
-        <lf-decision id="pm-where-decision">
-          <h2>Who should hear about the incident?</h2>
-          <p id="pm-where-note">
-            Click an option to settle each of these, or write another one in the empty
-            option under them.
-          </p>
-          <lf-options id="pm-where" choose>
-            <lf-option id="pm-wh-status"
-              ><lf-chip>quietest</lf-chip><lf-chip tone="warn">easy to miss</lf-chip>
-              <strong>Status page only</strong> Anyone who checks finds it; the 412
-              affected workspaces are not told it exists.
-            </lf-option>
-            <lf-option id="pm-wh-email"
-              ><lf-chip>reaches the affected</lf-chip
-              ><lf-chip tone="ok">matches the impact</lf-chip>
-              <strong>Status page, plus email the 412</strong> The workspaces that felt
-              the delay hear it from us rather than finding it, and nobody else's inbox
-              is spent on it. <em>My take: match the message to the impact.</em>
-            </lf-option>
-            <lf-option id="pm-wh-blog"
-              ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
-              <strong>Blog post as well</strong> More reach than 94 minutes earns, and
-              the audience of a blog post is mostly people the incident never touched.
-            </lf-option>
-          </lf-options>
-        </lf-decision>
-        <lf-decision id="pm-date-decision">
-          <h2>Should the third fix carry a date?</h2>
-          <p id="pm-date-note">
-            And whether the third fix carries a date. The alerting change is in review
-            now.
-          </p>
-          <lf-options id="pm-date" choose>
-            <lf-option id="pm-dt-week"
-              ><lf-chip tone="warn">a public promise</lf-chip>
-              <strong>"Ships this week"</strong> Specific enough to hold us to it, and
-              it is in review with two days of margin.
-              <em>My take: the margin makes the specific promise worthwhile.</em>
-            </lf-option>
-            <lf-option id="pm-dt-quarter"
-              ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and
-              reads that way.
-            </lf-option>
-            <lf-option id="pm-dt-none"
-              ><lf-chip>no promise</lf-chip> <strong>No date</strong> The first two
-              fixes shipped before publishing; undated, the page promises nothing it
-              hasn't already done.
-            </lf-option>
-          </lf-options>
-        </lf-decision>
-      </section>
-
-      <section id="pm-notice">
-        <h2>The status-page notice</h2>
-        <p id="pm-notice-note">
-          One line on the status page links the writeup. Yours to word, same as the
-          summary.
-        </p>
-        <lf-draft id="pm-notice-draft">
-          <pre>
-Postmortem for 12 June: one stuck export held the queue for 94 minutes.
-Nothing was lost. What happened and what we changed:
-https://status.example.com/incidents/1207
-</pre>
-        </lf-draft>
       </section>
     </main>
   </body>

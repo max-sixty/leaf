@@ -225,8 +225,13 @@ export function createDecisionView({
   // that works it, and Tab walks the rest of that decision's own controls from there.
   //
   // Focusable offered chrome: native buttons carry their tab stop implicitly, while the
-  // selectable-control exception states one explicitly.
-  const DECISION_CONTROL = "button[data-lf-offer], [data-lf-offer][tabindex]";
+  // selectable-control exception states one explicitly. Written as one `:is()` compound
+  // rather than as two comma-separated alternatives, because standOn below prefixes it
+  // with a descendant selector: a prefix binds to the first alternative of a selector
+  // list only, so the bare list read as "a control inside this decision's row, or any
+  // offered tab stop anywhere in the document" and the walk landed on the first control
+  // on the page instead of the one it was sent to.
+  const DECISION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
   // Which decision such a control decides, where the widget hoisted it out of the element (the
   // attribute lf-suggestion writes on the row it hangs in the margin).
   const DECISION_ROW = "data-lf-for";

@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Offline editing, after six weeks of beta</title>
+    <title>Ship review: the iOS reconnect stall</title>
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -18,676 +18,76 @@
   <body>
     <main>
       <p class="eyebrow">ship review · offline editing</p>
-      <h1>Offline editing, after six weeks of beta</h1>
+      <h1>The iOS reconnect stall</h1>
       <p class="lede" id="off-lede">
-        Six weeks on 96 workspaces, and the question is whether it ships. Two decisions
-        are open — what a full local store does, and how the rollout goes — and the
-        board holds everything still outstanding, sorted by whether I think it should
-        stop the ship; drag anything you read differently. Three changes to the
-        announcement wait in the margin, and the announcement itself is yours to
-        rewrite. Sign off and it goes out over your name.
+        Offline editing passed six weeks of beta on 96 workspaces. One exception
+        remains: iOS occasionally leaves a reconnect spinning until the app is
+        backgrounded. The edits stay queued; this review decides whether the tested
+        workaround is enough for the first patch.
       </p>
 
-      <lf-metrics id="off-metrics">
-        <lf-metric id="off-k-conflicts" value="2.3" delta="-4.1" direction="up-bad"
-          >clashes per 1,000 edits</lf-metric
-        >
-        <lf-metric id="off-k-sessions" value="8,412">offline sessions</lf-metric>
-        <lf-metric id="off-k-resync" value="1.4 s">median resync</lf-metric>
-        <lf-metric id="off-k-beta" value="96" delta="+84" direction="up-good"
-          >beta workspaces</lf-metric
-        >
-      </lf-metrics>
+      <dl class="facts" id="off-facts">
+        <dt>Observed</dt>
+        <dd>1 reconnect in about 40</dd>
+        <dt>Data loss</dt>
+        <dd>none in 8,412 offline sessions</dd>
+        <dt>Workaround</dt>
+        <dd>resend after 20 seconds</dd>
+        <dt>Upstream fix</dt>
+        <dd>acknowledged, no release date</dd>
+      </dl>
 
-      <section id="off-surface">
-        <h2>What a reader sees</h2>
-        <p id="off-surface-intro">
-          Nothing about the editor changes until the connection drops. Then the save
-          state is replaced by a count of what is waiting, and a line under the document
-          says where those changes are being kept. Click the shot to flip it.
-        </p>
-        <lf-shot
-          id="off-editor-shot"
-          alt="the document editor, connected and then offline with three changes queued"
-          before="/media/213d959289603301.png"
-          after="/media/abacae7c345ee176.png"
-        ></lf-shot>
-        <p id="off-surface-note">
-          The number counts queued changes, not keystrokes: a paragraph typed straight
-          through is one. Beta readers asked for a number twice in the first week, which
-          is why it says "3 changes waiting" rather than "unsaved".
-        </p>
-      </section>
-
-      <section id="off-how">
-        <h2>How it works</h2>
-        <p id="off-how-intro">
-          Every edit goes to a queue before it goes anywhere else. Online the queue
-          drains as fast as the server answers and nothing about it is visible. Offline
-          it fills, and the local store carries it through a closed tab.
-        </p>
-        <lf-diagram id="off-flow" parts="node:E node:Q node:S node:L">
-          <pre>
-graph LR
-  E[editor] --> Q[change queue]
-  Q -->|online| S[server]
-  Q -.->|offline| L[local store]
-  L -->|reconnect| S
-</pre>
-        </lf-diagram>
-        <p id="off-how-store">
-          The store is capped at 40 MB a workspace. The largest workspace in the beta
-          reached 31 MB, over six weeks and without reconnecting once, so nothing in the
-          beta hit the cap. What happens at it is the first decision below.
-        </p>
-      </section>
-
-      <section id="off-merge">
-        <h2>Merging by field cut clashes by two thirds</h2>
-        <p id="off-merge-intro">
-          Two people editing one document offline is the case the rest is built around.
-          The rule that shipped in week 3 merges by field where the first two weeks
-          merged by document, and the clash rate fell by two thirds the same week.
-        </p>
-        <lf-compare id="off-policies">
-          <lf-variant id="off-var-doc">
-            <strong>By document</strong>
-            <dl class="facts">
-              <dt>Clashes when</dt>
-              <dd>both edited anything</dd>
-              <dt>Beta rate</dt>
-              <dd>6.4 per 1,000 edits</dd>
-              <dt>Asks the reader</dt>
-              <dd>every clash</dd>
-            </dl>
-            <p>
-              Weeks 1 and 2. Two people working in different sections of one document
-              collided, so the prompt arrived over edits that had nothing to do with
-              each other.
-            </p>
-          </lf-variant>
-          <lf-variant id="off-var-field">
-            <strong>By field</strong>
-            <dl class="facts">
-              <dt>Clashes when</dt>
-              <dd>both edited one paragraph</dd>
-              <dt>Beta rate</dt>
-              <dd>2.3 per 1,000 edits</dd>
-              <dt>Asks the reader</dt>
-              <dd>63 of 494 clashes</dd>
-            </dl>
-            <p>
-              What ships. Edits land beside each other unless they touch the same
-              paragraph. Of the 494 clashes since it went in, 431 resolved with nobody
-              seeing a prompt.
-            </p>
-          </lf-variant>
-        </lf-compare>
-        <p id="off-prompt-intro">
-          The 63 that did ask look like this, and it is the one screen in the feature a
-          reader can get wrong:
-        </p>
-        <lf-specimen id="off-prompt" label="the conflict prompt">
-          <lf-options id="off-prompt-choice" choose>
-            <lf-option id="off-pc-mine">
-              <strong>Keep what I wrote offline</strong> Your paragraph replaces theirs.
-              Theirs stays in history.
-            </lf-option>
-            <lf-option id="off-pc-theirs">
-              <strong>Keep the version from the server</strong> Yours stays in history,
-              and the prompt shows it so it can be pasted back.
-            </lf-option>
-          </lf-options>
-        </lf-specimen>
-      </section>
-
-      <section id="off-change">
-        <h2>The change itself</h2>
-        <lf-tree id="off-files">
-          <pre>
-client/
-  offline/
-    merge.ts  +186 -31
-    queue.ts  +142 -11
-    document-store.ts
-  editor/
-    OfflineBanner.tsx  +37
-server/
-  sync.py  +54 -19
-</pre>
-        </lf-tree>
-        <p id="off-change-intro">
-          <code>merge.ts</code> is where the rule above lives. Everything else carries
-          edits to it, keeps them on disk, or draws what it decided. The existing local
-          store also takes the less generic name <code>document-store.ts</code>.
-        </p>
-        <lf-diff id="off-merge-diff">
-          <pre>
-diff --git a/client/offline/merge.ts b/client/offline/merge.ts
---- a/client/offline/merge.ts
-+++ b/client/offline/merge.ts
-@@ -18,6 +18,12 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
-   // both lists arrive ordered by the server's clock
--  if (mine.length &amp;&amp; theirs.length) {
--    return ask(base, mine, theirs);
--  }
--  return apply(base, [...theirs, ...mine]);
-+  let out = apply(base, theirs);
-+  for (const edit of mine) {
-+    const clash = theirs.find((t) =&gt; t.field === edit.field);
-+    if (clash) {
-+      ask(out, edit, clash);
-+      continue;
-+    }
-+    out = apply(out, [edit]);
-+  }
-+  return out;
- }
-diff --git a/client/offline/store.ts b/client/offline/document-store.ts
-similarity index 100%
-rename from client/offline/store.ts
-rename to client/offline/document-store.ts
-</pre>
-        </lf-diff>
-        <p id="off-walk-intro">
-          The function after the change, with the three lines the rule turns on marked:
-        </p>
-        <lf-code id="off-merge-walk" language="typescript" hi="4-6">
-          <pre>
-export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
-  let out = apply(base, theirs);
-  for (const edit of mine) {
-    const clash = theirs.find((t) =&gt; t.field === edit.field);
-    if (clash) {
-      ask(out, edit, clash);
-      continue;
-    }
-    out = apply(out, [edit]);
-  }
-  return out;
-}
-</pre>
-          <lf-note at="2"
-            >The server's edits land first, always. The reader who was offline is the
-            one being merged in, and that ordering is why every device replaying the
-            same log ends up with the same document.</lf-note
-          >
-          <lf-note at="4"
-            >Same field, not same document. Widening this comparison to the whole
-            document is the old rule, and the old rate.</lf-note
-          >
-          <lf-note at="6"
-            >The only path that reaches a person. Everything else resolves without a
-            prompt.</lf-note
-          >
-        </lf-code>
-        <details id="off-review-policy">
-          <summary>The review checklist, captured from its source file</summary>
-          <p>
-            This is the exact checklist used for the review. It is page data, not a
-            second copy authored into this document.
-          </p>
-          <lf-source
-            id="off-review-source"
-            source="offline-review-policy"
-            snapshot="1"
-            language="markdown"
-          ></lf-source>
-        </details>
-      </section>
-
-      <section id="off-clients">
-        <h2>Client by client</h2>
-        <table id="off-client-table">
-          <caption>
-            Offline sessions over the six-week beta, and how each client resynced.
-          </caption>
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th class="num">Offline sessions</th>
-              <th class="num">Median resync</th>
-              <th>Standing</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Web</th>
-              <td class="num">5,120</td>
-              <td class="num">0.9 s</td>
-              <td>ready</td>
-            </tr>
-            <tr>
-              <th scope="row">iOS</th>
-              <td class="num">2,140</td>
-              <td class="num">2.6 s</td>
-              <td>the stall, below</td>
-            </tr>
-            <tr>
-              <th scope="row">Android</th>
-              <td class="num">1,152</td>
-              <td class="num">1.7 s</td>
-              <td>ready</td>
-            </tr>
-          </tbody>
-        </table>
-        <details id="off-ios-evidence">
-          <summary>The iOS stall reproduces without any of our code</summary>
-          <p id="off-ios-evidence-body">
-            Fifty-four stalls across 2,140 sessions, all on iOS 17.3 and 17.4 and none
-            on 17.2. In every one the queue had already handed the batch to the network
-            layer and no response or error came back, so our own retry never fired.
-            Backgrounding the app and returning releases it, and that is the workaround
-            below. A reproducer that skips our code entirely — the vendor's client
-            posting the same batch — stalls at the same rate, and that reproducer is
-            what the filed report carries.
-          </p>
-        </details>
-      </section>
-
-      <section id="off-beta-history">
-        <h2>The beta ended quiet apart from the iOS stall</h2>
-        <lf-timeline id="off-beta">
-          <lf-event id="off-e-open" at="week 1" kind="info">
-            <strong>Beta opens</strong> Twelve workspaces, web only.
-          </lf-event>
-          <lf-event id="off-e-merge" at="week 3" kind="action">
-            <strong>Field merge ships</strong> Conflicts fall from 6.4 to 2.3 per 1,000
-            edits in the same week.
-          </lf-event>
-          <lf-event id="off-e-wide" at="week 4" kind="info">
-            <strong>Opened to 96 workspaces</strong> iOS and Android join.
-          </lf-event>
-          <lf-event id="off-e-ios" at="week 5" kind="warning">
-            <strong>iOS resync stalls</strong> One reconnect in about 40 hangs until the
-            app is backgrounded. Traced to the vendor's network layer rather than the
-            queue.
-          </lf-event>
-          <lf-event id="off-e-quiet" at="week 6" kind="info">
-            <strong>Last clash report closed</strong> Four days to the end of the beta
-            with nothing new reported.
-          </lf-event>
-        </lf-timeline>
-      </section>
-
-      <section id="off-stands">
-        <h2>Where the work stands</h2>
-        <lf-milestones id="off-milestones">
-          <lf-milestone id="off-ms-store" status="done" when="week 1">
-            <strong>Local store</strong> Documents and their pending edits survive a
-            closed tab, a reload, and a killed app.
-          </lf-milestone>
-          <lf-milestone id="off-ms-queue" status="done" when="week 2">
-            <strong>Change queue</strong> Every edit goes through it, online or not, so
-            there is one path rather than two.
-          </lf-milestone>
-          <lf-milestone id="off-ms-merge" status="done" when="week 3" tags="merge">
-            <strong>Field merge</strong> The change above. Everything measured after
-            week 3 is measured against this rule.
-          </lf-milestone>
-          <lf-milestone id="off-ms-prompt" status="done" when="week 4">
-            <strong>Conflict prompt</strong> Raised 63 times in six weeks; the wording
-            is still in review.
-          </lf-milestone>
-          <lf-milestone id="off-ms-resync" status="active" when="now" tags="ios">
-            <strong>Resync on reconnect</strong> Everything queued offline reaches the
-            server on the next connection, on all three clients.
-          </lf-milestone>
-          <lf-milestone id="off-ms-ship" status="planned" when="on your word">
-            <strong>Rollout</strong> Shape is the second decision below.
-          </lf-milestone>
-        </lf-milestones>
-      </section>
-
-      <section id="off-work">
-        <h2>The work, piece by piece</h2>
-        <p id="off-work-note">
-          Amber means the owner is done and ready for review. A red task names whatever
-          is holding it. The two under the stall are the two ways out of it.
-        </p>
-        <lf-tasks id="off-left">
-          <lf-task id="off-t-resync" status="blocked" owner="mobile">
-            <strong>iOS resync stall</strong> One reconnect in about 40. Nothing is lost
-            — the edits stay queued — but the reader sees a spinner until they
-            background the app.
-            <lf-task
-              id="off-t-resync-vendor"
-              status="blocked"
-              owner="mobile"
-              when="their next release"
-            >
-              <strong>Vendor fix</strong> Filed with the reproducer above. They have
-              acknowledged it and named no date.
+      <section id="off-readiness-section">
+        <h2>Readiness docket</h2>
+        <lf-tasks id="off-readiness">
+          <lf-task id="off-t-patch" status="review" owner="mobile">
+            <strong>Ship offline editing in the first patch</strong> The beta is green
+            except for the reconnect exception below.
+            <lf-task id="off-t-resync" status="stalled" owner="mobile">
+              <strong>iOS resync stall</strong> One reconnect in about 40. Nothing is
+              lost — the edits stay queued — but the reader sees a spinner until they
+              background the app.
             </lf-task>
-            <lf-task id="off-t-resync-workaround" status="review" owner="mobile">
-              <strong>Backgrounding workaround</strong> Written and tested.
+            <lf-task id="off-t-vendor" status="blocked" owner="mobile">
+              <strong>Land the upstream fix</strong> The vendor reproduced the stall and
+              accepted the bug, but has not named a release.
+            </lf-task>
+            <lf-task id="off-t-workaround" status="review" owner="mobile">
+              <strong>Keep the resend workaround in the patch</strong> After 20 seconds
+              the client resends the queued batch; 500 forced stalls all recovered.
               <lf-decision id="off-workaround-decision">
-                <h3>Should the backgrounding workaround ship?</h3>
-                <p id="off-workaround-context">
-                  It resends the batch on a 20-second timer when the app is
-                  foregrounded, which turns the stall into a delay nobody watches.
-                </p>
+                <h3>Is that enough for the first patch?</h3>
                 <lf-options id="off-workaround-review" choose>
-                  <lf-option id="off-workaround-approve"
-                    ><strong>Ship it</strong> Use the tested workaround for this
-                    release.</lf-option
-                  >
-                  <lf-option id="off-workaround-revise"
-                    ><strong>Request another pass</strong> Keep the task in
-                    review.</lf-option
-                  >
+                  <lf-option id="off-workaround-approve" for="off-t-resync">
+                    Approve the workaround — ship now and keep chasing the upstream fix.
+                  </lf-option>
+                  <lf-option id="off-workaround-revise" for="off-t-resync">
+                    Request another pass — hold the patch for a native fix.
+                  </lf-option>
                 </lf-options>
               </lf-decision>
             </lf-task>
-          </lf-task>
-          <lf-task id="off-t-copy" status="review" owner="design">
-            <strong>Conflict prompt copy</strong> Rewritten after five of those 63 ended
-            with the reader picking the side they hadn't meant to, and saying so.
-            <lf-decision id="off-copy-decision">
-              <h3>Is the conflict prompt copy ready?</h3>
-              <p id="off-copy-context">The proposed wording is quoted above.</p>
-              <lf-options id="off-copy-review" choose>
-                <lf-option id="off-copy-approve"
-                  ><strong>Approve the copy</strong> Use this wording for the
-                  release.</lf-option
-                >
-                <lf-option id="off-copy-revise"
-                  ><strong>Request another pass</strong> Keep the task in
-                  review.</lf-option
-                >
-              </lf-options>
-            </lf-decision>
-          </lf-task>
-          <lf-task id="off-t-evict" status="blocked" owner="client">
-            <strong>Store eviction</strong> Written for the answer I recommend below and
-            stuck on that decision. The other two answers are a different week's work.
-          </lf-task>
-          <lf-task id="off-t-telemetry" status="done" owner="client">
-            <strong>Telemetry</strong> Queue depth, resync time, and clash counts, all
-            without document content.
-          </lf-task>
-          <lf-task id="off-t-docs" status="stalled" owner="devrel" when="first patch">
-            <strong>Help centre page</strong> The first drafting pass left no durable
-            copy; the owner is diagnosing before asking for a disposition.
+            <lf-task id="off-t-telemetry" status="done" owner="data">
+              <strong>Keep reconnect telemetry</strong> The release cohort retains the
+              beta alert and per-platform count.
+            </lf-task>
+            <lf-task id="off-t-support" status="done" owner="support">
+              <strong>Write the support playbook</strong> The spinner, queued-edit
+              check, and background-app recovery are documented.
+            </lf-task>
           </lf-task>
         </lf-tasks>
       </section>
 
-      <section id="off-punch-list">
-        <h2>What should stop the ship</h2>
-        <p id="off-punch-note">
-          Everything still open, including the two things I decided not to build at all.
-          Where each card sits is my read of whether it should hold the ship, so move
-          any card you would place differently. A grip takes the keyboard as well as the
-          pointer. Whatever you decide about a card stays where you put it as I update
-          the page.
+      <section id="off-conversation">
+        <h2>The objection that matters</h2>
+        <p id="off-conversation-note">
+          The standalone page opens mid-review: its anchored thread asks whether a
+          one-in-forty failure compounds enough to block launch, and carries the
+          follow-up work the approver wants ready if the vendor's release slips.
+          Approval records the direction; task statuses change when the agent publishes
+          the resulting version.
         </p>
-        <lf-board id="off-punch">
-          <lf-column id="off-col-ship" label="Blocks the ship">
-            <lf-card id="off-card-copy"
-              ><strong>Conflict prompt copy</strong> Five readers picked the wrong side.
-              The rewrite is written and needs your read.</lf-card
-            >
-            <lf-card id="off-card-evict"
-              ><strong>What a full store does</strong> The decision below. Nothing hit
-              the cap in the beta, and the first workspace that does will be a support
-              ticket.</lf-card
-            >
-          </lf-column>
-          <lf-column id="off-col-patch" label="First patch">
-            <lf-card id="off-card-ios"
-              ><strong>iOS stall</strong> A delay rather than a loss, with a workaround
-              ready. Holding the whole ship for one vendor's release is the trade I
-              would not make.</lf-card
-            >
-            <lf-card id="off-card-help"
-              ><strong>Help centre page</strong> The banner can link to the release note
-              until it lands.</lf-card
-            >
-          </lf-column>
-          <lf-column id="off-col-later" label="Not for this ship">
-            <lf-card id="off-card-comments"
-              ><strong>Offline comments</strong> A second merge problem with a different
-              shape; worth its own review.</lf-card
-            >
-            <lf-card id="off-card-search"
-              ><strong>Offline search</strong> Wants an index on the device. Nobody in
-              the beta asked.</lf-card
-            >
-          </lf-column>
-        </lf-board>
-      </section>
-
-      <section id="off-settled">
-        <h2>Settled in week 3: edits merge by field</h2>
-        <p id="off-settled-note">
-          The rule above was one of three answers and is folded to a line — open it for
-          the one the section above doesn't cover.
-        </p>
-        <lf-options id="off-settled-merge" choose settled>
-          <lf-option id="off-sm-field" chosen
-            ><lf-chip>asks the reader: 63 times</lf-chip
-            ><lf-chip tone="ok">loses nothing</lf-chip>
-            <strong>Merge by field</strong> Edits to different paragraphs both land;
-            only two edits to one paragraph reach a person.
-            <em>My take: this spends attention only on real conflicts.</em>
-          </lf-option>
-          <lf-option id="off-sm-last"
-            ><lf-chip>asks the reader: never</lf-chip
-            ><lf-chip tone="danger">loses the slower edit</lf-chip>
-            <strong>Last writer wins</strong> No prompt at all, because the work that
-            arrives second is discarded without anyone being told.
-          </lf-option>
-        </lf-options>
-      </section>
-
-      <section id="off-decide-store">
-        <lf-decision id="off-full-store-decision">
-          <h2>What should a full store do?</h2>
-          <p id="off-store-decision">
-            At 40 MB a workspace, something has to give. Nothing in the beta reached the
-            cap, so this decides what happens to the first workspace that does. Pick one
-            to settle it; if you want a fourth behaviour, the empty option under them
-            takes it in your own words.
-          </p>
-          <lf-options id="off-full-store" choose>
-            <lf-option id="off-fs-evict"
-              ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
-              <strong>Drop the oldest documents</strong>
-              <dl class="facts">
-                <dt>At the cap</dt>
-                <dd>the least recently opened document leaves the device</dd>
-                <dt>Reader sees</dt>
-                <dd>a line naming what left, and how to keep it</dd>
-                <dt>Worst case</dt>
-                <dd>a document they meant to have offline isn't there</dd>
-              </dl>
-              <p id="off-fs-evict-why">
-                Editing never stops, and that is the whole point of the feature. A
-                document that leaves is still on the server, so what is lost is having
-                it here, not the work in it — and this is the only one of the three that
-                does not punish a reader for not reading a banner. Pinning a document
-                keeps it, and the line that says what left says so.
-                <em>My take: this is the only option that keeps editing available.</em>
-              </p>
-            </lf-option>
-            <lf-option id="off-fs-stop"
-              ><lf-chip>effort: 3 days</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-              <strong>Stop accepting offline edits</strong>
-              <dl class="facts">
-                <dt>At the cap</dt>
-                <dd>the editor goes read-only until a reconnect</dd>
-                <dt>Reader sees</dt>
-                <dd>a banner saying editing is paused</dd>
-                <dt>Worst case</dt>
-                <dd>they are on a plane with the document they came to write</dd>
-              </dl>
-              <p id="off-fs-stop-why">
-                Nothing is ever dropped, and that is the cleanest sentence any of the
-                three gives a release note. It also fails at exactly the moment offline
-                editing is worth having, and a reader with no connection cannot act on
-                the banner telling them so.
-              </p>
-            </lf-option>
-            <lf-option id="off-fs-decision"
-              ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-              <strong>Ask which documents to keep</strong>
-              <dl class="facts">
-                <dt>At the cap</dt>
-                <dd>a picker, before anything leaves</dd>
-                <dt>Reader sees</dt>
-                <dd>a list of what is on the device, by size</dd>
-                <dt>Worst case</dt>
-                <dd>a dialog between them and their document</dd>
-              </dl>
-              <p id="off-fs-decision-why">
-                The most respectful of the three on paper. In practice it arrives
-                without warning, mid-sentence, and asks someone who came to write a
-                question about storage — and it still needs the eviction code
-                underneath, for the reader who dismisses it.
-              </p>
-            </lf-option>
-          </lf-options>
-        </lf-decision>
-      </section>
-
-      <section id="off-decide-rollout">
-        <lf-decision id="off-rollout-decision-region">
-          <h2>How should the rollout go?</h2>
-          <p id="off-rollout-decision">
-            The beta workspaces already have it. This is about everyone else, and the
-            three shapes differ mostly in how fast the iOS stall reaches people who
-            never agreed to a beta.
-          </p>
-          <lf-options id="off-rollout" choose>
-            <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
-            <lf-option id="off-ro-ten"
-              >Ten percent for a week, then everyone.
-              <em
-                >My take: this limits the iOS exposure without waiting on it.</em
-              ></lf-option
-            >
-            <lf-option id="off-ro-opt-in"
-              >An opt-in toggle until the iOS fix lands</lf-option
-            >
-          </lf-options>
-        </lf-decision>
-        <p id="off-rollout-day">The day itself, whichever shape wins:</p>
-        <ol class="steps" id="off-runbook">
-          <li>
-            Turn it on for internal workspaces first thing, and leave it an hour. Every
-            past regression here showed up inside ten minutes.
-          </li>
-          <li>
-            Point the offline banner at the release note. The help centre page replaces
-            it in the first patch.
-          </li>
-          <li>Send the announcement below.</li>
-          <li>
-            Watch queue depth and resync time for the first day; both are on the
-            existing dashboard, and neither carries document content.
-          </li>
-          <li>
-            Leave the kill switch in for two weeks. It stops new offline sessions and
-            never discards a queue.
-          </li>
-        </ol>
-      </section>
-
-      <section id="off-announce">
-        <h2>The announcement</h2>
-        <p id="off-ann-note">
-          Nothing in this announcement is settled yet. Three lines wait on your decision
-          in the margin, and a line you would rather talk about than settle takes a
-          comment like any other text. The first came out of the beta's support tickets,
-          where "offline" was read as covering the whole product. The second states the
-          storage limit, so it assumes the recommendation above.
-        </p>
-        <lf-suggestion id="off-sug-scope">
-          <lf-old
-            ><p id="off-ann-scope">
-              Offline editing works throughout the product.
-            </p></lf-old
-          >
-          <lf-new
-            ><p>
-              Offline editing covers documents. Comments, sharing, and search still need
-              a connection, and say so when they don't have one.
-            </p></lf-new
-          >
-        </lf-suggestion>
-        <lf-suggestion id="off-sug-limits">
-          <lf-new
-            ><aside class="callout" id="off-ann-limits">
-              A device holds 40 MB of a workspace. Past that the least recently opened
-              documents leave the device, and a pinned document never does.
-            </aside></lf-new
-          >
-        </lf-suggestion>
-        <p id="off-sug-promise-why">
-          The third is a deletion with nothing in its place. I am proposing it because
-          the sentence is a promise we cannot keep: uninstalling the app takes the local
-          store with it, and anything still queued there goes too. It says otherwise in
-          the one place a reader would quote back at support.
-        </p>
-        <lf-suggestion id="off-sug-promise">
-          <lf-old
-            ><p id="off-ann-promise">
-              Nothing you write offline can ever be lost.
-            </p></lf-old
-          >
-        </lf-suggestion>
-        <p id="off-email-note">
-          The 96 beta workspaces get this the day you sign off, with your name on it.
-          Open the block with a double-click, or its ✎, and put it in your own words.
-          What it says about storage and about the rollout follows the two
-          recommendations above, so a decision that goes the other way sends me back to
-          this draft before anything goes out.
-        </p>
-        <lf-draft id="off-email">
-          <pre>
-Subject: Offline editing is leaving beta
-
-Thank you for six weeks of it. Offline editing reaches everyone over the
-next two weeks, and nothing changes for your workspace.
-
-Two things worth knowing. Documents you have opened recently are kept on
-your device, up to 40 MB a workspace; past that the oldest ones leave,
-and you can pin any document to keep it. And when two of you edit the
-same paragraph offline, the app asks which version to keep rather than
-picking one.
-
-If you hit the spinner on reconnect that some of you reported on iPhone,
-switching away from the app and back still clears it, and nothing you
-wrote is waiting on that. The fault is in networking code we don't own
-and we have reported it; the workaround ships either way.
-</pre>
-        </lf-draft>
-      </section>
-
-      <section id="off-followup">
-        <lf-decision id="off-followups-decision">
-          <h2>What I pick up next</h2>
-          <p id="off-followup-intro">
-            Four jobs stand behind the ship, none of them holding it. Tick whichever you
-            want started, by click or by keyboard, and write a fifth in the last row if
-            I have missed one.
-          </p>
-          <lf-options id="off-followups" choose multiple>
-            <lf-option id="off-fu-drill" for="off-merge"
-              >A merge drill with three devices offline at once</lf-option
-            >
-            <lf-option id="off-fu-cap" for="off-how"
-              >Telemetry on how close real workspaces get to 40 MB</lf-option
-            >
-            <lf-option id="off-fu-copy" for="off-surface"
-              >A second pass on the offline banner's wording</lf-option
-            >
-            <lf-option id="off-fu-comments" for="off-punch-list"
-              >A review of what offline comments would take</lf-option
-            >
-          </lf-options>
-        </lf-decision>
       </section>
     </main>
   </body>

@@ -70,9 +70,10 @@ it.
   durable queue item. The loaded Desktop client starts that later turn and keeps
   ownership of execution and approvals. If the task has been unloaded, the item
   stays queued until Codex reopens it; the adapter never resumes the task or
-  answers client requests on the user's behalf. The small queued message points
-  to the exact persisted batch rather than copying an arbitrarily large batch
-  into Codex's bounded text input. A later queued turn reads that payload,
+  answers client requests on the user's behalf. The small queued message is a
+  `leaf-delivery` XML element pointing to the exact persisted batch rather than
+  copying an arbitrarily large batch into Codex's bounded text input. A later
+  queued turn reads that payload,
   processes it directly, and leaves only `leaf wait` and `leaf ack` to the
   adapter. The turn still owns replies, revisions, and page status, including
   the handoff back to `waiting` or `idle`. Starting the command again for another

@@ -47,12 +47,13 @@ export function createChromeLayout({
   currentTray,
   dockSeats,
   focused,
-  generalRow,
   keylineEl,
   pageShifted,
   paintHere,
   panel,
   panelFocusTarget,
+  panelFoot,
+  panelList,
   placeComposer,
   readerStore,
   refreshFab,
@@ -125,14 +126,20 @@ export function createChromeLayout({
   // it yields to a margin idiom is stated above.
   function syncLayout() {
     const panelBeside = panelOpen && !panelCovers();
+    // What a covering sheet keeps standing at its foot: the composer, and the page's own
+    // reaction strip above it once the registry offers one. Measured as the one box that
+    // holds them rather than as the composer's height, because the strip is as fixed as
+    // the composer is and a lift that missed it stood the line on the strip's pills —
+    // close enough that the pointer aiming at a reaction met the line's More instead.
+    const footLift = panelCovers() ? panelFoot.offsetHeight : 0;
     // The toast lives in the same corner as the panel's Send button. Beside a wide
     // panel it steps left; over a covering sheet it stays inside the viewport and
-    // rises above the whole composer, including a textarea grown by an unsent draft.
+    // rises above the whole foot, including a textarea grown by an unsent draft.
     toastEl.style.right = `calc(${panelBeside ? commentsEdge.width() + 18 : 18}px + var(--lf-safe-right))`;
-    toastEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 18 : 18}px + var(--lf-safe-bottom))`;
+    toastEl.style.bottom = `calc(${footLift + 18}px + var(--lf-safe-bottom))`;
     // The key line takes the toast's lift over a covering sheet, or the sheet's own
-    // composer stands on the words saying what Esc will do to it.
-    keylineEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 14 : 14}px + var(--lf-safe-bottom))`;
+    // foot stands on the words saying what Esc will do to it.
+    keylineEl.style.bottom = `calc(${footLift + 14}px + var(--lf-safe-bottom))`;
     // Beside the page, the thread panel owns the right strip all the way to its foot. The
     // line starts at the window's left, so cap its room at that strip rather than letting a
     // long computed hint cross into the general comment box. A covering panel is handled by
@@ -160,6 +167,14 @@ export function createChromeLayout({
     // takes the tray's width off the line's: a busy scope already fills a laptop's, so
     // the room it gives up is chips clipped off the right-hand end.
     reserveListClearance(clear);
+    // The panel's own list is the third scroll region the line can stand over, and only
+    // when the panel covers: beside the page the cap above keeps the line off the strip
+    // entirely. Spent the same two ways a tray's is — the wheel reads the padding, a
+    // walk's scroll-into-view reads the scroll padding — and returned to the
+    // stylesheet's inset when the panel steps back beside the page.
+    const listClear = panelCovers() ? clear : "";
+    panelList.style.paddingBottom = listClear;
+    panelList.style.scrollPaddingBottom = listClear;
     syncFloats();
     dockSeats();
   }
@@ -234,7 +249,7 @@ export function createChromeLayout({
     });
   };
   const layoutSizes = new ResizeObserver(scheduleLayout);
-  layoutSizes.observe(generalRow);
+  layoutSizes.observe(panelFoot);
   layoutSizes.observe(keylineEl);
   // The composer grows under typing (field-sizing), and a box placed above its passage
   // grows downward, back over the mark it was moved off — so its own resize re-places it.

@@ -6,13 +6,13 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_harness import EXAMPLES
 from render_support import (
     DECISION_PAGE,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
     compare_with,
+    leaf_page,
     live_url,
     open_page,
     panel_settled,
@@ -53,20 +53,37 @@ ACTION_PAGE = SUGGESTION_PAGE.replace(
     </section></main>""",
 )
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
+PAGE_MAP_PAGE = leaf_page(
+    "Twelve Page-map locations",
+    "".join(
+        f'<section id="map-{n}" style="min-height: 420px">'
+        f"<h2>Location {n}</h2><p>Body {n}</p></section>"
+        for n in range(1, 13)
+    ),
+)
+PAGE_MAP_EVENTS = [
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": f"Map note {n}",
+        "anchor": {"section": f"map-{n}"},
+    }
+    for n in range(1, 13)
+]
 
 
-def test_g_addresses_the_shipped_page_map_in_its_announced_order(browser, serve):
-    """Every page-map location has the number its informational marker announces."""
-    example = next(page for page in EXAMPLES if page.stem == "ship-review")
-    page, errors = open_page(browser, serve(example))
+def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
+    """The first nine Page-map locations keep their announced position as address."""
+    page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     address = page.evaluate(
         """() => {
           const marker = [...document.querySelectorAll('.lf-margin-marker')]
-            .find(candidate => candidate.lfEntry?.target?.id === 'off-t-resync');
+            .find(candidate => candidate.lfEntry?.target?.id === 'map-3');
           const position = marker.getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
           const mapCount = document.querySelector('.lf-living-margin')
             .getAttribute('aria-label').match(/(\\d+) locations/);
-          const targetTop = document.querySelector('#off-t-resync')
+          const targetTop = document.querySelector('#map-3')
             .getBoundingClientRect().top;
           return {number: Number(position[1]), count: Number(position[2]),
             mapCount: Number(mapCount[1]), targetTop,
@@ -74,37 +91,39 @@ def test_g_addresses_the_shipped_page_map_in_its_announced_order(browser, serve)
         }"""
     )
     assert address["count"] == address["mapCount"]
+    assert address["count"] == 12
+    assert address["number"] <= 9
     assert address["targetTop"] > address["viewportHeight"], (
         "the target must begin off screen so this proves the address is page-wide"
     )
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(f"m 1–{address['count']}")
+    expect(page.locator(".lf-keyline")).to_contain_text("m 1–9")
     page.keyboard.press("m")
-    for digit in str(address["number"]):
-        page.keyboard.press(digit)
-    if address["number"] * 10 <= address["count"]:
-        page.keyboard.press("Enter")
+    page.keyboard.press(str(address["number"]))
 
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    expect(preview).to_contain_text("One reconnect in forty is worse")
-    expect(preview.locator(".lf-conversation-open")).to_be_focused()
+    expect(preview).to_contain_text("Map note 3")
+    expect(
+        preview.locator(
+            ".lf-margin-preview-list textarea, .lf-margin-preview-list button"
+        ).first
+    ).to_be_focused()
 
     page.keyboard.press("Escape")
     resized(page, 390, 760)
     page.keyboard.press("g")
     page.keyboard.press("m")
-    for digit in str(address["number"]):
-        page.keyboard.press(digit)
+    page.keyboard.press(str(address["number"]))
     compact_item = page.locator(".lf-page-map-sheet .lf-page-map-action").filter(
-        has_text="One reconnect in forty is worse"
+        has_text="Map note 3"
     )
     expect(page.locator(".lf-page-map-sheet")).to_be_visible()
     expect(compact_item).to_be_focused()
     expect(compact_item).to_be_in_viewport()
     page.keyboard.press("Escape")
-    expect(page.locator("#off-t-resync")).to_be_in_viewport()
+    expect(page.locator("#map-3")).to_be_in_viewport()
     assert errors == []
     page.close()
 
@@ -186,12 +205,12 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
         }"""
     )
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(f"m 1–{draft_address['count']}")
+    expect(page.locator(".lf-keyline")).to_contain_text(
+        f"m 1–{min(draft_address['count'], 9)}"
+    )
     page.keyboard.press("m")
-    for digit in str(draft_address["number"]):
-        page.keyboard.press(digit)
-    if draft_address["number"] * 10 <= draft_address["count"]:
-        page.keyboard.press("Enter")
+    assert draft_address["number"] <= 9
+    page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
 
     shapes = page.locator(
@@ -308,10 +327,7 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
 
     page.keyboard.press("g")
     page.keyboard.press("m")
-    for digit in str(draft_address["number"]):
-        page.keyboard.press(digit)
-    if draft_address["number"] * 10 <= draft_address["count"]:
-        page.keyboard.press("Enter")
+    page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
 
@@ -633,16 +649,28 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION])
     )
 
-    def padding_right():
-        return page.locator("body").evaluate(
-            "body => getComputedStyle(body).paddingRight"
+    # The strip is a claim main resolves from the shell, so it is read off main rather
+    # than off body's padding. A custom property computes to its unresolved expression,
+    # so the reading is taken from a probe the layout actually sizes.
+    def strip_right():
+        return page.evaluate(
+            """() => {
+              const main = document.querySelector('main');
+              const probe = document.createElement('i');
+              probe.style.cssText = 'position:fixed;visibility:hidden;height:0;'
+                + 'padding:0;border:0;width:var(--strip-r)';
+              main.append(probe);
+              const width = probe.getBoundingClientRect().width;
+              probe.remove();
+              return width;
+            }"""
         )
 
-    assert padding_right() == "57px"
+    assert strip_right() == 57
 
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)
-    assert padding_right() == "384px"
+    assert strip_right() == 384
 
     assert errors == []
     page.close()

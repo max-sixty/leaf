@@ -180,6 +180,7 @@ export function createLivingMargin(dependencies) {
     comparisonBase,
     comparisonChanges,
     compact,
+    closestAcross,
     el,
     elementById,
     goToDecision,
@@ -291,6 +292,15 @@ export function createLivingMargin(dependencies) {
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
+
+  // A margin item is hoisted away from the page target it belongs to, so ancestry
+  // cannot answer what a press on one of its controls is about. Keep that relationship
+  // behind the owner that performs the hoist. Design mode uses it to turn the press into
+  // a comment on the target and the named control instead of letting the action fire.
+  function marginTargetAt(node) {
+    const at = node?.nodeType === 1 ? node : node?.parentElement;
+    return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
+  }
 
   function groupFor(groups, target) {
     let group = groups.get(target);
@@ -763,6 +773,7 @@ export function createLivingMargin(dependencies) {
         inlineHosts.set(target, host);
       }
       host.dataset.lfMarginFor = target.id || targetPath(target);
+      host.lfTarget = target;
       host.setAttribute("aria-label", `Actions for ${itemWord(target)}`);
       const controls = (side) =>
         offers
@@ -849,6 +860,7 @@ export function createLivingMargin(dependencies) {
         registerMarginRow(host, markerOptions(host));
       } else updateMarginRow(host, markerOptions(host));
       host.lfEntry = entry;
+      host.lfTarget = entry.target;
       host.dataset.lfMarginFor = entry.target.id || entry.key;
       host.setAttribute("aria-label", `Page actions for ${entry.title}`);
       marker.lfEntry = entry;
@@ -1133,6 +1145,17 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
+  // A dismissal the platform makes — Escape, a press outside the card — returns focus to
+  // the marker that opened it, and does so while the hide is still running. The marker's
+  // focus listener would re-show the card from inside that operation, which throws
+  // InvalidStateError and leaves the reader's Escape half-done. Suppressing the entry is
+  // what closePreview(true) says for its own dismissal; `beforetoggle` is where it can be
+  // said before the focus lands. Only the platform's path reaches it with an entry still
+  // standing: closePreview clears previewEntry before it hides, so a move between markers
+  // goes on re-opening the card at the marker the reader arrived at.
+  preview.addEventListener("beforetoggle", (event) => {
+    if (event.newState === "closed" && previewEntry) suppressedKey = previewEntry.key;
+  });
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed" || !previewEntry) return;
     const button = previewButton;
@@ -1179,6 +1202,7 @@ export function createLivingMargin(dependencies) {
 
   return {
     enterPageMap,
+    marginTargetAt,
     openPageMapItem,
     pageMapItems,
     pageMapOffered,

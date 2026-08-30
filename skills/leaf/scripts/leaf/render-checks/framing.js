@@ -1,4 +1,5 @@
 import { inChrome } from "/runtime/widget-api.js";
+import { openRoots } from "./open-roots.js";
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
 // collapses through its parent and is spent between blocks; where the parent draws
@@ -27,16 +28,10 @@ import { inChrome } from "/runtime/widget-api.js";
 //
 // Deduped per tag and edge, because one mistake is on every instance of that widget.
 export function trappedMargins() {
-  // Which document each box is in, imported rather than restated, for the same
-  // reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow roots
-  // of its own, and a `closest` written out here stops at the first of them and
+  // Which document each box is in is OPEN_ROOTS', imported rather than restated, for
+  // the same reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow
+  // roots of its own, and a `closest` written out here stops at the first of them and
   // calls what it finds the page's.
-  const roots = (root) => [
-    root,
-    ...[...root.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot)
-      .flatMap((el) => roots(el.shadowRoot)),
-  ];
   const px = (v) => parseFloat(v) || 0;
   // The platform's own answer to "does a child's margin reach my edge, and can it get
   // past it": a box that establishes a formatting context keeps every margin inside.
@@ -78,7 +73,7 @@ export function trappedMargins() {
     return out;
   };
   const found = [];
-  for (const root of roots(document))
+  for (const root of openRoots(document))
     for (const el of root.querySelectorAll("*")) {
       const s = getComputedStyle(el);
       if (s.display === "none" || s.display === "contents") continue;

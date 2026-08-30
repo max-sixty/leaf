@@ -7,7 +7,7 @@ the relevant design note or in git history.
 
 - **Cover every focus indicator.** Extend
   `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` so accent
-  `box-shadow` focus rings take part in its geometry sweep. Recheck `gallery` and
+  `box-shadow` focus rings take part in its geometry sweep. Recheck `corpus` and
   `ship-review` at the bottom of the viewport, then fix any clipping the wider sweep
   reports.
 

@@ -289,7 +289,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     alone therefore still exists behind it, but a key drawn above the chrome there would
     appear to name a panel control and choose hidden document content. The rendered stack
     at each target's corner decides whether it is actually exposed."""
-    page, errors = open_page(browser, serve(ROOT / "examples" / "gallery.html"))
+    page, errors = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
     resized(page, 700, 900)
     page.get_by_role("button", name=re.compile(r"^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()

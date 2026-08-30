@@ -992,6 +992,10 @@ ${MARK_RULES}
     .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
     .lf-compose { display: block; margin-top: 8px; }
     .lf-compose textarea { display: block; width: 100%; min-width: 0; }
+    /* The foot is a column of its own so the composer and the page's reaction strip keep
+       the flex-item margins they had as the panel's own children, and so the one box the
+       chrome measures for its lift is the one the reader sees standing there. */
+    .lf-panel-foot { display: flex; flex-direction: column; flex: none; }
     /* The general Send stays beside its field; a thread gives the field its own row. */
     .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-general textarea { flex: 1; min-width: 0; }
@@ -1278,9 +1282,9 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's numbered document destinations: a chip per member of every list it
-       offers, narrowed to one list once a letter names it, in a layer of the chrome's own
-       so an address can hang on a link set mid-sentence without writing a span into the
+    /* The g chord's numbered document destinations: a chip per addressable member of every
+       list it offers, narrowed to one list once a letter names it, in a layer of the chrome's
+       own so an address can hang on a link set mid-sentence without writing a span into the
        paragraph. Fixed, because authored members can sit in the document or a widget's
        overflow; one layer that follows neither lets a single pass place them from the
        viewport rects it just read, then repaint when anything scrolls under it. Each chip

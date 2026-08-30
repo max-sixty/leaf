@@ -18,6 +18,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
@@ -2146,10 +2147,13 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         [intent_payload] = codex_model.delivery_payload_path(
             "codex-thread", "delivery-id"
         ).parent.glob("*.json")
-        assert str(intent_payload) in prompt
         payload = files_model.read_json(intent_payload)
-        assert payload["delivery_id"] in prompt
-        assert "already handled in this task as a retry" in prompt
+        delivery = ElementTree.fromstring(prompt)
+        assert delivery.tag == "leaf-delivery"
+        assert delivery.attrib == {"id": payload["delivery_id"]}
+        message = delivery.text or ""
+        assert str(intent_payload) in message
+        assert "already handled in this task as a retry" in message
         assert "hello adapter" in payload["batch_jsonl"]
         assert str(page) in payload["batch_jsonl"]
         assert len(prompt.encode()) < 4096

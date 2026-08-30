@@ -908,7 +908,14 @@ const generalRow = el("div", "lf-general");
 const generalInput = document.createElement("textarea");
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-panel.append(panelHead, findRow, threadsBox, generalRow);
+// The panel's foot: everything standing below the scrolling thread list. The general
+// box is what it holds at rest, and the page's own reaction strip joins it above that
+// box when the registry offers reactions. One box rather than two siblings, because the
+// chrome lifts the key line and the toast clear of the foot over a covering panel, and a
+// lift measured off the composer alone stood them on the strip's pills.
+const panelFoot = el("div", "lf-panel-foot");
+panelFoot.append(generalRow);
+panel.append(panelHead, findRow, threadsBox, panelFoot);
 
 // The floating Comment control names a selection before it has a stable target row.
 // Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
@@ -997,9 +1004,10 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
-// The g chord's numbered document destinations: a chip on every member of the list it has
-// aimed at, drawn here for the same reason the legend is (paintAddresses, its one writer).
-// The eye's copy of what the chord announces, so it says nothing to a screen reader.
+// The g chord's numbered document destinations: a chip on each addressable member of the
+// list it has aimed at, drawn here for the same reason the legend is (paintAddresses, its
+// one writer). The eye's copy of what the chord announces, so it says nothing to a screen
+// reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
@@ -1130,12 +1138,13 @@ chromeLayout = createChromeLayout({
   currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
   focused,
-  generalRow,
   keylineEl,
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
   panel,
   panelFocusTarget: threadsBox,
+  panelFoot,
+  panelList: threadsBox,
   placeComposer: (...args) => placeComposer(...args),
   readerStore,
   refreshFab: (...args) => refreshFab(...args),
@@ -1251,6 +1260,7 @@ const {
 const { AIM, aimIsOn, aimedItem } = createAim({
   activateAimTarget,
   aimTargetAt,
+  designIsOn: () => designOn,
   designPress,
   designTarget,
   inChrome: (node) => inChrome(node),
@@ -3392,6 +3402,7 @@ livingMargin = createLivingMargin({
   comparisonBase,
   comparisonChanges,
   compact: commentsEdge.over,
+  closestAcross,
   el,
   elementById,
   goToDecision,
@@ -3449,6 +3460,7 @@ designRuntime = createDesign({
   itemWord,
   layerPart,
   legendRoot,
+  marginTargetAt: (...args) => livingMargin.marginTargetAt(...args),
   openComposer,
   pageScroller,
   pageShifted,

@@ -585,7 +585,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     own value or its name, so a declared paint always gets its word, and the branch
     is reachable only by a regression in `renderQuiet` itself. What holds it is the
     corpus with that regression put back: silence `renderQuiet` and every painted
-    option in the examples is reported, a `parallel-workstreams` option in a tab
+    option in the examples is reported, a `live-progress` option in a tab
     nobody opened among them. Skipping the unrendered element before asking whether
     a word exists is what drops that one, so the order of the two questions here is
     the contract, and this test does not pin it."""

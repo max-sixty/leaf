@@ -1,16 +1,16 @@
 # The examples
 
-Each source HTML file is both a complete authored page and an integration
-fixture. The website publishes this corpus with the same vendored layer.
-`gallery.html` and `gallery.data.json` are generated views; edit the individual
-example and regenerate the gallery instead of patching either output.
+Each authored HTML file is both a complete page and an integration fixture. The
+website publishes those pages with the same vendored layer. `corpus.html` and
+`corpus.data.json` are generated internal views; edit the individual example and
+regenerate the corpus instead of patching either output.
 
 ## Every widget and idiom in the vocabulary stands here
 
 The nightly run uses this corpus in two ways. Page-sensitive contracts run every
-deployable example, including the generated gallery: each renders in both palettes,
+fixture, including the generated corpus: each renders in both palettes,
 passes axe, and exports with its scripts gone. Authored-content sweeps quote every
-source passage and resolve anchors written from every source file; the gallery
+source passage and resolve anchors written from every source file; the corpus
 generation check proves those sources are what the derived view carries. Shared
 runtime mechanisms use causal representatives instead of repeating the same gesture
 over every page, and each representative has a non-vacuity floor naming the reason it
@@ -64,7 +64,7 @@ print. The joined control gave that question none of the inset it gives every
 other cell, so it sat on the frame a full address column left of the words it was
 a question about, with dead ground under the hairline below it. The page was
 green for three days. Nothing in the loop looked at a composed page and judged
-spacing, and `gallery.html` — the first page a UI sweep tours — showed the same
+spacing, and `corpus.html` — the heaviest page a UI sweep tours — showed the same
 group.
 
 So a coverage gap and a judging gap want different answers, and only one of them
@@ -78,7 +78,7 @@ theme. When a sweep finds something here, ask which of the two let it through
 before adding a page: a page that only re-renders a shape nobody judges buys
 nothing.
 
-Use `gallery.html` when measuring runtime cost across the real corpus. A small
+Use `corpus.html` when measuring runtime cost across the composed surface. A small
 fixture can establish a cause, but it cannot stand in for the composed surface.
 
 ## An example is one stamped version, plus any log and data it ships beside it
@@ -118,10 +118,10 @@ current value. A reserved `$captures` object instead maps a source id to `text-f
 and optional `label` or `lines`; the file is a sibling of the example. Builders apply
 captures first and then current values through `leaf data capture` and `leaf data set`,
 so binding, contract validation, revisioning, live preview, browser sweeps, and the
-static site all exercise the real doors. `scripts/gallery.py` composes those companions
-into `gallery.data.json`; edit the individual example's files and regenerate rather
-than patching the gallery copies. A selected snapshot number must stay valid both in
-its own page and in gallery composition, so the first capture in the first contributing
+static site all exercise the real doors. `scripts/corpus.py` composes those companions
+into `corpus.data.json`; edit the individual example's files and regenerate rather
+than patching the corpus copies. A selected snapshot number must stay valid both in
+its own page and in corpus composition, so the first capture in the first contributing
 example owns snapshot `1`; grow this fixture convention only when another capture
 actually needs to compose.
 
@@ -144,9 +144,9 @@ anchor sweep can't catch it, because that sweep writes its own anchors.
 
 `resolves` is reachable now that a comment can stand in a shipped log, and no
 example uses it, deliberately. The attribute would have to go in the markup, and
-the markup travels further than the log: `scripts/gallery.py` embeds each
-example's `<main>` verbatim, the gallery's own directory has no seed, and
-`version check` would refuse the gallery over an id naming no comment in *its*
+the markup travels further than the log: `scripts/corpus.py` embeds each
+example's `<main>` verbatim, the corpus's own directory has no seed, and
+`version check` would refuse the corpus over an id naming no comment in *its*
 log. Seeding a log costs the example nothing; hanging markup off that log couples
 the markup to every page built from it.
 

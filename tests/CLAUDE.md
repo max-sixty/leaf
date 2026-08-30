@@ -147,7 +147,7 @@ reached, a joined option group for the one its picks give up, and an element a
 focused thread is anchored to wears one with no focus of its own.
 `getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
 words it uses for a control whose ring is fine — a 2px cut planted on
-`.lf-thread:focus-within` passed all ten examples. So the reading sweeps every box
+`.lf-thread:focus-within` passed the entire example corpus. So the reading sweeps every box
 painting one, and asks the outline rather than the rules: nothing re-runs a
 selector. Which rule drew a ring is the other question, and the rule answers it
 where it draws (`--lf-here-ring`, theme.css), so the population the floor divides

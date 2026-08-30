@@ -62,12 +62,12 @@ ROOT = Path(__file__).parent.parent
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
-# The inputs scripts/gallery.py composes. The gallery is a generated presentation of
-# these pages, not an eleventh author source; tests that exercise authored content use
-# this set while tests of the gallery's own rendering or export keep EXAMPLES.
-SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "gallery")
+# The inputs scripts/corpus.py composes. The corpus is a generated presentation of
+# these pages, not another author source; tests that exercise authored content use
+# this set while tests of the corpus's own rendering or export keep EXAMPLES.
+SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
 assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated gallery beside the source examples"
+    "expected exactly one generated corpus beside the source examples"
 )
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
@@ -1251,7 +1251,7 @@ def open_page(
     says only that the runtime's module evaluated — long before the anchor pass has run,
     and so before the Comment button can answer a selection at all. A test that reads
     there without an auto-retrying wait is racing the upgrade and loses on a loaded
-    machine: the passage sweep lost it on the gallery, the heaviest page here, and what
+    machine: the passage sweep lost it on the corpus, the heaviest page here, and what
     it reported was a passage it had not tested rather than one that failed."""
     page = (
         context.new_page()

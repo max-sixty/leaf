@@ -92,12 +92,20 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
 </lf-tabs>
+<lf-command id="stable-command" label="Ship the control proof" phase="today">
+  <lf-agent id="stable-command-worker" state="working">
+    <strong>Worker</strong> Proving the command header.
+  </lf-agent>
+  <lf-task id="stable-command-task" status="active">
+    <strong>Keep every control row still</strong>
+  </lf-task>
+</lf-command>
 """,
     head='<meta name="lf-review" content="sign-off">',
 )
 
 # The rendered control mechanisms whose rows must keep their geometry across a press.
-# `coverage` classifies the mechanisms rendered by the composed gallery; `target` is
+# `coverage` classifies the mechanisms rendered by the composed corpus; `target` is
 # the one causal transition that proves the mechanism's stability contract.
 CONTROL_ARCHETYPES = (
     {
@@ -119,6 +127,11 @@ CONTROL_ARCHETYPES = (
         "name": "tab",
         "coverage": ".lf-tabstrip > [role=tab]",
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
+    },
+    {
+        "name": "command-view",
+        "coverage": ".lf-command-facts > [role=button]",
+        "target": '#stable-command .lf-command-facts > [data-lf-view="running"]',
     },
 )
 CONTROL_ROW_PRESS = (
@@ -1176,45 +1189,55 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     page.close()
 
 
-def test_the_composed_gallery_declares_every_control_row_archetype(browser, serve):
-    """The gallery keeps the declaration open to control mechanisms added later."""
-    gallery = next(example for example in EXAMPLES if example.stem == "gallery")
-    page, errors = open_page(browser, serve(gallery))
+def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve):
+    """The corpus keeps the declaration open to control mechanisms added later.
+
+    The examples deliberately distribute those mechanisms across panels, so the sweep
+    visits every outer tab rather than making the first page carry the whole vocabulary.
+    """
+    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
+    page, errors = open_page(browser, serve(corpus))
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     observed = set()
     undeclared = []
-    controls = page.locator(CONTROL_ROW_PRESS)
-    for index in range(controls.count()):
-        control = controls.nth(index)
-        if not control.is_visible() or not control.is_enabled():
-            continue
-        if control.get_attribute("aria-disabled") == "true":
-            continue
-        neighbours = control.evaluate(NEIGHBOURHOOD, CONTROL_ROW_NEIGHBOUR)["names"]
-        if not neighbours:
-            continue
-        matches = [
-            archetype["name"]
-            for archetype in CONTROL_ARCHETYPES
-            if control.evaluate(
-                "(el, selector) => el.matches(selector)", archetype["coverage"]
+    labels = page.locator("#corpus > lf-tab").evaluate_all(
+        "tabs => tabs.map(tab => tab.getAttribute('label'))"
+    )
+    assert labels, "the composed corpus has no panels to sweep"
+    for tab_label in labels:
+        page.get_by_role("tab", name=tab_label, exact=True).click()
+        controls = page.locator(CONTROL_ROW_PRESS)
+        for index in range(controls.count()):
+            control = controls.nth(index)
+            if not control.is_visible() or not control.is_enabled():
+                continue
+            if control.get_attribute("aria-disabled") == "true":
+                continue
+            neighbours = control.evaluate(NEIGHBOURHOOD, CONTROL_ROW_NEIGHBOUR)["names"]
+            if not neighbours:
+                continue
+            matches = [
+                archetype["name"]
+                for archetype in CONTROL_ARCHETYPES
+                if control.evaluate(
+                    "(el, selector) => el.matches(selector)", archetype["coverage"]
+                )
+            ]
+            label = control.evaluate(
+                "(el) => el.tagName.toLowerCase() + ' '"
+                "        + JSON.stringify((el.textContent || '').trim().slice(0, 24))"
             )
-        ]
-        label = control.evaluate(
-            "(el) => el.tagName.toLowerCase() + ' '"
-            "        + JSON.stringify((el.textContent || '').trim().slice(0, 24))"
-        )
-        if len(matches) != 1:
-            undeclared.append(f"{label}: {matches or 'no archetype'}")
-        observed.update(matches)
+            if len(matches) != 1:
+                undeclared.append(f"{tab_label}: {label}: {matches or 'no archetype'}")
+            observed.update(matches)
 
     assert not undeclared, (
         "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
     )
     expected = {archetype["name"] for archetype in CONTROL_ARCHETYPES}
     assert observed == expected, (
-        f"gallery reached {sorted(observed)}, expected {sorted(expected)}"
+        f"corpus reached {sorted(observed)}, expected {sorted(expected)}"
     )
     assert errors == []
     page.close()
@@ -2654,6 +2677,78 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
     page.close()
 
 
+def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve):
+    """Over a covering panel the key line stands on the sheet, lifted clear of what the
+    sheet keeps standing at its foot. That foot is two rows once the page offers
+    reactions: the general composer, and the page's own reaction strip above it. A lift
+    measured off the composer alone put the line's More on the strip's ellipsis — 8.8px
+    of clear space between two things to press, and the reader aiming at the reaction
+    got the keyboard reference.
+
+    The list above the foot scrolls, so it takes the line's room the way the trays' lists
+    and the document do: reserved at its end, and given back when the panel steps beside
+    the page and the line is capped clear of it instead."""
+    page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
+    resized(page, 420, 900)
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-page-strip .lf-react-trigger")).to_be_visible()
+
+    def boxes():
+        return page.evaluate("""() => {
+            const rect = selector => {
+                const r = document.querySelector(selector).getBoundingClientRect();
+                return {left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+                        height: r.height};
+            };
+            const list = document.querySelector(".lf-threads");
+            const style = getComputedStyle(list);
+            return {keyline: rect(".lf-keyline"), foot: rect(".lf-panel-foot"),
+                    general: rect(".lf-general"), list: rect(".lf-threads"),
+                    trigger: rect(".lf-page-strip .lf-react-trigger"),
+                    listPad: parseFloat(style.paddingBottom),
+                    listScrollPad: parseFloat(style.scrollPaddingBottom)};
+        }""")
+
+    covering = boxes()
+    # The foot is taller than its composer, or the lift below would be the same
+    # measurement either way and the test would prove nothing.
+    assert covering["foot"]["height"] > covering["general"]["height"] + 1, (
+        f"the panel's foot carried no strip to be lifted over: {covering}"
+    )
+    assert covering["keyline"]["bottom"] <= covering["foot"]["top"], (
+        f"the key line stood on the sheet's foot: {covering}"
+    )
+    assert covering["keyline"]["bottom"] <= covering["trigger"]["top"], (
+        f"the key line stood on the page's reaction strip: {covering}"
+    )
+    # The line reaches back over the list, so the list reserves at least as much of its
+    # own end as the line stands on — spent the wheel's way and the walk's way both.
+    covered = covering["list"]["bottom"] - covering["keyline"]["top"]
+    assert covered > 0, f"the line no longer reaches the list at all: {covering}"
+    assert covering["listPad"] >= covered, (
+        f"the sheet's list left its last thread under the key line: {covering}"
+    )
+    assert covering["listScrollPad"] >= covered, (
+        f"a walk to the last thread would stop under the key line: {covering}"
+    )
+
+    # Beside the page the line is capped left of the panel, so the list keeps the inset
+    # the stylesheet gives it rather than room for a line that never reaches it.
+    resized(page, 1200, 900)
+    page.wait_for_function(
+        """() => parseFloat(
+            getComputedStyle(document.querySelector('.lf-threads')).paddingBottom
+        ) < 20"""
+    )
+    beside = boxes()
+    assert beside["keyline"]["right"] <= beside["foot"]["left"] + 1, (
+        f"the line crossed into the panel it stands beside: {beside}"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
     """Runtime layout writes preserve the inset tokens stated by the stylesheet."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -2689,7 +2784,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
               return {toast: rect('.lf-toast'), keyline: rect('.lf-keyline'),
-                      footer: rect('.lf-general'), width: innerWidth, height: innerHeight,
+                      footer: rect('.lf-panel-foot'), width: innerWidth, height: innerHeight,
                       toastRight: getComputedStyle(document.querySelector('.lf-toast')).right};
         }"""
     )
@@ -3386,24 +3481,36 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # until their entry control opens them, so the Tab order alone never reaches one: twelve of the
 # layer's ring rules stood in that position when this was written.
 RING_WALKS = (
-    ("the page", (), ("gallery", "design-decision", "ship-review")),
-    ("passage search", ("/",), ("gallery",)),
+    (
+        "the page",
+        (),
+        (
+            "corpus",
+            "design-decision",
+            "postmortem",
+            "pr-walkthrough",
+            "release-notes",
+            "triage-board",
+            "ship-review",
+        ),
+    ),
+    ("passage search", ("/",), ("corpus",)),
     ("the comments", ("c",), ("ship-review",)),
     ("the decisions tray", (), ("ship-review",)),
-    ("the leaves tray", ("g", "Shift+l"), ("gallery",)),
+    ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
     # from the row above it. The walk is clamped, so a second press at the top moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("v", "ArrowUp", "ArrowUp"), ("gallery",)),
-    ("the reference", ("?", "?"), ("gallery",)),
-    ("design mode", ("i",), ("gallery",)),
+    ("the versions menu", ("v", "ArrowUp", "ArrowUp"), ("corpus",)),
+    ("the reference", ("?", "?"), ("corpus",)),
+    ("design mode", ("i",), ("corpus",)),
 )
-# The gallery is the open-ended page and design-mode anchor: every authored widget family
-# joins it. Design decision contributes settled and joined options plus a glossary mark.
-# Ship review contributes the panel's log-hosted widgets, element mark and run-heading
-# mark, and therefore carries the shared comments and asks chrome. The remaining chrome
-# has no page-owned contents and is walked once on the gallery.
+# The corpus is the open-ended page and design-mode anchor. The authored pages now
+# give each interaction family a focused page, so the page walk names those owners:
+# Design contributes settled and joined options, Postmortem a visual target, PR source
+# and code, Release drafts and a shot, Triage a card grip, and Ship the log-hosted
+# widgets and element mark. Chrome with no page-owned contents is walked on the corpus.
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
@@ -3666,14 +3773,20 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # so every scope starts from the same page.
             for _ in range(3):
                 page.keyboard.press("Escape")
-            # A draft editor is conditional chrome: Tab can stand on it only after its
-            # explicit Edit door has opened it. Open one after the scope reset, which
-            # would otherwise close it with its first Escape, so the page walk proves
-            # the inset editor ring the way a reader actually reaches it.
+            # A draft editor and captured source are conditional chrome: Tab can stand
+            # on them only after their explicit doors have opened. Do that after the
+            # scope reset, whose Escape presses would otherwise put the draft away.
             if scope == "the page":
                 pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
                 if pencil.count() and pencil.is_visible():
                     pencil.click()
+                source = page.locator("details:has(lf-source)").first
+                if (
+                    source.count()
+                    and source.is_visible()
+                    and not source.get_attribute("open")
+                ):
+                    source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)
             if not page.locator(".lf-panel.open").count():
                 page.locator(".lf-threads-toggle").click()

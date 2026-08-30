@@ -161,7 +161,9 @@ customElements.define(
         // In the document now, so each control measures its decided word in the face it
         // actually renders in and floors itself there — the line the press is made on
         // holds still when the word changes (see the module header).
-        for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
+        for (const btn of this.#row.querySelectorAll(
+          ":scope > [data-lf-offer='button']",
+        ))
           reserve(btn, WORDS[verb(btn)]);
         this.#margin?.update();
       });
@@ -190,7 +192,7 @@ customElements.define(
                 .querySelector(
                   this.dataset.lfState
                     ? `.lf-sug-${this.dataset.lfState}`
-                    : "[role='button']",
+                    : "[data-lf-offer='button']",
                 )
                 ?.focus({ preventScroll: true }),
           },
@@ -327,7 +329,9 @@ customElements.define(
         // The row stays; what changes is which of the two controls is speaking. A
         // quoted one grew none.
         this.#row.dataset.lfOutcome = outcome;
-        for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
+        for (const btn of this.#row.querySelectorAll(
+          ":scope > [data-lf-offer='button']",
+        ))
           this.#name(btn, true, change);
       }
       this.#margin?.update();

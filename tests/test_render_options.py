@@ -1912,7 +1912,7 @@ def test_an_agent_question_opens_another_thread_without_returning_the_decision(
 
     conversation = page.locator("#jobs > .lf-conversation")
     conversation.locator(".lf-say textarea").fill("Neither — do the camera first.")
-    conversation.locator(".lf-say [role='button']").click()
+    conversation.locator(".lf-say [data-lf-offer='button']").click()
     round_trip(page)
     expect(decisions).to_have_text("Asks (2)")
     expect(rows).to_have_count(2)
@@ -1961,7 +1961,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
 
     conversation = page.locator("#jobs > .lf-conversation")
     box = conversation.locator(".lf-say textarea")
-    send = conversation.locator(".lf-say [role='button']")
+    send = conversation.locator(".lf-say [data-lf-offer='button']")
     # What the box is for, in both registers a reader has: the words on screen and the
     # name read aloud, saying the same thing. It names what the cell supplies rather
     # than the act of typing into it — a box under a menu that invites the reader to
@@ -2090,7 +2090,7 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     d = serve.page_dir
     conversation = page.locator("#jobs > .lf-conversation")
     conversation.locator(".lf-say textarea").fill("Which of these is cheapest?")
-    conversation.locator(".lf-say [role='button']").click()
+    conversation.locator(".lf-say [data-lf-offer='button']").click()
     round_trip(page)
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = conversation.locator(".lf-work-line")
@@ -2534,6 +2534,16 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     specimens = page.locator("lf-specimen").evaluate_all(
         "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
     )
+    if not specimens:
+        owners = page.locator("#corpus > lf-tab:has(lf-specimen)")
+        assert owners.count(), (
+            "this page declares a specimen but no visible exhibit or corpus panel owns it"
+        )
+        label = owners.first.get_attribute("label")
+        page.get_by_role("tab", name=label, exact=True).click()
+        specimens = page.locator("lf-specimen").evaluate_all(
+            "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
+        )
     assert specimens, "this page shows no specimen: the reading below asserts nothing"
 
     for spec in specimens:
@@ -2551,7 +2561,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             # `instant`, because the page asks for smooth scrolling and a read taken
             # while one is still gliding is of wherever it had got to — which passes on
             # a short page, where the glide is over before the next call lands, and
-            # failed on the gallery, where the same delta is thousands of pixels.
+            # failed on the corpus, where the same delta is thousands of pixels.
             page.evaluate(
                 """([id, edge]) => {
                     const r = document.getElementById(id).getBoundingClientRect();

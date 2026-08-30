@@ -2,7 +2,7 @@
  * rendering; the page binds that input to a source, while Leaf delivers its validated
  * snapshot and keeps datum comments attached across replacement. */
 import {
-  PRESS,
+  DISCLOSE,
   ago,
   keys,
   projectData,
@@ -52,12 +52,29 @@ function renderDatum(tree, record, prior) {
       tree.toggleAttribute("data-lf-open");
       tree.show(tree.snapshot);
     });
+    // Which way it stands, before the scope below reads it: a button wearing
+    // aria-expanded is ARIA's disclosure pattern, and that pair is what `DISCLOSE`
+    // answers from. Without it `DISCLOSE` reads a control it cannot place and hands
+    // back both arrows, which is what `aria-keyshortcuts` would be written with. The
+    // render below sets the live value; this is the one at birth.
+    head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
+    // The same press the runtime's disclosure scope owns, re-worded in this widget's
+    // terms. Its keys come from `DISCLOSE` rather than from `PRESS`, which is what that
+    // primitive is for: a nearer scope keeps only the keys it names, so the pair alone
+    // took the arrow off the line while it went on opening the tree.
+    //
+    // And it keeps its own `run`, because this head is a span. `DISCLOSE` hands over
+    // only the arrow that changes the state, so a press here is a direction and never a
+    // second toggle; what it also answers for is where the head stands. In thread
+    // markup the disclosure scope refuses to reach — its `at` asks `!inChrome` — and a
+    // span has no platform half to fall back on the way `details > summary` does, so
+    // without this the frozen head names ⏎ / space and nothing runs them.
     keys(head, "On worktree evidence", [
       {
         id: "worktree.toggle",
-        keys: PRESS,
+        keys: () => DISCLOSE(head),
         does: "Open or close the worktree evidence",
-        line: "open or close",
+        line: () => (tree.hasAttribute("data-lf-open") ? "close" : "open"),
         run: () => head.click(),
       },
     ]);
@@ -70,6 +87,11 @@ function renderDatum(tree, record, prior) {
       : `${tree.hasAttribute("data-lf-open") ? "▾" : "▸"} ${summary(record)}`,
     { says: true },
   );
+  // Which way it stands now. The row's bindings answer from this attribute, and so do
+  // both surfaces naming its keys: the document's disclosure watch hears this write and
+  // repaints them together, so a row bound through `DISCLOSE` owes no repaint of its
+  // own. Restating the same value is not a disclosure changing — the watch reads the
+  // old value to tell the two apart — so every render can write it.
   head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
 
   let source = datum.querySelector(":scope > .lf-worktree-source");

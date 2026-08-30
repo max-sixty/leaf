@@ -64,6 +64,7 @@ from render_support import (
     compare_with,
     composer_quote,
     drifting_widget,
+    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -3206,6 +3207,101 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
         """worker => [...worker.children].map(child => child.classList.contains('lf-agent-line')
           ? 'line' : child.id).filter(Boolean)"""
     ) == ["line", "proof"]
+    assert errors == []
+    page.close()
+
+
+def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
+    """The head is a disclosure, so the keys that work it are `DISCLOSE`'s answer and not
+    a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
+    and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
+    Space alone took the arrow off both surfaces while the arrow went on opening the
+    tree — the shape `skills/leaf/CLAUDE.md` names as one promise rather than two.
+
+    Both surfaces of that promise, because a row naming the wrong keys names them wrongly
+    on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —
+    and the row is the only thing here either one can be wrong about: the repaint that
+    turns them over together is the document's disclosure watch, held up by
+    `test_a_widgets_native_control_names_the_press_the_platform_makes`, and not anything
+    this widget does. Read once and never retried, for the reason `key_line` is: the
+    heartbeat repaints scopes too, and an assertion that retries goes green on whichever
+    tick lands inside its budget.
+
+    And both places the head stands, because the row's `run` is what carries it from one
+    to the other. The runtime's disclosure scope stops at the chrome, and this head is a
+    span, so a message's frozen copy has no platform pair underneath it the way a
+    `details > summary` does: the row's own press is the only thing there. Reading
+    `DISCLOSE` for the keys and leaving the press to that scope named ⏎ / space in the
+    panel over a head that answered neither."""
+    command = leaf_page(
+        "worker evidence",
+        """
+<lf-roster id="team">
+  <lf-agent id="worker" state="working"><strong>worker</strong> Owns the remit.
+    <lf-worktree id="proof" source="atlas-worktrees"></lf-worktree>
+  </lf-agent>
+</lf-roster>
+""",
+    )
+    page, errors = open_page(browser, serve(command))
+    head = page.locator("#proof > .lf-worktree-snapshot > .lf-worktree-head")
+    head.focus()
+
+    expect(head).to_have_attribute("aria-expanded", "false")
+    assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    said = key_line(page)
+    assert re.search(r"⏎ / space / →\s*open", said), said
+
+    page.keyboard.press("ArrowRight")
+    expect(head).to_have_attribute("aria-expanded", "true")
+    said = key_line(page)
+    assert re.search(r"⏎ / space / ←\s*close", said), said
+    assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
+
+    # A direction and not a toggle: the press that must change nothing follows one that
+    # changed something, so a scope answering nothing at all could not pass this.
+    page.keyboard.press("ArrowRight")
+    expect(head).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowLeft")
+    expect(head).to_have_attribute("aria-expanded", "false")
+
+    # The same head frozen into thread markup, where the runtime's disclosure scope does
+    # not reach: its `at` refuses anything in the chrome, so whatever the widget's row
+    # does not run there, nothing runs. `DISCLOSE` answers for that too and drops the
+    # arrow, leaving the pair — and the pair is the half a `details > summary` gets from
+    # the platform and a span gets from nowhere. So the row keeps its own `run`, and this
+    # is the surface that says whether it does.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-tree",
+            "author": "claude",
+            "revision": 1,
+            "text": "The worker's evidence, for the record.",
+            "markup": '<lf-roster id="msg-team"><lf-agent id="msg-worker" '
+            'state="working"><strong>worker</strong> Owned the remit.'
+            '<lf-worktree id="msg-proof" source="atlas-worktrees"></lf-worktree>'
+            "</lf-agent></lf-roster>",
+        },
+    )
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    frozen = page.locator("#msg-proof > .lf-worktree-snapshot > .lf-worktree-head")
+    frozen.focus()
+    expect(frozen).to_be_focused()
+    expect(frozen).to_have_attribute("aria-expanded", "false")
+    assert frozen.get_attribute("aria-keyshortcuts") == "Enter Space"
+
+    # The arrow the page has and the panel does not, first: it moves nothing here, so the
+    # press that follows cannot be read as the arrow arriving late.
+    page.keyboard.press("ArrowRight")
+    expect(frozen).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("Enter")
+    expect(frozen).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press(" ")
+    expect(frozen).to_have_attribute("aria-expanded", "false")
     assert errors == []
     page.close()
 

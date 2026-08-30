@@ -1574,7 +1574,7 @@ const commentDestination = () => {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
-      go: () => fab.onclick(),
+      go: () => fab.click(),
     };
   const said = standingConversation();
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
@@ -2059,7 +2059,7 @@ const HELP = {
       line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
       also: helpClose,
       runFromReference: false,
-      run: () => reference.show(false),
+      run: () => helpClose.click(),
     },
   ],
 };
@@ -2500,7 +2500,7 @@ const CHOOSER = {
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
-  run: () => versionBtn.onclick(),
+  run: () => versionBtn.click(),
 };
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row

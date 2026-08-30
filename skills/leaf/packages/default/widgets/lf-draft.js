@@ -448,7 +448,7 @@ customElements.define(
           keys: ["Mod+Enter"],
           does: "Save the edit",
           line: "save",
-          run: () => this.#commit(),
+          run: () => this.#save.click(),
         },
         {
           id: "draft.close",

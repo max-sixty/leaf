@@ -107,7 +107,7 @@ export function createInput({ focused, keys, showToast, spell }) {
         keys: [SEND],
         does: "Send what you have typed",
         line: sends,
-        run: () => submit(send),
+        run: () => sendBtn.click(),
       },
     ]);
     sendBtn.addEventListener("click", () => submit(send));

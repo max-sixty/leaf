@@ -546,7 +546,12 @@ export function createLivingMargin(dependencies) {
     const marker = rows.get(entry.key);
     if (marker && !marker.hidden) {
       if (compact.matches) openSheet(entry);
-      else marker.click();
+      else {
+        // A pointer focuses the marker before its click. Reproduce that arrival, then let
+        // the control's own click remain the one semantic path into its preview.
+        marker.focus({ preventScroll: true });
+        marker.click();
+      }
       return;
     }
     const action = [...item.querySelectorAll(".lf-margin-action")].find(
@@ -832,13 +837,7 @@ export function createLivingMargin(dependencies) {
           label: "Open page details",
           collapse: "always",
         });
-        marker.onclick = (event) => {
-          togglePinned(marker.lfEntry, marker);
-          if (event.detail === 0 && pinnedKey === marker.lfEntry.key)
-            previewList
-              .querySelector("textarea, button")
-              ?.focus({ preventScroll: true });
-        };
+        marker.onclick = () => togglePinned(marker.lfEntry, marker);
         marker.addEventListener("pointerenter", () => {
           suppressedKey = null;
           showPreview(marker.lfEntry, marker);

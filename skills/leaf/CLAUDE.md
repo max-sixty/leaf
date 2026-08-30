@@ -1827,6 +1827,12 @@ no Leaf activation binding. A `selectableOffer` registers its widget-specific ke
 A run-less row may still project a native press when that meaning is worth naming in
 help, but it never reimplements the press.
 
+When Leaf handles a binding that promises a visible control's activation, its command
+path calls that control's `click()`; it does not call the handler or reproduce its
+result. A platform-native press stays native. Arrival may focus or reveal the control
+before activation. Modality checks belong only to gesture guards before activation,
+such as refusing the mouseup that ends a text-selection drag.
+
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one
 behaviour. They sit on the row that already carries Enter and Space rather than

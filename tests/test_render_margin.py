@@ -76,6 +76,7 @@ PAGE_MAP_EVENTS = [
 def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     """The first nine Page-map locations keep their announced position as address."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    marker = page.locator('[data-lf-margin-for="map-3"] > .lf-margin-marker')
     address = page.evaluate(
         """() => {
           const marker = [...document.querySelectorAll('.lf-margin-marker')]
@@ -96,6 +97,52 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     assert address["targetTop"] > address["viewportHeight"], (
         "the target must begin off screen so this proves the address is page-wide"
     )
+    marker.evaluate(
+        """control => control.addEventListener('click', () => {
+          control.dataset.activationClicks =
+            String(Number(control.dataset.activationClicks || 0) + 1);
+        })"""
+    )
+
+    def activation_state():
+        return page.evaluate(
+            """() => {
+              const marker = document.querySelector(
+                '[data-lf-margin-for="map-3"] > .lf-margin-marker'
+              );
+              return {
+                focused: document.activeElement === marker,
+                clicks: marker.dataset.activationClicks,
+                open: document.querySelector('.lf-margin-preview')
+                  .matches(':popover-open'),
+                pressed: marker.getAttribute('aria-pressed'),
+                target: document.querySelector('#map-3')
+                  .classList.contains('lf-margin-target'),
+              };
+            }"""
+        )
+
+    marker.click()
+    pointer_activation = activation_state()
+    assert pointer_activation == {
+        "focused": True,
+        "clicks": "1",
+        "open": True,
+        "pressed": "true",
+        "target": True,
+    }
+    marker.click()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.evaluate(
+        """() => {
+          document.body.focus();
+          document.scrollingElement.scrollTo(0, 0);
+          document.querySelector(
+            '[data-lf-margin-for="map-3"] > .lf-margin-marker'
+          ).dataset.activationClicks = '0';
+        }"""
+    )
+    expect(marker).not_to_be_focused()
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("m 1–9")
@@ -105,11 +152,9 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 3")
-    expect(
-        preview.locator(
-            ".lf-margin-preview-list textarea, .lf-margin-preview-list button"
-        ).first
-    ).to_be_focused()
+    assert activation_state() == pointer_activation, (
+        "the page-map address and the marker's click leave different state"
+    )
 
     page.keyboard.press("Escape")
     resized(page, 390, 760)
@@ -566,9 +611,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-margin-thread textarea")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(marker).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()

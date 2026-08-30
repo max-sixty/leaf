@@ -106,7 +106,7 @@ export function createDecisionView({
     // While the tray stands its button stands too, whatever the count just did — the
     // press that opened it has to be able to close it.
     showNews(decisionsBtn, decisionsOffered());
-    decisionsBtn.textContent = `Decisions (${decisions.length})`;
+    decisionsBtn.textContent = `Asks (${decisions.length})`;
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
@@ -115,7 +115,7 @@ export function createDecisionView({
       showNews(btn, Boolean(n));
       btn.textContent = `✓ ${label} all (${n})`;
     }
-    // The d/D row stands on this list, so the surfaces reading it are repainted
+    // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = decisionsOffered();
@@ -171,12 +171,12 @@ export function createDecisionView({
           const to = openDecisions().find((a) => a.id === decision.id);
           if (to) goToDecision(to, openDecisions());
         };
-        keys(row, "In the decisions tray", [
+        keys(row, "In the asks tray", [
           {
             id: "decision.open",
             keys: PRESS,
-            does: "Go to this decision and stand on the control that answers it",
-            line: "go to this decision",
+            does: "Go to this ask and stand on the control that answers it",
+            line: "go to this ask",
           },
         ]);
         decisionRowsById.set(decision.id, row);
@@ -184,7 +184,8 @@ export function createDecisionView({
       const [kind, says] = row.querySelectorAll(
         ".lf-decisions-kind, .lf-decisions-says",
       );
-      const word = itemWord(decision);
+      const item = itemWord(decision);
+      const word = item === "decision" ? "ask" : item;
       const said = itemSays(decision) || decision.id;
       // Written only on change: an unchanged poll must not feed the mutation stream a
       // screen reader rebuilds its buffer on.
@@ -223,12 +224,14 @@ export function createDecisionView({
   // the page margin). Landing on it rather than on the decision puts the reader on something
   // that works it, and Tab walks the rest of that decision's own controls from there.
   //
-  // Focusable, not pressable, and that is why it reads the tabindex where `CONTROL_SELECTOR`
-  // reads `data-lf-offer="button"`. The two selectors look like one that drifted and are two
-  // questions: what the reader can be put on, and what answers a press. Aligning this one to
-  // its twin would leave the decision walk with nowhere to land on any decision whose only chrome is a
-  // focus target — which is what a conversation thread is.
-  const DECISION_CONTROL = "[data-lf-offer][tabindex]";
+  // Focusable offered chrome: native buttons carry their tab stop implicitly, while the
+  // selectable-control exception states one explicitly. Written as one `:is()` compound
+  // rather than as two comma-separated alternatives, because standOn below prefixes it
+  // with a descendant selector: a prefix binds to the first alternative of a selector
+  // list only, so the bare list read as "a control inside this decision's row, or any
+  // offered tab stop anywhere in the document" and the walk landed on the first control
+  // on the page instead of the one it was sent to.
+  const DECISION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
   // Which decision such a control decides, where the widget hoisted it out of the element (the
   // attribute lf-suggestion writes on the row it hangs in the margin).
   const DECISION_ROW = "data-lf-for";

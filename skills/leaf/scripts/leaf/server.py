@@ -181,13 +181,15 @@ def host_key() -> str:
     path = state_home() / "access.json"
     if not path.exists():
         staged = path.with_name(f".{secrets.token_hex(8)}.tmp")
-        staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
-        staged.chmod(0o600)
         try:
-            os.link(staged, path)
-        except FileExistsError:
-            pass  # someone minted first; theirs is the key, read below
-        staged.unlink()
+            staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
+            staged.chmod(0o600)
+            try:
+                os.link(staged, path)
+            except FileExistsError:
+                pass  # someone minted first; theirs is the key, read below
+        finally:
+            staged.unlink(missing_ok=True)
     return read_json(path)["token"]
 
 

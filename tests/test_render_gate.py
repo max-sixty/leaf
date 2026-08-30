@@ -239,10 +239,10 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     The route's delay holds a post in the air so the navigation reliably lands
     on one; the assertion is Traffic's books balancing, and then `round_trip`
     returning on a page whose only unfinished trip ended at the reload."""
-    gallery = next(p for p in EXAMPLES if p.stem == "gallery")
+    corpus = next(p for p in EXAMPLES if p.stem == "corpus")
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
-    url = serve(gallery, seed_log=False)
+    url = serve(corpus, seed_log=False)
     # The console is not the subject here: a reload mid-post leaves Chrome's own
     # "Failed to load resource" behind, which is the navigation working.
     page, _ = open_page(browser, url)
@@ -785,7 +785,7 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     Asked of the authored markup and not of the upgraded page, so an idiom stands
     because an example writes it rather than because a widget's own rendering happens
     to match — a `<table>` a module builds demonstrates nothing about the shape an
-    author is being pointed at. The gallery is left out for the same reason it is left
+    author is being pointed at. The corpus is left out for the same reason it is left
     out of the widget floor: generated from the others, it can only repeat them.
 
     Every key is put to the engine, so a key that is not a selector fails here too.
@@ -803,7 +803,7 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     page = browser.new_page()
     held, invalid = set(), set()
     for example in EXAMPLES:
-        if example.stem == "gallery":
+        if example.stem == "corpus":
             continue
         page.set_content(example.read_text(), wait_until="domcontentloaded")
         answer = page.evaluate(
@@ -1118,7 +1118,7 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     """The reading neither of the gate's older ones can give. The window is the
     wider of the two boxes — 1200px against a 720px column — so content can stand
-    out in the margin with the body still not scrolling sideways, and the
+    out in the margin with the document still not scrolling sideways, and the
     static lint reads pinned pixels, which a vw width is not. The failure names
     the element and how far out it is, because "something overflows" sends its
     reader back to the browser to find out what."""
@@ -1189,14 +1189,85 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
     assert not [f for f in failures if "inner-word" in f], (
         "a resident's own words were named for standing where their parent put them"
     )
-    # Clear of the column and clear of the window with it. Body is the page's scroller
-    # and scrollLeft never runs below zero, so the sideways reading is blind to this one
-    # and the margin exemption would carry it straight through.
+    # Clear of the column and clear of the window with it. The root scrollport never
+    # scrolls before its leading edge, so the sideways reading is blind to this one and
+    # the margin exemption would carry it straight through. The probe follows Leaf's
+    # canonical page scroller and names that role instead of its current platform tag.
     assert [
         f
         for f in failures
-        if "<div id=off-window> is drawn" in f and "outside <body>" in f
+        if "<div id=off-window> is drawn" in f and "outside <root scrollport>" in f
     ], "a float carried off the edge of the window went out with the handover"
+
+
+def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
+    """A narrow authored body is not the page's viewport. Its child can be wider than
+    that body while still fitting on screen, so measuring body would invent sideways
+    document overflow where the canonical root scrollport has none."""
+    source = leaf_page(
+        "root scrollport width",
+        """
+<style>
+body { width: 400px; }
+#wide-inside-window { width: 700px; }
+</style>
+<h1>Capacity plan</h1>
+<div id="wide-inside-window">Seven hundred pixels still fit in this viewport.</div>
+""",
+    )
+
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    overflow = page.evaluate(
+        """() => ({
+          body: document.body.scrollWidth - document.body.clientWidth,
+          root: document.scrollingElement.scrollWidth
+                - document.scrollingElement.clientWidth,
+        })"""
+    )
+    assert overflow["body"] > 0, "the two candidate measurements do not diverge"
+    assert overflow["root"] == 0, overflow
+    assert errors == []
+    page.close()
+
+    failures = render_gate_model.render_version(browser, url)
+
+    assert not [f for f in failures if "page scrolls sideways" in f], failures
+
+
+def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
+    browser, serve
+):
+    """Fixed placement answers for a box wholly outside the column, not one crossing it.
+
+    The first shape is the roomy sidebar posture: it starts in the outer gutter and never
+    moves beneath the pointer. The second differs only in its horizontal position and
+    straddles the readable column, so exempting fixed boxes outright would make the gate
+    blind to the same spill it catches in flow and in floats."""
+    source = leaf_page(
+        "fixed margin residents",
+        """
+<style>
+#fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
+#fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
+</style>
+<h1>Migration plan</h1>
+<div id="fixed-margin">A stable route in the margin.</div>
+<div id="fixed-half">A route crossing into the argument.</div>
+<p>Move one cohort at a time while keeping the old readers available.</p>
+""",
+    )
+
+    failures = render_gate_model.render_version(browser, serve(source))
+
+    assert not [f for f in failures if "fixed-margin" in f], (
+        f"the fixed margin resident was reported for standing where it was put: {failures}"
+    )
+    assert [
+        f
+        for f in failures
+        if "<div id=fixed-half> is set" in f and "past the column" in f
+    ], f"a fixed box crossing the column escaped the gate: {failures}"
 
 
 def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, serve):
@@ -1410,23 +1481,16 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
-    """The margin form is granted by a media query, which asks the window — and the
-    panel takes 420px off the page's box without the window changing at all. Held
-    through that, a 1024px window left this page's column 151px wide and its widest
-    widgets painting out past the edge of it. So syncLayout asks the theme's own floor
-    of the box instead and says whether the page is cramped, and the strip stands down
-    for as long as it is.
+    """The margin form is granted by a container query over the page's actual box. The
+    panel takes 420px from that box without changing the viewport, and CSS returns the
+    note to the flow once the remaining room crosses the theme's floor.
 
-    Nothing else can see this posture. `version check --render` and the render sweep
-    both open a 1200px window with no panel in it, which is the width the query is
-    right at, so the gate that reads a spill is reading the one layout where there
-    isn't one.
+    `version check --render` and the render sweep normally open with no panel, so this
+    test exercises the narrower container state they do not otherwise visit.
 
-    Three readings, because each of the other two designs passes one of them. A page
-    that never had a note in the margin passes the cramped read on its own; a strip
-    released on every open panel, room or no room, passes that one too — and it is the
-    third that says no, the room being there on a wide window and the notes staying
-    where the reader had them."""
+    Three readings distinguish a real container response from either never floating the
+    note or releasing it whenever the panel opens: the note begins in the margin, returns
+    to flow when space is tight, and stays in the margin when the wider box holds both."""
     example = next(p for p in EXAMPLES if p.stem == "design-decision")
     url = serve(example)
     page, errors = open_page(browser, url)
@@ -1434,7 +1498,6 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
         const note = document.querySelector('aside.sidenote');
         const main = document.querySelector('main'), s = getComputedStyle(main);
         return {float: getComputedStyle(note).float,
-                cramped: document.body.hasAttribute('data-lf-cramped'),
                 column: Math.round(main.getBoundingClientRect().width
                     - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
     }"""
@@ -1584,7 +1647,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
 
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
     tray of one — the page the reader is already on — is not worth a control, so without
-    a neighbour `g l` is unavailable."""
+    a neighbour `g L` is unavailable."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     trays = EDGES[1]
     trays.stand(page)
@@ -1592,7 +1655,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
     draw_edge(page, trays, 160)
 
     page.keyboard.press("g")
-    page.keyboard.press("l")
+    page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_be_visible()
     page.wait_for_function(
         "() => document.querySelector('.lf-others-panel').getAnimations().length === 0"
@@ -1609,36 +1672,33 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
 
 
 def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser, serve):
-    """The theme's margin idioms are granted by a media query, which asks the window; what
-    they hang in is the page's own box, which is the window less whatever the chrome holds
-    of it. The panel's strip was counted there and the tray's was not, so a 1200px window
-    with a tray standing granted a sidenote its margin against a 900px page — 84px under
-    the floor the theme states, on the most ordinary window there is.
-
-    Read as the veto rather than as a note's position, because the veto is the fact and a
-    note is one idiom that spends it: a reading of the note would go on passing the day a
-    second idiom stopped asking. Both states, because the attribute standing permanently
-    would read the same way here and would cost every wide page its margins."""
+    """A tray narrows the shell that CSS margin queries see, and closing it restores the
+    same sidenote posture without a JavaScript cramped-state mirror."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
-    cramped = "() => document.body.hasAttribute('data-lf-cramped')"
-    room = page.evaluate(cramped)
+    page.evaluate("""() => {
+      const note = document.createElement('aside');
+      note.className = 'sidenote'; note.textContent = 'A marginal note.';
+      document.querySelector('main').prepend(note);
+    }""")
+    posture = "() => getComputedStyle(document.querySelector('aside.sidenote')).float"
+    room = page.evaluate(posture)
 
     page.locator(".lf-decisions").click()
     edge_settled(page, EDGES[1])
-    standing = page.evaluate(cramped)
+    standing = page.evaluate(posture)
 
     page.locator(".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_hidden()
     page.wait_for_function("() => document.body.getAnimations().length === 0")
-    given_back = page.evaluate(cramped)
+    given_back = page.evaluate(posture)
     page.close()
 
-    assert not room, "a 1200px window with no tray was already short of the floor"
-    assert standing, (
+    assert room == "right", "a 1200px shell did not grant the note its margin"
+    assert standing == "none", (
         "the tray took 300px out of a 1200px page and the margins were granted anyway"
     )
-    assert not given_back, "the page kept the veto after the tray gave its strip back"
+    assert given_back == "right", "the page kept the note in flow after the tray closed"
     assert errors == []
 
 

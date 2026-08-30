@@ -704,7 +704,7 @@ export function createPassages(dependencies) {
   // How much of a quote the search compiles into its pattern. The bound is the pattern's,
   // never the passage's: one expression covering every word of a long passage is a term
   // per character, and V8 refuses to compile one that long at all — a ceiling a reader
-  // reaches by selecting a page and pressing c. Measured on the gallery: 1.3ms at this
+  // reaches by selecting a page and pressing c. Measured on the corpus: 1.3ms at this
   // length, 11.6ms at five thousand characters, and a SyntaxError at twelve. So the lead
   // finds the candidates and the rest of the quote is walked against the text from each,
   // which is a comparison per character rather than a term, and the search stays flat in

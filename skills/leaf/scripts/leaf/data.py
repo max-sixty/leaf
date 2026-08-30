@@ -8,9 +8,9 @@ import click
 
 from .data_contracts import (
     DataError,
-    page_data_bindings,
-    page_data_snapshot_references,
     payload_error,
+    working_data_bindings,
+    working_data_snapshot_references,
 )
 from .event_log import now_iso
 from .files import write_json
@@ -18,7 +18,6 @@ from .registry.contract import is_aware_datetime
 from .registry.storage import require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .structure import parse_structure
 
 
 def empty_data() -> dict:
@@ -175,16 +174,7 @@ def _write_source(
         registry = require_registry(page_dir)
         if re.fullmatch(DATA_SOURCE_NAME, source) is None:
             raise DataError(f"invalid source name {source!r}")
-        extra = []
-        authored = page_dir / "index.html"
-        if authored.exists():
-            extra.append(
-                (
-                    parse_structure(authored.read_text(encoding="utf-8")).lf_elements,
-                    "index.html",
-                )
-            )
-        bindings, binding_errors = page_data_bindings(page_dir, registry, extra=extra)
+        bindings, binding_errors = working_data_bindings(page_dir, registry)
         if binding_errors:
             raise DataError(
                 "the page history has conflicting data bindings: "
@@ -276,16 +266,7 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
             click.echo(f"data source {source!r} is already clear")
             return
         registry = require_registry(page_dir)
-        extra = []
-        authored = page_dir / "index.html"
-        if authored.exists():
-            extra.append(
-                (
-                    parse_structure(authored.read_text(encoding="utf-8")).lf_elements,
-                    "index.html",
-                )
-            )
-        referenced = page_data_snapshot_references(page_dir, registry, extra=extra)
+        referenced = working_data_snapshot_references(page_dir, registry)
         standing = stored["sources"][source]
         retained = {
             snapshot_id: snapshot

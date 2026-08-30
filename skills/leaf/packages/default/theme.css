@@ -35,9 +35,11 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
 }
 .lf-gloss-popover {
-  position: fixed; inset: auto; box-sizing: border-box;
+  position: fixed; inset: auto; position-area: block-end center;
+  position-try-fallbacks: flip-block, flip-inline;
+  box-sizing: border-box;
   width: max-content; max-width: min(22rem, calc(100vw - 24px));
-  margin: 0; padding: 10px 13px 11px;
+  margin: 8px 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
   box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 14%, transparent);
@@ -159,7 +161,8 @@ lf-chip, .lf-chips span {
  * the card's hover turned it, and a status lost its stripe and grew a ring the group's
  * own clip cut down to a line above the cell. Declared, a rule states the case it is
  * true of and has nothing of the other case to undo. */
-lf-options { display: block; margin: 14px 0; --lf-joined: 0; }
+lf-options { display: block; margin: 14px 0; --lf-joined: 0;
+             container-type: inline-size; }
 lf-option { display: block; position: relative; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
@@ -354,6 +357,30 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
                            --lf-lift: 0 3px 10px rgba(0, 0, 0, .14); }
   }
  }
+ /* Arriving is not a gesture, which theme.css says for body and for the runtime's own
+  * chrome and cannot say for a page element: `transition` does not inherit, so what an
+  * unreached descendant still plays is a transition of its own declaring. That comment
+  * names the trade and leaves the finding to the suite; this is the finding, and the
+  * option's own rule is where it is answered. The suite carries less of that trade than
+  * the sentence sounds: the returning-reader gate holds a return against a first visit
+  * and reports only what the return adds, so it names a transition that plays on some
+  * arrivals and not others and says nothing about one that plays on every arrival alike.
+  * This was the first kind. A package declaring a transition on an element of its own
+  * gets no warning of the second and has to withhold it the way this rule does.
+  *
+  * Nothing about the reader moves here. The stylesheet is render-blocking but not
+  * style-blocking, so the parser styles the options before it lands and box-shadow holds
+  * its initial `none`; the sheet then arrives and states `var(--lf-ring), var(--lf-lift)`
+  * — two transparent channels, no pixel different — while the line above has already
+  * granted the ease. Chrome reports a 120ms box-shadow transition on every option of a
+  * page nobody has touched, and whether it reports one at all turns on whether a recalc
+  * fell inside the sheet's own load, which is why the returning-reader gate found it on
+  * some loads and not others. Withheld until the page says it is presented, so the ease
+  * belongs to the pointer that earns it. Spelled as the layer's guard is — the runtime's
+  * own script link, the presentation stamp — so a page with no runtime behind it, which
+  * never stamps and never held its options back, keeps the ease it always had. */
+ html:has(script[type="module"][src="/leaf.js"])
+   body:not([data-lf-presented]) lf-option { transition: none; }
 }
 /* The mark the upgrade injects: the keyboard path and the state in one element. It is
  * silent until there is a pick to state, so its box is not the same in both states — the
@@ -724,6 +751,16 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
                      display: table; width: 100%; box-sizing: border-box;
                      border-spacing: var(--sp-2) 0;
                      padding: 5px 0; --lf-frame: 1; }
+/* A cramped row still has three cells: its words, the block reference, and the mark.
+ * Separate-border spacing also puts one gap outside each end, and those two empty gaps
+ * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
+ * page narrowed by the thread panel. Keep the ordinary gutter while there is room and
+ * use the compact spacing token when the group's own box is narrow; the cells retain a
+ * visible gap without clipping the mark the reader presses. */
+@container (max-width: 20rem) {
+  lf-options:not(:has(> lf-option > strong)) > lf-option {
+                     border-spacing: var(--sp-1) 0; }
+}
 /* The row's own ground: a corner to round and a wash to say its status in, both of which
  * are answers to standing alone. A joined row is a cell that butts its neighbours and
  * takes the group's stripe, so it is handed neither rather than having both undone. */
@@ -1145,12 +1182,22 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
   lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
 }
 
-/* lf-toc: the page's route, set as a quiet apparatus spine rather than another framed
- * box in the argument. The links repeat headings as controls and stay under .lf-ui, so
- * this rule gives that apparatus its deliberate compact voice. Depth is capped in the
- * module because h6 is the deepest heading it reads; enumerating those five values keeps
- * the indentation in the stylesheet rather than writing presentation into generated
- * markup.
+/* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
+ * margin form is a reading map: the widget gives each row the length of the section it
+ * leads, flex lays those shares down the full available height, and the darker lens on
+ * the spine shows the band currently in view. The markers therefore describe the page
+ * while every repeated heading is quiet. Pointer or keyboard entry fades the labels in
+ * without changing any row's box. The transparent first layer receives the revealing
+ * gesture, then the links become pointer targets when that fade is complete; an unseen
+ * label cannot navigate on the gesture that discovers it.
+ *
+ * The start row repeats the page title only in that map. It is still navigation
+ * apparatus, so weight and ink distinguish it within the same sans voice as the section
+ * labels. Their common inset then reads as one route rather than two typographic systems.
+ * Depth changes only the labels' inset. Every knot stays on the same spine, and every
+ * label is limited to two lines so an unusually discursive heading does not take over the
+ * map.
+ * The open, paper, and copy forms retain the complete words.
  *
  * The one-pixel sibling target is what leaves native fragment navigation behind in a
  * standalone copy. Its negative end margin gives it no net height, while the real box
@@ -1158,22 +1205,144 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
  * soon as a zero-height point enters the viewport. */
 lf-toc { display: block; margin: var(--sp-4) 0 30px; }
 lf-toc:empty { display: none; }
-lf-toc .lf-toc-nav { border-left: 1px solid var(--border-2);
+lf-toc .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
                      padding-left: var(--sp-3); color: var(--muted);
-                     font: var(--t-5)/1.4 var(--sans); }
-lf-toc .lf-toc-title { margin: 0 0 7px; color: var(--ink-2);
-                       font-size: var(--t-6); font-weight: 650;
-                       letter-spacing: .08em; text-transform: uppercase; }
+                     font: var(--t-5)/1.3 var(--sans); }
+lf-toc .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
+                         font-size: var(--t-6); font-weight: 650;
+                         letter-spacing: .08em; text-transform: uppercase; }
+lf-toc .lf-toc-start, lf-toc .lf-toc-window { display: none; }
 lf-toc ol { list-style: none; margin: 0; padding: 0; }
-lf-toc li { margin: 0; }
-lf-toc li[data-lf-depth="1"] { margin-left: 14px; }
-lf-toc li[data-lf-depth="2"] { margin-left: 28px; }
-lf-toc li[data-lf-depth="3"] { margin-left: 42px; }
-lf-toc li[data-lf-depth="4"] { margin-left: 56px; }
+lf-toc li { --lf-toc-indent: 0px; margin: 0 0 0 var(--lf-toc-indent); }
+lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
+lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
+lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
+lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
 lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
-           text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
-           text-underline-offset: 3px; }
-lf-toc a:hover { color: var(--accent); }
+           text-decoration: none; }
+lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
+
+@keyframes lf-toc-enable-links {
+  to { pointer-events: auto; }
+}
+
+/* The core sidebar states its actual posture after viewport and panel-room decisions.
+ * Only a fine-pointer margin form fixes itself into a map; generic sidebars keep their
+ * sticky behavior and an in-flow ToC stays open. */
+@media screen and (hover: hover) and (pointer: fine) {
+  @container style(--lf-sidebar-posture: margin) {
+    lf-toc { position: fixed; left: var(--sp-4);
+             top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+             width: calc(var(--sidebar) - var(--sp-4));
+             height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+             margin: 0; }
+    lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
+                         --lf-toc-label-opacity: 0;
+                         pointer-events: none; }
+    lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
+                                 z-index: 0; pointer-events: auto; }
+    lf-toc .lf-toc-heading { display: none; }
+    lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
+                          flex-direction: column; }
+    lf-toc .lf-toc-rows::before { content: ""; position: absolute;
+                                  z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
+                                  background: var(--border-2); }
+    lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
+                            top: var(--lf-toc-window-start, 0%);
+                            left: 0; width: 1px;
+                            height: var(--lf-toc-window-size, 12%);
+                            min-height: 14px; border-radius: 2px;
+                            background: var(--ink-2);
+                            transition: top .12s linear, height .12s linear; }
+    lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
+                                      position: relative; z-index: 2; display: block;
+                                      flex: var(--lf-toc-span, 1) 1 0px;
+                                      min-height: min-content; margin: 0; }
+    lf-toc ol { display: contents; }
+    lf-toc .lf-toc-start::before, lf-toc li::before {
+      content: ""; position: absolute; z-index: 2;
+      top: 7px; left: -1px; width: 3px; height: 3px; border-radius: 50%;
+      background: var(--muted);
+    }
+    lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+      background: var(--ink-2);
+    }
+    lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
+    lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
+    lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
+    lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
+    lf-toc .lf-toc-start a, lf-toc li a {
+      position: relative; z-index: 3; display: -webkit-box;
+      overflow: hidden; max-height: 2.6em;
+      padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
+      line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      opacity: var(--lf-toc-label-opacity); pointer-events: none;
+      transition: color .12s ease-out, opacity .24s ease-out;
+    }
+    lf-toc .lf-toc-start a::before { content: attr(data-lf-label); }
+    lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
+                             line-height: 1.2; max-height: 2.4em; }
+    lf-toc li a[aria-current="location"] { color: var(--ink-2); }
+    lf-toc a:focus-visible { outline: 2px solid var(--accent);
+                             outline-offset: -2px; }
+    lf-toc .lf-toc-nav:is(:hover, :focus-within) {
+      --lf-toc-label-opacity: 1;
+    }
+    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+      animation: lf-toc-enable-links 0s .24s forwards;
+    }
+    /* When the labels themselves would make the track overflow, the track stays a map:
+     * rows give no minimum height to their absolutely placed labels, and the destination
+     * under the pointer or keyboard focus reveals on its own. Turning the whole rail into
+     * a second scrollable outline would put the markers and viewport lens in a different
+     * coordinate system from the document they describe. */
+    lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
+    lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
+      min-height: 0; pointer-events: auto;
+    }
+    lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
+      position: absolute; top: 0; left: 0; width: 100%;
+      max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
+      -webkit-line-clamp: 1;
+    }
+    lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
+    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+      opacity: 0; animation: none; pointer-events: none;
+    }
+    lf-toc[data-lf-dense] .lf-toc-nav:hover
+      :is(.lf-toc-start, li):hover a,
+    lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
+      opacity: 1;
+      animation: lf-toc-enable-links 0s .24s forwards;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  lf-toc .lf-toc-window, lf-toc a { transition: none; }
+  @container style(--lf-sidebar-posture: margin) {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+      animation: none; pointer-events: auto;
+    }
+    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+      opacity: 0; pointer-events: none;
+    }
+    lf-toc[data-lf-dense] .lf-toc-nav:hover
+      :is(.lf-toc-start, li):hover a,
+    lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
+      opacity: 1; pointer-events: auto;
+    }
+  }
+}
+@media (forced-colors: active) {
+  lf-toc .lf-toc-rows::before,
+  lf-toc .lf-toc-start::before, lf-toc li::before {
+    forced-color-adjust: none; background: CanvasText;
+  }
+  lf-toc .lf-toc-window,
+  lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+    forced-color-adjust: none; background: Highlight;
+  }
+}
 .lf-toc-target { display: block; width: 1px; height: 1px; margin-bottom: -1px; }
 
 /* lf-decision: a semantic reading and arrival boundary, with no presentation of its own.
@@ -1520,6 +1689,12 @@ lf-source figcaption {
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
 lf-source pre { margin: 0; border: 0; border-radius: 0; }
+/* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
+   Keep its generic focus ring inside that frame: the figure clips at its rounded
+   corners, so an outside ring loses a pixel on three sides. */
+lf-source pre:is(:focus-visible, .lf-focus-visible) {
+  outline-offset: calc(-1 * var(--here-ring-w));
+}
 
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
    "editable"; the ✎ button is the accessible door (double-click is the fast path) and

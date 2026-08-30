@@ -129,7 +129,7 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # a vendored module or an inline handler could fetch any origin. 'self' is the
 # page directory whole; data: admits the images `version export` inlines; the
 # theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
-# (scripts stay 'self'-only, which is what matters). Verified over the gallery —
+# (scripts stay 'self'-only, which is what matters). Verified over the corpus —
 # every widget, mermaid and the tokenizer included — before it was required.
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
 # Non-painting document structure that may stand outside the authored main. Head

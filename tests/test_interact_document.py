@@ -392,27 +392,11 @@ def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
 
 
 def test_the_render_viewport_is_wide_enough_to_have_margins():
-    """The corpus is read at RENDER_VIEWPORT, and the margin strips only exist above
-    --strip-min: below that width `stateStrip` writes data-lf-cramped and the theme
-    takes the margins back. Everything the sweeps say about a margin resident — a
-    sidenote, a suggestion's controls, a wide exhibit's reach — is therefore said about
-    a page that had margins, and nothing else in the suite asks whether it did.
-
-    Nothing ties the two numbers, and they are set in different files for different
-    reasons, so either could move: raising the floor past the viewport, or narrowing the
-    viewport to the floor, would leave every one of those readings running against a
-    cramped page. They would not fail. They would stop being about the thing they name,
-    and the suite would stay green saying so."""
+    """The corpus viewport reaches the CSS shell query that grants one margin."""
     theme = (schema_model.ASSETS / "theme.css").read_text()
-    found = re.search(r"--strip-min:\s*(\d+)px", theme)
-    assert found, (
-        "the theme no longer states --strip-min, which the runtime reads by name"
-    )
+    found = re.search(r"@container\s+lf-shell\s*\(min-width:\s*(\d+)px\)", theme)
+    assert found, "the theme states no container floor for a margin"
     floor = int(found.group(1))
-    # The floor's own relation: `stateStrip` writes data-lf-cramped when avail is *below*
-    # --strip-min, and the theme's query is min-width, so a page exactly at the floor
-    # still has its margins. Written as a strict `>` this went red for a viewport that
-    # was fine.
     assert render_checks_model.RENDER_VIEWPORT["width"] >= floor, (
         f"the corpus is read at {render_checks_model.RENDER_VIEWPORT['width']}px and the "
         f"margins only exist above {floor}px, so every reading the sweeps make of a "
@@ -2625,6 +2609,54 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
         conversation_model.cmd_reply(
             page_dir,
             "data-question",
+            "Here it is.",
+            '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        )
+
+
+def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
+    """The mutable source participates in the page currently being authored even before
+    its binding reaches an immutable revision. A reply becomes immutable immediately, so
+    admitting a different meaning there would leave set, clear, and source check reading
+    a conflict the reply door itself allowed."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    for revision in files_model.list_revisions(page_dir):
+        path = files_model.revision_path(page_dir, revision)
+        path.write_text(
+            path.read_text().replace(
+                '<lf-test-data id="test-data" source="project-feed"></lf-test-data>\n',
+                "",
+            )
+        )
+    immutable, errors = data_contracts_model.page_data_bindings(page_dir, registry)
+    assert errors == [] and "project-feed" not in immutable
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "draft-data-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Show another feed here.",
+        },
+    )
+
+    with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
+        conversation_model.cmd_reply(
+            page_dir,
+            "draft-data-question",
             "Here it is.",
             '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
         )

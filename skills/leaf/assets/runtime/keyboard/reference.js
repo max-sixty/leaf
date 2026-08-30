@@ -1,6 +1,7 @@
 import {
   bindings,
-  commandRoutes,
+  clampedRow,
+  commandPresentations,
   declaredBindings,
   labelOf,
   live,
@@ -240,14 +241,8 @@ export function createReference({
         t.setAttribute("role", "presentation");
         const entries = [];
         for (const row of rows) {
-          const routes =
-            row.runFromReference === false || !commandRoutes(row).length
-              ? [null]
-              : commandRoutes(row).filter((route) =>
-                  bindings(row).includes(route.binding),
-                );
-          for (const route of routes) {
-            const id = route?.id ?? row.id;
+          for (const presentation of commandPresentations(row)) {
+            const { id, route } = presentation;
             const does = route?.does ?? word(row.does);
             const tr = document.createElement("tr");
             tr.dataset.lfCommand = id;
@@ -294,7 +289,7 @@ export function createReference({
             entries.push({
               el: tr,
               directWords: helpWords(
-                `${id} ${scopeTitle} ${label} ${word(does)} ${word(row.line)}`,
+                `${id} ${scopeTitle} ${label} ${word(does)} ${word(route?.line ?? row.line)}`,
               ),
               familyWords: helpWords(
                 `${row.id} ${referenceLabel(row)} ${word(row.does)}`,
@@ -470,13 +465,7 @@ export function createReference({
     const focusedCommand = focused()?.matches?.(".lf-help-command") ? focused() : null;
     const selected =
       focusedCommand ?? stops.find((stop) => stop.dataset.lfSelected === "true");
-    const at = stops.indexOf(selected);
-    const next =
-      at < 0
-        ? dir > 0
-          ? stops[0]
-          : stops.at(-1)
-        : stops[(at + dir + stops.length) % stops.length];
+    const next = clampedRow(stops, selected, dir);
     for (const stop of stops) {
       const on = stop === next;
       stop.tabIndex = on ? 0 : -1;

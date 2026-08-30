@@ -49,6 +49,7 @@ export function createAnchors(dependencies) {
     elementOver,
     findQuote,
     focusedThreadOf,
+    glideTo,
     inChrome,
     inUi,
     inspectEl,
@@ -997,9 +998,8 @@ export function createAnchors(dependencies) {
   // no middle to show, and centring one puts its opening words above the top edge, so it
   // takes that same banner clearance instead and the reader starts at the start.
   //
-  // The viewport is the scroller's own box rather than the window's, which is the same
-  // number for the document — body is the page's scroller and is the window's height — and
-  // is the panel's list where that is what scrolls.
+  // The viewport is the scroller's own box: the browser viewport for the root, and the
+  // panel's list where that is what scrolls.
   //
   // It glides, because a page the reader is already holding is one the motion keeps their
   // place in — the same reason a restore doesn't (moveScrollerBy). An arrival passes
@@ -1009,8 +1009,8 @@ export function createAnchors(dependencies) {
   function centreBy(where, block = "center", box = pageScroller) {
     const rect =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    // The scroller's own box rather than the window's: the same number for the document,
-    // whose scroller is body, and the list's own where the list is what scrolls.
+    // The scroller's own box: the viewport for the document root, and the list's own where
+    // the list is what scrolls.
     const view = shownBox(box);
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     const place =
@@ -1272,9 +1272,9 @@ export function createAnchors(dependencies) {
     queueLegend();
     if (actionAnchor()) queueActionPlacement();
   }
-  // At the document and at capture, because scroll does not bubble and body is not the
-  // page's only scroller: a board scrolls its columns sideways, and a card carried under
-  // a parked pointer that way is the same fact as the page scrolling under it. Capture is
+  // At the document and at capture, because scroll does not bubble and the root is not the
+  // page's only scroller: a board scrolls its columns sideways, and a card carried under a
+  // parked pointer that way is the same fact as the page scrolling under it. Capture is
   // the one place every scroller's event passes.
   document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
 

@@ -1,4 +1,4 @@
-export function createBannerShelf({ banner, el, pageScroller }) {
+export function createBannerShelf({ el }) {
   const bannerActions = el("div", "lf-banner-actions");
 
   // Overflow is useful only when the destination a reader reaches is fully visible.
@@ -82,9 +82,8 @@ export function createBannerShelf({ banner, el, pageScroller }) {
   }
 
   // A hidden scrollbar keeps the banner calm, but it must not turn overflow into a
-  // trackpad-only route. A vertical wheel first travels along a shelf that can still
-  // move; any remainder goes to the page scroller explicitly, because Chromium keeps
-  // an ordinary uncancelled wheel captured by the overflow box even at its boundary.
+  // trackpad-only route. A vertical wheel travels along a shelf that can still move.
+  // At either edge the event stays native and bubbles to the document scrollport.
   bannerActions.addEventListener(
     "wheel",
     (event) => {
@@ -103,87 +102,14 @@ export function createBannerShelf({ banner, el, pageScroller }) {
           : event.deltaMode === 2
             ? bannerActions.clientWidth
             : 1;
-      const pageUnit =
-        event.deltaMode === 1
-          ? 16
-          : event.deltaMode === 2
-            ? pageScroller.clientHeight
-            : 1;
       const shelfDelta = event.deltaY * shelfUnit;
       const before = bannerActions.scrollLeft;
       const limit = Math.max(0, bannerActions.scrollWidth - bannerActions.clientWidth);
       bannerActions.scrollLeft = Math.max(0, Math.min(limit, before + shelfDelta));
-      const consumed = bannerActions.scrollLeft - before;
-      const remainder = shelfDelta
-        ? 1 - Math.min(1, Math.abs(consumed / shelfDelta))
-        : 0;
-      const pageBefore = pageScroller.scrollTop;
-      const pageLocked = getComputedStyle(pageScroller).overflowY === "hidden";
-      if (remainder && !pageLocked)
-        pageScroller.scrollTop += event.deltaY * pageUnit * remainder;
-      if (bannerActions.scrollLeft !== before || pageScroller.scrollTop !== pageBefore)
-        event.preventDefault();
+      if (bannerActions.scrollLeft !== before) event.preventDefault();
     },
     { passive: false },
   );
-
-  // The document deliberately scrolls in body so its bar sits beside a standing panel.
-  // Native touch that begins in fixed chrome never retargets to that non-root scroller,
-  // leaving a dead strip across the top of touch laptops and phones. Lock a one-finger
-  // gesture after a small intentional move: vertical travel follows the page under the
-  // finger, while horizontal travel in the shelf and every multi-touch gesture remain
-  // the browser's, preserving its native horizontal pan and pinch zoom.
-  let touch = null;
-  banner.addEventListener(
-    "touchstart",
-    (event) => {
-      if (event.touches.length !== 1) {
-        touch = null;
-        return;
-      }
-      const point = event.touches[0];
-      touch = {
-        id: point.identifier,
-        x: point.clientX,
-        y: point.clientY,
-        lastY: point.clientY,
-        axis: null,
-      };
-    },
-    { passive: true },
-  );
-  banner.addEventListener(
-    "touchmove",
-    (event) => {
-      if (!touch || event.touches.length !== 1) {
-        touch = null;
-        return;
-      }
-      const point = [...event.touches].find(
-        (candidate) => candidate.identifier === touch.id,
-      );
-      if (!point) {
-        touch = null;
-        return;
-      }
-      if (!touch.axis) {
-        const dx = point.clientX - touch.x;
-        const dy = point.clientY - touch.y;
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < 4) return;
-        touch.axis = Math.abs(dy) > Math.abs(dx) ? "page" : "horizontal";
-      }
-      if (touch.axis !== "page") return;
-      const before = pageScroller.scrollTop;
-      const delta = touch.lastY - point.clientY;
-      touch.lastY = point.clientY;
-      if (getComputedStyle(pageScroller).overflowY !== "hidden")
-        pageScroller.scrollTop += delta;
-      if (pageScroller.scrollTop !== before) event.preventDefault();
-    },
-    { passive: false },
-  );
-  for (const event of ["touchend", "touchcancel"])
-    banner.addEventListener(event, () => (touch = null), { passive: true });
 
   return { bannerActions, reserveNewsSlot, revealFocus, showNews };
 }

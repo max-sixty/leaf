@@ -1,6 +1,7 @@
 export function createAim({
   activateAimTarget,
   aimTargetAt,
+  designIsOn,
   designPress,
   designTarget,
   inChrome,
@@ -19,6 +20,11 @@ export function createAim({
   // the keyup with it, and a page left armed under nobody's hand is a claim the user
   // cannot dismiss.
   let aiming = false;
+  // Design is the active input mode, so the chord is unavailable while it stands. Keep
+  // that priority in the aim's one public reading as well as its press claim: the promise
+  // painted under the pointer and the gesture that follows must have the same owner.
+  const aimIsAvailable = () => !designIsOn();
+  const aimIsOn = () => aiming && aimIsAvailable();
   // The aim chord, declared once: the key listeners, the press guard (claimPress) and the
   // reference's row all read this object. It is the register's one row that is not a key —
   // a modifier held while the pointer clicks — so it binds nothing and carries no press, and
@@ -31,6 +37,7 @@ export function createAim({
     keys: [],
     label: `${spell("Alt")} click`,
     does: "Respond to the item under the pointer",
+    when: aimIsAvailable,
   };
   // What the pointer is over, asked of the page rather than of an event, so pressing the key
   // without moving the mouse answers too — the user holds ⌥ to find out what they would
@@ -104,16 +111,19 @@ export function createAim({
     "click",
     "dblclick",
   ];
-  // The press the aim has taken, or the design target when design mode claimed it, until
-  // the next one starts.
-  let aimedPress = null;
+  // The press Design mode or the aim has taken until the next one starts. Design is the
+  // input mode and therefore stands first while active; the modifier is an aim only when
+  // the page is not in that mode. A Design press remains claimed when target resolution
+  // finds nothing: that gap cannot turn back into an activation underneath the mode.
+  let claimedPress = null;
   function claimPress(ev) {
     // Made and dropped at the same moment, which is the start of a press: a drag already
     // under way when the key goes down keeps the events it is waiting for, and one that
     // ends after the aim's own press can still be ended.
     if (ev.type === "pointerdown") {
-      const aim = ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
-      const design = !aim && designPress(ev.target) ? designTarget(ev.target) : null;
+      const design = designPress(ev.target);
+      const aim =
+        aimIsAvailable() && ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
       // The item the outline is naming, through the reading that named it (aimedItem, which
       // aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what
@@ -121,14 +131,16 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
-      aimedPress = aim ? { aim: aimedTarget() } : design ? { design } : null;
-      if (aimedPress) standDown(ev.target);
+      claimedPress = design
+        ? { design: designTarget(ev.target) }
+        : aim
+          ? { aim: aimedTarget() }
+          : null;
+      if (claimedPress) standDown(ev.target);
     }
-    if (!aimedPress) return;
-    // A click carrying no press belongs to the control it is on rather than to a press that
-    // has already finished: `offer` calls click() to supply the keys a span doesn't come
-    // with, and the user's Enter must reach the control they are on whatever the last
-    // press was.
+    if (!claimedPress) return;
+    // A click carrying no pointer press is keyboard activation and belongs to the control
+    // it is on; the user's Enter must reach that control whatever the last pointer did.
     if (ev.type === "click" && !ev.detail) return;
     // Not on pointerdown, whose cancellation takes the mouse events with it — the click this
     // aim ends on included. On mousedown, which is where the selection, the focus and a
@@ -136,15 +148,14 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (aimedPress.aim) activateAimTarget(aimedPress.aim);
-    else if (aimedPress.design)
-      openOnDesign(aimedPress.design, {
+    if (claimedPress.aim) activateAimTarget(claimedPress.aim);
+    else if (claimedPress.design)
+      openOnDesign(claimedPress.design, {
         left: ev.clientX + 6,
         top: ev.clientY - 40,
       });
   }
   for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
 
-  const aimIsOn = () => aiming;
   return { AIM, aimIsOn, aimedItem };
 }

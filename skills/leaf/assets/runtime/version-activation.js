@@ -51,7 +51,6 @@ export function createVersionActivation(
     settle,
     settling,
     stateSignoff,
-    stateStrip,
     style,
     syncLayout,
   },
@@ -168,7 +167,6 @@ export function createVersionActivation(
     await Promise.allSettled(settling.slice(settlingFrom));
     reachScrollers(fresh);
     captureAuthoredFacets(fresh);
-    stateStrip();
     syncLayout();
     if (designIsOn()) paintLegend();
     return { view, comparedFrom };

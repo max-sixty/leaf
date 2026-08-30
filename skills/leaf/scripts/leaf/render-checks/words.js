@@ -1,4 +1,5 @@
 import { says } from "/runtime/widget-api.js";
+import { openRoots } from "./open-roots.js";
 
 export const shownVerbatim = ({ widgets, touched }) =>
   Object.entries(widgets)
@@ -106,14 +107,6 @@ export function paperWords() {
 // group that has been opened and closed, which is where the test pins it.
 export { coveredWords } from "./standalone.js";
 
-// Which trees are the page, for the two readings below that answer for what a widget
-// renders rather than for what it declares. Every open root, found by walking rather than
-// read off the registry's x-shadow list: a root a module attached without declaring one
-// still holds words and code the reader has to read, and a reading that asked the
-// registry would look away from exactly the tree nobody vouched for. Written once,
-// because it is one claim about the page and two copies of it are two things to keep
-// level.
-
 // Code that came out the colour of the code around it. Colouring takes two halves that
 // meet nowhere a static lint can reach: the runtime writes data-lf-syn in the browser,
 // and the theme answers it with a var() the browser resolves. Either half can stop
@@ -150,17 +143,11 @@ export { coveredWords } from "./standalone.js";
 // asked for colour-contrast alone on the example carrying the beige comment, it returned
 // 44 passing elements, no violation, and not one of the spans among them.
 //
-// Which shadow roots it crosses into is OPEN_ROOTS' answer (the section note above says
-// why it crosses at all), which is the choice everything else here makes — colour is
+// Which shadow roots it crosses into is OPEN_ROOTS' answer (that module says why it
+// crosses at all), which is the choice everything else here makes — colour is
 // asked of what the browser painted, so where it painted is too, and a root a widget
 // attached without declaring one still holds code the reader has to read.
 export function unreadSyntax() {
-  const roots = (root) => [
-    root,
-    ...[...root.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot)
-      .flatMap((el) => roots(el.shadowRoot)),
-  ];
   const cx = document.createElement("canvas").getContext("2d");
   const paint = (...layers) => {
     cx.clearRect(0, 0, 1, 1);
@@ -185,7 +172,7 @@ export function unreadSyntax() {
   };
   const seen = new Set(),
     found = new Map();
-  for (const span of roots(document).flatMap((r) => [
+  for (const span of openRoots(document).flatMap((r) => [
     ...r.querySelectorAll("[data-lf-syn]"),
   ])) {
     const role = span.dataset.lfSyn;
@@ -254,14 +241,8 @@ export function unreadSyntax() {
 // `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
 // asking whether it renders covers both and the panel besides.
 export function silentWords(widgets) {
-  const roots = (root) => [
-    root,
-    ...[...root.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot)
-      .flatMap((el) => roots(el.shadowRoot)),
-  ];
   const found = [];
-  const all = roots(document);
+  const all = openRoots(document);
   const at = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
   const every = (tag) => all.flatMap((r) => [...r.querySelectorAll(tag)]);
   for (const [tag, entry] of Object.entries(widgets)) {

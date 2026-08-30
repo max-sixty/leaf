@@ -62,12 +62,12 @@ ROOT = Path(__file__).parent.parent
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
-# The inputs scripts/gallery.py composes. The gallery is a generated presentation of
-# these pages, not an eleventh author source; tests that exercise authored content use
-# this set while tests of the gallery's own rendering or export keep EXAMPLES.
-SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "gallery")
+# The inputs scripts/corpus.py composes. The corpus is a generated presentation of
+# these pages, not another author source; tests that exercise authored content use
+# this set while tests of the corpus's own rendering or export keep EXAMPLES.
+SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
 assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated gallery beside the source examples"
+    "expected exactly one generated corpus beside the source examples"
 )
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
@@ -1251,7 +1251,7 @@ def open_page(
     says only that the runtime's module evaluated — long before the anchor pass has run,
     and so before the Comment button can answer a selection at all. A test that reads
     there without an auto-retrying wait is racing the upgrade and loses on a loaded
-    machine: the passage sweep lost it on the gallery, the heaviest page here, and what
+    machine: the passage sweep lost it on the corpus, the heaviest page here, and what
     it reported was a passage it had not tested rather than one that failed."""
     page = (
         context.new_page()
@@ -1363,11 +1363,10 @@ def primed(browser, prepare):
 def panel_settled(page, open=True):
     """Wait for the panel to reach `open` and the page to finish making room for it.
 
-    Two things happen, and they don't finish together: the class flips at once and the
-    document slides into its new width over about a fifth of a second (syncLayout). A
-    geometry read taken on the flip is a read of the page mid-flight — its right edge
-    still under the panel, its column still the width it had — so an assertion fed by
-    one is about a layout that exists for a sixth of a second and then doesn't.
+    Two things happen, and they don't finish together: the dialog's open state flips at
+    once and CSS eases the document into the room left beside it. A geometry read taken
+    on the flip is a read of the page mid-flight, so an assertion fed by one is about a
+    layout that exists briefly and then doesn't.
 
     Ask the transition itself, via getAnimations(): the call flushes pending style, so
     the transition the class just brought into play is visible to the very first read, a
@@ -1396,12 +1395,10 @@ def resized(page, width, height):
 
     The fact the page states here is the event reaching its listeners, counted by one
     added now: the runtime registered its own when it loaded, so this one runs after
-    them. The rest of the page's answer lands in the same rendering update — the strip
-    the panel holds is the stylesheet's, and syncLayout runs from an observation of the
-    box, which Chrome delivers before that update ends — so the whole of it is behind
-    us by the time the next command reaches the page at all. What the answer moved is a
-    separate question, and a test whose subject is the new layout still waits for the
-    piece of it that it is about; a margin easing into place is the ordinary case.
+    them. The rest of the answer is CSS container layout, resolved in that rendering
+    update. What moved is a separate question, and a test whose subject is the new
+    layout still waits for its transition; a margin easing into place is the ordinary
+    case.
 
     A window already the size asked for fires nothing, so waiting on it would hang out
     a whole timeout rather than return at once. The sweep that walks each example at

@@ -4,9 +4,9 @@
 The site is the pages the repo already holds. `docs/` is written to be opened from
 a checkout — the worn assets (`WORN`) arrive by relative paths into the plugin
 payload, and payload and example links point into the checkout — so publishing is
-those substitutions plus the files the paths then name. Nothing here writes a page
-anyone reads: what is on the web is the file in the tree, which is why the pages can
-double as specimens of the theme.
+those substitutions plus the files the paths then name. An example keeps its authored
+document and gains only the site-only startup marker below; that narrow transformation
+lets the files in the tree remain the specimens of the theme.
 
 The examples are the files in the tree too, and they are live. A leaf page is a
 directory — the vendored layer at a root, the versions under it — and a static host
@@ -14,17 +14,19 @@ serves every part of that; the one thing it hasn't got is the process behind /ap
 /api/event, and /api/news. So the build lays one vendored layer at the site's root,
 where a page's absolute /theme.css and /leaf.js resolve, and puts each example at its
 own examples/<name>/versions/v1.html, which is where the runtime reads a version number
-from. What answers the three paths is `docs/session.js`, loaded in front of the runtime
-by `docs/leaf.js`: the log lives in the reader's own tab. Every control on the page is
-then the shipped one, working — the banner, the thread panel, a board that takes a drag
-and holds it. The half no host can supply is the agent at the other end: the page
-reports itself unattended and the banner says so in the runtime's own words, and
-`docs/sitenote.js` says the whole of it in the site's own label above the document.
+from. The published root wears `data-lf-eager`, so the shipped theme can paint the
+authored page before this site's JavaScript arrives without changing that rule for a
+served Leaf page. What answers the three paths is `docs/session.js`, loaded in front of
+the runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on
+the page is then the shipped one, working — the banner, the thread panel, a board that
+takes a drag and holds it. The half no host can supply is the agent at the other end:
+the page reports itself unattended and the banner says so in the runtime's own words,
+and `docs/sitenote.js` says the whole of it in the site's own label above the document.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
-Usage: site.py  (no arguments; writes .tmp/site)
+Usage: site.py [--serve]  (writes .tmp/site; --serve keeps a local preview open)
 """
 
 import json
@@ -34,7 +36,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from functools import partial
 from html.parser import HTMLParser
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -44,6 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
+INTERNAL_EXAMPLES = {"corpus"}
 OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the workflow uploads it as the Pages artifact
@@ -102,6 +107,19 @@ PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
 # marker into that response; this static host has no changing root response to mark.
 EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
 
+# A static showcase has no server response that could reconcile a prior log before paint,
+# so its immutable authored version is safe to show while this site's in-tab session
+# starts. CSS needs the fact in the document before an external module arrives. A served
+# Leaf page retains the ordinary presentation gate because its source has no marker.
+EAGER_ROOT = re.compile(r"<html(?=[\s>])", flags=re.IGNORECASE)
+
+
+def eager_example(html: str) -> str:
+    if len(EAGER_ROOT.findall(html)) != 1:
+        raise ValueError("a published example must have exactly one html root")
+    return EAGER_ROOT.sub("<html data-lf-eager", html, count=1)
+
+
 # The static showcase has one version and no server response that can stamp a live root
 # with the version it projected, so the directory's index forwards to the immutable file.
 # Both routes are present because a 0-second meta refresh leaves a history entry on some
@@ -141,6 +159,13 @@ class Links(HTMLParser):
                 self.found += [
                     c.strip().split()[0] for c in value.split(",") if c.strip()
                 ]
+
+
+class QuietPreview(SimpleHTTPRequestHandler):
+    """Serve the local catalog without logging every module a full page imports."""
+
+    def log_message(self, *args):
+        pass
 
 
 def local_targets(html: str) -> list[str]:
@@ -197,8 +222,20 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
+def example_sources() -> list[Path]:
+    """Authored examples the public site publishes, never derived test surfaces."""
+    sources = [
+        source
+        for source in sorted(EXAMPLES.glob("*.html"))
+        if source.stem not in INTERNAL_EXAMPLES
+    ]
+    if not sources:
+        sys.exit("examples/ holds no authored pages to publish")
+    return sources
+
+
 def publish_pages(out: Path, env: dict) -> None:
-    """The corpus's vendored layer at the site root, and every example under it."""
+    """The corpus's vendored layer and every authored example at the site root."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -215,7 +252,7 @@ def publish_pages(out: Path, env: dict) -> None:
             target = out / (RUNTIME if item.name == "leaf.js" else item.name)
             (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
 
-        for source in sorted(EXAMPLES.glob("*.html")):
+        for source in example_sources():
             # The temporary page is reused only for its vendored layer. Reset its
             # authored history so every independently published example starts at
             # r1/v1, then let the real stamp boundary create both immutable files.
@@ -279,12 +316,14 @@ def publish_pages(out: Path, env: dict) -> None:
                     event_log.write(seed_text)
             published = out / "examples" / source.stem
             (published / "versions").mkdir(parents=True)
-            shutil.copy2(version, published / "versions" / "v1.html")
+            (published / "versions" / "v1.html").write_text(
+                eager_example(version.read_text(encoding="utf-8")), encoding="utf-8"
+            )
             (published / "index.html").write_text(REDIRECT, encoding="utf-8")
             # The thread the page opens on. A served page hands its log to the browser
             # through /api/state, which is `docs/session.js`'s answer here, so the log
             # is a file beside the versions exactly as it is in a page directory and
-            # that file is what the session reads before the runtime asks.
+            # that file is what the session puts in the runtime's first answer.
             (published / "comments.jsonl").write_text(seed_text, encoding="utf-8")
             (published / "data.json").write_text(
                 data_file.read_text(encoding="utf-8")
@@ -295,7 +334,7 @@ def publish_pages(out: Path, env: dict) -> None:
             print(f"  {source.stem}")
 
 
-def build(out: Path) -> None:
+def build(out: Path, *, verify_links: bool = True) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
 
@@ -328,12 +367,25 @@ def build(out: Path) -> None:
         env["XDG_CONFIG_HOME"] = config_home
         publish_pages(out, env)
 
-    check_links(out)
+    if verify_links:
+        check_links(out)
 
 
 def main() -> None:
+    if sys.argv[1:] not in ([], ["--serve"]):
+        sys.exit("usage: site.py [--serve]")
     build(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
+    if sys.argv[1:] == ["--serve"]:
+        handler = partial(QuietPreview, directory=str(OUT))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples.html")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
 
 
 if __name__ == "__main__":

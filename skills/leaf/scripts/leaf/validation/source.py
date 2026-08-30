@@ -5,7 +5,6 @@ from typing import NamedTuple
 
 from leaf.data import empty_data, read_data_store
 from leaf.data_contracts import data_binding_errors, measurement_lag
-from leaf.files import revision_path
 from leaf.projection import record_lag, state_projection
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
@@ -154,7 +153,6 @@ def _registry_errors(
     events: list,
     parser,
     registry: dict | None,
-    revisions: list[int],
 ) -> tuple[dict, list[str]]:
     """Validate authored instances and stored data against the vendored vocabulary."""
     stored_data = empty_data()
@@ -164,22 +162,13 @@ def _registry_errors(
     stored_data = read_data_store(page_dir)
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
-    history = [
-        (
-            parse_structure(
-                revision_path(page_dir, revision).read_text(encoding="utf-8")
-            ).lf_elements,
-            f"revision r{revision}",
-        )
-        for revision in revisions
-    ]
     errors.extend(
         data_binding_errors(
             page_dir,
             registry,
             stored_data,
             events,
-            [*history, (parser.lf_elements, "index.html")],
+            authored=parser.lf_elements,
         )
     )
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
@@ -293,9 +282,7 @@ def check_source(
         registry = None
         errors.append(str(error))
     revision = revision_reading(page_dir, data, events, registry)
-    stored_data, registry_errors = _registry_errors(
-        page_dir, events, parser, registry, revision.revisions
-    )
+    stored_data, registry_errors = _registry_errors(page_dir, events, parser, registry)
     errors.extend(registry_errors)
 
     source_history_errors, dropped_advice = continuity_errors(

@@ -93,11 +93,9 @@ export function bake() {
   for (const root of roots)
     root.querySelectorAll(".lf-work-line").forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
-  // A measurement of this window is not a fact about the reader's. The live page
-  // measures its own box and states the numbers inline on the root — the room a wide
-  // widget may take (syncLayout), the width the margin strips are sized against
-  // (stateStrip), the width each edge stands at, the rail a suggestion's controls
-  // hang in — and an inline value outranks every rule a stylesheet could write, so a
+  // A measurement of this window is not a fact about the reader's. The live page states
+  // each drawn edge's width inline on the root, and an inline value outranks every rule
+  // a stylesheet could write, so a
   // copy carrying one holds whatever width the exporter's headless window happened to
   // have, on a file whose whole point is being opened somewhere else. Each rule that
   // reads one falls back to the viewport, which is honest in a copy: no panel takes a
@@ -108,8 +106,8 @@ export function bake() {
   //
   // Named, and the names are the point. What goes is a measurement whose subject
   // this file no longer has: the panel and the tray are removed with the chrome
-  // above, and the room and the available width are read off a window that is not
-  // the reader's. A copy drops what it hasn't got.
+  // above. A copy drops what it hasn't got. Page room is not in this list: CSS resolves
+  // it from the copy's own shell.
   //
   // It keeps what it still has, which is why `--rail` is not on this list and must
   // not be added to it. The rail is the width of the margin a suggestion's controls
@@ -122,7 +120,7 @@ export function bake() {
   // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
   // that, and it is what a sweep of every inline custom property on the root ran
   // into: read as a stale number, the rail is the one that is not.
-  for (const stale of ["--lf-room", "--lf-avail", "--lf-panel-w", "--lf-tray-w"])
+  for (const stale of ["--lf-panel-w", "--lf-tray-w"])
     document.documentElement.style.removeProperty(stale);
   // The tab icon is the third seat of the banner's status (paintTab), and a file has
   // no session behind it — a copy keeping the tone it was exported under would claim
@@ -143,10 +141,11 @@ export function bake() {
   document
     .querySelectorAll('[hidden="until-found"]')
     .forEach((el) => el.removeAttribute("hidden"));
-  // A press a widget injected is a tab stop wearing an interactive role (offer), and
-  // both are promises a handler kept. The handlers left with the scripts above, so a
-  // copy that carried them offered a press nothing can take — and the first Tab into an
-  // exported decision page landed on one. It was a `choose` group's pick mark, which
+  // A press a widget injected is the runtime's own element — a <button> `offer` built, or
+  // a span `selectableOffer` gave a role and a tab stop — and either was a promise a
+  // handler kept. The handlers left with the scripts above, so a copy that carried them
+  // offered a press nothing can take — and the first Tab into an exported decision page
+  // landed on one. It was a `choose` group's pick mark, which
   // drew the keyboard address for a key that answers nothing, into a row holding no
   // column for it: the 30px an option reserves is live-page-only, so the digit came
   // down 8px over the option's own first word.
@@ -162,15 +161,18 @@ export function bake() {
   //
   // A copy parts from paper on one thing: it is still a document the browser runs, so a
   // control the browser drives keeps working, and lf-shot flips its frames on a checkbox in
-  // a file with no script behind it. The tab stop is what tells the two apart, being the
-  // runtime's own reading of a press it made (DECISION_CONTROL): a checkbox, a label and a §
-  // link never had one, and lf-shot's checkbox keeps the role that says what it is.
+  // a file with no script behind it. What tells the two apart is the marker's *value*,
+  // which is `offer` naming what it built: "button" for the one tag whose whole effect was
+  // the handler that left with the scripts, and the empty string for every other tag — so a
+  // checkbox, a label and a § link stay, keeping the role that says what they are. A press
+  // that was never native carries a word too, `selectableOffer` writing there the role it
+  // gave its span, since a span is pressable only while a handler is there to answer it.
   //
-  // Asked of the marker rather than of the role, because `offer`'s role="button" is not
-  // what a press ends up wearing: a widget with an ARIA pattern to keep writes its own
-  // over it, so every press in lf-tabs' strip says role="tab", and naming that second
-  // role would have left the next widget's. The author's roles are untouched, being on
-  // the author's elements: a board's columns stay a list of cards to a screen reader.
+  // Asked of the marker rather than of the role, because a press does not end up wearing
+  // one role: a widget with an ARIA pattern to keep names its own, so every press in
+  // lf-tabs' strip says role="tab", and naming a single role would have left that widget's
+  // out or the next one's. The author's roles are untouched, being on the author's
+  // elements: a board's columns stay a list of cards to a screen reader.
   //
   // The box a press hung in goes with it. A suggestion's control row is nothing but its
   // two controls, and left standing it still claims the rail the page reserves for it
@@ -180,15 +182,24 @@ export function bake() {
   // nothing, and `anchor(top)` is measured from it.
   // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
   // keeps a chosen option's word: the glyph stays in the margin with its press taken
-  // off — the tab stop, interactive role, marker, and title that promised a press.
+  // off — the button element it was built as, and the marker and title that promised it.
   // The remaining glyph becomes a named static image, and the wash on the words,
   // which is a highlight-registry entry no serialization carries, is written into
   // the words as a <mark> for this copy alone (the theme's html.lf-copy rule paints
   // it). Each painted range lies within one text node
   // (anchors.js paints a range per segment), which is what lets surroundContents
   // wrap it; the ranges are live, so an earlier wrap moves a later one's offsets.
-  for (const mark of document.querySelectorAll(".lf-react-mark")) {
-    for (const attr of ["tabindex", "data-lf-offer", "title"])
+  for (const offeredMark of document.querySelectorAll(".lf-react-mark")) {
+    let mark = offeredMark;
+    if (mark.matches("button")) {
+      const staticMark = document.createElement("span");
+      for (const attr of [...mark.attributes])
+        staticMark.setAttribute(attr.name, attr.value);
+      staticMark.replaceChildren(...mark.childNodes);
+      mark.replaceWith(staticMark);
+      mark = staticMark;
+    }
+    for (const attr of ["tabindex", "data-lf-offer", "title", "type"])
       mark.removeAttribute(attr);
     mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", mark.dataset.token);
@@ -204,9 +215,34 @@ export function bake() {
       /* straddles a mark */
     }
   }
-  for (const control of document.querySelectorAll(
-    "[data-lf-offer][tabindex]:not([data-lf-said])",
-  )) {
+  // Runtime-owned controls are native by default on the live page. In a script-free
+  // copy their browser activation would still fire, but its result would not, so remove
+  // them by the offer marker rather than by the tabindex attribute pseudo-controls used
+  // to carry. A wrapper around a non-offered native control is the exception: the browser
+  // still owns that complete interaction in the copy.
+  //
+  // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
+  // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
+  // to take away. Matched on the bare attribute this loop removed the box outright, with
+  // whatever the copy keeps still inside it: the "✓ Accepted" a decided change speaks
+  // through went out with the row it stood in, and the rail the copy holds open for that
+  // record had nothing left to show. What empties a box is the walk below, which is the
+  // reading that was already right.
+  const browserControl =
+    "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
+    "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
+  for (const control of [
+    ...document.querySelectorAll(
+      "[data-lf-offer]:not([data-lf-offer='']):not([data-lf-said])",
+    ),
+  ].reverse()) {
+    if (
+      control.querySelector(browserControl) ||
+      [...control.querySelectorAll("label")].some(
+        (label) => label.control && !label.control.matches("[data-lf-offer]"),
+      )
+    )
+      continue;
     let dead = control,
       box = dead.parentElement?.closest("[data-lf-offer]");
     dead.remove();
@@ -216,9 +252,29 @@ export function bake() {
       dead.remove();
     }
   }
-  document.querySelectorAll("[data-lf-offer][tabindex]").forEach((el) => {
+  document.querySelectorAll("[data-lf-offer][data-lf-said]").forEach((offered) => {
+    let el = offered;
+    if (el.matches("button, input, select, textarea, a[href], summary")) {
+      const staticWord = document.createElement("span");
+      for (const attr of [...el.attributes])
+        staticWord.setAttribute(attr.name, attr.value);
+      staticWord.replaceChildren(...el.childNodes);
+      el.replaceWith(staticWord);
+      el = staticWord;
+    }
     el.removeAttribute("role");
     el.removeAttribute("tabindex");
+    for (const attr of [
+      "href",
+      "type",
+      "name",
+      "value",
+      "disabled",
+      "popover",
+      "popovertarget",
+      "popovertargetaction",
+    ])
+      el.removeAttribute(attr);
     // The states and relations rode the role: pressed="true" on a plain span is
     // ARIA nothing may interpret (axe calls it critical), where the label is the
     // word's accessible copy and stands on its own.

@@ -57,6 +57,12 @@ def json_validator(schema: dict) -> Draft202012Validator:
     )
 
 
+def schema_error(schema: dict, instance) -> str | None:
+    """The first deterministic complaint about an instance, if it is invalid."""
+    error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
+    return error.message if error else None
+
+
 # A reader over a schema that never changes is itself a constant. Built where they
 # were used, these two were compiled once per widget and once per data contract: a
 # layer of twenty-eight widgets built the extension reader twenty-eight times on

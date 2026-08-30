@@ -564,7 +564,7 @@ STANDING_DECISION = "main [data-lf-decision]:not([data-lf-decision] [data-lf-dec
 # in the wrong position before the glide has started. A test that waited on that passed
 # with the travel bug put back, which is how this came to be written.
 SCROLL_SETTLED = """(hold) => {
-  const now = document.body.scrollTop;
+  const now = document.scrollingElement.scrollTop;
   if (now !== window.__lfScroll) {
     window.__lfScroll = now;
     window.__lfScrollSince = performance.now();

@@ -1,0 +1,8 @@
+{
+  "$captures": {
+    "rate-limit-config": {
+      "text-file": "pr-walkthrough-source.toml",
+      "label": "gateway/ratelimit.conf"
+    }
+  }
+}

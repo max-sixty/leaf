@@ -1,4 +1,4 @@
-export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout }) {
+export function createDrawnEdge({ el, keys, readerStore, syncLayout }) {
   // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
   // page of prose.
   const EDGE_STEP = 24;
@@ -76,7 +76,6 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
       chosen = Math.round(held(want));
       readerStore.set(key, String(chosen));
       state();
-      stateStrip();
       syncLayout();
     }
     /** The region's own edge, said as what it is: a separator between two regions, which is

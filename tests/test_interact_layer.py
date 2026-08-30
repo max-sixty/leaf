@@ -399,8 +399,16 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
+        "skills/leaf/references/authoring-decisions.md",
+        "skills/leaf/references/authoring-evidence.md",
+        "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
         "skills/leaf/references/conversation-loop.md",
+        "skills/leaf/references/conversation-threads.md",
+        "skills/leaf/references/event-batches.md",
+        "skills/leaf/references/host-claude-code.md",
+        "skills/leaf/references/host-codex.md",
+        "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
         "skills/leaf/references/serving-pages.md",
@@ -443,6 +451,14 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_claude_and_codex_read_the_same_repository_skills():
+    claude_skills = ROOT / ".claude" / "skills"
+    codex_skills = ROOT / ".agents" / "skills"
+
+    assert codex_skills.is_symlink()
+    assert codex_skills.resolve() == claude_skills.resolve()
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):

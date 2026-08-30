@@ -82,7 +82,7 @@ export function createDispatch({
     if (ev.isComposing) return;
     if (run(ev)) return;
     // Any other key disarms the chord and keeps its ordinary meaning, so a mistyped g costs
-    // nothing: g t is a thread step and g g re-arms. A letter naming no list disarms the same
+    // nothing: g T is a panel trip and g g re-arms. A letter naming no list disarms the same
     // way, and so does a digit past the end of the list a letter named. Spelled as walking
     // again rather than as a rule, so the meaning a key keeps is the meaning the register
     // gives it. A modifier alone is half a press rather than a key: the Shift that
@@ -101,7 +101,7 @@ export function createDispatch({
       let matched = null;
       for (const row of scope.rows) {
         // The key first, then the claim, then the liveness: a `when` may be the whole event
-        // log folded (`d` asks what the page is still waiting on), and asking it of every row
+        // log folded (`a` asks what the page is still waiting on), and asking it of every row
         // the press is not for makes the cost of a keystroke the size of the table rather
         // than the size of the match. A row that matches and is dead still falls through to
         // the scope behind it, which is what `continue` says either way round.
@@ -119,8 +119,8 @@ export function createDispatch({
         // A held key repeats keydown where a real button fires once, so a row says whether
         // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
         // per repeat, where a walk wants the repeat and is the reason the flag exists. The
-        // repeat is still consumed — Space is a page scroll if it isn't, so holding it on a
-        // control would send the page out from under the press the first one made.
+        // repeat is still consumed — a non-repeatable command must not be fired again merely
+        // because its key remains held after the first press.
         //
         // A `native` row is the narrow converse: Leaf has a result to perform before the
         // platform completes the same press. The versions menu closes at its Tab boundary,

@@ -27,6 +27,7 @@ from render_support import (
     INLINE_PAGE,
     LONG_PAGE,
     NATIVE_CONTROL_PAGE,
+    RENDERED,
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -96,17 +97,17 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     this drags across every pair of adjacent blocks in every source example, which is
     the shape a real selection takes, and asks for the highlight the composer promises.
 
-    The generated gallery is not another authored input: scripts/gallery.py derives a
+    The generated corpus is not another authored input: scripts/corpus.py derives a
     tab from each source `<main>` and a separate test rejects any drift. Repeating every
     source passage inside that composition used to be most of this sweep's runtime. Tab
     labels and hidden-panel navigation have focused gesture tests, so the source corpus
-    retains the content variations while those tests retain the gallery's mechanism.
+    retains the content variations while those tests retain the corpus's mechanism.
 
     "Every" includes the words a widget renders into a control, which is why the filter
     below is the runtime's own rule rather than a test for the chrome class: while it was
     the class, the sweep that proves every passage is quotable structurally could not see
     the passages that weren't. Across the source corpus it reaches attribute-rendered
-    headings, settled summaries, and the tab names in parallel-workstreams."""
+    headings, settled summaries, and the tab names in live-progress."""
     page, errors = open_page(browser, serve(example))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
@@ -324,20 +325,22 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     inactive panels still stand in the page's one Threads list and one Decisions tray,
     and either global surface opens the panel it points into. Switching panels is
     reading the page, so it leaves the event log untouched."""
-    example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
-    quote = "The feed has been stable since the battery swap; one open follow-up on storage."
-    url = serve(example, anchored=[("camera-note", quote)])
+    example = next(p for p in EXAMPLES if p.stem == "live-progress")
+    quote = (
+        "Traffic has returned successfully; only the final count comparison and finance "
+        "fixture remain open."
+    )
+    url = serve(example, anchored=[("lp-finance-note", quote)])
     page, errors = open_page(browser, live_url(url))
 
-    implementation = page.get_by_role("tab", name="Bracket installation")
-    vision = page.get_by_role("tab", name="Vision")
-    evidence = page.get_by_role("tab", name="Field evidence")
-    expect(implementation).to_have_attribute("aria-selected", "true")
+    rollback = page.get_by_role("tab", name="Rollback drill")
+    finance = page.get_by_role("tab", name="Finance fixture")
+    expect(rollback).to_have_attribute("aria-selected", "true")
 
     before = events_model.read_events(serve.page_dir)
     sent = _traffic(page).sends
-    vision.click()
-    implementation.click()
+    finance.click()
+    rollback.click()
     assert _traffic(page).sends == sent, "switching workstreams sent an event"
     assert events_model.read_events(serve.page_dir) == before
 
@@ -349,25 +352,27 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(
         len([e for e in before if e["kind"] == "comment"])
     )
-    comment = page.locator(".lf-thread .lf-quote", has_text="The feed has been stable")
+    comment = page.locator(
+        ".lf-thread .lf-quote", has_text="Traffic has returned successfully"
+    )
     expect(comment).to_contain_text(quote)
     comment.click()
-    expect(evidence).to_have_attribute("aria-selected", "true")
+    expect(finance).to_have_attribute("aria-selected", "true")
 
     page.get_by_role("button", name="Close threads").click()
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Decisions (2)")
+    expect(decisions).to_have_text("Asks (1)")
     decisions.click()
     # The row names the broader Decision's opening context now, while the options inside it
     # still take focus and own the choice.
-    hidden_decision = page.locator('.lf-decisions-row[data-lf-at="bath-heat-decision"]')
-    expect(hidden_decision).to_have_count(1)
-    expect(hidden_decision).to_contain_text(
-        "How should the bird bath stay open through January?"
+    hidden_decision = page.locator(
+        '.lf-decisions-row[data-lf-at="lp-finance-decision"]'
     )
+    expect(hidden_decision).to_have_count(1)
+    expect(hidden_decision).to_contain_text("Which cases should the fixture cover?")
     hidden_decision.click()
-    expect(vision).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()
+    expect(finance).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#lp-finance-cases .lf-pick").first).to_be_focused()
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
@@ -2027,11 +2032,9 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     """A key on screen is a key that works, and its inversion costs just as much: the
     press is real, the reader can make it, and no surface says so.
 
-    The runtime's control scope matches a tab stop of its own making, which is what
-    `offer` writes on the spans it builds. A control the widget takes from the platform
-    brings its own, so it matched nothing — and the widget's own declaration is what
-    names both the key and the word, the key being the platform's fact about that
-    control and the word being what the press does here.
+    A widget may still declare the meaning of a native press when that meaning is worth
+    naming in Leaf's keyboard reference. The row describes the platform fact without
+    reimplementing it.
 
     The two differ in what they answer, and saying so is the point: a <summary> is
     button-like and takes both keys, while a checkbox takes Space alone, Enter being
@@ -2072,6 +2075,15 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page.keyboard.press("Enter")
     expect(line).to_contain_text("show this file")
     assert not details.evaluate("el => el.open")
+    # The line is one of two surfaces naming this row's keys, and a listener reads the
+    # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
+    # and the repaint that keeps them together is the document's disclosure watch rather
+    # than anything this widget does, which is what leaves a widget free to declare a
+    # disclosure row and nothing else. Read once, by the same clock as the line: the
+    # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
+    # budget whether or not the watch painted anything.
+    page.evaluate(RENDERED)
+    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
 
     # The row also names an arrow, which no browser answers, so unlike the pair above it is
     # only ever as good as the scope that runs it — and that scope has to find a staged
@@ -2089,6 +2101,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     said = key_line(page)
     assert "⏎ / space / ←" in said, said
     assert "hide this file" in said, said
+    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
 
     # Neither control is handed a letter by any platform, so the page's own keyboard
     # stands behind both of them.
@@ -2252,7 +2265,9 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.move(spot["x"], spot["y"])
     page.wait_for_function("() => document.body.classList.contains('lf-over-mark')")
-    page.evaluate("() => document.body.scrollBy({top: 900, behavior: 'instant'})")
+    page.evaluate(
+        "() => document.scrollingElement.scrollBy({top: 900, behavior: 'instant'})"
+    )
     page.wait_for_function(
         "() => !document.body.classList.contains('lf-over-mark')"
         " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"
@@ -2831,7 +2846,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way g l opens the leaves tray, and lands
+    # v opens it from anywhere on the page, the way g L opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.

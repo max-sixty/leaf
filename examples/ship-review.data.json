@@ -1,8 +1,0 @@
-{
-  "$captures": {
-    "offline-review-policy": {
-      "text-file": "ship-review-source.md",
-      "label": "merge-review.md"
-    }
-  }
-}

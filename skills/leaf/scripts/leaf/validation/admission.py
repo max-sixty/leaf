@@ -58,7 +58,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> _Struc
             registry,
             read_data_store(page_dir),
             events,
-            [(frag.lf_elements, f"incoming {kind} markup")],
+            incoming=[(frag.lf_elements, f"incoming {kind} markup")],
         )
     )
     if errs:

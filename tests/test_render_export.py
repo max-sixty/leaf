@@ -1,6 +1,9 @@
 """Standalone export tests."""
 
 import itertools
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -22,8 +25,43 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+ROOT = Path(__file__).parent.parent
+
 
 # ---------- export: the page as one file ----------
+
+
+def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
+    browser,
+):
+    """The handoff command names one file whose drawn page needs no live server."""
+    out = ROOT / ".tmp" / "example-pr-walkthrough.html"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "preview.py"),
+            "pr-walkthrough",
+            "--export",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert result.stdout.splitlines()[-1] == str(out.resolve())
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.on("requestfailed", lambda request: errors.append(f"unfetched {request.url}"))
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.get_by_role("heading", name="Per-token rate limits")).to_be_visible()
+    assert page.locator("script").count() == 0
+    assert page.locator('link[rel="stylesheet"]').count() == 0
+    assert page.locator("style").count() > 0
+    assert errors == []
+    page.close()
 
 
 def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
@@ -161,7 +199,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     """Every shipped example copied to a file and opened from disk, which is the whole
     contract: no server answers, so anything still reaching for one is a hole, and the
     console is where a hole says so. Driven over the corpus rather than one page because
-    what a copy loses is per-widget — the gallery alone would pass while the widget only
+    what a copy loses is per-widget — the corpus alone would pass while the widget only
     it lacks was the broken one.
 
     A copy over-promising is the other half of that, and it went unread for as long as
@@ -189,25 +227,34 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
-        // A page gives up a strip of its own width for what it hangs in the margin, and
+        // A page gives up a CSS shell claim for what it hangs in the margin, and
         // a copy keeps only the strips whose residents came with it: a suggestion's
         // controls are gone from a file that can decide nothing, and its rail with them,
         // while sidenotes are the page's own words and stand in a copy exactly as they
         // stand on screen. So the reading is not that the column is centred — a page
         // carrying notes is deliberately not — but that no strip is held open for
-        // nothing. Asked of body's padding, which is where every strip is taken from,
-        // and of whatever is standing in it, whichever layer reserved it.
-        empty: ((b, s) => {
+        // nothing. Resolve the shell's custom-property lengths through a probe, then
+        // ask whether anything is actually standing in each claimed band.
+        empty: ((b, main) => {
             const box = b.getBoundingClientRect();
+            const length = (name) => {
+                const probe = document.createElement('i');
+                probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+                main.append(probe);
+                const width = probe.getBoundingClientRect().width;
+                probe.remove();
+                return width;
+            };
+            const left = length('--strip-l'), right = length('--strip-r');
             const held = (lo, hi) => hi - lo > 1 && ![...document.querySelectorAll('main *')]
                 .some(el => { const r = el.getBoundingClientRect();
                               return el.checkVisibility() && r.width > 1
                                      && r.left < hi - 1 && r.right > lo + 1; });
             return [
-                held(box.left, box.left + parseFloat(s.paddingLeft)) && 'left',
-                held(box.right - parseFloat(s.paddingRight), box.right) && 'right',
+                held(box.left, box.left + left) && 'left',
+                held(box.right - right, box.right) && 'right',
             ].filter(Boolean);
-        })(document.body, getComputedStyle(document.body)),
+        })(document.body, document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
@@ -381,7 +428,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
                 found[inline[i]] = inline.getPropertyValue(inline[i]);
         return found;
     }"""
-    session = ("--lf-room", "--lf-avail", "--lf-panel-w", "--lf-tray-w")
+    session = ("--lf-panel-w", "--lf-tray-w")
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")

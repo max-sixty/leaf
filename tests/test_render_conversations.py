@@ -635,10 +635,9 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
     page, errors = open_page(browser, url)
-    # Searching a list is a press on that list, so the key is the panel's: out on the
-    # prose it does nothing, and `c` is the whole route in — it stands the reader on the
-    # list, which is where the panel's own keys are live. Read against the same press
-    # landing two lines below, which is what makes the silence a rule.
+    # Slash belongs to the nearest search scope. Out on the prose it opens page search;
+    # Escape returns to the prose, and `c` is the route into the panel, where the same
+    # press opens that list's own search instead. Read the two landings against each other.
     #
     # A plain paragraph rather than the body's own middle, which is a widget on this
     # page: `c` goes to the box belonging to whatever the reader is standing in, so a
@@ -648,7 +647,10 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     # panel arriving ahead of the press that is meant to open it.
     page.locator("#how-store").click()
     page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
     expect(page.locator(".lf-panel")).not_to_be_visible()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("c")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -1734,7 +1736,7 @@ BARE_PAGE = leaf_page("doc-change", CHANGE_HEAD)
 REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
 
 BOTH_BOXES = """() => ({
-  page: document.body.scrollTop,
+  page: document.scrollingElement.scrollTop,
   panel: document.querySelector('.lf-threads').scrollTop,
 })"""
 
@@ -1859,7 +1861,7 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    page.evaluate("() => { document.body.scrollTop = 1200; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
 
     # Where the travel says it is taking the widget: centred in the list, or as near
@@ -1916,7 +1918,9 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
 
     # The control: the page's own thread still moves the page.
     page.locator('.lf-thread[data-id="tv-on-page"] .lf-quote').click()
-    page.wait_for_function(f"() => document.body.scrollTop !== {before['page']}")
+    page.wait_for_function(
+        f"() => document.scrollingElement.scrollTop !== {before['page']}"
+    )
     assert errors == []
     page.close()
 
@@ -1986,7 +1990,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page.keyboard.down("Alt")
     expect(page.locator(".lf-keyline")).to_be_visible()
 
-    page.evaluate("() => { document.body.scrollTop = 1200; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     # Where the reader is standing when they press: the thread on screen, which is
     # also what the driver's own scroll-into-view would arrange. Read after it, so the
     # baseline is the page as the press finds it rather than as the test left it.
@@ -2200,7 +2204,8 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
         "its own to state it from"
     )
     floors = (
-        "() => [...document.querySelectorAll('.lf-sug-actions [role=button]')]"
+        "() => [...document.querySelectorAll("
+        "'.lf-sug-actions [data-lf-offer=button]')]"
         ".map((b) => b.style.minWidth)"
     )
     in_reply = page.evaluate(floors)
@@ -2343,7 +2348,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1)")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -2561,7 +2566,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
         )
         target.evaluate("el => el.focus({preventScroll: true})")
 
-        before_page = page.evaluate("() => document.body.scrollTop")
+        before_page = page.evaluate("() => document.scrollingElement.scrollTop")
         page.keyboard.press("g")
         expect(
             page.locator(
@@ -2603,7 +2608,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
             f"the landable edge is {bottom['clear']:.1f}px"
         )
         expect(target).to_be_focused()
-        assert page.evaluate("() => document.body.scrollTop") == before_page
+        assert page.evaluate("() => document.scrollingElement.scrollTop") == before_page
         assert errors == []
         page.close()
     finally:
@@ -2902,7 +2907,9 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         # Keep the quoted passage outside the page's readable viewport. This test is the
         # drag/plain-press contrast: a readable destination deliberately stays put now,
         # so only an offscreen passage can prove the plain press still travels.
-        page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+        )
         page.evaluate(RENDERED)
         destination = page.evaluate(
             """() => {
@@ -2919,7 +2926,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
             f"the quoted passage is still readable, so a click need not travel: {destination}"
         )
 
-        where = "() => document.body.scrollTop"
+        where = "() => document.scrollingElement.scrollTop"
         before = page.evaluate(where)
         quote = page.locator(".lf-threads > .lf-thread .lf-quote").first
         span = quote.bounding_box()
@@ -3107,8 +3114,8 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
 def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     browser, serve
 ):
-    """The two chips the line paints are what a reader standing on the list is offered,
-    and they have to be the keys that act on the list.
+    """The two contextual chips the line paints for a reader standing on the list have
+    to be the keys that act on the list; persistent page movement remains beside them.
 
     `c` brought them here so that `w` and `/` would be live — the general box is where
     the typing scope claims every letter, which is the whole reason the press stops at
@@ -3147,10 +3154,11 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(page.locator(".lf-threads")).to_be_focused()
 
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     # The list's own key leads: something is waiting, so `w` is live and nearest.
     expect(shown.nth(0)).to_contain_text("waiting on you")
     expect(shown.nth(1)).to_contain_text("close threads")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

@@ -32,6 +32,7 @@ from render_support import (
     PICTURE_PAGE,
     REPLAYED_PAGE,
     SPECIMEN_PAGE,
+    SUGGESTION_PAGE,
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
     aim_targets,
@@ -58,12 +59,16 @@ pytestmark = pytest.mark.nightly
 # quietly shrinking the causal corpus.
 AIM_PRESS_CASES = (
     (
-        next(p for p in EXAMPLES if p.stem == "parallel-workstreams"),
-        frozenset({"option click", "tab click"}),
+        next(p for p in EXAMPLES if p.stem == "live-progress"),
+        frozenset({"tab click"}),
+    ),
+    (
+        next(p for p in EXAMPLES if p.stem == "release-notes"),
+        frozenset({"draft mousedown", "suggestion no-item control"}),
     ),
     (
         next(p for p in EXAMPLES if p.stem == "ship-review"),
-        frozenset({"draft mousedown", "standing mark", "suggestion no-item control"}),
+        frozenset({"option click", "standing mark"}),
     ),
 )
 
@@ -506,15 +511,24 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
 def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser, serve):
     """A press in design mode is a comment about the layer, and that is all it does.
 
-    The mode is the ⌥ aim generalized: a press on a widget names the widget rather than
-    working it, so a pick mark can be pointed at without picking. The comment posts
-    with `about: "layer"`, which is how the agent tells "this control looks wrong" from
-    a remark about the words — nothing about the anchor alone says which. Both halves
-    are asserted: the log's event, and the page exactly as it was."""
+    The mode is primary while it stands, even over the ⌥ aim: a modified press on a
+    widget names the widget rather than aiming or working it, so a pick mark can be
+    pointed at without picking. The comment posts with `about: "layer"`, which is how
+    the agent tells "this control looks wrong" from a remark about the words — nothing
+    about the anchor alone says which. Both halves are asserted: the log's event, and
+    the page exactly as it was."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     option = page.locator("#opt-shim")
     before = page.evaluate(PAGE_MARKUP)
     page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-help")
+    expect(reference).to_be_visible()
+    expect(reference.locator('tr[data-lf-command="aim.respond"]')).to_have_count(0)
+    page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
 
     # The mode shows what is on the page rather than waiting for the pointer: a legend
@@ -538,7 +552,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     option.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "opt-shim")
-    option.click()
+    option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
@@ -552,7 +566,10 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         == before
     )
     assert not page.evaluate(FOCUS_IN_PAGE)
-    page.locator(".lf-composer textarea").fill("the ring reads too heavy")
+    composer_input = page.locator(".lf-composer textarea")
+    composer_input.click()
+    expect(composer_input).to_be_focused()
+    composer_input.fill("the ring reads too heavy")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     events = events_model.read_events(serve.page_dir)
@@ -579,13 +596,15 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.close()
 
 
-def test_design_mode_names_every_platform_control_from_the_shared_boundary(
+def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     browser, serve
 ):
-    """Design mode names and captures controls from the runtime's full platform list.
+    """Design mode captures controls from the runtime's full platform list.
 
     A slider nested in an ordinary section has no widget tag or native element name to
     put it on a smaller selector. Its ARIA role must still become the named design part.
+    An unnamed disclosure is the fail-closed control: even without a durable comment
+    target, its activation must not leak through the active mode.
     """
     page, errors = open_page(
         browser,
@@ -595,7 +614,8 @@ def test_design_mode_names_every_platform_control_from_the_shared_boundary(
                 '<h1>Controls</h1><section id="volume">'
                 '<span role="slider" tabindex="0" aria-label="Volume" '
                 'aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">50</span>'
-                "</section>",
+                "</section>"
+                "<details><summary>More controls</summary><p>Hidden</p></details>",
             )
         ),
     )
@@ -603,10 +623,115 @@ def test_design_mode_names_every_platform_control_from_the_shared_boundary(
     slider = page.get_by_role("slider", name="Volume")
     slider.hover()
     expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    page.keyboard.up("Alt")
     slider.click()
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "layer · Volume · section · volume"
     )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    disclosure = page.locator("details")
+    summary = disclosure.locator("summary")
+    summary.click()
+    assert not disclosure.evaluate("el => el.open"), (
+        "target resolution failed open and activated the disclosure under Design mode"
+    )
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    summary.focus()
+    page.keyboard.press("Enter")
+    assert disclosure.evaluate("el => el.open"), (
+        "Design mode swallowed the disclosure's keyboard activation"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, serve):
+    """A hoisted target control remains a design target, not a live action.
+
+    Margin actions stand beside the readable column rather than inside the widget they
+    act on. Design mode still has to name the underlying widget and take the pointer
+    press before the action starts; otherwise Accept sends while the composer opens
+    nowhere.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1440, 900)
+    page.keyboard.press("i")
+    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    expect(accept).to_be_visible()
+
+    accept.hover()
+    expect(page.locator(".lf-inspect")).to_have_text(
+        re.compile(r"^Accept .* · lf-suggestion · sug-refill$")
+    )
+    accept.click()
+
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
+    )
+    assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
+        "the margin action started while Design mode was opening its comment"
+    )
+    round_trip(page)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["widget"] == "sug-refill"
+    ], "the margin action reached the durable log despite Design mode"
+    assert errors == []
+    page.close()
+
+    # The same hoist exists inside frozen markup in a conversation. Its target belongs
+    # to that conversation document, so the margin owner hands Design mode the exact
+    # element rather than making it reconstruct ownership from a diagnostic id or path.
+    url = serve(leaf_page("inline margin action", '<h1 id="h">Review</h1>'))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-inline-margin",
+            "author": "user",
+            "revision": 1,
+            "text": "Show me the proposed wording.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-inline-margin",
+            "revision": 1,
+            "text": "Here is the change:",
+            "markup": (
+                '<lf-suggestion id="reply-suggestion">'
+                "<lf-old>Keep the long label.</lf-old>"
+                "<lf-new>Use the short label.</lf-new>"
+                "</lf-suggestion>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.keyboard.press("i")
+    accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
+    expect(accept).to_be_visible()
+
+    accept.click()
+
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        re.compile(r"^layer · Accept .* · lf-suggestion · reply-suggestion$")
+    )
+    round_trip(page)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["widget"] == "reply-suggestion"
+    ], "the inline margin action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
@@ -639,16 +764,19 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     ]
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(page.locator(".lf-thread textarea")).to_be_focused()
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread")).to_be_focused()
+    page.keyboard.press("i")
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
-    # say. A fixed box is not clipped by the page's scroller, and body is that scroller
-    # narrowed to the column standing beside the panel — so the panel measured through its
-    # ancestors came back wholly clipped away, and a mode whose row promises a click on the
-    # chrome drew nothing over the chrome. Wide enough for the panel to stand beside the
-    # page, which is where body and the panel part company.
+    # say. A fixed box is not clipped by the root scrollport, while body is the layout shell
+    # narrowed to the column standing beside the panel — so the panel measured through the
+    # page flow's ancestors came back wholly clipped away, and a mode whose row promises a
+    # click on the chrome drew nothing over the chrome. Wide enough for the panel to stand
+    # beside the page, which is where the shell and the panel part company.
     resized(page, 1280, 800)
-    page.locator(".lf-banner .lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
     page.wait_for_function(
         "() => document.querySelector('.lf-panel').getBoundingClientRect().left"
@@ -774,7 +902,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("i")
     page.wait_for_function(LEGEND_TRUE)
-    page.locator("body").evaluate("b => { b.scrollTop = 1200; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     p = page.locator("#p20")
     expect(p).to_be_in_viewport()
     expect(page.locator('.lf-legend-box[data-for="p20"]')).to_be_visible()
@@ -879,13 +1007,13 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page, errors = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
 
-    unlisted = diagram.locator('g[id^="flowchart-U-"]')
+    unlisted = diagram.locator('g[id*="flowchart-U-"]')
     unlisted.click()
     page.locator(".lf-fab").click()
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     page.get_by_role("button", name="Cancel").click()
 
-    start = diagram.locator('g[id^="flowchart-S-"]')
+    start = diagram.locator('g[id*="flowchart-S-"]')
     start.click()
     page.locator(".lf-fab").click()
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
@@ -912,7 +1040,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     stamp_version_file(serve.page_dir, 2, "reordered")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(diagram.locator('g[id^="flowchart-S-"]')).to_have_class(
+    expect(diagram.locator('g[id*="flowchart-S-"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -926,7 +1054,7 @@ def test_a_linked_flowchart_node_uses_the_shared_aim_actions(browser, serve):
     the same Comment and Reaction choices as any other aimed item."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    handler = diagram.locator('g[id^="flowchart-H-"]')
+    handler = diagram.locator('g[id*="flowchart-H-"]')
     expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
 
     handler.click(modifiers=["Alt"])
@@ -956,7 +1084,7 @@ def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
     """A design-control label is not reinterpreted as a semantic visual token."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    handler = diagram.locator('g[id^="flowchart-H-"]')
+    handler = diagram.locator('g[id*="flowchart-H-"]')
     page.keyboard.press("i")
     handler.click()
 
@@ -1027,7 +1155,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
         expect(page.locator(".lf-fab-bar")).to_be_visible()
         page.locator(".lf-fab").click()
 
-    state = page.locator('#life g[id^="state-Queued-"]')
+    state = page.locator('#life g[id*="state-Queued-"]')
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     page.locator(".lf-composer textarea").fill("how long does it sit here")
@@ -1035,15 +1163,15 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     round_trip(page)
 
     # A box inside the composite state, declared in its own right.
-    aim(page.locator('#life g[id^="state-Build-"]'))
+    aim(page.locator('#life g[id*="state-Build-"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Build")
     page.get_by_role("button", name="Cancel").click()
 
-    aim(page.locator("#life g#Working"), position={"x": 6, "y": 6})
+    aim(page.locator('#life g[id*="Working"]'), position={"x": 6, "y": 6})
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Working")
     page.get_by_role("button", name="Cancel").click()
 
-    entity = page.locator('#shape g[id^="entity-RUNNER-"]')
+    entity = page.locator('#shape g[id*="entity-RUNNER-"]')
     aim(entity)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
     page.get_by_role("button", name="Cancel").click()
@@ -1051,7 +1179,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # A node's label is the words the box shows. The source's own string is what
     # Mermaid renders from — markdown, entities and all — so it is not what a thread
     # quotes back to the reader.
-    aim(page.locator('#path g[id^="flowchart-A-"]'))
+    aim(page.locator('#path g[id*="flowchart-A-"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "§ diagram · Bold and plain"
     )
@@ -1077,15 +1205,13 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
 
     # v2 inserts a state above Queued, so Mermaid mints it a new id. The mark follows
     # the authored token to whatever box that version draws for it.
-    assert 'id="state-Queued-1"' in page.locator("#life").inner_html()
+    drawn_in_v1 = state.get_attribute("id")
     (serve.page_dir / "versions" / "v2.html").write_text(TYPED_PARTS_V2)
     stamp_version_file(serve.page_dir, 2, "one state earlier")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(page.locator("#life g#state-Queued-2")).to_have_class(
-        re.compile(r"\blf-mark-el\b")
-    )
-    expect(page.locator("#life g#state-Queued-1")).to_have_count(0)
+    expect(page.locator(f'#life [id="{drawn_in_v1}"]')).to_have_count(0)
+    expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
     page.close()
 
@@ -1105,10 +1231,10 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     assert first, "nothing promised under the parked pointer, so nothing is being aimed"
     # Three whole paragraphs of scroll, measured off the page: the paragraphs are
     # identical, so the pointer's offset into the outlined one becomes the same offset
-    # into the one three later, never the margin between two. body is the page's
-    # scroller, and scrollBy fires the same scroll events a wheel does.
+    # into the one three later, never the margin between two. The browser root is the
+    # page's scroller, and scrollBy fires the same scroll events a wheel does.
     page.evaluate(
-        """() => document.body.scrollBy(0, 3 *
+        """() => document.scrollingElement.scrollBy(0, 3 *
           (document.getElementById("p3").getBoundingClientRect().top -
            document.getElementById("p2").getBoundingClientRect().top))"""
     )

@@ -7,10 +7,8 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 
 ## Landing
 
-`CLAUDE.md` says landing is `wt merge`, a direct squash merge, never a PR. That
-is written for a session at a workstation. Work from here lands as a pull
-request that a maintainer merges — the bot has write access, and the `Merge
-access` ruleset holds merging to admins.
+Work from Tend lands as a pull request that a maintainer merges. The bot has
+write access, and the `Merge access` ruleset holds merging to admins.
 
 ## Review threshold
 
@@ -49,12 +47,11 @@ about the run worth reporting, not a step to work around. `playwright install
 --with-deps` is the one that cannot work: it escalates, and the sandbox user has
 no sudo.
 
-## A red `ci` on main is the first signal, not the second
+## A red `ci` on main is live
 
-Nothing lands here through a pull request, so no CI run ever gates a change
-before it is on main — `wt merge`'s local hooks are the only gate, and they run
-on the maintainer's machine. That makes `ci-fix` the primary safety net rather
-than a backstop, and it means a red `ci` on main is already affecting whoever
+Pull requests run the everyday suite before merge, while `wt merge` runs that
+gate on the maintainer's machine. The complete nightly suite first runs after
+main moves on either path, so a red `ci` on main is already affecting whoever
 pulls next. Treat it as live.
 
 ## Reading a red suite
@@ -114,29 +111,26 @@ reaches for one, the question to answer instead is what behaviour actually broke
 ## Weekly: vendored browser dependencies
 
 `.github/dependabot.yml` watches the action refs and `uv.lock`. It cannot watch
-the browser dependencies produced by the vendor scripts, because their versions
-live in shell variables rather than a manifest. They drift silently, and this is
-the step that catches it.
-
-Read the pinned versions out of the scripts and compare them against upstream:
+the browser dependencies, whose versions live in `scripts/vendor.py`'s PINS
+table rather than a manifest. They drift silently, and this is the step that
+catches it.
 
 ```bash
-grep HLJS_VERSION scripts/vendor-highlight.sh    # against: npm view highlight.js version
-grep MARKED_VERSION scripts/vendor-marked.sh     # against: npm view marked version
-grep PIERRE_VERSION scripts/vendor-pierre.sh     # against: npm view @pierre/diffs version
-grep SHIKI_VERSION scripts/vendor-pierre.sh      # against: npm view shiki version
+scripts/vendor.py --pins
 ```
 
-On drift, bump the variable and rerun that script — the rebuilt bundle is the
-commit, not the version string on its own. `vendor-marked.sh` copies upstream's
-single ESM file, so its output tracks the version directly.
-`vendor-highlight.sh` is a real build, and it reads the language list out of the
-registry's `$languages.names`, so its output is a function of both the pin and
-the registry: rerunning it after an unrelated registry change is how the bundle
-and the lint stay unable to disagree.
-`vendor-pierre.sh` likewise builds Pierre and its bounded Shiki language set from
-that registry, and both pins must move together when their compatibility requires
-it.
+Each row is a package, its pin, the bundle to rebuild if it has moved, and
+upstream's latest where that differs. `esbuild` is the tool the three builds
+share rather than payload, so it moves when a bundle needs it rather than on
+every release.
+
+On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the
+rebuilt bundle is the commit, not the version string on its own. A copy's output tracks its version directly.
+`highlight` and `pierre` also read the language list out of the registry's
+`$languages.names`, so their output is a function of both the pin and the
+registry: rerunning them after an unrelated registry change is how the bundle
+and the lint stay unable to disagree. Pierre and Shiki must move together when
+their compatibility requires it.
 
 Run the suite afterwards. The browser tests load the bundles, so a bad rebuild
 surfaces there rather than in review.

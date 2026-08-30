@@ -391,11 +391,9 @@ customElements.define(
         group: `board-${this.id}`, // per board: two boards on a page don't cross-drag
         draggable: "lf-card",
         handle: ".lf-grip",
-        // Named, not left to Sortable's search: its walk stops at body and hands back
-        // document.scrollingElement, which isn't what scrolls here. Left to guess, a
-        // drag toward a column below the fold would sit there and never scroll. Asked
-        // of this board rather than stated, because a board an agent sent in a reply is
-        // scrolled by the panel's list and not by the document at all.
+        // Named because a board an agent sent in a reply is scrolled by the panel's list,
+        // while one in the page is scrolled by the browser root. Sortable cannot infer
+        // that product boundary from the board alone.
         scroll: scrollerFor(this),
         forceFallback: true, // pointer-driven: stylable follower, touch, no native ghost
         fallbackTolerance: 4, // a click on the grip stays a click

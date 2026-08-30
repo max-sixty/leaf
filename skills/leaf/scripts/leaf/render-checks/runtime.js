@@ -1,4 +1,5 @@
 import { ARRANGEMENTS } from "/runtime/widget-api.js";
+import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
 export const upgraded = () => document.body.dataset.lfUpgraded === "1";
@@ -9,12 +10,6 @@ export const logApplied = (applied) =>
   Number(document.body.dataset.lfApplied ?? -1) >= applied;
 
 export function moving() {
-  const roots = (root) => [
-    root,
-    ...[...root.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot)
-      .flatMap((el) => roots(el.shadowRoot)),
-  ];
   const at = (el) => {
     for (let node = el; node; node = node.getRootNode?.()?.host) {
       const named = node.closest?.("[id]");
@@ -22,7 +17,7 @@ export function moving() {
     }
     return `<${el?.tagName?.toLowerCase() ?? "?"}>`;
   };
-  return roots(document)
+  return openRoots(document)
     .flatMap((root) => root.getAnimations())
     .filter(
       (animation) =>

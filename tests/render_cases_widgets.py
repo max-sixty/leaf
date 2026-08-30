@@ -189,11 +189,15 @@ DIAGRAM_ROOM = """() => {
     const board = document.getElementById('plan');
     const main = document.querySelector('main'), ms = getComputedStyle(main);
     const mb = main.getBoundingClientRect();
+    const probe = document.createElement('i');
+    probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
+    main.append(probe);
+    const room = probe.getBoundingClientRect().width;
+    probe.remove();
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,
-             room: parseFloat(getComputedStyle(document.documentElement)
-                       .getPropertyValue('--lf-room')),
+             room,
              wide: parseFloat(getComputedStyle(document.body)
                        .getPropertyValue('--wide')),
              board: board.getBoundingClientRect().width,
@@ -485,14 +489,10 @@ ROOM_GEOMETRY = """() => {
                  top: b.top, bottom: b.bottom,
                  centre: (b.left + b.right) / 2 };
     };
-    // The page's box: what body's padding is spent out of and the column centres in.
-    // It is not the window. Body owns the document's scroll and reserves a stable
-    // gutter for it (leaf.js), so wherever a scrollbar takes room the page is that
-    // much narrower than the window and stands half of it to the window's left — a
-    // settled decision made where the gutter is, and one no strip has a part in.
-    // Padding included, because a strip taken here moves the column inside a box that
-    // has not changed size; `room` above is what the strips left and so cannot say
-    // where the edge they came out of is.
+    // The CSS shell's box. It is not the window: the root owns document scrolling and
+    // reserves a stable gutter, while body margins yield room to standing workspaces.
+    // `room` above is the body's content box; this reading includes the full shell so
+    // the test can tell which edge that room came out of.
     const page = () => {
         const b = document.body, s = getComputedStyle(b);
         const left = b.getBoundingClientRect().left + parseFloat(s.borderLeftWidth);
@@ -646,25 +646,31 @@ RAIL_AND_WIDE_PAGE = leaf_page(
 # room the page states comes with it, so a test waiting for the box to be read again has
 # the reading it is waiting to see changed.
 RAIL_FIT = """() => {
-    const b = document.body, s = getComputedStyle(b);
+    const b = document.body;
     const box = b.getBoundingClientRect();
+    const main = document.querySelector('main');
+    const length = (name) => {
+      const probe = document.createElement('i');
+      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+      main.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return width;
+    };
+    const left = length('--strip-l'), right = length('--strip-r');
     const r = document.getElementById('plan').getBoundingClientRect();
-    return { rail: s.paddingRight, widget: r.width,
-             room: getComputedStyle(document.documentElement)
-                     .getPropertyValue('--lf-room'),
-             past: Math.max(r.right - (box.right - parseFloat(s.paddingRight)),
-                            (box.left + parseFloat(s.paddingLeft)) - r.left),
-             content: box.width - parseFloat(s.paddingLeft)
-                      - parseFloat(s.paddingRight) };
+    return { rail: `${right}px`, widget: r.width, room: length('--lf-room'),
+             past: Math.max(r.right - (box.right - right), box.left + left - r.left),
+             content: box.width - left - right };
 }"""
 # The room the document leaves at each end for a bar standing over it. Both are boxes in
 # the flow, so the reading is the flow's own: what stands above the page's first block and
 # what is left under its last.
 CHROME_ROOM = """() => {
-    const body = document.body;
+    const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();
-    return { head: box.top + body.scrollTop,
-             foot: body.scrollHeight - (box.bottom + body.scrollTop),
+    return { head: box.top + scroller.scrollTop,
+             foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
              banner: document.querySelector('.lf-banner').offsetHeight,
              line: document.querySelector('.lf-keyline').offsetHeight };
 }"""
@@ -704,7 +710,7 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       fetch("/margin-width").then(() =>
-        document.body.style.setProperty("--strip-r", "160px"),
+        document.body.style.setProperty("--lf-claim-right", "160px"),
       );
     }
   },
@@ -851,7 +857,7 @@ def _painted_line(page):
     )
 
 
-SCROLLED = "() => document.body.scrollTop > 0"
+SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 
 
 WHERE_I_STAND_PAGE = leaf_page(

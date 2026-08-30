@@ -278,8 +278,9 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     page.wait_for_function("() => document.body.dataset.lfApplied === '2'")
 
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    # The key line has only two slots, and the focused grip's nearer commands may occupy
-    # both; waiting for the word "undo" there observes a transient repaint, not liveness.
+    # The key line has only two contextual slots, and the focused grip's nearer commands
+    # may occupy both; waiting for the word "undo" there observes a transient repaint, not
+    # liveness. Persistent navigation does not change that local ranking.
     # The withdrawal entering the wire is the durable edge that proves the press worked.
     sent = _traffic(page).sends
     page.keyboard.press("z")
@@ -1603,12 +1604,12 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (2)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (2)")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1618,7 +1619,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_text(
         "✓ Accept", use_inner_text=True
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "the rebuilt change hung a second row beside the one it replaced"
     )
@@ -1887,7 +1888,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(two.locator(".lf-decisions")).to_have_text("Asks (3)")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -1951,7 +1952,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again, errors = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-decisions")).to_have_text("Decisions (3)")
+    expect(again.locator(".lf-decisions")).to_have_text("Asks (3)")
     assert errors == []
     again.close()
 
@@ -1977,7 +1978,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     # box and centred on it, which is the geometry the box can swallow whole.
     page.evaluate("""() => {
         const r = document.querySelector('#opt-strict').getBoundingClientRect();
-        document.body.scrollBy({top: r.top - 60, behavior: 'instant'});
+        document.scrollingElement.scrollBy({top: r.top - 60, behavior: 'instant'});
     }""")
     page.locator("#opt-strict").click(click_count=3)
     page.locator(".lf-fab").click()
@@ -2022,7 +2023,7 @@ def test_the_composer_scrolls_with_the_passage_it_is_about(browser, serve):
         const composer = document.querySelector('.lf-composer');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
-        document.body.scrollTop += 240;
+        document.scrollingElement.scrollTop += 240;
         return { composer: top(composer) - before.composer,
                  passage: top(passage) - before.passage };
     }""")

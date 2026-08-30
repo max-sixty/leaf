@@ -11,7 +11,17 @@
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
-import { once, keys, offer, relabel, tabStore, HIDDEN } from "/runtime/widget-api.js";
+import {
+  HIDDEN,
+  PRESS,
+  keys,
+  layoutChanged,
+  offer,
+  once,
+  relabel,
+  selectableOffer,
+  tabStore,
+} from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
 
@@ -40,8 +50,7 @@ customElements.define(
       const strip = offer("div", "lf-tabstrip");
       strip.setAttribute("role", "tablist");
       for (const panel of panels) {
-        const btn = offer("button", "lf-tab-btn");
-        btn.setAttribute("role", "tab");
+        const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
         const name = document.createElement("span");
         relabel(name, panel.getAttribute("label"), { says: true });
@@ -69,6 +78,13 @@ customElements.define(
         next.click();
       };
       keys(strip, "On a tab", [
+        {
+          id: "tab.activate",
+          keys: PRESS,
+          does: "Open the focused tab",
+          line: "open the tab",
+          run: () => document.activeElement.click(),
+        },
         {
           id: "tab.walk",
           keys: ["ArrowLeft", "ArrowRight"],
@@ -126,6 +142,7 @@ customElements.define(
         btn.tabIndex = panel === active ? 0 : -1;
       }
       if (remember) tabStore.set(TAB_KEY + this.id, active.id);
+      layoutChanged(this);
     }
 
     // One Δn chip per tab holding marked passages, so the toast's count is

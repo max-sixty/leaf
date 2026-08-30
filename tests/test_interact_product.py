@@ -372,7 +372,7 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
 
 def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir):
     """The language vocabulary has two halves and they have to agree. `names` is the half
-    an author writes and the half both vendor scripts build their language bundles from;
+    an author writes and the half both language bundles are built from;
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""
@@ -388,7 +388,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 
 def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
-    """Every gallery page in examples/ lints clean against the shipped layer."""
+    """Every page fixture in examples/ lints clean against the shipped layer."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
@@ -447,11 +447,11 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
             COMMAND_HUB_PACKAGE,
         ]
     )
-    # The gallery is generated from the others, so it can only repeat their coverage.
+    # The corpus is generated from the others, so it can only repeat their coverage.
     authored = " ".join(
         p.read_text()
         for p in (ROOT / "examples").glob("*.html")
-        if p.name != "gallery.html"
+        if p.name != "corpus.html"
     )
     tags = [tag for tag in registry if not tag.startswith("$")]
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
@@ -477,20 +477,20 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
     assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
 
 
-def test_gallery_is_generated_from_the_examples():
-    """examples/gallery.html is derived; a commit that lets it drift fails here."""
+def test_corpus_is_generated_from_the_examples():
+    """examples/corpus.html is derived; a commit that lets it drift fails here."""
     spec = importlib.util.spec_from_file_location(
-        "gallery", Path(__file__).parent.parent / "scripts" / "gallery.py"
+        "corpus", Path(__file__).parent.parent / "scripts" / "corpus.py"
     )
-    gallery = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(gallery)
-    committed = (Path(__file__).parent.parent / "examples" / "gallery.html").read_text()
-    assert gallery.build() == committed, "examples changed — rerun scripts/gallery.py"
+    corpus = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(corpus)
+    committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
+    assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
     committed_data = json.loads(
-        (Path(__file__).parent.parent / "examples" / "gallery.data.json").read_text()
+        (Path(__file__).parent.parent / "examples" / "corpus.data.json").read_text()
     )
-    assert gallery.build_data() == committed_data, (
-        "example data changed — rerun scripts/gallery.py"
+    assert corpus.build_data() == committed_data, (
+        "example data changed — rerun scripts/corpus.py"
     )
 
 
@@ -539,10 +539,10 @@ def test_no_example_writes_another_example_s_sentences():
     words, and the corpus is the one place a reader sees them side by side.
 
     A batch of them got in at once, and the cause was upstream of the corpus.
-    references/page-authoring.md's "Interactivity and evidence" entry quoted two model
-    sentences, and both reached shipped examples word for word; a phrase sitting ready
-    to paste is a phrase that gets pasted. That entry now names what the sentence must
-    carry instead, and this is what says whether it worked.
+    references/authoring-evidence.md's "Interactive and visual evidence" entry
+    quoted two model sentences, and both reached shipped examples word for word; a
+    phrase sitting ready to paste is a phrase that gets pasted. That entry now names
+    what the sentence must carry instead, and this is what says whether it worked.
 
     Twelve words, from a measurement rather than a guess: with those rewritten, the
     longest run any two examples share is seven, and nothing at all is shared at eight.
@@ -555,9 +555,9 @@ def test_no_example_writes_another_example_s_sentences():
     examples = {
         p.stem: p.read_text(encoding="utf-8")
         for p in sorted((ROOT / "examples").glob("*.html"))
-        # gallery.html embeds every sibling verbatim, so it shares everything by
-        # construction; scripts/gallery.py is what holds it true.
-        if p.stem != "gallery"
+        # corpus.html embeds every sibling verbatim, so it shares everything by
+        # construction; scripts/corpus.py is what holds it true.
+        if p.stem != "corpus"
     }
     assert len(examples) > 1, examples
 

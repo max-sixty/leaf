@@ -1,4 +1,9 @@
-import { MARKED_IN_PAGE, dress, markDeclared } from "./presentation.js";
+import {
+  MARKED_IN_PAGE,
+  dress,
+  markDeclared,
+  watchExternalLinks,
+} from "./presentation.js";
 import { reachScrollers } from "./reach.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
@@ -53,6 +58,7 @@ export function createWidgetLoader({
     rememberPassageParts();
     rememberAuthoredMarkup();
     markDeclared(document.body, MARKED_IN_PAGE);
+    watchExternalLinks(document.body);
     // Before the modules import, because a widget's first render asks for these rules and
     // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
     if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();

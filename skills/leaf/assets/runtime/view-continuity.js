@@ -29,7 +29,7 @@ export function createViewContinuity(dependencies) {
   // rides across as one semantic view — and through tabStore on document travel, per-tab
   // because a place in a page shouldn't outlive it. Two things are recorded, because
   // decisionPosition reads two the runtime can write down: the passage they were reading, and
-  // the decision the d/D walk had stepped them to. The passage travels as a landmark rather
+  // the ask the a/A walk had stepped them to. The passage travels as a landmark rather
   // than a pixel offset, since content moves between versions: re-find it by its text
   // within its section, then the section alone, and only fall back to the raw offset when
   // neither survived the revision. The panel's own open state is restored separately
@@ -131,25 +131,13 @@ export function createViewContinuity(dependencies) {
   }
 
   function installArrival({ fragmentId, ready, scrollToElement, tabStore }) {
-    // Where an arrival lands — version switch, reload, back, a URL naming an element (the
-    // panel and a remembered tray's strip are restored just above, so the column is already
-    // reflowed; the tray's pixels wait for replay). The browser answers
-    // this twice, and both answers are taken before the page is done becoming itself:
-    // upgrades change its height afterwards (tabs collapse, diagrams render, diff files
-    // fold), so a restored offset points into a document that no longer exists and a
-    // fragment jump lands at an element a tab has since closed over. Hence manual
-    // restoration, and hence the fragment travelling the same road — that was the half of
-    // this takeover left to the platform, which cannot see the page the upgrade makes.
-    //
-    // The ranking is the browser's own, restated once the geometry has settled. A fresh
-    // navigation is someone arriving at a named place, so the fragment outranks the saved
-    // position: that position is wherever this tab last left this page, and a URL naming an
-    // element is not a request to resume it. A reload or a back is someone returning, where
-    // the fragment is left over from a reference followed earlier and their own position is
-    // the answer. An id this version hasn't got falls through to that position, the same way
-    // a reference naming one paints detached rather than dead-ending.
-    history.scrollRestoration = "manual";
-    const ARRIVING = performance.getEntriesByType("navigation")[0]?.type === "navigate";
+    // Ordinary reload and history travel belong to the browser. The root is its document
+    // scrollport, so native restoration is both more complete and less surprising than a
+    // parallel session-store reading. Leaf intervenes after upgrades only for two semantic
+    // cases the platform cannot know: a fresh URL aimed at a target generated or hidden by
+    // a widget, and travel to a different authored revision where a passage is a better
+    // landmark than the old document's pixels.
+    const navigationType = performance.getEntriesByType("navigation")[0]?.type;
     // Parsed inside its own guard, which is a different question from whether the store
     // answered: tabStore hands back null for a store that refused, and what a page wrote
     // there is only JSON while every version of this runtime agrees about the shape. A
@@ -168,9 +156,15 @@ export function createViewContinuity(dependencies) {
     });
     function landArrival() {
       const aimed =
-        ARRIVING && resolveAnchor({ section: fragmentId(location.hash) })?.element;
+        navigationType === "navigate" &&
+        resolveAnchor({ section: fragmentId(location.hash) })?.element;
       if (aimed) scrollToElement(aimed, "instant");
-      else if (savedView) restoreView(savedView);
+      else if (
+        navigationType === "navigate" &&
+        savedView &&
+        savedView.revision !== runtime.currentRevision
+      )
+        restoreView(savedView);
     }
     return { landArrival, savedView };
   }

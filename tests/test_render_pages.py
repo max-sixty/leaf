@@ -1,6 +1,7 @@
 """File-authored anchors, drawings, width, and handover tests."""
 
 import json
+import math
 import re
 
 import pytest
@@ -13,7 +14,6 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     AT_THE_HANDOVER,
@@ -357,7 +357,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
-    reading and nothing in the other. The generated gallery derives its tab bodies from
+    reading and nothing in the other. The generated corpus derives its tab bodies from
     these sources; its generation check owns that composition, while this sweep keeps
     one file reading for every page an author can change."""
     # Suppress the shipped log while retaining companion data. This sweep
@@ -832,7 +832,10 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a reader follows the graph from."""
     page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    resized(page, 1500, 900)
+    # Linux's DejaVu labels draw this graph at 1217px, while its classic scrollbar
+    # leaves only 1187px of room at 1500. Use a width where both supported platforms
+    # actually reach the non-scrolling state this half of the test is about.
+    resized(page, 1600, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert not at["docked"], (
@@ -986,11 +989,9 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     own padding it printed as a blank strip at each end, the banner's height over the
     first line and the key line's under the last.
 
-    Boxes in the document's flow fixed that, and the reason they are boxes is the other
-    one: body's padding comes out of the box the room a wide widget spends is measured
-    off, so the writer of that padding could not also be a reader of that box (the skill's
-    CLAUDE.md). A box goes where the chrome goes; a padding on the scroll container stays
-    behind.
+    The reservations now belong to the document box whose chrome they make room for,
+    rather than to the scroll container. The same CSS disappears with the chrome in
+    print, so paper cannot inherit an empty screen-only strip.
 
     The screen half is read as room rather than as a covered last line, which is where a
     reader would meet it, because the column's own bottom padding is taller than the line:
@@ -1116,10 +1117,7 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     laid_out = []
 
     def release_the_rail(route):
-        page.wait_for_function(
-            "() => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-room') !== ''"
-        )
+        page.wait_for_function("() => Boolean(document.querySelector('main'))")
         laid_out.append(
             page.evaluate(
                 "() => getComputedStyle(document.documentElement)"
@@ -1196,19 +1194,13 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         "the margin was taken before the page was handed over, which is the case the "
         f"call at the end of upgrade already covers: {at_stamp['rail']}"
     )
-    # On the room being read again, not on the margin that prompts it: the claim lands a
-    # frame ahead of the reading, and a wait on the padding would arrive in between. The
-    # timeout is left to fall through because the geometry below is the verdict and says
-    # what a timeout cannot — how far out the exhibit stood, and on what room.
-    try:
-        page.wait_for_function(
-            "(was) => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-room') !== was",
-            arg=at_stamp["room"],
-            timeout=5000,
-        )
-    except PlaywrightTimeout:
-        pass
+    # Container queries answer the new shell width in the same layout pass. Wait on the
+    # geometry the contract promises, rather than on a JavaScript-written token.
+    page.wait_for_function(
+        "() => { const f = ("
+        + RAIL_FIT
+        + ")(); return f.rail === '160px' && f.past <= 1; }"
+    )
 
     assert answered == [True], (
         "the widget never asked, so its claim rode nothing this test controls and the "
@@ -1367,16 +1359,25 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     a drawing the room holds below, and the gate finds nothing. The capped half is what
     makes that worth believing — the same page with the drawing's box held under its own
     graph fires the reading, so a clean answer is the layout's and not the probe going
-    blind. The guard between them pins the premise: the graph is wider than the column
-    and narrower than the room, or neither half asks the question."""
+    blind. A fixed box wholly in the margin then makes that apparent room unavailable
+    and clears the finding. The guards pin each premise: the graph is wider than the
+    column and narrower than the room, and the resident crosses the drawing's band
+    without crossing the column."""
     url = serve(DRAWN_PAST_A_RAIL_PAGE)
     page, errors = open_page(browser, url)
+    # The shell owns --lf-room in CSS, so its computed value is the unresolved
+    # expression and only a probe answers in the width a wide exhibit would receive.
     fit = page.evaluate("""() => {
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m), b = m.getBoundingClientRect();
-        return { shows: el.clientWidth, drawn: el.scrollWidth,
-                 room: parseFloat(getComputedStyle(el).getPropertyValue('--lf-room')),
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;'
+          + 'border:0;width:var(--lf-room)';
+        el.append(probe);
+        const room = probe.getBoundingClientRect().width;
+        probe.remove();
+        return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: b.width - parseFloat(s.paddingLeft)
                          - parseFloat(s.paddingRight) };
     }""")
@@ -1403,6 +1404,37 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         f"handover, and the gate said: {failures or 'nothing'}"
     )
 
+    occupied = capped.replace("margin-block: 600px", "margin-block: 0").replace(
+        "<style>#flow { max-width: 640px }</style>",
+        "<style>#flow { max-width: 640px } "
+        "#fixed-margin { position: fixed; inset: 0 auto 0 0; width: 40px }</style>"
+        '<div id="fixed-margin">A fixed page tool.</div>',
+    )
+    page, errors = open_page(browser, serve(occupied))
+    premise = page.evaluate("""() => {
+        const flow = document.getElementById('flow');
+        const f = flow.getBoundingClientRect();
+        const resident = document.getElementById('fixed-margin').getBoundingClientRect();
+        const main = document.querySelector('main');
+        const style = getComputedStyle(main), box = main.getBoundingClientRect();
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;'
+          + 'border:0;width:var(--lf-room)';
+        flow.append(probe);
+        const room = probe.getBoundingClientRect().width;
+        probe.remove();
+        return {scrolls: flow.scrollWidth - flow.clientWidth,
+                hasRoom: flow.scrollWidth <= room + 1,
+                clear: resident.right <= box.left + parseFloat(style.paddingLeft) + 1,
+                overlap: Math.min(f.bottom, resident.bottom) -
+                         Math.max(f.top, resident.top)};
+    }""")
+    assert premise["scrolls"] > 1 and premise["hasRoom"], premise
+    assert premise["clear"] and premise["overlap"] > 1, premise
+    assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
+    assert errors == []
+    page.close()
+
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     browser, serve
@@ -1414,10 +1446,10 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     drawn over any of it is named at handover with both boxes in the message.
 
     It reads a resident by the same test the pass above excuses one by — placed
-    absolutely, or floated clear of the column — so this needs no vocabulary of its own
-    and nothing has to be declared to it. That is what keeps the two theme rules honest:
-    the next claimant that forgets one is a refusal with a name on it rather than a page
-    somebody eventually notices is drawn over its own controls."""
+    absolutely or fixed, or floated clear of the column — so this needs no vocabulary
+    of its own and nothing has to be declared to it. That is what keeps the two theme
+    rules honest: the next claimant that forgets one is a refusal with a name on it
+    rather than a page somebody eventually notices is drawn over its own controls."""
     failures = render_gate_model.render_version(browser, serve(OWN_MARGIN_FURNITURE))
 
     assert [
@@ -1752,11 +1784,9 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
         "prose still keeps the column beside an open panel"
     )
 
-    # Closing is the same hand-over the other way, and the anticipation that is right on
-    # the way in is wrong on the way out: the strip comes back over a fifth of a second,
-    # and an exhibit that took it before the page had it scrolls the document sideways
-    # for exactly as long. Read before the transition settles, because that is the whole
-    # of the window in which it is wrong.
+    # Closing is the same CSS hand-over in reverse. At every intermediate frame the
+    # document and its breakout must agree about the room, or the page briefly scrolls
+    # sideways.
     page.get_by_role("button", name="Close threads").click()
     assert page.evaluate(
         "() => document.body.scrollWidth <= document.body.clientWidth"
@@ -1960,10 +1990,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     wide exhibit in the control: it may use the other margins but not the one the sticky
     sidebar can occupy at any scroll position.
 
-    Opening the thread panel narrows the page without changing the viewport, which a
-    media query cannot see. The shared cramped veto must return the aside to the flow and
-    give its strip back. A narrow viewport proves the same fallback comes from CSS alone,
-    and print proves paper reserves no blank margin for a posture it cannot use."""
+    Opening the thread panel narrows the page without changing the viewport. The body's
+    container query sees the resulting content box and returns the aside to the flow. A
+    narrow viewport proves the same fallback comes from CSS alone, and print proves
+    paper reserves no blank margin for a posture it cannot use."""
     example = next(p for p in EXAMPLES if p.stem == "release-notes")
     page, errors = open_page(browser, serve(example))
     sidebar = page.locator("aside.sidebar")
@@ -1975,15 +2005,30 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
+      const marginItems = [...document.querySelectorAll('.lf-margin-item')]
+        .filter(node => node.checkVisibility());
+      const marginRight = Math.max(0,
+        ...marginItems.map(node => node.getBoundingClientRect().right));
+      const measure = (value) => {
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:'
+          + value;
+        main.append(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return width;
+      };
+      const strip = measure('var(--strip-l)');
       return {
-        cramped: document.body.hasAttribute('data-lf-cramped'),
-        strip: parseFloat(getComputedStyle(document.body).paddingLeft),
+        strip, rail: measure('var(--strip-r)'), pageWidth: measure('100cqi'),
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
         column: {
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
+        marginCount: marginItems.length, marginRight,
+        viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
         sideways: document.documentElement.scrollWidth
           - document.documentElement.clientWidth,
@@ -1992,32 +2037,65 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     resized(page, 1400, 900)
     roomy = page.evaluate(reading)
-    assert not roomy["cramped"]
     assert roomy["strip"] == 264
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar entered the prose column: {roomy}"
     )
     assert roomy["sidebar"]["width"] == 240
+    assert (
+        abs(
+            (roomy["column"]["left"] + roomy["column"]["right"]) / 2
+            - roomy["viewportWidth"] / 2
+        )
+        <= 1
+    ), f"the sidebar moved a reading column that already had room: {roomy}"
     assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
     assert roomy["sideways"] == 0
 
-    page.evaluate(
-        "document.body.style.scrollBehavior = 'auto'; document.body.scrollTo(0, 900)"
+    # The rail claim is monotonic, so narrowing the same page carries its widest
+    # right-margin row into the tighter layout. The sidebar and rail use the outer
+    # gutters before taking width from the reading column, so the page narrowed to
+    # exactly what the two residents and a whole column need still holds all three.
+    #
+    # That width is read rather than stated, because the rail's claim is a measured
+    # row rather than a token: it is the widest margin control the page carries, and
+    # its width is the width the host's UI font sets that control's words in. A stated
+    # 1200px window asks that claim to come in at 216px or narrower, which is a bet on
+    # one machine's fonts: this runner sets the same control 250px wide, and the 34px
+    # difference is width the column has to give up. The window adds back whatever the
+    # root scrollport holds outside the container query's own width.
+    exact = roomy["strip"] + 720 + roomy["rail"]
+    resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
+    tighter = page.evaluate(reading)
+    assert exact <= tighter["pageWidth"] <= exact + 1, (
+        f"the narrowed page is not the width the residents and column need: {tighter}"
     )
-    page.wait_for_function("() => document.body.scrollTop > 800")
+    assert tighter["column"]["right"] - tighter["column"]["left"] == 720, (
+        f"the page still had room for the column it narrowed: {tighter}"
+    )
+    assert tighter["sidebar"]["left"] >= -1
+    assert tighter["marginCount"] > 0
+    assert tighter["marginRight"] <= tighter["viewportWidth"] + 1
+    assert tighter["sideways"] == 0
+
+    resized(page, 1400, 900)
+
+    page.evaluate(
+        "document.scrollingElement.style.scrollBehavior = 'auto'; document.scrollingElement.scrollTo(0, 900)"
+    )
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 800")
     stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
     assert 64 <= stuck <= 68, (
         f"the sidebar stuck at {stuck:.0f}px, not below the banner"
     )
 
-    page.evaluate("document.body.scrollTo(0, 0)")
+    page.evaluate("document.scrollingElement.scrollTo(0, 0)")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
-    assert cramped["cramped"]
     assert cramped["strip"] == 0
     assert cramped["float"] == "none" and cramped["position"] == "static"
     assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
@@ -2077,6 +2155,14 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);
       const mb = main.getBoundingClientRect();
+      const length = (name) => {
+        const probe = document.createElement('i');
+        probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+        main.append(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return width;
+      };
       return {
         sidebars: [...document.querySelectorAll('aside.sidebar')].map(node => {
           const s = getComputedStyle(node), b = node.getBoundingClientRect();
@@ -2090,10 +2176,10 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
           width: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
         },
         padding: {
-          left: parseFloat(getComputedStyle(document.body).paddingLeft),
-          right: parseFloat(getComputedStyle(document.body).paddingRight),
+          left: length('--strip-l'),
+          right: length('--strip-r'),
         },
-        gutter: document.body.offsetWidth - document.body.clientWidth,
+        gutter: innerWidth - document.documentElement.clientWidth,
         sideways: document.documentElement.scrollWidth
           - document.documentElement.clientWidth,
       };
@@ -2109,8 +2195,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert tight["sideways"] == 0
 
     # The floor is a fact about the page's box, and the window is not that box wherever
-    # the platform draws a classic scrollbar: body is the document's scroller, so its bar
-    # comes out of the room the strips and the column divide between them. The column
+    # the platform draws a classic scrollbar: the root scrollport's client width already
+    # excludes its bar before the strips and the column divide the room. The column
     # keeps its full measure on both sides of that, which is what the strip is floored to
     # protect: given the room, both strips stand outside a full column, and short of it by
     # a bar's width the veto hands them back. So neither read subtracts a bar from what it
@@ -2124,27 +2210,10 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
         f"the floor exists to keep it out of: {at_floor}"
     )
 
-    # The runtime's own reading of the gutter, asked of the module that owns it, so the
-    # width this drives at is the one the veto is doing its arithmetic in by construction
-    # rather than by a second spelling that agrees on inspection. Its own evaluate and not
-    # a key on `reading`, which the script-free copy below shares and which has no module
-    # to ask; the window against body's padding box, the other candidate, would agree only
-    # while body carries no margin, and the panel's strip below is a body margin.
-    bar = page.evaluate(
-        "() => import('/runtime/scrolling.js').then(m => m.scrollerGutter())"
-    )
-    # Driving the page at a width the helper chose and then testing the veto that spends
-    # the same helper leaves one thing the reads below cannot see: an error in the helper
-    # itself, which lands on both sides and cancels. A gutter overread as 30 puts the page
-    # at 1446 and has stateStrip take 30 off it, so the floor is met on the nose and every
-    # measure here passes while the band from 1431 up is cramped for nothing. So the two
-    # spellings are held to each other first, at the one viewport both are read at, and
-    # `reading` keeps the key: it is a claim about what the gutter is rather than a second
-    # copy nothing checks, and it is what the failure dumps report a short measure against.
-    assert bar == at_floor["gutter"], (
-        "the module's gutter and the page's own reading of it have come apart, which "
-        f"would leave the widths below chosen and judged by the same error: {at_floor}"
-    )
+    # The root's client width is the runtime's authority, so a classic scrollbar has
+    # already come out of the floor. Add the platform-reported difference to give the
+    # document exactly 1416 usable pixels; overlay-scrollbar platforms add zero.
+    bar = at_floor["gutter"]
     resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
@@ -2164,18 +2233,16 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panelled = page.evaluate(reading)
-    assert page.locator("body").get_attribute("data-lf-cramped") == ""
     assert [side["float"] for side in panelled["sidebars"]] == ["none", "none"]
-    assert panelled["noteFloat"] == "none"
-    assert panelled["padding"] == {"left": 0, "right": 0}
+    assert panelled["noteFloat"] == "right"
+    assert panelled["padding"] == {"left": 0, "right": 384}
     assert panelled["column"]["width"] == 720
     assert panelled["sideways"] == 0
     resized(page, 1699, 800)
     resized(page, 1700, 800)
     repeated = page.evaluate(reading)
-    assert page.locator("body").get_attribute("data-lf-cramped") == ""
     assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
-    assert repeated["noteFloat"] == "none"
+    assert repeated["noteFloat"] == "right"
     assert repeated["column"]["width"] == 720
     assert errors == []
     page.close()

@@ -500,7 +500,7 @@ def retirement_outcomes(actions: dict, registry: dict) -> dict:
 def record_lag_entries(projection: StateProjection, byid, spk, registry: dict) -> list:
     """Coordinates whose markup lags the user's standing state — the record debt a
     log-less reader would miss. Advice, never errors: a version is free to stay
-    silent (replay resolves it), but references/page-authoring.md's "Honoring
+    silent (replay resolves it), but references/authoring-revisions.md's "Honor
     reader state" obligation needs a feedback loop, and a finished page's final
     version is the page that has
     to read right without the log. One comparison, rendered twice: `record_lag`

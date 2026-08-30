@@ -306,6 +306,19 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     assert row.inner_text().startswith("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
 
+    row.focus()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    settled_help = page.locator(".lf-help-section").filter(
+        has=page.get_by_role("heading", name="In a settled ask", exact=True)
+    )
+    expect(
+        settled_help.get_by_text("Open or close the settled ask", exact=True)
+    ).to_have_count(1)
+    expect(settled_help).not_to_contain_text(re.compile(r"decision", re.IGNORECASE))
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
     row.click()
     opened = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 3
@@ -636,7 +649,7 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     url = serve(DECISION_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
@@ -658,7 +671,7 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     page.close()
 
     page, errors = open_page(browser, url)
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
@@ -814,7 +827,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     # measured is the landing the reader gets rather than a state the test staged.
     ring = "el => [getComputedStyle(el).outline, getComputedStyle(el).outlineOffset]"
     focused = page.locator("#approach-decision").evaluate(ring)
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     expect(page.locator("#approach-decision[data-lf-decision]")).to_have_count(1)
     assert page.locator("#approach-decision").evaluate(ring) == focused, (
         "the walk's landing draws a different ring than the focus it hands over"
@@ -1892,16 +1905,16 @@ def test_an_agent_question_opens_another_thread_without_returning_the_decision(
     url = serve(DECISION_PAGE)
     page, errors = open_page(browser, url)
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Decisions (3)")
+    expect(decisions).to_have_text("Asks (3)")
     decisions.click()
     rows = page.locator("button.lf-decisions-row")
     expect(rows).to_have_count(3)
 
     conversation = page.locator("#jobs > .lf-conversation")
     conversation.locator(".lf-say textarea").fill("Neither — do the camera first.")
-    conversation.locator(".lf-say [role='button']").click()
+    conversation.locator(".lf-say [data-lf-offer='button']").click()
     round_trip(page)
-    expect(decisions).to_have_text("Decisions (2)")
+    expect(decisions).to_have_text("Asks (2)")
     expect(rows).to_have_count(2)
     assert page.locator('.lf-decisions-row[data-lf-at="jobs"]').count() == 0, (
         "the walk still steps to a question the reader has handed to the agent"
@@ -1920,7 +1933,7 @@ def test_an_agent_question_opens_another_thread_without_returning_the_decision(
         },
     )
     told(page)
-    expect(decisions).to_have_text("Decisions (2)")
+    expect(decisions).to_have_text("Asks (2)")
     expect(page.locator('.lf-decisions-row[data-lf-at="jobs"]')).to_have_count(0)
     expect(
         conversation.locator(
@@ -1948,7 +1961,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
 
     conversation = page.locator("#jobs > .lf-conversation")
     box = conversation.locator(".lf-say textarea")
-    send = conversation.locator(".lf-say [role='button']")
+    send = conversation.locator(".lf-say [data-lf-offer='button']")
     # What the box is for, in both registers a reader has: the words on screen and the
     # name read aloud, saying the same thing. It names what the cell supplies rather
     # than the act of typing into it — a box under a menu that invites the reader to
@@ -2077,7 +2090,7 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     d = serve.page_dir
     conversation = page.locator("#jobs > .lf-conversation")
     conversation.locator(".lf-say textarea").fill("Which of these is cheapest?")
-    conversation.locator(".lf-say [role='button']").click()
+    conversation.locator(".lf-say [data-lf-offer='button']").click()
     round_trip(page)
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = conversation.locator(".lf-work-line")
@@ -2521,6 +2534,16 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     specimens = page.locator("lf-specimen").evaluate_all(
         "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
     )
+    if not specimens:
+        owners = page.locator("#corpus > lf-tab:has(lf-specimen)")
+        assert owners.count(), (
+            "this page declares a specimen but no visible exhibit or corpus panel owns it"
+        )
+        label = owners.first.get_attribute("label")
+        page.get_by_role("tab", name=label, exact=True).click()
+        specimens = page.locator("lf-specimen").evaluate_all(
+            "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
+        )
     assert specimens, "this page shows no specimen: the reading below asserts nothing"
 
     for spec in specimens:
@@ -2538,11 +2561,11 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             # `instant`, because the page asks for smooth scrolling and a read taken
             # while one is still gliding is of wherever it had got to — which passes on
             # a short page, where the glide is over before the next call lands, and
-            # failed on the gallery, where the same delta is thousands of pixels.
+            # failed on the corpus, where the same delta is thousands of pixels.
             page.evaluate(
                 """([id, edge]) => {
                     const r = document.getElementById(id).getBoundingClientRect();
-                    document.body.scrollBy({
+                    document.scrollingElement.scrollBy({
                         top: (edge === 'top' ? r.top : r.bottom) - innerHeight / 2,
                         behavior: 'instant',
                     });

@@ -2665,6 +2665,26 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     assert server_model.host_key() == minted
 
 
+def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
+    """The key is staged beside its durable file before an atomic link publishes it.
+    A filesystem failure other than the intentional first-writer race still leaves no
+    second copy of that machine credential behind."""
+    staged = []
+
+    def refuse(source, _target):
+        staged.append(source)
+        assert source.exists()
+        raise PermissionError("cannot publish access key")
+
+    monkeypatch.setattr(server_model.os, "link", refuse)
+
+    with pytest.raises(PermissionError, match="cannot publish access key"):
+        server_model.host_key()
+
+    assert len(staged) == 1 and not staged[0].exists()
+    assert not (host_model.state_home() / "access.json").exists()
+
+
 def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
     calls = []
 

@@ -1,3 +1,5 @@
+import { clampedRow } from "./keyboard/bindings.js";
+
 let publishedNavigation;
 export const scrollerFor = (...args) => publishedNavigation.scrollerFor(...args);
 
@@ -76,15 +78,11 @@ export function createNavigation({
   function stepThread(dir) {
     if (!panelIsOpen()) setPanel(true);
     const threads = openThreads();
-    const at = threads.indexOf(document.activeElement?.closest?.(".lf-thread"));
-    const next =
-      threads[
-        at === -1
-          ? dir > 0
-            ? 0
-            : threads.length - 1
-          : Math.max(0, Math.min(threads.length - 1, at + dir))
-      ];
+    const next = clampedRow(
+      threads,
+      document.activeElement?.closest?.(".lf-thread"),
+      dir,
+    );
     // Landing the thread is the list's, off the focus it is about to take. A press at
     // either end of the walk is the exception the list cannot answer: it names the thread
     // the reader already stands on, so no focus moves and nothing fires, while the page
@@ -104,9 +102,9 @@ export function createNavigation({
     thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }
 
-  // Space and Shift+Space move the reader 60% of a page down and up, leaving enough of
-  // the lines they were reading on screen to read on from. Home/End and PageUp/Down stay
-  // the browser's own keys.
+  // d and u move the reader 60% of a page down and up, leaving enough of the lines they
+  // were reading on screen to read on from. Space, Home/End and PageUp/Down stay the
+  // browser's own keys.
   //
   // They move the region the reader is reading, which is the thread list wherever the
   // reader stands in the panel or the panel covers the page. Scrolling a region the
@@ -123,7 +121,7 @@ export function createNavigation({
   // same) and
   // a glide built from smooth writes would never land. A press mid-flight retargets from
   // the goal, so two quick presses move exactly a page; the goal is clamped, so pressing on
-  // at the foot banks no debt for Shift+Space to press back through; and the step stands down the
+  // at the foot banks no debt for u to press back through; and the step stands down the
   // moment the box moves under another hand — a wheel, a centering — because the reader's
   // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
   // rest of the runtime's motion already gives (scrollBehavior()).
@@ -163,7 +161,7 @@ export function createNavigation({
     glideTo(box, from + fraction * (box.clientHeight - clear));
   }
   // One eased travel to a goal, shared by the reading-page step and the chord's edges. The
-  // goal is clamped here, so a step pressed on at the foot banks no debt for Shift+Space to press
+  // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
   // back through, and an edge may be asked for as the height it cannot exceed.
   function glideTo(box, goal) {
     goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));

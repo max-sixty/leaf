@@ -1,7 +1,15 @@
 /* Worktree evidence supplied by the host. The widget owns its typed input and
  * rendering; the page binds that input to a source, while Leaf delivers its validated
  * snapshot and keeps datum comments attached across replacement. */
-import { ago, offer, projectData, relabel, watchData } from "/runtime/widget-api.js";
+import {
+  PRESS,
+  ago,
+  keys,
+  projectData,
+  relabel,
+  selectableOffer,
+  watchData,
+} from "/runtime/widget-api.js";
 
 function evidence(tree, kind, label, text, prior) {
   const group = prior ?? document.createElement("section");
@@ -38,12 +46,21 @@ function renderDatum(tree, record, prior) {
   datum.className = "lf-worktree-snapshot";
   let head = datum.querySelector(":scope > .lf-worktree-head");
   if (!head) {
-    head = offer("button", "lf-worktree-head");
+    head = selectableOffer("button", "lf-worktree-head");
     head.addEventListener("click", (event) => {
       event.stopPropagation();
       tree.toggleAttribute("data-lf-open");
       tree.show(tree.snapshot);
     });
+    keys(head, "On worktree evidence", [
+      {
+        id: "worktree.toggle",
+        keys: PRESS,
+        does: "Open or close the worktree evidence",
+        line: "open or close",
+        run: () => head.click(),
+      },
+    ]);
     datum.prepend(head);
   }
   relabel(

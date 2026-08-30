@@ -5,6 +5,7 @@ import {
   quoted,
   textNodesUnder,
 } from "/runtime/widget-api.js";
+import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
   [...document.querySelectorAll(".lf-error")].map((el) => el.textContent.trim());
@@ -75,19 +76,13 @@ export const missingConversations = (widgets) =>
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 export function undeclaredAttrs(widgets) {
-  const roots = (root) => [
-    root,
-    ...[...root.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot)
-      .flatMap((el) => roots(el.shadowRoot)),
-  ];
   // What a module may write without declaring: the platform's own vocabulary for
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
   // look, not a state a version could carry.
   const painted = /^(?:data-|aria-)/;
   const platform = new Set(["role", "class", "style", "hidden", "tabindex"]);
-  const all = roots(document);
+  const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(widgets)) {
     if (!entry.properties) continue;
@@ -134,13 +129,7 @@ export function undeclaredAttrs(widgets) {
 // `Animation.finished` here would give page.evaluate a promise the driver cannot
 // interrupt if the compositor stops.
 export function retiredSlots(holders) {
-  const roots = (root) => [
-    root,
-    ...[...root.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot)
-      .flatMap((el) => roots(el.shadowRoot)),
-  ];
-  const all = roots(document);
+  const all = openRoots(document);
   const find = (id) => {
     for (const r of all) {
       const el = r.getElementById(id);

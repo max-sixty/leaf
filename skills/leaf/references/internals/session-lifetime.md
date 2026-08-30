@@ -57,12 +57,13 @@ carrier is separate from the page server. Claude Code uses a sequence of direct
 watchers: `leaf wait` exits to put a batch in model context, then `leaf ack`
 advances its cursor and becomes the next watcher. Codex uses one detached
 adapter instead. It holds the same task-wide wait lease, persists the exact
-batch it captured, hands a bounded pointer to Codex's durable same-task queue,
-advances the cursor after acceptance, and keeps watching while the foreground
-turn is over. The already-loaded Desktop client keeps the task writer, consumes
-the shared durable queue, and owns every execution or approval request. Leaf's
-queue command never resumes or starts the task. An unloaded task therefore
-keeps the accepted item standing until the Codex client reopens it.
+batch it captured, and hands a bounded pointer in a `leaf-delivery` XML element
+to Codex's durable same-task queue. It advances the cursor after acceptance and
+keeps watching while the foreground turn is over. The already-loaded Desktop
+client keeps the task writer, consumes the shared durable queue, and owns every
+execution or approval request. Leaf's queue command never resumes or starts the
+task. An unloaded task therefore keeps the accepted item standing until the
+Codex client reopens it.
 The adapter has a second lease because a generic wait lease cannot prove that
 its output can enter a later Codex turn; the Stop hook trusts only the pair.
 Both carriers watch every page the session holds, re-reading the set on each

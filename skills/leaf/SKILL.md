@@ -25,17 +25,23 @@ command takes the directory explicitly. A page holds mutable `index.html`,
 immutable valid revisions, stamped versions, the event log, service state, and
 its vendored layer. Export or copy anything that must outlive that live state.
 
-Resolve `${CLAUDE_SKILL_DIR}/../../bin/leaf` and use that launcher for every
-command shown as `leaf`. Claude Code also puts it on `PATH`. If the resolved file
-is absent, report that the plugin payload is incomplete. A checkout keeps it at
-`bin/leaf`.
+Resolve the directory containing this `SKILL.md`, then use its
+`../../bin/leaf` launcher for every command shown as `leaf`. In Claude Code that
+path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
+`PATH`. If the resolved file is absent, report that the plugin payload is
+incomplete. A checkout keeps it at `bin/leaf`.
 
 1. Run `leaf page init <page>`.
-2. Read `references/page-authoring.md`, including its selective
-   `registry.json` queries. Write the page to `<page>/index.html`
-   using only the registry's tags, attributes, and idioms. A valid save becomes
-   the active immutable revision; an invalid save leaves the last valid revision
-   live and reports its diagnostic in page state and the browser.
+2. Read `references/page-authoring.md`, including its selective `registry.json`
+   queries. Read `references/authoring-decisions.md` while authoring a new,
+   unanswered ask or sign-off; read `references/authoring-revisions.md` before
+   changing a handed-over page, proposing a rewrite, using a reader-owned draft,
+   or carrying standing state. Read
+   `references/authoring-evidence.md` only for measured, visual, source, or media
+   evidence. Write `<page>/index.html` using only the registry's vocabulary. A
+   valid save becomes the active immutable revision; an invalid save leaves the
+   last valid revision live and reports its diagnostic in page state and the
+   browser.
 3. Match the handoff ceremony to the page's intended lifetime, regardless of
    its shape or whether it asks a question:
    - For a quick page that will be revised or dropped after an immediate
@@ -50,18 +56,17 @@ is absent, report that the plugin payload is incomplete. A checkout keeps it at
      the stamp.
 4. Start the service with `leaf server start <page>` and retain its exact URL.
    The key in that URL opens the page.
-5. Read `references/conversation-loop.md`. Set
-   `leaf status <page> waiting "<what you want back>"`; leave the detail empty
-   with `leaf status <page> waiting ""` on an informational page with no
-   concrete ask.
-6. Send the exact URL and one sentence naming the available gesture: comment,
-   use the stated control, or approve declared sign-off.
-7. Enter the host wait loop defined in `references/conversation-loop.md`.
+5. Read `references/conversation-loop.md` and exactly one host contract:
+   `references/host-claude-code.md` or `references/host-codex.md`. Set the page's
+   handoff status as the conversation reference defines.
+6. Start the wait or delivery loop defined by the selected host contract.
+7. Send the exact URL and one sentence naming the available gesture — comment,
+   use the stated control, or approve declared sign-off — then finish the turn.
 
-The conversation reference owns acknowledgement, event processing, later
-revisions and stamps, replies, sign-off, and ending. Follow it before each wait
-or delivered batch and before setting the page idle. Edit only `index.html`;
-Leaf alone writes immutable revisions and versions.
+When input arrives, read `references/event-batches.md` before processing it and
+`references/conversation-threads.md` when a thread needs work. Read
+`references/page-checkpoints.md` before stamping or ending. Edit only
+`index.html`; Leaf alone writes immutable revisions and versions.
 
 ## Page contract
 
@@ -72,10 +77,9 @@ reader can see what the page wants of them without reading it first.
 
 The subject decides the shape. Use options for decisions, boards for movable
 work, milestones for stages, metrics for measurements, and prose where no other
-shape fits. Prose connects the shapes, so keep it short. What stands open in the
-column is what the reader has to take from the page, and its backing sits under
-`<details>`. `<page>/registry.json` is the authority for the vendored vocabulary
-and theme; query only the entries the page needs.
+shape fits. Prose connects the shapes, so keep it short. The page's
+`registry.json` is the authority for the vendored vocabulary and theme; query
+only the entries the page needs.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal — the
@@ -94,16 +98,42 @@ Keep the waiter alive while work continues so comments can affect the next step.
 
 ## Conditional references
 
-Read references directly from this skill directory. They do not route to one
-another.
+Read references directly from this skill directory. Every route is listed here,
+so a phase does not depend on discovering a chain of references.
 
-- `references/page-authoring.md`: before writing or revising a version.
-- `references/conversation-loop.md`: before waiting, processing a delivered
-  batch, opening or replying to a thread, or ending a page.
+### Author a version
+
+- `references/page-authoring.md`: before writing or revising any version.
+- `references/authoring-decisions.md`: while authoring a new, unanswered ask or
+  sign-off.
+- `references/authoring-revisions.md`: before changing a handed-over page,
+  proposing a rewrite, using a reader-owned draft, or carrying standing state.
+- `references/authoring-evidence.md`: before using measured facts, diagrams,
+  charts, source files, images, or before/after captures.
+
+### First handoff
+
+- `references/conversation-loop.md`: before a page handoff or working status.
+- `references/host-claude-code.md`: before the first handoff in Claude Code or
+  recovery of its direct wait loop.
+- `references/host-codex.md`: before the first handoff in Codex.
+
+### Continue after input
+
+- `references/event-batches.md`: after delivery and before processing its events.
+- `references/conversation-threads.md`: before opening, replying to, editing, or
+  resolving a thread.
+- `references/page-checkpoints.md`: before stamping or ending a page.
+
+### Serve or extend a page
+
 - `references/serving-pages.md`: for `--export`, an unreachable URL, `--host`, a
   standing page, re-vendoring a served page, or resuming another session's page.
 - `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
+
+### Change Leaf itself
+
 - `references/internals/page-storage.md`: when changing page files or storage
   invariants.
 - `references/internals/session-lifetime.md`: when changing work claims,
@@ -115,5 +145,8 @@ another.
 - `references/internals/validation.md`: when changing static or browser
   validation, passages, or parsed source. These internal contracts are not for
   ordinary page use.
+
+### Use a separate Codex watcher
+
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

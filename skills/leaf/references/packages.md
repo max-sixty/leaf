@@ -148,9 +148,9 @@ instances use it instead of display prose. If one compact row binds keys with di
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
 key line stays compact, while the complete reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
-choice the reference does not have, such as the partly entered digits of an address. An
-optional `reach` on a row or scope supplies the short place phrase shown when a command is
-not available (for example, `in an open draft editor`).
+choice the reference does not have, such as the member digit of a numbered address. An
+optional `reach` on a row or scope supplies the short place phrase shown when a command
+is not available (for example, `in an open draft editor`).
 
 ## External requests and receipts
 
@@ -191,7 +191,7 @@ widget tags. A later package can therefore add another goal or worker widget by 
 its entry into `$command.widgets`, without changing core.
 
 Set `decision: true` when the ready operation is a question the reader must answer. Leaf then
-puts that holder in the canonical Decisions projection only while its lifecycle is `ready`.
+puts that holder in the canonical Asks projection only while its lifecycle is `ready`.
 Acceptance hands the turn to the host, so `pending` and `completed` holders leave the
 reader's list; a failed receipt returns the lifecycle to `ready` and reopens the decision. A
 parent `x-awaits.rollup` reads that same lifecycle, so nested task and header projections

@@ -2995,21 +2995,11 @@ def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
 
 
 def test_the_strip_floor_is_one_number():
-    """The width a page's box needs before the theme takes a margin strip out of it is
-    asked by two parties that cannot share a form: a media query, which asks it of the
-    window and is right for a file with no runtime behind it, and syncLayout, which asks
-    it of the page's own box because only the runtime knows what the thread panel left
-    of it. A query cannot read a token and a token cannot see the panel, so the number
-    is written twice — and the second table free to disagree with the first is the shape
-    this codebase keeps getting wrong. Here it is a static fact about one file, so this
-    is the cheapest place to hold the two together."""
+    """Margin posture is a query of the CSS-owned shell, with no mirrored runtime veto."""
     css = (schema_model.ASSETS / "theme.css").read_text()
-    floor = re.search(r"--strip-min:\s*(\d+)px", css)
-    assert floor, "the theme states no floor for the strips it takes off the page"
-    assert re.search(rf"min-width:\s*{floor[1]}px", css), (
-        f"the runtime is told {floor[1]}px and no media query asks for it, so the two "
-        "readings of one width have come apart"
-    )
+    assert "container: lf-shell / inline-size" in css
+    assert re.search(r"@container\s+lf-shell\s*\(min-width:\s*1152px\)", css)
+    assert "data-lf-cramped" not in css
 
 
 def test_the_sidebar_and_note_floor_is_their_sum():
@@ -3019,17 +3009,13 @@ def test_the_sidebar_and_note_floor_is_their_sum():
     as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
     it represents instead of letting a later width change silently squeeze the prose."""
     css = (schema_model.ASSETS / "theme.css").read_text()
-    floor = re.search(r"--strip-min:\s*(\d+)px", css)
+    floor = 1152
     sidebar = re.search(r"--sidebar:\s*(\d+)px", css)
-    assert floor and sidebar
-    combined = int(floor[1]) + int(sidebar[1])
-    assert re.search(rf"@media screen and \(min-width:\s*{combined}px\)\s*\{{", css), (
-        f"a sidebar and sidenote need {combined}px together, but no media query grants "
+    assert sidebar
+    combined = floor + int(sidebar[1])
+    assert re.search(rf"@container\s+lf-shell\s*\(min-width:\s*{combined}px\)", css), (
+        f"a sidebar and sidenote need {combined}px together, but no shell query grants "
         "their composed posture at that floor"
-    )
-    assert re.search(rf"--strip-min:\s*{combined}px", css), (
-        f"the static query grants the pair at {combined}px but the runtime has no "
-        "composed floor to read after a panel narrows that viewport"
     )
 
 

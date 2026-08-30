@@ -99,6 +99,7 @@
  *
  * Authored content is never replaced, so there is no failSoft. */
 import {
+  DISCLOSE,
   HIDDEN,
   actionStands,
   conversationBox,
@@ -113,9 +114,11 @@ import {
   reachedForWords,
   relabel,
   reserve,
+  selectableOffer,
   sendAction,
   tabStore,
   toast,
+  walkRows,
   worksInside,
   wrote,
 } from "/runtime/widget-api.js";
@@ -376,11 +379,7 @@ customElements.define(
             line: "walk the options",
             repeat: true,
             // Clamped at the ends, and the page must not scroll out from under the walk.
-            run: (binding) =>
-              marks[
-                marks.indexOf(document.activeElement) +
-                  (binding === "ArrowDown" ? 1 : -1)
-              ]?.focus(),
+            run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
           },
           {
             id: "option.toggle",
@@ -423,7 +422,7 @@ customElements.define(
       // since the diff parses the base version unupgraded and would read any mark as text
       // that version lacked.
       const mark = pressable
-        ? offer("checkbox", "lf-pick")
+        ? selectableOffer("checkbox", "lf-pick")
         : document.createElement("span");
       if (!pressable) {
         mark.className = "lf-pick";
@@ -510,7 +509,7 @@ customElements.define(
 
     #row = null; // the one-line summary a settled group collapses to
     #title = null; // the part of it naming the chosen option
-    #isOpen = false; // this tab's reading of the group; #open renders it, nothing reads it back
+    #isOpen = false; // this tab's reading of the group; #open renders it, the row's line says it
 
     #settle() {
       // A disclosure is a thing to work, and what it names — the chosen option — the
@@ -519,7 +518,7 @@ customElements.define(
       // part of it naming the option is the page speaking and says so, and the anchor pass
       // reads it over the row's chrome. The count beside it is the runtime talking about
       // the document, which is why the two are separate spans.
-      this.#row = offer("button", "lf-settled");
+      this.#row = selectableOffer("button", "lf-settled");
       this.#title = document.createElement("span");
       const options = [...this.#options()];
       const count = document.createElement("span");
@@ -527,7 +526,28 @@ customElements.define(
       count.textContent = `${options.length} option${options.length === 1 ? "" : "s"}`;
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
+      // Which way it stands, before the scope below is declared: a row wearing
+      // role="button" and aria-expanded is the disclosure pattern, and DISCLOSE reads
+      // that pair to answer what works here. Written at birth rather than left to the
+      // first #open, so the row is never briefly a control the runtime cannot place.
+      this.#row.setAttribute("aria-expanded", "false");
       this.#row.onclick = () => this.#open(!this.#isOpen, true);
+      // The same press the runtime's disclosure scope owns, re-worded in this group's
+      // terms. Its bindings come from DISCLOSE rather than from PRESS, which is what
+      // that primitive is for: a nearer scope keeps only the keys it names, so a row
+      // naming the pair alone took the arrow off the line and left the reader with
+      // "open or close" beside a stray "→ open" instead of one chip saying which way
+      // this section goes. Named through DISCLOSE the two cannot come apart, and the
+      // word follows the row the way the runtime's own does.
+      keys(this.#row, "In a settled ask", [
+        {
+          id: "option.toggle-settled",
+          keys: () => DISCLOSE(this.#row),
+          does: "Open or close the settled ask",
+          line: () => (this.#isOpen ? "close" : "open"),
+          run: () => this.#row.click(),
+        },
+      ]);
       // The authored question is the heading outside this group. Inside the group the
       // settled summary is therefore its first reading, before the options it folds.
       this.prepend(this.#row);
@@ -571,6 +591,8 @@ customElements.define(
       ])
         if (open) el.removeAttribute("hidden");
         else el.setAttribute("hidden", HIDDEN);
+      // The row's bindings answer from this attribute, and the disclosure watcher hears the
+      // write: it repaints both surfaces that name a row's keys, so nothing local is owed.
       this.#row.setAttribute("aria-expanded", open ? "true" : "false");
       if (remember) tabStore.set(SETTLED_KEY + this.id, open ? "1" : "0");
     }

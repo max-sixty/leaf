@@ -46,8 +46,8 @@ export function createTrays({
   PRESS,
   readerStore,
   renderDecisions,
-  stateStrip,
   syncLayout,
+  trayChanged,
   walkRows,
 }) {
   // The rows' own box, one per tray. Collected privately as they are made, because what
@@ -83,10 +83,10 @@ export function createTrays({
   });
 
   // What the page is still waiting on the reader for, and the way to the next one — the
-  // same list d/D step and the "?" overlay names, counted here so a reader who
+  // same list a/A step and the "?" overlay names, counted here so a reader who
   // has not scrolled that far still knows there is something to answer.
   const decisionsBtn = el("button", "lf-btn lf-decisions", "");
-  decisionsBtn.title = "Show or hide what this page needs your input on";
+  decisionsBtn.title = "Show or hide this page's asks";
   // The machine's live leaves and what each is doing: a left panel of rows, each a
   // link opening that page in its own tab, judged by the same `presented` the banner
   // answers with, from the same facts — `others` on /api/state carries them for every
@@ -105,17 +105,17 @@ export function createTrays({
   othersPanel.tabIndex = -1;
   traysEdge.handle(othersPanel, () => othersBtn);
   const leavesList = trayList(othersPanel);
-  // A tray of the page's own open decisions, on the same edge: one row per thing the page is
+  // A tray of the page's own open asks, on the same edge: one row per thing the page is
   // waiting on the reader for, in the order the page asks them. The list is openDecisions() and
   // nothing else, so a widget joins the tray by declaring x-awaits and no row here knows
   // what kind of thing it is standing for.
   const decisionsPanel = el("nav", "lf-ui lf-tray-panel lf-decisions-panel");
-  decisionsPanel.setAttribute("aria-label", "What this page is waiting on you for");
+  decisionsPanel.setAttribute("aria-label", "Asks from this page");
   decisionsPanel.tabIndex = -1;
   traysEdge.handle(decisionsPanel, () => decisionsBtn);
   const decisionsList = trayList(decisionsPanel);
 
-  // The left edge holds one tray at a time. Leaves and decisions are the same furniture asking
+  // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
   // at two scopes — which page needs me, and what this page needs of me — and each has to
   // stand while the reader works, which is the whole reason either is a fixed edge rather
   // than a menu over the page. So which one is up is one fact held in one place. A boolean
@@ -176,13 +176,13 @@ export function createTrays({
     // idioms hang in is body's own padding, which the observation's writer may not touch,
     // and a tray that covers the page moves body's box by nothing at all, so there is no
     // observation to deliver.
-    stateStrip();
     syncLayout();
     readerStore.set(TRAY_KEY, key ?? "");
     // Publish the tray this gesture chose so the stylesheet can say what it costs the
     // page's own box.
     if (key) document.body.dataset.lfTray = key;
     else delete document.body.dataset.lfTray;
+    trayChanged();
     paintKeys();
   }
   // Registration only. No tray opens while this factory evaluates: showTray runs from a
@@ -197,7 +197,7 @@ export function createTrays({
   trayIs("decisions", decisionsPanel, decisionsBtn, renderDecisions);
   const trayNames = Object.freeze([...trays.keys()]);
 
-  // A persisted tray is state-dependent chrome: Decisions folds the log and Leaves comes from
+  // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
   // the first state response. Keep the remembered intent in trayUp, but restore its pixels
   // only once that response has produced the page's presentation. Unlike showTray, this
   // first paint does not animate — it is part of the page arriving, not a reader gesture.
@@ -218,6 +218,7 @@ export function createTrays({
     // (an exported or pre-presented DOM) can restore immediately through the same function.
     trayUp = readerStore.get(TRAY_KEY) || null;
     if (trayUp) document.body.dataset.lfTray = trayUp;
+    trayChanged();
     if (pagePresented()) restoreTray();
   }
 
@@ -233,7 +234,7 @@ export function createTrays({
   // button — so the scope names what walking does and leaves the press to the button.
   keys(
     decisionsPanel,
-    "In the decisions tray",
+    "In the Asks tray",
     [
       {
         id: "decision.list-walk",
@@ -242,21 +243,18 @@ export function createTrays({
           {
             id: "decision.row-previous",
             binding: "ArrowUp",
-            does: "Previous decision",
+            does: "Previous ask",
           },
-          { id: "decision.row-next", binding: "ArrowDown", does: "Next decision" },
+          { id: "decision.row-next", binding: "ArrowDown", does: "Next ask" },
         ],
-        does: "Walk the decisions",
-        line: "walk the decisions",
+        does: "Walk the asks",
+        line: "walk the asks",
         repeat: true,
         run: (binding) => walkRows(decisionRows(), binding === "ArrowDown" ? 1 : -1),
       },
     ],
     () => decisionRows().length > 0,
   );
-
-  const trayStrip = () =>
-    STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;
 
   return {
     decisionRows,
@@ -275,6 +273,5 @@ export function createTrays({
     showTray,
     trayNames,
     traysEdge,
-    trayStrip,
   };
 }

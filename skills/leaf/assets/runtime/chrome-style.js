@@ -11,64 +11,51 @@ export function chromeStyle({
   TRAY_PROP,
 }) {
   return `
-  /* The document and the panel are two scroll regions side by side. If the document
-     scrolled the viewport, its scrollbar would paint at the viewport's right edge —
-     over the panel, in the same few pixels as the panel's own, so the two thumbs
-     stack. Body owns the document's scroll instead, and syncLayout keeps its box
-     clear of the panel, which puts each region's scrollbar inside that region.
+  /* The browser's root remains the document scrollport. That keeps native fragments,
+     history restoration, wheel/touch input, and browser chrome on one shared reading
+     position. Body is only the layout shell: its margins yield columns to standing
+     workspaces while those workspaces keep their own nested scrollports.
 
-     The gutter is stable because the column is measured off it: a page that grows
-     past the window mid-session — a suggestion accepted, a panel of tabs opened —
-     would otherwise gain a scrollbar, and the column would re-centre in what was
-     left. Stated rather than measured, because it can't be measured here: macOS
-     draws overlay scrollbars, which take no room and reserve none, so on this
-     machine the declaration is a no-op and the shift it prevents cannot be made to
-     happen (neither scrollbar-width nor a styled ::-webkit-scrollbar nor
-     --disable-features=OverlayScrollbar brings a room-taking one back). It is kept
-     on the platforms where scrollbars do take room, which is most of them, and on
-     the reasoning that reserving a gutter never costs more than the shift not
-     reserving it produces.
+     The root keeps its bar standing so content does not re-centre when a page grows past
+     the viewport mid-session, and overflow-y: scroll is the spelling that asks for it
+     without reserving room the platform will not use. scrollbar-gutter: stable asked for
+     the room instead: Chromium holds the classic bar's width open even where the platform
+     draws overlay bars, and an overlay bar then draws over the strip rather than in it.
+     The width came out of the page while every window-relative coordinate kept the whole
+     window — pointer positions, innerWidth, and the root's own clientWidth — so a drawn
+     edge landed a bar's width off the hand that drew it, a covering sheet anchored to the
+     initial containing block's right edge left a blank strip at the window's, and a page
+     with nothing overflowing measured a bar's width narrower than the box it scrolled in.
+     A standing bar is a no-op where bars overlay, and where they take room it takes
+     exactly the room the bar does, which is the room innerWidth minus the root's
+     clientWidth already reports.
 
-     All of it is the live page's, and it is withheld from the other two media the way
-     every other affordance is. A copy has no panel to sit beside and no session to
-     grow in, and it carried the whole arrangement anyway: body scrolled it, reserving
-     a gutter against a change that can no longer happen and holding 54px of scroll
-     padding under a banner the file hasn't got — so wherever a scrollbar takes room
-     the copy's column sat 7.5px left of the centre of a page it had all of. Nothing
-     on this machine could say so, the declarations being no-ops here; the runner said
-     it, on every example at once. That is what pins this now
-     (test_an_exported_example_stands_on_its_own, and scripts/linux-suite.sh is where
-     to watch it fail), and paper needs no rule of its own, never having been handed
-     the arrangement to undo. Spelled :where(), because these declarations are the only
-     statement their properties get and the plain form would hand every one of them a
-     class the body rule below never had. */
+     All of this belongs only to the live screen page. Copies have no fixed banner or
+     session chrome, and paper never receives the arrangement. */
   @media screen {
     :where(html:not(.lf-copy)) {
-      height: 100%;
-      overflow: hidden;
+      min-height: 100%;
+      overflow-x: hidden;
+      overflow-y: scroll;
+      scroll-padding-top: calc(var(--lf-banner-h) + 12px);
+      scroll-padding-bottom: var(--here-ring-room);
       /* The foot is the same claim the head makes, in the size a ring needs rather than
          a banner's: a control landed on at the fold had its border box put flush with
          the window's bottom edge and its ring in the strip past it, so the last row of
          a page was reached with the ring around it cut off. The panel's own list says
          the same thing about its own edges. */
-      body { height: 100%; overflow-y: auto; scrollbar-gutter: stable;
-             scroll-padding-top: calc(var(--lf-banner-h) + 12px);
-             scroll-padding-bottom: var(--here-ring-room); }
+      body { min-height: 100%; }
       /* The banner stands over the head of the document, so the page's first lines get
          room rather than starting under it, and the key line reserves the same at the
-         foot (syncLayout). Both are boxes in the flow rather than padding on body, which
-         is the box the room a wide widget spends is measured from — CLAUDE.md's "The one
-         writer may not write the box the layout is measured from" carries why. A box also
-         adds to whatever padding the page declares at this edge, where a rule here would
-         replace it, and it is withheld from paper by the block it sits in: written as
-         padding it stayed behind, holding 42px of blank over the first line of every
-         printed page for a bar that was not on it. */
+         foot (syncLayout). Both are boxes in the flow rather than scroll-container
+         padding. They therefore add to authored page padding and disappear with the
+         screen-only chrome instead of leaving empty strips on paper. */
       body::before { content: ""; display: block; height: var(--lf-banner-h); }
     }
   }
-  /* position: relative makes body — the scroll container — the containing block for
-     the two floats that point into the document (the 💬 button and the composer), so
-     the browser scrolls them with the passage they stand beside. */
+  /* position: relative makes the document shell the containing block for the two floats
+     that point into it (the 💬 button and composer), so root scrolling carries them with
+     the passage they stand beside. */
   /* The banner's height, said once. Everything at the top edge derives from it — the
      bar itself, the panel starting under it, the focus-revealed mark note, the
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
@@ -82,7 +69,7 @@ export function chromeStyle({
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
-  body {
+  :root {
     --lf-safe-top: env(safe-area-inset-top, 0px);
     --lf-safe-right: env(safe-area-inset-right, 0px);
     --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -91,13 +78,13 @@ export function chromeStyle({
     --lf-ui-lh: 1.45;
   }
   @media screen and ${COVERING} {
-    body { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
+    :root { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
   }
   /* A wide touch layout keeps the desktop row, but its forty-four-pixel aims and their
      focus ring need a taller bar than the mouse-sized row. This one derived height moves
      the page, panels, anchored jumps, and the banner edge together. */
   @media screen and (pointer: coarse) and ${NON_COVERING} {
-    body { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
+    :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
   body { position: relative; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
@@ -110,36 +97,37 @@ export function chromeStyle({
      motion is handled globally by the theme's guard. */
   body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] {
     transition: margin-right .18s ease, margin-left .18s ease; }
-  /* The strip itself, and — where there is no room to yield one — the page handing
-     scrolling over to the sheet that covers it instead. A margin, not padding: body is
-     the document's scroll container, so this is what ends its box, and its scrollbar, at
-     the panel's edge rather than under it. Under a covering sheet one wheel gesture still
-     moves one region, and the region is the thread list; the page holds its place for
-     when the sheet closes — a hidden-overflow scroller keeps its position, and still
-     moves for a t/T walk or a version switch restoring where the user was, so the passage
-     behind the sheet is the one the panel is talking about.
+  /* The strip itself, and — where there is no room to yield one — the page locking its
+     root scrollport while the sheet covers it. Body's margin narrows the layout shell
+     without replacing the browser's document scroller. Under a covering sheet one wheel
+     gesture still moves one region, and the region is the thread list; the root keeps its
+     position for when the sheet closes.
 
-     The cascade's, though syncLayout is the layout's one writer, because body's box is
-     the one thing that writer may not write: it runs from an observation of that box, and
-     a write from inside that round is a resize of what was just reported — the round
-     breaks, and Chrome says so on the window's error channel and nowhere else (CLAUDE.md,
-     "The one writer may not write the box the layout is measured from"). Written in JS it
-     survived on a coincidence: the margin transitions, so the used value did not move
-     until the frame after the write, and the round the write landed in closed intact. A
-     stylesheet is where a fact about the shape of the page belongs anyway, and the panel
-     states only that it is open.
+     The cascade owns this shell geometry. JavaScript states only that the panel is open;
+     CSS determines the room left beside it and the document's container queries respond
+     directly to that result.
 
      The strip comes out of the page rather than being held aside for it, which makes
      opening the panel the largest movement in the product: the column re-centres by half
      the panel's width, and on a window narrow enough to lose width as well it rewraps
      every line. Both are carried as motion rather than as a jump — the transition above,
      keyed on the stamp for the reasons given there — because an eye can follow a sentence
-     that slides and cannot find one that teleports. */
+     that slides and cannot find one that teleports.
+
+     Locking the root drops its standing bar, which the reserved gutter this replaced would
+     have held open under hidden too. So where the platform draws classic bars, the strip
+     of page still visible beside the sheet widens by a bar's width as the sheet opens and
+     narrows back as it closes — one more rewrap on the window that was already rewrapping.
+     Holding the room across the lock means reserving it on every platform, the ones whose
+     bars overlay included, which is the disagreement the root's rule above exists to end;
+     the locked state is where it cost the most, a covering sheet anchored to the initial
+     containing block landing a bar's width inside the window's own edge. Both states now
+     read the same way instead: the page's box is the room its coordinates report. */
   @media screen and (not ${COVERING}) {
     body[data-lf-panel] { margin-right: var(${PANEL_PROP}); }
   }
   @media screen and ${COVERING} {
-    body[data-lf-panel] { overflow-y: hidden; }
+    :where(html:not(.lf-copy)):has(body[data-lf-panel]) { overflow-y: hidden; }
   }
   /* The slide stands down for as long as the reader is holding the edge. A drag is a hand
      on that edge, and 180ms of easing behind it is the page sliding out from under the
@@ -158,7 +146,7 @@ export function chromeStyle({
     ${STRIP_TRAY_RULE} { margin-left: var(${TRAY_PROP}); }
   }
   @media screen and ${TRAY_COVERING} {
-    ${STRIP_TRAY_RULE} { overflow-y: hidden; }
+    :where(html:not(.lf-copy)):has(${STRIP_TRAY_RULE}) { overflow-y: hidden; }
   }
   /* Rules at this level are the shared vocabulary: classes whose whole job is
      elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -177,16 +165,12 @@ export function chromeStyle({
      the theme and wins that. A layered rule still outranks the UA's, which is all the
      clearing ever needed. */
   @layer lf-reset {
+    button.lf-ui { appearance: none; margin: 0; padding: 0; border: 0;
+      background: none; color: inherit; font: inherit; }
     .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
   }
-  /* A control a widget injects is a span wearing its ARIA role, so the box and the drag
-     that a native control supplied are stated here. Only .lf-btn needs the box because
-     every other control is a flex item or positioned. A native control also refuses a
-     drag, which is worth keeping wherever its words are the runtime's and is exactly what
-     must not happen where one of them is the page's. So selection goes off only where
-     nothing under the control is said: a descendant cannot win it back, since user-select
-     none on an ancestor takes the whole subtree out of a pointer's reach whatever the
-     descendant declares. */
+  /* Only .lf-btn needs a shared box because every other control is a flex item or
+     positioned. Selection goes off where nothing under a control is page text. */
   .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: inherit; display: inline-block; }
   .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
   .lf-btn:hover { background: var(--chip); }
@@ -206,15 +190,14 @@ export function chromeStyle({
      .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
      quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
      so it holds no room; the covered-words gate skips this class the way it skips the
-     runtime's own .lf-mark-note, which wears the same clip.
+     runtime's own .lf-mark-note, which keeps the same one-pixel geometry.
 
      And out of the selection, which the clip does not do on its own: a word standing
      among the page's own words is inside any selection drawn across them, so the
      runtime's reading skipped it and the user's clipboard did not — a copied task line
      came away carrying the word "done", and a copied code block would carry
      "highlighted" into whatever editor it was bound for. .lf-mark-note had answered
-     this the day it was written and the clip it shares had not — two copies of one
-     recipe, already drifted apart, which is why there is one of them here now.
+     this the day it was written and this recipe had not, so both inherit it here.
 
      No offsets, so the box keeps the static position its holder gives it. That place is
      read: shownBox reads it for a wrapper that draws no box of its own, and everything
@@ -226,8 +209,12 @@ export function chromeStyle({
      reachScrollers marks every static box that scrolls, and the theme positions the
      mark ([data-lf-holds]). */
   .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
-    overflow: hidden; clip-path: inset(50%); user-select: none; -webkit-user-select: none; }
-  .lf-quiet { white-space: nowrap; }
+    overflow: hidden; user-select: none; -webkit-user-select: none; }
+  /* A comment note is also a real button exposed through the accessibility tree. Keep
+     its resting box transparent instead of clipping it out of hit testing, so an
+     ordinary pointer press reaches the same click handler as Enter. */
+  .lf-mark-note { opacity: 0; }
+  .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -248,7 +235,7 @@ export function chromeStyle({
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
      reaction mark and leaves the mark itself, so a hand hung on the class alone
      promises a press no file can answer. It reads the two ways a press is spelled
-     here: the platform's element, and the attribute offer() writes on a span.
+     here: the platform's element, and the explicit selectable-offer exception.
 
      The lift under the pointer is the same promise in the other property, and the tones
      below are that lift wearing a colour, so all of them are spelled the same way. The
@@ -529,15 +516,16 @@ ${MARK_RULES}
   .lf-visual-actions { display: contents; }
   .lf-visual-action { pointer-events: none; }
   /* The one runtime word living inside the page's own elements, so its hiding cannot
-     come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
-     once above for both. It becomes a skip-link-style control on focus: a reader who
+     come from the chrome's scoped .lf-unseen. Its transparent one-pixel resting box is
+     still a real hit target for an ordinary pointer press. It becomes a skip-link-style
+     control on focus: a reader who
      hears the count can enter its first thread, then t/T through the rest. The rule
-     below states its whole visible form, so the resting one adds nothing to the clip —
-     the padding and border reset that stood here were a real button's, and the note has
-     been a span since offer() built it. */
+     below states its whole visible form, so the transparent resting button adds no
+     paint of its own. */
   .lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
-    width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
+    width: auto; height: auto; padding: 6px 10px; overflow: visible;
+    opacity: 1;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-visual-action:focus-visible { position: fixed; z-index: 9050;
@@ -710,7 +698,7 @@ ${MARK_RULES}
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
-    .lf-version-menu.open { display: grid; }
+    .lf-version-menu:popover-open { display: grid; }
     /* Left-aligned text in a control that is otherwise a press: the rows are a list to
        read down, and a centred note re-ragged on every line is not one. */
     .lf-version-row { grid-column: 1; position: relative;
@@ -813,11 +801,15 @@ ${MARK_RULES}
        room the shelf above scrolls; clipping the one control instead left a visible
        eighteen-pixel button containing none of its words. */
     .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
-    .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(${PANEL_PROP}); z-index: 8900;
-      background: var(--card); border-left: 1px solid var(--rule); display: none;
+    .lf-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
+      width: var(${PANEL_PROP}); height: auto; max-width: none; max-height: none; margin: 0;
+      box-sizing: border-box;
+      z-index: 8900; color: var(--ink); font: inherit;
+      background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
       flex-direction: column; padding-right: var(--lf-safe-right);
       padding-bottom: var(--lf-safe-bottom); }
-    .lf-panel.open { display: flex; }
+    .lf-panel[open] { display: flex; }
+    .lf-panel::backdrop { background: color-mix(in srgb, var(--ink) 12%, transparent); }
     /* An edge, offered as a thing to take hold of — the thread panel's on the right of
        the page, the trays' on the left, and nothing here knows which it is drawing except
        the two lines that place it. It draws nothing of its own: the region's inner border
@@ -1036,6 +1028,10 @@ ${MARK_RULES}
     .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
     .lf-compose { display: block; margin-top: 8px; }
     .lf-compose textarea { display: block; width: 100%; min-width: 0; }
+    /* The foot is a column of its own so the composer and the page's reaction strip keep
+       the flex-item margins they had as the panel's own children, and so the one box the
+       chrome measures for its lift is the one the reader sees standing there. */
+    .lf-panel-foot { display: flex; flex-direction: column; flex: none; }
     /* The general Send stays beside its field; a thread gives the field its own row. */
     .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-general textarea { flex: 1; min-width: 0; }
@@ -1203,14 +1199,30 @@ ${MARK_RULES}
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
-    .lf-margin-preview { position: fixed; z-index: 9150; width: min(320px, calc(100vw - 24px));
+    .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
+      position-area: inline-start center; position-try-fallbacks: flip-inline, flip-block;
+      z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
-      padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
+      scroll-padding-block: var(--here-ring-room);
+      margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
-    .lf-margin-preview[hidden] { display: none; }
+    /* A compact preview follows its marker through native anchor positioning. The full
+       conversation instead has its fixed top measured from that marker: the card also
+       changes the document's container posture, and asking both layout systems to
+       resolve that boundary can leave the browser oscillating between the two. */
+    .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
+      position-try-fallbacks: none;
+      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) 8px auto auto;
+      width: min(var(--thread-card), calc(100vw - 24px));
+      max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
-      justify-content: space-between; gap: 12px; }
-    .lf-margin-preview-title { font-size: var(--t-5); line-height: 1.35; }
+      gap: 8px; }
+    .lf-margin-thread-action { flex: none; margin: 0; padding: 2px 7px;
+      border-color: var(--rule); background: transparent; color: var(--muted);
+      font-size: var(--t-6); }
+    .lf-margin-thread-action[hidden] { display: none; }
+    .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
+      line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
     .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
@@ -1222,8 +1234,6 @@ ${MARK_RULES}
     .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
     .lf-margin-thread .lf-say { align-items: flex-end; }
     .lf-margin-thread .lf-say textarea { min-width: 0; }
-    .lf-margin-thread-open { display: block; margin: 8px 0 0 auto; color: var(--muted);
-      font-size: var(--t-6); }
     .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
@@ -1268,10 +1278,11 @@ ${MARK_RULES}
     .lf-help kbd, .lf-keyline kbd { font-family: var(--mono); font-size: var(--t-6); background: var(--chip);
       color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
-    /* The key line: two hints about what keys do right now, rendered from the register
-       the dispatcher walks (see the module docstring). More unfolds the same current
-       register into two rows before it opens the complete reference. Each hint is the
-       eye's copy of facts spoken elsewhere and stays aria-hidden; More is a real control.
+    /* The key line: a contextual shortlist plus persistent rows, rendered from the
+       register the dispatcher walks (see the module docstring). A chord shows its whole
+       live scope; More unfolds the remaining current register before it opens the complete
+       reference. Each hint is the eye's copy of facts spoken elsewhere and stays
+       aria-hidden; More is a real control.
        syncLayout keeps the line out of a side-by-side thread panel and lifts it over a
        covering one, while body reserves its height so the document's last lines never
        end under it. Overflow remains a backstop for a window too narrow to hold even
@@ -1284,7 +1295,7 @@ ${MARK_RULES}
       overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
       background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
       padding: 5px 10px; }
-    .lf-keyline[data-lf-expanded="true"] { width: max-content; flex-wrap: wrap;
+    .lf-keyline[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
       row-gap: 6px; align-items: baseline; }
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
@@ -1301,7 +1312,8 @@ ${MARK_RULES}
        the whole thing off the page. */
     .lf-key-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
       outline-offset: calc(-1 * var(--here-ring-w)); }
-    .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
+    .lf-keyline kbd.armed { border-color: var(--accent); background: var(--accent);
+      color: var(--card); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for
        as long as they are the page shows its bones. Every item — a widget, a section, a
        heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
@@ -1318,9 +1330,9 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's numbered document destinations: a chip per member of every list it
-       offers, narrowed to one list once a letter names it, in a layer of the chrome's own
-       so an address can hang on a link set mid-sentence without writing a span into the
+    /* The g chord's numbered document destinations: a chip per addressable member of every
+       list it offers, narrowed to one list once a letter names it, in a layer of the chrome's
+       own so an address can hang on a link set mid-sentence without writing a span into the
        paragraph. Fixed, because authored members can sit in the document or a widget's
        overflow; one layer that follows neither lets a single pass place them from the
        viewport rects it just read, then repaint when anything scrolls under it. Each chip

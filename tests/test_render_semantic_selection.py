@@ -68,11 +68,13 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab")).to_be_visible()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     expect(shown.nth(0).locator("kbd")).to_have_text("c")
     expect(shown.nth(0)).to_contain_text("comment on the paragraph")
     expect(shown.nth(1).locator("kbd")).to_have_text("r")
     expect(shown.nth(1)).to_contain_text("react")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
+    expect(shown.nth(2)).to_contain_text("page down / up")
 
     # Hiding s from the compact projection must not disable it. It can immediately
     # reopen the chooser to replace the captured item, and cancelling leaves the
@@ -118,7 +120,8 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
     """A layer may remove the complete reaction vocabulary. Then c is the only action
-    on the captured target, so the second short-line slot keeps its ordinary way out."""
+    on the captured target, so the second contextual slot keeps its ordinary way out and
+    the persistent page movement row remains beside both."""
     registry = json.loads(
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
@@ -136,11 +139,12 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
     expect(page.locator(".lf-live")).to_contain_text("Choose a response.")
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(2)
+    expect(shown).to_have_count(3)
     expect(shown.nth(0).locator("kbd")).to_have_text("c")
     expect(shown.nth(0)).to_contain_text("comment on the heading")
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
     expect(shown.nth(1)).to_contain_text("unselect")
+    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab")).to_be_hidden()
@@ -247,7 +251,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
 
     start_code = page.evaluate(
         """() => {
-          const part = document.querySelector('#flow g[id^="flowchart-S-"]')
+          const part = document.querySelector('#flow g[id*="flowchart-S-"]')
             .getBoundingClientRect();
           return [...document.querySelectorAll('.lf-target-hint')]
             .sort((a, b) => {
@@ -264,7 +268,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text(
         "Selected diagram: Start request. Choose a response."
     )
-    start = page.locator('#flow g[id^="flowchart-S-"]')
+    start = page.locator('#flow g[id*="flowchart-S-"]')
     expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-action-target\b"))
 
@@ -285,7 +289,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     alone therefore still exists behind it, but a key drawn above the chrome there would
     appear to name a panel control and choose hidden document content. The rendered stack
     at each target's corner decides whether it is actually exposed."""
-    page, errors = open_page(browser, serve(ROOT / "examples" / "gallery.html"))
+    page, errors = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
     resized(page, 700, 900)
     page.get_by_role("button", name=re.compile(r"^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -312,12 +316,30 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     page.close()
 
 
-def test_selection_search_finds_page_text_without_a_target_kind(browser, serve):
-    """Slash inside selection is ordinary whole-page find. It narrows by the words the
-    reader knows, highlights one exact occurrence, and Enter hands that range to the same
-    comment surface as a hint. No paragraph/sentence/widget key is needed first."""
+def test_slash_finds_page_text_without_a_target_kind(browser, serve):
+    """Slash is ordinary whole-page find. It narrows by the words the reader knows,
+    highlights one exact occurrence, and Enter hands that range to the same comment
+    surface as a hint. No selection mode or paragraph/sentence/widget key is needed
+    first."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
-    page.keyboard.press("s")
+
+    line = page.locator(".lf-keyline")
+    expect(line).to_contain_text("search page")
+    expect(line).to_contain_text("select item")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    help_el = page.locator(".lf-help")
+    search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
+    select_command = help_el.locator('tr[data-lf-command="selection.open"]')
+    expect(search_command.locator("kbd")).to_have_text("/")
+    expect(search_command.get_by_role("button")).to_have_text(
+        "Search all the text on the page"
+    )
+    expect(select_command.locator("kbd")).to_have_text("s")
+    expect(select_command.get_by_role("button")).to_have_text(
+        "Select a visible item by hint"
+    )
+    page.keyboard.press("Escape")
     page.keyboard.press("/")
 
     search = page.get_by_role("searchbox", name="Search page text")
@@ -341,6 +363,53 @@ def test_selection_search_finds_page_text_without_a_target_kind(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     assert pending_text(page) == "button the key"
+    assert errors == []
+    page.close()
+
+
+def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
+    browser, serve
+):
+    """An editable field owns slash as text. From the thread list, the same key opens
+    that panel's find box rather than the page search standing behind it."""
+    html = leaf_page(
+        "scoped slash",
+        '<label>Path <input id="path"></label><p>Searchable page words.</p>',
+    )
+    page, errors = open_page(browser, serve(html, comments=2))
+    path = page.locator("#path")
+    path.focus()
+    page.keyboard.type("/")
+    expect(path).to_have_value("/")
+    expect(page.locator(".lf-target-search")).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("/")
+    thread_search = page.get_by_role("searchbox", name="Find in threads")
+    expect(thread_search).to_be_focused()
+    expect(page.locator(".lf-target-search")).to_be_hidden()
+    page.keyboard.type("Comment 1")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
+    """An empty thread list still has a usable find box. Slash focuses that nearest
+    search rather than opening page search behind the panel."""
+    html = leaf_page("empty scoped slash", "<p>Searchable page words.</p>")
+    page, errors = open_page(browser, serve(html))
+
+    page.keyboard.press("c")
+    threads = page.locator(".lf-threads")
+    expect(threads).to_be_focused()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("search page")
+    page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
+    expect(page.locator(".lf-target-search")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -466,7 +535,7 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("initially announced heading")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
 
-    page.evaluate("() => { document.body.scrollTop = 1050; }")
+    page.evaluate("() => { document.scrollingElement.scrollTop = 1050; }")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("select target")
     page.keyboard.press("Enter")
@@ -475,9 +544,9 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     page.close()
 
 
-def test_cancelling_selection_restores_the_control_that_opened_it(browser, serve):
-    """Search borrows focus for its real input. Escaping back through both selection
-    layers returns focus to the control from which the reader pressed s."""
+def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):
+    """Direct search is one layer. A repeated slash cannot change that when focus has
+    left its box: Escape still closes search and returns to the original control."""
     html = leaf_page(
         "selection focus",
         '<button id="opener">Starting control</button><p>A passage to select.</p>',
@@ -486,10 +555,12 @@ def test_cancelling_selection_restores_the_control_that_opened_it(browser, serve
     opener = page.locator("#opener")
     opener.focus()
 
-    page.keyboard.press("s")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    page.keyboard.press("Escape")
+    page.locator("p").click()
+    page.keyboard.press("/")
+    expect(page.locator(".lf-keyline")).to_contain_text("close search")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("back to hints")
     page.keyboard.press("Escape")
     expect(opener).to_be_focused()
     assert errors == []
@@ -515,6 +586,7 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
     page.keyboard.press("s")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("back to hints")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     assert (
@@ -539,8 +611,10 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
 """,
     )
     page, errors = open_page(browser, serve(html))
-    page.evaluate("() => { document.body.scrollTop = document.body.scrollHeight; }")
-    page.wait_for_function("() => document.body.scrollTop > 500")
+    page.evaluate(
+        "() => { document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight; }"
+    )
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 500")
 
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).to_have_count(0)
@@ -577,7 +651,7 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const range = document.createRange();
           range.selectNodeContents(text);
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollTop += range.getBoundingClientRect().top - (banner.bottom - 5);
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (banner.bottom - 5);
         }"""
     )
     page.keyboard.press("s")
@@ -598,7 +672,7 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const range = document.createRange();
           range.selectNodeContents(text);
           const keyline = document.querySelector('.lf-keyline').getBoundingClientRect();
-          document.body.scrollTop += range.getBoundingClientRect().top - (keyline.top - 5);
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (keyline.top - 5);
         }"""
     )
     page.keyboard.press("s")
@@ -633,7 +707,7 @@ def test_a_partly_banner_clipped_atomic_item_keeps_its_hint_below_the_banner(
         """() => {
           const visual = document.querySelector('#edge-visual').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.body.scrollTop += visual.top - (banner.bottom - 8);
+          document.scrollingElement.scrollTop += visual.top - (banner.bottom - 8);
         }"""
     )
     page.keyboard.press("s")

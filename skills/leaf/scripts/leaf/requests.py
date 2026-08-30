@@ -5,10 +5,10 @@ import sys
 from pathlib import Path
 
 from .decisions import quoted_in
-from .event_contracts import detail_error
 from .event_log import append_event
 from .host import message_identity
 from .leases import contract_writer
+from .registry.contract import schema_error
 from .service import PageTransaction
 from .structure import parse_revision
 from .thread_context import thread_structure
@@ -95,7 +95,7 @@ def declared_request_error(event: dict, page, thread, registry: dict) -> str | N
     spec = verbs.get(event["action"])
     if spec is None:
         return f"<{tag}> does not declare request verb {event['action']!r}"
-    if message := detail_error(spec["detail"], event["detail"]):
+    if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> request {event['action']!r} detail is invalid: {message}"
     targets = {**page.by_id, **thread.by_id}
     for attribute in entry.get("x-refers", {}):

@@ -130,8 +130,8 @@ edge: overflow, paint containment, and `content-visibility`. `version check
 page paints to are one reading, and its comment records that the two copies before
 it disagreed twice. `RINGS_DRAWN` is a third consumer of it rather than a third
 copy of it, and it asks the window on the same terms as any other box: a fixed
-subtree is laid out against the window, and everything else reaches it through
-`body`, which is this page's scroller.
+subtree is laid out against the window, and everything else reaches it through the
+browser's root scrollport.
 
 A ring is also only drawn for a press. `element.focus()` sets `:focus` and not
 `:focus-visible`, so a control focused from script wears no ring at all, and every
@@ -147,7 +147,7 @@ reached, a joined option group for the one its picks give up, and an element a
 focused thread is anchored to wears one with no focus of its own.
 `getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
 words it uses for a control whose ring is fine — a 2px cut planted on
-`.lf-thread:focus-within` passed all ten examples. So the reading sweeps every box
+`.lf-thread:focus-within` passed the entire example corpus. So the reading sweeps every box
 painting one, and asks the outline rather than the rules: nothing re-runs a
 selector. Which rule drew a ring is the other question, and the rule answers it
 where it draws (`--lf-here-ring`, theme.css), so the population the floor divides

@@ -138,6 +138,16 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
+Before finishing a feature:
+
+- Keep the implementation, tests, and any owning protocol or reference aligned.
+- Make the feature appear in at least one authored page under `examples/`.
+  Implementing or changing it includes adding or updating a source example and
+  regenerating the derived corpus.
+- If the feature changes what an agent can do or how it should do it, update
+  `skills/leaf/SKILL.md` or the routed reference that owns the workflow.
+- Update any public docs or generated outputs the feature affects.
+
 The normal suite is:
 
 ```sh
@@ -146,22 +156,25 @@ uv run pytest tests
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
 the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
-tree. CI adds the complete nightly suite after main moves.
+tree. Pull requests run the same gate in CI. CI adds the complete nightly suite
+after main moves.
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. Run `/ui-sweep` and inspect a composed page for any user-visible
 layer change; a green suite does not judge visual quality.
 
-Hand off a visible change with the smallest preview that proves it. A static
-change needs one sentence and an `lf-shot` before/after from the same fixture,
-viewport, and state. Add another state, width, recording, or live link only when
-the first comparison cannot show the behavior.
+Hand off a visible change with the smallest rendered artifact that proves it.
+For an example, `scripts/preview.py [example] --export` prints a standalone HTML
+file; hand back that file. A static change needs one sentence and an `lf-shot`
+before/after from the same fixture, viewport, and state. Add another state, width,
+recording, or live link only when the first comparison cannot show the behavior.
 
-Land with `wt merge`, a direct local squash merge to `main`, never a PR. Landing
-still requires the user's authorization. If a newer `main` dislodges a merge
-after this branch passed the local gate, `wt merge --no-hooks` may reuse that
-result; finish with `git push origin main:main` because the skipped hook normally
-pushes. `✗ Can't push to local main branch` is a fast-forward failure instead.
+Land through a pull request or with `wt merge`, which squash-merges directly to
+`main`. Landing requires the user's authorization. For a local merge, if a newer
+`main` dislodges the merge after this branch passed the local gate,
+`wt merge --no-hooks` may reuse that result; finish with
+`git push origin main:main` because the skipped hook normally pushes.
+`✗ Can't push to local main branch` is a fast-forward failure instead.
 
 Installed sessions load host caches, not the checkout. After pushing, Claude
 Code updates on its marketplace sweep. The post-merge hook refreshes an installed

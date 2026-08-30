@@ -58,12 +58,12 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     and every page the sweep above renders is a page with no comments on it.
 
     The pass hunting words drawn on other words has to know the same difference, and
-    knows it as a float the runtime hangs over the page. That line is clipped to nothing
-    and checkVisibility answers for display, visibility and opacity, so it reads as drawn,
-    and its characters fall down the document through the paragraphs under the passage.
-    Holding it out is the only thing keeping this page clean, so the reading is taken
-    twice: once as the gate runs it, and once with the hold defeated, where it has to
-    report.
+    knows it as a float the runtime hangs over the page. The resting control is transparent,
+    so the browser correctly omits it from a paint check. This test makes that control
+    visible to plant the fault it is about: its characters then fall down the document
+    through the paragraphs under the passage. Holding the runtime float out is the only
+    thing keeping the reading clean, so it is taken twice: once as the gate runs it, and
+    once with the hold defeated, where it has to report.
 
     The hold is the float predicate rather than a class named in the skip list, which is
     what the second reading has to reach for now: the line is out-of-flow chrome like a
@@ -81,13 +81,17 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
-    # The same reading with the hold defeated, taken while the page is up.
+    # Give the real runtime control paint so this tests the floating exemption rather
+    # than passing because the ordinary resting state is not drawn.
+    page.locator(".lf-mark-note").evaluate("note => note.style.opacity = '1'")
+    held = render_checks_model.evaluate_probe(page, "coveredWords")
     reported = render_checks_model.evaluate_probe(
         page, "coveredWords", {"holdFloating": False}
     )
     assert errors == []
     page.close()
     assert render_gate_model.render_version(browser, url) == []
+    assert held == []
     assert any("1 comment" in found for found in reported), (
         "the line falls on nobody, so a gate that never looked would pass this too"
     )
@@ -387,7 +391,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         page.evaluate(
             """() => { const r = document.querySelector('lf-shot .lf-shotframe')
                                   .getBoundingClientRect();
-                       document.body.scrollBy(0, r.top - 140); }"""
+                       document.scrollingElement.scrollBy(0, r.top - 140); }"""
         )
         image_point = frame.evaluate(
             "el => { const r = el.getBoundingClientRect();"
@@ -399,11 +403,14 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             image_point,
         )
         was_checked = box.is_checked()
-        scroll_before = page.evaluate("document.body.scrollTop")
+        scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*image_point)
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert box.is_checked() is not was_checked
-        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+        assert (
+            abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
+            <= 1
+        )
 
         # Put the instruction just inside the viewport, then remove the focus left by
         # the image gesture. An implementation covering only the image would route this
@@ -412,7 +419,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             """() => { document.activeElement.blur();
                        const r = document.querySelector('lf-shot .lf-shotpick')
                                          .getBoundingClientRect();
-                       document.body.scrollBy(0, r.bottom - innerHeight + 60); }"""
+                       document.scrollingElement.scrollBy(0, r.bottom - innerHeight + 60); }"""
         )
         row_point = row.evaluate(
             "el => { const r = el.getBoundingClientRect();"
@@ -424,11 +431,14 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             row_point,
         )
         was_checked = box.is_checked()
-        scroll_before = page.evaluate("document.body.scrollTop")
+        scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*row_point)
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert box.is_checked() is not was_checked
-        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+        assert (
+            abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
+            <= 1
+        )
 
     assert errors == []
     page.close()
@@ -504,8 +514,15 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
 
     The second one no marker can fix, which is why it reads differently: a word inside a
     form control is unselectable in every engine, so a widget that reaches for <button>
-    has put its label somewhere the user cannot go. `offer` builds a press as a span
-    for exactly this reason, and this is what says so when a widget doesn't use it."""
+    has put its label somewhere the user cannot go. `selectableOffer` is the explicit
+    exception for such page words, and this says when a widget needed it.
+
+    Both are about a word the reader was shown, so the check asks that first. The
+    runtime's external-link note is the case that made it say so: an aria-describedby
+    target the browser reads out and the page never paints, put inside whatever root
+    its link stands in — a shadow tree included, where .lf-quiet's clip does not
+    reach. [hidden] is the silence available in every root, and the same note shown is
+    still reported."""
     assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
@@ -527,6 +544,40 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
         )
         == []
     ), "a native link's words label its browser-owned control rather than the page"
+
+    def put_note(hidden):
+        def go(page):
+            page.add_init_script(
+                """addEventListener('DOMContentLoaded', () => {
+                  const note = document.createElement('span');
+                  note.className = 'lf-ui';
+                  note.hidden = HIDDEN;
+                  note.textContent = 'opens in a new tab';
+                  document.getElementById('c-lax').prepend(note);
+                }, {once: true});""".replace("HIDDEN", "true" if hidden else "false")
+            )
+
+        return go
+
+    assert (
+        render_gate_model.render_version(
+            primed(browser, put_note(True)), serve(CARRIED_PAGE)
+        )
+        == []
+    ), "a word the page never shows is not a word the reader was shown and denied"
+    assert sorted(
+        {
+            f.split("] ", 1)[1]
+            for f in render_gate_model.render_version(
+                primed(browser, put_note(False)), serve(CARRIED_PAGE)
+            )
+        }
+    ) == [
+        (
+            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
+            "comment can reach it"
+        )
+    ], "the same note shown is the failure this check exists for"
 
     def put_words_out_of_reach(page):
         page.add_init_script(
@@ -579,7 +630,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     own value or its name, so a declared paint always gets its word, and the branch
     is reachable only by a regression in `renderQuiet` itself. What holds it is the
     corpus with that regression put back: silence `renderQuiet` and every painted
-    option in the examples is reported, a `parallel-workstreams` option in a tab
+    option in the examples is reported, a `live-progress` option in a tab
     nobody opened among them. Skipping the unrendered element before asking whether
     a word exists is what drops that one, so the order of the two questions here is
     the contract, and this test does not pin it."""

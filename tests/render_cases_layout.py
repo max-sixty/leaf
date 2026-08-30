@@ -558,18 +558,21 @@ def draw_edge(page, edge, by):
     page.wait_for_function("() => document.body.getAnimations().length === 0")
 
 
-# The room, sampled every frame for as long as a slide lasts. A property is asked of the
-# root rather than of any element that spends it, because it is the fact and an exhibit is
-# one reader of it.
+# The room, sampled every frame for as long as a slide lasts. The shell owns the value in
+# CSS, so a harmless probe resolves the custom-property expression to the width a wide
+# exhibit would actually receive.
 ROOM_EVERY_FRAME = """(frames) => {
   window.__room = [];
+  const main = document.querySelector('main');
+  const probe = document.createElement('i');
+  probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
+  main.append(probe);
   // The first sample is taken now rather than on the first frame, so the width before the
   // press is always in the trace: a frame is free to land after the keypress that follows
   // this call, and a trace that opens after the strip is taken has one value in it and
   // nothing to compare.
   const tick = () => {
-    window.__room.push(
-      getComputedStyle(document.documentElement).getPropertyValue('--lf-room'));
+    window.__room.push(probe.getBoundingClientRect().width);
     if (window.__room.length < frames) requestAnimationFrame(tick);
   };
   tick();
@@ -1106,7 +1109,7 @@ def other_leaf(live_leaf):
 # which is the whole of what CLAUDE.md's wait norm is about.
 SCROLL_SETTLE_MS = 50
 SCROLL_STILL = """(hold) => {
-  const at = document.body.scrollTop;
+  const at = document.scrollingElement.scrollTop;
   if (at !== window.__lfScrollAt) {
     window.__lfScrollAt = at;
     window.__lfScrollSince = performance.now();
@@ -1457,7 +1460,7 @@ RING_NAMES = """() => {
 # reader reached, a joined option group wears the one its picks give up, and an element
 # a focused thread is anchored to wears it with no focus of its own — and a reading that
 # asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
-# cut planted on `.lf-thread:focus-within` passed all ten examples.
+# cut planted on `.lf-thread:focus-within` passed the entire example corpus.
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
 # platform draws and the layer never named is still measured.

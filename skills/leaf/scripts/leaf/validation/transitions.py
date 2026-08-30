@@ -65,7 +65,7 @@ def restatement_errors(
     within = enclosing_of(now)
     for e, _spec in projection.actions.values():
         for subject in action_subjects(e, byid, within, registry):
-            if subject in was:
+            if subject in was or subject in byid:
                 decided.setdefault(subject, []).append(e)
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
@@ -115,8 +115,22 @@ def restatement_errors(
             for field, v in e["detail"].items()
             if field != "resolves" and isinstance(v, str)
         }
+        # A mapping detail declares generated id → authored words. The id was not in
+        # the action's source revision, so the event is the previous reading against
+        # which its first authored appearance must be checked. Mapping values remain
+        # prose rather than coordinates in action_rests_on.
+        generated_words = {
+            collapse(value)
+            for e in live
+            for field, mapping in e["detail"].items()
+            if field != "resolves" and isinstance(mapping, dict)
+            for identity, value in mapping.items()
+            if identity == sid and isinstance(value, str)
+        }
         said = now.get(sid, EMPTY).words
-        changed = sid in was and said != was[sid].words and said not in echoed
+        changed = (sid in was and said != was[sid].words and said not in echoed) or (
+            sid not in was and bool(generated_words) and said not in generated_words
+        )
         where = at(rec, f"id={sid!r}")
         # `restated` is earned by either divergence kind — words on the leaf, or
         # declared state at the unit — else a words-unchanged relocation would

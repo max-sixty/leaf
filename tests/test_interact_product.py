@@ -670,7 +670,19 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
     assert valid.exit_code == 0, valid.output
 
 
+def declare_options_version_response(page_dir):
+    """Give protocol tests a version-response seat the shipped Ask no longer owns."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-options"]["x-conversation"] = {
+        "when": {"choose": [True]},
+        "response": {"kind": "version", "verb": "choose"},
+    }
+    registry_path.write_text(json.dumps(registry))
+
+
 def test_a_version_response_cannot_take_an_agent_reply(page_dir):
+    declare_options_version_response(page_dir)
     version = page_dir / "versions" / "v1.html"
     unchosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     version.write_text(unchosen)
@@ -755,6 +767,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
 
 
 def test_an_already_answered_decision_still_requires_its_version_response(page_dir):
+    declare_options_version_response(page_dir)
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
@@ -801,6 +814,7 @@ def test_an_already_answered_decision_still_requires_its_version_response(page_d
 
 
 def test_a_version_response_can_settle_a_standing_decision(page_dir):
+    declare_options_version_response(page_dir)
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / "versions" / "v1.html").write_text(asking)
     publish(page_dir)
@@ -831,6 +845,7 @@ def test_a_version_response_can_settle_a_standing_decision(page_dir):
 
 
 def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
+    declare_options_version_response(page_dir)
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
@@ -869,6 +884,7 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
 def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
     page_dir, pick_after_proposal
 ):
+    declare_options_version_response(page_dir)
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / "versions" / "v1.html").write_text(asking)
     publish(page_dir)

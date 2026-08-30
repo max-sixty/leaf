@@ -27,3 +27,10 @@ contract responses, so an old or half-loaded tab reloads before a replacement
 server can interpret or append its event. `registry.json` is the source of truth
 for the current custom vocabulary and its explanations; this contract does not
 mirror that inventory.
+
+Within a registry-validated action detail, a string or list of strings may point
+at existing ids inside the sending widget. An object is the creation form: its
+keys declare generated ids owned by that widget, and string values are the words
+their first authored form must carry. Keeping keys and values in separate typed
+positions lets continuity protect a generated element before it exists in source
+without ever treating arbitrary prose as an id.

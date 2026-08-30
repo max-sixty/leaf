@@ -596,6 +596,56 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(
     assert second_errors == []
 
 
+def test_one_shared_added_option_has_one_action_payload_across_tabs(
+    browser, serve, one_reader
+):
+    """A draft attempt owns its action detail as well as its visible words.
+
+    The two views deliberately start from different projected selections. Both can
+    submit the one shared add-option generation, so deriving its absolute choice from
+    each tab's DOM would reuse one attempt for two conflicting payloads.
+    """
+    url = serve(DECISION_PAGE)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+
+    # Model a tab whose latest projection has not reached its neighbour yet. The draft
+    # is born here, so this selection is the state the generation records.
+    first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
+    text = "Use a heated camera sleeve"
+    first.locator("#jobs > .lf-another input").fill(text)
+    expect(second.locator("#jobs > .lf-another input")).to_have_value(text)
+
+    held = []
+    first.route("**/api/event", lambda route: held.append(route))
+    first.locator("#jobs > .lf-another").get_by_role(
+        "button", name="Add option", exact=True
+    ).click()
+    _until(first, lambda traffic: traffic.sends == 1, "held the first added option")
+
+    second.locator("#jobs > .lf-another").get_by_role(
+        "button", name="Add option", exact=True
+    ).click()
+    round_trip(second)
+    held_detail = held[0].request.post_data_json["detail"]
+    held[0].continue_()
+    first.unroute("**/api/event")
+    round_trip(first)
+
+    additions = [
+        event
+        for event in sent_events(serve.page_dir)
+        if event.get("kind") == "action"
+        and event.get("widget") == "jobs"
+        and event.get("detail", {}).get("additions")
+    ]
+    assert len(additions) == 1
+    assert additions[0]["detail"] == held_detail
+    assert _traffic(first).sends == _traffic(second).sends == 1
+    assert first_errors == []
+    assert second_errors == []
+
+
 def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_reader):
     """The general box and a thread's reply box are each one draft with a view in every
     tab. Both directions of the loop are here: words typed in one tab arrive in the

@@ -333,8 +333,25 @@ def report_settlements(events: list, upto=None) -> dict:
     return at
 
 
+def _detail_ids(value):
+    """The coordinate-shaped values in one registry-validated detail field.
+
+    A scalar or list names ids directly.  A mapping uses ids as keys and keeps
+    their associated payload in values, so reader prose can never become a page
+    coordinate merely because it happens to spell an element id.
+    """
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                yield item
+    elif isinstance(value, dict):
+        yield from value
+
+
 def action_rests_on(event: dict, within: dict) -> list:
-    """The sending widget plus every detail id it contains, `resolves` aside.
+    """The sending widget plus every detail coordinate it contains, `resolves` aside.
     This is the one key space for
     liveness — fold survival, retraction floors, and the earning of `restated`
     all go through it, while `action_subjects` stays the words gate's finer,
@@ -350,13 +367,19 @@ def action_rests_on(event: dict, within: dict) -> list:
     element inside the widget spelled the same, and a floor on it would retract
     an answer that has nothing to do with it."""
     widget = event["widget"]
-    parts = [
-        v
-        for field, named in event["detail"].items()
-        if field != "resolves"
-        for v in (named if isinstance(named, list) else [named])
-        if isinstance(v, str) and widget in within.get(v, ())
-    ]
+    parts = []
+    for field, value in event["detail"].items():
+        if field == "resolves":
+            continue
+        for named in _detail_ids(value):
+            # Mapping keys declare generated identities owned by the sending widget.
+            # They may be absent from the authored source when the event first lands,
+            # and a later version has to carry them as real children of that widget.
+            # Their event-declared ownership therefore cannot depend on where the
+            # current document happens to put an element with the same id; the source
+            # continuity gate validates that structural claim separately.
+            if isinstance(value, dict) or widget in within.get(named, ()):
+                parts.append(named)
     return [widget, *parts]
 
 

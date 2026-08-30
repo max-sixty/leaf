@@ -126,10 +126,9 @@ export function createDecisionView({
       paintKeys();
     } else paintHere();
   }
-  // An answer also changes what text the page has — a retired slot leaves it, a pick
-  // mark starts saying "your pick" — so the marks are repainted from the same signal,
-  // and a comment on text the user just removed says so at once rather than at the
-  // next poll.
+  // An answer can also change what text the page has — a retired slot leaves it — so
+  // marks are repainted from the same signal, and a comment on text the user just
+  // removed says so at once rather than at the next poll.
   document.addEventListener("lf-answered", () => {
     syncDecisions();
     paintAnchors();

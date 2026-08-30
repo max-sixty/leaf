@@ -12,19 +12,18 @@ those sections. Allow multiple picks only when several options may stand.
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all
 beside them: a `Something else` option takes a click where that cell takes the
-answer. In a thread the reply box is already that cell, so the group carries
-none of its own.
+answer. Submitting the cell creates and selects a real option. It reaches you as
+the group's ordinary `choose` action, with `detail.additions` mapping the complete
+set of reader-added option ids to their words. In a thread the reply box already owns
+free-form words, so the group carries no add cell of its own.
 
-Writing there is the reader dealing with the question, so the group stops being
-one of the page's open asks and the ball is yours. Nothing is recorded by it:
-the group still holds no new pick. Answer what they wrote in the authored page:
-carry their words in as another option and mark the pick it settled. If the reader
-explicitly rejects every option, settle the group without a pick. This thread
-takes no agent reply; if the revision needs an answer first, open a separate
-exact-section thread on the same Decision. Only authored state in a later version can
-answer an originating open Decision, or change its declared answer when the Decision was
-already answered. Reader actions before or after the proposal do not substitute
-for that revision, and an unrelated version cannot close it.
+Carry each added option into the next authored version with its event-supplied id
+and words, and mark the standing pick `chosen`. That is when the generated option
+becomes an ordinary authored option. If you need clarification, first carry it,
+then open a separate exact-section thread anchored to that option; do not turn the
+add gesture itself into a conversation. The standing `choose` action answers the live
+Decision immediately; the later authored version makes that answer self-contained
+without the log. An unrelated version cannot erase it.
 
 An ask must name itself without context outside the ask. Begin `lf-decision` with
 one ordinary heading, then include any introduction or evidence and the

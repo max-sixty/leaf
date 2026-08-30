@@ -1653,7 +1653,9 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
             "content work seat but x-content is data",
         ),
         (
-            lambda registry: registry["lf-options"].pop("x-conversation"),
+            lambda registry: registry["lf-options"].update(
+                {"x-work": {"seat": "conversation"}}
+            ),
             "conversation work seat but declares no x-conversation",
         ),
     ],
@@ -1691,6 +1693,10 @@ def test_a_version_response_requires_a_standing_request(page_dir):
 
 def test_a_version_response_names_an_authored_answer_record(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-conversation"] = {
+        "when": {"choose": [True]},
+        "response": {"kind": "version", "verb": "choose"},
+    }
     response = registry["lf-options"]["x-conversation"]["response"]
     response["verb"] = "answer"
 
@@ -3296,6 +3302,13 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
 def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
     version = page_dir / "versions" / "v1.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-options"]["x-conversation"] = {
+        "when": {"choose": [True]},
+        "response": {"kind": "version", "verb": "choose"},
+    }
+    registry_path.write_text(json.dumps(registry))
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -3308,7 +3321,7 @@ def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
             "response": {"kind": "version", "verb": "choose"},
         },
     )
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = json.loads(registry_path.read_text())
     del registry["lf-options"]["x-conversation"]["response"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()

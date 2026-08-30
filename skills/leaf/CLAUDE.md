@@ -1502,10 +1502,11 @@ and the Done press are the runtime's. Each brings the spacing it wears standing
 alone, and the grid stretches all of them to the same column whatever they were
 written as.
 
-The reader's cell is an option and is dressed as one. It holds a conversation
-seat rather than a pick, but what it is for is the answer the menu hasn't got,
-so it takes the cells' fill and their column and states no inset of its own. A
-cell that dresses as apparatus tells the reader to skip it.
+The reader's cell is an add form dressed as an option. It creates and selects a
+real generated option through the same absolute `choose` state as the authored
+options; it is not a conversation seat. What it is for is the answer the menu
+hasn't got, so it takes the cells' fill and their column and states no inset of
+its own. A cell that dresses as apparatus tells the reader to skip it.
 
 So what every cell owes is said over every child, and only what one kind alone
 answers is said by naming it. Block margins are zeroed for all of them, because

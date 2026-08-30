@@ -124,12 +124,44 @@ def continuity_errors(
         registry,
     )
     dropped = sorted(gone & protected)
+    generated = {
+        (identity, event["widget"])
+        for event, _spec in previous_projection.desired.values()
+        if event["kind"] == "action"
+        for field, mapping in event["detail"].items()
+        if field != "resolves" and isinstance(mapping, dict)
+        for identity in mapping
+    }
+    current_by_id = parser.by_id
+
+    def carried_by_sender(identity: str, widget_id: str) -> bool:
+        """Whether a generated unit is the sender's direct authored child."""
+        unit = current_by_id.get(identity)
+        widget = current_by_id.get(widget_id)
+        return bool(
+            unit
+            and widget
+            and unit.get("holder") is widget
+            and unit.get("parent") == widget["tag"]
+        )
+
+    uncarried = sorted(
+        identity
+        for identity, widget_id in generated
+        if not carried_by_sender(identity, widget_id)
+    )
     dropped_advice = sorted(gone - protected)
     if dropped:
         errors.append(
             f"protected ids present in revision r{revision.predecessor} but dropped in "
             "index.html (unresolved threads, standing state, or widget "
             f"retirement still need them): {dropped}"
+        )
+    if uncarried:
+        errors.append(
+            "reader-generated ids in standing state but absent as direct children "
+            "of their sending widgets in index.html (carry them into the owning "
+            f"widget before continuing): {uncarried}"
         )
     return errors, dropped_advice
 

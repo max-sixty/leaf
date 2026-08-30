@@ -482,6 +482,13 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
 lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
+/* A standalone copy and paper have no live mark, but authored selection is still part
+ * of the document. Keep the same compact check without reviving a dead control or its
+ * former status caption. */
+@media print { lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
+                                        font-family: var(--sans); font-weight: 700; } }
+html.lf-copy lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
+                                       font-family: var(--sans); font-weight: 700; }
 lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the shared address chip. The option's
@@ -577,6 +584,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
+    /* Pending is still durable state in the projection, but its generic green outline
+     * would be a second exterior border around this already-framed control. The selected
+     * row itself shows the standing choice; keep the frame visually stable. */
+    &[data-lf-pending] { outline: none; }
     /* The joined group draws a frame, so it says so, like every box that draws one
      * (--lf-frame, theme.css). Its cells declare their own; this covers what stands
      * beside them. */
@@ -611,22 +622,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * one line, every interior line painted twice, and the edges leaning on the
      * group's clip to take the overhang. */
     & > :not(:last-child) { border-bottom: 1px solid var(--rule); }
-    /* A cell has no border of its own, so both statuses are paint within its box:
-     * a bar in its own margin, which is what holding still asks for anyway.
-     * Held in `--stripe` and `--fill` so a state names its colour and the shapes
-     * are written once. (Not named --rail: that token is the page's comment margin,
-     * and a cell redefining it for a different fact was one name meaning two
-     * things.) */
-    & > lf-option { --stripe: transparent; --fill: var(--card); background: var(--fill); }
-    /* The status rule is the first mark in the option's gutter. Its inset separates it
-     * from the decision's focus band outside the group, while the address and a final gap
-     * separate it from the prose. Every cell draws the same transparent rule until a
-     * status supplies its colour. */
-    & > lf-option::before { content: ""; position: absolute;
-                     inset-inline-start: var(--sp-2);
-                     top: var(--sp-2); bottom: var(--sp-2);
-                     inline-size: var(--lf-status-bar-w);
-                     border-radius: 2px; background: var(--stripe); }
+    /* A cell has no border of its own. Selection gets one quiet ground here; the check
+     * in the mark is its compact second channel. The vertical status bar that used to
+     * sit beside both only repeated the same fact and made green read like focus. */
+    & > lf-option { --fill: var(--card); background: var(--fill); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the reader — this one is being weighed — so both wear one paint. It
      * deepens whatever the cell is filled with, rather than lifting it: a cell that
@@ -643,10 +642,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * and getting a grey that belongs to neither palette. */
     & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
-    & > lf-option[chosen] { --stripe: var(--ok); --fill: var(--ok-tint); }
-    /* The conversation is the group's own child, so joining the group takes it inside the
-     * border too, butted against the last cell by the hairline every child shares. And it
-     * is a cell rather than a footer: it holds the option the reader writes when none of
+    & > lf-option[chosen] { --fill: var(--ok-tint); }
+    /* The add form is the group's own child, so joining the group takes it inside the
+     * border too, butted against the last cell by the hairline every child shares. It is
+     * a cell rather than a footer: it creates the option the reader writes when none of
      * the authored ones is the answer, so it opens at the column their words open at and
      * is filled the way an option nobody has picked is filled.
      *
@@ -680,40 +679,48 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * list form having got there first: `multiple` is orthogonal to which form a group
      * takes, so a card group that asked "which of these" drew no box anywhere and offered
      * the reader nothing to count. */
-    &:not([multiple]) > lf-option:has(> strong) > .lf-pick:not([data-lf-said])::before {
+    &:not([multiple]) > lf-option:not([chosen]):has(> strong) > .lf-pick::before {
                      visibility: hidden; }
-    /* The group is one control, so it is focused as one: the ring keyboard focus earns
-     * is the group's, in the decision mark's own band — both read the --here-ring pair
-     * (theme.css) — because the two facts coincide whenever `a` lands here, and
-     * they must draw one ring. They drew two: the focused cell wore an inset accent
-     * ring of its own, so stepping to a group framed its first option twice over — the
-     * mark outside the border, the cell's ring inside it — and the first option read as
-     * singled out, an emphasis nobody had put there. Which cell holds the keyboard is
-     * the wash (above) and the digit chips that show while a mark holds focus. The
-     * mark's own generic ring stays off in here: on a single-pick card the mark draws
-     * nothing, so its ring would hang around an invisible box in the card's foot.
-     *
-     * The owning Decision draws the one focus band outside the whole reading. The group
-     * names the focused cell with its wash and address chip, so neither the group nor
-     * the mark draws a second ring inside it. */
+    /* The joined control owns focus at row scale. The mark's generic ring stays off and
+     * the exact option row draws one inset keyboard ring below; pointer focus draws none.
+     * This leaves the permanent group frame as a frame rather than surrounding it with a
+     * second border that disappears when the question is answered. */
     & > lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: none; }
   }
-  /* The leading column holds a status rule, a keyboard address, and the gap before the
-   * option's words. The rule starts at the ordinary 8px inset. The address follows one
-   * small gap later and takes --lf-key-box, so changing the utility type grows the
+  /* The runtime's semantic location mark normally rings the whole Decision. Within an
+   * options control that makes the permanent frame look like a second, stateful border.
+   * Suppress that outer paint while focus is inside this control; keyboard focus is
+   * carried by the exact row, while pointer focus needs no extra channel at all. */
+  [data-lf-decision]:has(
+    lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
+  ) { outline: none; }
+  lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
+    > :is(
+      lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)),
+      .lf-another:has(input:is(:focus-visible, .lf-focus-visible))
+    ) {
+      outline: var(--here-ring); --lf-here-ring: options-row;
+      outline-offset: calc(-1 * var(--here-ring-w));
+    }
+  .lf-another { display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another input { flex: 1; min-width: 0; padding: 0; border: 0;
+                     outline: none; background: transparent; color: inherit; font: inherit; }
+  /* The leading column holds the keyboard address and the gap before the option's
+   * words. The address starts at the ordinary 8px inset and takes
+   * --lf-key-box, so changing the utility type grows the
    * column with the chip. The final 6px keeps the chip off the prose. This room is held
    * before the keyboard address appears, so focusing an option moves nothing.
    *
    * Live pages only: copies and paper receive no keyboard address. The column is named
    * because options and generated cells all begin on it. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *) {
-                     --lf-status-bar-w: 3px;
-                     --lf-address-start: calc(var(--sp-2) + var(--lf-status-bar-w) + var(--sp-1));
+                     --lf-address-start: var(--sp-2);
                      --lf-address-col: calc(var(--lf-address-start) + var(--lf-key-box) + 6px); }
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
                      padding-inline-start: var(--lf-address-col); }
  }
 }
+html.lf-copy lf-options > .lf-another { display: none; }
 /* The row form: a list, so it reads like one. Every row opens at the same column with
  * what the reader is choosing between, and the apparatus — the block it is about, the
  * mark — runs to the line's end. Leading with the mark cost exactly that alignment: a
@@ -799,28 +806,12 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
 lf-options:not(:has(> lf-option > strong)) > lf-option > :is(.lf-ref, .lf-pick) {
                      display: table-cell; width: 0; white-space: nowrap;
                      vertical-align: middle; }
-/* The mark holds the room its word will need before it needs it: an open mark is a dot, a
- * picked one is a dot and up to "your pick" beside it, and a mark that took that room at
- * the moment it was pressed dragged the § reference beside it 54px to the left,
- * mid-gesture. So the dot hangs at the cell's end, out of flow, over padding that reserves
- * it (its own 11px and the 6px between it and the word), and the word grows leftward into
- * room already held. Out of flow rather than last in it, because the word is what decides
- * a line box's height and an open mark hasn't got one: centred on the row, the dot stands
- * where it stood whether or not the word is there to say so.
- *
- * The dot's room is a fact about a shape, so it is stated here. The word's is a fact about
- * a font, and no number written here stays true to one: 68px covered "your pick" in the
- * face macOS sets the chrome in and came 2px short of the DejaVu the CI runner has, so
- * every row on Linux dragged its § reference two pixels left mid-press. The press test
- * said so the moment there was a second platform to say it on, which is as early as a
- * stated number can be caught and later than one needs to be. So the word's room is
- * measured from the words in a mark's own live face and stated by the group
- * (lf-options.js), and this form is the one that spends it: a card's mark is out of flow
- * and moves nothing, so spending it there would buy only a focus ring drawn round room
- * the card never needed. */
+/* The mark reserves only the compact check/ring column. Its accessible status word is
+ * zero-sized, so choosing a row never moves the § reference or changes the row's width.
+ * The mark stays centred on wrapped labels and remains the row's last apparatus cell. */
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
                      position: relative; box-sizing: border-box;
-                     min-width: var(--lf-word-room);
+                     min-width: 17px;
                      padding-right: 17px; text-align: right; }
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick::before {
                      position: absolute; right: 0; top: 0; bottom: 0; margin: auto 0; }

@@ -59,8 +59,11 @@ batch directly.
 - **Layer comment:** an event with `"about": "layer"` changes the relevant Leaf
   layer, followed by re-vendoring, a valid source activation, and an in-thread reply.
 - **Page action:** the reader already sees the action applied. Carry its standing
-  state into `index.html`, then continue the work the page says the action selects
-  or unblocks. If you deliberately replace that state, use `restated` and explain
+  state into `index.html`. For an `lf-options` `choose` action with `additions`,
+  insert each id key and its text value as an ordinary `lf-option`, then carry the
+  standing `options` as `chosen`. Start a separate option-anchored thread only if
+  clarification is needed. Continue the work the page says the action selects or
+  unblocks. If you deliberately replace standing state, use `restated` and explain
   why when stamping the resulting checkpoint.
 - **Reaction:** a `comment` or `reply` carrying `token` in place of `text`, with
   the token's meaning printed beside it as `means`. It is a mark, not a

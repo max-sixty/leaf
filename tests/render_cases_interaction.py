@@ -577,12 +577,7 @@ SCROLL_SETTLED = """(hold) => {
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The
 # words are the same in both, which is what makes the room they need the same.
-ROOM_WIDGETS = """<lf-decision id="{id}-decision"><h2>Which extras go in?</h2>
-<lf-options id="{id}-q" choose>
-  <lf-option id="{id}-tray">A seed tray under the feeder</lf-option>
-  <lf-option id="{id}-pole">A second pole for the north pair</lf-option>
-</lf-options></lf-decision>
-<lf-board id="{id}-b">
+ROOM_WIDGETS = """<lf-board id="{id}-b">
   <lf-column id="{id}-todo" label="To do">
     <lf-card id="{id}-brackets"><strong>Steel brackets</strong> For the north pair.</lf-card>
   </lf-column>
@@ -597,7 +592,7 @@ ROOM_WIDGETS = """<lf-decision id="{id}-decision"><h2>Which extras go in?</h2>
 </lf-roster>"""
 
 # Which element holds each room, and the custom property the theme spends it through.
-ROOMS = [("-q", "--lf-word-room"), ("-b", "--lf-grip-room"), ("-r", "--lf-state-room")]
+ROOMS = [("-b", "--lf-grip-room"), ("-r", "--lf-state-room")]
 
 # What the theme is given, asked of the element that states it.
 ROOM_HELD = """([id, prop]) => {
@@ -642,18 +637,19 @@ CHANGE_SHAPES_PAGE = leaf_page(
 </lf-options></lf-decision>
 """,
 )
-# A group that takes a pick, so the layer seats a conversation in it (x-conversation),
-# and a paragraph beside it so the diff below has one real change to find.
+# A group that takes a pick and a paragraph beside it, so the diff below has one real
+# change to find while the generated add-option cell remains runtime chrome.
 CONVERSATION_DIFF_PAGE = leaf_page(
     "conversation-diff",
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
-<lf-decision id="cd-decision"><h2>Which extras go in?</h2>
-<lf-options id="cd-q" choose>
-  <lf-option id="cd-tray">A seed tray under the feeder</lf-option>
-  <lf-option id="cd-pole">A second pole for the north pair</lf-option>
-</lf-options></lf-decision>
+<lf-command id="cd-command" label="Bracket extras">
+  <lf-task id="cd-q" status="active" talk>
+    <strong>Which extras go in?</strong>
+    <p>Choose between a seed tray and a second pole.</p>
+  </lf-task>
+</lf-command>
 """,
 )
 LIVE_READING = (

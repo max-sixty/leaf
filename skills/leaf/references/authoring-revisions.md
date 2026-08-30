@@ -30,9 +30,9 @@ eventually record the decision so the page reads correctly without the log:
 
 - Mark every picked option `chosen`.
 - Carry an option a reader wrote in the group's last cell into the group as an
-  option, or settle the question their words settled. Their answer stands in a
-  thread and in no record at all, and the group stops asking only until you have
-  finished with that thread.
+  ordinary option, preserving each id key and its words from the `choose` action's
+  `detail.additions` map. It is already a recorded choice, not a comment thread. If
+  it needs discussion, carry it first and open a separate thread anchored to it.
 - Replace an accepted suggestion with `lf-new`; replace a rejected one with
   `lf-old`, retaining ids on surviving passages.
 - Carry a reader edit verbatim.

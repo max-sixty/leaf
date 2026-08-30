@@ -3129,6 +3129,13 @@ def test_a_version_response_comment_requires_its_declared_exact_section(
 ):
     version = page_dir / "versions" / "v1.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-options"]["x-conversation"] = {
+        "when": {"choose": [True]},
+        "response": {"kind": "version", "verb": "choose"},
+    }
+    registry_path.write_text(json.dumps(registry))
     publish(page_dir)
     event = {
         "kind": "comment",

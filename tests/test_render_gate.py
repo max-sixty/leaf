@@ -22,7 +22,6 @@ from render_support import (
     COLORED_CODE_PAGE,
     COMMAND_HUB_PACKAGE,
     CUSTOM_WIDGET_PAGE,
-    DECISION_PAGE,
     DECISIONS_PAGE,
     EDGE_IDS,
     EDGES,
@@ -568,26 +567,43 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     )
 
 
-def test_the_render_gate_requires_a_declared_conversations_host(browser, serve):
+def test_the_render_gate_requires_a_declared_conversations_host(
+    browser, serve, tmp_path, monkeypatch
+):
     """A conversation declaration whose module omits its host fails visibly.
 
-    The shipped module first proves the gate accepts the real page. The bug-back then
-    removes only its conversationBox placement from the vendored module; a fresh browser
-    context prevents the clean load's module cache from answering for the changed file."""
-    url = serve(DECISION_PAGE)
+    A project widget supplies the declaration and its matching host. The bug-back then
+    removes only its conversationBox placement; a fresh browser context prevents the
+    clean load's module cache from answering for the changed file."""
+    monkeypatch.chdir(tmp_path)
+    package = author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-callout"]["x-conversation"] = {"when": {"id": ["custom-note"]}}
+    registry_path.write_text(json.dumps(registry, indent=2))
+    module = package / "widgets" / "lf-callout.js"
+    source = module.read_text().replace(
+        'import { once } from "/runtime/widget-api.js";',
+        'import { conversationBox, once } from "/runtime/widget-api.js";',
+    )
+    placement = '      this.append(conversationBox(this, "Question"));\n'
+    source = source.replace(
+        "      if (!once(this)) return;\n",
+        "      if (!once(this)) return;\n" + placement,
+    )
+    module.write_text(source)
+
+    url = serve(CUSTOM_WIDGET_PAGE)
     assert render_gate_model.render_version(browser, url) == []
 
-    module = serve.page_dir / "widgets" / "lf-options.js"
+    module = serve.page_dir / "widgets" / "lf-callout.js"
     source = module.read_text()
-    placement = """        this.#another = conversationBox(this, ANOTHER);
-        if (this.#another) this.append(this.#another);
-"""
     assert source.count(placement) == 1
     module.write_text(source.replace(placement, ""))
 
     failures = render_gate_model.render_version(browser, url)
     assert (
-        "[light] <lf-options id='jobs'> declares x-conversation but rendered 0 "
+        "[light] <lf-callout id='custom-note'> declares x-conversation but rendered 0 "
         "matching hosts; its module must place exactly one conversationBox"
     ) in failures
 

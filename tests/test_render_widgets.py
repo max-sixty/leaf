@@ -2115,26 +2115,21 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
 def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, serve):
     """A measurement is a measurement wherever the widget was built, or it is a zero.
 
-    Three shipped widgets take a number off a live box at upgrade — the room a pick
-    mark's word will need, the room a card keeps clear of its grip, the width of a
-    roster's state column — because a constant goes stale in the next face. A widget
+    Two shipped widgets take a number off a live box at upgrade — the room a card keeps
+    clear of its grip and the width of a roster's state column — because a constant goes
+    stale in the next face. A widget
     upgrades wherever the runtime connects it, and one of those places is a message body
     inside a thread panel nobody has opened: `display: none`, so every box under it is
     zero. `once` then refuses the second upgrade that would put it right and the body is
     cached for the life of the tab, so the zero is permanent.
-
-    Nothing said so. The pick column collapsed to nothing, and the room arrived under
-    the reader's pointer at the moment they pressed — the mark 17px wide, then 67, the
-    row jumping 50px sideways as it gained the word "your pick".
 
     The reply is in the log before the page loads and the panel is shut, which is the
     only arrangement that reproduces it: a reply arriving into an open panel upgrades
     into boxes and was always right. Rooms are compared rather than named, because the
     number is the face's and this is about whether it was ever read.
 
-    All three of them, because `measure` is the primitive and each module's wiring to it
-    is its own line. Two of the three have no other reading anywhere that would notice
-    one coming out."""
+    Both of them, because `measure` is the primitive and each module's wiring to it is
+    its own line."""
     url = serve(MESSAGE_ROOM_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -2169,7 +2164,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         assert held[suffix] not in ("0px", "", None), (suffix, prop, held)
 
     page.locator(".lf-threads-toggle").click()
-    expect(page.locator("#mr-msg-q")).to_be_visible()
+    expect(page.locator("#mr-msg-b")).to_be_visible()
     # The re-measure is delivered with the layout that gave these their boxes, so the
     # reading waits for a frame that has been through one.
     page.evaluate(RENDERED)

@@ -17,9 +17,12 @@ import { PAGE_SCOPE, draftStore } from "./storage.js";
 // alternative and it fails in the direction that loses words — two tabs each holding a
 // different half of one thought, and whichever is closed takes its half.
 //
-// The stored value is one record, not raw words plus lock markers: {text, attempt, base}
-// while active and {attempt, base, settled:true} afterward. `base` is the shared attempt this
-// edit descended from, or null when the store was absent. A new edit always mints a new
+// The stored value is one record, not raw words plus lock markers:
+// {text, attempt, base, payload?} while active and {attempt, base, settled:true}
+// afterward. `payload` lets a draft whose submission depends on more than its visible
+// words bind that exact submission state to the attempt; two tabs must not derive two
+// action bodies from one shared generation. `base` is the shared attempt this edit
+// descended from, or null when the store was absent. A new edit always mints a new
 // attempt but a chain of failed local writes keeps the same base. That provenance is
 // what lets the branch survive news settling its predecessor without letting it overwrite
 // an unrelated generation another tab durably wrote later.
@@ -53,7 +56,13 @@ const parseDraftRecord = (value) => {
             (key) => !["attempt", "base", "settled"].includes(key),
           )
         : typeof record.text !== "string" ||
-          Object.keys(record).some((key) => !["attempt", "text", "base"].includes(key)))
+          (record.payload !== undefined &&
+            (!record.payload ||
+              typeof record.payload !== "object" ||
+              Array.isArray(record.payload))) ||
+          Object.keys(record).some(
+            (key) => !["attempt", "text", "base", "payload"].includes(key),
+          ))
     )
       return null;
     return record;
@@ -151,14 +160,19 @@ export const newAttempt = () => {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
-export const saveDraft = (ctx, text) => {
+export const saveDraft = (ctx, text, payload) => {
   const cached = draftCache.get(ctx);
   const previous = rawDraftRecord(ctx);
   // A series of local edits whose writes all fail is one branch from the last shared
   // generation, not a chain that progressively forgets what it may replace.
   const base =
     cached && !cached.durable && previous ? previous.base : (previous?.attempt ?? null);
-  const record = { text, attempt: newAttempt(), base };
+  const record = {
+    text,
+    attempt: newAttempt(),
+    base,
+    ...(payload === undefined ? {} : { payload }),
+  };
   const durable = writeDraftRecord(ctx, record);
   draftCache.set(ctx, { record, durable });
   return durable;
@@ -219,7 +233,7 @@ export async function sendDraft(ctx, owns, send) {
     !owns()
   )
     return null;
-  const sent = await send(current.attempt);
+  const sent = await send(current.attempt, current.payload);
   if (sent && settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
   return sent;
 }

@@ -89,7 +89,7 @@ const loadMermaid = () =>
   }));
 
 /* Which boxes an author may name, per Mermaid type: the id written in the source and
- * the id the renderer draws it under. A type belongs here when the author's id
+ * the id Mermaid mints from it. A type belongs here when the author's id
  * reaches the drawing inside an id of Mermaid's own making, because only then is
  * `node:Queued` still the same box after a re-render, and after an edit that inserts
  * three boxes above it.
@@ -102,14 +102,11 @@ const loadMermaid = () =>
  * the tasks an author left unnamed — a token that names the third bar today and the
  * fourth after an insertion.
  */
-// A box that holds other boxes — a flowchart subgraph, a composite state — is drawn
-// under the author's id itself, where a plain node is drawn under mermaid's. Its
-// `domId` is null or names a box the renderer never draws, so asking by node kind is
-// the whole of it. Mermaid draws the containers in a layer of their own rather than
-// around what they hold, so a container is pointed at where it paints — its frame and
-// its title — while the boxes inside it answer for themselves.
-const graphBoxes = (db) =>
-  db.getData().nodes.map((n) => [n.id, n.isGroup ? n.id : n.domId]);
+// Mermaid draws the containers — a flowchart subgraph, a composite state — in a layer
+// of their own rather than around what they hold, so a container is pointed at where it
+// paints, its frame and its title, while the boxes inside it answer for themselves.
+const graphBoxes = (db) => db.getData().nodes.map((n) => [n.id, n.domId]);
+
 const PART_SOURCES = {
   "flowchart-v2": { source: "flowchart", boxes: graphBoxes },
   stateDiagram: { source: "stateDiagram-v2", boxes: graphBoxes },
@@ -171,7 +168,15 @@ customElements.define(
         for (const [id, drawnId, name] of boxes) {
           const part = `node:${id}`;
           if (!declared.has(part)) continue;
-          const element = drawn.querySelector(`#${CSS.escape(drawnId)}`);
+          // Mermaid mints a dom id from the author's ("Queued" → "state-Queued-1")
+          // and prefixes it with the id passed to render(), so the id the parse
+          // reports is not the id on the drawing. Both halves are values held here,
+          // which keeps this an exact lookup rather than a pattern matched against
+          // the drawing: a pattern can resolve to the wrong box, and a comment
+          // anchored to the wrong box is the worst thing this widget can do.
+          const element = drawn.querySelector(
+            `#${CSS.escape(`${renderId}-${drawnId}`)}`,
+          );
           if (!element) continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           this.visualParts.set(part, { element, label: name ?? (says || id) });

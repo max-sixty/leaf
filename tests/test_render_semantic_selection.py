@@ -247,7 +247,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
 
     start_code = page.evaluate(
         """() => {
-          const part = document.querySelector('#flow g[id^="flowchart-S-"]')
+          const part = document.querySelector('#flow g[id*="flowchart-S-"]')
             .getBoundingClientRect();
           return [...document.querySelectorAll('.lf-target-hint')]
             .sort((a, b) => {
@@ -264,7 +264,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text(
         "Selected diagram: Start request. Choose a response."
     )
-    start = page.locator('#flow g[id^="flowchart-S-"]')
+    start = page.locator('#flow g[id*="flowchart-S-"]')
     expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-action-target\b"))
 

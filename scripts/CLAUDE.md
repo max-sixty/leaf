@@ -31,6 +31,9 @@ keep it when the product can make those frames stale.
   the registry's `$languages.names`.
 - `vendor-marked.sh` copies the dependency-free Markdown renderer used for
   thread messages.
+- `vendor-mermaid.sh` copies the diagram renderer `lf-diagram` draws with. The
+  vendored file is the IIFE build, because the widget loads it through a
+  `<script src>` tag rather than importing it.
 - `vendor-pierre.sh` builds the bounded Pierre diff renderer and license notices
   from the registry's `$languages.names` and the two shipped diff themes.
 - `vendor-plot.sh` bundles Observable Plot with d3 into

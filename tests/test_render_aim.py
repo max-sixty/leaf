@@ -879,13 +879,13 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page, errors = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
 
-    unlisted = diagram.locator('g[id^="flowchart-U-"]')
+    unlisted = diagram.locator('g[id*="flowchart-U-"]')
     unlisted.click()
     page.locator(".lf-fab").click()
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     page.get_by_role("button", name="Cancel").click()
 
-    start = diagram.locator('g[id^="flowchart-S-"]')
+    start = diagram.locator('g[id*="flowchart-S-"]')
     start.click()
     page.locator(".lf-fab").click()
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
@@ -912,7 +912,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     stamp_version_file(serve.page_dir, 2, "reordered")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(diagram.locator('g[id^="flowchart-S-"]')).to_have_class(
+    expect(diagram.locator('g[id*="flowchart-S-"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -926,7 +926,7 @@ def test_a_linked_flowchart_node_uses_the_shared_aim_actions(browser, serve):
     the same Comment and Reaction choices as any other aimed item."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    handler = diagram.locator('g[id^="flowchart-H-"]')
+    handler = diagram.locator('g[id*="flowchart-H-"]')
     expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
 
     handler.click(modifiers=["Alt"])
@@ -956,7 +956,7 @@ def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
     """A design-control label is not reinterpreted as a semantic visual token."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    handler = diagram.locator('g[id^="flowchart-H-"]')
+    handler = diagram.locator('g[id*="flowchart-H-"]')
     page.keyboard.press("i")
     handler.click()
 
@@ -1027,7 +1027,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
         expect(page.locator(".lf-fab-bar")).to_be_visible()
         page.locator(".lf-fab").click()
 
-    state = page.locator('#life g[id^="state-Queued-"]')
+    state = page.locator('#life g[id*="state-Queued-"]')
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     page.locator(".lf-composer textarea").fill("how long does it sit here")
@@ -1035,15 +1035,15 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     round_trip(page)
 
     # A box inside the composite state, declared in its own right.
-    aim(page.locator('#life g[id^="state-Build-"]'))
+    aim(page.locator('#life g[id*="state-Build-"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Build")
     page.get_by_role("button", name="Cancel").click()
 
-    aim(page.locator("#life g#Working"), position={"x": 6, "y": 6})
+    aim(page.locator('#life g[id*="Working"]'), position={"x": 6, "y": 6})
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Working")
     page.get_by_role("button", name="Cancel").click()
 
-    entity = page.locator('#shape g[id^="entity-RUNNER-"]')
+    entity = page.locator('#shape g[id*="entity-RUNNER-"]')
     aim(entity)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
     page.get_by_role("button", name="Cancel").click()
@@ -1051,7 +1051,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # A node's label is the words the box shows. The source's own string is what
     # Mermaid renders from — markdown, entities and all — so it is not what a thread
     # quotes back to the reader.
-    aim(page.locator('#path g[id^="flowchart-A-"]'))
+    aim(page.locator('#path g[id*="flowchart-A-"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "§ diagram · Bold and plain"
     )
@@ -1077,15 +1077,13 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
 
     # v2 inserts a state above Queued, so Mermaid mints it a new id. The mark follows
     # the authored token to whatever box that version draws for it.
-    assert 'id="state-Queued-1"' in page.locator("#life").inner_html()
+    drawn_in_v1 = state.get_attribute("id")
     (serve.page_dir / "versions" / "v2.html").write_text(TYPED_PARTS_V2)
     stamp_version_file(serve.page_dir, 2, "one state earlier")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(page.locator("#life g#state-Queued-2")).to_have_class(
-        re.compile(r"\blf-mark-el\b")
-    )
-    expect(page.locator("#life g#state-Queued-1")).to_have_count(0)
+    expect(page.locator(f'#life [id="{drawn_in_v1}"]')).to_have_count(0)
+    expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
     page.close()
 

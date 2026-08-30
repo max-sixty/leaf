@@ -99,8 +99,8 @@
  *
  * Authored content is never replaced, so there is no failSoft. */
 import {
+  DISCLOSE,
   HIDDEN,
-  PRESS,
   actionStands,
   conversationBox,
   conversationInput,
@@ -509,7 +509,7 @@ customElements.define(
 
     #row = null; // the one-line summary a settled group collapses to
     #title = null; // the part of it naming the chosen option
-    #isOpen = false; // this tab's reading of the group; #open renders it, nothing reads it back
+    #isOpen = false; // this tab's reading of the group; #open renders it, the row's line says it
 
     #settle() {
       // A disclosure is a thing to work, and what it names — the chosen option — the
@@ -526,13 +526,25 @@ customElements.define(
       count.textContent = `${options.length} option${options.length === 1 ? "" : "s"}`;
       this.#row.append(this.#title, count);
       this.#row.setAttribute("aria-controls", options.map((o) => o.id).join(" "));
+      // Which way it stands, before the scope below is declared: a row wearing
+      // role="button" and aria-expanded is the disclosure pattern, and DISCLOSE reads
+      // that pair to answer what works here. Written at birth rather than left to the
+      // first #open, so the row is never briefly a control the runtime cannot place.
+      this.#row.setAttribute("aria-expanded", "false");
       this.#row.onclick = () => this.#open(!this.#isOpen, true);
+      // The same press the runtime's disclosure scope owns, re-worded in this group's
+      // terms. Its bindings come from DISCLOSE rather than from PRESS, which is what
+      // that primitive is for: a nearer scope keeps only the keys it names, so a row
+      // naming the pair alone took the arrow off the line and left the reader with
+      // "open or close" beside a stray "→ open" instead of one chip saying which way
+      // this section goes. Named through DISCLOSE the two cannot come apart, and the
+      // word follows the row the way the runtime's own does.
       keys(this.#row, "In a settled ask", [
         {
           id: "option.toggle-settled",
-          keys: PRESS,
+          keys: () => DISCLOSE(this.#row),
           does: "Open or close the settled ask",
-          line: "open or close",
+          line: () => (this.#isOpen ? "close" : "open"),
           run: () => this.#row.click(),
         },
       ]);
@@ -579,6 +591,8 @@ customElements.define(
       ])
         if (open) el.removeAttribute("hidden");
         else el.setAttribute("hidden", HIDDEN);
+      // The row's bindings answer from this attribute, and the disclosure watcher hears the
+      // write: it repaints both surfaces that name a row's keys, so nothing local is owed.
       this.#row.setAttribute("aria-expanded", open ? "true" : "false");
       if (remember) tabStore.set(SETTLED_KEY + this.id, open ? "1" : "0");
     }

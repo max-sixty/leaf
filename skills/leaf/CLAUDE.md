@@ -1886,6 +1886,12 @@ document listener, and an `aria-expanded` control fires nothing anywhere. Both
 keep that state in an attribute, so one `MutationObserver` over `open` and
 `aria-expanded` repaints for both, and `shadowStage` hands it each root.
 
+That watch repaints the register and not the line alone. A row bound through
+`DISCLOSE` answers from the state the watch is already reading, so both surfaces
+naming its keys turn over together — the line the reader sees and the
+`aria-keyshortcuts` a listener is read — and a widget declaring a disclosure row
+owes no repaint of its own.
+
 State, and not the write that carries it: the watch compares each record against
 the attribute's current value and repaints only where the two differ. The paint
 restates both attributes on the controls it owns, so a watch reading every record

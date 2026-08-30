@@ -148,7 +148,7 @@ export function createChromeLayout({
       "--lf-keyline-right",
       (panelBeside ? commentsEdge.width() : 0) + "px",
     );
-    // One line stands over two scroll regions, so one measurement is what they both
+    // One line stands over three scroll regions, so one measurement is what they all
     // reserve — off the rendered line rather than stated as a number, which is what
     // keeps it true when the line's face or its padding moves.
     const clear = keylineEl.offsetHeight + 20 + "px";

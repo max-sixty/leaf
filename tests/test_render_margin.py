@@ -1062,9 +1062,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     )
     assert text_insets
     for inset in text_insets:
-        assert inset["above"] == pytest.approx(
-            inset["below"], abs=1.5
-        ), f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")

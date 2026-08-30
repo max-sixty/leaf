@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -32,7 +33,6 @@ from render_harness import (
     RENDERED,
     TOKEN,
     leaf_page,
-    record_claim,
     stamp_version_file,
 )
 

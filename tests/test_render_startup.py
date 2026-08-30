@@ -1811,6 +1811,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         if claimed:
             record_claim(
                 d,
+                id="s",
                 pid=session_pid or os.getpid(),
                 agent=agent,
                 turn_closed=None
@@ -1970,7 +1971,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     dot = page.locator(".lf-banner .lf-dot")
 
     def claim(detail):
-        record_claim(d)
+        record_claim(d, id="s")
         files_model.write_json(
             d / "status.json",
             {"state": "working", "detail": detail, "ts": events_model.now_iso()},
@@ -2098,7 +2099,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     told(page)
     expect(work_line).to_have_count(1)
-    record_claim(d, pid=dead_pid)
+    record_claim(d, id="s", pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^No session holds this page\.")
@@ -2180,6 +2181,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # beside it because a second delegate is still renewing the claim.
     record_claim(
         d,
+        id="s",
         turn_closed=(datetime.now().astimezone() - timedelta(minutes=5)).isoformat(
             timespec="seconds"
         ),
@@ -2215,7 +2217,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
 
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
-    record_claim(d)
+    record_claim(d, id="s")
     claim(events_model.now_iso())
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line).to_have_count(1)
@@ -2269,7 +2271,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
     # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
     # in the tab, which is the whole of what the reader can see of it from a tab strip.
-    record_claim(d, pid=dead_pid)
+    record_claim(d, id="s", pid=dead_pid)
     unheld = tone("", "unheld")
     assert unheld not in (
         working,

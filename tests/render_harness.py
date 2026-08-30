@@ -50,7 +50,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
-from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -391,25 +390,6 @@ REPLAYED_PAGE = leaf_page(
 # A page's key is minted per page; fixed here so a test can build a URL for a
 # server it did not start.
 TOKEN = "test-page-key"
-
-
-def record_claim(page, **fields):
-    record = {
-        "page": str(page.resolve()),
-        "id": "s",
-        "host": "claude-code",
-        "pid": os.getpid(),
-        "agent": "Claude",
-        "cwd": str(Path.cwd()),
-        "ts": "t",
-        "released": None,
-        "turn_closed": None,
-        **fields,
-    }
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    files_model.write_json(path, record)
-    return record
 
 
 @pytest.fixture

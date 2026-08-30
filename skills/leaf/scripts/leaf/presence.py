@@ -98,7 +98,7 @@ def presence(page_dir: Path, events: list) -> dict:
     cursor = read_cursor(page_dir)
     return {
         "status": status,
-        "claims": claim_update_sources(stored_status, events),
+        "claims": claim_update_sources(stored_status),
         "listening": wait_is_live(page_dir, active),
         "cursor": cursor,
         # The reader's number, not the watcher's: their own messages the agent

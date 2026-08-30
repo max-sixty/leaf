@@ -16,11 +16,6 @@ from .projection import (
 from .registry.storage import require_registry
 
 
-def work_claim_revision(claim: dict, _events: list) -> int:
-    """The exact working document on which widget work was claimed."""
-    return claim["revision"]
-
-
 def standing_work_claims(status: dict, events: list) -> list:
     """The transient work claims the durable exchange has not ended.
 

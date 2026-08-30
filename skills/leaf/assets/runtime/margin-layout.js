@@ -54,8 +54,6 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
-export const marginAnchorFor = (row) => rows.get(row)?.anchor ?? null;
-
 export function layoutMarginRows() {
   pending = 0;
   const column = marginColumn();

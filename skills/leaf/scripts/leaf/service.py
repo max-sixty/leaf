@@ -21,7 +21,6 @@ from leaf.host import (
     state_home,
 )
 from leaf.locations import page_key
-from leaf.work import work_claim_revision
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -279,7 +278,7 @@ def unacknowledged(events: list, cursor: int) -> list:
     ]
 
 
-def claim_update_sources(status: dict, events: list) -> list[dict]:
+def claim_update_sources(status: dict) -> list[dict]:
     """The status store's work claims at their public boundary.
 
     `status.json` remains the small replace-in-place store its transient claims
@@ -303,6 +302,6 @@ def claim_update_sources(status: dict, events: list) -> list[dict]:
             "session": claim.get("session"),
         }
         if target["kind"] == "widget":
-            source["revision"] = work_claim_revision(claim, events)
+            source["revision"] = claim["revision"]
         sources.append(source)
     return sources

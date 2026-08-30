@@ -2913,7 +2913,7 @@ def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page
     another machine's opinion. The payload states the writer's clock so the reading is
     made against that one; without it a skewed laptop misreads every age on the page,
     in one direction and with nothing to give it away."""
-    state = served_page.full_state(page_dir, [], [])
+    state = served_page.full_state(page_dir, [])
     written = datetime.fromisoformat(state["now"])
     assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
@@ -2922,8 +2922,8 @@ def test_the_state_payload_says_when_it_was_taken(page_dir):
     """Two answers can cross on the wire, and nothing the log orders tells them apart
     when neither carries a new event. Each says when the server took it, so a tab
     keeps the later one whichever lands last."""
-    first = served_page.full_state(page_dir, [], [])
-    second = served_page.full_state(page_dir, [], [])
+    first = served_page.full_state(page_dir, [])
+    second = served_page.full_state(page_dir, [])
     assert first["taken"] < second["taken"]
     assert abs(time.time() - second["taken"]) < 60
 

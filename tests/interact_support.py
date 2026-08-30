@@ -118,13 +118,6 @@ def install_payload(destination):
     return destination
 
 
-def wait_for_path(path, failure):
-    deadline = time.monotonic() + 10
-    while not path.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert path.exists(), failure
-
-
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -312,7 +305,7 @@ def stamp(d, version, text="stamped", completes=()):
 
 def page_state(d):
     events = events_model.read_events(d)
-    return served_page.full_state(d, events, files_model.published_versions(d, events))
+    return served_page.full_state(d, events)
 
 
 def record_claim(page, **fields):

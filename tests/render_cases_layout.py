@@ -1316,20 +1316,9 @@ def flip_point(page, sel="lf-shot"):
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
-# Two ways a widget leaves words on screen that no comment can land on, written into the
-# markup because the gate reads the rendered page and cannot tell who put them there — a
-# page-local module is where both actually happen, and standing one up here would test the
-# module loader rather than the gate. First: a heading inside a chrome-looking row, with
-# nothing said about whose words it is. Second: the words declared the page's, and put
-# inside a form control, where no pointer can select them however they are marked.
-OUT_OF_REACH_PAGE = CARRIED_PAGE.replace(
-    '<lf-option id="c-lax" chosen>',
-    '<lf-option id="c-lax" chosen><div class="lf-ui"><strong>Session cookies</strong>'
-    "</div><button data-lf-said>Lax, host-only</button>",
-)
-# A painted fact whose spoken copy is on the page and drawn nowhere, written into the
-# markup for the same reason the two above are: the gate reads the rendered page and
-# cannot tell who suppressed the word. `kind` is x-paints, so the runtime writes a
+# A painted fact whose spoken copy is on the page and drawn nowhere. It is written into
+# the markup because the gate reads the rendered page and cannot tell who suppressed
+# the word. `kind` is x-paints, so the runtime writes a
 # .lf-quiet span beside each of these; the style takes the box off both. One stands in
 # the open and one behind a disclosure the reader has not opened.
 PAINTED_IN_SILENCE_PAGE = leaf_page(

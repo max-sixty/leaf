@@ -17,11 +17,7 @@ from leaf.projection import folded_facet, markup_facet, page_projection
 from leaf.revisioning import activate_source
 from leaf.service import PageTransaction
 from leaf.validation.admission import read_text_arg
-from leaf.work import (
-    standing_work_claims,
-    widget_work_without_seats,
-    work_claim_revision,
-)
+from leaf.work import standing_work_claims, widget_work_without_seats
 
 
 def _stamp_activation(page_dir: Path, events: list):
@@ -32,7 +28,7 @@ def _stamp_activation(page_dir: Path, events: list):
     return activation
 
 
-def _stamp_reading(page_dir: Path, events: list, activation):
+def _stamp_reading(events: list, activation):
     revision = activation.revision
     if existing := stamped_version(events, revision):
         sys.exit(f"revision r{revision} is already stamped as v{existing}")
@@ -69,9 +65,7 @@ def _completed_work(
             + ", ".join(repr(widget) for widget in unearned)
         )
     not_later = sorted(
-        widget
-        for widget in completed
-        if revision <= work_claim_revision(widget_work[widget], events)
+        widget for widget in completed if revision <= widget_work[widget]["revision"]
     )
     if not_later:
         sys.exit(
@@ -143,9 +137,7 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     created_version = None
     committed = False
     try:
-        checked, registry, projection, parser, spk = _stamp_reading(
-            page_dir, events, activation
-        )
+        checked, registry, projection, parser, spk = _stamp_reading(events, activation)
 
         completed = _completed_work(
             checked,

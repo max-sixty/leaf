@@ -14,7 +14,6 @@ from .browser import project_browser_state
 def full_state(
     page_dir: Path,
     events: list,
-    _versions: list | None = None,
     layer: str | None = None,
     source_error: str | None = None,
     view_revision: int | None = None,

@@ -1,6 +1,7 @@
 import { shownBand, uiInside } from "/runtime/widget-api.js";
 
 export const bodyOverflow = () => document.body.scrollWidth - document.body.clientWidth;
+const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
 
 // Every box is drawn somewhere, and something has to answer for where. Three
 // readings ask it — of the column, of the room the page keeps for a wide widget,
@@ -50,8 +51,38 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // WITHHELD_ROOM, deciding whether an exhibit's sideways scroll answers to a margin's
 // occupant or to room the layer withheld. A resident is whatever answered for itself
 // out there, so a project hanging its own furniture in the margin is covered without
-// declaring anything to either pass. Spliced after `main`, `left` and `right` are in
-// scope, the way OPEN_ROOTS is spliced where `roots` is wanted.
+// declaring anything to either pass. `marginReading` keeps that geometry shared.
+
+function marginReading(main) {
+  const style = getComputedStyle(main);
+  const box = main.getBoundingClientRect();
+  const left = box.left + parseFloat(style.paddingLeft);
+  const right = box.right - parseFloat(style.paddingRight);
+  // Logical floats compute to whichever physical or logical token was written, so
+  // resolve them against the element's own direction.
+  const floatSide = (s) =>
+    s.float === "left" || s.float === "right"
+      ? s.float
+      : (s.float === "inline-start") === (s.direction !== "rtl")
+        ? "left"
+        : "right";
+  const isResident = (el, s = getComputedStyle(el), b = el.getBoundingClientRect()) => {
+    if (s.position === "absolute" || s.position === "fixed")
+      return b.right <= left + 1 || b.left >= right - 1;
+    if (s.float === "none") return false;
+    return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
+  };
+  const residents = [...main.querySelectorAll("*")].filter((el) => {
+    if (!el.checkVisibility() || el.hasAttribute("data-lf-wide")) return false;
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    // Clipped to nothing is not standing in the margin: the words a page paints for
+    // whoever is listening are a pixel wide and under a reader's notice, so a widget
+    // drawn across one has taken nothing from anybody.
+    return box.width >= 2 && isResident(el, style, box);
+  });
+  return { isResident, left, residents, right };
+}
 
 export function misplacedBoxes() {
   // shownBand is the runtime's own: what a container lets the reader see of what it
@@ -62,10 +93,7 @@ export function misplacedBoxes() {
   // formatting context keeps in.)
   const main = document.querySelector("main");
   if (!main) return [];
-  const style = getComputedStyle(main),
-    box = main.getBoundingClientRect();
-  const left = box.left + parseFloat(style.paddingLeft);
-  const right = box.right - parseFloat(style.paddingRight);
+  const { isResident, left, residents, right } = marginReading(main);
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
@@ -78,53 +106,14 @@ export function misplacedBoxes() {
   const bodyBox = document.body.getBoundingClientRect();
   const roomLeft = bodyBox.left + parseFloat(bodyStyle.paddingLeft);
   const roomRight = bodyBox.right - parseFloat(bodyStyle.paddingRight);
-  const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
-
-  // `float` computes to whichever of the four values was written, so the two
-  // logical ones are resolved against the element's own direction rather than
-  // compared as strings: `inline-start` is the left edge in a LTR page and the
-  // right edge in a RTL one, and a side read wrong reports a note that is exactly
-  // where it belongs.
-  const floatSide = (s) =>
-    s.float === "left" || s.float === "right"
-      ? s.float
-      : (s.float === "inline-start") === (s.direction !== "rtl")
-        ? "left"
-        : "right";
-  const inTheMargin = (el, s) => {
-    if (s.float === "none") return false;
-    const b = el.getBoundingClientRect();
-    return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
-  };
-  const positionedInTheMargin = (el, s) => {
-    if (s.position !== "absolute" && s.position !== "fixed") return false;
-    const b = el.getBoundingClientRect();
-    return b.right <= left + 1 || b.left >= right - 1;
-  };
-  const residents = [];
-  for (const el of main.querySelectorAll("*")) {
-    if (!el.checkVisibility() || el.hasAttribute("data-lf-wide")) continue;
-    const s = getComputedStyle(el),
-      b = el.getBoundingClientRect();
-    // Clipped to nothing is not standing in the margin: the words a page paints for
-    // whoever is listening are a pixel wide and under a reader's notice, so a widget
-    // drawn across one has taken nothing from anybody.
-    if (b.width < 2) continue;
-    const clear = b.right <= left + 1 || b.left >= right - 1;
-    if (clear && (positionedInTheMargin(el, s) || inTheMargin(el, s)))
-      residents.push(el);
-  }
-
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
   // of this pass having gone straight past the container that cut it.
   const answeredFor = (el) => {
-    const own = getComputedStyle(el);
-    if (positionedInTheMargin(el, own) || inTheMargin(el, own)) return true;
+    if (isResident(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
-      const s = getComputedStyle(a);
-      if (positionedInTheMargin(a, s) || inTheMargin(a, s)) return true;
+      if (isResident(a)) return true;
       if (shownBand(a)) return true;
     }
     return false;
@@ -358,40 +347,7 @@ export function misplacedBoxes() {
 export function withheldRoom() {
   const main = document.querySelector("main");
   if (!main) return [];
-  const style = getComputedStyle(main),
-    box = main.getBoundingClientRect();
-  const left = box.left + parseFloat(style.paddingLeft);
-  const right = box.right - parseFloat(style.paddingRight);
-  const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
-
-  // `float` computes to whichever of the four values was written, so the two
-  // logical ones are resolved against the element's own direction rather than
-  // compared as strings: `inline-start` is the left edge in a LTR page and the
-  // right edge in a RTL one, and a side read wrong reports a note that is exactly
-  // where it belongs.
-  const floatSide = (s) =>
-    s.float === "left" || s.float === "right"
-      ? s.float
-      : (s.float === "inline-start") === (s.direction !== "rtl")
-        ? "left"
-        : "right";
-  const inTheMargin = (el, s) => {
-    if (s.float === "none") return false;
-    const b = el.getBoundingClientRect();
-    return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
-  };
-  const residents = [];
-  for (const el of main.querySelectorAll("*")) {
-    if (!el.checkVisibility() || el.hasAttribute("data-lf-wide")) continue;
-    const s = getComputedStyle(el),
-      b = el.getBoundingClientRect();
-    // Clipped to nothing is not standing in the margin: the words a page paints for
-    // whoever is listening are a pixel wide and under a reader's notice, so a widget
-    // drawn across one has taken nothing from anybody.
-    if (b.width < 2) continue;
-    const clear = b.right <= left + 1 || b.left >= right - 1;
-    if (clear && (s.position === "absolute" || inTheMargin(el, s))) residents.push(el);
-  }
+  const { residents } = marginReading(main);
 
   const found = [];
   for (const el of main.querySelectorAll('[data-lf-wide="drawing"]')) {
@@ -487,7 +443,6 @@ export function withheldRoom() {
 export function squeezedTables() {
   const main = document.querySelector("main");
   if (!main) return [];
-  const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
   // What a heading says, for the column's name.
   const says = (cell) => {
     let text = "";

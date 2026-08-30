@@ -1370,8 +1370,10 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     a drawing the room holds below, and the gate finds nothing. The capped half is what
     makes that worth believing — the same page with the drawing's box held under its own
     graph fires the reading, so a clean answer is the layout's and not the probe going
-    blind. The guard between them pins the premise: the graph is wider than the column
-    and narrower than the room, or neither half asks the question."""
+    blind. A fixed box wholly in the margin then makes that apparent room unavailable
+    and clears the finding. The guards pin each premise: the graph is wider than the
+    column and narrower than the room, and the resident crosses the drawing's band
+    without crossing the column."""
     url = serve(DRAWN_PAST_A_RAIL_PAGE)
     page, errors = open_page(browser, url)
     fit = page.evaluate("""() => {
@@ -1406,6 +1408,32 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         f"handover, and the gate said: {failures or 'nothing'}"
     )
 
+    occupied = capped.replace("margin-block: 600px", "margin-block: 0").replace(
+        "<style>#flow { max-width: 640px }</style>",
+        "<style>#flow { max-width: 640px } "
+        "#fixed-margin { position: fixed; inset: 0 auto 0 0; width: 40px }</style>"
+        '<div id="fixed-margin">A fixed page tool.</div>',
+    )
+    page, errors = open_page(browser, serve(occupied))
+    premise = page.evaluate("""() => {
+        const flow = document.getElementById('flow');
+        const f = flow.getBoundingClientRect();
+        const resident = document.getElementById('fixed-margin').getBoundingClientRect();
+        const main = document.querySelector('main');
+        const style = getComputedStyle(main), box = main.getBoundingClientRect();
+        return {scrolls: flow.scrollWidth - flow.clientWidth,
+                hasRoom: flow.scrollWidth <=
+                         parseFloat(getComputedStyle(flow).getPropertyValue('--lf-room')) + 1,
+                clear: resident.right <= box.left + parseFloat(style.paddingLeft) + 1,
+                overlap: Math.min(f.bottom, resident.bottom) -
+                         Math.max(f.top, resident.top)};
+    }""")
+    assert premise["scrolls"] > 1 and premise["hasRoom"], premise
+    assert premise["clear"] and premise["overlap"] > 1, premise
+    assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
+    assert errors == []
+    page.close()
+
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     browser, serve
@@ -1417,10 +1445,10 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     drawn over any of it is named at handover with both boxes in the message.
 
     It reads a resident by the same test the pass above excuses one by — placed
-    absolutely, or floated clear of the column — so this needs no vocabulary of its own
-    and nothing has to be declared to it. That is what keeps the two theme rules honest:
-    the next claimant that forgets one is a refusal with a name on it rather than a page
-    somebody eventually notices is drawn over its own controls."""
+    absolutely or fixed, or floated clear of the column — so this needs no vocabulary
+    of its own and nothing has to be declared to it. That is what keeps the two theme
+    rules honest: the next claimant that forgets one is a refusal with a name on it
+    rather than a page somebody eventually notices is drawn over its own controls."""
     failures = render_gate_model.render_version(browser, serve(OWN_MARGIN_FURNITURE))
 
     assert [

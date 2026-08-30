@@ -312,12 +312,30 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     page.close()
 
 
-def test_selection_search_finds_page_text_without_a_target_kind(browser, serve):
-    """Slash inside selection is ordinary whole-page find. It narrows by the words the
-    reader knows, highlights one exact occurrence, and Enter hands that range to the same
-    comment surface as a hint. No paragraph/sentence/widget key is needed first."""
+def test_slash_finds_page_text_without_a_target_kind(browser, serve):
+    """Slash is ordinary whole-page find. It narrows by the words the reader knows,
+    highlights one exact occurrence, and Enter hands that range to the same comment
+    surface as a hint. No selection mode or paragraph/sentence/widget key is needed
+    first."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
-    page.keyboard.press("s")
+
+    line = page.locator(".lf-keyline")
+    expect(line).to_contain_text("search page")
+    expect(line).to_contain_text("select item")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    help_el = page.locator(".lf-help")
+    search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
+    select_command = help_el.locator('tr[data-lf-command="selection.open"]')
+    expect(search_command.locator("kbd")).to_have_text("/")
+    expect(search_command.get_by_role("button")).to_have_text(
+        "Search all the text on the page"
+    )
+    expect(select_command.locator("kbd")).to_have_text("s")
+    expect(select_command.get_by_role("button")).to_have_text(
+        "Select a visible item by hint"
+    )
+    page.keyboard.press("Escape")
     page.keyboard.press("/")
 
     search = page.get_by_role("searchbox", name="Search page text")
@@ -341,6 +359,53 @@ def test_selection_search_finds_page_text_without_a_target_kind(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     assert pending_text(page) == "button the key"
+    assert errors == []
+    page.close()
+
+
+def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
+    browser, serve
+):
+    """An editable field owns slash as text. From the thread list, the same key opens
+    that panel's find box rather than the page search standing behind it."""
+    html = leaf_page(
+        "scoped slash",
+        '<label>Path <input id="path"></label><p>Searchable page words.</p>',
+    )
+    page, errors = open_page(browser, serve(html, comments=2))
+    path = page.locator("#path")
+    path.focus()
+    page.keyboard.type("/")
+    expect(path).to_have_value("/")
+    expect(page.locator(".lf-target-search")).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("/")
+    thread_search = page.get_by_role("searchbox", name="Find in threads")
+    expect(thread_search).to_be_focused()
+    expect(page.locator(".lf-target-search")).to_be_hidden()
+    page.keyboard.type("Comment 1")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
+    """An empty thread list still has a usable find box. Slash focuses that nearest
+    search rather than opening page search behind the panel."""
+    html = leaf_page("empty scoped slash", "<p>Searchable page words.</p>")
+    page, errors = open_page(browser, serve(html))
+
+    page.keyboard.press("c")
+    threads = page.locator(".lf-threads")
+    expect(threads).to_be_focused()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("search page")
+    page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
+    expect(page.locator(".lf-target-search")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -475,9 +540,9 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     page.close()
 
 
-def test_cancelling_selection_restores_the_control_that_opened_it(browser, serve):
-    """Search borrows focus for its real input. Escaping back through both selection
-    layers returns focus to the control from which the reader pressed s."""
+def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):
+    """Direct search is one layer. Escape closes it and returns focus to the control
+    from which the reader pressed slash."""
     html = leaf_page(
         "selection focus",
         '<button id="opener">Starting control</button><p>A passage to select.</p>',
@@ -486,10 +551,10 @@ def test_cancelling_selection_restores_the_control_that_opened_it(browser, serve
     opener = page.locator("#opener")
     opener.focus()
 
-    page.keyboard.press("s")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-keyline")).to_contain_text("close search")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("back to hints")
     page.keyboard.press("Escape")
     expect(opener).to_be_focused()
     assert errors == []
@@ -515,6 +580,7 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
     page.keyboard.press("s")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("back to hints")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     assert (

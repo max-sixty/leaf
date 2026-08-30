@@ -1,7 +1,9 @@
 import { sameAnchor } from "../anchors.js";
+import { bindings } from "../keyboard/bindings.js";
 
-// Keyboard item aim. `s` opens a viewport-local map of the same stable items and visual
-// parts Alt-click reaches; `/` replaces that map with ordinary whole-page text search.
+// Keyboard item aim and whole-page text search. `s` opens a viewport-local map of the
+// same stable items and visual parts Alt-click reaches; `/` opens the page's text search
+// directly or from that map.
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const MIN_SEARCH = 3;
@@ -19,6 +21,7 @@ export function createTargetSelection({
   el,
   findText,
   focused,
+  hasCapturedTarget,
   inChrome,
   keyline,
   pageText,
@@ -41,6 +44,7 @@ export function createTargetSelection({
   let active = -1;
   let hintActive = -1;
   let opener = null;
+  let searchReturnsToHints = false;
 
   const clips = () => new Map();
   const covered = () => banner.getBoundingClientRect().bottom;
@@ -119,19 +123,20 @@ export function createTargetSelection({
     }));
   }
 
-  function setOpen(on, restore = false) {
+  function setOpen(on, restore = false, withHints = true) {
     if (on && !anchoringIsReady()) return;
     if (on) opener = focused();
     const returnTo = !on && restore ? opener : null;
     open = on;
     searching = false;
+    searchReturnsToHints = false;
     prefix = "";
     matches = [];
     active = -1;
     hintActive = -1;
     selectionInput.value = "";
     selectionSearch.hidden = true;
-    if (on) {
+    if (on && withHints) {
       candidates = visibleTargets();
       if (!candidates.length) {
         announce("There is no visible item to select. Press slash to search the page.");
@@ -140,10 +145,12 @@ export function createTargetSelection({
           `Select an item — type one of ${candidates.length} hints, press Tab to hear them, or slash to search the page.`,
         );
       }
-    } else {
+    } else if (!on) {
       candidates = [];
       selectionLayer.replaceChildren();
       opener = null;
+    } else {
+      candidates = [];
     }
     paintHere();
     if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
@@ -166,6 +173,13 @@ export function createTargetSelection({
       announce("Select an item — type a hint, or slash to search the page.");
     }
     paintHere();
+  }
+
+  function startSearching() {
+    const fromHints = open;
+    if (!open) setOpen(true, false, false);
+    searchReturnsToHints = fromHints;
+    setSearching(true);
   }
 
   const matchRange = () => (matches[active] ? rangeOf(matches[active]) : null);
@@ -290,7 +304,12 @@ export function createTargetSelection({
   }
 
   function back() {
-    if (searching) return setSearching(false);
+    if (searching) {
+      if (searchReturnsToHints) return setSearching(false);
+      setOpen(false, true);
+      announce("Page search closed.");
+      return;
+    }
     if (prefix) {
       prefix = prefix.slice(0, -1);
       hintActive = -1;
@@ -417,10 +436,27 @@ export function createTargetSelection({
   );
   addEventListener("resize", () => open && paintHere());
 
+  const PAGE_SEARCH = {
+    id: "page.search.open",
+    keys: ["/"],
+    does: "Search all the text on the page",
+    line: "search page",
+    // Once a target is in hand, its actions own the two short-line slots. Search stays
+    // live to replace that target and remains in the complete reference.
+    lineWhen: () => !hasCapturedTarget(),
+    when: anchoringIsReady,
+    run: startSearching,
+  };
+
   const SELECT = {
     title: "Selecting an item",
     at: () => open,
-    claims: allButTheReference,
+    // The page owns search, even when item hints are standing over it. Exempt the
+    // binding read from that row so one declaration drives both entry routes and every
+    // keyboard projection. If character shortcuts are off, the row binds nothing and
+    // this mode claims slash with the rest of the page keyboard.
+    claims: (binding) =>
+      allButTheReference(binding) && !bindings(PAGE_SEARCH).includes(binding),
     rows: [
       {
         id: "selection.hint.choose",
@@ -461,14 +497,6 @@ export function createTargetSelection({
         run: chooseHint,
       },
       {
-        id: "selection.search.open",
-        keys: ["/"],
-        does: "Search all the text on the page",
-        line: "search page",
-        when: () => !searching,
-        run: () => setSearching(true),
-      },
-      {
         id: "selection.match.walk",
         keys: ["Tab", "Shift+Tab"],
         routes: [
@@ -502,18 +530,27 @@ export function createTargetSelection({
         keys: ["Escape"],
         does: () =>
           searching
-            ? "Return to the visible item hints"
+            ? searchReturnsToHints
+              ? "Return to the visible item hints"
+              : "Close page search"
             : prefix
               ? "Remove the last hint letter"
               : "Cancel item selection",
         line: () =>
-          searching ? "back to hints" : prefix ? "back one letter" : "cancel",
+          searching
+            ? searchReturnsToHints
+              ? "back to hints"
+              : "close search"
+            : prefix
+              ? "back one letter"
+              : "cancel",
         run: back,
       },
     ],
   };
 
   return {
+    PAGE_SEARCH,
     SELECT,
     isSelecting: () => open,
     paintTargets,

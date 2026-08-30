@@ -1594,11 +1594,11 @@ Tab and Shift-Tab walk the visible target map and announce each item. Enter choo
 last one announced. A viewport change that removes or renames that target clears the
 announced choice before Enter can act on it.
 
-`/` inside selection opens a real search input over the whole page reading. Tab walks
-repeated occurrences and Enter makes a native browser Selection from the active match.
-Search is one layer inside item selection: Escape returns to the visible hints, then a
-second Escape closes selection. The mode keeps `?` available and claims the rest of the
-page's keyboard while it stands.
+`/` opens a real search input over the whole page reading, either directly from the page
+or from the visible item hints. Tab walks repeated occurrences and Enter makes a native
+browser Selection from the active match. Escape returns to the surface that opened search:
+the page after a direct `/`, or the visible hints after `s` then `/`. The mode keeps `?`
+available and claims the rest of the page's keyboard while it stands.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
@@ -1634,9 +1634,9 @@ way this press will go, and Escape takes the mode off through the rung ladder
 rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `c` comments on it, `t`/`T` and `a`/`A`
-walk its open sets, `d`/`u` move its reading, and `g` opens its destinations. A
-surface holds the presses
+the presses whose subject is the page: `/` searches its text, `s` names its visible
+items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `d`/`u` move its
+reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act

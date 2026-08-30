@@ -3383,7 +3383,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # layer's ring rules stood in that position when this was written.
 RING_WALKS = (
     ("the page", (), ("gallery", "design-decision", "ship-review")),
-    ("passage search", ("s", "/"), ("gallery",)),
+    ("passage search", ("/",), ("gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     ("the decisions tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("gallery",)),

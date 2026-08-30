@@ -1311,6 +1311,14 @@ immediately after the target's rendered text block (or the target itself). Addin
 another target action must not add another absolute row, control type, or rail
 measurement.
 
+That ordered target collection is also the Page map's location count and the `g m`
+address list. A location's informational marker announces its position in that complete
+collection. Addressing an item opens its marker when it has one; an action-only item
+receives focus on its first available action without performing it. In the compact
+posture, an informational item opens the Page map sheet at that location instead of
+reviving the hidden desktop preview; an action-only item keeps its direct focus arrival
+on the action docked into the page.
+
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
 lifetime, so settling an action cannot shift the readable column. A temporary
@@ -2131,7 +2139,7 @@ region.
 
 `g` opens one destination mode. `T`, `A`, and `L` complete a direct trip to
 Threads, Asks, and All leaves. `m`, `h`, and `f` name the page's numbered
-page-map marker, hyperlink, and fold lists, and a decimal number names a member. `g g` and
+page-map item, hyperlink, and fold lists, and a decimal number names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a

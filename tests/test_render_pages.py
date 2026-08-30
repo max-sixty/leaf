@@ -832,7 +832,10 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a reader follows the graph from."""
     page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    resized(page, 1500, 900)
+    # Linux's DejaVu labels draw this graph at 1217px, while its classic scrollbar
+    # leaves only 1187px of room at 1500. Use a width where both supported platforms
+    # actually reach the non-scrolling state this half of the test is about.
+    resized(page, 1600, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert not at["docked"], (

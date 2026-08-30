@@ -1417,7 +1417,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
        panel leaves that last band past body's room and the layout hides the marker. */
     --claim-map: calc(52px + var(--here-ring-room));
   }
-  body:has(.lf-margin-item[data-lf-claims-rail]) {
+  body:not([data-lf-cramped]):has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);
   }
 }
@@ -1442,12 +1442,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * measured, rather than hanging durable apparatus in accidental leftover space. The
  * claim is monotonic for the page's life: settling an action cannot move the column under
  * the reader. Temporary reaction choices borrow the available RHS and dock the complete
- * item if they do not fit; they do not enlarge this claim. Below the breakpoint the whole
- * item docks into flow.
+ * item if they do not fit; they do not enlarge this claim. Below the breakpoint, or when
+ * a side panel leaves less than the page's strip floor, the whole item docks into flow.
  *
  * This is a claim rather than the strip itself because a sidenote may claim the same side;
  * body spends the wider claim, not their sum. Presence is the pre-layout condition: asking
- * whether the item docked would feed the reservation decision back into itself. */
+ * whether the item docked would feed the reservation decision back into itself. The
+ * runtime's cramped mark is different: it is measured from the box after the panel has
+ * taken its strip, so it releases this claim before layout and lets the row's ordinary
+ * out-of-room reading dock it. Keeping the claim through that state made the claim itself
+ * shrink the column until Linux's wider apparatus was clipped inside it. */
 @media screen and (min-width: 900px) {
   /* And the right margin is spoken for where a row hangs in it, so a wide widget level
      with one grows to the left alone. The row hangs 22px off the column and the strip is

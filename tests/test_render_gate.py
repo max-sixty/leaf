@@ -1467,9 +1467,11 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     page, errors = open_page(browser, url)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');
+        const rail = document.querySelector('[data-lf-claims-rail]');
         const main = document.querySelector('main'), s = getComputedStyle(main);
         return {float: getComputedStyle(note).float,
                 cramped: document.body.hasAttribute('data-lf-cramped'),
+                railDocked: rail.classList.contains('lf-docked'),
                 column: Math.round(main.getBoundingClientRect().width
                     - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
     }"""
@@ -1493,11 +1495,17 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert cramped["float"] == "none", (
         f"the strip outlived the room for it: {cramped}, {misplaced}"
     )
+    assert cramped["railDocked"], (
+        f"the action rail kept taking a strip from the cramped page: {cramped}"
+    )
     assert misplaced == [], (
         f"content set outside a column the strip had crushed: {misplaced}"
     )
     assert wide["float"] == "right", (
         f"a window wide enough for both moved the notes anyway: {wide}"
+    )
+    assert not wide["railDocked"], (
+        f"a window wide enough for the rail left it in the document flow: {wide}"
     )
     assert errors == []
 

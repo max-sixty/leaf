@@ -372,7 +372,7 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
 
 def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir):
     """The language vocabulary has two halves and they have to agree. `names` is the half
-    an author writes and the half both vendor scripts build their language bundles from;
+    an author writes and the half both language bundles are built from;
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""

@@ -211,7 +211,7 @@ export function createLivingMargin(dependencies) {
   nav.setAttribute("aria-label", "Page map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", "Changes, comments, asks, outcomes, and activity");
+  toolbar.setAttribute("aria-label", "Changes, threads, asks, outcomes, and activity");
   nav.append(toolbar);
   chromeRoot.append(nav);
 
@@ -262,11 +262,13 @@ export function createLivingMargin(dependencies) {
   preview.id = "lf-margin-preview";
   preview.setAttribute("popover", "auto");
   const previewHead = el("div", "lf-margin-preview-head");
+  const previewThreadAction = el("button", "lf-btn lf-margin-thread-action", "Threads");
+  previewThreadAction.type = "button";
   const previewTitle = el("strong", "lf-margin-preview-title");
   const previewClose = el("button", "lf-btn lf-margin-preview-close", "×");
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Close page-map preview");
-  previewHead.append(previewTitle, previewClose);
+  previewHead.append(previewThreadAction, previewTitle, previewClose);
   const previewKinds = el("div", "lf-margin-preview-kinds");
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewKinds, previewList);
@@ -293,14 +295,12 @@ export function createLivingMargin(dependencies) {
   let previewEntry = null;
   let previewButton = null;
   let previewShowing = false;
-  let previewFocusRequested = false;
   let pinnedKey = null;
   let suppressedKey = null;
   let cardHovered = false;
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
-  let observedMain = null;
   // The cascade owns available room: panels and trays change the body's named
   // container, while an authored sidebar claims the page's left strip. Read the
   // posture it resolved instead of asking the viewport a different question.
@@ -310,7 +310,42 @@ export function createLivingMargin(dependencies) {
       .trim() === "1";
   const threadNeedsPress = (entry) =>
     !threadBeside() && entry.items.some((item) => item.kind === "comment");
-  const postureObserver = new ResizeObserver(() => render());
+  let postureFrame = 0;
+  let previewPositionFrame = 0;
+  function schedulePostureRender() {
+    if (postureFrame) return;
+    postureFrame = requestAnimationFrame(() => {
+      postureFrame = 0;
+      render();
+    });
+  }
+  function scheduleThreadPreviewPosition() {
+    if (previewPositionFrame) return;
+    previewPositionFrame = requestAnimationFrame(() => {
+      previewPositionFrame = 0;
+      if (
+        !preview.matches(":popover-open") ||
+        !preview.hasAttribute("data-lf-thread") ||
+        !previewButton?.isConnected
+      )
+        return;
+      const marker = previewButton.getBoundingClientRect();
+      const cardHeight = preview.getBoundingClientRect().height;
+      const bannerBottom =
+        document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
+      const firstTop = bannerBottom + 8;
+      const lastTop = innerHeight - cardHeight - 8;
+      const besideTop = (marker.top + marker.bottom - cardHeight) / 2;
+      preview.style.setProperty(
+        "--lf-thread-top",
+        `${Math.max(firstTop, Math.min(besideTop, lastTop))}px`,
+      );
+    });
+  }
+  // A viewport posture change can replace the focused full conversation with its
+  // compact action. Reconcile after resize delivery so the browser can finish its
+  // own focus and popover bookkeeping before that node changes shape. Panel and tray
+  // changes notify this runtime directly through their owners.
 
   // A margin item is hoisted away from the page target it belongs to, so ancestry
   // cannot answer what a press on one of its controls is about. Keep that relationship
@@ -823,12 +858,6 @@ export function createLivingMargin(dependencies) {
 
   function render() {
     const main = document.querySelector("main");
-    if (main !== observedMain) {
-      postureObserver.disconnect();
-      postureObserver.observe(document.body);
-      if (main) postureObserver.observe(main);
-      observedMain = main;
-    }
     if (!nav.isConnected) chromeRoot.append(nav);
     placeMargin(main?.getBoundingClientRect());
     syncInlineOffers();
@@ -865,11 +894,13 @@ export function createLivingMargin(dependencies) {
             marker.lfEntry.items.some((item) => item.kind === "comment")
           )
             setPanel(false);
-          const previewWasOpen = preview.matches(":popover-open");
-          previewFocusRequested = event.detail === 0;
           togglePinned(marker.lfEntry, marker);
-          if (pinnedKey !== marker.lfEntry.key) previewFocusRequested = false;
-          else if (previewWasOpen) focusPreviewAction();
+          if (event.detail === 0 && pinnedKey === marker.lfEntry.key)
+            requestAnimationFrame(() =>
+              previewList
+                .querySelector("textarea, button")
+                ?.focus({ preventScroll: true }),
+            );
         };
         marker.addEventListener("pointerenter", () => {
           suppressedKey = null;
@@ -943,13 +974,15 @@ export function createLivingMargin(dependencies) {
       ? document.activeElement.closest?.("[data-lf-margin-item]")
       : null;
     const focusedItem = focusedNode?.dataset.lfMarginItem ?? null;
-    const hasThread = entry.items.some((item) => item.kind === "comment");
+    const threadItems = entry.items.filter((item) => item.kind === "comment");
+    const hasThread = threadItems.length > 0;
     const inlineThread = hasThread && !panelIsOpen() && threadBeside();
-    const focusedRecord = entry.items.find((item) => item.id === focusedItem);
-    const focusedBecomesThread = focusedRecord?.kind === "comment" && inlineThread;
+    const focusedThread = entry.items.find(
+      (item) => item.id === focusedItem && item.kind === "comment",
+    );
     if (
-      focusedNode &&
-      focusedNode.classList.contains("lf-margin-thread") !== focusedBecomesThread
+      focusedThread &&
+      focusedNode.classList.contains("lf-margin-thread") !== inlineThread
     )
       previewClose.focus({ preventScroll: true });
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
@@ -957,12 +990,24 @@ export function createLivingMargin(dependencies) {
       ? trimmed(targetHeading || entry.title, 72)
       : entry.title;
     preview.toggleAttribute("data-lf-thread", inlineThread);
+    if (inlineThread) scheduleThreadPreviewPosition();
+    else preview.style.removeProperty("--lf-thread-top");
     preview.setAttribute("aria-label", inlineThread ? `Thread for ${title}` : title);
     previewClose.setAttribute(
       "aria-label",
       inlineThread ? "Close thread" : "Close page-map preview",
     );
     previewTitle.textContent = title;
+    previewThreadAction.hidden = !inlineThread;
+    previewThreadAction.setAttribute(
+      "aria-label",
+      threadItems.length === 1
+        ? "Open this thread in Threads"
+        : "Open threads for this passage",
+    );
+    previewThreadAction.onclick = inlineThread
+      ? () => openThreads(threadItems, entry)
+      : null;
     previewKinds.replaceChildren(
       ...kindsIn(entry).map(({ kind, label, symbol, count }) => {
         const chip = el("span", `lf-margin-kind lf-margin-${kind}`);
@@ -1070,6 +1115,7 @@ export function createLivingMargin(dependencies) {
         previewShowing = false;
       }
     }
+    scheduleThreadPreviewPosition();
     highlight(entry.target);
     for (const [key, row] of rows) {
       row.setAttribute("aria-expanded", String(key === entry.key));
@@ -1090,22 +1136,12 @@ export function createLivingMargin(dependencies) {
     showPreview(entry, button);
   }
 
-  function focusPreviewAction() {
-    if (!previewFocusRequested) return;
-    previewFocusRequested = false;
-    (
-      previewList.querySelector("textarea:not([disabled])") ??
-      previewList.querySelector("button")
-    )?.focus({ preventScroll: true });
-  }
-
   function closePreview(returnFocus) {
     const button = previewButton;
     if (returnFocus && button?.lfEntry) suppressedKey = button.lfEntry.key;
     pinnedKey = null;
     previewEntry = null;
     previewButton = null;
-    previewFocusRequested = false;
     button?.style.removeProperty("anchor-name");
     if (preview.matches(":popover-open")) preview.hidePopover();
     highlight(null);
@@ -1138,6 +1174,17 @@ export function createLivingMargin(dependencies) {
     }
     focusMapControl(entry);
     item.activate();
+  }
+
+  function openThreads(threadItems, entry) {
+    if (threadItems.length === 1) {
+      activate(threadItems[0], entry);
+      return;
+    }
+    suppressedKey = entry.key;
+    closePreview(false);
+    focusMapControl(entry);
+    setPanel(true);
   }
 
   function renderSheet() {
@@ -1223,10 +1270,6 @@ export function createLivingMargin(dependencies) {
     if (event.newState === "closed" && previewEntry) suppressedKey = previewEntry.key;
   });
   preview.addEventListener("toggle", (event) => {
-    if (event.newState === "open") {
-      focusPreviewAction();
-      return;
-    }
     if (event.newState !== "closed" || !previewEntry) return;
     const button = previewButton;
     pinnedKey = null;
@@ -1261,12 +1304,11 @@ export function createLivingMargin(dependencies) {
     "scroll",
     () => {
       scheduleRoving();
+      scheduleThreadPreviewPosition();
     },
     { capture: true, passive: true },
   );
-  window.addEventListener("resize", () => {
-    render();
-  });
+  window.addEventListener("resize", schedulePostureRender);
   render();
 
   return {

@@ -2,14 +2,17 @@
  * canonical; the orchestration model gives the header, goal rows, stopped reading, and fleet
  * one answer about progress and workers. */
 import {
+  PRESS,
   conversationBox,
   declarationFor,
   itemWord,
+  keys,
   matchesWhen,
   offer,
   once,
   projectData,
   relabel,
+  selectableOffer,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -64,9 +67,19 @@ function button(label, target, cls = "") {
 }
 
 function viewButton(label, view, open, cls = "") {
-  const node = speakingOffer("button", label, cls);
+  const node = selectableOffer("button", cls);
+  relabel(node, label, { says: true });
   node.dataset.lfView = view;
   node.addEventListener("click", open);
+  keys(node, "On a command view", [
+    {
+      id: "command.open-view",
+      keys: PRESS,
+      does: "Open this command view",
+      line: "open the view",
+      run: () => node.click(),
+    },
+  ]);
   return node;
 }
 

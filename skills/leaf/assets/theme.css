@@ -1424,20 +1424,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen {
-  /* Keep the claimed card room for the one layout turn between a container crossing
-     and living-margin reconciling the open thread into its compact handoff. Without
-     that bridge the anchor and its positioned card both change geometry in the same
-     intermediate layout. */
-  body:has(:where(.lf-margin-preview[data-lf-thread]:popover-open)) > main {
-    --claim-map: var(--thread-margin);
-  }
   /* 1208px leaves the document's 640px evidence floor beside the 520px thread
      margin and the two 24px page gutters. Below it the marker offers a compact
      handoff rather than covering the source. */
   @container lf-shell (min-width: 1208px) {
   body:has(
       :where(.lf-living-margin:not([hidden])
-      .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1449,7 +1442,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   @container lf-shell (min-width: 1472px) {
   body:has(
       :where(.lf-living-margin:not([hidden])
-      .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;

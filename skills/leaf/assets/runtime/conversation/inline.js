@@ -15,7 +15,7 @@ export function createInlineConversations({
   turns,
   wireReply,
 }) {
-  function conversationMessageNode(thread, message) {
+  function conversationMessageNode(thread, message, { openInThreads = true } = {}) {
     let node = thread.querySelector(
       `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
     );
@@ -46,7 +46,7 @@ export function createInlineConversations({
     else body.innerHTML = renderMessageMarkdown(message.text);
     node.lfRevision = message.edited?.id ?? "";
     node.append(head, body);
-    if (message.markup) {
+    if (message.markup && openInThreads) {
       const open = offer(
         "button",
         "lf-btn lf-conversation-open",
@@ -58,7 +58,7 @@ export function createInlineConversations({
     return node;
   }
 
-  function conversationThreadNode(host, t) {
+  function conversationThreadNode(host, t, { openInThreads = true } = {}) {
     let thread = host.querySelector(
       `:scope > .lf-conversation-thread[data-thread="${t.root.id}"]`,
     );
@@ -70,7 +70,7 @@ export function createInlineConversations({
     // Turns only: a reaction on a message is the panel's strip to show, and the seat is
     // the textual projection of the exchange.
     const messages = turns(t).map((message) =>
-      conversationMessageNode(thread, message),
+      conversationMessageNode(thread, message, { openInThreads }),
     );
     let tail;
     if (t.resolved) {
@@ -131,7 +131,7 @@ export function createInlineConversations({
   }
 
   function renderMarginThread(host, thread) {
-    const node = conversationThreadNode(host, thread);
+    const node = conversationThreadNode(host, thread, { openInThreads: false });
     setChildren(host, [node]);
     return node;
   }

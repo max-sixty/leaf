@@ -42,6 +42,22 @@ OUTCOME_ON_DECISION = {
     "detail": {"options": ["br-steel"]},
 }
 
+
+def resized_shell(page, inline_size, height):
+    """Resize by the container's own width, independent of scrollbar posture."""
+    viewport_width = page.viewport_size["width"]
+    for _ in range(3):
+        shell_width = page.evaluate("() => document.body.getBoundingClientRect().width")
+        difference = inline_size - shell_width
+        if abs(difference) <= 0.5:
+            return
+        viewport_width += round(difference)
+        resized(page, viewport_width, height)
+    assert page.evaluate(
+        "() => document.body.getBoundingClientRect().width"
+    ) == pytest.approx(inline_size, abs=0.5)
+
+
 ACTION_PAGE = SUGGESTION_PAGE.replace(
     "<main>", '<main><section id="action-section">'
 ).replace(
@@ -604,10 +620,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-    marker.focus()
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-margin-preview textarea")).to_be_focused()
+    marker.click()
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread")
     reply = thread.locator("textarea")
@@ -615,6 +628,9 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     expect(thread.locator(".lf-conversation-body")).to_have_text(
         COMMENT_ON_DECISION["text"]
     )
+    open_in_threads = preview.get_by_role("button", name="Open this thread in Threads")
+    expect(open_in_threads).to_be_visible()
+    expect(thread.locator(".lf-conversation-open")).to_have_count(0)
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -649,6 +665,41 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     assert [event["text"] for event in replies] == [
         "Yes. One visit can cover both jobs."
     ]
+    open_in_threads.click()
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+
+    assert errors == []
+    page.close()
+
+
+def test_a_shared_passage_opens_all_of_its_threads_without_choosing_one(browser, serve):
+    """The shared header action is aggregate when one passage has several roots."""
+    second_comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Keep the second conversation separate.",
+        "anchor": {"section": "bracket"},
+    }
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION, second_comment])
+    )
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+
+    expect(preview.locator(".lf-margin-thread")).to_have_count(2)
+    expect(preview.locator(".lf-conversation-open")).to_have_count(0)
+    open_in_threads = preview.get_by_role(
+        "button", name="Open threads for this passage"
+    )
+    expect(open_in_threads).to_have_text("Threads")
+    open_in_threads.click()
+
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
     assert errors == []
     page.close()
@@ -659,8 +710,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
 ):
     """The shipped exchange stays beside its source without covering the document."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
-    served = serve(example)
-    page, errors = open_page(browser, served)
+    page, errors = open_page(browser, serve(example))
     resized(page, 1440, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS resync stall")
@@ -676,17 +726,30 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-margin-preview-title")).to_have_text("iOS resync stall")
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
+    open_in_threads = preview.get_by_role("button", name="Open this thread in Threads")
+    expect(preview.locator(".lf-margin-thread-action")).to_have_count(1)
+    expect(thread.locator(".lf-conversation-open")).to_have_count(0)
+    expect(open_in_threads).to_have_text("Threads")
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const open = document.querySelector('.lf-margin-thread-action')
+            .getBoundingClientRect();
+          const title = document.querySelector('.lf-margin-preview-title')
+            .getBoundingClientRect();
+          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
           return {bannerBottom: banner.bottom, mainRight: main.right,
                   markerRight: marker.right,
                   markerMiddle: (marker.top + marker.bottom) / 2,
                   cardLeft: card.left, cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
+                  borderLeft: cardStyle.borderLeftWidth,
+                  borderRight: cardStyle.borderRightWidth,
+                  openLeft: open.left, openRight: open.right, openTop: open.top,
+                  titleLeft: title.left, titleTop: title.top,
                   cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
@@ -701,6 +764,10 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
         geometry
     )
     assert geometry["cardScroll"] == 0, geometry
+    assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
+    assert geometry["openLeft"] < geometry["titleLeft"], geometry
+    assert geometry["openRight"] <= geometry["titleLeft"], geometry
+    assert abs(geometry["openTop"] - geometry["titleTop"]) <= 4, geometry
     assert not geometry["panelOpen"], geometry
 
     send = preview.get_by_role("button", name="Send")
@@ -728,13 +795,17 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("Escape")
 
-    preview.get_by_role("button", name="Open interactive reply in Threads").click()
+    marker.click()
+    expect(preview).to_be_visible()
+
+    open_in_threads.click()
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
     marker.focus()
     page.keyboard.press("Enter")
-    focused = page.locator(".lf-margin-preview textarea:focus")
+    focused = page.locator(".lf-margin-preview :focus")
     expect(focused).to_be_visible()
     focus_geometry = focused.evaluate(
         """node => {
@@ -747,24 +818,22 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert focus_geometry["inPreview"], focus_geometry
     assert focus_geometry["top"] >= focus_geometry["bannerBottom"], focus_geometry
     assert focus_geometry["bottom"] <= 900, focus_geometry
-    panel_settled(page, open=False)
-    marker.focus()
 
-    resized(page, 1208, 900)
+    resized_shell(page, 1208, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainRight: main.right, cardLeft: card.left,
-                  cardRight: card.right, cardWidth: card.width};
+                  cardRight: card.right, cardWidth: card.width,
+                  viewportWidth: innerWidth};
         }"""
     )
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
-    assert beside["cardRight"] <= 1208.5, beside
+    assert beside["cardRight"] <= beside["viewportWidth"] + 0.5, beside
     assert beside["cardWidth"] >= 459, beside
 
-    assert errors == []
-    resized(page, 1207, 900)
+    resized_shell(page, 1207, 900)
     expect(page.locator(".lf-margin-thread")).to_have_count(0)
     expect(preview.locator(".lf-margin-preview-action")).to_have_count(1)
     preview.locator(".lf-margin-preview-action").click()
@@ -829,11 +898,11 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
             }"""
         )
 
-    assert strip_right() == pytest.approx(57, abs=0.5)
+    assert strip_right() == 57
 
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)
-    assert strip_right() == pytest.approx(520, abs=0.5)
+    assert strip_right() == 520
 
     assert errors == []
     page.close()
@@ -882,19 +951,20 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(0)
     expect(page.locator(".lf-margin-preview-action")).to_have_count(2)
-    resized(page, 1472, 900)
+    resized_shell(page, 1472, 900)
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     composition = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainWidth: main.width - 48, mainRight: main.right,
-                  cardLeft: card.left, cardRight: card.right};
+                  cardLeft: card.left, cardRight: card.right,
+                  viewportWidth: innerWidth};
         }"""
     )
     assert composition["mainWidth"] >= 639.5, composition
     assert composition["mainRight"] <= composition["cardLeft"] + 0.5, composition
-    assert composition["cardRight"] <= 1472.5, composition
+    assert composition["cardRight"] <= composition["viewportWidth"] + 0.5, composition
 
     assert errors == []
     page.close()

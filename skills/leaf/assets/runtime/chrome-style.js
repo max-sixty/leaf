@@ -1175,15 +1175,23 @@ ${MARK_RULES}
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
-    .lf-margin-preview[data-lf-thread] { position-area: inline-end;
-      position-try-fallbacks: none; align-self: start;
+    /* A compact preview follows its marker through native anchor positioning. The full
+       conversation instead has its fixed top measured from that marker: the card also
+       changes the document's container posture, and asking both layout systems to
+       resolve that boundary can leave the browser oscillating between the two. */
+    .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
+      position-try-fallbacks: none;
+      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) 8px auto auto;
       width: min(var(--thread-card), calc(100vw - 24px));
-      max-height: calc(100dvh - var(--lf-banner-h) - 16px);
-      margin: calc(var(--lf-banner-h) + 8px) 8px 8px;
-      border-left: 3px solid var(--mark-ink); }
+      max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
-      justify-content: space-between; gap: 12px; }
-    .lf-margin-preview-title { font-size: var(--t-5); line-height: 1.35; }
+      gap: 8px; }
+    .lf-margin-thread-action { flex: none; margin: 0; padding: 2px 7px;
+      border-color: var(--rule); background: transparent; color: var(--muted);
+      font-size: var(--t-6); }
+    .lf-margin-thread-action[hidden] { display: none; }
+    .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
+      line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
     .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;

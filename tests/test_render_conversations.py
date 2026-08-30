@@ -635,10 +635,9 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
     page, errors = open_page(browser, url)
-    # Searching a list is a press on that list, so the key is the panel's: out on the
-    # prose it does nothing, and `c` is the whole route in — it stands the reader on the
-    # list, which is where the panel's own keys are live. Read against the same press
-    # landing two lines below, which is what makes the silence a rule.
+    # Slash belongs to the nearest search scope. Out on the prose it opens page search;
+    # Escape returns to the prose, and `c` is the route into the panel, where the same
+    # press opens that list's own search instead. Read the two landings against each other.
     #
     # A plain paragraph rather than the body's own middle, which is a widget on this
     # page: `c` goes to the box belonging to whatever the reader is standing in, so a
@@ -648,7 +647,10 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     # panel arriving ahead of the press that is meant to open it.
     page.locator("#how-store").click()
     page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
     expect(page.locator(".lf-panel")).not_to_be_visible()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("c")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()

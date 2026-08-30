@@ -1158,7 +1158,6 @@ chromeLayout = createChromeLayout({
   panelChanged: (open) => {
     if (open) livingMargin?.closePreview();
   },
-  panelFocusTarget: threadsBox,
   panelFoot,
   panelList: threadsBox,
   placeComposer: (...args) => placeComposer(...args),

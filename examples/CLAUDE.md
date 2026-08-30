@@ -259,5 +259,6 @@ generator.
 ## Previewing an example
 
 Run `scripts/preview.py [example]` to create a fresh vendored page, copy its
-companion log, data, and media, and serve it at a local URL. Use `page init` and
-the normal server commands for an authored page outside this corpus.
+companion log, data, and media, and serve it at a local URL. Add `--export` to
+write the rendered page as a standalone review file. Use `page init` and the
+normal server commands for an authored page outside this corpus.

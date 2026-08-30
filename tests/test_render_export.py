@@ -1,6 +1,9 @@
 """Standalone export tests."""
 
 import itertools
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -22,8 +25,43 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+ROOT = Path(__file__).parent.parent
+
 
 # ---------- export: the page as one file ----------
+
+
+def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
+    browser,
+):
+    """The handoff command names one file whose drawn page needs no live server."""
+    out = ROOT / ".tmp" / "example-pr-walkthrough.html"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "preview.py"),
+            "pr-walkthrough",
+            "--export",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert result.stdout.splitlines()[-1] == str(out.resolve())
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.on("requestfailed", lambda request: errors.append(f"unfetched {request.url}"))
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.get_by_role("heading", name="Per-token rate limits")).to_be_visible()
+    assert page.locator("script").count() == 0
+    assert page.locator('link[rel="stylesheet"]').count() == 0
+    assert page.locator("style").count() > 0
+    assert errors == []
+    page.close()
 
 
 def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):

@@ -8,7 +8,8 @@ runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lo
 
 `preview.py [example]` freshly vendors and serves one shipped example. It copies
 the example's companion log, applies current values and file captures from its data
-manifest, copies media, then sets the event cursor past seeded history.
+manifest, copies media, then sets the event cursor past seeded history. `--export`
+writes that prepared page as one standalone HTML file for handoff.
 `examples/CLAUDE.md` owns those fixture rules.
 
 `corpus.py` generates the internal `examples/corpus.html` stress fixture and its

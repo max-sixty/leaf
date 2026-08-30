@@ -16,5 +16,5 @@
 # trampoline to reason about. `__main__.py` fixes `prog_name`, so usage lines
 # still read `leaf`. Which host session is running, and under what id, is read
 # from the environment in `host.py`, not set here.
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 exec uv run -q --no-dev --project "$root" python -m leaf "$@"

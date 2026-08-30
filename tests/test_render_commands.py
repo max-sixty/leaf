@@ -515,7 +515,14 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     The second one no marker can fix, which is why it reads differently: a word inside a
     form control is unselectable in every engine, so a widget that reaches for <button>
     has put its label somewhere the user cannot go. `selectableOffer` is the explicit
-    exception for such page words, and this says when a widget needed it."""
+    exception for such page words, and this says when a widget needed it.
+
+    Both are about a word the reader was shown, so the check asks that first. The
+    runtime's external-link note is the case that made it say so: an aria-describedby
+    target the browser reads out and the page never paints, put inside whatever root
+    its link stands in — a shadow tree included, where .lf-quiet's clip does not
+    reach. [hidden] is the silence available in every root, and the same note shown is
+    still reported."""
     assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
@@ -537,6 +544,40 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
         )
         == []
     ), "a native link's words label its browser-owned control rather than the page"
+
+    def put_note(hidden):
+        def go(page):
+            page.add_init_script(
+                """addEventListener('DOMContentLoaded', () => {
+                  const note = document.createElement('span');
+                  note.className = 'lf-ui';
+                  note.hidden = HIDDEN;
+                  note.textContent = 'opens in a new tab';
+                  document.getElementById('c-lax').prepend(note);
+                }, {once: true});""".replace("HIDDEN", "true" if hidden else "false")
+            )
+
+        return go
+
+    assert (
+        render_gate_model.render_version(
+            primed(browser, put_note(True)), serve(CARRIED_PAGE)
+        )
+        == []
+    ), "a word the page never shows is not a word the reader was shown and denied"
+    assert sorted(
+        {
+            f.split("] ", 1)[1]
+            for f in render_gate_model.render_version(
+                primed(browser, put_note(False)), serve(CARRIED_PAGE)
+            )
+        }
+    ) == [
+        (
+            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
+            "comment can reach it"
+        )
+    ], "the same note shown is the failure this check exists for"
 
     def put_words_out_of_reach(page):
         page.add_init_script(

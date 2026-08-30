@@ -600,7 +600,12 @@ export function createLivingMargin(dependencies) {
     const marker = rows.get(entry.key);
     if (marker && !marker.hidden) {
       if (compact.matches) openSheet(entry);
-      else marker.click();
+      else {
+        // A pointer focuses the marker before its click. Reproduce that arrival, then let
+        // the control's own click remain the one semantic path into its preview.
+        marker.focus({ preventScroll: true });
+        marker.click();
+      }
       return;
     }
     const action = [...item.querySelectorAll(".lf-margin-action")].find(
@@ -886,7 +891,7 @@ export function createLivingMargin(dependencies) {
           label: "Open page details",
           collapse: "always",
         });
-        marker.onclick = (event) => {
+        marker.onclick = () => {
           // The marker always means the contextual thread. If the overview is open,
           // hand the right edge back before building the anchored conversation.
           if (
@@ -895,12 +900,6 @@ export function createLivingMargin(dependencies) {
           )
             setPanel(false);
           togglePinned(marker.lfEntry, marker);
-          if (event.detail === 0 && pinnedKey === marker.lfEntry.key)
-            requestAnimationFrame(() =>
-              previewList
-                .querySelector("textarea, button")
-                ?.focus({ preventScroll: true }),
-            );
         };
         marker.addEventListener("pointerenter", () => {
           suppressedKey = null;
@@ -1028,11 +1027,16 @@ export function createLivingMargin(dependencies) {
       if (node === cursor) cursor = cursor.nextSibling;
       else previewList.insertBefore(node, cursor);
     }
-    if (focusedItem) {
+    if (focusedItem && !focusedNode?.isConnected) {
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-item]"),
       ].find((candidate) => candidate.dataset.lfMarginItem === focusedItem);
-      (replacement ?? previewClose).focus({ preventScroll: true });
+      const destination = replacement?.matches("button, textarea:not([disabled])")
+        ? replacement
+        : (replacement?.querySelector("textarea:not([disabled])") ??
+          replacement?.querySelector("button") ??
+          previewClose);
+      destination.focus({ preventScroll: true });
     }
   }
 
@@ -1093,7 +1097,17 @@ export function createLivingMargin(dependencies) {
     if (!preview.matches(":popover-open") && !previewShowing) {
       previewShowing = true;
       try {
-        preview.showPopover({ source: button });
+        // Shown without naming the marker as its source, though the marker is what opened
+        // it. An invoker relationship puts the card in the sequential focus order directly
+        // after the control that invoked it, and this card is not invoked: it opens on the
+        // marker merely taking focus, so a reader walking the margin was made to Tab
+        // through a close button and every action of a preview they had not asked for —
+        // three stops between one suggestion's controls and the next, with the card's
+        // contents changing under them as they went. The card stays reachable where it
+        // stands in the layer, which is where it was reachable before. Its position is
+        // the anchor-name written above rather than the implicit anchor a source would
+        // give, so the placement asks nothing of this.
+        preview.showPopover();
       } catch (error) {
         // Chromium also refuses a second popover operation in the same rendering turn,
         // even when it belongs to another surface. Keep the requested marker current and

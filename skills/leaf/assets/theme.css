@@ -1405,8 +1405,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     font: 600 10px/14px var(--sans); text-align: center; }
 .lf-margin-target { outline: var(--here-ring); --lf-here-ring: margin-target;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-@media screen {
-  @container lf-shell (min-width: 900px) {
+/* The one floor that asks the window rather than the page's own box, because it is the
+ * half of a pair: below it the rule further down stops drawing the living margin at all,
+ * and that rule is a media query because a marker's presence is not a thing a container
+ * can be asked about without the answer depending on the strip the marker is asking for.
+ * Two readings of one 900 is the page showing markers it has reserved no room for — the
+ * panel narrowing body under the floor took the strip away while the window kept the
+ * markers, and every row docked beside an empty rail. The floors below stay container
+ * queries: those ask how much room is left beside the panel, which is the question the
+ * runtime's old cramped veto asked, and the answer moves with the panel by design. */
+@media screen and (min-width: 900px) {
   body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
     /* The 30px marker hangs 22px off the column and its complete host keeps the
        shared focus-ring room at the outer edge. Claim all three, or opening a side
@@ -1421,7 +1429,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   main:has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);
   }
-  }
 }
 @media screen {
   /* 1208px leaves the document's 640px evidence floor beside the 520px thread
@@ -1431,7 +1438,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   body:has(
       :where(.lf-living-margin:not([hidden])
         .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
-    ) > main:not(:has(> aside.sidebar)) {
+    ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
   }
@@ -1443,7 +1450,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   body:has(
       :where(.lf-living-margin:not([hidden])
         .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
-    ) > main:has(> aside.sidebar) {
+    ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
   }

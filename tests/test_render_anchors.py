@@ -27,6 +27,7 @@ from render_support import (
     INLINE_PAGE,
     LONG_PAGE,
     NATIVE_CONTROL_PAGE,
+    RENDERED,
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -609,29 +610,8 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     page.close()
 
 
-def test_one_chip_says_every_keyboard_address(browser, serve):
-    """A digit that reaches something is drawn one way, on both sides of the scope line.
-
-    The g chord's chips answer its digits and an option wears the one a pick answers, and
-    this page shows them at once — a question asked inside a thread, so the two chips
-    stand a couple of centimetres apart in the same panel. They were two hand-matched
-    copies of a dozen declarations, one in the chrome's stylesheet and one in the theme,
-    with nothing to say if either moved; the look is .lf-address in the runtime's
-    document-level vocabulary now, and each wearer states only where its chip sits and
-    when it shows.
-
-    Which is why the look is what this compares and placement is not: the chord's chips
-    are placed from the viewport in a layer of their own, and an option's is anchored
-    from outside the group that would otherwise clip it (see
-    test_a_questions_digits_are_drawn_whole). Same chip, two boxes to hang it from.
-
-    Width is the third kind, and it is content: a chip is as wide as the keys it carries,
-    and these two carry different numbers of them — a pick answers one digit, the chord
-    carries the whole motion it is halfway through. So the shared minimum and padding are
-    compared and the result of them is not, and the difference is asserted in the
-    direction it has to run.
-    The face is compared because the same address vocabulary must not change voice between
-    a document control and the chord layer."""
+def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
+    """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
     for event in THREAD_DECISIONS:
         events_model.append_event(serve.page_dir, event)
@@ -646,69 +626,41 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     expect(picked).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("h")
-    addressed = page.locator(CHIPS).first
+    addressed = page.locator(f"{CHIPS} kbd").first
     expect(addressed).to_be_visible()
 
-    # Both faces resolved and read inside one turn. The chord's layer is rebuilt on every
-    # repaint — and an armed window repaints on every scroll frame — so an element held
-    # across a round trip can be detached by the time it is asked, and a detached node
-    # answers every property with the empty string. Read one at a time this passed alone
-    # and failed under the parallel suite, which is the load that opens the window.
+    # The option's address and the chord's digit keep one physical key geometry. The option
+    # keeps its local accent outline; the chord digit is an ordinary available binding.
     faces = """() => {
         const read = el => { const s = getComputedStyle(el);
             return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
-                "border-top-width", "border-top-style", "border-top-color",
-                "border-radius", "background-color", "color", "font-family", "font-size",
-                "line-height", "text-align", "z-index"]
+                "border-top-width", "border-top-style", "border-radius", "font-family",
+                "font-size", "line-height", "text-align"]
                 .map(p => [p, s.getPropertyValue(p)])); };
         return [read(document.querySelector('#tq-one .lf-address')),
-                read(document.querySelector('.lf-addresses > .lf-address'))]; }"""
-    on_page, in_panel = page.evaluate(faces)
-    assert on_page == in_panel, (
-        "the two keyboard addresses are drawn differently:\n  "
+                read(document.querySelector('.lf-addresses > .lf-address kbd'))]; }"""
+    option_key, chord_key = page.evaluate(faces)
+    assert option_key == chord_key, (
+        "one physical key has two geometries:\n  "
         + "\n  ".join(
-            f"{k}: {on_page[k]!r} vs {in_panel[k]!r}"
-            for k in on_page
-            if on_page[k] != in_panel[k]
+            f"{k}: {option_key[k]!r} vs {chord_key[k]!r}"
+            for k in option_key
+            if option_key[k] != chord_key[k]
         )
     )
-    # A key chip is set the way every other key chip on the product is: the reader meeting
-    # the same key on the line and on the page reads one glyph for it, and the two rules
-    # that dress the two — one inside the chrome's scope, one outside it, so they cannot be
-    # one rule — agree on the shape by hand. Asserted rather than asserted-in-a-comment.
-    line_chip = page.evaluate(
-        """() => { const el = document.querySelector('.lf-keyline kbd');
-             const s = getComputedStyle(el);
-             return {"font-family": s.fontFamily, "border-radius": s.borderRadius}; }"""
+    assert "mono" in option_key["font-family"]
+    assert addressed.get_attribute("data-lf-key-state") == "neutral"
+    emphasis = page.evaluate(
+        """() => ['#tq-one .lf-address', '.lf-addresses > .lf-address kbd',
+          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd']
+          .map(sel => { const s = getComputedStyle(document.querySelector(sel));
+            return {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color};
+          })"""
     )
-    assert "mono" in on_page["font-family"], (
-        f"a keyboard address is not set in the key face: {on_page['font-family']}"
-    )
-    for key in line_chip:
-        assert line_chip[key] == on_page[key], (
-            f"the line and the page dress a key differently — {key}: "
-            f"{line_chip[key]!r} vs {on_page[key]!r}"
-        )
-
-    # And what each is wide enough for is its own keys. The pick's one digit comes out at
-    # the shared floor exactly, which is the half a compared `min-width` cannot prove: a
-    # wearer restating `width: 19px` on its own copy would raise nothing and pass every
-    # property above. The chord's leader, letter and digit come out past it. Both are read
-    # from the rendered box, since the widths are the key face's answer and not the
-    # stylesheet's.
-    floor = float(on_page["min-width"].removesuffix("px"))
-    widths = page.evaluate(
-        """() => ['#tq-one .lf-address', '.lf-addresses > .lf-address']
-                   .map(sel => document.querySelector(sel)
-                                 .getBoundingClientRect().width)"""
-    )
-    assert widths[0] == floor, (
-        f"a one-key chip is not at the shared minimum the rule states: {widths[0]} vs "
-        f"{floor} — a wearer has restated a width of its own"
-    )
-    assert widths[0] < widths[1], (
-        f"the chord's whole-address chip is not wider than a pick's one-key chip: {widths}"
-    )
+    option_emphasis, chord_emphasis, legend_emphasis = emphasis
+    assert option_emphasis["border"] == option_emphasis["ink"]
+    assert option_emphasis["ground"] != option_emphasis["ink"]
+    assert chord_emphasis == legend_emphasis
     assert errors == []
     page.close()
 
@@ -2074,6 +2026,15 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page.keyboard.press("Enter")
     expect(line).to_contain_text("show this file")
     assert not details.evaluate("el => el.open")
+    # The line is one of two surfaces naming this row's keys, and a listener reads the
+    # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
+    # and the repaint that keeps them together is the document's disclosure watch rather
+    # than anything this widget does, which is what leaves a widget free to declare a
+    # disclosure row and nothing else. Read once, by the same clock as the line: the
+    # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
+    # budget whether or not the watch painted anything.
+    page.evaluate(RENDERED)
+    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
 
     # The row also names an arrow, which no browser answers, so unlike the pair above it is
     # only ever as good as the scope that runs it — and that scope has to find a staged
@@ -2091,6 +2052,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     said = key_line(page)
     assert "⏎ / space / ←" in said, said
     assert "hide this file" in said, said
+    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
 
     # Neither control is handed a letter by any platform, so the page's own keyboard
     # stands behind both of them.

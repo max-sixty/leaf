@@ -134,10 +134,11 @@
  * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
- * Arming shows the whole offer: everything addressable the reader can see wears its whole
- * address as a chip — `g h 1`, `g f 2` — with the keys already pressed dimmed, so the chip
- * states both which member this is and what is left to type. A letter then narrows the
- * chips to its own list. Any other key disarms the window and keeps its
+ * Arming shows the destination and list mnemonics in the key line. Its one blue prefix
+ * names the keys already pressed; the neutral entries use the ordinary binding face.
+ * Visible members show the complete remaining suffix (`h › 3`) in that same neutral face.
+ * A list letter narrows those inline hints to the digit still needed and reveals the range
+ * in the line. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other, and the rung is whichever scope in reach binds it
  * first, so backing out is one layer per press and the promise cannot drift from the
@@ -465,7 +466,15 @@ function receiveState(...args) {
 // is; the scope answers that, and a row never restates it.
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
-// because `shadowStage` calls it, far above the key line it repaints for.
+// because `shadowStage` calls it, far above the surfaces it repaints for.
+// This pair is what DISCLOSE reads, so a toggle moves every row bound through it — and a
+// row's keys are named on two surfaces, the line the reader sees and the
+// `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
+// standing whichever way the row was when its scope was declared, naming the arrow that no
+// longer moves the section and withholding the one that does. `paintKeys()` is the superset
+// — it revalidates the connected scopes and ends in `paintHere()` — so the watcher that
+// already hears this write is the one place both surfaces are kept together, rather than a
+// repaint each DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
 // taking it for one closes a loop: paintCoreControls paints `aria-expanded` on the key
 // line's More control, so every paint scheduled the next one and the page repainted for
@@ -474,7 +483,7 @@ function receiveState(...args) {
 // record for its return leg carries the other value.
 const disclosureWatch = new MutationObserver((records) => {
   if (records.some((r) => r.target.getAttribute(r.attributeName) !== r.oldValue))
-    paintHere();
+    paintKeys();
 });
 const watchDisclosures = (root) =>
   disclosureWatch.observe(root, {
@@ -729,6 +738,7 @@ const {
 } = createTrays({
   beforeOpen: () => {
     if (chromeLayout?.panelIsOpen()) setPanel(false);
+    livingMargin?.closePreview();
   },
   drawnEdge,
   el,
@@ -1007,10 +1017,10 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
-// The g chord's numbered document destinations: a chip on each addressable member of the
-// list it has aimed at, drawn here for the same reason the legend is (paintAddresses, its
-// one writer). The eye's copy of what the chord announces, so it says nothing to a screen
-// reader.
+// The g chord's numbered document destinations: a chip on each visible addressable member,
+// narrowed to one list after its mnemonic is pressed. They are drawn here for the same reason
+// the legend is (paintAddresses, its one writer). The eye's copy of what the chord announces,
+// so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
@@ -1580,7 +1590,7 @@ const commentDestination = () => {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
-      go: () => fab.onclick(),
+      go: () => fab.click(),
     };
   const said = standingConversation();
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
@@ -2064,7 +2074,7 @@ const HELP = {
       line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
       also: helpClose,
       runFromReference: false,
-      run: () => reference.show(false),
+      run: () => helpClose.click(),
     },
   ],
 };

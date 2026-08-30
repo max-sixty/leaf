@@ -42,6 +42,23 @@ OUTCOME_ON_DECISION = {
     "detail": {"options": ["br-steel"]},
 }
 
+
+def resized_shell(page, inline_size, height):
+    """Resize by the container's own width, independent of scrollbar posture."""
+    viewport_width = page.viewport_size["width"]
+    resized(page, viewport_width, height)
+    for _ in range(3):
+        shell_width = page.evaluate("() => document.body.getBoundingClientRect().width")
+        difference = inline_size - shell_width
+        if abs(difference) <= 0.5:
+            return
+        viewport_width += round(difference)
+        resized(page, viewport_width, height)
+    assert page.evaluate(
+        "() => document.body.getBoundingClientRect().width"
+    ) == pytest.approx(inline_size, abs=0.5)
+
+
 ACTION_PAGE = SUGGESTION_PAGE.replace(
     "<main>", '<main><section id="action-section">'
 ).replace(
@@ -77,6 +94,7 @@ PAGE_MAP_EVENTS = [
 def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     """The first nine Page-map locations keep their announced position as address."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    marker = page.locator('[data-lf-margin-for="map-3"] > .lf-margin-marker')
     address = page.evaluate(
         """() => {
           const marker = [...document.querySelectorAll('.lf-margin-marker')]
@@ -97,20 +115,69 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     assert address["targetTop"] > address["viewportHeight"], (
         "the target must begin off screen so this proves the address is page-wide"
     )
+    marker.evaluate(
+        """control => control.addEventListener('click', () => {
+          control.dataset.activationClicks =
+            String(Number(control.dataset.activationClicks || 0) + 1);
+        })"""
+    )
+
+    def activation_state():
+        return page.evaluate(
+            """() => {
+              const marker = document.querySelector(
+                '[data-lf-margin-for="map-3"] > .lf-margin-marker'
+              );
+              return {
+                focused: document.activeElement === marker,
+                clicks: marker.dataset.activationClicks,
+                open: document.querySelector('.lf-margin-preview')
+                  .matches(':popover-open'),
+                pressed: marker.getAttribute('aria-pressed'),
+                target: document.querySelector('#map-3')
+                  .classList.contains('lf-margin-target'),
+              };
+            }"""
+        )
+
+    marker.click()
+    pointer_activation = activation_state()
+    assert pointer_activation == {
+        "focused": True,
+        "clicks": "1",
+        "open": True,
+        "pressed": "true",
+        "target": True,
+    }
+    marker.click()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.evaluate(
+        """() => {
+          document.body.focus();
+          document.scrollingElement.scrollTo(0, 0);
+          document.querySelector(
+            '[data-lf-margin-for="map-3"] > .lf-margin-marker'
+          ).dataset.activationClicks = '0';
+        }"""
+    )
+    expect(marker).not_to_be_focused()
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text("m 1–9")
+    expect(page.locator(".lf-keyline")).to_contain_text(
+        re.compile(r"m\s*page-map items")
+    )
     page.keyboard.press("m")
+    expect(page.locator(".lf-keyline")).to_contain_text(
+        re.compile(r"1–9\s*page-map items")
+    )
     page.keyboard.press(str(address["number"]))
 
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 3")
-    expect(
-        preview.locator(
-            ".lf-margin-preview-list textarea, .lf-margin-preview-list button"
-        ).first
-    ).to_be_focused()
+    assert activation_state() == pointer_activation, (
+        "the page-map address and the marker's click leave different state"
+    )
 
     page.keyboard.press("Escape")
     resized(page, 390, 760)
@@ -207,9 +274,12 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
     )
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text(
-        f"m 1–{min(draft_address['count'], 9)}"
+        re.compile(r"m\s*page-map items")
     )
     page.keyboard.press("m")
+    expect(page.locator(".lf-keyline")).to_contain_text(
+        re.compile(rf"1–{min(draft_address['count'], 9)}\s*page-map items")
+    )
     assert draft_address["number"] <= 9
     page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
@@ -579,9 +649,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-margin-thread textarea")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(marker).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -754,6 +823,34 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert abs(geometry["openTop"] - geometry["titleTop"]) <= 4, geometry
     assert not geometry["panelOpen"], geometry
 
+    send = preview.get_by_role("button", name="Send")
+    send.focus()
+    page.evaluate("() => dispatchEvent(new Event('resize'))")
+    expect(send).to_be_focused()
+
+    resized(page, 1440, 480)
+    capped = preview.evaluate(
+        """card => {
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          const box = card.getBoundingClientRect();
+          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
+                  clientHeight: card.clientHeight, scrollHeight: card.scrollHeight};
+        }"""
+    )
+    assert capped["top"] >= capped["bannerBottom"] + 7, capped
+    assert capped["bottom"] <= 472.5, capped
+    assert capped["scrollHeight"] > capped["clientHeight"], capped
+    resized(page, 1440, 900)
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(preview).to_be_hidden()
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Escape")
+
+    marker.click()
+    expect(preview).to_be_visible()
+
     open_in_threads.click()
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
@@ -761,34 +858,24 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     panel_settled(page, open=False)
     marker.focus()
     page.keyboard.press("Enter")
-    focused = page.locator(".lf-margin-preview :focus")
-    expect(focused).to_be_visible()
-    focus_geometry = focused.evaluate(
-        """node => {
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          const box = node.getBoundingClientRect();
-          return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
-                  inPreview: Boolean(node.closest('.lf-margin-preview'))};
-        }"""
-    )
-    assert focus_geometry["inPreview"], focus_geometry
-    assert focus_geometry["top"] >= focus_geometry["bannerBottom"], focus_geometry
-    assert focus_geometry["bottom"] <= 900, focus_geometry
+    expect(preview).to_be_visible()
+    expect(marker).to_be_focused()
 
-    resized(page, 1208, 900)
+    resized_shell(page, 1208, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainRight: main.right, cardLeft: card.left,
-                  cardRight: card.right, cardWidth: card.width};
+                  cardRight: card.right, cardWidth: card.width,
+                  shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
-    assert beside["cardRight"] <= 1208.5, beside
+    assert beside["cardRight"] <= beside["shellWidth"] + 0.5, beside
     assert beside["cardWidth"] >= 459, beside
 
-    resized(page, 1207, 900)
+    resized_shell(page, 1207, 900)
     expect(page.locator(".lf-margin-thread")).to_have_count(0)
     expect(preview.locator(".lf-margin-preview-action")).to_have_count(1)
     preview.locator(".lf-margin-preview-action").click()
@@ -906,19 +993,20 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(0)
     expect(page.locator(".lf-margin-preview-action")).to_have_count(2)
-    resized(page, 1472, 900)
+    resized_shell(page, 1472, 900)
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     composition = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           return {mainWidth: main.width - 48, mainRight: main.right,
-                  cardLeft: card.left, cardRight: card.right};
+                  cardLeft: card.left, cardRight: card.right,
+                  shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert composition["mainWidth"] >= 639.5, composition
     assert composition["mainRight"] <= composition["cardLeft"] + 0.5, composition
-    assert composition["cardRight"] <= 1472.5, composition
+    assert composition["cardRight"] <= composition["shellWidth"] + 0.5, composition
 
     assert errors == []
     page.close()

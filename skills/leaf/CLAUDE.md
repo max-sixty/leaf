@@ -184,9 +184,12 @@ Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
 choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
-rendered chrome, and writes only chrome boxes. A `ResizeObserver` callback must
-not resize the box it observes, directly or through a class or attribute that
-changes that box.
+rendered chrome, and writes only chrome boxes. It hears the shell's inline size
+without deriving a posture from it: `layoutSizes` watches `document.body`'s
+content-box width so a float placed in the margin is re-placed while a panel's
+eased margin is still narrowing the page, and reads nothing else off that box. A
+`ResizeObserver` callback must not resize the box it observes, directly or
+through a class or attribute that changes that box.
 
 ## Startup and presentation
 
@@ -1245,8 +1248,22 @@ status-like item may yield its own width so controls to its right remain fixed.
 
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
-container, `main` composes its left and right claims, and container queries grant or
-withdraw margin postures. No JavaScript measures that shell or mirrors a cramped state.
+container, `main` composes its left and right claims, and queries grant or withdraw
+margin postures. JavaScript may hear that shell's inline size as a signal to re-run
+`syncLayout` — `layoutSizes` watches `document.body`'s content-box width, because a
+panel's eased margin goes on narrowing the box a float stands in after `setPanel` has
+returned and one synchronous pass at the press reads only the wide box — but it derives
+no posture from it and mirrors no cramped state.
+
+Which question a floor asks belongs to the posture it grants. A floor asking how much
+room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
+for the sidebar and sidenote strips, 1208 and 1472 for the thread's beside posture. The
+living margin's 900 asks the window instead, because it is half of a pair —
+`@media screen and (max-width: 899px)` stops drawing the margin at all, and a marker's
+presence is not something a container can be asked about without the answer depending on
+the strip the marker is asking for. Both halves of such a pair ask the same medium, or a
+panel narrowing `body` under the floor withdraws the strip while the window keeps the
+markers on screen with nothing reserved for them.
 
 The browser's root is the document scrollport. `pageScroller` is the shared answer for
 reading position and paging; native fragments, history restoration, wheel/touch input,
@@ -1573,9 +1590,9 @@ The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
 `g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
-window instead: the armed chip reads `g` and then `g h`, the chips on the page
-narrow with it, and Escape returns to the destination menu before another Escape
-closes it.
+window instead: the key line's pressed prefix advances from `g` to `g › h`, the
+page chips narrow from complete suffixes such as `h › 1` to that list's digits,
+and Escape returns to the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
 `versionsOffered` (there is a menu) answers for the key, the mode standing over
@@ -1849,6 +1866,12 @@ no Leaf activation binding. A `selectableOffer` registers its widget-specific ke
 A run-less row may still project a native press when that meaning is worth naming in
 help, but it never reimplements the press.
 
+When Leaf handles a binding that promises a visible control's activation, its command
+path calls that control's `click()`; it does not call the handler or reproduce its
+result. A platform-native press stays native. Arrival may focus or reveal the control
+before activation. Modality checks belong only to gesture guards before activation,
+such as refusing the mouseup that ends a text-selection drag.
+
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one
 behaviour. They sit on the row that already carries Enter and Space rather than
@@ -1880,6 +1903,12 @@ Which way a disclosure stands is watched as state, not heard as an event. A
 document listener, and an `aria-expanded` control fires nothing anywhere. Both
 keep that state in an attribute, so one `MutationObserver` over `open` and
 `aria-expanded` repaints for both, and `shadowStage` hands it each root.
+
+That watch repaints the register and not the line alone. A row bound through
+`DISCLOSE` answers from the state the watch is already reading, so both surfaces
+naming its keys turn over together — the line the reader sees and the
+`aria-keyshortcuts` a listener is read — and a widget declaring a disclosure row
+owes no repaint of its own.
 
 State, and not the write that carries it: the watch compares each record against
 the attribute's current value and repaints only where the two differ. The paint
@@ -2020,10 +2049,11 @@ reader's innermost scope and drops bindings shadowed there. The ordinary shortli
 the first live row, then a promotable Escape or the next row; rows declaring
 `linePriority: persistent` remain beside that context. An active chord instead shows
 every live row in its scope, so computed bindings, ranges, and capability filtering are
-the same ones dispatch and the reference use. `lineWhen` may hide only an ordinary hint
-without changing the command's liveness or its place in the reference. Hint chips are
-`aria-hidden` because placeholders and live announcements carry the same facts for
-assistive technology.
+the same ones dispatch and the reference use. Its pressed prefix appears once in the
+accent face; the available rows keep the ordinary key face. `lineWhen` may hide only an
+ordinary hint without changing the command's liveness or its place in the reference.
+Hint chips are `aria-hidden` because placeholders and live announcements carry the same
+facts for assistive technology.
 
 The compact line wraps when persistent or chord rows need the room. Ordinary hints may
 yield from the end to stay within two rows, but persistent rows and active chord rows do
@@ -2177,7 +2207,7 @@ page-map item, hyperlink, and fold lists, and one digit names a member. `g g` an
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
-An edge is one place, so the second key is the whole address; because every page has a
+An edge is one place, so the second key completes the route; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 `DIRECT_DESTINATIONS` is the direct-destination vocabulary. Each entry declares its
 mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
@@ -2196,33 +2226,24 @@ the rows inside it. Completing an address runs that list's destination: a hyperl
 follows, a fold opens and takes focus, and a page-map item opens its marker or focuses
 its first available action.
 
-Arming the mode paints the whole offer. A direct mnemonic completes the travel and
-moves focus inside its destination. Every numbered list contributes chips for its first
-nine members at once, and its mnemonic narrows them to that list. The following
-digit selects immediately. Escape backs out to the list menu before it closes the
-mode. A chip carries the whole address — leader, letter, and number — so it states
-which member this is and what remains to type. Every key on it is set at the chip's
-one size, and the split between what is
-behind the reader and what is still to press is carried by ground: the spent keys
-sit on the chip's own, the live ones on a lit block (`.lf-spent`, `.lf-lit`). Colour
-alone will not carry it — muted against accent is a difference in hue and barely one
-in lightness, and on a key that small the two halves read as one word — but size was
-the wrong second channel. One box holding two type sizes reads as a fault, and
-because a press moves a key from one size to the other it re-set every chip on
-screen, each narrowing 2.4px and sliding 1.2px as the reader was reading it. A lit
-ground says the same thing while taking no advance — the block's padding is cancelled
-by an equal negative margin — so a press lights one more key and moves no glyph. Paid for
-in advance instead, the key crossing between the halves steps by that padding, which is the
-same fault one glyph smaller.
+Arming the mode shows the available list and direct-destination mnemonics in the key line.
+Each visible numbered member also shows the complete suffix still needed to reach it, such
+as `h › 1`. A direct mnemonic completes the travel and moves focus inside its destination.
+A numbered-list mnemonic narrows the inline hints to that list's first nine digits and
+reveals the same range in the key line. The following digit selects immediately. Escape
+backs out to the list menu before it closes the mode.
 
-While the chord stands, the key line uses that same accent ground for the leader and
-the visible continuation keys. The active colour belongs to the chord state rather than
-to one hard-coded key, so every future continuation inherits the cue.
+Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
+remains one decision point and is spoken as “g or G”; a muted `›` means “then” visually,
+and the sequence's accessible label spells that word out. In a live chord, pressed keys
+take the accent ground once at the start of the line. Available keys in the line and every
+unpressed key in an inline suffix remain neutral, matching ordinary bindings. The complete
+reference shows every route with all steps neutral because it describes rather than enacts
+them.
 
-`chordKeys` is the one reading of how far a numbered address has come. The key
-line drops those keys after saying them in the chip that heads it, the reference
-puts them in front of each row so every entry shows the complete chord, and a
-chip on the page sets them back.
+`chordKeys` is the structured reading of how far a numbered address has come. The key
+line draws that prefix once, the reference combines the standing-page prefix with each
+row's `completeChordSteps`, and page chips show the complete suffix still to press.
 
 Numbered addresses are stable within the document and capped at nine per list. The
 first nine members do not change identity as the reader scrolls. Chips are painted

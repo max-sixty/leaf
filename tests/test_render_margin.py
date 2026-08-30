@@ -1050,6 +1050,21 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     assert toggle.evaluate(
         "button => button.previousElementSibling.matches('.lf-signoff, .lf-threads-toggle')"
     ), "the small-screen map is not beside the primary feedback controls"
+    text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
+        """buttons => buttons.map(button => {
+          const box = button.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(button);
+          const text = range.getBoundingClientRect();
+          return {label: button.textContent.trim(),
+                  above: text.top - box.top, below: box.bottom - text.bottom};
+        })"""
+    )
+    assert text_insets
+    for inset in text_insets:
+        assert inset["above"] == pytest.approx(
+            inset["below"], abs=1.5
+        ), f"{inset['label']} is not vertically centred in the compact banner: {inset}"
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")

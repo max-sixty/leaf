@@ -78,7 +78,7 @@ export function chromeStyle({
     --lf-ui-lh: 1.45;
   }
   @media screen and ${COVERING} {
-    :root { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
+    :root { --lf-banner-h: calc(88px + var(--lf-safe-top)); }
   }
   /* A wide touch layout keeps the desktop row, but its forty-four-pixel aims and their
      focus ring need a taller bar than the mouse-sized row. This one derived height moves
@@ -1361,17 +1361,18 @@ ${MARK_RULES}
        overflow has to be discovered before a reader can comment or approve. */
     @media screen and ${COVERING} {
       .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 40px 48px; gap: 0;
-        padding: var(--lf-safe-top) 0 7px; }
+        grid-template-rows: 36px minmax(0, 1fr); gap: 0;
+        padding: var(--lf-safe-top) 0 0; }
       .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
           calc(14px + var(--lf-safe-left)); gap: 9px; }
       .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
         justify-content: flex-start;
-        scroll-padding-inline: calc(14px + var(--lf-safe-left));
-        padding: 4px calc(14px + var(--lf-safe-right)) 4px
-          calc(14px + var(--lf-safe-left)); gap: 4px; }
+        scroll-padding-inline: calc(10px + var(--lf-safe-left));
+        padding: 4px calc(10px + var(--lf-safe-right)) 4px
+          calc(10px + var(--lf-safe-left)); gap: 3px; }
       .lf-banner-actions > .lf-others { margin-inline-end: 0; }
-      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 8px; }
+      .lf-banner-actions > .lf-btn { display: inline-flex; align-items: center;
+        justify-content: center; min-height: 40px; padding-inline: 6px; }
       /* A pinned wide row reserves its future Latest address so publication cannot move
          controls. The phone shelf starts at the primary controls, so an unseen slot there
          is only blank scrolling; collapse it until the news itself is present. */

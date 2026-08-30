@@ -1337,7 +1337,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     assert page.locator(".lf-margin-thread").count() >= 1
-    expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
+    expect(page.locator(".lf-margin-marker").first).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -3729,6 +3729,112 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
     page.keyboard.press("Escape")
 
+    assert errors == []
+    page.close()
+
+
+def test_page_shortcuts_activate_the_visible_controls_through_click(browser, serve):
+    """A shortcut runs the control, including listeners it does not own."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+
+    box = page.locator("#prose").bounding_box()
+    select(
+        page,
+        (box["x"] + 1, box["y"] + 4),
+        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
+        steps=12,
+    )
+    fab = page.locator(".lf-fab")
+    expect(fab).to_be_visible()
+    fab.evaluate(
+        """control => control.addEventListener('click', () => {
+          control.dataset.shortcutClicks =
+            String(Number(control.dataset.shortcutClicks || 0) + 1);
+        })"""
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(fab).to_have_attribute("data-shortcut-clicks", "1")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.body.focus()")
+
+    version = page.locator(".lf-version")
+    version.evaluate(
+        """control => control.addEventListener('click', () => {
+          control.dataset.shortcutClicks =
+            String(Number(control.dataset.shortcutClicks || 0) + 1);
+        })"""
+    )
+    page.keyboard.press("v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(version).to_have_attribute("data-shortcut-clicks", "1")
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-help")
+    close = page.locator(".lf-help-close")
+    expect(reference).to_be_visible()
+    close.evaluate(
+        """control => control.addEventListener('click', () => {
+          control.dataset.shortcutClicks =
+            String(Number(control.dataset.shortcutClicks || 0) + 1);
+        })"""
+    )
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(close).to_have_attribute("data-shortcut-clicks", "1")
+
+    assert errors == []
+    page.close()
+
+
+def test_submit_shortcuts_activate_the_visible_controls_through_click(browser, serve):
+    """Mod+Enter sends and saves through the button that promises the action."""
+    html = TARGETS_PAGE.replace(
+        "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
+    )
+    page, errors = open_page(browser, serve(html))
+
+    box = page.locator("#prose").bounding_box()
+    select(
+        page,
+        (box["x"] + 1, box["y"] + 4),
+        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
+        steps=12,
+    )
+    page.keyboard.press("c")
+    composer = page.locator(".lf-composer")
+    send = composer.get_by_role("button", name="Comment", exact=True)
+    send.evaluate(
+        """control => control.addEventListener('click', () => {
+          document.body.dataset.composerShortcutClicks =
+            String(Number(document.body.dataset.composerShortcutClicks || 0) + 1);
+        })"""
+    )
+    composer.locator("textarea").fill("Send through the visible control.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
+    expect(composer).to_be_hidden()
+
+    controls = page.locator(".lf-draft-controls[data-lf-for='plan']")
+    controls.get_by_role("button", name="Edit").click()
+    editor = page.locator("#plan textarea")
+    editor.fill("Save through the visible control.")
+    save = controls.get_by_role("button", name="Save")
+    save.evaluate(
+        """control => control.addEventListener('click', () => {
+          document.body.dataset.draftShortcutClicks =
+            String(Number(document.body.dataset.draftShortcutClicks || 0) + 1);
+        })"""
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("body")).to_have_attribute("data-draft-shortcut-clicks", "1")
+    expect(page.locator("#plan .lf-draft-body")).to_have_text(
+        "Save through the visible control."
+    )
+
+    round_trip(page)
     assert errors == []
     page.close()
 

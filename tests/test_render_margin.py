@@ -93,6 +93,36 @@ def test_g_addresses_the_shipped_reconnect_thread_in_the_page_map(browser, serve
     page.close()
 
 
+def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
+    """The page map is a vertical list: its arrows stop at its first and last markers,
+    while Home and End remain direct routes to those edges."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    markers = page.locator(".lf-margin-marker:visible")
+    assert markers.count() > 1, "the page map has no pair of visible markers to walk"
+
+    markers.first.click()
+    page.keyboard.press("Home")
+    first = page.locator(":focus").get_attribute("aria-label")
+    assert first and page.locator(":focus").evaluate(
+        "node => node.matches('.lf-margin-marker')"
+    )
+    page.keyboard.press("ArrowUp")
+    assert page.locator(":focus").get_attribute("aria-label") == first
+
+    page.keyboard.press("End")
+    last = page.locator(":focus").get_attribute("aria-label")
+    assert last and last != first
+    page.keyboard.press("ArrowDown")
+    assert page.locator(":focus").get_attribute("aria-label") == last
+
+    page.keyboard.press("Home")
+    assert page.locator(":focus").get_attribute("aria-label") == first
+    assert errors == []
+    page.close()
+
+
 def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
     browser, serve
 ):

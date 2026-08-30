@@ -156,6 +156,8 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
 
+    page.keyboard.press("ArrowUp")
+    expect(marks.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")
@@ -521,6 +523,16 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     # wears, so the two kinds of anchor answer one question and not two.
     page.keyboard.press("t")
     wait_standing(page, "", ["fig"])
+    page.keyboard.press("t")
+    expect(page.locator(".lf-thread").last).to_be_focused()
+    wait_standing(page, "", ["fig"])
+    page.keyboard.press("Shift+t")
+    wait_standing(page, "neighbouring block")
+    page.keyboard.press("Shift+t")
+    wait_standing(page, "bold text")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-thread").first).to_be_focused()
+    wait_standing(page, "bold text")
 
     # Standing in a comment while writing back to it is still standing in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
@@ -1532,6 +1544,31 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
 
     page.keyboard.press("?")
     page.keyboard.press("?")
+    commands = help_el.locator(".lf-help-command:visible")
+    assert commands.count() > 1, "the command grid has no pair of rows to walk"
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    first_row = commands.first.locator("xpath=ancestor::tr")
+    expect(search).to_have_attribute(
+        "aria-activedescendant", first_row.get_attribute("id")
+    )
+    page.keyboard.press("ArrowUp")
+    expect(commands.first).to_have_attribute("data-lf-selected", "true")
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("?")
+    commands = help_el.locator(".lf-help-command:visible")
+    page.keyboard.press("ArrowUp")
+    expect(search).to_be_focused()
+    expect(commands.last).to_have_attribute("data-lf-selected", "true")
+    last_row = commands.last.locator("xpath=ancestor::tr")
+    expect(search).to_have_attribute(
+        "aria-activedescendant", last_row.get_attribute("id")
+    )
+    page.keyboard.press("ArrowDown")
+    expect(commands.last).to_have_attribute("data-lf-selected", "true")
+
     search.fill("resolve it")
     result = help_el.locator(
         '.lf-help-command[data-lf-command="thread.resolution.toggle"]'

@@ -242,90 +242,11 @@ session.</p></details>
         f"<p id='t{i}'>Tail {i}. " + "Words. " * 20 + "</p>" for i in range(12)
     )
 )
-# What the chord is offering right now, in the order it drew it. Read through the
+# What the chord's lists are offering, in the order they were drawn. Read through the
 # retrying assertion rather than evaluated: the chips are painted on a frame of the
 # runtime's own (paintHere), so a press and a plain read race each other. Each chip says
-# a whole address, so one reading answers which lists are on offer, which members of
-# each, and in what order — three facts a count and a bare digit answered separately.
+# only the presses still needed to reach its target.
 CHIPS = ".lf-addresses > .lf-address"
-# The half of each address already behind the reader. A chip carries the whole motion, so
-# how far in they are is the split rather than the text: `g` alone once the window is up,
-# and `g h` once a letter has named a list. The selector arrives as an argument so the one
-# spelling above is the one this reads.
-SPENT = """(sel) => [...document.querySelectorAll(sel)]
-    .map(chip => chip.querySelector('.lf-spent').textContent)"""
-# And that the split runs the way it has to, in both channels that carry it: the keys
-# already pressed stand back from the chip's own paper, and the ones still to come sit on a
-# ground of their own. Contrast rather than two colours being different, which a change
-# painting the spent half brighter would satisfy while saying the opposite thing; and the
-# ground beside it because muted against accent is 1.45:1 in the light palette and 1.28:1 in
-# the dark — a colour-only split reads as one word on a key this small, and to a reader who
-# does not separate those hues it is one word.
-#
-# `flat` and `sized` are the other half of that sentence, and they are what keeps this from
-# passing on a chip that says the split twice. The ground belongs to the live keys alone, so
-# a rule that painted both says nothing; and both halves are read for size, not just the
-# spent one, because the fault the ground replaced was two type sizes in one box and a rule
-# enlarging the lit half would be that fault back with the halves swapped.
-# Where a chip sits and where each of its glyphs sits inside it, in one reading.
-#
-# A Range and not the two spans' rects, because the spans are the thing that moves: a key
-# crosses from the spent half to the lit one on the press, so an element reading answers
-# about a different element at each stage and cannot see a glyph step. That is the reading
-# the chip's first version passed under while its letter jumped three pixels.
-#
-# The box comes back with the glyphs rather than from a second `bounding_box()`, for the
-# reason the layer states about itself: the chord's chips are rebuilt on every repaint, and
-# an armed window repaints on a frame of its own — so a node read across two round trips can
-# be detached by the second, which answers None. Both halves of a difference have to be read
-# at one instant to be a difference at all.
-GLYPH_OFFSETS = r"""(sel) => {
-    const chip = document.querySelector(sel);
-    if (!chip) return null;
-    const box = chip.getBoundingClientRect();
-    const glyphs = {};
-    const walk = document.createTreeWalker(chip, NodeFilter.SHOW_TEXT);
-    for (let n; (n = walk.nextNode()); ) {
-      const s = n.textContent;
-      for (let i = 0; i < s.length; i++) {
-        if (s[i] === " ") continue;
-        const r = document.createRange();
-        r.setStart(n, i); r.setEnd(n, i + 1);
-        glyphs[s[i]] = Math.round((r.getBoundingClientRect().left - box.left) * 100) / 100;
-      }
-    }
-    return {glyphs, left: Math.round(box.left * 100) / 100,
-            width: Math.round(box.width * 100) / 100};
-  }"""
-
-
-STANDS_BACK = r"""(sel) => {
-    const chip = document.querySelector(sel), face = getComputedStyle(chip);
-    const spent = getComputedStyle(chip.querySelector('.lf-spent'));
-    const lit = getComputedStyle(chip.querySelector('.lf-lit'));
-    const lum = c => { const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map(Number)
-        .map(v => { const s = v / 255;
-                    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-    const against = c => { const [hi, lo] = [lum(c), lum(face.backgroundColor)]
-        .sort((a, b) => b - a);
-      return (hi + 0.05) / (lo + 0.05); };
-    // A ground of its own: painted at all, and not the chip's own paper.
-    const painted = s => !/^rgba\(.*,\s*0\)$/.test(s.backgroundColor)
-        && s.backgroundColor !== face.backgroundColor;
-    // Each half against the ground it is actually drawn on. The chip's own `color` is a
-    // colour no glyph of a chord chip paints in — both halves override it — so reaching
-    // the comparison through it would pass a lit half whose ink had gone to anything.
-    const on = (ink, ground) => { const [hi, lo] = [lum(ink), lum(ground)]
-        .sort((a, b) => b - a);
-      return (hi + 0.05) / (lo + 0.05); };
-    return {quieter: on(spent.color, face.backgroundColor)
-                       < on(lit.color, lit.backgroundColor),
-            lit: painted(lit),
-            flat: !painted(spent),
-            sized: parseFloat(spent.fontSize) === parseFloat(face.fontSize)
-                     && parseFloat(lit.fontSize) === parseFloat(face.fontSize)};
-  }"""
 
 
 NOTED_PAGE = leaf_page(
@@ -411,9 +332,8 @@ def card_body(page, says):
     return box["x"] + box["width"] / 2, box["y"] + box["height"] - 8
 
 
-# Addressable things that start within a chip's width of each other: a run of footnote
-# markers, and a link that is the whole of a summary — the second being a member of two
-# lists at one corner, which nothing could produce while only one list painted at a time.
+# Addressable links that start within one digit's width of each other: a run of footnote
+# markers, followed by a link that is the whole of a summary.
 CROWDED_PAGE = leaf_page(
     "crowded",
     """

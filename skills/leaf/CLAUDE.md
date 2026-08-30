@@ -1590,9 +1590,9 @@ The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
 `g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
-window instead: the armed chip reads `g` and then `g h`, the chips on the page
-narrow with it, and Escape returns to the destination menu before another Escape
-closes it.
+window instead: the key line's pressed prefix advances from `g` to `g › h`, the
+page chips narrow from complete suffixes such as `h › 1` to that list's digits,
+and Escape returns to the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
 `versionsOffered` (there is a menu) answers for the key, the mode binding its
@@ -2031,10 +2031,11 @@ reader's innermost scope and drops bindings shadowed there. The ordinary shortli
 the first live row, then a promotable Escape or the next row; rows declaring
 `linePriority: persistent` remain beside that context. An active chord instead shows
 every live row in its scope, so computed bindings, ranges, and capability filtering are
-the same ones dispatch and the reference use. `lineWhen` may hide only an ordinary hint
-without changing the command's liveness or its place in the reference. Hint chips are
-`aria-hidden` because placeholders and live announcements carry the same facts for
-assistive technology.
+the same ones dispatch and the reference use. Its pressed prefix appears once in the
+accent face; the available rows keep the ordinary key face. `lineWhen` may hide only an
+ordinary hint without changing the command's liveness or its place in the reference.
+Hint chips are `aria-hidden` because placeholders and live announcements carry the same
+facts for assistive technology.
 
 The compact line wraps when persistent or chord rows need the room. Ordinary hints may
 yield from the end to stay within two rows, but persistent rows and active chord rows do
@@ -2188,7 +2189,7 @@ page-map item, hyperlink, and fold lists, and one digit names a member. `g g` an
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
-An edge is one place, so the second key is the whole address; because every page has a
+An edge is one place, so the second key completes the route; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 `DIRECT_DESTINATIONS` is the direct-destination vocabulary. Each entry declares its
 mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
@@ -2207,33 +2208,24 @@ the rows inside it. Completing an address runs that list's destination: a hyperl
 follows, a fold opens and takes focus, and a page-map item opens its marker or focuses
 its first available action.
 
-Arming the mode paints the whole offer. A direct mnemonic completes the travel and
-moves focus inside its destination. Every numbered list contributes chips for its first
-nine members at once, and its mnemonic narrows them to that list. The following
-digit selects immediately. Escape backs out to the list menu before it closes the
-mode. A chip carries the whole address — leader, letter, and number — so it states
-which member this is and what remains to type. Every key on it is set at the chip's
-one size, and the split between what is
-behind the reader and what is still to press is carried by ground: the spent keys
-sit on the chip's own, the live ones on a lit block (`.lf-spent`, `.lf-lit`). Colour
-alone will not carry it — muted against accent is a difference in hue and barely one
-in lightness, and on a key that small the two halves read as one word — but size was
-the wrong second channel. One box holding two type sizes reads as a fault, and
-because a press moves a key from one size to the other it re-set every chip on
-screen, each narrowing 2.4px and sliding 1.2px as the reader was reading it. A lit
-ground says the same thing while taking no advance — the block's padding is cancelled
-by an equal negative margin — so a press lights one more key and moves no glyph. Paid for
-in advance instead, the key crossing between the halves steps by that padding, which is the
-same fault one glyph smaller.
+Arming the mode shows the available list and direct-destination mnemonics in the key line.
+Each visible numbered member also shows the complete suffix still needed to reach it, such
+as `h › 1`. A direct mnemonic completes the travel and moves focus inside its destination.
+A numbered-list mnemonic narrows the inline hints to that list's first nine digits and
+reveals the same range in the key line. The following digit selects immediately. Escape
+backs out to the list menu before it closes the mode.
 
-While the chord stands, the key line uses that same accent ground for the leader and
-the visible continuation keys. The active colour belongs to the chord state rather than
-to one hard-coded key, so every future continuation inherits the cue.
+Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
+remains one decision point and is spoken as “g or G”; a muted `›` means “then” visually,
+and the sequence's accessible label spells that word out. In a live chord, pressed keys
+take the accent ground once at the start of the line. Available keys in the line and every
+unpressed key in an inline suffix remain neutral, matching ordinary bindings. The complete
+reference shows every route with all steps neutral because it describes rather than enacts
+them.
 
-`chordKeys` is the one reading of how far a numbered address has come. The key
-line drops those keys after saying them in the chip that heads it, the reference
-puts them in front of each row so every entry shows the complete chord, and a
-chip on the page sets them back.
+`chordKeys` is the structured reading of how far a numbered address has come. The key
+line draws that prefix once, the reference combines the standing-page prefix with each
+row's `completeChordSteps`, and page chips show the complete suffix still to press.
 
 Numbered addresses are stable within the document and capped at nine per list. The
 first nine members do not change identity as the reader scrolls. Chips are painted

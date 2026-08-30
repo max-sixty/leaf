@@ -2898,12 +2898,13 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
     )
     assert capsys.readouterr().out == ""
-    assert service_model.page_claim(claimed)["turn_closed"] >= closed
+    reentered_closed = service_model.page_claim(claimed)["turn_closed"]
+    assert reentered_closed >= closed
 
     # Another session's turn ending says nothing about a page that is not one of its
     # own — the stamp names when this claim's turn ended or it means nothing.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s2"})
-    assert service_model.page_claim(claimed)["turn_closed"] == closed
+    assert service_model.page_claim(claimed)["turn_closed"] == reentered_closed
     lease.close()
 
 

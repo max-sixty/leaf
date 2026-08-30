@@ -451,13 +451,12 @@ A surface that reads the same before and after the press cannot be its own wait 
 `expect(...).to_have_text(...)` is satisfied by the frame the press has not reached yet,
 and a measurement taken behind it then compares a reading with itself and passes. It is
 the same coalesced frame as above, but it fails differently: not late by a poll, but
-green because nothing was ever asserted. `test_the_press_that_lights_a_key_moves_no_glyph`
-measures one address chip either side of the press that lights its next key, and the chip
-says "g h 1" at both — waiting on its text, the test passed two runs in three with the fix
-reverted. It waits on the offer narrowing instead, which is what the press actually
-writes. So a test whose subject is what a press does *within* a surface waits on some
-other fact of that press, and its bug-back is run more than once: a wait that is
-sometimes real looks exactly like a wait that is.
+green because nothing was ever asserted. `test_numbered_addresses_show_the_remaining_route_in_the_ordinary_key_face`
+waits for the `h` row after `g` before asserting the complete inline suffixes, then waits
+for digit-only suffixes after `h`. When a surface does not itself change, a test whose
+subject is
+what a press does *within* it waits on some other fact of that press, and its bug-back is
+run more than once: a wait that is sometimes real looks exactly like a wait that is.
 
 A retrying assertion that a paint has *not* happened is the same trap wearing the other
 sign, and it is worse, because retrying is what usually rescues a reader from it. A

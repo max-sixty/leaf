@@ -355,6 +355,25 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
                            --lf-lift: 0 3px 10px rgba(0, 0, 0, .14); }
   }
  }
+ /* Arriving is not a gesture, which theme.css says for body and for the runtime's own
+  * chrome and cannot say for a page element: `transition` does not inherit, so what an
+  * unreached descendant still plays is a transition of its own declaring. That comment
+  * names the trade and leaves the finding to the suite; this is the finding, and the
+  * option's own rule is where it is answered.
+  *
+  * Nothing about the reader moves here. The stylesheet is render-blocking but not
+  * style-blocking, so the parser styles the options before it lands and box-shadow holds
+  * its initial `none`; the sheet then arrives and states `var(--lf-ring), var(--lf-lift)`
+  * — two transparent channels, no pixel different — while the line above has already
+  * granted the ease. Chrome reports a 120ms box-shadow transition on every option of a
+  * page nobody has touched, and whether it reports one at all turns on whether a recalc
+  * fell inside the sheet's own load, which is why the returning-reader gate found it on
+  * some loads and not others. Withheld until the page says it is presented, so the ease
+  * belongs to the pointer that earns it. Spelled as the layer's guard is — the runtime's
+  * own script link, the presentation stamp — so a page with no runtime behind it, which
+  * never stamps and never held its options back, keeps the ease it always had. */
+ html:has(script[type="module"][src="/leaf.js"])
+   body:not([data-lf-presented]) lf-option { transition: none; }
 }
 /* The mark the upgrade injects: the keyboard path and the state in one element. It is
  * silent until there is a pick to state, so its box is not the same in both states — the

@@ -255,8 +255,17 @@ export function unreachableWords() {
     if (el.closest(".lf-work-line")) continue;
     // .lf-quiet is words for a reader listening, clipped to nothing: not on
     // screen, so there is nothing here the eye can see and the pointer can't
-    // reach — the failure this check exists for.
-    if (el.closest(".lf-quiet")) continue;
+    // reach — the failure this check exists for. [hidden] is the other half of
+    // that same silence and the one the runtime reaches for where a clip cannot
+    // go: the external-link note is an aria-describedby target inside whatever
+    // root its link stands in, shadow roots included, and .lf-quiet's rule is a
+    // document stylesheet that no shadow tree adopts. The attribute is safe to
+    // read as "not shown" because the browser drops it on the reveal — a
+    // hidden="until-found" word the reader finds is a word this check sees
+    // again, at the moment it is on screen. The two sibling checks that ask what
+    // a box shows (render-checks/widgets.js, render-checks/standalone.js) spell
+    // the same pair.
+    if (el.closest(".lf-quiet, [hidden]")) continue;
     found.push(
       `${at(widget(el))} puts ${JSON.stringify(n.data.trim().slice(0, 40))} ` +
         `under .lf-ui, where no comment can reach it`,

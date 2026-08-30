@@ -263,5 +263,5 @@ export function createSelectionComposer(runtime, dependencies) {
   // Cancel discards. Escape and outside clicks only hide, keeping the draft either way.
   composerCancel.onclick = closeComposer;
 
-  return { closeComposer, hideComposer, openComposer, pendingComposer };
+  return { hideComposer, openComposer, pendingComposer };
 }

@@ -246,16 +246,10 @@ import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
-import {
-  actionAvailable,
-  actionStands,
-  createOutbox,
-  outbox,
-  sendAction,
-} from "./runtime/outbox.js";
+import { createOutbox, outbox, sendAction } from "./runtime/outbox.js";
 import { createRequests } from "./runtime/requests.js";
 import { createDataProjection } from "./runtime/projection/data.js";
-import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
+import { createProjection } from "./runtime/projection.js";
 import { createAnchors, itemWord } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
 import { createBannerShelf } from "./runtime/banner-shelf.js";
@@ -269,13 +263,7 @@ import {
   standingConversation,
 } from "./runtime/conversation/landing.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
-import {
-  shownBand,
-  shownBox,
-  shownParts,
-  shownRect,
-  startsAt,
-} from "./runtime/geometry.js";
+import { shownBox, shownParts, shownRect, startsAt } from "./runtime/geometry.js";
 import {
   createPassages,
   inChrome,
@@ -283,7 +271,6 @@ import {
   renderRetired,
   says,
   textNodesUnder,
-  uiInside,
   wrote,
 } from "./runtime/passages.js";
 import { createViewContinuity } from "./runtime/view-continuity.js";
@@ -317,7 +304,6 @@ import {
   reserve,
   WORKS,
   WORKS_WITHOUT_TAB_STOP,
-  worksInside,
 } from "./runtime/widget-elements.js";
 import {
   MARKED_ANYWHERE,
@@ -1337,9 +1323,6 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   wireInput,
 });
 
-function pendingComposer() {
-  return selectionComposerRuntime.pendingComposer();
-}
 function openComposer(
   anchor,
   text,
@@ -1351,9 +1334,6 @@ function openComposer(
   return selectionComposerRuntime.openComposer(anchor, text, left, top, suggest, about);
 }
 const hideComposer = () => selectionComposerRuntime.hideComposer();
-function closeComposer() {
-  return selectionComposerRuntime.closeComposer();
-}
 
 // What the general box is for, said once: its own placeholder wears it, and so does the
 // panel row whose key opens it. Two strings would be two chances to rename the mode in
@@ -3022,12 +3002,6 @@ function narrowed(...args) {
 function awaitsReader(...args) {
   return conversationRuntime.awaitsReader(...args);
 }
-function awaitsAgent(...args) {
-  return conversationRuntime.awaitsAgent(...args);
-}
-function seatRoot(...args) {
-  return conversationRuntime.seatRoot(...args);
-}
 function setChildren(...args) {
   return conversationRuntime.setChildren(...args);
 }
@@ -3073,9 +3047,6 @@ function itemAt(...args) {
 }
 function itemSays(...args) {
   return anchorRuntime.itemSays(...args);
-}
-function visualPartAt(...args) {
-  return anchorRuntime.visualPartAt(...args);
 }
 function visualPartLabel(...args) {
   return anchorRuntime.visualPartLabel(...args);
@@ -3606,7 +3577,7 @@ const { landArrival, savedView } = viewRuntime.installArrival({
   scrollToElement,
   tabStore,
 });
-const savedComposer = pendingComposer();
+const savedComposer = selectionComposerRuntime.pendingComposer();
 
 // ---------- start ----------
 // One positive fact for the one presentation boundary. Success has applied the log;

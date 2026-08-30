@@ -1289,7 +1289,6 @@ export function createAnchors(dependencies) {
     aimTargets,
     visualAt,
     visualActionAnchor,
-    visualPartAt,
     visualPartLabel,
     resolveAnchor,
     NOTE,

@@ -359,7 +359,12 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
   * chrome and cannot say for a page element: `transition` does not inherit, so what an
   * unreached descendant still plays is a transition of its own declaring. That comment
   * names the trade and leaves the finding to the suite; this is the finding, and the
-  * option's own rule is where it is answered.
+  * option's own rule is where it is answered. The suite carries less of that trade than
+  * the sentence sounds: the returning-reader gate holds a return against a first visit
+  * and reports only what the return adds, so it names a transition that plays on some
+  * arrivals and not others and says nothing about one that plays on every arrival alike.
+  * This was the first kind. A package declaring a transition on an element of its own
+  * gets no warning of the second and has to withhold it the way this rule does.
   *
   * Nothing about the reader moves here. The stylesheet is render-blocking but not
   * style-blocking, so the parser styles the options before it lands and box-shadow holds

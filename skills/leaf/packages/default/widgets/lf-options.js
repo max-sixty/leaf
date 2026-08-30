@@ -110,7 +110,6 @@ import {
   measure,
   offer,
   once,
-  paintKeys,
   quoted,
   reachedForWords,
   relabel,
@@ -510,7 +509,7 @@ customElements.define(
 
     #row = null; // the one-line summary a settled group collapses to
     #title = null; // the part of it naming the chosen option
-    #isOpen = false; // this tab's reading of the group; #open renders it, nothing reads it back
+    #isOpen = false; // this tab's reading of the group; #open renders it, the row's line says it
 
     #settle() {
       // A disclosure is a thing to work, and what it names — the chosen option — the
@@ -592,13 +591,9 @@ customElements.define(
       ])
         if (open) el.removeAttribute("hidden");
         else el.setAttribute("hidden", HIDDEN);
+      // The row's bindings answer from this attribute, and the disclosure watcher hears the
+      // write: it repaints both surfaces that name a row's keys, so nothing local is owed.
       this.#row.setAttribute("aria-expanded", open ? "true" : "false");
-      // The row's bindings read that attribute, and nothing else repaints them: the
-      // disclosure watcher repaints the line alone, so aria-keyshortcuts would keep
-      // whichever way the row was standing when it was declared — naming the arrow that
-      // no longer moves and withholding the one that does. This is the repaint `keys`
-      // asks of a control whose keys change with its state.
-      paintKeys();
       if (remember) tabStore.set(SETTLED_KEY + this.id, open ? "1" : "0");
     }
 

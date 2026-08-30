@@ -7,7 +7,7 @@ export { answeredContext, decisionSource, openDecisions } from "./decisions/mode
 export { conversationBox } from "./conversation/box.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
-export { PRESS, labelOf } from "./keyboard/bindings.js";
+export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
 export { marginAction, registerMarginItem } from "./living-margin.js";
 export { scrollerFor } from "./navigation.js";

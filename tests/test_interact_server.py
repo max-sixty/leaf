@@ -2939,12 +2939,12 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the
-    canonical claims — titled by its newest published version, and nothing
-    else: not a dead server's page, not one with nothing published to link, and
-    not the page doing the asking. Each entry carries the same presence facts the
-    page ships about itself (`presence`), so the panel's row and that page's own
-    banner judge from one shape — where the claiming session is working included,
-    which is the one thing on a row's hover that no title could ever say."""
+    canonical claims — titled by its active revision, and nothing else: not a
+    dead server's page or the page doing the asking. Each entry carries the same
+    presence facts the page ships about itself (`presence`), so the panel's row
+    and that page's own banner judge from one shape — where the claiming session
+    is working included, which is the one thing on a row's hover that no title
+    could ever say."""
     pages = host_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     files_model.write_json(

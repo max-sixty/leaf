@@ -20,7 +20,6 @@ from leaf.validation.transitions import report_errors, restatement_errors
 class RevisionReading(NamedTuple):
     """The active and predecessor documents this exact source is checked against."""
 
-    revisions: list[int]
     active: int
     committed_active: bool
     predecessor: int
@@ -66,7 +65,6 @@ def revision_reading(
         previous = parse_structure(previous_html)
         previous_words = spoken(previous_html, registry or {})
     return RevisionReading(
-        revisions,
         active,
         committed_active,
         predecessor,

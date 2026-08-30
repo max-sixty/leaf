@@ -94,7 +94,7 @@ export const MARK_RULES = `
 let publishedShadowStage;
 export const shadowStage = (...args) => publishedShadowStage(...args);
 
-export function createShadowStage(watchDisclosures) {
+export function createShadowStage(watchDisclosures, watchExternalLinks) {
   let markSheet;
   publishedShadowStage = function stageShadow(host, nodes) {
     if (!markSheet) {
@@ -119,6 +119,7 @@ export function createShadowStage(watchDisclosures) {
       : SHADOW_PRESENTATION_CSS;
     style.textContent = presentationRules + shadowRules;
     root.replaceChildren(style, ...nodes);
+    watchExternalLinks(root);
     return root;
   };
   return publishedShadowStage;

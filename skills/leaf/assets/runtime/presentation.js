@@ -72,6 +72,181 @@ export function quietWord(el, word) {
   el.insertBefore(span, title ? title.nextSibling : el.firstChild);
 }
 
+// External page links keep native link behavior but make the boundary explicit: the
+// target opens beside this Leaf, the visible mark says it will leave the page, and its
+// accessible word survives in a standalone copy. A URL on this page's own origin is
+// still local even when the author wrote it absolutely; non-web schemes keep their
+// platform meaning.
+const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
+const externalLinkState = new WeakMap();
+let externalNoteSequence = 0;
+const linkAttributes = (link) =>
+  Object.fromEntries(
+    EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
+  );
+const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+function withToken(value, token, insensitive = false) {
+  const values = tokens(value);
+  const wanted = insensitive ? token.toLowerCase() : token;
+  if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
+    values.push(token);
+  return values.join(" ");
+}
+function withoutToken(value, token, insensitive = false) {
+  if (value === null) return null;
+  const unwanted = insensitive ? token.toLowerCase() : token;
+  return tokens(value)
+    .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
+    .join(" ");
+}
+function writeLinkAttributes(link, values) {
+  for (const [name, value] of Object.entries(values)) {
+    if (link.getAttribute(name) === value) continue;
+    if (value === null) link.removeAttribute(name);
+    else link.setAttribute(name, value);
+  }
+}
+function rememberExternalLinkChanges(link, state) {
+  if (!state.painted) return;
+  const current = linkAttributes(link);
+  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+    if (current[name] === state.painted[name]) continue;
+    let value = current[name];
+    if (name === "rel" && state.addedNoopener)
+      value = withoutToken(value, "noopener", true);
+    if (name === "aria-describedby") value = withoutToken(value, state.noteId);
+    state.baseline[name] = value;
+  }
+}
+function clearExternalLink(link, state) {
+  rememberExternalLinkChanges(link, state);
+  writeLinkAttributes(link, state.baseline);
+  link
+    .querySelectorAll(':scope > .lf-external-mark[data-lf-gen="1"]')
+    .forEach((node) => node.remove());
+  state.note?.remove();
+  externalLinkState.delete(link);
+}
+export function renderExternalLinks(root) {
+  const links = [...(root.matches?.("a") ? [root] : []), ...root.querySelectorAll("a")];
+  for (const link of links) {
+    // SVG links share this selector but not the HTML anchor API, and they have no
+    // dependable inline box in which an HTML text mark could stand.
+    if (!(link instanceof HTMLAnchorElement)) continue;
+    let external = false;
+    try {
+      const href = link.getAttribute("href");
+      const url = href === null ? null : new URL(href, document.baseURI);
+      external =
+        ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin;
+    } catch {}
+
+    if (!external) {
+      const state = externalLinkState.get(link);
+      if (!state) continue;
+      clearExternalLink(link, state);
+      continue;
+    }
+
+    let state = externalLinkState.get(link);
+    if (!state) {
+      state = {
+        baseline: linkAttributes(link),
+        painted: null,
+        noteId: `lf-external-note-${++externalNoteSequence}`,
+        addedNoopener: false,
+      };
+      externalLinkState.set(link, state);
+    } else rememberExternalLinkChanges(link, state);
+    if (!link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]')) {
+      const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      mark.setAttribute("class", "lf-ui lf-external-mark");
+      mark.setAttribute("viewBox", "0 0 16 16");
+      mark.dataset.lfGen = "1";
+      mark.setAttribute("aria-hidden", "true");
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      line.setAttribute(
+        "d",
+        "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
+      );
+      mark.append(line);
+      link.append(mark);
+    }
+    if (!state.note) {
+      state.note = Object.assign(document.createElement("span"), {
+        className: "lf-ui lf-external-note",
+        hidden: true,
+        textContent: "opens in a new tab",
+      });
+      state.note.dataset.lfGen = "1";
+      state.note.id = state.noteId;
+    }
+    if (link.parentNode && state.note.parentNode !== link.parentNode)
+      link.after(state.note);
+    state.addedNoopener = !tokens(state.baseline.rel).some(
+      (value) => value.toLowerCase() === "noopener",
+    );
+    writeLinkAttributes(link, {
+      target: "_blank",
+      rel: withToken(state.baseline.rel, "noopener", true),
+      "aria-describedby": state.note.parentNode
+        ? withToken(state.baseline["aria-describedby"], state.noteId)
+        : state.baseline["aria-describedby"],
+    });
+    state.painted = linkAttributes(link);
+  }
+}
+
+// Widget families are open-ended, so their link-producing lifecycle cannot be a list in
+// the runtime. One observer covers authored light DOM and every later widget mutation;
+// shadowStage enrolls each declared shadow root in the same reading. Attribute watching
+// makes a node preserved across renders lose or regain the treatment with its href.
+const externalLinkRoots = new WeakSet();
+const externalLinkObserver = new MutationObserver((records) => {
+  const changed = new Set();
+  const removed = new Set();
+  for (const record of records) {
+    if (record.type === "attributes") changed.add(record.target);
+    else {
+      if (record.target.querySelectorAll) changed.add(record.target);
+      for (const node of record.addedNodes)
+        if (node.nodeType === Node.ELEMENT_NODE) changed.add(node);
+      for (const node of record.removedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node instanceof HTMLAnchorElement && externalLinkState.has(node))
+          removed.add(node);
+        for (const link of node.querySelectorAll("a"))
+          if (link instanceof HTMLAnchorElement && externalLinkState.has(link))
+            removed.add(link);
+      }
+    }
+  }
+  for (const root of changed) renderExternalLinks(root);
+  for (const link of removed) {
+    const root = link.getRootNode();
+    const enrolled =
+      (root === document &&
+        externalLinkRoots.has(document.body) &&
+        document.body.contains(link)) ||
+      (root instanceof ShadowRoot &&
+        root.host.isConnected &&
+        externalLinkRoots.has(root));
+    const state = externalLinkState.get(link);
+    if (!enrolled && state) clearExternalLink(link, state);
+  }
+});
+export function watchExternalLinks(root) {
+  renderExternalLinks(root);
+  if (externalLinkRoots.has(root)) return;
+  externalLinkRoots.add(root);
+  externalLinkObserver.observe(root, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["href", ...EXTERNAL_LINK_ATTRIBUTES],
+  });
+}
+
 // What an upgraded subtree owes beyond its module's own work: the words a widget says
 // through an attribute rendered as real text, the facts it paints spoken, and its
 // code — and the page's own <pre><code> blocks, alongside the widgets and for the same
@@ -82,6 +257,7 @@ export function quietWord(el, word) {
 export function dress(root) {
   renderSaid(root);
   renderQuiet(root);
+  renderExternalLinks(root);
   return highlightBlocks(root);
 }
 

@@ -327,6 +327,7 @@ import {
   markDeclared,
   renderQuiet,
   renderSaid,
+  watchExternalLinks,
 } from "./runtime/presentation.js";
 import { reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
 import { pageScroller } from "./runtime/scrolling.js";
@@ -481,7 +482,7 @@ const watchDisclosures = (root) =>
     attributeFilter: ["open", "aria-expanded"],
     attributeOldValue: true,
   });
-createShadowStage(watchDisclosures);
+createShadowStage(watchDisclosures, watchExternalLinks);
 
 const {
   byCommand,

@@ -692,6 +692,13 @@ li { margin: 6px 0; }
 a { color: var(--accent); text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 a:hover { text-decoration-color: currentColor; }
+/* lf-shadow:start */
+.lf-external-mark { display: inline-block; width: .75em; height: .75em;
+                    margin-inline-start: .24em; vertical-align: .03em;
+                    fill: none; stroke: currentColor; stroke-width: 1.5;
+                    stroke-linecap: round; stroke-linejoin: round;
+                    overflow: visible; user-select: none; -webkit-user-select: none; }
+/* lf-shadow:end */
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 /* An identifier breaks where it must. A test name or a path is one word to the line
  * breaker, and a word a box cannot hold is either drawn past the box or holds the

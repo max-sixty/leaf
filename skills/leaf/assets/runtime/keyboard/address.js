@@ -17,10 +17,10 @@ export function createAddress({
   keylineEl,
   leavesOffered,
   letGo,
-  marginMarkers,
-  openMarginMarker,
+  openPageMapItem,
   othersLinks,
   othersPanel,
+  pageMapItems,
   pageParts,
   paintHere,
   panelCovers,
@@ -120,12 +120,12 @@ export function createAddress({
   ];
   const ADDRESSES = [
     {
-      id: "navigation.margin-marker",
+      id: "navigation.page-map-item",
       key: "m",
-      word: "page-map markers",
-      does: "Open the nth page-map marker",
-      list: marginMarkers,
-      go: openMarginMarker,
+      word: "page-map items",
+      does: "Go to the nth page-map item",
+      list: pageMapItems,
+      go: openPageMapItem,
     },
     {
       id: "navigation.link",

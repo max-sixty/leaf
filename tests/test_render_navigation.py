@@ -1067,7 +1067,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(line).to_contain_text("A")
     expect(line).to_contain_text("Asks panel")
     expect(line).to_contain_text("m 1–3")
-    expect(line).to_contain_text("page-map markers")
+    expect(line).to_contain_text("page-map items")
     expect(line).to_contain_text("h 1–2")
     expect(line).to_contain_text("hyperlinks")
     expect(line).to_contain_text("f 1")
@@ -1134,8 +1134,8 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-decisions-panel")).not_to_be_visible()
 
-    # Margin markers are the page map's right-hand blobs. Their addresses open the
-    # same preview as the marker itself, including a thread anchored at that location.
+    # Page-map items are the right-hand locations. An item with information opens the
+    # same preview as its marker, including a thread anchored at that location.
     page.keyboard.press("g")
     page.keyboard.press("m")
     expect(page.locator(CHIPS)).to_have_text(["g m 1", "g m 2", "g m 3"])

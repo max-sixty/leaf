@@ -280,7 +280,7 @@ export function createLivingMargin(dependencies) {
   const rows = new Map();
   const hosts = new Map();
   const inlineHosts = new Map();
-  let currentEntries = [];
+  let pageMapEntries = [];
   let previewEntry = null;
   let previewButton = null;
   let pinnedKey = null;
@@ -526,11 +526,28 @@ export function createLivingMargin(dependencies) {
     });
   }
 
-  function openMarginMarker(marker) {
-    const entry = marker?.lfEntry;
+  function pageMapItems() {
+    return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
+  }
+
+  function openPageMapItem(item) {
+    const entry = item?.lfEntry;
     if (!entry?.target) return;
     scrollToElement(entry.target, undefined, "nearest");
-    marker.click();
+    const marker = rows.get(entry.key);
+    if (marker && !marker.hidden) {
+      if (compact.matches) openSheet(entry);
+      else marker.click();
+      return;
+    }
+    const action = [...item.querySelectorAll(".lf-margin-action")].find(
+      (control) =>
+        control !== marker &&
+        !control.disabled &&
+        !control.hidden &&
+        control.checkVisibility(),
+    );
+    action?.focus({ preventScroll: true });
   }
 
   function focusMapControl(entry = null) {
@@ -759,9 +776,8 @@ export function createLivingMargin(dependencies) {
     if (!nav.isConnected) chromeRoot.append(nav);
     placeMargin(main?.getBoundingClientRect());
     syncInlineOffers();
-    currentEntries = collectEntries();
-    const anchoredEntries = currentEntries.filter((entry) => entry.target);
-    const live = new Set(anchoredEntries.map((entry) => entry.key));
+    pageMapEntries = collectEntries().filter((entry) => entry.target);
+    const live = new Set(pageMapEntries.map((entry) => entry.key));
     for (const [key, marker] of rows)
       if (!live.has(key)) {
         const host = hosts.get(key);
@@ -772,7 +788,7 @@ export function createLivingMargin(dependencies) {
       }
     const externalDocks = new Map();
     let corePosition = 0;
-    anchoredEntries.forEach((entry, index) => {
+    pageMapEntries.forEach((entry, index) => {
       let marker = rows.get(entry.key);
       let host = hosts.get(entry.key);
       if (host) host.lfEntry = entry;
@@ -835,15 +851,15 @@ export function createLivingMargin(dependencies) {
           );
         corePosition += 1;
       }
-      paintMarker(marker, entry, index, anchoredEntries.length);
+      paintMarker(marker, entry, index, pageMapEntries.length);
     });
-    mapButton.hidden = currentEntries.length === 0;
-    mapButton.textContent = `Map (${currentEntries.length})`;
-    nav.hidden = anchoredEntries.length === 0;
-    nav.setAttribute("aria-label", `Page map, ${anchoredEntries.length} locations`);
+    mapButton.hidden = pageMapEntries.length === 0;
+    mapButton.textContent = `Map (${pageMapEntries.length})`;
+    nav.hidden = pageMapEntries.length === 0;
+    nav.setAttribute("aria-label", `Page map, ${pageMapEntries.length} locations`);
     if (sheet.open) renderSheet();
     if (previewEntry) {
-      const fresh = currentEntries.find((entry) => entry.key === previewEntry.key);
+      const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
       if (!fresh) closePreview(false);
       else {
         previewEntry = fresh;
@@ -1010,7 +1026,7 @@ export function createLivingMargin(dependencies) {
       : null;
     const heldScroll = sheetList.scrollTop;
     sheetList.replaceChildren(
-      ...currentEntries.map((entry) => {
+      ...pageMapEntries.map((entry) => {
         const group = el("section", "lf-page-map-group");
         group.append(el("h3", "", entry.title));
         const actions = el("div", "lf-page-map-actions");
@@ -1046,12 +1062,27 @@ export function createLivingMargin(dependencies) {
     }
   }
 
-  mapButton.onclick = () => {
+  function openSheet(entry = null) {
     renderSheet();
-    sheet.showModal();
-    sheetClose.focus({ preventScroll: true });
+    if (!sheet.open) sheet.showModal();
+    const index = entry
+      ? pageMapEntries.findIndex((candidate) => candidate.key === entry.key)
+      : -1;
+    const group = index < 0 ? null : sheetList.children[index];
+    if (group) {
+      const listBox = sheetList.getBoundingClientRect();
+      const groupBox = group.getBoundingClientRect();
+      if (groupBox.top < listBox.top) sheetList.scrollTop -= listBox.top - groupBox.top;
+      else if (groupBox.bottom > listBox.bottom)
+        sheetList.scrollTop += groupBox.bottom - listBox.bottom;
+    }
+    (group?.querySelector(".lf-page-map-action") ?? sheetClose).focus({
+      preventScroll: true,
+    });
     paintKeys();
-  };
+  }
+
+  mapButton.onclick = () => openSheet();
   sheet.addEventListener("close", () => {
     paintKeys();
     if (sheetActivation) {
@@ -1105,5 +1136,5 @@ export function createLivingMargin(dependencies) {
   });
   render();
 
-  return { marginMarkers: availableRows, openMarginMarker, render };
+  return { openPageMapItem, pageMapItems, render };
 }

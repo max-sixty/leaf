@@ -55,24 +55,25 @@ ACTION_PAGE = SUGGESTION_PAGE.replace(
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
 
 
-def test_g_addresses_the_shipped_reconnect_thread_in_the_page_map(browser, serve):
-    """Every visible page-map marker is a numbered g destination, including threads."""
+def test_g_addresses_the_shipped_page_map_in_its_announced_order(browser, serve):
+    """Every page-map location has the number its informational marker announces."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
     address = page.evaluate(
         """() => {
-          const markers = [...document.querySelectorAll('.lf-margin-marker')]
-            .filter(marker => !marker.hidden && !marker.closest('.lf-waiting') &&
-              marker.checkVisibility());
-          const index = markers.findIndex(marker => marker.lfEntry?.target?.id ===
-            'off-t-resync');
+          const marker = [...document.querySelectorAll('.lf-margin-marker')]
+            .find(candidate => candidate.lfEntry?.target?.id === 'off-t-resync');
+          const position = marker.getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
+          const mapCount = document.querySelector('.lf-living-margin')
+            .getAttribute('aria-label').match(/(\\d+) locations/);
           const targetTop = document.querySelector('#off-t-resync')
             .getBoundingClientRect().top;
-          return {number: index + 1, count: markers.length, targetTop,
+          return {number: Number(position[1]), count: Number(position[2]),
+            mapCount: Number(mapCount[1]), targetTop,
             viewportHeight: innerHeight};
         }"""
     )
-    assert address["number"] > 0, "the shipped reconnect thread has no page-map marker"
+    assert address["count"] == address["mapCount"]
     assert address["targetTop"] > address["viewportHeight"], (
         "the target must begin off screen so this proves the address is page-wide"
     )
@@ -88,7 +89,25 @@ def test_g_addresses_the_shipped_reconnect_thread_in_the_page_map(browser, serve
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("One reconnect in forty is worse")
-    expect(preview.locator("textarea").first).to_be_focused()
+    assert page.evaluate(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".contains(document.activeElement)"
+    )
+
+    page.keyboard.press("Escape")
+    resized(page, 390, 760)
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    for digit in str(address["number"]):
+        page.keyboard.press(digit)
+    compact_item = page.locator(".lf-page-map-sheet .lf-page-map-action").filter(
+        has_text="One reconnect in forty is worse"
+    )
+    expect(page.locator(".lf-page-map-sheet")).to_be_visible()
+    expect(compact_item).to_be_focused()
+    expect(compact_item).to_be_in_viewport()
+    page.keyboard.press("Escape")
+    expect(page.locator("#off-t-resync")).to_be_in_viewport()
     assert errors == []
     page.close()
 
@@ -131,6 +150,22 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
     expect(draft_item.locator(".lf-draft-pencil .lf-margin-action-label")).to_have_text(
         "Edit"
     )
+
+    draft_address = draft_item.evaluate(
+        """item => {
+          const position = item.querySelector(':scope > .lf-margin-marker')
+            .getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
+          return {number: Number(position[1]), count: Number(position[2])};
+        }"""
+    )
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text(f"m 1–{draft_address['count']}")
+    page.keyboard.press("m")
+    for digit in str(draft_address["number"]):
+        page.keyboard.press(digit)
+    if draft_address["number"] * 10 <= draft_address["count"]:
+        page.keyboard.press("Enter")
+    expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
 
     shapes = page.locator(
         ".lf-sug-accept, .lf-sug-reject, .lf-draft-pencil, "
@@ -243,6 +278,15 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    for digit in str(draft_address["number"]):
+        page.keyboard.press(digit)
+    if draft_address["number"] * 10 <= draft_address["count"]:
+        page.keyboard.press("Enter")
+    expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
+    expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
 
     assert errors == []
     page.close()

@@ -130,7 +130,7 @@
  * passage or item the pointer path uses, so the existing `c` comments on it and no second
  * anchor vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves.
- * `g m 3` opens the third page-map marker in the right margin.
+ * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
  * Arming shows the whole offer: everything addressable the reader can see wears its whole
@@ -1893,10 +1893,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   keylineEl,
   leavesOffered,
   letGo,
-  marginMarkers: () => livingMargin?.marginMarkers() ?? [],
-  openMarginMarker: (marker) => livingMargin?.openMarginMarker(marker),
+  openPageMapItem: (item) => livingMargin?.openPageMapItem(item),
   othersLinks,
   othersPanel,
+  pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
   paintHere,
   panelCovers,

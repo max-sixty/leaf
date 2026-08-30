@@ -996,9 +996,10 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
-// The g chord's numbered document destinations: a chip on every member of the list it has
-// aimed at, drawn here for the same reason the legend is (paintAddresses, its one writer).
-// The eye's copy of what the chord announces, so it says nothing to a screen reader.
+// The g chord's numbered document destinations: a chip on each addressable member of the
+// list it has aimed at, drawn here for the same reason the legend is (paintAddresses, its
+// one writer). The eye's copy of what the chord announces, so it says nothing to a screen
+// reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;

@@ -1311,13 +1311,15 @@ immediately after the target's rendered text block (or the target itself). Addin
 another target action must not add another absolute row, control type, or rail
 measurement.
 
-That ordered target collection is also the Page map's location count and the `g m`
-address list. A location's informational marker announces its position in that complete
-collection. Addressing an item opens its marker when it has one; an action-only item
-receives focus on its first available action without performing it. In the compact
-posture, an informational item opens the Page map sheet at that location instead of
-reviving the hidden desktop preview; an action-only item keeps its direct focus arrival
-on the action docked into the page.
+That ordered target collection is the Page map's complete location count and the source
+for the `g m` address list. A location's informational marker announces its position in
+the complete collection. The numbered chord exposes the collection's first nine
+locations; later locations remain in the Page map and ordinary focus order rather than
+making a one-digit chord ambiguous. Addressing an item opens its marker when it has one;
+an action-only item receives focus on its first available action without performing it.
+In the compact posture, an informational item opens the Page map sheet at that location
+instead of reviving the hidden desktop preview; an action-only item keeps its direct
+focus arrival on the action docked into the page.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
@@ -2141,7 +2143,7 @@ region.
 
 `g` opens one destination mode. `T`, `A`, and `L` complete a direct trip to
 Threads, Asks, and All leaves. `m`, `h`, and `f` name the page's numbered
-page-map item, hyperlink, and fold lists, and a decimal number names a member. `g g` and
+page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2164,14 +2166,12 @@ The page-level `g` row promises only the mode; destinations and ranges belong to
 the rows inside it.
 
 Arming the mode paints the whole offer. A panel mnemonic completes the travel and
-moves focus inside the panel. Every numbered list contributes chips at once, and
-its mnemonic narrows them to that list. Further digits narrow the chips by numeric
-prefix. A number selects immediately when it is unambiguous. When an exact number
-also prefixes a longer one, Enter selects the exact member and another digit
-continues the address. Escape removes one digit before it backs out to the menu.
-A chip carries the whole address — leader, letter, number, and Enter when it is
-required — so it states which member this is and what remains to type. Every key
-on it is set at the chip's one size, and the split between what is
+moves focus inside the panel. Every numbered list contributes chips for its first
+nine members at once, and its mnemonic narrows them to that list. The following
+digit selects immediately. Escape backs out to the list menu before it closes the
+mode. A chip carries the whole address — leader, letter, and number — so it states
+which member this is and what remains to type. Every key on it is set at the chip's
+one size, and the split between what is
 behind the reader and what is still to press is carried by ground: the spent keys
 sit on the chip's own, the live ones on a lit block (`.lf-spent`, `.lf-lit`). Colour
 alone will not carry it — muted against accent is a difference in hue and barely one
@@ -2193,10 +2193,11 @@ line drops those keys after saying them in the chip that heads it, the reference
 puts them in front of each row so every entry shows the complete chord, and a
 chip on the page sets them back.
 
-Numbered addresses are stable within the document. The first addressable members
-do not change identity as the reader scrolls. Chips are painted only for members
-whose `shownRect` is visible, but an off-screen member remains reachable by the
-same address. Chips live in runtime chrome rather than authored markup.
+Numbered addresses are stable within the document and capped at nine per list. The
+first nine members do not change identity as the reader scrolls. Chips are painted
+only for addressable members whose `shownRect` is visible, but an off-screen member
+within that prefix remains reachable by the same address. Chips live in runtime
+chrome rather than authored markup.
 
 `NATIVE` describes the platform controls a chord may land on and the immediate
 word for their next press. A summary says whether it will open or close from its

@@ -1868,16 +1868,12 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     page.close()
 
 
-def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
-    """A list keeps every member addressable after its count passes nine.
+def test_numbered_addresses_stop_at_nine_and_choose_in_one_press(browser, serve):
+    """A numbered list has nine immediate choices even when the page holds more.
 
-    A digit that is both a complete address and the start of a longer one leaves the
-    choice open: Enter takes the exact address, another digit takes the longer one, and
-    Escape removes one entered digit. The page's chips and key line make that temporary
-    ambiguity visible, so the extra reach does not turn short addresses into a timeout or
-    an implicit guess."""
-    # One row per member keeps this test about decimal addressing. The crowded-address
-    # test above deliberately leaves collision survival to the platform's font metrics.
+    The cap keeps every address one digit long: `g h 1` is never an ambiguous prefix,
+    and the tenth document member does not acquire a hidden multi-key route that the
+    shown `1–9` range fails to name."""
     links = "".join(
         f'<li><a id="link-{n}" href="#link-{n}">link {n}</a></li>' for n in range(1, 13)
     )
@@ -1898,60 +1894,31 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     )
 
     page.keyboard.press("g")
-    expect(line).to_contain_text("h 1–12")
+    expect(line).to_contain_text("h 1–9")
+    expect(line).not_to_contain_text("h 1–12")
     page.keyboard.press("h")
-    expect(page.locator(CHIPS).first).to_have_text("g h 1 ⏎")
-    before = page.evaluate(GLYPH_OFFSETS, CHIPS)
+    expect(page.locator(CHIPS)).to_have_text([f"g h {n}" for n in range(1, 10)])
     page.keyboard.press("1")
-    expect(line).to_contain_text("0–2 / ⏎")
-    expect(line).to_contain_text("continue / choose 1")
-    expect(page.locator(CHIPS)).to_have_text(["g h 1 ⏎", "g h 10", "g h 11", "g h 12"])
-    after = page.evaluate(GLYPH_OFFSETS, CHIPS)
-    assert before["glyphs"].keys() == after["glyphs"].keys()
-    moved = {
-        key: (left, after["glyphs"][key])
-        for key, left in before["glyphs"].items()
-        if abs(left - after["glyphs"][key]) > 0.5
-    }
-    assert not moved, f"a key moved while the numeric prefix advanced: {moved}"
-    assert abs(before["width"] - after["width"]) <= 0.5
-    assert abs(before["left"] - after["left"]) <= 0.5
-
-    # One Escape gives back the digit and keeps the chosen list standing.
-    page.keyboard.press("Escape")
-    expect(line).to_contain_text("1–12")
-    page.keyboard.press("1")
-    visible = page.evaluate(
-        """() => {
-          const link = document.querySelector('#link-1').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.scrollingElement.scrollTop, top: link.top, bottom: link.bottom,
-                  banner: banner.bottom, height: innerHeight};
-        }"""
-    )
-    assert visible["top"] > visible["banner"] + 48
-    assert visible["bottom"] < visible["height"] - 48
-    page.keyboard.press("Enter")
     expect(page.locator("#link-1")).to_be_focused()
-    stayed = page.evaluate(
-        """() => ({
-          scroll: document.scrollingElement.scrollTop,
-          top: document.querySelector('#link-1').getBoundingClientRect().top,
-        })"""
-    )
-    assert stayed["scroll"] == pytest.approx(visible["scroll"], abs=0.5)
-    assert stayed["top"] == pytest.approx(visible["top"], abs=0.5)
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(line).to_contain_text("follow")
 
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    page.keyboard.press("9")
+    expect(page.locator("#link-9")).to_be_focused()
+    revealed = page.locator("#link-9").bounding_box()
+    assert revealed is not None
+    assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
+
+    # There is no decimal continuation: 1 completes at the first member, and a later 0
+    # is just an unrelated key rather than an address for member 10.
     page.keyboard.press("g")
     page.keyboard.press("h")
     page.keyboard.press("1")
-    page.keyboard.press("2")
-    expect(page.locator("#link-12")).to_be_focused()
-    revealed = page.locator("#link-12").bounding_box()
-    assert revealed is not None
-    assert revealed["y"] + revealed["height"] > page.viewport_size["height"] * 0.75
-    assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
+    page.keyboard.press("0")
+    expect(page.locator("#link-1")).to_be_focused()
+    expect(page.locator("#link-10")).not_to_be_focused()
     assert errors == []
     page.close()
 

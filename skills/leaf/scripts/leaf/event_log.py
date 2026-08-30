@@ -7,7 +7,6 @@ import secrets
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
 
 from leaf.files import read_json
 
@@ -15,12 +14,6 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
-
-
-class EventAppender(Protocol):
-    """A transaction already holding the event log's append lease."""
-
-    def append_event(self, event: dict) -> dict: ...
 
 
 def require_cross_process_locking() -> None:
@@ -175,13 +168,8 @@ def _append_event_unlocked(f, event: dict) -> dict:
     return event
 
 
-def append_event(page_dir: Path | EventAppender, event: dict) -> dict:
-    if not isinstance(page_dir, Path):
-        return page_dir.append_event(event)
-    # The path form is the low-level fixture/instrumentation seam and retains
-    # its historic ability to start a log in an already-created directory.
-    # Product writers pass PageTransaction, whose entry never mints the page's
-    # successful-init marker.
+def append_event(page_dir: Path, event: dict) -> dict:
+    # This low-level fixture seam can start a log in an existing directory.
     log = page_dir / "comments.jsonl"
     with open(log, "a", encoding="utf-8"):
         pass

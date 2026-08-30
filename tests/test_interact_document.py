@@ -49,6 +49,7 @@ from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.validation import compatibility as validation_model
 
@@ -1618,15 +1619,17 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_event = events_model.append_event
+    original_append_event = service_model.PageTransaction.append_event
 
-    def held_append_event(directory, event):
+    def held_append_event(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
             assert resume.wait(timeout=10), "the report did not enter the publish gap"
-        return original_append_event(directory, event)
+        return original_append_event(page, event)
 
-    monkeypatch.setattr(publishing_model, "append_event", held_append_event)
+    monkeypatch.setattr(
+        service_model.PageTransaction, "append_event", held_append_event
+    )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"

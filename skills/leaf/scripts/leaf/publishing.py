@@ -4,7 +4,6 @@ import json
 import sys
 from pathlib import Path
 
-from leaf.event_log import append_event
 from leaf.files import (
     replace_files,
     revision_path,
@@ -162,7 +161,7 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
         event = _stamp_event(
             body, version, revision, parser, settled_reports, completed
         )
-        accepted = append_event(page, event)
+        accepted = page.append_event(event)
         committed = True
         return accepted
     finally:

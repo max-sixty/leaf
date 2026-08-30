@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from .decisions import quoted_in
-from .event_log import append_event
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
@@ -233,5 +232,5 @@ def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
         }
         if error := receipt_contract_error(event, page.events):
             sys.exit(error)
-        accepted = append_event(page, event)
+        accepted = page.append_event(event)
     print(json.dumps(accepted, ensure_ascii=False))

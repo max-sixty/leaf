@@ -60,6 +60,7 @@ from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
@@ -819,14 +820,14 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
-    real_append = events_model.append_event
+    real_append = service_model.PageTransaction.append_event
     real_flocked = vendoring_model.flocked
 
-    def paused_append(directory, event):
+    def paused_append(page, event):
         if event["kind"] == "report":
             report_validated.set()
             assert release_report.wait(5)
-        return real_append(directory, event)
+        return real_append(page, event)
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -835,7 +836,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(conversation_model, "append_event", paused_append)
+    monkeypatch.setattr(service_model.PageTransaction, "append_event", paused_append)
     monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 

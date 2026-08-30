@@ -6,6 +6,7 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { shownBox, shownParts } from "./geometry.js";
+import { clampedRow } from "./keyboard/bindings.js";
 
 const KINDS = {
   action: { label: "Action", symbol: "·", priority: -1 },
@@ -587,18 +588,12 @@ export function createLivingMargin(dependencies) {
   function walkMarkers(direction, edge = null) {
     const visible = visibleRows();
     if (!visible.length) return;
-    const current = visible.indexOf(document.activeElement);
-    const index =
+    const next =
       edge === "first"
-        ? 0
+        ? visible[0]
         : edge === "last"
-          ? visible.length - 1
-          : current < 0
-            ? direction > 0
-              ? 0
-              : visible.length - 1
-            : (current + direction + visible.length) % visible.length;
-    const next = visible[index];
+          ? visible.at(-1)
+          : clampedRow(visible, document.activeElement, direction);
     for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
     next.focus({ preventScroll: true });
   }

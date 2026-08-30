@@ -1,5 +1,6 @@
 import {
   bindings,
+  clampedRow,
   commandRoutes,
   declaredBindings,
   labelOf,
@@ -470,13 +471,7 @@ export function createReference({
     const focusedCommand = focused()?.matches?.(".lf-help-command") ? focused() : null;
     const selected =
       focusedCommand ?? stops.find((stop) => stop.dataset.lfSelected === "true");
-    const at = stops.indexOf(selected);
-    const next =
-      at < 0
-        ? dir > 0
-          ? stops[0]
-          : stops.at(-1)
-        : stops[(at + dir + stops.length) % stops.length];
+    const next = clampedRow(stops, selected, dir);
     for (const stop of stops) {
       const on = stop === next;
       stop.tabIndex = on ? 0 : -1;

@@ -2356,33 +2356,23 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     assert service_model.page_claim(page)["pid"] == session.pid
 
 
-def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_env):
+def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypatch):
     """A hand-built environment: CODEX_THREAD_ID states a Codex session and
     nothing running Codex is above this process, so there is no process whose
     life is that session's. Nothing to fall back on either — a pid guessed here
     is a claim that expires by itself, and every state that follows from one is
-    silent, so the refusal names what it walked.
-
-    Its premise is this process's own ancestry, which is the developer's to
-    supply: run the suite from inside Codex and the walk finds that session,
-    correctly, and there is no refusal here to read."""
-    if any(program == "codex" for _, program in host_model.ancestry()):
-        pytest.skip("run from inside Codex, which is the codex above this one")
-    page = tmp_path / "handmade-page"
-    launcher = PLUGIN_ROOT / "bin" / "leaf"
-    env = codex_env | {"CODEX_THREAD_ID": "thread-nobody"}
-    subprocess.run([launcher, "page", "init", page], env=env, check=True)
-    events_model.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    refused = subprocess.run(
-        [launcher, "wait", page],
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
+    silent, so the refusal names what it walked."""
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    assert refused.returncode == 1, refused.stdout
-    assert "no codex process runs above this one" in refused.stderr
-    assert service_model.page_claim(page) is None
+    for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
+    monkeypatch.setattr(host_model, "process_info", lambda _pid: (1, "python"))
+    refused = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert refused.exit_code == 1, refused.output
+    assert "no codex process runs above this one" in refused.output
+    assert service_model.page_claim(page_dir) is None
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):

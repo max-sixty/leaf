@@ -9,7 +9,7 @@
 # loaded, in leaf.js, not patched here.
 set -euo pipefail
 
-MARKED_VERSION=18.0.10
+MARKED_VERSION=18.0.11
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/skills/leaf/assets/vendor/marked.esm.js"
 

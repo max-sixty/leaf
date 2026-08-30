@@ -49,6 +49,21 @@ CUSTOM_WIDGET_PAGE = leaf_page(
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
 }));"""
+ARRIVAL_TRANSITIONS = """window.lfArrivalTransitions = [];
+const lfSeenTransitions = new Set();
+addEventListener("transitionrun", (event) => {
+  if (document.body?.hasAttribute("data-lf-presented")) return;
+  if (!(event.target instanceof Element) || !event.target.closest("main")) return;
+  const id = event.target.id ? `#${event.target.id}` : "";
+  const target = `${event.target.localName}${id}${event.pseudoElement ?? ""}`;
+  const key = `${target}:${event.propertyName}`;
+  if (lfSeenTransitions.has(key)) return;
+  lfSeenTransitions.add(key);
+  window.lfArrivalTransitions.push({
+    target,
+    property: event.propertyName,
+  });
+}, true);"""
 
 
 def resize_notice_after_last_probe(page):
@@ -75,6 +90,14 @@ def arrange_return(page, arrangement):
     render_checks_model.evaluate_probe(page, "arrange", arrangement)
 
 
+def arrival_transition_findings(page, arrival):
+    return [
+        f"[{arrival}] {transition['property']} transitioned on "
+        f"{transition['target']} before presentation"
+        for transition in page.evaluate("() => window.lfArrivalTransitions")
+    ]
+
+
 def arrival_findings(browser, url):
     """Whether a page comes up at all in each arrangement a reader can return to.
 
@@ -95,15 +118,17 @@ def arrival_findings(browser, url):
 
     One page, reloaded into each arrangement, which is what a returning reader does:
     the store is written on the origin the page is already on and read while the next
-    load evaluates. What comes back is the upgrade stamp and the console and no more,
-    because coming up is the whole question here. Boxes are not measured again: every
-    shipped example was measured in each of these arrangements and none of them moved
-    a box that a first visit didn't.
+    load evaluates. What comes back is completed presentation, any page transition that
+    began before it, and the console. Boxes are not measured again: every shipped example
+    was measured in each of these arrangements and none of them moved a box that a first
+    visit didn't.
     """
 
     page = browser.new_page(
         viewport=render_checks_model.RENDER_VIEWPORT, color_scheme="light"
     )
+    # A transition is transient, so preserve its own event through presentation.
+    page.add_init_script(ARRIVAL_TRANSITIONS)
     errors = []
     notices = []
 
@@ -138,12 +163,14 @@ def arrival_findings(browser, url):
             # design-decision.html, and buys this nothing.
             page.goto(url, wait_until="load")
             render_checks_model.wait_for_probe(page, "upgraded")
+            render_checks_model.wait_for_probe(page, "presented")
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
                 "arranged — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
             ]
+        found += arrival_transition_findings(page, "first visit")
         for arrangement in reader_arrangements(page):
             arrange_return(page, arrangement)
             # A console the last arrangement dirtied is not this one's news.
@@ -152,6 +179,7 @@ def arrival_findings(browser, url):
             try:
                 page.reload(wait_until="load")
                 render_checks_model.wait_for_probe(page, "upgraded")
+                render_checks_model.wait_for_probe(page, "presented")
             except PlaywrightTimeout:
                 found.append(
                     f"[{arrangement['name']}] the page never finished coming up — "
@@ -161,6 +189,7 @@ def arrival_findings(browser, url):
                     )
                 )
                 continue
+            found += arrival_transition_findings(page, arrangement["name"])
             # A ResizeObserver notice is the gate's to adjudicate over two attempts on
             # the same document; one seen here says nothing on its own.
             found += [f"[{arrangement['name']}] console: {e}" for e in errors]

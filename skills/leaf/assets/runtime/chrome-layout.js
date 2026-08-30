@@ -52,7 +52,6 @@ export function createChromeLayout({
   paintHere,
   panel,
   panelChanged,
-  panelFocusTarget,
   panelFoot,
   panelList,
   placeComposer,
@@ -90,49 +89,42 @@ export function createChromeLayout({
   // focus: beside the page the panel is a column of its own, and a reader working down the
   // list is in it whatever the window is wide enough to show behind them.
   const inPanel = () => panelOpen && containsAcross(panel, focused());
-  let panelModal = false;
-  let ignoreNextClose = false;
-  function syncPanelLayer({ focus = false } = {}) {
-    if (!panelOpen) return;
-    const modal = panelCovers();
-    const standing = document.activeElement;
-    const active = panel.contains(standing) ? standing : null;
-    const focusEnteredLayer = modal && !active;
-    // Where the reader was standing outside the layer, which raising it is not a request
-    // to leave. Both `show()` and `showModal()` run the dialog focusing steps, so the
-    // panel takes the focus off whatever raised it — beside the page that is the toggle,
-    // which then holds aria-expanded with no ring on it and hands the reader's next Space
-    // to a button they never chose. A covering panel is a mode and does take them in
-    // (focusEnteredLayer); a panel beside the page is a column that arrived. Body is not
-    // somewhere to put anyone back, so it is not carried.
-    const returning =
-      !active && standing instanceof HTMLElement && standing !== document.body
-        ? standing
-        : null;
-    if (panel.open && panelModal === modal) {
-      if (focus && modal) panelFocusTarget.focus({ preventScroll: true });
-      return;
-    }
-    if (panel.open) {
-      ignoreNextClose = true;
-      panel.close();
-    }
-    panelModal = modal;
-    if (modal) panel.showModal();
-    else panel.show();
-    if ((focus && modal) || focusEnteredLayer || active === panelFocusTarget)
-      panelFocusTarget.focus({ preventScroll: true });
-    else if (active?.isConnected) active.focus({ preventScroll: true });
-    else if (returning?.isConnected) returning.focus({ preventScroll: true });
+  // The panel is shown, never shown modally, at either posture. A modal dialog makes the
+  // rest of the document inert, and the panel covering the page is the posture in which the
+  // page most needs to stay live: the toggle that opened it is out in the banner and is how
+  // it closes, the decisions toggle beside it is the other workspace this one replaces
+  // (test_workspaces_replace_each_other_instead_of_stacking), and the strip of page still
+  // showing beside a covering sheet is still page a reader can point a hint at
+  // (test_selection_hints_do_not_name_page_content_behind_a_covering_panel, which is the
+  // one that states what "covering" means here — the panel covers the page rather than
+  // clipping it, and what it covers is out of reach only where it is actually painted over).
+  // What modality was carrying instead is already owned elsewhere and stays: the covering
+  // sheet's scroll lock is the stylesheet's (COVERING's `overflow-y: hidden`), and Escape is
+  // the ladder's, which browserDismissesTopLayer hands to the platform only for the layers
+  // the platform really owns.
+  //
+  // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
+  // so the invoker has to be given its focus back: raising the panel is not a request to
+  // leave where the reader was standing, and the toggle that lost it would otherwise hold
+  // aria-expanded with no ring on it and hand the reader's next Space to a button they
+  // never chose. A reader who asked to go in says so with the press that takes them — `c`
+  // focuses the list itself — and setPanel's own handoff is the other thing that moves them.
+  function showPanelLayer() {
+    // `c` says "take me to the conversation" whether or not the panel is already up, so
+    // this is asked again about a panel that is already showing. Nothing to redo, and the
+    // focus below would otherwise fire against a reader already standing inside.
+    if (panel.open) return;
+    const invoker = document.activeElement;
+    panel.show();
+    if (invoker?.isConnected && !panel.contains(invoker))
+      invoker.focus({ preventScroll: true });
   }
   // A window that has changed is a cap that has changed, so each edge restates its
   // standing width. CSS container queries read the resulting body width directly.
   addEventListener("resize", () => {
     commentsEdge.state();
     traysEdge.state();
-    syncPanelLayer();
   });
-  commentsEdge.over.addEventListener("change", () => syncPanelLayer());
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
@@ -229,10 +221,8 @@ export function createChromeLayout({
       // renderPanel is where the anchor pass runs for the threads it draws. A mark hangs
       // on the boxes its element shows through (shownParts), so a widget an agent sent in
       // a reply resolved to an element with no box, took no mark, and left the thread
-      // still open in the panel pointing at nothing on either side. Focus is asked for in
-      // the same call because its target is threadsBox, which the render fills rather
-      // than replaces.
-      syncPanelLayer({ focus: true });
+      // still open in the panel pointing at nothing on either side.
+      showPanelLayer();
       renderPanel();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) panel.close();
@@ -247,13 +237,6 @@ export function createChromeLayout({
     // renderPanel; this is the half that has no render.
     refreshHover();
   }
-  panel.addEventListener("close", () => {
-    if (ignoreNextClose) {
-      ignoreNextClose = false;
-      return;
-    }
-    if (panelOpen) setPanel(false);
-  });
   toggleBtn.onclick = () => setPanel(!panelOpen);
   addEventListener("resize", () => {
     closeReactions();

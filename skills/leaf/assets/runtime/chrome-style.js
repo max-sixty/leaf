@@ -800,7 +800,10 @@ ${MARK_RULES}
       flex-direction: column; padding-right: var(--lf-safe-right);
       padding-bottom: var(--lf-safe-bottom); }
     .lf-panel[open] { display: flex; }
-    .lf-panel::backdrop { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+    /* No ::backdrop: the panel is shown rather than shown modally (showPanelLayer says
+       why), so a non-modal dialog paints none, and a scrim over a page the reader can
+       still press would be saying the opposite of what the page now does. The two layers
+       that are modal keep theirs below. */
     /* An edge, offered as a thing to take hold of — the thread panel's on the right of
        the page, the trays' on the left, and nothing here knows which it is drawing except
        the two lines that place it. It draws nothing of its own: the region's inner border

@@ -1293,6 +1293,18 @@ covering media query of the default width and never of the reader's, or a drag
 changes the page's posture under the hand making it. Both trays share one width,
 which belongs to the side rather than to either tray.
 
+A workspace covering the page is drawn over it and never shown modally: the `<dialog>`
+it is built on is only ever `show()`n. Modality makes the rest of the document inert,
+and covering is the posture in which the page most needs to stay live — the banner
+toggle that opened the workspace is how it closes, the toggle beside it is the other
+workspace this one replaces, and the strip of page still showing beside a covering
+sheet is still page a hint can name. What modality would have carried is already owned
+elsewhere: the covering sheet's scroll lock is the stylesheet's, and Escape is the
+ladder's. The surfaces that really are modes of the page — the keyboard reference and
+the page map sheet — keep `showModal()` and the backdrop that comes with it. Opening a
+`<dialog>` runs the browser's focusing steps at either spelling, so a caller that means
+to leave the reader where they were has to put the focus back.
+
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every

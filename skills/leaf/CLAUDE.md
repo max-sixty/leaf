@@ -253,9 +253,9 @@ projection can commit while finite reconciliation animations are still settling.
 Any consumer that reads final boxes waits for upgraded, applied, presented, and
 no finite animation reported by `moving`.
 
-The authored `main` stays inert behind the presentation gate until the first state
-read has either applied or established that the server is unavailable. A live page
-also hides it. The static showcase's build sets `data-lf-eager`, which leaves its
+The presentation gate hides the authored `main` and makes it inert until the first
+state read has either applied or established that the server is unavailable. The
+static showcase's build sets `data-lf-eager`, which lifts the gate whole, leaving its
 immutable authored document as ordinary readable HTML while its illustrative session,
 widgets, and controls progressively arrive. Fixed recovery chrome remains usable while
 a live page waits.

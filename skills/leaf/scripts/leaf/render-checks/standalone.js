@@ -141,10 +141,11 @@ export function bake() {
   document
     .querySelectorAll('[hidden="until-found"]')
     .forEach((el) => el.removeAttribute("hidden"));
-  // A press a widget injected is a tab stop wearing an interactive role (offer), and
-  // both are promises a handler kept. The handlers left with the scripts above, so a
-  // copy that carried them offered a press nothing can take — and the first Tab into an
-  // exported decision page landed on one. It was a `choose` group's pick mark, which
+  // A press a widget injected is the runtime's own element — a <button> `offer` built, or
+  // a span `selectableOffer` gave a role and a tab stop — and either was a promise a
+  // handler kept. The handlers left with the scripts above, so a copy that carried them
+  // offered a press nothing can take — and the first Tab into an exported decision page
+  // landed on one. It was a `choose` group's pick mark, which
   // drew the keyboard address for a key that answers nothing, into a row holding no
   // column for it: the 30px an option reserves is live-page-only, so the digit came
   // down 8px over the option's own first word.
@@ -160,15 +161,18 @@ export function bake() {
   //
   // A copy parts from paper on one thing: it is still a document the browser runs, so a
   // control the browser drives keeps working, and lf-shot flips its frames on a checkbox in
-  // a file with no script behind it. The tab stop is what tells the two apart, being the
-  // runtime's own reading of a press it made (DECISION_CONTROL): a checkbox, a label and a §
-  // link never had one, and lf-shot's checkbox keeps the role that says what it is.
+  // a file with no script behind it. What tells the two apart is the marker's *value*,
+  // which is `offer` naming what it built: "button" for the one tag whose whole effect was
+  // the handler that left with the scripts, and the empty string for every other tag — so a
+  // checkbox, a label and a § link stay, keeping the role that says what they are. A press
+  // that was never native carries a word too, `selectableOffer` writing there the role it
+  // gave its span, since a span is pressable only while a handler is there to answer it.
   //
-  // Asked of the marker rather than of the role, because `offer`'s role="button" is not
-  // what a press ends up wearing: a widget with an ARIA pattern to keep writes its own
-  // over it, so every press in lf-tabs' strip says role="tab", and naming that second
-  // role would have left the next widget's. The author's roles are untouched, being on
-  // the author's elements: a board's columns stay a list of cards to a screen reader.
+  // Asked of the marker rather than of the role, because a press does not end up wearing
+  // one role: a widget with an ARIA pattern to keep names its own, so every press in
+  // lf-tabs' strip says role="tab", and naming a single role would have left that widget's
+  // out or the next one's. The author's roles are untouched, being on the author's
+  // elements: a board's columns stay a list of cards to a screen reader.
   //
   // The box a press hung in goes with it. A suggestion's control row is nothing but its
   // two controls, and left standing it still claims the rail the page reserves for it
@@ -178,7 +182,7 @@ export function bake() {
   // nothing, and `anchor(top)` is measured from it.
   // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
   // keeps a chosen option's word: the glyph stays in the margin with its press taken
-  // off — the tab stop, interactive role, marker, and title that promised a press.
+  // off — the button element it was built as, and the marker and title that promised it.
   // The remaining glyph becomes a named static image, and the wash on the words,
   // which is a highlight-registry entry no serialization carries, is written into
   // the words as a <mark> for this copy alone (the theme's html.lf-copy rule paints

@@ -4429,8 +4429,8 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     """A page whose first poll cannot reach the server is a page the reader still writes
     on: the general box stands, its placeholder names the key that reaches it, and the
     banner says only that a comment will not send yet. What it has not got is a thread
-    list, so the panel's other two keys — narrow and find — are dead, and the scope used
-    to say that for all three at once.
+    list, so narrowing by what awaits the reader is dead. Find remains available as the
+    panel's empty search, and the scope used to take `c` down with the missing list.
 
     Both presses, because one of them is the whole defect: `c` takes the reader to the
     list, and with the panel's own row out of the stack the second `c` was the page's
@@ -4454,14 +4454,13 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         page.keyboard.press("c")
         expect(page.locator(".lf-general textarea")).to_be_focused()
 
-        # The two the missing list really does take away, so the scope is not simply
-        # live for everything: a green above has to be about `c` and not about the
-        # guard having been dropped altogether.
+        # The missing list takes away its waiting filter, but not the panel's own search:
+        # a search over nothing still belongs to the scope in front of the page.
         page.keyboard.press("Escape")
         expect(page.locator(".lf-threads")).to_be_focused()
         line = page.locator(".lf-keyline")
         expect(line).not_to_contain_text("waiting on you")
-        expect(line).not_to_contain_text("find")
+        expect(line).to_contain_text("find")
 
         assert errors == []
     finally:

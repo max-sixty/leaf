@@ -124,11 +124,11 @@
  * reached at all.
  *
  * Two page modes make a destination explicit before acting on it. `s` draws short,
- * viewport-local hints on stable items and declared visual parts; `/`
- * inside that mode searches all page text, Tab walks repeated matches, and Enter turns
- * the current result into an ordinary native selection. Both routes end at the same
- * passage or item the pointer path uses, so the existing `c` comments on it and no second
- * anchor vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
+ * viewport-local hints on stable items and declared visual parts. `/` searches all page
+ * text directly or from those hints, Tab walks repeated matches, and Enter turns the
+ * current result into an ordinary native selection. Both routes end at the same passage
+ * or item the pointer path uses, so the existing `c` comments on it and no second anchor
+ * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves.
  * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
@@ -1918,33 +1918,35 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   threadsBox,
 });
 
-const { SELECT, isSelecting, paintTargets, startSelecting } = createTargetSelection({
-  activateAimTarget,
-  aimTargets,
-  allButTheReference,
-  anchoringIsReady: () => anchoringReady,
-  announce,
-  banner,
-  blockAt: (...args) => blockAt(...args),
-  contextAround: (...args) => contextAround(...args),
-  cut: (...args) => cut(...args),
-  el,
-  findText: (...args) => findText(...args),
-  focused,
-  inChrome: (node) => inChrome(node),
-  keyline: keylineEl,
-  pageText: (...args) => pageText(...args),
-  paintHere,
-  quoteFrom: (...args) => quoteFrom(...args),
-  rangeOf: (...args) => rangeOf(...args),
-  scrollToRange,
-  selectionInput,
-  selectionLayer,
-  selectionSearch,
-  selectionStatus,
-  shownRect: (...args) => shownRect(...args),
-  updateFab,
-});
+const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
+  createTargetSelection({
+    activateAimTarget,
+    aimTargets,
+    allButTheReference,
+    anchoringIsReady: () => anchoringReady,
+    announce,
+    banner,
+    blockAt: (...args) => blockAt(...args),
+    contextAround: (...args) => contextAround(...args),
+    cut: (...args) => cut(...args),
+    el,
+    findText: (...args) => findText(...args),
+    focused,
+    hasCapturedTarget,
+    inChrome: (node) => inChrome(node),
+    keyline: keylineEl,
+    pageText: (...args) => pageText(...args),
+    paintHere,
+    quoteFrom: (...args) => quoteFrom(...args),
+    rangeOf: (...args) => rangeOf(...args),
+    scrollToRange,
+    selectionInput,
+    selectionLayer,
+    selectionSearch,
+    selectionStatus,
+    shownRect: (...args) => shownRect(...args),
+    updateFab,
+  });
 
 // ---------- reactions ----------
 const {
@@ -2205,11 +2207,9 @@ const TYPING = {
 // Whether the page has this scope at all is not a question the log answers: every page
 // has a thread panel, and its general box stands and takes words from the first paint —
 // the offline banner says a comment will not send, not that there is nowhere to write it.
-// What the log answers is whether there is a list, which is `w`'s and `/`'s own condition
-// and is now said on each of them. Said once here for all three, it took `c` down with
-// them: the page's `c` stands the reader on the list, the panel's `c` was out of the
-// stack, and the second press was the page's own again, landing focus where it already
-// was. The box went on naming the key in its placeholder with no press able to reach it.
+// What the log answers is whether the waiting filter is useful, which is `w`'s own
+// condition and is now said on that row. The find box needs no such condition: searching
+// an empty list yields no matches, and its visible control remains available.
 
 const PANEL = {
   title: "In the thread panel",
@@ -2252,10 +2252,6 @@ const PANEL = {
       does: "Find in the threads",
       line: "find",
       also: findInput,
-      // A conversation with nothing in it has nothing to find in, and the panel says so
-      // itself; a page still reading the log is not yet a page with no comments, which
-      // the scope's own `when` answers for both rows here.
-      when: () => conversationRuntime.threadList.length > 0,
       run: () => {
         findInput.focus();
         findInput.select();
@@ -2509,10 +2505,11 @@ const REFERENCE = {
 };
 const PAGE = {
   rows: [
+    PAGE_SEARCH,
     {
       id: "selection.open",
       keys: ["s"],
-      does: "Select a visible item by hint, or search all page text",
+      does: "Select a visible item by hint",
       line: "select item",
       // Once a target is in hand, its actions own the two short-line slots. Escape clears
       // it, while this projection-only gate leaves s live to replace the target and keeps

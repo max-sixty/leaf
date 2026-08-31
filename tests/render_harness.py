@@ -1424,12 +1424,11 @@ def resized(page, width, height):
     handler, stale in a task behind it, stale in that update's animation frame and in
     the next update's, and 380 first in a task behind that second frame.
 
-    So this asks for a frame and polls the fact that it ran, which puts the caller's
-    next read in a task behind it. The frame is requested rather than awaited inside
-    `page.evaluate`, for the reason the render gate requests its own
-    (`tests/CLAUDE.md`, "A wait states its end as well as its fact"): a compositor that
-    has stopped drawing must run the driver's deadline out, not the job's whole step.
-    It costs one frame per resize, and it is what
+    So this waits the rendering turn behind the event, with the `ONE_FRAME` every other
+    frame wait in this module uses — the one `navigate` takes after the readiness stamp.
+    It resolves in that turn's animation-frame callback, so the caller's next read is a
+    round trip behind it, which is the task the measurement above finds settled. It
+    costs one frame per resize, and it is what
     `test_a_specimen_holds_a_wide_exhibit_inside_the_column` was failing on — the
     board's 596px, read off a document that had already narrowed to 380, five times in
     a hundred and eighty runs here and once on the nightly run that found it.
@@ -1449,12 +1448,7 @@ def resized(page, width, height):
     }""")
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
-    page.evaluate("""() => {
-        window.lfResizeFrames = window.lfResizeFrames ?? 0;
-        window.lfResizeFramesWas = window.lfResizeFrames;
-        requestAnimationFrame(() => window.lfResizeFrames++);
-    }""")
-    page.wait_for_function("() => window.lfResizeFrames > window.lfResizeFramesWas")
+    page.evaluate(ONE_FRAME)
 
 
 def hold_selection(page, start, end, steps=8):

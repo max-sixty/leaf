@@ -1993,7 +1993,7 @@ const {
   fabReturnTo,
   fabBar,
   focused,
-  foldButtonOptions: (options) => livingMargin?.foldButtonOptions(options),
+  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
   itemWord,
   offer,
   openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,

@@ -1685,10 +1685,9 @@ export function createLivingMargin(dependencies) {
       expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
     // Folding on the reader's behalf — a disarm putting back a fold its own raise opened
     // — happens wherever the reader is standing rather than inside the cluster, so it
-    // says `returnFocus: false` rather than throwing them onto a cluster they may have
-    // left. The rung folds from inside the cluster and keeps the default.
-    foldButtonOptions: ({ returnFocus = true } = {}) =>
-      setOptionsOpen(null, false, { returnFocus }),
+    // takes no focus with it: the reader may have left that cluster, and a press already
+    // on its way would land on a Button they were not standing on.
+    foldButtonOptions: () => setOptionsOpen(null, false),
     activeInlineThread: () => {
       if (
         !pinnedKey ||

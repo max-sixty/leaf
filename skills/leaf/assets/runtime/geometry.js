@@ -1,16 +1,12 @@
 import { uiInside } from "./passages.js";
 
 /* Shared readings of the boxes the page actually shows. */
-// Document-anchored chrome is absolutely positioned against body's padding box, while
-// the boxes it follows are read in viewport coordinates. Body normally starts at the
-// viewport's left edge, but the Asks strip moves that containing block to the right.
-// Convert at the boundary instead of making every overlay know which workspace is open.
+// Document-anchored chrome is positioned from the document origin, while the boxes it
+// follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {
-  const body = document.body;
-  const origin = body.getBoundingClientRect();
   return {
-    left: left - origin.left - body.clientLeft,
-    top: top - origin.top - body.clientTop,
+    left: left + scrollX,
+    top: top + scrollY,
   };
 }
 

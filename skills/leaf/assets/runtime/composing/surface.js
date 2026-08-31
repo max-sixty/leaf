@@ -51,8 +51,9 @@ export function createSelectionSurface({
 }) {
   // ---------- selection → comment ----------
   // Floating UI stays inside the document layout shell. Body already ends at a standing
-  // panel's edge through its margin, while the root scrollport owns the browser's gutter.
-  // A covering sheet is the one strip body does not yield, so its width comes off here.
+  // right panel's edge through its margin, while the root scrollport owns the browser's
+  // gutter. A covering sheet is the one strip body does not yield, so its width comes off
+  // here.
   const rightEdge = () =>
     (panelCovers()
       ? innerWidth - panel.offsetWidth
@@ -337,10 +338,19 @@ export function createSelectionSurface({
     showFab(null, null, { returnFocus: "none" });
     openComposer({ section: item.id }, "", from.left, from.top);
   }
-  // Pointer and keyboard aim choose a semantic target. Every target then raises the
-  // same actions; its anchor alone decides which element supplies the mark and geometry.
-  function activateAimTarget({ anchor }) {
+  // Keyboard selection chooses a semantic target before the reader has chosen what to
+  // do with it, so it raises the shared response actions. The anchor alone decides which
+  // element supplies the mark and geometry.
+  function selectResponseTarget({ anchor }) {
     showFab(anchor);
+  }
+  // Alt-click already names the action as well as the target. It opens the composer in
+  // the same transaction instead of asking the reader to choose Comment a second time.
+  // Target capture still happened before this door, so comments and reactions keep one
+  // durable anchor model and the claimed press still reaches nothing underneath it.
+  function openTargetComposer({ anchor }, from) {
+    showFab(null, null, { returnFocus: "none" });
+    openComposer(anchor, "", from.left, from.top);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
@@ -601,10 +611,11 @@ export function createSelectionSurface({
     fabTargetAt,
     fabReturnTo,
     openOnItem,
-    activateAimTarget,
+    openTargetComposer,
     placeClear,
     placeComposer,
     refreshFab,
+    selectResponseTarget,
     showFab,
     standDown,
     updateFab,

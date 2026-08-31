@@ -102,10 +102,8 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     note.click()
     page.keyboard.up("Alt")
 
-    # The press raises the compact bar on the note — the comment icon, then the reaction
-    # ellipsis — and the comment icon opens the composer on the whole note.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The chord already names Comment, so the press opens the composer on the whole note.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
     assert errors == []
@@ -113,12 +111,12 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
-    """The Asks strip moves body's containing block, not the page's coordinates.
+    """The Asks strip can move the page without moving its coordinate origin.
 
-    The aim, action bar, and composer are absolute children of body. When the tray
-    shifted body right, each used a viewport x-position as its local x-position and
-    gained the tray's width a second time. Keep the whole route on the item the reader
-    pointed at: the promise outlines it, and Comment opens a visible box clear of it.
+    Page-attached chrome is positioned from the initial containing block while its
+    targets are read in viewport coordinates. The tray therefore moves body's layout
+    shell without moving the coordinate space above it. Keep the whole comment route on
+    the item the reader pointed at.
     """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
@@ -134,10 +132,14 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
           const target = document.getElementById('lq-keep').getBoundingClientRect();
           const aim = document.querySelector('.lf-aim').getBoundingClientRect();
           return { bodyLeft: document.body.getBoundingClientRect().left,
+                   bodyPosition: getComputedStyle(document.body).position,
                    dx: aim.left - target.left, dy: aim.top - target.top };
         }"""
     )
     assert aligned["bodyLeft"] > 0, "the Asks tray took no strip from the page"
+    assert aligned["bodyPosition"] == "static", (
+        "body became a moving containing block for document-attached chrome"
+    )
     assert abs(aligned["dx"]) < 2 and abs(aligned["dy"]) < 2, (
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
         f"from its target with body starting at {aligned['bodyLeft']:.1f}px"
@@ -145,8 +147,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
 
     target.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     placed = page.evaluate(
         """() => {
@@ -197,9 +198,8 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
-    # The press raises the bar on the item the aim held; Comment on it is the composer.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The press opens Comment on the item the aim held.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
@@ -232,8 +232,7 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
         }"""
     )
 
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "p2"
     assert errors == []
@@ -337,9 +336,8 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
-            # The press raises the bar on the item; Comment on it is the composer.
-            expect(bar).to_be_visible()
-            page.locator(".lf-fab").click()
+            # The chord promised Comment, so the press opens the composer directly.
+            expect(bar).to_be_hidden()
             expect(composer).to_be_visible()
             mark = page.evaluate(DRAFT_MARK)
             # A box a standing thread already outlines keeps the posted colour and takes
@@ -450,10 +448,8 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_item(browser, serve):
     )
     page.mouse.click(edge["x"], edge["y"])
     page.keyboard.up("Alt")
-    # The press raises the bar on what it took, and Comment is the way from there into
-    # the composer — the same route a selection takes.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The press opens Comment on what it took.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == promised, (
         f"the outline promised {promised} on the seam and the press commented on "
@@ -476,8 +472,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()  # the press was the aim's
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()  # the press was the aim's
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     page.keyboard.press("Escape")
@@ -495,20 +490,19 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
 
 
 def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
-    """An armed press with the box up selects a new target, so aim still says where.
+    """An armed press with the box up moves it to a new target, so aim still says where.
 
     claimPress acts whether or not a composer stands open. Holding ⌥ over a second item
     raises its box beside the draft's own mark; two at once is the true state — where
-    the draft stands, and where a response would land. The press raises that target's
-    actions, and choosing Comment carries the typed text onto the new anchor."""
+    the draft stands, and where the next comment would land. The press carries the typed
+    text onto the new anchor."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     composer.locator("textarea").fill("carried words")
@@ -523,9 +517,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     )
     card.click()
     page.keyboard.up("Alt")
-    # The bar comes up on the card over the open box; its Comment moves the box.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The second explicit comment gesture moves the open draft onto the card.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
@@ -582,7 +575,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.keyboard.press("?")
     reference = page.locator(".lf-help")
     expect(reference).to_be_visible()
-    expect(reference.locator('tr[data-lf-command="aim.respond"]')).to_have_count(0)
+    expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
 
@@ -1105,19 +1098,19 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page.close()
 
 
-def test_a_linked_flowchart_node_uses_the_shared_aim_actions(browser, serve):
-    """Alt-click claims the linked visual part without following the link, then raises
-    the same Comment and Reaction choices as any other aimed item."""
+def test_a_linked_flowchart_node_opens_its_comment_without_following_the_link(
+    browser, serve
+):
+    """Alt-click claims the linked visual part without following the link and opens
+    Comment on the part in the same gesture."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     handler = diagram.locator('g[id*="flowchart-H-"]')
     expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
 
     handler.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(handler).to_have_class(re.compile(r"\blf-action-target\b"))
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
     expect(handler).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("keep this linked step visible")
@@ -1208,8 +1201,8 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
 
     def aim(target, **press):
         target.click(modifiers=["Alt"], **press)
-        expect(page.locator(".lf-fab-bar")).to_be_visible()
-        page.locator(".lf-fab").click()
+        expect(page.locator(".lf-fab-bar")).to_be_hidden()
+        expect(page.locator(".lf-composer")).to_be_visible()
 
     state = page.locator('#life g[id*="state-Queued-"]')
     aim(state)

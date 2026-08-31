@@ -2,12 +2,15 @@
 
 import importlib.util
 import itertools
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
@@ -27,6 +30,89 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
+
+
+def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
+    browser, tmp_path
+):
+    """A developer can hold one fixture still while two vendored runtimes serve it.
+
+    The named pages and their background services are the public evidence. If the
+    script falls back to its single default directory, the second run stops and
+    replaces the first; if it ignores the shared source, the planted heading is
+    absent from one or both URLs.
+    """
+    source = tmp_path / "shared-preview.html"
+    source.write_text(
+        (ROOT / "examples" / "design-decision.html")
+        .read_text(encoding="utf-8")
+        .replace("Where sessions live", "Shared runtime comparison", 1),
+        encoding="utf-8",
+    )
+    prefix = f"pytest-{os.getpid()}-{tmp_path.name}"
+    installed = install_payload(tmp_path / "other-runtime")
+    runtime_marker = "/* preview runtime marker */"
+    installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
+    installed_runtime.write_text(
+        installed_runtime.read_text(encoding="utf-8") + f"\n{runtime_marker}\n",
+        encoding="utf-8",
+    )
+    slots = [f"{prefix}-before", f"{prefix}-after"]
+    runtimes = [ROOT, installed]
+    pages = [ROOT / ".tmp" / "previews" / slot for slot in slots]
+    urls = []
+    try:
+        for slot, runtime in zip(slots, runtimes, strict=True):
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "preview.py"),
+                    "--source",
+                    str(source),
+                    "--runtime",
+                    str(runtime),
+                    "--slot",
+                    slot,
+                    "--background",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=90,
+            )
+            assert result.returncode == 0, (
+                f"slot {slot}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+            urls.append(result.stdout.splitlines()[-1])
+
+        assert urls[0] != urls[1]
+        assert all(
+            page.joinpath("index.html").read_text() == source.read_text()
+            for page in pages
+        )
+        assert runtime_marker not in pages[0].joinpath("leaf.js").read_text()
+        assert runtime_marker in pages[1].joinpath("leaf.js").read_text()
+
+        for url in urls:
+            page = browser.new_page(viewport={"width": 1200, "height": 900})
+            errors = watched(page)
+            page.goto(url, wait_until="load")
+            expect(
+                page.get_by_role("heading", name="Shared runtime comparison")
+            ).to_be_visible()
+            assert errors == []
+            page.close()
+    finally:
+        for page, runtime in zip(pages, runtimes, strict=True):
+            subprocess.run(
+                [str(runtime / "bin" / "leaf"), "server", "stop", str(page)],
+                cwd=runtime,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            shutil.rmtree(page, ignore_errors=True)
 
 
 # ---------- export: the page as one file ----------

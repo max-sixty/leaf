@@ -245,7 +245,7 @@ export function createReactions({
     // disarm, including one whose surface was a reply strip and which never raised the
     // margin at all, and including one over a fold the reader had already opened for
     // themselves — folding either takes away a layer the gesture never put on.
-    if (marginUnfolded) foldButtonOptions();
+    if (marginUnfolded) foldButtonOptions({ returnFocus: false });
     marginUnfolded = false;
   }
 

@@ -404,6 +404,48 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.close()
 
 
+def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(
+    browser, serve
+):
+    """The Escape rung folds from inside the cluster, so it can put the reader back on
+    the `…` they opened it with. The put-down has no such standing: it runs on every
+    disarm, from wherever the reader happens to be, so claiming the focus as well threw
+    them out onto a cluster they had already left — and a press already on its way
+    landed on a Button they were not standing on."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    unfolded = page.locator("[data-lf-options-open]")
+    refill = page.locator('[data-lf-margin-for="sug-refill"]')
+    thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
+    thistle_more = thistle.locator(":scope > .lf-margin-more")
+
+    def raise_choices_on_refill():
+        page.keyboard.type(hint_code(page, "#sug-refill", 10))
+        expect(page.locator(".lf-fab-bar")).to_be_visible()
+        page.keyboard.press("r")
+        expect(page.locator(".lf-margin-reactions")).to_be_visible()
+        expect(refill).to_have_attribute("data-lf-options-open", "")
+
+    # Standing on another cluster's `…` when the chord is disarmed: the choices go, the
+    # fold the raise opened goes back, and the reader is left where they were standing.
+    raise_choices_on_refill()
+    thistle_more.focus()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(unfolded).to_have_count(0)
+    expect(thistle_more).to_be_focused()
+
+    # And the press that does the disarming reaches the Button it was aimed at. Enter on
+    # that same `…` disarms first; a fold-back that moved focus would land the activation
+    # on the other cluster instead, opening the fold the reader had just closed.
+    raise_choices_on_refill()
+    thistle_more.focus()
+    page.keyboard.press("Enter")
+    expect(unfolded).to_have_count(1)
+    expect(thistle).to_have_attribute("data-lf-options-open", "")
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_the_reaction_list_opens_from_a_docked_button_on_a_narrow_screen(
     browser, serve, opener

@@ -2010,7 +2010,7 @@ const {
   fabReturnTo,
   fabBar,
   focused,
-  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
+  foldButtonOptions: (options) => livingMargin?.foldButtonOptions(options),
   itemWord,
   offer,
   openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,

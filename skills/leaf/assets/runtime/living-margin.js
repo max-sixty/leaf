@@ -1662,7 +1662,13 @@ export function createLivingMargin(dependencies) {
     // (`lfTarget`).
     unfoldedButtons: () =>
       expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
-    foldButtonOptions: () => setOptionsOpen(null, false, { returnFocus: true }),
+    // The Escape rung folds from inside the cluster, so putting the reader back on its
+    // `…` is where the press leaves them standing. A caller folding on the reader's
+    // behalf — a disarm putting back a fold its own raise opened — is standing wherever
+    // the reader is instead, and says `returnFocus: false` rather than throwing them
+    // onto a cluster they may have left.
+    foldButtonOptions: ({ returnFocus = true } = {}) =>
+      setOptionsOpen(null, false, { returnFocus }),
     closePreview: () => closePreview(false),
     enterPageMap,
     marginTargetAt,

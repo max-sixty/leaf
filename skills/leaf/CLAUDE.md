@@ -1377,7 +1377,12 @@ because half the clusters are in the chrome — a core entry docks in the toolba
 those Buttons are as much the reader's layer as a hoisted one. The same rule holds where
 a gesture unfolded the cluster for its own use: putting the reaction choices away folds
 back the cluster that raise unfolded, and only that one, so a disarm over a reply strip
-or over a fold the reader opened themselves takes away no layer the gesture put on.
+or over a fold the reader opened themselves takes away no layer the gesture put on. That
+put-down folds without claiming the focus. Landing the reader on the cluster's `…` is the
+Escape rung's promise and the rung only fires from inside the cluster, while the put-down
+runs from wherever the reader is standing — so taking the focus there would throw them
+onto a cluster they had left, and would send a press already on its way to a Button they
+were not standing on.
 
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;

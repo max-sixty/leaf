@@ -48,11 +48,16 @@ never spans a fence, so "the page has words here that the file doesn't" becomes
 a refusal when the comment is written, rather than an anchor that detaches later
 in the user's browser. Anchor on an opaque widget's element instead
 (`--section`), which is the same anchor a click on a diagram makes.
-The browser event door repeats that semantic check for page and passage comment
-anchors under the append transaction. A transport may omit optional context for
-a quote that is unique in its declared section; when a quote repeats, its supplied
-prefix and suffix must resolve exactly one current occurrence. Widget source,
-retired text, and unresolved ambiguous passages are refused before append.
+The event door repeats that semantic check under the append transaction, but only
+for a transport that reaches it with nothing resolved — the MCP app, which renders
+the authored source with no runtime behind it. A runtime's own anchor is already
+answered against the rendered page, which holds words this reading cannot produce
+(a widget's label, a module's rendering) and writes its quote in the whitespace the
+selection made, so re-reading it off the file would refuse a passage the page shows.
+Where the capture does run, a transport may omit optional context for a quote that
+is unique in its declared section; when a quote repeats, its supplied prefix and
+suffix must resolve exactly one current occurrence. Widget source, retired text,
+and unresolved ambiguous passages are refused before append.
 
 ## Parsed source
 

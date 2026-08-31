@@ -104,6 +104,44 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     assert b"known: ['node:A', 'node:B']" in body
 
 
+def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
+    """The browser resolves its own anchor against the rendered page before it posts,
+    and the page holds words this side cannot produce — a widget's label, whatever a
+    module wrote — while a selection writes its quote in the whitespace it found. So
+    the door does not read a served page's anchor back off the file: a re-capture
+    there refused a quote whose only sin was a line break, and every comment made on
+    a tab's own name.
+
+    The MCP surface is the transport that does ask for the capture, because nothing
+    has resolved its selection (`capture_anchors`, held by test_interact_mcp)."""
+    publish(page_dir)
+    passage = "The cutoff lives in"
+    for name, quote in {
+        "as the file holds it": passage,
+        "wrapped where a line ended": passage.replace(" lives", "\nlives"),
+        "spaced out by a rendering": passage.replace(" ", "   "),
+    }.items():
+        sent = {
+            "kind": "comment",
+            "revision": 1,
+            "text": name,
+            "anchor": {"section": "plan", "quote": quote},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+        assert status == 200, body
+
+    kept = [
+        event["anchor"]["quote"]
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert kept == [
+        passage,
+        passage.replace(" lives", "\nlives"),
+        passage.replace(" ", "   "),
+    ], "the door rewrote an anchor the browser had already settled"
+
+
 def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     declare_data_input(
         page_dir,

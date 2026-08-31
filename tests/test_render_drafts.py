@@ -82,14 +82,14 @@ def test_page_round_trip(browser, serve):
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
     page.locator(".lf-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_selector(".lf-thread")
+    page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Posting opened the panel, and the page is sliding into the width that leaves for
-    # it. Measuring a column mid-slide aims the drag below at where it was, not where
-    # it is going, and the drop lands outside the column it was meant for.
-    panel_settled(page)
+    # Posting opened the inline conversation. Leave its reply posture before continuing
+    # the page journey so it neither covers the drag nor holds the later live revision.
+    page.locator(".lf-margin-preview-close").click()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.

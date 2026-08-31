@@ -344,9 +344,9 @@ export function chromeStyle({
   /* The address chip is worn on both sides of the scope — an option's own corner in the
      page, and the chord's chips in the chrome's address layer — so its box is stated
      here. KEY_BOX is that box; the chrome's own step keys read the same statement from
-     inside @scope. */
-  .lf-address { ${KEY_BOX} display: none; border-color: var(--accent);
-    background: var(--card); color: var(--accent); z-index: 1; }
+     inside @scope. An address is an available key, so KEY_BOX's neutral face is also
+     its complete colour statement; completed steps take the pressed face below. */
+  .lf-address { ${KEY_BOX} display: none; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a

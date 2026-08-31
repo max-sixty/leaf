@@ -832,7 +832,7 @@ FOCUS_IN_PAGE = """() => {
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting is not that: the runtime
 # paints .lf-mark-hover on a marked element under the cursor and .lf-margin-target on a
-# target whose page-map preview the pointer opened, so a reading taken with the pointer
+# target whose thread card a press opened, so a reading taken with the pointer
 # still on an item reports that paint as a change the press made. Neither is authored
 # state and both come off when the pointer leaves.
 PAGE_MARKUP = """() => [...document.body.children]

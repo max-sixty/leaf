@@ -348,7 +348,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
-    expect(toc).to_have_css("position", "fixed")
+    expect(toc).to_have_css("position", "static")
     expect(page.locator("aside.sidebar")).to_have_css("position", "sticky")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
@@ -438,8 +438,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert revealed_boxes == hidden_boxes
 
-    # The browser's root scrollport keeps a wheel over fixed page furniture in the
-    # document's native chain. The rail stays fixed while the page moves beneath it.
+    # The sticky sidebar keeps a wheel over the document in the native scroll chain. The
+    # rail stays put while the page moves beneath it.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     page.mouse.move(nav_box["x"] + nav_box["width"] / 2, nav_box["y"] + 300)
     page.mouse.wheel(0, 260)
@@ -482,9 +482,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
     after_navigation = nav.bounding_box()
+    sidebar_after_navigation = page.locator("aside.sidebar").bounding_box()
     assert after_navigation is not None
-    assert after_navigation["y"] == nav_box["y"], (
-        "following a link moved the contents rail"
+    assert sidebar_after_navigation is not None
+    assert abs(after_navigation["y"] - sidebar_after_navigation["y"]) <= 1
+    assert 64 <= after_navigation["y"] <= 68, (
+        "the contents rail did not dock with its sticky sidebar"
     )
     assert prepare.evaluate("node => node.matches(':hover')")
 

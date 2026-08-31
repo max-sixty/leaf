@@ -128,7 +128,7 @@ customElements.define(
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
-      // restore this target's contribution to the shared margin item.
+      // restore this target's contribution to the shared Button cluster.
       if (!once(this)) {
         this.#offer();
         return;

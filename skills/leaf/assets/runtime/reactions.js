@@ -31,6 +31,7 @@ export function createReactions({
   focused,
   itemWord,
   offer,
+  openButtonOptions,
   paintHere,
   post,
   reactionVocabulary,
@@ -84,7 +85,15 @@ export function createReactions({
   ) {
     if (!reactionTokens().length) return surface;
     surface.classList.add("lf-react-surface");
+    const buttonTrigger = surface === fabBar;
     const trigger = offer("button", "lf-pill lf-react-trigger", "…");
+    if (buttonTrigger)
+      marginAction(trigger, {
+        glyph: "…",
+        label: "More options",
+        behavior: "options",
+        collapse: "always",
+      });
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", "Show reactions");
     trigger.title = "Show reactions";
@@ -186,7 +195,11 @@ export function createReactions({
     if (!marginSurface || !target) return false;
     const comment = fabBar.querySelector(":scope > .lf-fab");
     if (comment) {
-      marginAction(comment, { glyph: "💬", label: "Comment" });
+      marginAction(comment, {
+        glyph: "💬",
+        label: "Comment",
+        behavior: "disclosure",
+      });
       marginSurface.prepend(comment);
     }
     fabBar.dataset.lfMarginRaised = "1";
@@ -205,7 +218,10 @@ export function createReactions({
       // opened and leave that larger rail behind after the choices closed.
       claim: false,
     });
-    return true;
+    if (openButtonOptions(target)) return true;
+    marginOffer.unregister();
+    marginOffer = null;
+    return false;
   }
 
   function lowerMarginSurface() {
@@ -222,6 +238,7 @@ export function createReactions({
     marginAction(comment, {
       glyph: "💬",
       label: "Comment",
+      behavior: "disclosure",
       collapse: "always",
     });
     if (takeFocus) comment.focus({ preventScroll: true });
@@ -232,9 +249,9 @@ export function createReactions({
     pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
   }
 
-  // A page picker lives in the shared margin item and therefore owns its geometry.
-  // Returning true keeps the floating Comment bar from trying to re-place the same
-  // gesture while the margin has it; message-local reaction strips need no such claim.
+  // A page picker lives in the target's shared Button options and therefore owns its
+  // geometry. Returning true keeps the floating Comment bar from trying to re-place the
+  // same gesture while the margin has it; message-local reaction strips need no claim.
   function syncReactLayout() {
     return reactArmed && reactSurface === marginSurface;
   }
@@ -318,6 +335,10 @@ export function createReactions({
     }
     paintHere();
   }
+
+  document.addEventListener("lf-button-options-closed", () => {
+    if (reactArmed && reactSurface === marginSurface) setReact(false);
+  });
 
   function stepReaction(binding) {
     const pills = [

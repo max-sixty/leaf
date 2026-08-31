@@ -1199,14 +1199,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 }
 
 /* The core sidebar states its actual posture after viewport and panel-room decisions.
- * Only a fine-pointer margin form fixes itself into a map; generic sidebars keep their
- * sticky behavior and an in-flow ToC stays open. */
+ * Only a fine-pointer margin form fills that sticky box with a map; generic sidebars keep
+ * their sticky behavior and an in-flow ToC stays open. */
 @media screen and (hover: hover) and (pointer: fine) {
   @container style(--lf-sidebar-posture: margin) {
-    lf-toc { position: fixed; left: var(--sp-4);
-             top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-             width: calc(var(--sidebar) - var(--sp-4));
-             height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+    lf-toc { height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
              margin: 0; }
     lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
                          --lf-toc-label-opacity: 0;
@@ -1696,7 +1693,7 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    border goes solid and accent for as long as an edit is open.
 
    The controls are a fixed part of that box rather than something an edit adds to it:
-   one row under the text in both views, holding ✎ while reading and Cancel and Save
+   one row under the text in both views, holding ✎ while reading and Save and Cancel
    while editing, all three the same button, so the row's height is the same in either
    view and nothing under the pointer moves. It cost the ✎ its floating corner. An
    absolute corner costs no height, but then the row replacing it does, and the box grew
@@ -1747,7 +1744,9 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
   }
 }
 .lf-draft-controls { justify-content: flex-end; gap: 4px; margin-top: 6px; }
-.lf-margin-item > .lf-draft-controls { align-items: center; margin-top: 0; }
+.lf-margin-item > .lf-draft-controls {
+  align-items: center; justify-content: flex-start; margin-top: 0;
+}
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
                     font-size: var(--t-5); color: var(--ink-2); }
 .lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }

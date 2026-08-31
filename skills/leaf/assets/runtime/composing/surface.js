@@ -402,6 +402,16 @@ export function createSelectionSurface({
   let selectionPressPoint = null;
   let actionPress = false;
   let targetActivation = false;
+  // Whether the page's own words stood selected when the key line was last painted for
+  // this press. The bar waits for the release; the Escape rung cannot, because from the
+  // first glyph a drag takes, Escape clears the selection rather than letting go of the
+  // control the reader is standing on, and until now nothing repainted the line inside a
+  // press — the word only became true when the frame the press itself scheduled happened
+  // to land after the drag had moved, and stayed a lie for a whole heartbeat when it
+  // landed before. Only the crossing is painted: a drag growing a selection that already
+  // stands says the same word, and repainting the chrome on every move of a drag would
+  // put a whole `paintHere` inside every frame of one.
+  let selectionStood = false;
   const rememberPointerSelection = () => {
     const selection = pageSelection();
     const anchor = selection ? selectionAnchor(selection) : null;
@@ -418,6 +428,9 @@ export function createSelectionSurface({
       selectionDragged = false;
       selectionRangeDuringPress = null;
       selectionPressPoint = pointerSelecting ? { x: ev.clientX, y: ev.clientY } : null;
+      // Read here, ahead of the browser's own collapse, so the first crossing this press
+      // makes is measured against what the line already says rather than against nothing.
+      selectionStood = Boolean(pageSelection());
       const selection = pointerSelecting ? pageSelection() : null;
       if (selection) {
         const range = pageRange(selection);
@@ -451,6 +464,11 @@ export function createSelectionSurface({
     if (pointerSelecting) {
       selectionChangedDuringPress = true;
       rememberPointerSelection();
+      const stands = Boolean(pageSelection());
+      if (stands !== selectionStood) {
+        selectionStood = stands;
+        paintHere();
+      }
       return;
     }
     if (actionPress || targetActivation || takesLetters(document.activeElement)) return;

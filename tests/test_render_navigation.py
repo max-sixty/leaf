@@ -3838,11 +3838,18 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     expect(control).to_be_focused()
     expect(page.locator("#frame-question-decision[data-lf-decision]")).to_have_count(1)
 
+    # The press has its own frame and the drag comes after it, so the line's only route
+    # to the word is the selection the drag makes: the reader is taking words out of a
+    # label, and from the first glyph Escape clears that selection rather than letting
+    # go of the control. Framed the other way round the press's frame painted the line
+    # after the drag had already run, and the word arrived whether or not anything
+    # followed the selection.
     hold_selection(
         page,
         (bounds["x"] + 2, middle[1]),
         (bounds["x"] + bounds["width"] - 2, middle[1]),
         steps=10,
+        frame_the_press=True,
     )
     assert "after state" in page.evaluate("() => getSelection().toString()")
     assert "unselect" in key_line(page)

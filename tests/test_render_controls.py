@@ -366,7 +366,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
         "after": 400,
         "overflow": "hidden",
     }, f"the action shelf bypassed the covering panel's page lock: {locked}"
-    page.locator(".lf-threads-toggle").click()
+    page.get_by_role("button", name="Close threads").click()
     expect(page.locator(".lf-panel")).to_be_hidden()
 
     # Simulate the row's reachable busy state at the upper covering breakpoint. The
@@ -693,6 +693,13 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     # A control that settles its own decisions disappears while it still owns focus. Hand the
     # reader to the next standing destination instead of silently dropping them on body.
     answer_all = page.locator(".lf-answer-all")
+    # The blanket answer decides its decisions one at a time, so the press owes one round
+    # trip per decision the control counts. Read that number off the control's own face
+    # rather than writing the fixture's arithmetic out here.
+    owed = int(re.search(r"\((\d+)\)", answer_all.text_content()).group(1))
+    assert owed > 1, (
+        f"the fixture left the blanket answer a single trip, not a sequence: {owed}"
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
@@ -706,6 +713,19 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     assert _traffic(page).sends == 1, "one blanket-answer press became two event runs"
     held[0].continue_()
     page.unroute("**/api/event")
+    # Released, the press spends a whole trip on each remaining decision, so the last is
+    # still in flight when the first has settled. Say so here rather than letting the
+    # hide assertion absorb the transport: its budget is one repaint's worth, three
+    # sequential trips outlast it on a loaded machine, and the red then reads as a
+    # control that never went instead of a wait that was never stated.
+    # `test_accept_all_decides_every_pending_suggestion` stages the same sequence through
+    # each widget's own settle; this test is about where focus lands, so it names the
+    # outbox instead.
+    _until(
+        page,
+        lambda traffic: traffic.sends == owed and not traffic.pending,
+        f"settled every one of the {owed} answers the blanket press owed",
+    )
     expect(answer_all).to_be_hidden()
     version = page.locator(".lf-version")
     expect(version).to_be_focused()
@@ -830,7 +850,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             assert box["width"] >= 43.9 and box["height"] >= 43.9, (
                 f"a compact panel control kept a mouse-sized aim: {box}"
             )
-        page.locator(".lf-threads-toggle").tap()
+        page.get_by_role("button", name="Close threads").tap()
         panel_settled(page, open=False)
 
         # Across the covering boundary the banner fits the same touch aims. Its shelf and
@@ -1009,7 +1029,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        swipe(12, 280)
+        panel_box = page.locator(".lf-panel").bounding_box()
+        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -1022,6 +1043,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         )
 
         # The tray still has range at 320px, and its grip finishes sliding on screen.
+        page.get_by_role("button", name="Close threads").click()
+        panel_settled(page, open=False)
         page.locator(".lf-decisions").click()
         panel_settled(page, open=False)
         expect(page.locator(".lf-decisions-panel")).to_have_class(
@@ -2097,7 +2120,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
     # Closed with the key, the ring comes on — the reader's report, and the smaller half.
     page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
+    panel_settled(page, open=False)
     expect(toggle).to_be_focused()
     assert page.evaluate(ringed), "the control the reader is standing on says nothing"
 
@@ -3822,8 +3845,15 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(opener).click()
                 page.locator(arrival).first.focus()
             else:
+                # Each press read on a rendered frame, the way every Tab below it is. A
+                # key that opens a layer hands the reader their place in it from the
+                # platform's own event rather than from the press — a popover lands focus
+                # on a row from `toggle`, which is queued — so the next key of the
+                # sequence arrives at whatever the press left focus on, and the scope's
+                # own keys, bound inside the layer, never see it.
                 for key in keys:
                     page.keyboard.press(key)
+                    page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):

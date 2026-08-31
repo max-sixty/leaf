@@ -19,6 +19,7 @@ from render_support import (
     BOTH_STAMPS,
     COMMAND_HUB_PACKAGE,
     CORNER_PAGE,
+    DECISIONS_PAGE,
     DRAFT_MARK,
     EDGES,
     EXAMPLES,
@@ -37,6 +38,7 @@ from render_support import (
     TYPED_PARTS_V2,
     aim_targets,
     draw_edge,
+    edge_settled,
     geometry,
     leaf_page,
     live_url,
@@ -106,6 +108,63 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.locator(".lf-fab").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
+    assert errors == []
+    page.close()
+
+
+def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
+    """The Asks strip can move the page without moving its coordinate origin.
+
+    Page-attached chrome is positioned from the initial containing block while its
+    targets are read in viewport coordinates. The tray therefore moves body's layout
+    shell without moving the coordinate space above it. Keep the whole comment route on
+    the item the reader pointed at.
+    """
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 1200, 900)
+    page.locator(".lf-decisions").click()
+    edge_settled(page, EDGES[1])
+
+    target = page.locator("#lq-keep")
+    target.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    aligned = page.evaluate(
+        """() => {
+          const target = document.getElementById('lq-keep').getBoundingClientRect();
+          const aim = document.querySelector('.lf-aim').getBoundingClientRect();
+          return { bodyLeft: document.body.getBoundingClientRect().left,
+                   bodyPosition: getComputedStyle(document.body).position,
+                   dx: aim.left - target.left, dy: aim.top - target.top };
+        }"""
+    )
+    assert aligned["bodyLeft"] > 0, "the Asks tray took no strip from the page"
+    assert aligned["bodyPosition"] == "static", (
+        "body became a moving containing block for document-attached chrome"
+    )
+    assert abs(aligned["dx"]) < 2 and abs(aligned["dy"]) < 2, (
+        f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
+        f"from its target with body starting at {aligned['bodyLeft']:.1f}px"
+    )
+
+    target.click()
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    placed = page.evaluate(
+        """() => {
+          const target = document.getElementById('lq-keep').getBoundingClientRect();
+          const box = document.querySelector('.lf-composer').getBoundingClientRect();
+          const overlaps = target.left < box.right && box.left < target.right
+              && target.top < box.bottom && box.top < target.bottom;
+          return { left: box.left, right: box.right, overlaps, width: innerWidth };
+        }"""
+    )
+    assert 0 <= placed["left"] < placed["right"] <= placed["width"], (
+        f"the composer is outside the viewport: {placed}"
+    )
+    assert not placed["overlaps"], f"the composer covers its aimed item: {placed}"
     assert errors == []
     page.close()
 
@@ -578,15 +637,16 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         ("layer", {"section": "opt-shim"})
     ]
     assert [e for e in events if e["kind"] == "action"] == []
-    # The panel names the thread the same way the composer named the box, and the send
-    # lands typing in that thread's reply box.
+    # The retained thread names the target the same way the composer named the box, while
+    # the send lands typing in the visible inline conversation.
     expect(page.locator(".lf-thread .lf-quote")).to_have_text(
         "layer · lf-option · opt-shim"
     )
-    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    inline = page.locator(".lf-margin-thread .lf-conversation-thread")
+    expect(inline.locator("textarea")).to_be_focused()
     # Escape backs out one rung at a time — the box, then the mode.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread")).to_be_focused()
+    expect(inline).to_be_focused()
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))

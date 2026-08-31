@@ -82,15 +82,10 @@ def test_page_round_trip(browser, serve):
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
     page.locator(".lf-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_selector(".lf-thread")
+    page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Posting opened the panel, and the page is sliding into the width that leaves for
-    # it. Measuring a column mid-slide aims the drag below at where it was, not where
-    # it is going, and the drop lands outside the column it was meant for.
-    panel_settled(page)
-
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
     grip = page.locator("#card-x .lf-grip").bounding_box()
@@ -828,9 +823,9 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
-    """A sent comment clears a narrowing that hid its new thread, then leaves the
-    reader in that thread's reply box just as an already-visible comment does."""
+def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
+    """A sent comment preserves the panel's narrowing while its inline conversation
+    takes the reader; explicitly opening that thread then widens the panel."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -851,8 +846,61 @@ def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    inline = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+    )
+    expect(inline.locator("textarea")).to_be_focused()
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Open this thread in Threads"
+    ).click()
+    panel_settled(page)
     expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
+    """Focus handed to a new reply is not itself a draft; an edit to empty is."""
+    page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
+    resized(page, 1440, 900)
+    page.locator("#p1").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Follow this discussion.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+
+    sent = events_model.read_events(serve.page_dir)[-1]
+    reply = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"] textarea'
+    )
+    expect(reply).to_be_focused()
+
+    d = serve.page_dir
+    v2 = NOTED_PAGE.replace(
+        "A short second passage.", "A revised short second passage."
+    )
+    (d / "versions" / "v2.html").write_text(v2)
+    stamp_version_file(d, 2, "v2")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+
+    reply.fill("A thought I changed my mind about.")
+    reply.fill("")
+    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['id']}") == ""
+    v3 = v2.replace(
+        "A revised short second passage.", "A twice-revised short second passage."
+    )
+    (d / "versions" / "v3.html").write_text(v3)
+    stamp_version_file(d, 3, "v3")
+    told(page)
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(reply).to_have_value("")
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 

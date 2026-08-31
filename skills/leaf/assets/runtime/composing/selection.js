@@ -117,11 +117,12 @@ export function createSelectionComposer(runtime, dependencies) {
       // render in another conversation view, but it may not close or move the composer
       // holding that edit.
       if (loadDraft(ctx) !== null) return;
-      const inlineReply = openInlineThread(sent.id);
-      let reply =
-        inlineReply ??
-        threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
+      let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       const shouldLand = mayLandTyping(reply, composerInput);
+      // Opening an inline view closes the panel and moves focus. Decide from the standing
+      // view first, so a later gesture in another reply box survives an earlier send.
+      const inlineReply = shouldLand ? openInlineThread(sent.id) : null;
+      reply = inlineReply ?? reply;
       if (!inlineReply) {
         showThread(sent.id, { stand: shouldLand });
         reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);

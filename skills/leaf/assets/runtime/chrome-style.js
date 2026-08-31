@@ -67,9 +67,10 @@ export function chromeStyle({
       body::before { content: ""; display: block; height: var(--lf-banner-h); }
     }
   }
-  /* position: relative makes the document shell the containing block for the two floats
-     that point into it (the 💬 button and composer), so root scrolling carries them with
-     the passage they stand beside. */
+  /* Page-attached chrome is absolute against the initial containing block, not against
+     body. Body is the layout shell and may move or narrow for standing workspaces; the
+     document coordinate system does neither, and root scrolling still carries absolute
+     chrome with the passage it stands beside. */
   /* The banner's height, said once. Everything at the top edge derives from it — the
      bar itself, the panel starting under it, the focus-revealed mark note, the
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
@@ -100,7 +101,7 @@ export function chromeStyle({
   @media screen and (pointer: coarse) and ${NON_COVERING} {
     :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
-  body { position: relative; box-sizing: border-box; }
+  body { position: static; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
      can follow the sentence it was reading to where it went. Keyed on the stamp that
      says the document is done becoming itself, because until then every margin the
@@ -150,12 +151,10 @@ export function chromeStyle({
      moves still wants the slide, an arrow step on the edge included: a step is one
      discrete move the eye can follow, which is what the rule above is for. */
   body[data-lf-sizing] { transition: none; }
-  /* A tray that takes its room out of the page takes it the same way, off the one
-     attribute showTray writes to say which tray is up and the one list that says which
-     of them the page yields to (STRIP_TRAYS, where the reasons are). Everything else
-     about the strip — that it comes out of the page rather than being held aside, that it
-     is carried as motion, what it costs on a window narrow enough to rewrap — is the
-     panel's story above, told once for both sides. */
+  /* A tray that takes its room out of the page takes it the same way as the right panel:
+     a body margin narrows and moves the layout shell while page-attached chrome keeps the
+     document origin above it. showTray states which tray is up; STRIP_TRAYS states which
+     trays claim this room. */
   @media screen and (not ${TRAY_COVERING}) {
     ${STRIP_TRAY_RULE} { margin-left: var(${TRAY_PROP}); }
   }

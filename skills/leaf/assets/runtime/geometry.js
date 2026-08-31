@@ -1,6 +1,15 @@
 import { uiInside } from "./passages.js";
 
 /* Shared readings of the boxes the page actually shows. */
+// Document-anchored chrome is positioned from the document origin, while the boxes it
+// follows are read in viewport coordinates. Convert once at that boundary.
+export function documentPoint(left, top) {
+  return {
+    left: left + scrollX,
+    top: top + scrollY,
+  };
+}
+
 // What a container lets the reader see of what it holds, or null where it shows all of
 // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
 // content-visibility both clip while overflow computes `visible`, and a box under either

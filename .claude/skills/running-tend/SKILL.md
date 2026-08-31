@@ -76,6 +76,27 @@ you have. Sort on what the failure is.
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
+- **The catalog preview digest.**
+  `test_site.py::test_the_public_catalog_is_a_visual_index_of_full_page_routes`
+  failing on `preview inputs changed — rerun scripts/example-previews.py` is
+  neither a race nor a regression, and it is the single most frequent red on
+  main. `capture_input_files()` hashes every file under `examples/`,
+  `skills/leaf/assets`, `skills/leaf/packages/default` and each package named in
+  `examples/layer.json`, plus a short list of `docs/` and `scripts/` files — so
+  any layer commit re-stales `docs/example-previews.json`. The assertion carries
+  `pytest.mark.nightly` and `ci.yaml` passes `--run-nightly` only on `push`, so
+  it first speaks on main, after the merge, and a capture is current only on a
+  commit where it was the last layer change to land — which a pull request
+  cannot arrange. #133 measured all of that; don't re-derive it.
+
+  What a session can still add is which half went stale. Recapture at the last
+  tree whose manifest matched its own inputs and at the tip, both on this
+  runner, and compare the stills byte for byte. Identical means the refresh is
+  hash-only and can be made from here; changed means the gallery genuinely moved
+  and only the authoring machine can take it, because the runner carries none of
+  the faces `theme.css` asks `--serif` for first and re-sets the prose in a
+  substitute. Whether the gate should keep hashing every runtime file is a
+  maintainer's design call, open on #133.
 - **Contention.** Concurrent suites starve each other, and the failures surface
   as `Page.goto` timeouts and slow-read assertion failures scattered across
   unrelated tests — a shape that reads as "the browser layer is broken" when it

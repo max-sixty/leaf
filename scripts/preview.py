@@ -33,13 +33,15 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from example_data import data_operations
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
-PAGE = ROOT / ".tmp" / "preview"  # gitignored, and stable so the port persists
+TMP = ROOT / ".tmp"
+PAGE = TMP / "preview"  # gitignored, and stable so the port persists
 PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text(encoding="utf-8"))
 
 
@@ -110,6 +112,25 @@ def seed_log(source: Path, page: Path) -> None:
     )
 
 
+def prepare(source: Path, page: Path) -> None:
+    """Build one example page from the checkout's current layer and fixtures."""
+    selection_args = [arg for package in PACKAGES for arg in ("--package", package)]
+    leaf("page", "init", *selection_args, str(page))
+    (page / "index.html").write_text(
+        source.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    shutil.copytree(ROOT / "examples" / "media", page / "media", dirs_exist_ok=True)
+    seed_data(source, page)
+    leaf(
+        "version",
+        "stamp",
+        str(page),
+        "--text",
+        f"{source.name}, as it stands in the tree",
+    )
+    seed_log(source, page)
+
+
 def main() -> None:
     args = sys.argv[1:]
     standalone = "--export" in args
@@ -125,30 +146,21 @@ def main() -> None:
             + ", ".join(sorted(p.stem for p in (ROOT / "examples").glob("*.html")))
         )
 
+    if standalone:
+        TMP.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
+            page = Path(staging) / "page"
+            prepare(source, page)
+            out = TMP / f"example-{name}.html"
+            out.unlink(missing_ok=True)
+            leaf("version", "export", str(page), "-o", str(out))
+        print(out.resolve())
+        return
+
     if PAGE.exists():  # a previous preview may still hold the port
         leaf("server", "stop", str(PAGE), check=False)
         shutil.rmtree(PAGE)
-    selection_args = [arg for package in PACKAGES for arg in ("--package", package)]
-    leaf("page", "init", *selection_args, str(PAGE))
-    (PAGE / "index.html").write_text(
-        source.read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    shutil.copytree(ROOT / "examples" / "media", PAGE / "media", dirs_exist_ok=True)
-    seed_data(source, PAGE)
-    leaf(
-        "version",
-        "stamp",
-        str(PAGE),
-        "--text",
-        f"{source.name}, as it stands in the tree",
-    )
-    seed_log(source, PAGE)
-    if standalone:
-        out = ROOT / ".tmp" / f"example-{name}.html"
-        out.unlink(missing_ok=True)
-        leaf("version", "export", str(PAGE), "-o", str(out))
-        print(out.resolve())
-        return
+    prepare(source, PAGE)
     leaf("server", "run", str(PAGE))
 
 

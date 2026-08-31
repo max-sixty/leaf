@@ -23,6 +23,8 @@ from render_support import (
     PANEL_PAGE,
     RENDERED,
     ROOT,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
     TARGETS_PAGE,
     TOKEN,
     WHERE_I_STAND_PAGE,
@@ -4528,32 +4530,34 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
 def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the reader is standing and what the reader still owes are two facts, and a
     widget mid-conversation with the agent is where they part. Its seat holds the words
-    the reader just wrote, its pick is unmade and its controls are live, and it has left
+    the reader just wrote, its answer is unmade and its controls are live, and it has left
     the banner and the tray because the next word there is the agent's — but the reader
     is standing in it all the same, and it is still the question they are working.
 
     Read off the reader's list, both the ring and `c` went with the count: the moment the
-    remark was sent the ring left from under the reader, and `c` slid from the seat they
-    were writing in down to whichever option their focus rested on. That is a different
-    conversation, not a shorter way into the same one — `{section: "shape"}` is the seat's
-    own anchor and `{section: "sh-steel"}` is not — so the next line of a remark landed
-    somewhere the first line was not. The agent's reply moved both back. Nothing the
-    reader did moved either, which is the whole of the complaint; the reply phase here is
-    what says the ring has stopped tracking the count rather than merely tracking it late.
+    remark was sent the ring left from under the reader, and `c` fell through from the
+    question to whichever item their focus happened to rest in. That is a different
+    conversation, not a shorter way into the same one — a remark on the widget is filed
+    where a remark on the question the widget stands as is not — so the next line of a
+    remark landed somewhere the first line was not. The agent's reply moved both back.
+    Nothing the reader did moved either, which is the whole of the complaint; the reply
+    phase here is what says the ring has stopped tracking the count rather than merely
+    tracking it late.
 
     A picked group is the control on the other side. It is answered, so it is off both
     readings and must stay off: the switch is about a seat the reader is mid-sentence in,
-    not about reopening what a pick has closed."""
+    not about reopening what a pick has closed.
+
+    The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
+    test_a_seat_conversation_leaves_the_pick_it_is_about_live gives: the split is between
+    two declarations, and since 292de9c no shipped entry carries both."""
     url = serve(
         leaf_page(
             "mid-sentence",
             """
 <h1 id="t">Mid-sentence</h1>
-<lf-decision id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" choose>
-  <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
-  <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-decision>
+<lf-decision id="shape-decision"><h2>Galvanised steel for the frame?</h2>
+<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-decision>
 <lf-decision id="picked-decision"><h2>Should we keep it?</h2>
 <lf-options id="picked" choose>
   <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
@@ -4565,7 +4569,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
   <lf-new>Refill when the camera shows it half-empty.</lf-new>
 </lf-suggestion></p>
 """,
-        )
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
     )
     d = serve.page_dir
     events_model.append_event(
@@ -4583,8 +4589,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     line = page.locator(".lf-keyline")
     decisions = page.locator(".lf-decisions")
 
-    # The premise, from the reader's list itself: the group has left it, the picked group
-    # was never on it, and the suggestion is what remains to be counted.
+    # The premise, from the reader's list itself: the seated ask has left it, the picked
+    # group was never on it, and the suggestion is what remains to be counted.
     expect(decisions).to_have_text("Asks (1)")
     decisions.click()
     expect(page.locator("button.lf-decisions-row")).to_have_count(1)
@@ -4598,7 +4604,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # the scroll that brings a row into view is the tray's own reading. So the decision wears
     # the ring alone, and the tray goes on listing what the reader owes rather than
     # gaining a row for where they happen to be standing.
-    page.locator("#shape .lf-pick").first.focus()
+    page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(page.locator("button.lf-decisions-row")).to_have_count(1)
     assert page.locator(".lf-decisions-row[data-lf-decision]").count() == 0, (
@@ -4608,7 +4614,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     decisions.click()
 
     # And with it shut, which is every other reading below.
-    page.locator("#shape .lf-pick").first.focus()
+    page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
 
@@ -4634,7 +4640,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
         )
     told(page)
     expect(decisions).to_have_text("Asks (2)")
-    expect(page.locator("#shape .lf-pick").first).to_be_focused()
+    expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
     page.evaluate("() => document.activeElement?.blur()")

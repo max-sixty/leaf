@@ -217,6 +217,15 @@ vendored page and use its HTTP API. A render-gate test should call
 helper directly only when the helper itself carries a contract that would otherwise
 be hard to diagnose, such as the traffic wait reaching its deadline.
 
+A reading the layer makes from declarations belongs on a widget that declares them,
+not on whichever shipped entry currently happens to. `serve` takes `layer_registry`
+and `layer_widgets` for that: a project-package entry and its module, written as a
+`render_cases_*` constant and reachable from any test module. Borrowing a shipped tag
+reads the same for as long as the default package carries the declaration and goes red
+the day it stops, with nothing about the reading having changed — which is how the two
+guards over `seat_with_agent` came to rest on `lf-options` and failed when its
+`x-conversation` came off.
+
 Re-vendor before trusting a result that depends on runtime, theme, registry, or
 widget changes. A page directory owns the layer copied into it by `page init`; it
 does not read the checkout's current assets. A green render against a stale page is

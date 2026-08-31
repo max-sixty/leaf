@@ -1254,3 +1254,85 @@ THREAD_DECISIONS = [
         "</lf-options></lf-decision>",
     },
 ]
+
+# A widget the shipped packages no longer have: one the reader owes an answer on that
+# also seats a conversation of its own. Those two facts together are what produce the
+# layer's one split between the reader's list and the unanswered decisions — a thread
+# standing in the seat while the agent has the next word takes the widget off the list
+# without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
+# pair until 292de9c made the reader's cell an add form and dropped `x-conversation`, and
+# both halves of the split are still implemented, still described, and reachable by any
+# package that declares both. So the guard is declared here rather than borrowed from
+# whichever shipped entry happens to carry it: the reading under test is the layer's, and
+# the tag it runs on is the layer's business rather than the test's.
+SEATED_ASK_TAG = "lf-verdict"
+SEATED_ASK_ENTRY = {
+    "description": (
+        "A proposal the reader settles with one press and may talk over first in a seat "
+        "of its own. `asks` opens the decision; the press settles it."
+    ),
+    "type": "object",
+    "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "asks": {"type": "boolean"},
+        "restated": {"type": "boolean"},
+    },
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "prose",
+    "x-upgrade": True,
+    "x-state": {
+        "settle": {
+            "detail": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
+                "required": ["answer"],
+                "additionalProperties": False,
+            },
+            "facet": "verdict",
+            "unit": "widget",
+            # The prerequisite the split is about. Read off the reader's list this
+            # refuses a press on a widget whose seat is mid-conversation; read off the
+            # unanswered decisions, which is what the door owes it, it lets one through.
+            "requires": {"target": "self", "awaiting": True},
+        }
+    },
+    "x-awaits": {"when": {"asks": [True]}, "answers": ["settle"]},
+    "x-conversation": {"when": {"asks": [True]}},
+    "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
+}
+# The press paints before it sends, which is what `lf-options` does with a pick and the
+# reason the browser door matters as much as the POST one: with the wrong list read here
+# the answer is already on the page, so a refusal is not a refusal the reader can see —
+# the control flips, nothing is logged, and the next poll puts it back saying nothing.
+SEATED_ASK_MODULE = """\
+import { conversationBox, offer, once, sendAction } from "/runtime/widget-api.js";
+
+customElements.define(
+  "lf-verdict",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      this.press = offer("button", "lf-settle", "Accept");
+      this.press.onclick = () => {
+        this.settled();
+        sendAction(this, "settle", { answer: "yes" });
+      };
+      this.append(this.press);
+      const seat = conversationBox(this, "Say something about this");
+      if (seat) this.append(seat);
+    }
+
+    settled() {
+      this.press.textContent = "Accepted";
+      this.press.setAttribute("aria-pressed", "true");
+    }
+
+    applyAction(action) {
+      if (action === "settle") this.settled();
+    }
+  },
+);
+"""
+SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
+SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}

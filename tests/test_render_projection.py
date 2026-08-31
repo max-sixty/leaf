@@ -193,6 +193,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "call diff",
         """
 <h1 id="title">Request call change</h1>
+<pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
 <lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
 """,
@@ -226,6 +227,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     group = widget.locator(":scope > .lf-call-group")
     expect(group).to_have_count(1)
+    assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
+        "#code-surface"
+    ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
     expect(group).not_to_have_attribute("open", "")
     widget.locator(".lf-call-toggle").click()

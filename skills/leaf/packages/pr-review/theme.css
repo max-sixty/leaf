@@ -281,6 +281,7 @@ lf-call-diff {
 
 .lf-call-group {
   border-top: 1px solid var(--code-border);
+  background: var(--pre-bg);
 }
 
 .lf-call-group:first-of-type {

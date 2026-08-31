@@ -428,11 +428,12 @@ flowchart LR
       </section>
 
       <section id="pr-scale">
-        <h2>This packet is the large-diff rehearsal</h2>
+        <h2>Review the 46 files as six units</h2>
         <p id="pr-scale-intro">
-          The page no longer describes a large PR from a tiny example. It carries the
-          complete public patch and uses the file manifest, call slice, review history,
-          and risk table to decide what to open first.
+          The patch is broad, but its risk concentrates in the Git repository layer and
+          picker runtime. Start with diff safety and preview scheduling, then use the
+          tests, documentation, and benchmarks to verify those behaviors across the rest
+          of the change.
         </p>
         <dl class="pr-scale-facts" aria-label="Observed Worktrunk PR 3865 scale">
           <div>
@@ -710,23 +711,26 @@ flowchart LR
         <lf-decision id="pr-outcome-decision">
           <h2>What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
-            The historical pull request merged with approval. This choice records a
-            reviewer’s recommendation in Leaf; it does not publish another forge review.
+            Choose the review the agent should enter on the forge. Each option states
+            the disposition and the exact work, so the agent can submit it without
+            translating a generic label.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
-              <strong>Approve with a follow-up</strong> The safety invariants and
-              behavior are covered; track demand latency and dry-run temp artifacts
-              separately.
+              <strong>Approve with two follow-ups.</strong> Merge this revision; add a
+              selected-row latency benchmark and a dry-run artifact regression in
+              subsequent work.
               <em>My take: this best matches the final evidence and review trail.</em>
             </lf-option>
             <lf-option id="pr-outcome-approve">
-              <strong>Approve as complete</strong> The remaining notes do not merit
-              additional tracked work.
+              <strong>Approve without follow-ups.</strong> Merge this revision and close
+              the two remaining gaps as non-actionable.
             </lf-option>
             <lf-option id="pr-outcome-request-changes">
-              <strong>Request changes</strong> One remaining gap must be resolved on the
-              branch before approval.
+              <strong>Request two changes before merge.</strong> Add a selected-row
+              latency budget, and prevent <code>wt step commit --dry-run</code> from
+              staging temporary-index artifacts when <code>TMPDIR</code> is inside the
+              worktree.
             </lf-option>
           </lf-options>
         </lf-decision>

@@ -1431,9 +1431,6 @@ export function createLivingMargin(dependencies) {
         // target so its close control and conversation keep their established order in
         // the shared chrome layer.
         preview.showPopover();
-        // showPopover makes the card measurable synchronously. Place it in this turn,
-        // before the browser can paint the fallback top and move it on the next frame.
-        placeThreadPreview();
       } catch (error) {
         // Chromium also refuses a second popover operation in the same rendering turn,
         // even when it belongs to another surface. Keep the requested marker current and

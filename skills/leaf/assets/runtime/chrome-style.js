@@ -1202,8 +1202,7 @@ ${MARK_RULES}
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
-    .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
-      position-area: inline-end center; position-try-fallbacks: flip-inline, flip-block;
+    .lf-margin-preview { position: fixed;
       z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);

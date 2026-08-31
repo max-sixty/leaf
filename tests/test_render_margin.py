@@ -1011,7 +1011,6 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     expect(thread.locator(".lf-conversation-body")).to_have_text(
         COMMENT_ON_DECISION["text"]
     )
-    expect(preview.locator(".lf-margin-kind")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
     geometry = page.evaluate(
@@ -1142,7 +1141,6 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
 
     expect(preview.locator(".lf-margin-thread")).to_have_count(2)
     expect(preview.locator(".lf-conversation-open")).to_have_count(0)
-    expect(preview.locator(".lf-margin-kind")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1178,7 +1176,6 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
         "iOS reconnect stall"
     )
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
-    expect(preview.locator(".lf-margin-kind")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
     geometry = marker.evaluate(

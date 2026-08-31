@@ -1389,14 +1389,14 @@ performing it. In the compact posture, an informational item opens the Page map 
 at that location instead of reviving the hidden desktop preview; an action-only item
 keeps its direct focus arrival on the action docked into the page.
 
-A thread card names the target without repeating the thread category or offering a
-second route to the panel the banner already opens. At wide widths it is the conversation
-itself, measured eight pixels beside the pressed Thread Button in the same turn it is
-shown or changes size. While that Button keeps focus, `c` enters the card's one reply box;
-several roots leave the destination ambiguous and preserve the page's ordinary route to
-the panel. Replacing an open panel waits for the body's strip motion before choosing the
-card posture. When the document cannot leave the card room beside its Button, the press
-opens the full Threads surface instead.
+A thread card names the target without offering a second route to the panel the banner
+already opens. At wide widths it is the conversation itself, measured eight pixels
+beside the pressed Thread Button in the same turn it is shown or changes size. While
+that Button keeps focus, `c` enters the card's one reply box; several roots leave the
+destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+open panel waits for the body's strip motion before choosing the card posture. When the
+document cannot leave the card room beside its Button, the press opens the full Threads
+surface instead.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's

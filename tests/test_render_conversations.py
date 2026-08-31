@@ -1668,6 +1668,18 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-btn",
         "lf-pill",
         "lf-address",
+        # A chord keycap and the key line's More button are drawn only in the chrome —
+        # the address chips go in addressLayer, the line into chromeRoot — so unlike
+        # every name above these two are not worn in the page at all. They are here
+        # because one rule states the keycap geometry for all of them at once
+        # (`.lf-address, .lf-key-sequence > kbd, .lf-key-more kbd`, chrome-style.js),
+        # and lf-address is worn on both sides of the scope, which puts that rule at
+        # document level and carries these names out with it. Scoping their half
+        # separately would make a second copy of the geometry the rule exists to keep
+        # single; that a name reaching document level touches nothing in the page is
+        # what the moved-property assertion above already holds.
+        "lf-key-sequence",
+        "lf-key-more",
         "lf-over-mark",
         "lf-mark-el",
         "lf-mark-hover",  # the same element mark, for the one the pointer indicates

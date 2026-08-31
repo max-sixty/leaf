@@ -1362,10 +1362,12 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # The banner's count follows the page: three pending, one decided.
     expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
 
-    page.wait_for_function(
-        "() => fetch('/api/state').then(r => r.json())"
-        ".then(s => s.events.some(e => e.kind === 'action' && e.action === 'accept'))"
-    )
+    # The boundary before reading the shared log: what the press sent has to have a
+    # definitive outcome first. The fetch this replaced proved nothing —
+    # `wait_for_function` awaits the promise a predicate returns, but a falsy
+    # resolution ends the wait instead of polling again, so it came back `False` on
+    # the first poll and the read below ran unguarded.
+    round_trip(page)
     logged = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]

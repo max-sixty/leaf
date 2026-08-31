@@ -2919,6 +2919,9 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-panel")
     line = page.locator(".lf-keyline")
+    # Keep the page below the contextual-thread breakpoint so the premise remains about
+    # the page scope rather than the right-margin conversation it now opens at 1208px.
+    resized(page, 1207, 900)
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
     for word in ["threads", "page down / up", "versions"]:

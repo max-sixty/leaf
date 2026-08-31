@@ -13,6 +13,7 @@ from render_support import (
     SUGGESTION_PAGE,
     _publish,
     compare_with,
+    key_line,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -43,6 +44,29 @@ OUTCOME_ON_DECISION = {
     "detail": {"options": ["br-steel"]},
     "generated": [],
 }
+
+PAGE_MAP_ITEM_HINT = '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
+
+
+def address_span(count):
+    capped = min(count, 9)
+    return f"1–{capped}" if capped > 1 else "1"
+
+
+def expect_page_map_address(page, count, pressed):
+    key_line(page)
+    hint = page.locator(PAGE_MAP_ITEM_HINT)
+    expect(hint).to_have_count(1)
+    expect(hint).to_contain_text("page-map items")
+    keys = hint.locator(".lf-key-sequence > kbd")
+    assert keys.evaluate_all("keys => keys.map(key => key.textContent)") == [
+        "g",
+        "m",
+        address_span(count),
+    ]
+    assert keys.evaluate_all("keys => keys.map(key => key.dataset.lfKeyState)") == [
+        "pressed"
+    ] * pressed + ["neutral"] * (3 - pressed)
 
 
 def resized_shell(page, inline_size, height):
@@ -165,13 +189,9 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     expect(marker).not_to_be_focused()
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
-    )
+    expect_page_map_address(page, address["count"], 1)
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"1–9\s*page-map items")
-    )
+    expect_page_map_address(page, address["count"], 2)
     page.keyboard.press(str(address["number"]))
 
     preview = page.locator(".lf-margin-preview")
@@ -275,13 +295,9 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
         }"""
     )
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
-    )
+    expect_page_map_address(page, draft_address["count"], 1)
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(rf"1–{min(draft_address['count'], 9)}\s*page-map items")
-    )
+    expect_page_map_address(page, draft_address["count"], 2)
     assert draft_address["number"] <= 9
     page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()

@@ -1,4 +1,5 @@
 import { sameAnchor } from "../anchors.js";
+import { documentPoint } from "../geometry.js";
 
 export function createSelectionSurface({
   anchoringIsReady,
@@ -24,7 +25,6 @@ export function createSelectionSurface({
   openComposer,
   openOnDesign,
   pageRange,
-  pageScroller,
   pageSelection,
   pageText,
   pageWords,
@@ -67,15 +67,16 @@ export function createSelectionSurface({
   // the viewport and above any key line it would cross, then store in the document.
   function place(node, left, top) {
     const x = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
-    node.style.left = x + "px";
     const keyline = keylineEl.getBoundingClientRect();
     const overlapsKeyline =
       keyline.height && x < keyline.right && x + node.offsetWidth > keyline.left;
     const bottom = overlapsKeyline ? keyline.top - 8 : innerHeight - 8;
-    node.style.top =
-      Math.max(BANNER_CLEAR, Math.min(top, bottom - node.offsetHeight)) +
-      pageScroller.scrollTop +
-      "px";
+    const at = documentPoint(
+      x,
+      Math.max(BANNER_CLEAR, Math.min(top, bottom - node.offsetHeight)),
+    );
+    node.style.left = at.left + "px";
+    node.style.top = at.top + "px";
   }
   // The composer's first choice of a place is the column's margin, beside the passage, so
   // the mark and the box stand side by side — where the box opened instead at the gesture

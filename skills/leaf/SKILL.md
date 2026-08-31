@@ -14,9 +14,10 @@ $ARGUMENTS
 
 ## Return to the user
 
-After first handing over the page's URL, repeat that exact URL every time you
-return to the user in chat, including interim updates, questions, and the final
-handoff.
+After first handing over a browser page's URL, repeat that exact URL every time
+you return to the user in chat, including interim updates, questions, and the
+final handoff. An embedded MCP App has no URL to invent; name the attached Leaf
+review instead. If you later open its browser fallback, the URL rule begins then.
 
 ## Start here
 
@@ -54,14 +55,15 @@ incomplete. A checkout keeps it at `bin/leaf`.
      reaches the user.
    - If a later stamp turns a quick page into a record, run that review before
      the stamp.
-4. Start the service with `leaf server start <page>` and retain its exact URL.
-   The key in that URL opens the page.
-5. Read `references/conversation-loop.md` and exactly one host contract:
+4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` or `references/host-codex.md`. Set the page's
    handoff status as the conversation reference defines.
-6. Start the wait or delivery loop defined by the selected host contract.
-7. Send the exact URL and one sentence naming the available gesture — comment,
-   use the stated control, or approve declared sign-off — then finish the turn.
+5. Use the presentation and delivery path defined by that host contract. The
+   Codex contract prefers the bundled MCP App when the host actually renders it;
+   Claude Code and the Codex fallback start the browser service and retain its
+   exact keyed URL.
+6. Name the available gesture and finish the turn. Send the exact URL for a
+   browser handoff; for an MCP App, say the Leaf review is attached to the task.
 
 When input arrives, read `references/event-batches.md` before processing it and
 `references/conversation-threads.md` when a thread needs work. Read
@@ -145,6 +147,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/internals/validation.md`: when changing static or browser
   validation, passages, or parsed source. These internal contracts are not for
   ordinary page use.
+- `references/internals/mcp-app.md`: when changing the MCP tools, app resource,
+  host bridge, private result payload, or MCP delivery acknowledgement.
 
 ### Use a separate Codex watcher
 

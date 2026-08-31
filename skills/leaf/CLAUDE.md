@@ -1366,6 +1366,10 @@ never merely on focus or hover; when the document cannot leave it room beside th
 source, the same press opens the full Threads surface. The thread card is the only
 generated contextual pane, not a generic container for alternatives.
 
+The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
+over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
+on the next press; each rung is named on the key line before it runs.
+
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;
 `always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes

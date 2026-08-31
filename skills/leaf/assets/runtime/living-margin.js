@@ -192,6 +192,7 @@ export function createLivingMargin(dependencies) {
     designIsOn,
     el,
     elementById,
+    focused,
     goToDecision,
     inChrome,
     itemSays,
@@ -1249,26 +1250,6 @@ export function createLivingMargin(dependencies) {
         more.onclick = () => {
           setOptionsOpen(more.lfEntry, expandedOptionsKey !== more.lfEntry.key);
         };
-        host.addEventListener("keydown", (event) => {
-          if (event.key !== "Escape") return;
-          // A Thread card is the deeper layer in an unfolded Button cluster. Close
-          // it first and leave its owning Button visible; a second Escape can then
-          // fold the secondary Buttons back into `…`.
-          if (
-            preview.matches(":popover-open") &&
-            previewButton &&
-            host.contains(previewButton)
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-            closePreview(true);
-            return;
-          }
-          if (expandedOptionsKey !== host.lfEntry?.key) return;
-          event.preventDefault();
-          event.stopPropagation();
-          setOptionsOpen(host.lfEntry, false, { returnFocus: true });
-        });
         // Contributed primaries remain the owner's real control, so they do not pass
         // through the generated marker/proxy activation paths below. Close any unfolded
         // choices at the cluster boundary before that owner handles its press.
@@ -1487,6 +1468,34 @@ export function createLivingMargin(dependencies) {
     paintKeys();
   }
 
+  // The card and its owning Button cluster are one page-map stack even though the card
+  // is hoisted into the chrome. Expose the current rung to the one keyboard register so
+  // it can stand ahead of reaction and navigation modes, preserving the local surface's
+  // old order without another keydown listener. One press closes only the deepest rung.
+  function keyboardRung({ atFocus = true } = {}) {
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    if (
+      preview.matches(":popover-open") &&
+      (!atFocus ||
+        preview.contains(active) ||
+        (previewButton && host?.contains(previewButton)))
+    )
+      return {
+        does: "Close the thread card",
+        says: "close thread",
+        out: () => closePreview(true),
+      };
+    const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
+    if (optionsHost?.lfEntry?.key === expandedOptionsKey)
+      return {
+        does: "Fold the secondary page actions",
+        says: "close options",
+        out: () => setOptionsOpen(optionsHost.lfEntry, false, { returnFocus: true }),
+      };
+    return null;
+  }
+
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
@@ -1632,12 +1641,6 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
-  preview.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    closePreview(true);
-  });
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed") return;
     if (!previewEntry) return;
@@ -1689,6 +1692,7 @@ export function createLivingMargin(dependencies) {
     },
     closePreview: () => closePreview(false),
     enterPageMap,
+    keyboardRung,
     marginTargetAt,
     openButtonOptions,
     openInlineThread,

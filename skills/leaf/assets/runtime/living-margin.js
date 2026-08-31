@@ -5,7 +5,7 @@ import {
   unregisterMarginRow,
   updateMarginRow,
 } from "./margin-layout.js";
-import { shownBox, shownParts } from "./geometry.js";
+import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
 
 const KINDS = {
@@ -220,13 +220,9 @@ export function createLivingMargin(dependencies) {
   ) {
     const main = document.querySelector("main");
     if (!main || !columnRect) return;
-    // The chrome root is a body child. A standing left tray moves that body's box,
-    // so viewport coordinates would spend its offset twice when applied to this
-    // absolute child. Convert the document column's horizontal coordinate into the
-    // root's moved space; neither side panel changes its document-space vertical origin.
-    const chromeRect = chromeRoot.getBoundingClientRect();
-    nav.style.left = `${columnRect.left - chromeRect.left + pageScroller.scrollLeft}px`;
-    nav.style.top = `${columnRect.top + pageScroller.scrollTop}px`;
+    const at = documentPoint(columnRect.left, columnRect.top);
+    nav.style.left = `${at.left}px`;
+    nav.style.top = `${at.top}px`;
     nav.style.width = `${columnRect.width}px`;
     nav.style.height = `${main.scrollHeight}px`;
   }

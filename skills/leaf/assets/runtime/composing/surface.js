@@ -51,8 +51,9 @@ export function createSelectionSurface({
 }) {
   // ---------- selection → comment ----------
   // Floating UI stays inside the document layout shell. Body already ends at a standing
-  // panel's edge through its margin, while the root scrollport owns the browser's gutter.
-  // A covering sheet is the one strip body does not yield, so its width comes off here.
+  // right panel's edge through its margin, while the root scrollport owns the browser's
+  // gutter. A covering sheet is the one strip body does not yield, so its width comes off
+  // here.
   const rightEdge = () =>
     (panelCovers()
       ? innerWidth - panel.offsetWidth

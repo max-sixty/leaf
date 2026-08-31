@@ -13,6 +13,7 @@ from render_support import (
     SUGGESTION_PAGE,
     _publish,
     compare_with,
+    key_line,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -107,13 +108,20 @@ def address_span(count):
 
 
 def expect_page_map_address(page, count, pressed):
+    # The steps and their states are read once, on the repaint's own frame, because a
+    # retried read of a state that moves goes green on whichever tick lands inside its
+    # budget. Only the count and the row's word, neither of which the chord advances, are
+    # left to `expect`.
+    key_line(page)
     hint = page.locator(PAGE_MAP_ITEM_HINT)
+    expect(hint).to_have_count(1)
     expect(hint).to_contain_text("page-map items")
     keys = hint.locator(".lf-key-sequence > kbd")
-    expect(keys).to_have_text(["g", "m", address_span(count)])
-    # The route's text does not change when a step is pressed, so the repaint is waited for
-    # on the step that just changed face before the whole run is read in one evaluation.
-    expect(keys.nth(pressed - 1)).to_have_attribute("data-lf-key-state", "pressed")
+    assert keys.evaluate_all("keys => keys.map(key => key.textContent)") == [
+        "g",
+        "m",
+        address_span(count),
+    ]
     assert keys.evaluate_all("keys => keys.map(key => key.dataset.lfKeyState)") == [
         "pressed"
     ] * pressed + ["neutral"] * (3 - pressed)

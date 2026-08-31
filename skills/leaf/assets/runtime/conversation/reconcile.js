@@ -139,7 +139,7 @@ export function createConversation(dependencies) {
     visualPartLabel,
     tokenEntry,
   });
-  const { wireReply } = createReplies({
+  const { replyBoxHasDraft, wireReply } = createReplies({
     landTyping,
     loadDraft,
     mirrorDraft,
@@ -364,15 +364,14 @@ export function createConversation(dependencies) {
     anchorLabel,
     openThreads,
     narrowed,
-    awaitsAgent,
     awaitsReader,
-    seatRoot,
     setChildren,
     paintWorkLines,
     widen,
     paintThreadQuotes: cards.paintThreadQuotes,
     renderMarginThread,
     renderPanel,
+    replyBoxHasDraft,
     showThread,
     get threadList() {
       return threadList;

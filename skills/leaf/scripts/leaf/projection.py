@@ -16,6 +16,12 @@ from leaf.passages import EMPTY, collapse, enclosing_of, spoken
 from leaf.registry.contract import state_specs
 from leaf.registry.state import retirement_slots
 from leaf.structure import _StructParser, parse_structure
+from leaf.thread_context import (
+    ThreadStructure,
+    thread_roots,
+    thread_structure,
+    thread_widgets,
+)
 
 
 def _report_updates(projection) -> list[dict]:
@@ -307,6 +313,32 @@ class StateProjection(NamedTuple):
     classified: dict
 
 
+class FrozenThreadReading(NamedTuple):
+    """The panel's frozen markup and durable state as one document.
+
+    No revision window or retraction floor bounds this projection. The markup
+    was frozen into the log, so its actions read the whole conversation window.
+    """
+
+    structure: ThreadStructure
+    spoken: dict
+    roots: dict
+    thread_by_widget: dict
+    projection: StateProjection
+
+    @property
+    def by_id(self) -> dict:
+        return self.structure.by_id
+
+    @property
+    def elements(self) -> list[dict]:
+        return [
+            record
+            for fragment in self.structure.fragments.values()
+            for record in fragment.lf_elements
+        ]
+
+
 def state_coordinate(widget: str, unit: str, spec: dict) -> tuple[str, str, str]:
     """The one identity of a durable fact: its owner, fold unit, and local facet."""
     return widget, unit, spec["facet"]
@@ -387,6 +419,24 @@ def state_projection(
         desired,
         settlement_versions,
         classified,
+    )
+
+
+def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
+    """Project every frozen message fragment through one shared reading."""
+    structure = thread_structure(events)
+    roots = thread_roots(events)
+    spk = {}
+    for event in events:
+        if markup := event.get("markup"):
+            spk.update(spoken(markup, registry))
+    by_widget = thread_widgets(structure, roots)
+    return FrozenThreadReading(
+        structure,
+        spk,
+        roots,
+        by_widget,
+        state_projection(events, structure.by_id, spk, registry, None, floors={}),
     )
 
 

@@ -50,7 +50,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
-from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -391,25 +390,6 @@ REPLAYED_PAGE = leaf_page(
 # A page's key is minted per page; fixed here so a test can build a URL for a
 # server it did not start.
 TOKEN = "test-page-key"
-
-
-def record_claim(page, **fields):
-    record = {
-        "page": str(page.resolve()),
-        "id": "s",
-        "host": "claude-code",
-        "pid": os.getpid(),
-        "agent": "Claude",
-        "cwd": str(Path.cwd()),
-        "ts": "t",
-        "released": None,
-        "turn_closed": None,
-        **fields,
-    }
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    files_model.write_json(path, record)
-    return record
 
 
 @pytest.fixture
@@ -1358,6 +1338,38 @@ def primed(browser, prepare):
         return page
 
     return SimpleNamespace(new_page=new_page)
+
+
+def margins_laid_out(page):
+    """Run the margin layout the page has scheduled, so a geometry read follows it.
+
+    The margin's own geometry owner answers a width change through a ResizeObserver on
+    the body and a `requestAnimationFrame`, which is one whole rendering turn later than
+    the resize event `resized` waits for. A read taken in between is a read of the rows
+    at the width they have just left: on a page narrowed to exactly what its residents
+    need, the widest margin row was still at its roomy width and hung 24px past the
+    window — but only on the runs where the frame had not landed yet, which is why the
+    same probe condensed on one run and not the next.
+
+    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "a fixed
+    number of animation frames only guesses"), so the work is run instead of guessed at.
+    Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
+    that of a test reading the layout it produces.
+
+    The module load is awaited from the driver rather than inside `page.evaluate`, which
+    takes no timeout in any binding: a preview that stalls on the way out would hold the
+    worker for the rest of the job step instead of failing in thirty seconds naming its
+    test. `SERVED_TIMEOUT_MS` is the same patience the payload's own probes carry.
+
+    The `true` is load-bearing, not the comma operator's leftover: `wait_for_function`
+    awaits a promise the predicate returns, but a falsy resolution ends the wait rather
+    than polling again, so a predicate handing back the layout's own result would return
+    at once and prove nothing."""
+    page.wait_for_function(
+        "() => import('/runtime/margin-layout.js')"
+        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
+        timeout=render_checks_model.SERVED_TIMEOUT_MS,
+    )
 
 
 def panel_settled(page, open=True):

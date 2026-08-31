@@ -1,3 +1,5 @@
+import { documentPoint } from "./geometry.js";
+
 /* The reader commenting on the layer rather than the page: what a widget looks like or
  * does, a control, the runtime's own chrome. A mode rather than a chord, because it is
  * entered for a batch of remarks and changes what a press means everywhere: a press
@@ -27,6 +29,7 @@ export function createDesign(dependencies) {
     ITEM,
     announce,
     banner,
+    closePageMapPreview,
     closestAcross,
     containsAcross,
     cut,
@@ -39,7 +42,6 @@ export function createDesign(dependencies) {
     legendRoot,
     marginTargetAt,
     openComposer,
-    pageScroller,
     pageShifted,
     paintHere,
     refreshAim,
@@ -52,6 +54,10 @@ export function createDesign(dependencies) {
   } = dependencies;
 
   function setDesign(on, { spoken = true } = {}) {
+    // A popover is in the browser's top layer, above every ordinary z-index. Design mode
+    // targets ordinary page and chrome paint, so retire that transient preview rather
+    // than promise an aim and composer that the platform must paint underneath it.
+    if (on) closePageMapPreview();
     designOn = on;
     document.body.classList.toggle("lf-design", on);
     banner.classList.toggle("lf-designing", on);
@@ -84,11 +90,10 @@ export function createDesign(dependencies) {
   // replay (paintAnchors), a resize, the page's markup changing under it (legendMoves —
   // a diagram finishing its draw, a details opening, a card dragged), and a size
   // changing with no mutation to say so (legendSizes — an image landing inside an item,
-  // a font swapping in), body's own among them: the panel opening narrows body and
-  // re-centres the column, and a column that keeps its width moves every block without
-  // resizing one, which is why the items' own observations were not enough. Coalesced to
-  // a frame off those doors; the mode change paints in place, so the class and the
-  // legend land together.
+  // a font swapping in). The shell observer in chrome-layout hears the body's own size
+  // and workspace-margin motion and sends them through pageShifted too.
+  // Coalesced to a frame off those doors; the mode change paints in place, so the class
+  // and the legend land together.
   //
   // Reads before writes, in two passes: a box's geometry is a DOM write, and an item's
   // rect read after one is a layout forced per item — the thrash a legend of a few
@@ -121,7 +126,6 @@ export function createDesign(dependencies) {
       legendMoves.disconnect();
       return;
     }
-    legendSizes.observe(document.body);
     legendMoves.observe(document.body, {
       subtree: true,
       childList: true,
@@ -145,7 +149,7 @@ export function createDesign(dependencies) {
     const parts = new Set(tagsDeclaring((e) => e["x-parent"]));
     for (const item of items) {
       if (legendBoxes.has(item)) continue;
-      const box = el("div", "lf-legend-box");
+      const box = el("div", "lf-legend-box lf-page-paint");
       box.dataset.for = item.id; // which item, stated where a test can read it (as .lf-aim's)
       if (!parts.has(item.tagName.toLowerCase()))
         box.append(el("span", "lf-legend-tag", designName(item)));
@@ -156,7 +160,6 @@ export function createDesign(dependencies) {
     // The reads.
     const clips = new Map();
     const under = banner.getBoundingClientRect().bottom;
-    const scrollTop = pageScroller.scrollTop;
     const placed = items.map((item) => {
       const entry = legendBoxes.get(item);
       entry.radius ??= getComputedStyle(item).borderRadius;
@@ -182,10 +185,11 @@ export function createDesign(dependencies) {
         box.style.display = "none";
         continue;
       }
+      const at = documentPoint(r.left - 1, r.top - 1);
       Object.assign(box.style, {
         display: "block",
-        left: r.left - 1 + "px",
-        top: r.top - 1 + scrollTop + "px",
+        left: at.left + "px",
+        top: at.top + "px",
         width: r.right - r.left + 2 + "px",
         height: r.bottom - r.top + 2 + "px",
         borderRadius: radius,

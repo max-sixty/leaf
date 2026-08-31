@@ -42,7 +42,7 @@ gateway/
           <a href="https://github.com/example/gateway/blob/main/gateway/limits.py#L41"
             ><code>gateway/limits.py:41</code> on GitHub</a
           >: the bucket key changes from the remote address to the token id when one is
-          present. Everything else is plumbing that key through.
+          present. Everything else is <a href="#core">plumbing that key through</a>.
         </p>
       </section>
 
@@ -221,7 +221,7 @@ pytest tests/ -m ratelimit --maxfail=1</code></pre>
         <p id="test-output">
           The two-token case's transcript, from the branch as pushed:
         </p>
-        <lf-code id="test-transcript" hi="3">
+        <lf-code id="test-transcript" hi="2-3">
           <pre>
 $ pytest tests/ratelimit/test_bucket_identity.py::test_two_tokens_behind_one_address_each_get_a_full_budget -q
 ..                                                                 [100%]

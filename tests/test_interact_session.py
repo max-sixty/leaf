@@ -668,6 +668,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
+            "generated": [],
         },
     )
 
@@ -1062,6 +1063,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": opened["id"]},
+            "generated": [],
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -1198,6 +1200,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
+            "generated": [],
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -3037,6 +3040,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": asked["id"]},
+            "generated": [],
         },
     )
     note = {

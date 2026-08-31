@@ -28,8 +28,6 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
-from leaf import conversation as conversation_model
-from leaf import event_endpoint as event_endpoint_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -37,7 +35,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
-from leaf import publishing as publishing_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -626,14 +623,14 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     resume = threading.Event()
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
-    original_append_event = events_model.append_event
+    original_append_event = service_model.PageTransaction.append_event
     original_composed_theme = layer_model.composed_theme
 
-    def held_append_event(directory, event):
+    def held_append_event(page, event):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
-        return original_append_event(directory, event)
+        return original_append_event(page, event)
 
     def held_composed_theme(sources):
         checked_without_writer.set()
@@ -647,9 +644,9 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
             return str(error)
         return None
 
-    monkeypatch.setattr(conversation_model, "append_event", held_append_event)
-    monkeypatch.setattr(event_endpoint_model, "append_event", held_append_event)
-    monkeypatch.setattr(publishing_model, "append_event", held_append_event)
+    monkeypatch.setattr(
+        service_model.PageTransaction, "append_event", held_append_event
+    )
     monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)

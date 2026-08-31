@@ -39,12 +39,12 @@ export function createWidgetLoader({
     if (!response.ok)
       throw new Error(`leaf: registry failed to load (${response.status})`);
     const responseGeneration = response.headers.get("Leaf-Layer");
-    if (responseGeneration && !sameLayer(responseGeneration)) return;
+    if (responseGeneration && !sameLayer(responseGeneration)) return false;
     Object.assign(registry, await response.json());
     const registryGeneration = registry.$layer?.generation;
     if (typeof registryGeneration !== "string" || !registryGeneration)
       throw new Error("leaf: registry lacks $layer.generation");
-    if (!sameLayer(registryGeneration)) return;
+    if (!sameLayer(registryGeneration)) return false;
     if (
       !registry.$events?.kinds ||
       !registry.$languages?.names ||
@@ -76,6 +76,7 @@ export function createWidgetLoader({
     // After the wait, because the box a widget scrolls is a box its module built: run this
     // with the rest of the upgrade and a diff's pre and a code block's are half there.
     reachScrollers(document.body);
+    return true;
   }
 
   return {

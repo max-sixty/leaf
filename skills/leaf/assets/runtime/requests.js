@@ -82,5 +82,4 @@ export function createRequests(runtime, dependencies) {
     sendRequest,
     watchRequestLifecycle,
   };
-  return publishedRequests;
 }

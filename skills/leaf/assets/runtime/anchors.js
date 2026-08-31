@@ -1,4 +1,10 @@
-import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
+import {
+  clippedRect,
+  documentPoint,
+  shownBox,
+  shownParts,
+  shownRect,
+} from "./geometry.js";
 import { marginAction, registerMarginItem } from "./living-margin.js";
 import { moveScrollerBy } from "./scrolling.js";
 
@@ -551,16 +557,19 @@ export function createAnchors(dependencies) {
     if (!r) {
       aimBox.style.display = "none";
       aimBox.removeAttribute("data-for");
+      delete aimBox.dataset.lfPaintPlane;
       paintInspect(null);
       return;
     }
     const { left, top, right, bottom } = r;
+    const at = documentPoint(left, top);
     aimBox.setAttribute("data-for", aimed.id);
+    aimBox.dataset.lfPaintPlane = inChrome(aimed) ? "chrome" : "page";
     // The item's own corner radius, so the ring hugs the corner the item draws.
     Object.assign(aimBox.style, {
       display: "block",
-      left: left + "px",
-      top: top + pageScroller.scrollTop + "px",
+      left: at.left + "px",
+      top: at.top + "px",
       width: right - left + "px",
       height: bottom - top + "px",
       borderRadius: getComputedStyle(aimed).borderRadius,
@@ -573,14 +582,22 @@ export function createAnchors(dependencies) {
   // that re-derive them.
   function paintInspect(target, corner) {
     inspectEl.classList.toggle("lf-shown", Boolean(target));
-    if (!target) return;
+    if (!target) {
+      delete inspectEl.dataset.lfPaintPlane;
+      return;
+    }
+    inspectEl.dataset.lfPaintPlane = inChrome(target.el) ? "chrome" : "page";
     const name = target.part
       ? `${target.part} · ${designName(target.el)}`
       : designName(target.el);
     if (inspectEl.textContent !== name) inspectEl.textContent = name;
     const above = corner.top - inspectEl.offsetHeight - 2;
-    inspectEl.style.left = `${Math.max(2, corner.left)}px`;
-    inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
+    const at = documentPoint(
+      Math.max(2, corner.left),
+      above >= 0 ? above : corner.top + 2,
+    );
+    inspectEl.style.left = `${at.left}px`;
+    inspectEl.style.top = `${at.top}px`;
   }
   let hovering = null;
   let hoverQueued = false;
@@ -731,9 +748,8 @@ export function createAnchors(dependencies) {
     // a promise has to interrupt where an annotation may whisper, so the aim has a box
     // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
     // why). An open composer doesn't stand the aim down — a press while the box is up
-    // selects another target and raises its action bar — so the two can show at once,
-    // which is the true state: where the draft stands, and where the next response would
-    // land.
+    // moves the draft onto another target — so the two can show at once, which is the
+    // true state: where the draft stands, and where the next comment would land.
     const draft =
       composerIsOpen() && composerAnchor()
         ? resolveAnchor(composerAnchor(), text)
@@ -1289,7 +1305,6 @@ export function createAnchors(dependencies) {
     aimTargets,
     visualAt,
     visualActionAnchor,
-    visualPartAt,
     visualPartLabel,
     resolveAnchor,
     NOTE,

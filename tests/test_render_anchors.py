@@ -437,10 +437,10 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.close()
 
 
-def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
+def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
     """The other side of the guard above, and the one that cost more. A user reads
-    the sentence a suggestion sits in, drags across it, and then presses Accept — a
-    fresh press, long after that drag's own mouseup.
+    the sentence a suggestion sits in, drags across it, and then rejects it through
+    the target's options — a fresh press, long after that drag's own mouseup.
 
     Asking whether the live selection *contains* the control is a question about the
     DOM, and a suggestion's row is the column's own child in flow between the block
@@ -450,7 +450,8 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
     which is the shape of a bug nobody reports — it looks like a slip of the mouse.
 
     Both decisions the product exists to collect go through a press, so this asserts the
-    pointer and then the keyboard, with the selection standing throughout."""
+    pointer path through `…` and then the direct keyboard action, with the selection
+    standing throughout."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
@@ -463,10 +464,14 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
     )
     assert page.evaluate(
         "() => getSelection().containsNode(document.querySelector("
-        "'[data-lf-for=sug-refill] .lf-sug-reject'), true)"
+        "'[data-lf-for=sug-refill] .lf-sug-accept'), true)"
     ), "the selection doesn't reach the control, so this run tests nothing"
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Reject")
+    ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     assert page.evaluate("() => !getSelection().isCollapsed"), (
         "the press cleared the selection, so the keyboard half below is untested"
@@ -534,7 +539,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     ), "the bar never stepped past the row, so standing on no control proves nothing"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome"))
+        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -553,9 +558,10 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     page.close()
 
 
-def test_the_margin_offers_one_kind_of_press(browser, serve):
-    """The 💬 and a change's ✓ Accept stand in the same margin, sometimes on the same
-    line — the test above is that collision — so they have to read as one thing.
+def test_the_margin_offers_one_button_family_with_legible_behaviors(browser, serve):
+    """The 💬 disclosure and a change's ✓ Accept stand in the same margin, sometimes on
+    the same line — the test above is that collision — so they need one family while
+    still making their different promises visible.
 
     They did not. The button was the chrome's own idiom (a solid accent rectangle at
     the chrome's size, and, through a cascade nobody meant, set in the page's serif
@@ -565,11 +571,9 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     furniture a press is a .lf-btn and looks like one, and out in the margin it is a
     marginal mark.
 
-    Pinned by reading both off one page. marginAction is one statement now, but either
-    wearer can still restate a property in its own rules, and this is what says such a
-    restatement kept the family. The shadow is the one property allowed to differ, and
-    it is the difference that is real: only one of them floats over the page's own words
-    rather than standing in the empty rail."""
+    Pinned by reading both off one page. Geometry and typography are the Button family;
+    fill and ink distinguish a hollow disclosure from a committing action. The shadow is
+    the other deliberate difference: only one floats over the page's own words."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
@@ -585,14 +589,14 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
 
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size", "line-height",
-            "border-radius", "border-top-width", "border-top-style", "padding",
-            "background-color", "color"].map(p => [p, s.getPropertyValue(p)])); }"""
+            "border-radius", "border-top-width", "border-top-style", "padding"]
+            .map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab").evaluate(family)
     resident = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").evaluate(
         family
     )
     assert raised == resident, (
-        "the margin's two presses are drawn differently:\n  "
+        "the margin's two Button behaviors lost their common family:\n  "
         + "\n  ".join(
             f"{k}: {raised[k]!r} vs {resident[k]!r}"
             for k in raised
@@ -602,10 +606,18 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     assert "system-ui" in raised["font-family"], (
         f"the margin's presses speak in the document's voice: {raised['font-family']}"
     )
-    assert (
-        page.locator(".lf-fab").evaluate("el => getComputedStyle(el).boxShadow")
-        != "none"
-    ), "the one press that floats over the page says nothing about it"
+    fab = page.locator(".lf-fab")
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    expect(fab).to_have_attribute("data-lf-behavior", "disclosure")
+    expect(accept).to_have_attribute("data-lf-behavior", "action")
+    assert fab.evaluate(
+        "el => getComputedStyle(el).backgroundColor"
+    ) != accept.evaluate("el => getComputedStyle(el).backgroundColor"), (
+        "disclosure and action promise the same effect"
+    )
+    assert fab.evaluate("el => getComputedStyle(el).boxShadow") != "none", (
+        "the one press that floats over the page says nothing about it"
+    )
     assert errors == []
     page.close()
 
@@ -626,11 +638,11 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     expect(picked).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("h")
-    addressed = page.locator(f"{CHIPS} kbd").first
+    addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
 
-    # The option's address and the chord's digit keep one physical key geometry. The option
-    # keeps its local accent outline; the chord digit is an ordinary available binding.
+    # The option's address and the chord's digit keep one physical key face. Both are
+    # ordinary available bindings, so geometry and emphasis stay the same.
     faces = """() => {
         const read = el => { const s = getComputedStyle(el);
             return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
@@ -638,7 +650,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
                 "font-size", "line-height", "text-align"]
                 .map(p => [p, s.getPropertyValue(p)])); };
         return [read(document.querySelector('#tq-one .lf-address')),
-                read(document.querySelector('.lf-addresses > .lf-address kbd'))]; }"""
+                read(document.querySelector(
+                  '.lf-addresses > .lf-address kbd:last-child'))]; }"""
     option_key, chord_key = page.evaluate(faces)
     assert option_key == chord_key, (
         "one physical key has two geometries:\n  "
@@ -651,16 +664,36 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert "mono" in option_key["font-family"]
     assert addressed.get_attribute("data-lf-key-state") == "neutral"
     emphasis = page.evaluate(
-        """() => ['#tq-one .lf-address', '.lf-addresses > .lf-address kbd',
-          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd']
+        """() => ['#tq-one .lf-address',
+          '.lf-addresses > .lf-address kbd:last-child',
+          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd:last-child']
           .map(sel => { const s = getComputedStyle(document.querySelector(sel));
             return {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color};
           })"""
     )
     option_emphasis, chord_emphasis, legend_emphasis = emphasis
-    assert option_emphasis["border"] == option_emphasis["ink"]
-    assert option_emphasis["ground"] != option_emphasis["ink"]
-    assert chord_emphasis == legend_emphasis
+    assert option_emphasis == chord_emphasis == legend_emphasis
+
+    # Item selection uses letters rather than digits, but it names the same physical
+    # keys. Closing the address chord and opening selection must not reveal a fourth face.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.keyboard.press("s")
+    target = page.locator(".lf-target-hint").first
+    expect(target).to_be_visible()
+    target_key = target.evaluate(
+        """el => { const s = getComputedStyle(el);
+          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
+            "border-top-width", "border-top-style", "border-radius", "font-family",
+            "font-size", "line-height", "text-align"]
+            .map(p => [p, s.getPropertyValue(p)])); }"""
+    )
+    assert target_key == option_key
+    target_emphasis = target.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
+    )
+    assert target_emphasis == option_emphasis
     assert errors == []
     page.close()
 
@@ -1297,6 +1330,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         path: path.textContent,
         statGenerated: stat.dataset.lfGen === '1',
+        nativeDisclosure: getComputedStyle(d.querySelector('summary')).display === 'list-item',
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -1322,6 +1356,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(file["summaryAligned"] for file in files), (
         "a file path and its change counts split across summary rows"
     )
+    assert all(file["nativeDisclosure"] for file in files), (
+        "a file summary lost its native disclosure indicator"
+    )
     assert all(file["statGenerated"] for file in files), (
         "derived change counts should be said but not read as authored words"
     )
@@ -1341,7 +1378,11 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const rendered = shadow.querySelector('pre[data-diff]');
       const statText = shadow.querySelector('.lf-diff-stat').textContent;
       const leafFont = getComputedStyle(reference).fontFamily;
+      const leafFontSize = getComputedStyle(reference).fontSize;
+      const leafLineHeight = getComputedStyle(reference).lineHeight;
       const leafBackground = getComputedStyle(reference).backgroundColor;
+      const backgroundChannels = leafBackground.match(/[0-9.]+/g).slice(0, 3).map(Number);
+      const pageBackground = getComputedStyle(document.body).backgroundColor;
       reference.remove();
       return {
         segmentCount: segments.length,
@@ -1358,9 +1399,17 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         coreSheets: shadow.querySelectorAll('style[data-core-css]').length,
         themeSheets: shadow.querySelectorAll('style[data-theme-css]').length,
         font: getComputedStyle(rendered).fontFamily,
+        fontSize: getComputedStyle(rendered).fontSize,
+        lineHeight: getComputedStyle(rendered).lineHeight,
         background: getComputedStyle(rendered).backgroundColor,
         leafFont,
+        leafFontSize,
+        leafLineHeight,
         leafBackground,
+        backgroundIsNearlyNeutral:
+          Math.max(...backgroundChannels) - Math.min(...backgroundChannels) <= 3,
+        backgroundLeansWarm: backgroundChannels[0] > backgroundChannels[2],
+        backgroundIsSeparateFromPage: leafBackground !== pageBackground,
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
@@ -1374,7 +1423,12 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     )
     assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
     assert reading["font"] == reading["leafFont"], reading
+    assert reading["fontSize"] == reading["leafFontSize"], reading
+    assert reading["lineHeight"] == reading["leafLineHeight"], reading
     assert reading["background"] == reading["leafBackground"], reading
+    assert reading["backgroundIsNearlyNeutral"], reading
+    assert reading["backgroundLeansWarm"], reading
+    assert reading["backgroundIsSeparateFromPage"], reading
 
     py = by_path["gateway/limits.py"]
     assert any(["kw", "if"] in line["roles"] for line in py), py
@@ -2679,11 +2733,15 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
 
-    # The way out is named while the reader is in it, and the walk — which has nowhere
-    # to step — is not offered beside it.
+    # The line is the menu's while the reader is in it: its own way out is named, the
+    # page's keys are gone with the presses the mode took, and the walk — which has
+    # nowhere to step — is not offered beside them. Escape is the popover's own
+    # dismissal and so is nobody's row to print; what the two presses above assert is
+    # that it lands.
     page.keyboard.press("v")
-    expect(line).to_contain_text("close versions")
+    expect(line).to_contain_text("leave versions")
     expect(line).not_to_contain_text("walk — marking changes")
+    expect(line).not_to_contain_text("page down")
     page.keyboard.press("Escape")
 
     # The control: a second version, where the walk is live and the layer is unchanged.
@@ -2792,7 +2850,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_text("Δ v2 ▾")
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
-    # from the banner rather than from the top of the document.
+    # from the banner rather than from the top of the document. This is the standing the
+    # reference handed back above, so the way out has been through a round trip the
+    # platform's own hand-back does not survive on its own: a popover restores focus to
+    # whatever had it when it showed, and the dialog closing leaves that as the body.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
@@ -2806,7 +2867,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # is v1 and the row carrying it is where an open lands. Landing on the version being
     # read would put the focus and the base on different rows, and the reader's next arrow
     # press would then move the base off the version they marked from — the whole reason
-    # the two are one thing (showVersionMenu).
+    # the two are one thing (focusVersionRow).
     page.keyboard.press("v")
     expect(menu).to_be_visible()
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
@@ -2839,6 +2900,17 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     page.mouse.click(30, 700)
     expect(menu).to_be_hidden()
     assert "/versions/v2.html" in page.url, "closing the menu navigated"
+
+    # The same press from the key's door, which is the one a hand-back can reach: opened
+    # with the pointer the reader was on the button going in, so nothing moves them either
+    # way. A press away from the menu is not a way back to the chooser — it is the reader
+    # going somewhere else — and a close that hands focus to the bar whenever it finds none
+    # takes them off the page they just pressed into. Escape says return; this does not.
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    page.mouse.click(30, 700)
+    expect(menu).to_be_hidden()
+    expect(btn).not_to_be_focused()
 
     # Choosing a row is exact historical navigation, including for the newest stamp.
     btn.click()
@@ -2878,9 +2950,12 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-panel")
     line = page.locator(".lf-keyline")
+    # Keep the page below the contextual-thread breakpoint so the premise remains about
+    # the page scope rather than the right-margin conversation it now opens at 1208px.
+    resized(page, 1207, 900)
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
-    for word in ["threads", "page down", "page up", "versions"]:
+    for word in ["threads", "page down / up", "versions"]:
         expect(line).to_contain_text(word)
 
     page.keyboard.press("v")
@@ -2890,8 +2965,8 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # The line narrows to the menu's own keys with the page's gone from it, which is the
     # same claim the dispatcher reads — one statement, both surfaces.
     expect(line).to_contain_text("walk — marking changes")
-    expect(line).to_contain_text("close versions")
-    for word in ["threads", "page down", "page up", "design mode"]:
+    expect(line).to_contain_text("open that version")
+    for word in ["threads", "page down / up", "design mode"]:
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the

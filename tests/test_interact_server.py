@@ -649,7 +649,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     draft = {
         "kind": "comment",
         "revision": 2,
-        "anchor": {"quote": "hello"},
+        "anchor": {"section": "plan", "quote": "The cutoff lives in"},
         "text": "The words a reader typed before the version moved.",
         "attempt": "attempt-draft-0001",
     }
@@ -706,6 +706,66 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
+def test_action_door_owns_generated_child_snapshots(server, page_dir):
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            "</lf-options></lf-decision></section>",
+        )
+    )
+    publish(page_dir)
+    base = {
+        "kind": "action",
+        "revision": 1,
+        "widget": "delivery",
+        "action": "choose",
+        "detail": {
+            "options": ["delivery-reader-z"],
+            "additions": {
+                "delivery-reader-z": "After the health check",
+                "delivery-reader-a": "Before the maintenance window",
+            },
+        },
+    }
+
+    correct = {
+        **base,
+        "generated": ["delivery-reader-a", "delivery-reader-z"],
+        "attempt": "attempt-generated-good",
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(correct).encode())[0] == 200
+
+    cases = [
+        ({**base, "attempt": "attempt-generated-missing"}, "no generated snapshot"),
+        (
+            {
+                **base,
+                "generated": ["delivery-foreign"],
+                "attempt": "attempt-generated-mismatch",
+            },
+            "must equal the sorted keys",
+        ),
+        (
+            {
+                **base,
+                "action": "answer",
+                "detail": {},
+                "generated": [],
+                "attempt": "attempt-generated-foreign",
+            },
+            "creates no children",
+        ),
+    ]
+    for sent, wanted in cases:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+        assert status == 400
+        assert wanted in json.loads(body)["error"]
+
+
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
     """The browser receives a reading, not a log it must interpret again.
 
@@ -730,6 +790,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "widget": "delivery",
         "action": "choose",
         "detail": {"options": ["delivery-now"]},
+        "generated": [],
         "attempt": "attempt-browser-view-1",
     }
 
@@ -783,6 +844,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "widget": "delivery",
                     "action": "choose",
                     "detail": {"options": [option]},
+                    "generated": [],
                     "attempt": attempt,
                 }
             ).encode(),
@@ -899,6 +961,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "widget": "delivery",
                     "action": "choose",
                     "detail": {"options": [option]},
+                    "generated": [],
                     "attempt": attempt,
                 }
             ).encode(),
@@ -1660,6 +1723,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
         "revision": 1,
         "action": "choose",
         "detail": {"options": ["thread-a"]},
+        "generated": [],
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -1755,8 +1819,10 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
         "widget": widget,
         "action": "choose",
         "detail": {"options": [option]},
+        "generated": [],
     }
     nonanswer = {**choose, "action": "defer", "detail": {}}
+    nonanswer.pop("generated")
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
@@ -1821,6 +1887,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
         "widget": "seated-options",
         "action": "choose",
         "detail": {"options": ["seated-a"]},
+        "generated": [],
     }
     status_code, body = fetch(f"{server}/api/event", data=json.dumps(choose).encode())
     assert status_code == 200, body
@@ -1992,6 +2059,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "widget": "quota-child-review",
         "action": "choose",
         "detail": {"options": ["quota-child-ready"]},
+        "generated": [],
     }
     assert (
         fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
@@ -2006,6 +2074,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "widget": "quota-intervention",
         "action": "choose",
         "detail": {"options": []},
+        "generated": [],
     }
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
     increase = {**event, "detail": {"slots": "4"}}
@@ -2304,6 +2373,29 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
         "after",
         "again",
     ]
+
+
+def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
+    page_dir, monkeypatch
+):
+    """A writer can fail after durable bytes land; the transaction must read them."""
+    real_fsync = event_model.os.fsync
+
+    def sync_then_fail(fd):
+        real_fsync(fd)
+        raise OSError("failed after syncing")
+
+    with service_model.PageTransaction(page_dir) as page:
+        assert page.events == []
+        with monkeypatch.context() as patch:
+            patch.setattr(event_model.os, "fsync", sync_then_fail)
+            with pytest.raises(OSError, match="failed after syncing"):
+                page.append_event(
+                    {"kind": "comment", "author": "user", "text": "landed"}
+                )
+        assert [(event["text"], event["seq"]) for event in page.events] == [
+            ("landed", 1)
+        ]
 
 
 def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
@@ -2870,12 +2962,12 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the
-    canonical claims — titled by its newest published version, and nothing
-    else: not a dead server's page, not one with nothing published to link, and
-    not the page doing the asking. Each entry carries the same presence facts the
-    page ships about itself (`presence`), so the panel's row and that page's own
-    banner judge from one shape — where the claiming session is working included,
-    which is the one thing on a row's hover that no title could ever say."""
+    canonical claims — titled by its active revision, and nothing else: not a
+    dead server's page or the page doing the asking. Each entry carries the same
+    presence facts the page ships about itself (`presence`), so the panel's row
+    and that page's own banner judge from one shape — where the claiming session
+    is working included, which is the one thing on a row's hover that no title
+    could ever say."""
     pages = host_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     files_model.write_json(
@@ -3208,6 +3300,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
         "widget": "choice",
         "action": "choose",
         "detail": {"options": ["flag-first"]},
+        "generated": [],
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
@@ -3269,6 +3362,12 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "parent": "c-lost",
             "revision": 1,
             "text": "the answer that survived it",
+            "markup": (
+                '<lf-decision id="orphan-decision"><h3>Which repair?</h3>'
+                '<lf-options id="orphan-choice" choose>'
+                '<lf-option id="orphan-retry">Retry it</lf-option>'
+                "</lf-options></lf-decision>"
+            ),
         },
     )
     log = page_dir / "comments.jsonl"
@@ -3288,6 +3387,29 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
+    # The surviving message is still the frozen document that owns its widgets.
+    # Reading only the thread shell would miss this harder half of the torn-root case:
+    # its question has to remain actionable and every element still names the lost
+    # root as its conversation.
+    open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert open_state.exit_code == 0, open_state.output
+    open_reading = json.loads(open_state.output)
+    assert open_reading["decisions"] == [
+        {
+            "id": "orphan-decision",
+            "tag": "lf-decision",
+            "thread": "c-lost",
+        }
+    ]
+    orphan_elements = [
+        element for element in open_reading["elements"] if element["thread"] == "c-lost"
+    ]
+    assert [element["id"] for element in orphan_elements] == [
+        "orphan-decision",
+        "orphan-choice",
+        "orphan-retry",
+    ]
+
     closed = event_model.append_event(
         page_dir,
         {"kind": "resolve", "author": "user", "parent": "c-lost"},
@@ -3297,8 +3419,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     # exact thread lookup recovers every surviving record that explains it.
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
-    [thread] = json.loads(state.output)["threads"]
+    closed_reading = json.loads(state.output)
+    [thread] = closed_reading["threads"]
     assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
+    assert closed_reading["decisions"] == []
+    assert [
+        element["id"]
+        for element in closed_reading["elements"]
+        if element["thread"] == "c-lost"
+    ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
         cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
     )

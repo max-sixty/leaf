@@ -19,6 +19,7 @@ from render_support import (
     BOTH_STAMPS,
     COMMAND_HUB_PACKAGE,
     CORNER_PAGE,
+    DECISIONS_PAGE,
     DRAFT_MARK,
     EDGES,
     EXAMPLES,
@@ -37,6 +38,7 @@ from render_support import (
     TYPED_PARTS_V2,
     aim_targets,
     draw_edge,
+    edge_settled,
     geometry,
     leaf_page,
     live_url,
@@ -100,12 +102,304 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     note.click()
     page.keyboard.up("Alt")
 
-    # The press raises the compact bar on the note — the comment icon, then the reaction
-    # ellipsis — and the comment icon opens the composer on the whole note.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The chord already names Comment, so the press opens the composer on the whole note.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
+    assert errors == []
+    page.close()
+
+
+def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
+    """The Asks strip can move the page without moving its coordinate plane.
+
+    A broad authored rule may position ordinary divs, and the tray transition may move a
+    target without another pointer event. Neither may move the chrome's document origin or
+    leave its reading of the page behind. Keep the whole comment route on the item the
+    reader pointed at.
+    """
+    source = DECISIONS_PAGE.replace(
+        "</head>",
+        "<style>html { position: relative; margin-left: 40px; "
+        "border-left: 30px solid transparent; } "
+        "div { position: relative; }</style></head>",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+
+    target = page.locator("#lq-keep")
+    target.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    # Open by script so the pointer remains parked on the target while the shell moves
+    # underneath it. The target is wide enough to remain under that point throughout.
+    page.locator(".lf-decisions").evaluate("node => node.click()")
+    edge_settled(page, EDGES[1])
+    aligned = page.evaluate(
+        """() => {
+          const target = document.getElementById('lq-keep').getBoundingClientRect();
+          const aim = document.querySelector('.lf-aim').getBoundingClientRect();
+          const chrome = document.querySelector('.lf-chrome');
+          return { rootPosition: getComputedStyle(document.documentElement).position,
+                   bodyLeft: document.body.getBoundingClientRect().left,
+                   bodyPosition: getComputedStyle(document.body).position,
+                   chromePosition: getComputedStyle(chrome).position,
+                   dx: aim.left - target.left, dy: aim.top - target.top };
+        }"""
+    )
+    assert aligned["bodyLeft"] > 0, "the Asks tray took no strip from the page"
+    assert aligned["rootPosition"] == "static", (
+        "authored root positioning captured the document coordinate plane"
+    )
+    assert aligned["bodyPosition"] == "static", (
+        "body became a moving containing block for document-attached chrome"
+    )
+    assert aligned["chromePosition"] == "static", (
+        "authored div positioning captured the chrome's document coordinate plane"
+    )
+    assert abs(aligned["dx"]) < 2 and abs(aligned["dy"]) < 2, (
+        f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
+        f"from its target with body starting at {aligned['bodyLeft']:.1f}px"
+    )
+
+    target.click()
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    placed = page.evaluate(
+        """() => {
+          const target = document.getElementById('lq-keep').getBoundingClientRect();
+          const box = document.querySelector('.lf-composer').getBoundingClientRect();
+          const overlaps = target.left < box.right && box.left < target.right
+              && target.top < box.bottom && box.top < target.bottom;
+          return { left: box.left, right: box.right, overlaps, width: innerWidth };
+        }"""
+    )
+    assert 0 <= placed["left"] < placed["right"] <= placed["width"], (
+        f"the composer is outside the viewport: {placed}"
+    )
+    assert not placed["overlaps"], f"the composer covers its aimed item: {placed}"
+    assert errors == []
+    page.close()
+
+
+def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
+    """The one shell observer hears movement that no target observer can hear.
+
+    A broad authored div rule must not capture the nested legend host. Once that host is
+    stable, an un-ID block growing above an ID target changes the body's height and the
+    target's position without changing the target's own size or mutating the DOM during
+    the growth. The central body observation repaints the legend for that case.
+    """
+    source = LONG_PAGE.replace(
+        "</head>",
+        "<style>html { overflow-anchor: none; } div { position: relative; }</style></head>",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    target = page.locator("#p30")
+    target.evaluate("node => node.scrollIntoView({block: 'center'})")
+    page.locator("body").focus()
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    legend = page.locator('.lf-legend-box[data-for="p30"]')
+    expect(legend).to_be_visible()
+
+    before = page.evaluate(
+        """() => {
+          const target = document.getElementById('p30').getBoundingClientRect();
+          const legend = document.querySelector('.lf-legend-box[data-for="p30"]')
+            .getBoundingClientRect();
+          return {targetTop: target.top, dx: legend.left - target.left,
+                  dy: legend.top - target.top,
+                  hostPosition: getComputedStyle(document.querySelector('.lf-legend')).position};
+        }"""
+    )
+    assert before["hostPosition"] == "static"
+    assert abs(before["dx"] + 1) < 2 and abs(before["dy"] + 1) < 2
+
+    after = page.evaluate(
+        """async () => {
+          const target = document.getElementById('p30');
+          const driver = document.createElement('div');
+          driver.style.height = '0px';
+          target.before(driver);
+          await new Promise(done => requestAnimationFrame(done));
+          const growth = driver.animate(
+            [{height: '0px'}, {height: '160px'}],
+            {duration: 220, easing: 'linear', fill: 'forwards'}
+          );
+          await growth.finished;
+          await new Promise(done => requestAnimationFrame(
+            () => requestAnimationFrame(() => requestAnimationFrame(done))
+          ));
+          const targetBox = target.getBoundingClientRect();
+          const legendBox = document.querySelector('.lf-legend-box[data-for="p30"]')
+            .getBoundingClientRect();
+          return {targetTop: targetBox.top, dx: legendBox.left - targetBox.left,
+                  dy: legendBox.top - targetBox.top};
+        }"""
+    )
+    assert after["targetTop"] - before["targetTop"] > 140
+    assert abs(after["dx"] + 1) < 2 and abs(after["dy"] + 1) < 2, (
+        f"the legend did not follow height-only page growth: {before} then {after}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve):
+    """A left tray and right panel can move the shell without changing its width."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 1200, 900)
+    tray = EDGES[1]
+    tray.stand(page)
+    edge_settled(page, tray)
+    draw_edge(page, tray, 120)
+
+    target = page.locator("#lq-keep")
+    target_box = target.bounding_box()
+    assert target_box is not None
+    page.mouse.move(target_box["x"] + 40, target_box["y"] + target_box["height"] / 2)
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    readings = page.evaluate(
+        """() => new Promise(resolve => {
+          const body = document.body;
+          const readings = [];
+          let sampling = false;
+          const sample = () => {
+            const target = document.getElementById('lq-keep').getBoundingClientRect();
+            const aim = document.querySelector('.lf-aim');
+            const box = aim.getBoundingClientRect();
+            readings.push({shown: aim.checkVisibility(), dx: box.left - target.left,
+                           dy: box.top - target.top});
+            if (body.getAnimations().some(animation => animation.playState === 'running'))
+              requestAnimationFrame(sample);
+            else resolve(readings);
+          };
+          body.addEventListener('transitionrun', event => {
+            if (sampling || !event.propertyName.startsWith('margin-')) return;
+            sampling = true;
+            requestAnimationFrame(sample);
+          });
+          document.querySelector('.lf-threads-toggle').click();
+        })"""
+    )
+    page.keyboard.up("Alt")
+    assert len(readings) > 2, "the workspace swap produced no transition trace"
+    assert all(reading["shown"] for reading in readings)
+    assert max(abs(reading["dx"]) for reading in readings) < 3
+    assert max(abs(reading["dy"]) for reading in readings) < 3
+    assert errors == []
+    page.close()
+
+
+def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
+    browser, serve
+):
+    """A covering workspace owns its pixels until the reader targets that workspace.
+
+    The aim, composer, design legend, and inspect name share two semantic stacking
+    planes. Paint attached to page content stays below the sheet; paint naming a target
+    inside Leaf's chrome rises above it. The target decides the plane, so the same aim and
+    composer can serve both without a viewport-width z-index exception.
+    """
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 560, 900)
+    page.locator(".lf-decisions").click()
+    edge_settled(page, EDGES[1])
+    tray = page.locator(".lf-decisions-panel")
+    expect(tray).to_be_visible()
+
+    target = page.locator("#lq-keep")
+    target_box = target.bounding_box()
+    assert target_box is not None and target_box["x"] + target_box["width"] > 320
+    point = {
+        "x": target_box["x"] + target_box["width"] - 18,
+        "y": target_box["y"] + target_box["height"] / 2,
+    }
+    page.mouse.move(point["x"], point["y"])
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    page_plane = page.evaluate(
+        """() => {
+          const tray = document.querySelector('.lf-decisions-panel');
+          const aim = document.querySelector('.lf-aim');
+          return {tray: Number(getComputedStyle(tray).zIndex),
+                  aim: Number(getComputedStyle(aim).zIndex),
+                  plane: aim.dataset.lfPaintPlane};
+        }"""
+    )
+    assert page_plane["plane"] == "page" and page_plane["aim"] < page_plane["tray"], (
+        f"page aim paints over the covering Asks sheet: {page_plane}"
+    )
+
+    page.mouse.click(point["x"], point["y"])
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    composer_plane = page.locator(".lf-composer").evaluate(
+        "node => ({plane: node.dataset.lfPaintPlane, "
+        "z: Number(getComputedStyle(node).zIndex), "
+        "tray: Number(getComputedStyle(document.querySelector('.lf-decisions-panel')).zIndex)})"
+    )
+    assert (
+        composer_plane["plane"] == "page"
+        and composer_plane["z"] < composer_plane["tray"]
+    ), f"page composer paints over the covering Asks sheet: {composer_plane}"
+    page.keyboard.press("Escape")
+
+    page.locator("body").focus()
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    tray_box = tray.bounding_box()
+    assert tray_box is not None
+    page.mouse.move(tray_box["x"] + 12, tray_box["y"] + 12)
+    expect(page.locator(".lf-aim")).to_be_visible()
+    chrome_plane = page.evaluate(
+        """() => {
+          const tray = document.querySelector('.lf-decisions-panel');
+          const aim = document.querySelector('.lf-aim');
+          const inspect = document.querySelector('.lf-inspect');
+          const target = document.getElementById(aim.dataset.for);
+          const legend = document.querySelector('.lf-legend-box[data-for="lq-keep"]');
+          return {tray: Number(getComputedStyle(tray).zIndex),
+                  aim: Number(getComputedStyle(aim).zIndex),
+                  inspect: Number(getComputedStyle(inspect).zIndex),
+                  legend: Number(getComputedStyle(legend).zIndex),
+                  plane: aim.dataset.lfPaintPlane,
+                  targetInChrome: Boolean(target?.closest('.lf-chrome'))};
+        }"""
+    )
+    assert chrome_plane["targetInChrome"] and chrome_plane["plane"] == "chrome"
+    assert chrome_plane["aim"] > chrome_plane["tray"]
+    assert chrome_plane["inspect"] > chrome_plane["tray"]
+    assert chrome_plane["legend"] < chrome_plane["tray"]
+
+    # Dispatch on the sheet itself so the design target is the sheet rather than one of
+    # the decision rows it contains.
+    tray.evaluate(
+        """target => {
+          const box = target.getBoundingClientRect();
+          const init = {bubbles: true, cancelable: true, button: 0, buttons: 1,
+                        clientX: box.left + 12, clientY: box.top + 12, detail: 1};
+          target.dispatchEvent(new PointerEvent('pointerdown', init));
+          target.dispatchEvent(new MouseEvent('mousedown', init));
+          target.dispatchEvent(new PointerEvent('pointerup', {...init, buttons: 0}));
+          target.dispatchEvent(new MouseEvent('mouseup', {...init, buttons: 0}));
+          target.dispatchEvent(new MouseEvent('click', {...init, buttons: 0}));
+        }"""
+    )
+    expect(page.locator(".lf-composer")).to_be_visible()
+    chrome_composer = page.locator(".lf-composer").evaluate(
+        "node => ({plane: node.dataset.lfPaintPlane, "
+        "z: Number(getComputedStyle(node).zIndex), "
+        "tray: Number(getComputedStyle(document.querySelector('.lf-decisions-panel')).zIndex)})"
+    )
+    assert (
+        chrome_composer["plane"] == "chrome"
+        and chrome_composer["z"] > chrome_composer["tray"]
+    ), f"a composer about the Asks sheet paints beneath it: {chrome_composer}"
     assert errors == []
     page.close()
 
@@ -142,9 +436,8 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
-    # The press raises the bar on the item the aim held; Comment on it is the composer.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The press opens Comment on the item the aim held.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
@@ -177,8 +470,7 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
         }"""
     )
 
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "p2"
     assert errors == []
@@ -282,9 +574,8 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
-            # The press raises the bar on the item; Comment on it is the composer.
-            expect(bar).to_be_visible()
-            page.locator(".lf-fab").click()
+            # The chord promised Comment, so the press opens the composer directly.
+            expect(bar).to_be_hidden()
             expect(composer).to_be_visible()
             mark = page.evaluate(DRAFT_MARK)
             # A box a standing thread already outlines keeps the posted colour and takes
@@ -395,10 +686,8 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_item(browser, serve):
     )
     page.mouse.click(edge["x"], edge["y"])
     page.keyboard.up("Alt")
-    # The press raises the bar on what it took, and Comment is the way from there into
-    # the composer — the same route a selection takes.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The press opens Comment on what it took.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == promised, (
         f"the outline promised {promised} on the seam and the press commented on "
@@ -421,8 +710,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()  # the press was the aim's
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()  # the press was the aim's
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     page.keyboard.press("Escape")
@@ -440,20 +728,19 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
 
 
 def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
-    """An armed press with the box up selects a new target, so aim still says where.
+    """An armed press with the box up moves it to a new target, so aim still says where.
 
     claimPress acts whether or not a composer stands open. Holding ⌥ over a second item
     raises its box beside the draft's own mark; two at once is the true state — where
-    the draft stands, and where a response would land. The press raises that target's
-    actions, and choosing Comment carries the typed text onto the new anchor."""
+    the draft stands, and where the next comment would land. The press carries the typed
+    text onto the new anchor."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     composer.locator("textarea").fill("carried words")
@@ -468,9 +755,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     )
     card.click()
     page.keyboard.up("Alt")
-    # The bar comes up on the card over the open box; its Comment moves the box.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    # The second explicit comment gesture moves the open draft onto the card.
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
@@ -527,7 +813,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.keyboard.press("?")
     reference = page.locator(".lf-help")
     expect(reference).to_be_visible()
-    expect(reference.locator('tr[data-lf-command="aim.respond"]')).to_have_count(0)
+    expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
 
@@ -578,15 +864,21 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         ("layer", {"section": "opt-shim"})
     ]
     assert [e for e in events if e["kind"] == "action"] == []
-    # The panel names the thread the same way the composer named the box, and the send
-    # lands typing in that thread's reply box.
-    expect(page.locator(".lf-thread .lf-quote")).to_have_text(
+    # The retained thread names the target the same way the composer named the box. The
+    # top-layer margin card stays retired while design mode stands, so the send lands
+    # typing in the ordinary Threads workspace instead of a hidden inline reply.
+    panel = page.locator(".lf-panel")
+    expect(panel).to_be_visible()
+    expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
         "layer · lf-option · opt-shim"
     )
-    expect(page.locator(".lf-thread textarea")).to_be_focused()
-    # Escape backs out one rung at a time — the box, then the mode.
+    panel_reply = panel.locator(".lf-thread textarea:focus")
+    expect(panel_reply).to_have_count(1)
+    expect(panel_reply).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    # Escape backs out one rung at a time — the reply, then the mode.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread")).to_be_focused()
+    expect(panel.locator(".lf-thread:focus")).to_have_count(1)
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
@@ -1049,19 +1341,19 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page.close()
 
 
-def test_a_linked_flowchart_node_uses_the_shared_aim_actions(browser, serve):
-    """Alt-click claims the linked visual part without following the link, then raises
-    the same Comment and Reaction choices as any other aimed item."""
+def test_a_linked_flowchart_node_opens_its_comment_without_following_the_link(
+    browser, serve
+):
+    """Alt-click claims the linked visual part without following the link and opens
+    Comment on the part in the same gesture."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     handler = diagram.locator('g[id*="flowchart-H-"]')
     expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
 
     handler.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(handler).to_have_class(re.compile(r"\blf-action-target\b"))
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
     expect(handler).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("keep this linked step visible")
@@ -1152,8 +1444,8 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
 
     def aim(target, **press):
         target.click(modifiers=["Alt"], **press)
-        expect(page.locator(".lf-fab-bar")).to_be_visible()
-        page.locator(".lf-fab").click()
+        expect(page.locator(".lf-fab-bar")).to_be_hidden()
+        expect(page.locator(".lf-composer")).to_be_visible()
 
     state = page.locator('#life g[id*="state-Queued-"]')
     aim(state)

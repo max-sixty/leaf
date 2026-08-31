@@ -80,6 +80,18 @@ export function quietWord(el, word) {
 const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
 const externalLinkState = new WeakMap();
 let externalNoteSequence = 0;
+export function isExternalPageLink(link) {
+  if (!(link instanceof HTMLAnchorElement)) return false;
+  try {
+    const href = link.getAttribute("href");
+    const url = href === null ? null : new URL(href, document.baseURI);
+    return (
+      ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin
+    );
+  } catch {
+    return false;
+  }
+}
 const linkAttributes = (link) =>
   Object.fromEntries(
     EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
@@ -133,13 +145,7 @@ export function renderExternalLinks(root) {
     // SVG links share this selector but not the HTML anchor API, and they have no
     // dependable inline box in which an HTML text mark could stand.
     if (!(link instanceof HTMLAnchorElement)) continue;
-    let external = false;
-    try {
-      const href = link.getAttribute("href");
-      const url = href === null ? null : new URL(href, document.baseURI);
-      external =
-        ["http:", "https:"].includes(url?.protocol) && url.origin !== location.origin;
-    } catch {}
+    const external = isExternalPageLink(link);
 
     if (!external) {
       const state = externalLinkState.get(link);

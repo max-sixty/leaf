@@ -1,4 +1,5 @@
 import { sameAnchor } from "../anchors.js";
+import { documentPoint } from "../geometry.js";
 
 export function createSelectionSurface({
   anchoringIsReady,
@@ -7,6 +8,7 @@ export function createSelectionSurface({
   composer,
   composerInput,
   composerIsOpen,
+  closeVersionMenu,
   collapseKeyline,
   designIsOn,
   designTarget,
@@ -23,7 +25,6 @@ export function createSelectionSurface({
   openComposer,
   openOnDesign,
   pageRange,
-  pageScroller,
   pageSelection,
   pageText,
   pageWords,
@@ -40,7 +41,6 @@ export function createSelectionSurface({
   selectionAnchor,
   setReact,
   showThread,
-  showVersionMenu,
   snapSelection,
   shownParts,
   shownRect,
@@ -51,8 +51,9 @@ export function createSelectionSurface({
 }) {
   // ---------- selection → comment ----------
   // Floating UI stays inside the document layout shell. Body already ends at a standing
-  // panel's edge through its margin, while the root scrollport owns the browser's gutter.
-  // A covering sheet is the one strip body does not yield, so its width comes off here.
+  // right panel's edge through its margin, while the root scrollport owns the browser's
+  // gutter. A covering sheet is the one strip body does not yield, so its width comes off
+  // here.
   const rightEdge = () =>
     (panelCovers()
       ? innerWidth - panel.offsetWidth
@@ -67,15 +68,16 @@ export function createSelectionSurface({
   // the viewport and above any key line it would cross, then store in the document.
   function place(node, left, top) {
     const x = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
-    node.style.left = x + "px";
     const keyline = keylineEl.getBoundingClientRect();
     const overlapsKeyline =
       keyline.height && x < keyline.right && x + node.offsetWidth > keyline.left;
     const bottom = overlapsKeyline ? keyline.top - 8 : innerHeight - 8;
-    node.style.top =
-      Math.max(BANNER_CLEAR, Math.min(top, bottom - node.offsetHeight)) +
-      pageScroller.scrollTop +
-      "px";
+    const at = documentPoint(
+      x,
+      Math.max(BANNER_CLEAR, Math.min(top, bottom - node.offsetHeight)),
+    );
+    node.style.left = at.left + "px";
+    node.style.top = at.top + "px";
   }
   // The composer's first choice of a place is the column's margin, beside the passage, so
   // the mark and the box stand side by side — where the box opened instead at the gesture
@@ -336,10 +338,19 @@ export function createSelectionSurface({
     showFab(null, null, { returnFocus: "none" });
     openComposer({ section: item.id }, "", from.left, from.top);
   }
-  // Pointer and keyboard aim choose a semantic target. Every target then raises the
-  // same actions; its anchor alone decides which element supplies the mark and geometry.
-  function activateAimTarget({ anchor }) {
+  // Keyboard selection chooses a semantic target before the reader has chosen what to
+  // do with it, so it raises the shared response actions. The anchor alone decides which
+  // element supplies the mark and geometry.
+  function selectResponseTarget({ anchor }) {
     showFab(anchor);
+  }
+  // Alt-click already names the action as well as the target. It opens the composer in
+  // the same transaction instead of asking the reader to choose Comment a second time.
+  // Target capture still happened before this door, so comments and reactions keep one
+  // durable anchor model and the claimed press still reaches nothing underneath it.
+  function openTargetComposer({ anchor }, from) {
+    showFab(null, null, { returnFocus: "none" });
+    openComposer(anchor, "", from.left, from.top);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
@@ -497,7 +508,7 @@ export function createSelectionSurface({
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))
-      showVersionMenu(false);
+      closeVersionMenu();
   }
   document.addEventListener("mousedown", (ev) => standDown(ev.target));
 
@@ -600,10 +611,11 @@ export function createSelectionSurface({
     fabTargetAt,
     fabReturnTo,
     openOnItem,
-    activateAimTarget,
+    openTargetComposer,
     placeClear,
     placeComposer,
     refreshFab,
+    selectResponseTarget,
     showFab,
     standDown,
     updateFab,

@@ -64,12 +64,16 @@ export function createOutbox(runtime, dependencies) {
       return null;
     }
     if (!actionMatches(el, action)) return null;
+    const spec = registry[el.localName]["x-state"][action];
+    const creates = spec.creates;
+    const generated = creates ? Object.keys(detail[creates.field] ?? {}).sort() : null;
     return post({
       kind: "action",
       revision: runtime.currentRevision,
       widget: el.id,
       action,
       detail,
+      ...(creates && { generated }),
       ...(attempt && { attempt }),
     });
   }

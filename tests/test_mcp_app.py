@@ -1,14 +1,14 @@
 """The full and compact MCP Apps surfaces and their durable return paths."""
 
+import sys
 import tempfile
 import urllib.request
 from urllib.parse import parse_qs, urlsplit
 
 import anyio
-from conftest import LEAF_COMMAND
 from interact_support import PAGE
 from leaf.event_log import read_events
-from leaf.mcp_app import (
+from leaf.mcp_full_app import (
     COMPACT_APP_RESOURCE,
     COMPACT_FORMAT,
     COMPACT_RESOURCE_URI,
@@ -77,6 +77,7 @@ def test_compact_state_projects_the_surface_source_and_declared_action(page_dir)
             "revision": revision,
             "widget": "plan-choice",
             "action": "choose",
+            "generated": [],
         },
     }
 
@@ -160,9 +161,7 @@ def test_invalid_mutable_source_does_not_silently_present_the_last_good_ask(page
 def test_full_page_state_addresses_the_ordinary_browser_interface(page_dir):
     revision = activate(page_dir, options_page())
 
-    state = current_page_state(
-        page_dir, lambda _page: "http://127.0.0.1:41234/?t=test"
-    )
+    state = current_page_state(page_dir, lambda _page: "http://127.0.0.1:41234/?t=test")
 
     assert {key: value for key, value in state.items() if key != "active"} == {
         "format": PAGE_FORMAT,
@@ -178,12 +177,10 @@ def test_full_page_state_addresses_the_ordinary_browser_interface(page_dir):
     assert state["active"]["label"] == "Draft"
 
 
-def test_process_scoped_page_server_uses_an_ephemeral_page_token(
-    page_dir, monkeypatch
-):
+def test_process_scoped_page_server_uses_an_ephemeral_page_token(page_dir, monkeypatch):
     activate(page_dir, options_page())
     monkeypatch.setattr(
-        "leaf.mcp_app.secrets.token_urlsafe", lambda _size: "mcp-page-token"
+        "leaf.mcp_full_app.secrets.token_urlsafe", lambda _size: "mcp-page-token"
     )
     pool = PageServerPool()
     try:
@@ -253,8 +250,11 @@ def test_mcp_command_negotiates_and_serves_the_shipped_resource(page_dir):
 
     async def inspect(errors):
         params = StdioServerParameters(
-            command=LEAF_COMMAND[0],
-            args=[*LEAF_COMMAND[1:], "mcp", "run"],
+            command=sys.executable,
+            args=[
+                "-c",
+                "from leaf.mcp_full_app import run_server; run_server()",
+            ],
         )
         async with (
             stdio_client(params, errlog=errors) as (reader, writer),
@@ -346,6 +346,7 @@ def test_app_tool_posts_through_the_event_door_and_a_fresh_server_replays_it(pag
         "widget": "plan-choice",
         "action": "choose",
         "detail": {"options": ["backfill-first"]},
+        "generated": [],
         "attempt": "mcp-app-test-0001",
     }
     posted = call(
@@ -354,7 +355,7 @@ def test_app_tool_posts_through_the_event_door_and_a_fresh_server_replays_it(pag
         {"page": str(page_dir), "event": event},
     )
 
-    assert posted.structured_content["ok"] is True
+    assert posted.structured_content["ok"] is True, posted.structured_content
     assert posted.structured_content["status"] == 200
     assert posted.structured_content["state"]["mode"] == "empty"
     assert read_events(page_dir)[-1]["detail"] == {"options": ["backfill-first"]}

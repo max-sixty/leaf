@@ -23,8 +23,7 @@ The main owners are:
   delivery context, and conversation writes;
 - `work`: transient work claims and widget work seats;
 - `decisions`: declaration-driven page and thread decision projections;
-- `mcp_app`: the experimental MCP Apps server, process-scoped page delivery,
-  and compact ask projection;
+- `mcp_full_app`: the unregistered full-page and options MCP Apps prototypes;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
 - `host`: local paths, process readings, host identity, and session lifetime;
@@ -33,6 +32,8 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, and the HTTP process;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
 - `codex`: detached Codex queue delivery and recovery;
+- `mcp_server` and `mcp_app`: the bundled MCP transport, app resource, private
+  page snapshot, and host handoff;
 - `presence`: page, claim, and neighboring-leaf presence readings;
 - `served_state/` and `http`: browser-facing projections and change readings,
   and HTTP transport;
@@ -66,8 +67,10 @@ Read the reference that owns the boundary before changing it:
   service lifetime;
 - `../references/internals/validation.md` for static checks, browser checks,
   parsed source, and file-side passages.
-- `../references/internals/mcp-apps.md` for the experimental MCP server,
-  complete-page and compact resources, and their return paths.
+- `../references/internals/mcp-app.md` for MCP tools, resource metadata, host
+  messages, and delivery acknowledgement.
+- `../references/internals/mcp-apps.md` for the full-page and options prototypes
+  being compared with that bundled transport.
 
 `../references/packages.md` owns the public package contract. The browser's
 parallel projection, passage, registry, and render rules live in `../CLAUDE.md`.
@@ -98,7 +101,8 @@ directly; the package initializer is only a marker.
 Within `served_state/`, `wire` serializes one declared fold, `conversation` and
 `document` own their scoped browser readings, `browser` assembles the requested
 views, `page` composes the complete served response, and `reading` names
-filesystem changes for the news stream. Import the owner directly; the package
+filesystem changes for the news stream. `service` owns the transport-neutral
+transaction that HTTP and MCP share. Import the owner directly; the package
 initializer is only a marker.
 
 Within `render_gate/`, `models` owns the values passed between phases, `scheme`

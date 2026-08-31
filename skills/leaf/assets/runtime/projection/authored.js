@@ -1,6 +1,8 @@
+import { recordedWidgetSelector, stateSpecs } from "../registry.js";
+
 /* Authored widget state captured before projection changes the live DOM. */
 export function createAuthoredProjection(dependencies) {
-  const { quoteFrom, textNodesUnder, widgetEntries } = dependencies;
+  const { quoteFrom, textNodesUnder } = dependencies;
 
   // ---------- decided, awaiting the honoring version ----------
   // The registry's x-state names each verb's fold unit and record form, so one
@@ -12,32 +14,12 @@ export function createAuthoredProjection(dependencies) {
   // overwrites in the DOM.
   const authoredFacets = new Map(); // (owner, unit, facet) -> authored record value
 
-  // Both channels: a report's record form is a facet exactly as an action's is,
-  // so the authored-facet capture and the diff's state half serve the two alike.
-  // Named members rather than a tuple, because every consumer takes a different subset
-  // and positional destructuring once bound a verb where it wanted the spec. Nothing
-  // threw; the diff simply marked no recorded state.
-  function stateSpecs() {
-    const specs = [];
-    for (const [tag, entry] of widgetEntries())
-      for (const channel of ["x-state", "x-report"])
-        for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
-          specs.push({ tag, channel, verb, spec });
-    return specs;
-  }
-
   // A recorded part belongs to the nearest widget that owns recorded state, regardless
   // of tag. Custom containers and shipped widgets compose through the same registry, so
   // same-tag scoping is too weak: an outer group must not read or reset a nested group's
   // chosen members merely because the inner owner has another name.
   const recordedOwner = (member) => {
-    const selector = [
-      ...new Set(
-        stateSpecs()
-          .filter(({ spec }) => spec.record)
-          .map(({ tag }) => tag),
-      ),
-    ].join(",");
+    const selector = recordedWidgetSelector();
     return selector ? member.closest(selector) : null;
   };
   const ownedRecordMembers = (widget, selector) =>
@@ -223,7 +205,6 @@ export function createAuthoredProjection(dependencies) {
     domFacet,
     rememberAuthoredMarkup,
     stateCoordinate,
-    stateSpecs,
     unitOf,
   };
 }

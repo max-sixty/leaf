@@ -230,7 +230,7 @@ $ leaf version stamp ./review --text "Two ways to shed load — which?"
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
 {"page": "/home/you/review", "threads": []}
-{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
+{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "generated": [], "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
 {"kind": "comment", "author": "user", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
 
 $ leaf ack ./review 3</code></pre>
@@ -249,18 +249,16 @@ $ leaf ack ./review 3</code></pre>
         </p>
 
         <p id="wait-trick">
-          The two hosts carry that context through different loops. On Claude Code,
+          The hosts carry that context through different loops. On Claude Code,
           <code>leaf wait</code> is a background task whose completion joins the same
           queue as a terminal message: an idle session takes it as a new turn, and a
-          working one folds it in between tool calls. On Codex, a watcher task may keep
-          the unified-exec wait active and send its complete batch into the page's task
-          with a background follow-up. Leaf emits the same transport-neutral JSON batch
-          in both loops; the watcher adds the receiving task's instruction when it
-          forwards that data. The named wait transfers the page's claim to the watcher,
-          so the page's task can sleep while the watcher remains held to the loop.
-          Without an explicitly authorized watcher task, the page's own turn stays
-          active and polls the exact wait session instead; a detached command alone has
-          no completion that starts a future turn.
+          working one folds it in between tool calls. On Codex, an experimental bundled
+          MCP App can put a compact review directly in the task. Its comments pass
+          through the same validator and log, then the app sends the complete pending
+          batch as a follow-up turn. Where a Codex build does not render MCP Apps — or
+          the reader needs the full widget runtime — the loopback browser stays the
+          surface and a detached adapter queues that same batch into the task. The
+          transport changes; the page, event identities, and delivery contract do not.
         </p>
         <p id="wait-ack">
           The wait owner acknowledges a complete, untruncated JSON batch only after it
@@ -485,9 +483,10 @@ $ leaf ack ./review 3</code></pre>
           stands, which is what a reload has always shown you.
         </p>
         <p id="reactions">
-          The cheapest answer is one token. Select a passage, ⌥-click an element, or
-          stand in an agent reply, then open <strong>…</strong> or press <code>r</code>.
-          The ellipsis becomes the <code>ok</code>, <code>no</code>, <code>lost</code>,
+          The cheapest answer is one token. Select a passage, select an item with
+          <code>s</code>, or stand in an agent reply, then open <strong>…</strong> or
+          press <code>r</code>. Alt-clicking an item opens its comment box directly. The
+          ellipsis becomes the <code>ok</code>, <code>no</code>, <code>lost</code>,
           <code>cut</code>, <code>more</code>, and <code>this</code> buttons; digits are
           optional shortcuts. The token paints as a glyph in the margin and a faint wash
           on the words, opens no thread, and comes off with a press on the glyph. An

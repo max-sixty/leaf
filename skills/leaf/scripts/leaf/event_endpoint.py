@@ -4,6 +4,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from .anchor_capture import capture_anchor
 from .event_contracts import (
     action_contract_error,
     event_record_error,
@@ -15,11 +16,11 @@ from .event_log import (
     AttemptConflict,
     AttemptExecution,
     _attempt_payload,
-    append_event,
 )
 from .events import undo_error
-from .files import list_revisions, version_revisions
+from .files import list_revisions, revision_path, version_revisions
 from .passages import active_enclosing
+from .projection import page_projection, retirement_outcomes, rewritten_bodies
 from .registry.contract import RegistryError
 from .registry.reactions import reaction_tokens
 from .registry.storage import load_registry
@@ -154,11 +155,7 @@ class _TransactionValidation:
 
     def anchored_comment_rejection(self) -> EventAnswer | None:
         anchor = self.event.get("anchor") or {}
-        if self.event["kind"] != "comment" or not (
-            self.event.get("holds")
-            or self.event.get("response")
-            or anchor.get("visual")
-        ):
+        if self.event["kind"] != "comment" or not anchor:
             return None
         registry, rejection = self.registry_or_rejection()
         if rejection:
@@ -171,6 +168,36 @@ class _TransactionValidation:
         ):
             if error:
                 return event_rejection(self.event, error)
+        if anchor.get("datum") or anchor.get("visual") or anchor.get("part"):
+            return None
+        html = revision_path(self.page_dir, self.event["revision"]).read_text(
+            encoding="utf-8"
+        )
+        projection, _, _ = page_projection(
+            html, self.events, registry, self.event["revision"]
+        )
+        try:
+            canonical = capture_anchor(
+                html,
+                registry,
+                anchor.get("quote", ""),
+                anchor.get("section"),
+                retirement_outcomes(projection.actions, registry),
+                rewritten_bodies(projection.actions),
+                prefix=anchor.get("prefix") if "prefix" in anchor else None,
+                suffix=anchor.get("suffix") if "suffix" in anchor else None,
+            )
+        except ValueError as error:
+            return event_rejection(
+                self.event,
+                f"comment anchor is not in the current page reading: {error}",
+            )
+        for field in ("quote",):
+            if field in anchor and anchor[field] != canonical.get(field):
+                return event_rejection(
+                    self.event,
+                    f"comment anchor {field} does not match the current page reading",
+                )
         return None
 
     def parent_rejection(self) -> EventAnswer | None:
@@ -317,5 +344,5 @@ class EventEndpoint:
                 if rejection := validation.rejection():
                     return rejection
                 event["author"] = "page" if event["kind"] == "error" else "user"
-                append_event(page, event)
+                page.append_event(event)
         return 200, {"ok": True, "state": state()}

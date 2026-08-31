@@ -52,6 +52,7 @@ from render_support import (
     composer_quote,
     leaf_page,
     live_url,
+    margins_laid_out,
     nudge,
     open_page,
     page_registry,
@@ -293,10 +294,10 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # And the third thing a log carries: what the reader did to one of those
         # widgets. A decision on a widget a message carries is folded from thread
         # markup rather than from the version, through a projection of its own
-        # (`thread_state`), and replayed into a tree the panel built — so a corpus
-        # that seeds the question and not the answer reads the untouched half of
-        # every such widget and leaves the whole standing-decision route to
-        # unit-style fixtures. The seed is what puts it under the sweeps.
+        # (`frozen_thread_reading`), and replayed into a tree the panel built — so
+        # a corpus that seeds the question and not the answer reads the untouched
+        # half of every such widget and leaves the whole standing-decision route
+        # to unit-style fixtures. The seed is what puts it under the sweeps.
         decided_here = [
             e["widget"]
             for e in events
@@ -2011,7 +2012,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         ...marginItems.map(node => node.getBoundingClientRect().right));
       const measure = (value) => {
         const probe = document.createElement('i');
-        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:'
+        probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;height:0;padding:0;border:0;width:'
           + value;
         main.append(probe);
         const width = probe.getBoundingClientRect().width;
@@ -2030,12 +2031,15 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         marginCount: marginItems.length, marginRight,
         viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
-        sideways: document.documentElement.scrollWidth
-          - document.documentElement.clientWidth,
       };
     }"""
+    sideways = (
+        "() => document.documentElement.scrollWidth"
+        " - document.documentElement.clientWidth"
+    )
 
     resized(page, 1400, 900)
+    margins_laid_out(page)
     roomy = page.evaluate(reading)
     assert roomy["strip"] == 264
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
@@ -2053,7 +2057,35 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
-    assert roomy["sideways"] == 0
+    assert page.evaluate(sideways) == 0
+
+    # A left workspace and the page's own left margin are consecutive strips. The ToC
+    # stays in its sticky sidebar, so opening Asks moves both together instead of leaving
+    # a separately fixed map behind the sheet while main still reserves its width.
+    resized(page, 1700, 900)
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.body.getAnimations().every(a => a.playState !== 'running')"
+    )
+    workspace = page.evaluate(
+        """() => {
+          const tray = document.querySelector('.lf-decisions-panel').getBoundingClientRect();
+          const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+          const toc = document.querySelector('lf-toc').getBoundingClientRect();
+          return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
+                  sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
+                  tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
+        }"""
+    )
+    assert workspace["sidebarPosition"] == "sticky"
+    assert workspace["tocPosition"] == "static"
+    assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
+    assert workspace["tocLeft"] >= workspace["trayRight"] - 1, (
+        f"the ToC remained behind the standing Asks tray: {workspace}"
+    )
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-panel")).to_be_hidden()
 
     # The rail claim is monotonic, so narrowing the same page carries its widest
     # right-margin row into the tighter layout. The sidebar and rail use the outer
@@ -2069,6 +2101,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     # root scrollport holds outside the container query's own width.
     exact = roomy["strip"] + 720 + roomy["rail"]
     resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
+    margins_laid_out(page)
     tighter = page.evaluate(reading)
     assert exact <= tighter["pageWidth"] <= exact + 1, (
         f"the narrowed page is not the width the residents and column need: {tighter}"
@@ -2079,7 +2112,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert tighter["sidebar"]["left"] >= -1
     assert tighter["marginCount"] > 0
     assert tighter["marginRight"] <= tighter["viewportWidth"] + 1
-    assert tighter["sideways"] == 0
+    assert page.evaluate(sideways) == 0
 
     resized(page, 1400, 900)
 
@@ -2099,7 +2132,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert cramped["strip"] == 0
     assert cramped["float"] == "none" and cramped["position"] == "static"
     assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
-    assert cramped["sideways"] == 0
+    assert page.evaluate(sideways) == 0
     assert errors == []
     page.close()
 
@@ -2109,7 +2142,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert narrow["strip"] == 0
     assert narrow["float"] == "none" and narrow["position"] == "static"
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
-    assert narrow["sideways"] == 0
+    assert page.evaluate(sideways) == 0
 
     resized(page, 1400, 900)
     page.emulate_media(media="print")

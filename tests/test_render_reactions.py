@@ -12,6 +12,7 @@ from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
+    TARGETS_PAGE,
     key_line,
     open_page,
     panel_comment,
@@ -112,13 +113,16 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     assert tokens == ["ok", "no", "lost", "cut", "more", "this"], tokens
     assert bar.locator(
         ":scope > .lf-fab, :scope > .lf-react-trigger"
-    ).all_inner_texts() == [
-        "💬",
-        "…",
-    ]
+    ).all_inner_texts() == ["💬", "…"]
     expect(bar.locator(".lf-fab")).to_have_attribute("aria-label", "Comment")
     expect(bar.locator(".lf-react-trigger")).to_have_attribute(
         "aria-label", "Show reactions"
+    )
+    expect(bar.locator(".lf-react-trigger")).to_have_class(
+        re.compile(r"lf-margin-action")
+    )
+    expect(bar.locator(".lf-react-trigger")).to_have_attribute(
+        "data-lf-behavior", "options"
     )
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     bar.locator(".lf-react-trigger").click()
@@ -184,7 +188,12 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     surface = page.locator(".lf-margin-reactions")
     expect(receipt_item).to_have_count(1)
     expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
-    expect(receipt_item.locator(":scope > .lf-margin-reactions")).to_have_count(1)
+    expect(receipt_item.locator(":scope > .lf-margin-more")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    expect(
+        receipt_item.locator(".lf-margin-options .lf-margin-reactions")
+    ).to_have_count(1)
     expect(surface.locator('.lf-react[data-token="cut"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -202,8 +211,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.close()
 
 
-def test_r_extends_the_targets_margin_item_and_needs_a_target(browser, serve):
-    """`r` adds Comment and reaction buttons to the target's one RHS item.
+def test_r_opens_the_targets_button_options_and_needs_a_target(browser, serve):
+    """`r` opens Comment and reactions in the target's shared Button options.
 
     Digits remain optional accelerators in declaration order. With no selection,
     focused item, or agent reply, the key names the missing target and does not borrow
@@ -222,14 +231,8 @@ def test_r_extends_the_targets_margin_item_and_needs_a_target(browser, serve):
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(bar).to_be_hidden()
     expect(surface.locator(".lf-fab")).to_be_visible()
-    assert (
-        surface.locator(".lf-fab, .lf-react:visible").evaluate_all(
-            """els => new Set(els.map(el => {
-              const box = el.getBoundingClientRect();
-              return Math.round(box.y + box.height / 2);
-            })).size"""
-        )
-        == 1
+    assert surface.evaluate("el => el.closest('.lf-margin-options') !== null"), (
+        "reactions opened outside the target's Button options"
     )
     expect(surface.locator(".lf-address")).to_have_count(0)
     page.keyboard.press("4")
@@ -283,15 +286,25 @@ def test_r_extends_the_targets_margin_item_and_needs_a_target(browser, serve):
     page.close()
 
 
-def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, serve):
-    """A whole element goes through the gesture that already names one: ⌥-click. The
-    bar comes up on the item with Comment first and a compact reaction trigger. Opening
-    it and choosing a token puts an element anchor in the log, which paints as a dashed
-    hairline on the item's boxes and a glyph seated at its first line."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
-    page.keyboard.down("Alt")
-    page.locator("#how-patch").click()
-    page.keyboard.up("Alt")
+def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serve):
+    """Keyboard item selection leaves the response open. Choosing a token puts an
+    element anchor in the log, which paints as a dashed hairline on the item's boxes
+    and a glyph seated at its first line."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(3)
+    code = page.evaluate(
+        """() => {
+          const target = document.querySelector('#prose').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+              return Math.hypot(ar.left - target.left, ar.top - target.top)
+                   - Math.hypot(br.left - target.left, br.top - target.top);
+            })[0].dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(code)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -299,18 +312,18 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     page.locator('.lf-margin-reactions .lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
-    shown = painted(page, [["how-patch", "this"]])
+    assert sent["token"] == "this" and sent["anchor"] == {"section": "prose"}
+    shown = painted(page, [["prose", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
     assert errors == []
     page.close()
 
 
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
-def test_the_reaction_list_joins_a_docked_margin_item_on_a_narrow_screen(
+def test_the_reaction_list_opens_from_a_docked_button_on_a_narrow_screen(
     browser, serve, opener
 ):
-    """With no RHS, the same item docks in flow instead of opening a floating box."""
+    """With no RHS, the Button docks in flow and its options stay within the viewport."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     resized(page, 390, 900)
     select_paragraph(page, "#how-cap")
@@ -321,18 +334,17 @@ def test_the_reaction_list_joins_a_docked_margin_item_on_a_narrow_screen(
     else:
         page.keyboard.press("r")
     item = page.locator(".lf-margin-item").filter(
-        has=page.locator(".lf-margin-reactions")
+        has=page.locator('.lf-margin-more[aria-expanded="true"]')
     )
     expect(item).to_have_class(re.compile("lf-docked"))
-    palette = item.locator(".lf-react-palette").bounding_box()
+    palette = item.locator(".lf-margin-options .lf-react-palette").bounding_box()
     assert 8 <= palette["x"] and palette["x"] + palette["width"] <= 382, palette
-    assert item.locator(".lf-react-palette").evaluate(
-        "el => getComputedStyle(el).position !== 'absolute'"
-    )
+    expect(item.locator(".lf-margin-options .lf-react:visible")).to_have_count(6)
 
     resized(page, 1280, 900)
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
-    expect(bar.locator(".lf-react-trigger")).to_be_visible()
+    expect(bar).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1223,5 +1235,15 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     assert copy == {"washed": ["every edit"], "glyph": [["−", "img", "cut", None]]}, (
         copy
     )
+    # The other half of the same promise, and the half no gate can see: the copy's
+    # `offering` reads the cursor and nothing else, so paint that arrives with the
+    # pointer rather than standing on the page is invisible to it. A receipt in a file
+    # that lifts under the pointer says a press is there to take.
+    mark = page.locator(
+        '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
+    )
+    resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
+    mark.hover()
+    assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
     assert errors == []
     page.close()

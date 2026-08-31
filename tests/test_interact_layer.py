@@ -55,7 +55,7 @@ Commands:
   data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
-  mcp         Expose pages to MCP Apps hosts.
+  mcp         Run Leaf's bundled MCP Apps server.
   package     Create and check packages.
   page        Create pages and add media.
   receipt     Record the terminal outcome of a reader request.
@@ -791,6 +791,7 @@ def test_the_layer_composer_is_the_browser_module_population():
 
     assert upgraded <= widgets.keys()
     assert "command-model.js" in widgets
+    assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):

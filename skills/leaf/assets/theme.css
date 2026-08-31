@@ -30,9 +30,8 @@
 
 :root {
   color-scheme: light dark;
-  /* Warm neutrals: the paper is ivory rather than white and every grey above it
-     carries the same warmth, so nothing on the page reads as a cool grey pasted
-     onto a warm ground. */
+  /* The document is warm paper. Code uses the near-neutral palette below so evidence
+     stays distinct without looking pasted in from another product. */
   --paper: #faf9f5;  --ink: #1c1b18;  --muted: #6f6a60;  --rule: #e7e3d9;
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the
@@ -91,74 +90,27 @@
      that has to fit something states its own number where it is set — a code block
      against the characters it takes across, a step badge against its disc. */
   --t-6: 11.5px; --t-5: 14px; --t-4: 17px; --t-3: 20px; --t-2: 24px; --t-1: 31px;
+  --code-size: 12.5px; --code-line: 19px;
   --serif: Charter, "Bitstream Charter", "Iowan Old Style", Georgia, ui-serif, serif;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --card: #fffefb;   /* raised surfaces: cards, panels, controls */
   --field: #f4f1e8;  /* tinted fields: details, callouts, notes */
-  --code-bg: #eeeade; --pre-bg: #f5f2e9;
+  --code-bg: #eeeeeb; --pre-bg: #f5f5f3; --code-chrome: #efefec;
+  --code-ink: #262624; --code-muted: #62615d; --code-border: #d6d5d0;
   --chip: #eeeade;   /* neutral chip */
-  /* --muted-2 is the ink secondary text is set in — a message's timestamp, a work
-     line's clock, a code block's line numbers — at 11.5px, where WCAG AA asks 4.5:1. It
-     was 2.91 light and 3.61 dark: text a reader with ordinary eyes squints at and some
-     cannot read at all.
-     Cleared against every surface it lands on rather than against --card alone. Chosen
-     for --card first, it still failed on paper, field, chip and the two code grounds —
-     and the line numbers, which are the token's only *visible* use across the corpus, sit
-     on --pre-bg out on the page. A token used in six places is only as good as its worst
-     pairing, which is the rule UNREAD_SYNTAX already states for code ink. */
+  /* Secondary interface ink, held to 4.5:1 against the page surfaces it lands on.
+     Code owns a near-neutral value because its canvas no longer follows paper. */
   --ink-2: #3c3934;  --muted-2: #6d6960; --border-2: #d5cfc2;
   /* The banner's translucent backdrop is the paper it floats over, so it is derived
      rather than restated: a project that overrides --paper gets a backdrop that
      follows it, where a second hex kept the default ivory behind a recoloured page,
      and the dark block has one fewer token to hold in step. */
   --veil: color-mix(in srgb, var(--paper) 93.3%, transparent);
-  /* The comment layer's own colour, in three tokens: the wash a marked passage
-     carries, the same wash under the pointer, and the ink every mark is drawn in —
-     a passage's underline, a marked element's ring, the panel's quote bar. One
-     colour, because they are one fact (a comment is anchored here) said in the
-     places it can be said; two would be the reader measuring which is which.
-     Violet, and the reason is the paragraph above about --accent, applied to the
-     one colour that had ignored it: the ink was a burnt orange ten degrees off
-     --warn, so a ring around a commented widget read as a warning box on a page
-     whose own vocabulary spends amber on "waiting on you" and red on "stuck". A
-     comment is not a status, so its colour is drawn from where no status lives —
-     far from all four semantics and from the accent — and it is legible where the
-     orange was thin: 9.0:1 on the paper against 3.4:1.
-     Deep rather than mid violet, because the one thing a mark is ever drawn on top
-     of is code: --syn-name is the purple identifiers are set in, and a mid-violet
-     underline beneath a line of them read as part of the token rather than as a
-     rule under it. The syntax roles are decorative and the mark is a signal, so the
-     separation is the mark's to make, and it is made in lightness — the hue stays
-     where the paragraph above put it. Teal was the alternative and is worse: it
-     sits close enough to --ok that a mark beside a decision would be a distinction
-     the reader has to measure, which is the failure this whole note is about.
-     The two washes are pinned by what code reads through them, which is a
-     measurement rather than a preference and is the reason they are stated to this
-     precision. A mark is the reader's own paint over a page, so UNREAD_SYNTAX
-     deliberately excludes it and nothing in the suite holds these to the 4.5:1 the
-     block below states; the first draft of this colour took that as licence and
-     sank four of the six roles under a hovered mark, against the amber's two. What
-     is here instead ties the colour it replaces on every number a reader could
-     notice — 4.76:1 through the resting wash and 4.06:1 through the strongest,
-     both exactly the amber's, at the same 1.13:1 lift off the paper. The dark pair
-     does better than the amber rather than tying it (4.56 and 3.56 against 3.62 and
-     2.38), and pays for it in lift: 1.34:1 where the amber had 1.68. That trade is
-     deliberate — the amber's brighter band was bought with a hovered comment at
-     2.38:1, which is the "the highlighting is gone" report the syntax block below
-     was written for.
-     One hue at three alphas, because three things a mark can be are three distances
-     from the reader's attention: posted, indicated by the pointer, stood in. The
-     middle is the midpoint, which is what makes the ramp read as one ramp rather
-     than a pair and a stray — CIE76 6.4 to the resting wash and 6.5 to the
-     strongest in light, 7.4 and 7.2 in dark, every step well clear of a just
-     noticeable difference. It was the hover that moved down to make room, not the
-     standing wash that moved up, because the measurement above binds in one
-     direction only: there is no room above --mark-strong and there is room below
-     it. So the step costs nothing and pays — a hovered passage's worst syntax role
-     reads at 4.36:1 in light and 4.03:1 in dark, where it used to read at the
-     strongest wash's 4.06 and 3.56. */
+  /* Comments use violet so their marks remain distinct from links, focus, and the
+     semantic status colors. One hue at three strengths says posted, hovered, and
+     active without changing meaning between page and code surfaces. */
   --mark: #dfd1ed66; --mark-hover: #dfd1edb3; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
@@ -194,18 +146,9 @@
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
   --add-tint: #e4efe0; --del-tint: #f7e2dc; --hi-tint: #f7eecd;
-  /* Syntax roles. Six, because a page is read for its argument and code on it is
-     evidence — enough color to find the string and the comment, not a paint box.
-     Every scope the tokenizer knows collapses into these in leaf.js, and what
-     it doesn't map keeps --ink, so an unmapped scope reads plain, never wrong.
-     A role may be quiet and may not be illegible, and the comment was both: #8b8577
-     is 3.3:1 on --pre-bg and less on every tint a line can wear, so a block that is
-     mostly comment — a shell transcript, a log, an annotated config — came out beige
-     on beige, and what the reader reports is that the highlighting is gone. Each of
-     these clears 4.5:1 on all four surfaces code is set on (--pre-bg, and the
-     add, del and hi tints), which the render gate reads off the drawn page
-     (UNREAD_SYNTAX) rather than off this block — so a project's own overlay is held
-     to it too. */
+  /* Six syntax roles are enough to find structure without turning evidence into a
+     paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
+     on the code canvas and semantic line tints; the render gate checks the result. */
   --syn-comment: #696458; --syn-keyword: #a3372c; --syn-string: #1d4f6b;
   --syn-number: #2f5480;  --syn-name: #6b4a9e;    --syn-type: #8a5a12;
 
@@ -262,16 +205,16 @@
   initial-value: none;
 }
 
-/* The dark palette is the same page at night, not its inverse: the ground keeps
-   the warmth (a brown-black, not a blue-black) and every grey above it is mixed
-   from the same axis, so a page that themes warm does not go cold when the OS does. */
+/* The dark page keeps its warm ground. Code remains on a near-neutral dark canvas so it
+   stays distinct from the surrounding document in either color scheme. */
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #191815;  --ink: #e8e4db;  --muted: #a09889;  --rule: #34312b;
     --accent: #8fb0d8; --ok: #7fb98c;   --warn: #d8a95c;   --danger: #d98b7a;
 
     --card: #201e1a; --field: #232019;
-    --code-bg: #29251e; --pre-bg: #1e1c18;
+    --code-bg: #2b2b29; --pre-bg: #1b1b1a; --code-chrome: #222220;
+    --code-ink: #e8e7e3; --code-muted: #9b9992; --code-border: #3b3a37;
     --chip: #2d2922;
     --ink-2: #c9c3b6; --muted-2: #988f7f; --border-2: #453f36;
     --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
@@ -380,7 +323,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
 /* The anonymous layer is first in the merged theme, so its important declarations
    outrank every later layer and unlayered stylesheet declaration without reserving a
    named layer custom CSS could append to. Inline importance ranks higher still, so the
-   version gate refuses it on the protected properties below. */
+   version gate refuses it on the properties that protect visibility below. */
 @layer {
   @media screen {
     html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
@@ -389,6 +332,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
       body:not([data-lf-presented]) > main * {
       visibility: hidden !important;
       opacity: 0 !important;
+      transition: none !important;
       interactivity: inert !important;
       pointer-events: none !important;
     }
@@ -396,38 +340,14 @@ body { margin: 0; background: var(--paper); color: var(--ink);
       body:not([data-lf-presented]) > main *::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
+      transition: none !important;
       pointer-events: none !important;
     }
-    /* Arriving is not a gesture, said here for the cascade as leaf.js's `motion`
-       already says it for the runtime's own Web Animations. The chrome a reader left
-       standing is put back while the page is still arriving, and every put-back is a
-       property changing: the panel opens, the tray goes up, the toast steps aside
-       into the corner the open panel leaves it. Each of those is a move the reader
-       made once and is not making now, so animating it plays a decision back at
-       somebody who came here to read what follows from it. The hold above cannot
-       cover this — it hides `main`, and the chrome is deliberately outside `main` so
-       discussion stays usable while widgets upgrade, which is exactly what leaves the
-       moving parts on screen. A gesture actually made inside this window loses its
-       motion too, and should: `motion` has collapsed one to its end state for as long
-       as the boundary has existed, and one sentence with two answers would be the
-       cheaper bug.
-
-       Two selectors, because the sentence is about two things and not about every
-       element: the page's own box, which the panel's strip moves, and the runtime's
-       chrome, which wears `lf-ui` on each of the boxes it builds. Written as a
-       descendant `*` instead — which is what "nothing transitions yet" wants to say —
-       it costs the page for its whole life rather than for this window, because a
-       rule whose rightmost compound is universal is weighed against every element on
-       every recalculation and cannot know the window has closed. Measured on the
-       shipped examples: 70ms of style recalculation became 83 on design-decision and
-       896 became 955 on the corpus, where these two selectors are inside the run to
-       run spread of the same pages. `transition` does not inherit, so what an
-       unreached descendant can still play is a transition of its own declaring; that
-       is the trade, and the check that finds one is the suite's rather than this
-       rule's (the render suite's returning-reader coverage). */
-    html:has(script[type="module"][src="/leaf.js"])
+    /* The main gate above stops page transitions. These selectors do the same for the
+       shell and runtime chrome outside main while reader state is restored. */
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]),
-    html:has(script[type="module"][src="/leaf.js"])
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
@@ -721,20 +641,18 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
  * hands room to its neighbour the same way (a flex item measured 691px to 359px).
  * A block (pre) wraps nothing, so this reaches nothing there. */
 code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
-       font-size: 84%; font-family: var(--mono); overflow-wrap: anywhere; }
-/* A code block is sized by how many characters it takes across, which is why this size
- * is off the ladder above: that ladder is the serif's. Mono runs .602em, so 13px is
- * 7.83px a character and the 690px inside this padding fits 88 of them, clear of the 80
- * most source is written to; --t-5 fits 81, and the 84% of an inline <code> exactly 80.
+       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere;
+       box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+/* A code block is sized by how many characters it takes across, which is why its size
+ * is off the serif ladder above. At --code-size, the column keeps comfortably more
+ * than the 80 characters most source is written to.
  *
- * The number is a contract across layers, like .tag's below. packages/default/theme.css restates
- * it twice — the upgraded widgets' pre-upgrade presentation, and a rendered lf-tree —
- * while lf-code's rendered form builds a plain <pre> that takes this rule. So this
- * number moving alone is lf-code changing size the moment its module runs, and a
- * rendered tree no longer matching the code blocks around it. */
-pre { background: var(--pre-bg); border: 1px solid var(--rule); border-radius: var(--r);
-      padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.55;
-      font-family: var(--mono); }
+ * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
+ * shadow tree must keep one density through upgrade. */
+pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
+      padding: 12px 14px; overflow-x: auto; font-size: var(--code-size);
+      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
+      font-variant-ligatures: none; }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
@@ -1341,7 +1259,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
-/* A suggestion's contribution is an unpositioned group inside the shared target item.
+/* A suggestion's contribution is an unpositioned group inside the shared target cluster.
  * Its only theme rules are the semantics of the decision controls; placement, docking,
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
@@ -1360,9 +1278,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { visibility: hidden; }
 
-/* The living margin is a retained projection with one item per page target. Content
- * controls, the target's marker, and temporary communication controls are siblings in
- * that item. One packing pass keeps those items clear, docks the whole unit when the
+/* The living margin is a retained projection with one cluster per page target. Its
+ * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
+ * one host. One packing pass keeps the clusters clear, docks each whole unit when the
  * margin is too narrow, and tells wide exhibits which occupied bands they must yield. */
 .lf-living-margin { position: absolute; z-index: 2; pointer-events: none; }
 .lf-living-margin[hidden] { display: none; }
@@ -1373,6 +1291,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item.lf-waiting { display: none; }
 .lf-margin-item.lf-docked { position: static; max-width: 100%; margin: 2px 0 12px;
     flex-wrap: wrap; white-space: normal; }
+.lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
+    white-space: nowrap; }
+.lf-margin-options[hidden] { display: none; }
+.lf-margin-item.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
 /* Collapse is part of the exported page vocabulary as well as live chrome. A standing
  * reaction keeps its word in the DOM for its accessible name, while the static page
  * continues to paint the glyph-only receipt the reader saw. */
@@ -1382,18 +1304,19 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-margin-action[data-lf-collapse="auto"] > :is(.lf-margin-action-space,
     .lf-margin-action-label) { display: none; }
 .lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
-    margin-left: 4px; padding-left: 5px; border-left: 1px solid var(--rule);
     white-space: nowrap; }
 .lf-margin-reactions > .lf-react-trigger { display: none; }
 .lf-margin-reactions > .lf-react-palette { display: inline-flex; align-items: center;
     gap: 4px; flex-wrap: nowrap; }
 .lf-margin-reactions .lf-react[aria-busy="true"] { opacity: .55; }
-.lf-margin-marker { position: relative; width: 30px; padding: 3px;
-    gap: 1px; color: var(--muted); pointer-events: auto; }
+.lf-margin-marker { position: relative; width: 34px; padding: 3px 5px;
+    gap: 0; color: var(--muted); pointer-events: auto; }
+.lf-margin-reading-option { position: relative; }
+.lf-margin-more { width: 30px; padding-inline: 0; letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
-.lf-margin-marker:is(:hover, :focus-visible, [aria-pressed="true"]) {
+.lf-margin-marker:is(:hover, :focus-visible, [aria-expanded="true"]),
+.lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
-.lf-margin-facet { width: 10px; text-align: center; }
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
 .lf-margin-decision { color: var(--warn-ink); }
@@ -1416,7 +1339,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * runtime's old cramped veto asked, and the answer moves with the panel by design. */
 @media screen and (min-width: 900px) {
   body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
-    /* The 30px marker hangs 22px off the column and its complete host keeps the
+    /* The 34px marker hangs 22px off the column and its complete host keeps the
        shared focus-ring room at the outer edge. Claim all three, or opening a side
        panel leaves that last band past body's room and the layout hides the marker.
        Both this claim and the wider card claim below hold their condition in :where(),
@@ -1424,7 +1347,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
        which is what says the card wins where a thread needs it. Counted instead, this
        condition names one more compound than the card's, so it outranked the card and a
        page with a thread on it kept the narrow rail. */
-    --claim-map: calc(52px + var(--here-ring-room));
+    --claim-map: calc(56px + var(--here-ring-room));
   }
   main:has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);
@@ -1436,8 +1359,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      handoff rather than covering the source. */
   @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-living-margin:not([hidden])
-        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1448,8 +1370,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
   body:has(
-      :where(.lf-living-margin:not([hidden])
-        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1461,7 +1382,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }
-  .lf-margin-marker { width: 44px; min-height: 44px; }
+  .lf-margin-marker, .lf-margin-more { width: 44px; min-height: 44px; }
 }
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }

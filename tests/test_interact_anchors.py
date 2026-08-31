@@ -765,6 +765,7 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
             "widget": "group-a",
             "action": "choose",
             "detail": {"options": ["option-a"]},
+            "generated": [],
         },
     )
     assert state_json(page_dir)["decisions"] == [
@@ -858,6 +859,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "widget": "ps-q",
             "action": "choose",
             "detail": {"options": ["ps-cookie"]},
+            "generated": [],
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])

@@ -1,15 +1,16 @@
 import { sameAnchor } from "../anchors.js";
 import { bindings } from "../keyboard/bindings.js";
 
-// Keyboard item aim and whole-page text search. `s` opens a viewport-local map of the
-// same stable items and visual parts Alt-click reaches; `/` opens the page's text search
-// directly or from that map.
+// Keyboard item selection and whole-page text search. `s` opens a viewport-local map of
+// the same stable items and visual parts Alt-click reaches, then raises their general
+// response actions; `/` opens the page's text search directly or from that map.
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
+const HINT_INDENT = 10;
 const MIN_SEARCH = 3;
 
 export function createTargetSelection({
-  activateAimTarget,
+  selectResponseTarget,
   aimTargets,
   allButTheReference,
   anchoringIsReady,
@@ -33,6 +34,7 @@ export function createTargetSelection({
   selectionLayer,
   selectionSearch,
   selectionStatus,
+  shownParts,
   shownRect,
   updateFab,
 }) {
@@ -67,6 +69,11 @@ export function createTargetSelection({
     const y = Math.max(covered(), Math.min(innerHeight - 1, box.top + 1));
     return !inChrome(document.elementFromPoint(x, y));
   };
+  // Chromium retains geometry for descendants suppressed by a closed disclosure.
+  // Require a part the browser paints before that stale box can enter or remain in the
+  // hint map. shownParts keeps display: contents items eligible through visible children.
+  const targetShown = ({ element }) =>
+    shownParts(element).some((part) => part.checkVisibility());
 
   function clippedRect(box, clip) {
     if (!box || !clip) return null;
@@ -113,6 +120,7 @@ export function createTargetSelection({
     const cache = clips();
     const targets = aimTargets()
       .filter(({ element }) => !inChrome(element))
+      .filter(targetShown)
       .map((target) => ({ ...target, rect: shownRect(target.element, cache) }))
       .filter(({ rect }) => exposed(rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
@@ -120,6 +128,16 @@ export function createTargetSelection({
     return targets.map((target, index) => ({
       ...target,
       code: codes[index],
+      nesting: targets.filter(
+        (outer) =>
+          outer !== target &&
+          outer.rect.left <= target.rect.left &&
+          outer.rect.top <= target.rect.top &&
+          outer.rect.right >= target.rect.right &&
+          outer.rect.bottom >= target.rect.bottom &&
+          (outer.rect.right - outer.rect.left > target.rect.right - target.rect.left ||
+            outer.rect.bottom - outer.rect.top > target.rect.bottom - target.rect.top),
+      ).length,
     }));
   }
 
@@ -255,7 +273,7 @@ export function createTargetSelection({
   function choose(target) {
     setOpen(false);
     document.body.focus({ preventScroll: true });
-    activateAimTarget(target);
+    selectResponseTarget(target);
     announce(`Selected ${target.label}. Choose a response.`);
   }
 
@@ -398,10 +416,11 @@ export function createTargetSelection({
       const cache = clips();
       for (const target of candidates) {
         if (!target.code.startsWith(prefix)) continue;
+        if (!targetShown(target)) continue;
         const rect = refreshed ? target.rect : shownRect(target.element, cache);
         if (!exposed(rect)) continue;
         const chip = hintChip(target);
-        chip.style.left = `${Math.max(10, rect.left)}px`;
+        chip.style.left = `${Math.max(10, rect.left + target.nesting * HINT_INDENT)}px`;
         chip.style.top = `${Math.min(bottomCovered() - 10, Math.max(covered(), rect.top))}px`;
         if (rect.clippedTop || rect.top < covered()) chip.classList.add("lf-in");
         drawn.push(chip);

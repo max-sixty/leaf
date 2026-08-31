@@ -7,10 +7,10 @@ from pathlib import Path
 from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
+    _parse_events,
     flocked,
     now_iso,
     read_cursor,
-    read_events,
 )
 from leaf.files import read_json, write_json
 from leaf.host import (
@@ -61,8 +61,10 @@ class PageTransaction:
         self.page_dir = page_dir.resolve()
         self._lock = None
         self._log = None
+        self._events = None
 
     def __enter__(self):
+        self._events = None
         self._lock = flocked(self.page_dir / "comments.jsonl")
         self._log = self._lock.__enter__()
         return self
@@ -191,15 +193,25 @@ class PageTransaction:
 
     @property
     def events(self) -> list:
-        return read_events(self.page_dir)
+        if self._events is None:
+            self._log.seek(0)
+            self._events = _parse_events(self._log.read())
+        return self._events
 
     def matching_attempt(self, event: dict) -> dict | None:
         """An accepted retry, read under this transaction's log lease."""
-        return _matching_attempt(self._log, event)
+        return _matching_attempt(self.events, event)
 
     def append_event(self, event: dict) -> dict:
         """Append under this transaction without re-entering its log lease."""
-        return _append_event_unlocked(self._log, event)
+        try:
+            accepted, appended = _append_event_unlocked(self._log, event, self.events)
+        except Exception:
+            self._events = None
+            raise
+        if appended:
+            self._events = None
+        return accepted
 
     @property
     def cursor(self) -> int:

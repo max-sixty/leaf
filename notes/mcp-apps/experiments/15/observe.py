@@ -106,7 +106,9 @@ def main() -> None:
             result["invocation"]["rendered_input"] = rendered_input.inner_text()
 
             outer, app, leaf = app_frame(page)
-            expect(leaf.get_by_role("heading", name="Where sessions live")).to_be_visible()
+            expect(
+                leaf.get_by_role("heading", name="Where sessions live")
+            ).to_be_visible()
 
             inline = measure(leaf)
             inline_shot = HERE / "results/full-page-inline.png"
@@ -145,7 +147,7 @@ def main() -> None:
                     },
                 }
             )
-        except Exception as error:  # Preserve host evidence before failing the run.
+        except Exception as error:  # noqa: BLE001 — preserve evidence before failure
             failed = True
             failure_shot = HERE / "results/failure.png"
             page.screenshot(path=failure_shot, full_page=True)

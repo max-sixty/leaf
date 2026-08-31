@@ -1,5 +1,6 @@
 import { createAuthoredProjection } from "./projection/authored.js";
 import { createProjectionFold } from "./projection/fold.js";
+import { stateSpecs } from "./registry.js";
 
 let publishedProjection;
 export const shallowSigs = (...args) => publishedProjection.shallowSigs(...args);
@@ -45,7 +46,6 @@ export function createProjection(runtime, dependencies) {
     standOn,
     textNodesUnder,
     toast,
-    widgetEntries,
   } = dependencies;
   const { registry } = runtime;
 
@@ -137,9 +137,8 @@ export function createProjection(runtime, dependencies) {
     domFacet,
     rememberAuthoredMarkup,
     stateCoordinate,
-    stateSpecs,
     unitOf,
-  } = createAuthoredProjection({ quoteFrom, textNodesUnder, widgetEntries });
+  } = createAuthoredProjection({ quoteFrom, textNodesUnder });
 
   function resetAuthoredPage() {
     // A live revision replaces the page document, not the frozen widget markup in
@@ -811,7 +810,6 @@ export function createProjection(runtime, dependencies) {
     standingState,
     stateCoordinate,
     stateProjection,
-    stateSpecs,
     undoLast,
     undoable,
     unitOf,

@@ -1285,6 +1285,103 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     page.close()
 
 
+def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser, serve):
+    """A fold owns the list's place until it ends; a render landing inside it joins.
+
+    The list slides both ways around a folding card: the room closes under the cards
+    below it, and the cards above come down into it as the hold gives back the scroll.
+    So what is under the pointer stops naming where the reader is standing the moment
+    the motion starts, and a hold that reads it again mid-fold pins a card above the
+    fold while everything past it — the successor the reader was aiming at among it —
+    goes on moving. The arrival here is another thread's reply, which is one of several:
+    the two-second heartbeat repaints the work lines under the same hold, and so does a
+    narrowing.
+    """
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=6), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[2:4]
+    source_card = page.locator(f'.lf-thread[data-id="{source}"]')
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    source_box = source_card.bounding_box()
+    target_top = target_card.evaluate("el => el.getBoundingClientRect().top")
+    point = [
+        source_box["x"] + source_box["width"] / 2,
+        source_box["y"] + source_box["height"] / 2,
+    ]
+    page.mouse.move(*point)
+
+    before = page.evaluate("() => window.__lfHeld.length")
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    assert page.evaluate("() => window.__lfHeld.length") == before + 1
+    page.evaluate(
+        "i => { window.__lfHeld[i].currentTime = "
+        "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
+        before,
+    )
+    page.evaluate(RENDERED)
+
+    # Far enough down the list that its own card cannot move the target, so what the
+    # arrival costs is the hold and nothing else.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": roots[5],
+            "text": "Noted, and still looking.",
+        },
+    )
+    told(page)
+    page.evaluate(RENDERED)
+    joined = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert joined == pytest.approx(target_top, abs=1), (
+        f"the arriving render moved the held card from {target_top:.1f}px "
+        f"to {joined:.1f}px"
+    )
+    # What makes the arrival bite: the hold has given scroll back as the room closed,
+    # so the card now under the stationary pointer stands above the fold. A hold read
+    # from the pointer here would pin that card and let the successor keep rising.
+    assert page.evaluate(
+        """([x, y, id]) => {
+          const going = document.querySelector(`.lf-going[data-id="${id}"]`);
+          const under = document.elementFromPoint(x, y)?.closest(".lf-thread");
+          return Boolean(
+            going &&
+              under &&
+              going.compareDocumentPosition(under) &
+                Node.DOCUMENT_POSITION_PRECEDING,
+          );
+        }""",
+        [*point, source],
+    ), "the fold had not slid a card from above it under the pointer"
+
+    page.evaluate("i => window.__lfHeld[i].finish()", before)
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{source}"]')).to_have_count(1)
+    page.evaluate(RENDERED)
+    finished = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert finished == pytest.approx(target_top, abs=1), (
+        f"the fold's last frame moved the held card from {target_top:.1f}px "
+        f"to {finished:.1f}px"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serve):
     """A fallback inherits the latest corrected coordinate, not its capture-time one.
 

@@ -1,5 +1,19 @@
 /* The private comment-layer stylesheet. The public runtime supplies the
    declaration-derived names and layout queries interpolated into it. */
+/* One sequential step keeps one geometry in options, the key line, page addresses and
+   the reference. A sequence composes these fixed boxes instead of making spaces inside
+   one keycap carry time. A compact choice label such as g / G remains one decision
+   point. It is one statement read by two selectors rather than one selector, because
+   only one of the elements wearing it stands in the page: an option's address chip is
+   the page's, while every sequence and the key line's More key are the chrome's own, and
+   a rule that reaches both has to sit outside the @scope block and take the chrome's
+   private names to document level with it. */
+const KEY_BOX = `box-sizing: border-box;
+    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
+    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
+    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
+    line-height: 1.478; text-align: center; white-space: nowrap;`;
+
 export function chromeStyle({
   COVERING,
   MARK_RULES,
@@ -53,9 +67,10 @@ export function chromeStyle({
       body::before { content: ""; display: block; height: var(--lf-banner-h); }
     }
   }
-  /* position: relative makes the document shell the containing block for the two floats
-     that point into it (the 💬 button and composer), so root scrolling carries them with
-     the passage they stand beside. */
+  /* Page-attached chrome is absolute against the initial containing block, not against
+     body. Body is the layout shell and may move or narrow for standing workspaces; the
+     document coordinate system does neither, and root scrolling still carries absolute
+     chrome with the passage it stands beside. */
   /* The banner's height, said once. Everything at the top edge derives from it — the
      bar itself, the panel starting under it, the focus-revealed mark note, the
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
@@ -70,6 +85,7 @@ export function chromeStyle({
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
   :root {
+    position: static;
     --lf-safe-top: env(safe-area-inset-top, 0px);
     --lf-safe-right: env(safe-area-inset-right, 0px);
     --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -78,7 +94,7 @@ export function chromeStyle({
     --lf-ui-lh: 1.45;
   }
   @media screen and ${COVERING} {
-    :root { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
+    :root { --lf-banner-h: calc(88px + var(--lf-safe-top)); }
   }
   /* A wide touch layout keeps the desktop row, but its forty-four-pixel aims and their
      focus ring need a taller bar than the mouse-sized row. This one derived height moves
@@ -86,7 +102,7 @@ export function chromeStyle({
   @media screen and (pointer: coarse) and ${NON_COVERING} {
     :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
-  body { position: relative; box-sizing: border-box; }
+  body { position: static; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
      can follow the sentence it was reading to where it went. Keyed on the stamp that
      says the document is done becoming itself, because until then every margin the
@@ -136,12 +152,10 @@ export function chromeStyle({
      moves still wants the slide, an arrow step on the edge included: a step is one
      discrete move the eye can follow, which is what the rule above is for. */
   body[data-lf-sizing] { transition: none; }
-  /* A tray that takes its room out of the page takes it the same way, off the one
-     attribute showTray writes to say which tray is up and the one list that says which
-     of them the page yields to (STRIP_TRAYS, where the reasons are). Everything else
-     about the strip — that it comes out of the page rather than being held aside, that it
-     is carried as motion, what it costs on a window narrow enough to rewrap — is the
-     panel's story above, told once for both sides. */
+  /* A tray that takes its room out of the page takes it the same way as the right panel:
+     a body margin narrows and moves the layout shell while page-attached chrome keeps the
+     document origin above it. showTray states which tray is up; STRIP_TRAYS states which
+     trays claim this room. */
   @media screen and (not ${TRAY_COVERING}) {
     ${STRIP_TRAY_RULE} { margin-left: var(${TRAY_PROP}); }
   }
@@ -230,22 +244,45 @@ export function chromeStyle({
     font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
+  .lf-margin-action[hidden] { display: none; }
+  /* A Button carries one of three promises. An action has a filled face and an
+     imperative word. A disclosure stays hollow. The ellipsis is the same hollow face
+     and unfolds secondary Buttons in the target cluster. All three keep one height,
+     radius, type, and focus treatment. */
+  .lf-margin-action[data-lf-behavior="action"] {
+    border-color: color-mix(in srgb, var(--ink-2) 38%, var(--border-2));
+    background: var(--chip); color: var(--ink);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  .lf-margin-action[data-lf-behavior="disclosure"],
+  .lf-margin-action[data-lf-behavior="options"] {
+    background: var(--paper); color: var(--muted); box-shadow: none;
+  }
   /* The look is the control's and the hand is the press's, which is one rule apart —
      the same split the pill above states, and for the same reason. A copy keeps the
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
      reaction mark and leaves the mark itself, so a hand hung on the class alone
      promises a press no file can answer. It reads the two ways a press is spelled
-     here: the platform's element, and the explicit selectable-offer exception. */
+     here: the platform's element, and the explicit selectable-offer exception.
+
+     The lift under the pointer is the same promise in the other property, and the tones
+     below are that lift wearing a colour, so all of them are spelled the same way. The
+     hand is the only half a gate can see — the copy's offering reading takes the cursor and
+     nothing else — and aria-disabled is no guard in a file either: BAKE strips it with
+     the rest of the aria state, so a decided suggestion's record, which survives on
+     data-lf-said, would light its accept tint under a pointer that can decide nothing. */
   .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
-  .lf-margin-action:hover:not([aria-disabled="true"]) { background: var(--chip); }
+  .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+    background: var(--chip);
+  }
   .lf-margin-action:is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: margin-action; outline-offset: 1px;
   }
   .lf-margin-action[aria-disabled="true"] { cursor: default; }
-  .lf-margin-action[data-lf-tone="positive"]:hover:not([aria-disabled="true"]) {
+  .lf-margin-action[data-lf-tone="positive"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     border-color: var(--ok); color: var(--ok-ink); background: var(--ok-tint);
   }
-  .lf-margin-action[data-lf-tone="negative"]:hover:not([aria-disabled="true"]) {
+  .lf-margin-action[data-lf-tone="negative"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
   }
   .lf-margin-action[data-lf-tone="positive"][aria-disabled="true"] {
@@ -254,17 +291,19 @@ export function chromeStyle({
   .lf-margin-action[data-lf-tone="negative"][aria-disabled="true"] {
     border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
   }
-  .lf-margin-action[data-lf-tone="primary"] {
-    border-color: var(--accent); background: var(--accent); color: var(--paper);
-  }
-  .lf-margin-action[data-lf-tone="primary"]:hover:not([aria-disabled="true"]) {
-    filter: brightness(.92); background: var(--accent);
-  }
   .lf-margin-action.lf-react[aria-pressed="true"] {
     border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
   }
   .lf-margin-action-glyph { line-height: 1; }
   .lf-margin-action-space { white-space: pre; }
+  .lf-margin-item > .lf-margin-contribution >
+    .lf-margin-action:not([data-lf-button-primary]),
+  .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
+    display: none;
+  }
+  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not(:has(> [data-lf-button-primary])) {
+    display: none;
+  }
   .lf-margin-item.lf-condensed > .lf-margin-contribution { min-width: 0 !important; }
   .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
     width: 30px; min-width: 30px !important; padding-inline: 0;
@@ -302,24 +341,12 @@ export function chromeStyle({
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
   .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
   .lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
-  /* One sequential step keeps one geometry in options, the key line, page addresses and
-     the reference. A sequence composes these fixed boxes instead of making spaces inside
-     one keycap carry time. A compact choice label such as g / G remains one decision point. */
-  .lf-address, .lf-key-sequence > kbd, .lf-key-more kbd { box-sizing: border-box;
-    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
-    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
-    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-    line-height: 1.478; text-align: center; white-space: nowrap; }
-  .lf-address { display: none; border-color: var(--accent); background: var(--card);
-    color: var(--accent); z-index: 1; }
-  .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
-    white-space: nowrap; }
-  .lf-key-sequence > kbd, .lf-key-more kbd { display: inline-flex; align-items: center;
-    justify-content: center; }
-  .lf-key-then { color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
-    line-height: 1; }
-  .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
-    background: var(--accent); color: var(--card); }
+  /* The address chip is worn on both sides of the scope — an option's own corner in the
+     page, and the chord's chips in the chrome's address layer — so its box is stated
+     here. KEY_BOX is that box; the chrome's own step keys read the same statement from
+     inside @scope. An address is an available key, so KEY_BOX's neutral face is also
+     its complete colour statement; completed steps take the pressed face below. */
+  .lf-address { ${KEY_BOX} display: none; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -548,6 +575,10 @@ ${MARK_RULES}
     /* What the layer inherits from the document, answered at the layer's root, because
        the document below is a page of prose and this is not it.
 
+       position, because document-attached floats resolve against the initial containing
+       block. Broad authored positioning must not turn their outer wrapper or the
+       legend's nested paint host into a containing block.
+
        cursor, because the page's own body may be armed for ⌥ aiming — a statement about
        the document, not about anything in here. Stated on this side so the document side
        needs no mention of this container's class, which would widen the shared vocabulary
@@ -558,8 +589,15 @@ ${MARK_RULES}
        *wears* the class from walking past it — the 💬 button once inherited straight
        into the page's serif at 17px that way — and this is the same answer for the
        text around the controls. */
+    :scope, .lf-legend { position: static; }
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
+    /* Page paint belongs under a covering workspace. Paint whose target is inside the
+       chrome belongs above that workspace, including when the same aim or composer moves
+       between the two. The target owner states the plane; document order keeps aim,
+       composer, and inspect in their ordinary order within it. */
+    :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
+    .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
       display: flex;
       align-items: center; gap: 10px;
@@ -755,10 +793,24 @@ ${MARK_RULES}
       box-sizing: border-box;
       z-index: 8900; color: var(--ink); font: inherit;
       background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
-      flex-direction: column; padding-right: var(--lf-safe-right);
-      padding-bottom: var(--lf-safe-bottom); }
+      flex-direction: column;
+      /* Written as the shorthand, and for the same reason margin and border above it are:
+         a <dialog> arrives wearing the UA's own box, and a rule that states one side
+         leaves the rest of it standing. padding: 1em stayed on the top and the left, which
+         is 14px of the sheet that belongs to nothing inside it — the head sat 14px in from
+         a rule that had already placed it, and a finger landing in the strip down the left
+         edge, which is where a thumb holding a phone lands, met the dialog rather than the
+         list and scrolled nothing. It was invisible while the reserved gutter hung the
+         whole panel a bar's width off the left of the window (see the root's rule above,
+         and #121), which put the list back under that strip by accident. The safe-area
+         sides are the tray's, mirrored: this sheet takes the right inset and that one the
+         left, and both take the bottom. */
+      padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
     .lf-panel[open] { display: flex; }
-    .lf-panel::backdrop { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+    /* No ::backdrop: the panel is shown rather than shown modally (showPanelLayer says
+       why), so a non-modal dialog paints none, and a scrim over a page the reader can
+       still press would be saying the opposite of what the page now does. The two layers
+       that are modal keep theirs below. */
     /* An edge, offered as a thing to take hold of — the thread panel's on the right of
        the page, the trays' on the left, and nothing here knows which it is drawing except
        the two lines that place it. It draws nothing of its own: the region's inner border
@@ -995,8 +1047,8 @@ ${MARK_RULES}
        the section the reader was in to the disclosure they are now inside. */
     .lf-system { color: var(--ok); margin: 8px 0; }
     /* The two floats that point at the page live in the document's coordinate space
-       (absolute, body their containing block), because what they point at does: a
-       composer that held its viewport spot while the page scrolled sat pinned over
+       (absolute against the initial containing block), because what they point at does:
+       a composer that held its viewport spot while the page scrolled sat pinned over
        whatever arrived under it, no longer beside the item it was about. Everything
        else here is the viewport's own chrome and stays fixed. Below the banner's
        9000, so a float scrolled to the top slides under the bar, not over it. */
@@ -1014,7 +1066,7 @@ ${MARK_RULES}
        pill that floats over the page's own content rather than standing in the empty
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
-    .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
+    .lf-fab-bar { position: absolute; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
     /* The comment glyph and ellipsis are the bar's two stable presses. Both carry the
@@ -1083,10 +1135,10 @@ ${MARK_RULES}
        floats above (place), so a scroll moves it with the page between the events
        that re-derive it; under the floats themselves, which are chrome the reader
        works rather than paint about the page. */
-    .lf-aim { position: absolute; z-index: 8920; display: none; pointer-events: none;
+    .lf-aim { position: absolute; display: none; pointer-events: none;
       border: 2px solid var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); }
-    .lf-composer { position: absolute; z-index: 8950; display: none; width: 320px; background: var(--card);
+    .lf-composer { position: absolute; display: none; width: 320px; background: var(--card);
       border: 1px solid var(--border-2); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 10px; }
     /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
        on the hidden one this would out-specify .lf-unseen's own overflow. */
@@ -1138,6 +1190,8 @@ ${MARK_RULES}
     .lf-help table { display: table; width: 100%; table-layout: fixed;
       border-collapse: collapse; }
     .lf-help td { padding: 3px 0; vertical-align: baseline; }
+    .lf-help tr.lf-chord-control td { padding-top: 8px;
+      border-top: 1px solid var(--rule); }
     .lf-help td:first-child { width: 104px; white-space: nowrap; }
     .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
       border: 0; border-radius: 4px; background: transparent; color: inherit;
@@ -1148,51 +1202,39 @@ ${MARK_RULES}
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
-    .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
-      position-area: inline-start center; position-try-fallbacks: flip-inline, flip-block;
+    .lf-margin-preview { position: fixed;
       z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
-    /* A compact preview follows its marker through native anchor positioning. The full
-       conversation instead has its fixed top measured from that marker: the card also
+    /* The conversation has its fixed position measured from its Button: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */
     .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
       position-try-fallbacks: none;
-      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) 8px auto auto;
-      width: min(var(--thread-card), calc(100vw - 24px));
+      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
+        var(--lf-thread-left, 8px);
+      width: min(var(--thread-card), calc(100vw - var(--lf-thread-left, 8px) - 8px));
       max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
       gap: 8px; }
-    .lf-margin-thread-action { flex: none; margin: 0; padding: 2px 7px;
-      border-color: var(--rule); background: transparent; color: var(--muted);
-      font-size: var(--t-6); }
-    .lf-margin-thread-action[hidden] { display: none; }
     .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
       line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
-    .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-    .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
-      border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
-    .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
     .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
     .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
     .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
     .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
     .lf-margin-thread .lf-say { align-items: flex-end; }
     .lf-margin-thread .lf-say textarea { min-width: 0; }
-    .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
+    .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-    .lf-margin-preview-action:is(:hover, :focus-visible),
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
-    .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+    .lf-page-map-action:focus-visible {
       outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
-    .lf-margin-action-kind { font-size: var(--t-6); font-weight: 600; }
-    .lf-margin-action-text { color: var(--ink-2); overflow-wrap: anywhere; }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
@@ -1211,7 +1253,7 @@ ${MARK_RULES}
     }
     @media (forced-colors: active) {
       .lf-margin-preview, .lf-page-map-sheet { border: 1px solid CanvasText; box-shadow: none; }
-      .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+      .lf-page-map-action:focus-visible {
         outline: 2px solid Highlight; }
     }
     /* The key line: a contextual shortlist plus persistent rows, rendered from the
@@ -1236,6 +1278,17 @@ ${MARK_RULES}
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
     .lf-keyline .lf-key[hidden] { display: none; }
+    .lf-keyline .lf-chord-control { margin-inline-start: 4px;
+      padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
+    /* The chrome's own step boxes: the key line's sequences and its More key, and the
+       reference's routes. Every element wearing these stands inside the runtime's
+       container, so the rules do too, and the box itself is the one KEY_BOX states. */
+    .lf-key-sequence > kbd, .lf-key-more kbd { ${KEY_BOX}
+      display: inline-flex; align-items: center; justify-content: center; }
+    .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
+      white-space: nowrap; }
+    .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
+      background: var(--accent); color: var(--card); }
     .lf-key-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
       pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
       border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
@@ -1264,8 +1317,9 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's numbered document destinations. Each visible member shows the complete
-       suffix still needed to reach it at the corner where it starts. */
+    /* The g chord's numbered document destinations. Each visible member keeps the complete
+       route at the corner where it starts; key faces carry progress without changing its
+       geometry. */
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
@@ -1313,7 +1367,7 @@ ${MARK_RULES}
       --lf-here-ring: target-search; outline-offset: 1px; }
     .lf-target-search-status { min-width: 58px; color: var(--muted);
       font-size: var(--t-6); text-align: right; white-space: nowrap; }
-    .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
+    .lf-legend-box { position: absolute; pointer-events: none;
       box-sizing: border-box;
       border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
     .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
@@ -1328,7 +1382,7 @@ ${MARK_RULES}
     .lf-banner.lf-designing { background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
     /* Document-anchored like the box it names (paintInspect adds the scroll), so the
        two move together between the events that re-derive them. */
-    .lf-inspect { position: absolute; z-index: 9060; pointer-events: none; display: none;
+    .lf-inspect { position: absolute; pointer-events: none; display: none;
       max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
       background: var(--accent); color: var(--paper); }
@@ -1339,17 +1393,23 @@ ${MARK_RULES}
        overflow has to be discovered before a reader can comment or approve. */
     @media screen and ${COVERING} {
       .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 40px 48px; gap: 0;
-        padding: var(--lf-safe-top) 0 7px; }
+        grid-template-rows: 36px minmax(0, 1fr); gap: 0;
+        padding: var(--lf-safe-top) 0 0; }
       .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
           calc(14px + var(--lf-safe-left)); gap: 9px; }
       .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
         justify-content: flex-start;
-        scroll-padding-inline: calc(14px + var(--lf-safe-left));
-        padding: 4px calc(14px + var(--lf-safe-right)) 4px
-          calc(14px + var(--lf-safe-left)); gap: 4px; }
+        scroll-padding-inline: calc(10px + var(--lf-safe-left));
+        padding: 4px calc(10px + var(--lf-safe-right)) 4px
+          calc(10px + var(--lf-safe-left)); gap: 3px; }
       .lf-banner-actions > .lf-others { margin-inline-end: 0; }
-      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 8px; }
+      /* A shelf-wide display states the box of every control it reaches, including the
+         ones the page has taken away: hidden is a display of its own, and a rule that
+         states display without excluding it puts an absent control back on the shelf.
+         Centring is for the controls that are there. */
+      .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
+        align-items: center; justify-content: center; }
+      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 6px; }
       /* A pinned wide row reserves its future Latest address so publication cannot move
          controls. The phone shelf starts at the primary controls, so an unseen slot there
          is only blank scrolling; collapse it until the news itself is present. */

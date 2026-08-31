@@ -2,9 +2,13 @@
 
 import json
 
-from leaf.event_contracts import thread_universe
 from leaf.passages import EMPTY, spoken
-from leaf.projection import page_projection, retirement_holders, retirement_outcomes
+from leaf.projection import (
+    frozen_thread_reading,
+    page_projection,
+    retirement_holders,
+    retirement_outcomes,
+)
 from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
 
@@ -72,8 +76,8 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
             page, "shownVerbatim", {"widgets": widgets, "touched": touched}
         )
         if shown:
-            _byid, thread_spk, _threads = thread_universe(state["events"], registry)
-            spk = {**thread_spk, **spoken(markup, registry)}
+            thread = frozen_thread_reading(state["events"], registry)
+            spk = {**thread.spoken, **spoken(markup, registry)}
             dishonest_verbatim = [
                 f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
                 f"{s['says'][:80]!r} where the file reads "

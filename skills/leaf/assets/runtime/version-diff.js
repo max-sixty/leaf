@@ -1,5 +1,5 @@
 import { runtime } from "./context.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { versionUrl } from "./storage.js";
 
 export function createVersionDiff({
@@ -12,7 +12,6 @@ export function createVersionDiff({
   sameLayer,
   showToast,
   stateCoordinate,
-  stateSpecs,
   textBlockSelector,
   versionBtn,
   versionLabel,

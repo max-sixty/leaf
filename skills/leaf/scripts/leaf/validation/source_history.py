@@ -12,7 +12,7 @@ from leaf.projection import (
     retirement_holders,
     state_projection,
 )
-from leaf.registry.contract import visual_parts
+from leaf.registry.contract import created_children, visual_parts
 from leaf.structure import parse_structure
 from leaf.validation.transitions import report_errors, restatement_errors
 
@@ -20,7 +20,6 @@ from leaf.validation.transitions import report_errors, restatement_errors
 class RevisionReading(NamedTuple):
     """The active and predecessor documents this exact source is checked against."""
 
-    revisions: list[int]
     active: int
     committed_active: bool
     predecessor: int
@@ -66,7 +65,6 @@ def revision_reading(
         previous = parse_structure(previous_html)
         previous_words = spoken(previous_html, registry or {})
     return RevisionReading(
-        revisions,
         active,
         committed_active,
         predecessor,
@@ -125,30 +123,30 @@ def continuity_errors(
     )
     dropped = sorted(gone & protected)
     generated = {
-        (identity, event["widget"])
-        for event, _spec in previous_projection.desired.values()
+        (identity, event["widget"], spec["creates"]["child"])
+        for event, spec in previous_projection.desired.values()
         if event["kind"] == "action"
-        for field, mapping in event["detail"].items()
-        if field != "resolves" and isinstance(mapping, dict)
-        for identity in mapping
+        if spec.get("creates")
+        for identity in created_children(event, spec)
     }
     current_by_id = parser.by_id
 
-    def carried_by_sender(identity: str, widget_id: str) -> bool:
+    def carried_by_sender(identity: str, widget_id: str, child_tag: str) -> bool:
         """Whether a generated unit is the sender's direct authored child."""
         unit = current_by_id.get(identity)
         widget = current_by_id.get(widget_id)
         return bool(
             unit
             and widget
+            and unit["tag"] == child_tag
             and unit.get("holder") is widget
             and unit.get("parent") == widget["tag"]
         )
 
     uncarried = sorted(
         identity
-        for identity, widget_id in generated
-        if not carried_by_sender(identity, widget_id)
+        for identity, widget_id, child_tag in generated
+        if not carried_by_sender(identity, widget_id, child_tag)
     )
     dropped_advice = sorted(gone - protected)
     if dropped:

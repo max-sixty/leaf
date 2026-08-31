@@ -36,6 +36,8 @@ from render_support import (
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
     SCROLLED,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
     SUGGESTION_PAGE,
     TOKEN,
     UNBREAKABLE_PAGE,
@@ -367,7 +369,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
         "after": 400,
         "overflow": "hidden",
     }, f"the action shelf bypassed the covering panel's page lock: {locked}"
-    page.locator(".lf-threads-toggle").click()
+    page.get_by_role("button", name="Close threads").click()
     expect(page.locator(".lf-panel")).to_be_hidden()
 
     # Simulate the row's reachable busy state at the upper covering breakpoint. The
@@ -505,6 +507,11 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
     resized(pinned, 320, 844)
     expect(pinned.locator(".lf-latest-chip")).to_be_hidden()
     assert pinned.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") == 0
+    # A control the page has taken away is taken away on the shelf too. The shelf's own
+    # rules state display for the row's box, and a rule that states it without excluding
+    # the hidden ones puts an absent destination back between the reader and a real one.
+    expect(pinned.locator(".lf-page-map-toggle")).to_be_hidden()
+    assert pinned.locator(".lf-page-map-toggle").evaluate("el => el.offsetWidth") == 0
     version = pinned.locator(".lf-version").evaluate(
         "el => { const r = el.getBoundingClientRect(); return {left: r.left, right: r.right}; }"
     )
@@ -689,6 +696,13 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     # A control that settles its own decisions disappears while it still owns focus. Hand the
     # reader to the next standing destination instead of silently dropping them on body.
     answer_all = page.locator(".lf-answer-all")
+    # The blanket answer decides its decisions one at a time, so the press owes one round
+    # trip per decision the control counts. Read that number off the control's own face
+    # rather than writing the fixture's arithmetic out here.
+    owed = int(re.search(r"\((\d+)\)", answer_all.text_content()).group(1))
+    assert owed > 1, (
+        f"the fixture left the blanket answer a single trip, not a sequence: {owed}"
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
@@ -702,6 +716,19 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     assert _traffic(page).sends == 1, "one blanket-answer press became two event runs"
     held[0].continue_()
     page.unroute("**/api/event")
+    # Released, the press spends a whole trip on each remaining decision, so the last is
+    # still in flight when the first has settled. Say so here rather than letting the
+    # hide assertion absorb the transport: its budget is one repaint's worth, three
+    # sequential trips outlast it on a loaded machine, and the red then reads as a
+    # control that never went instead of a wait that was never stated.
+    # `test_accept_all_decides_every_pending_suggestion` stages the same sequence through
+    # each widget's own settle; this test is about where focus lands, so it names the
+    # outbox instead.
+    _until(
+        page,
+        lambda traffic: traffic.sends == owed and not traffic.pending,
+        f"settled every one of the {owed} answers the blanket press owed",
+    )
     expect(answer_all).to_be_hidden()
     version = page.locator(".lf-version")
     expect(version).to_be_focused()
@@ -826,7 +853,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             assert box["width"] >= 43.9 and box["height"] >= 43.9, (
                 f"a compact panel control kept a mouse-sized aim: {box}"
             )
-        page.locator(".lf-threads-toggle").tap()
+        page.get_by_role("button", name="Close threads").tap()
         panel_settled(page, open=False)
 
         # Across the covering boundary the banner fits the same touch aims. Its shelf and
@@ -1005,7 +1032,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        swipe(12, 280)
+        panel_box = page.locator(".lf-panel").bounding_box()
+        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -1018,6 +1046,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         )
 
         # The tray still has range at 320px, and its grip finishes sliding on screen.
+        page.get_by_role("button", name="Close threads").click()
+        panel_settled(page, open=False)
         page.locator(".lf-decisions").click()
         panel_settled(page, open=False)
         expect(page.locator(".lf-decisions-panel")).to_have_class(
@@ -1342,35 +1372,34 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     page.close()
 
 
-def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
-    browser, serve, tmp_path, monkeypatch
-):
+def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     """The reader's own remark must not lock the control it is a remark about.
 
-    A conversation standing in the group's seat takes the decision off the reader's
-    list — the banner stops counting it — but answers nothing, so the pick that
-    would answer it is still live. This is the browser half of the split, and the
-    half the reader meets first: the POST door only sees a hand-posted event, while
-    here `actionAvailable` paints the control and `sendAction` guards the press, and
-    `lf-options` has already painted the pick by the time either runs. Reading the
-    reader's list at this door therefore does not refuse the press so much as
-    swallow it — the option flips, nothing is logged, no toast fires, and the next
-    poll puts it back with nothing anywhere saying why."""
-    monkeypatch.chdir(tmp_path)
-    overlay = tmp_path / ".leaf"
-    overlay.mkdir()
-    standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
-    options = standard["lf-options"]
-    options["x-state"]["choose"]["requires"] = {"target": "self", "awaiting": True}
-    (overlay / "registry.json").write_text(json.dumps({"lf-options": options}))
+    A conversation standing in the widget's seat takes the decision off the reader's
+    list — the banner stops counting it — but answers nothing, so the press that would
+    answer it is still live. This is the browser half of the split, and the half the
+    reader meets first: the POST door only sees a hand-posted event, while here
+    `actionAvailable` paints the control and `sendAction` guards the press, and the
+    module has already painted the answer by the time either runs. Reading the reader's
+    list at this door therefore does not refuse the press so much as swallow it — the
+    widget flips, nothing is logged, no toast fires, and the next poll puts it back with
+    nothing anywhere saying why.
+
+    The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
+    of the default package, because the pair the split needs — a visible ask and a seat
+    of the widget's own — is a pair of declarations and not a tag. No shipped entry has
+    carried both since 292de9c took `x-conversation` off `lf-options`, and the reading
+    under test never asked which widget it was."""
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision"><h2>Which option?</h2>'
-            '<lf-options id="pick" choose>'
-            '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options></lf-decision>',
-        )
+            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision">'
+            "<h2>Cap the retries?</h2>"
+            '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
+            "</lf-decision>",
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
     )
     events_model.append_event(
         serve.page_dir,
@@ -1386,14 +1415,14 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
     # Off the reader's list, which is the whole reason the two readings differ here.
     expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
 
-    page.get_by_role("checkbox", name=re.compile(r"^choose one: A")).click()
+    page.get_by_role("button", name="Accept").click()
     round_trip(page)
 
-    expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
-    # The log is what holds this, and the attribute above cannot: the module paints
-    # the pick before either guard runs, so with the wrong reading at this door the
-    # option wears `chosen` exactly as it does here and the log stays empty.
-    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
+    expect(page.get_by_role("button", name="Accepted")).to_have_count(1)
+    # The log is what holds this, and the control above cannot: the module paints the
+    # answer before either guard runs, so with the wrong reading at this door the press
+    # reads exactly as it does here and the log stays empty.
+    assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
     assert errors == []
     page.close()
 
@@ -1911,7 +1940,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
-    record_claim(other_dir, pid=dead_pid)
+    record_claim(other_dir, id="s", pid=dead_pid)
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Unheld")
     expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
@@ -2094,7 +2123,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
     # Closed with the key, the ring comes on — the reader's report, and the smaller half.
     page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
+    panel_settled(page, open=False)
     expect(toggle).to_be_focused()
     assert page.evaluate(ringed), "the control the reader is standing on says nothing"
 
@@ -3819,8 +3848,15 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(opener).click()
                 page.locator(arrival).first.focus()
             else:
+                # Each press read on a rendered frame, the way every Tab below it is. A
+                # key that opens a layer hands the reader their place in it from the
+                # platform's own event rather than from the press — a popover lands focus
+                # on a row from `toggle`, which is queued — so the next key of the
+                # sequence arrives at whatever the press left focus on, and the scope's
+                # own keys, bound inside the layer, never see it.
                 for key in keys:
                     page.keyboard.press(key)
+                    page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):

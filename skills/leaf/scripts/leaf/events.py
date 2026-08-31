@@ -334,20 +334,13 @@ def report_settlements(events: list, upto=None) -> dict:
 
 
 def _detail_ids(value):
-    """The coordinate-shaped values in one registry-validated detail field.
-
-    A scalar or list names ids directly.  A mapping uses ids as keys and keeps
-    their associated payload in values, so reader prose can never become a page
-    coordinate merely because it happens to spell an element id.
-    """
+    """The coordinate-shaped scalar and list values in one validated field."""
     if isinstance(value, str):
         yield value
     elif isinstance(value, list):
         for item in value:
             if isinstance(item, str):
                 yield item
-    elif isinstance(value, dict):
-        yield from value
 
 
 def action_rests_on(event: dict, within: dict) -> list:
@@ -372,15 +365,12 @@ def action_rests_on(event: dict, within: dict) -> list:
         if field == "resolves":
             continue
         for named in _detail_ids(value):
-            # Mapping keys declare generated identities owned by the sending widget.
-            # They may be absent from the authored source when the event first lands,
-            # and a later version has to carry them as real children of that widget.
-            # Their event-declared ownership therefore cannot depend on where the
-            # current document happens to put an element with the same id; the source
-            # continuity gate validates that structural claim separately.
-            if isinstance(value, dict) or widget in within.get(named, ()):
+            if widget in within.get(named, ()):
                 parts.append(named)
-    return [widget, *parts]
+    # Generated identities were not in the sending revision, so their durable
+    # ownership is the action's validated snapshot rather than page containment.
+    parts.extend(event.get("generated", []))
+    return list(dict.fromkeys([widget, *parts]))
 
 
 def action_retracted(event: dict, floors: dict, within: dict) -> bool:

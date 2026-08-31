@@ -46,7 +46,8 @@ and tray panels;
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-and the one aggregated action, communication, and information item for each page target;
+the design-mode exclusion of its top-layer preview, and the one aggregated Button cluster
+for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
@@ -87,9 +88,12 @@ guards, deferred measurement, layout-change signalling, and control sizing;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
-the declaration-derived names and layout queries the runtime supplies it;
-`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
-document room left after the panel and trays;
+the declaration-derived names and layout queries the runtime supplies it, and keeps
+the root, body's layout shell, and the chrome's paint hosts out of the containing-block chain for
+document-positioned chrome. It also keeps page-attached paint below covering workspaces
+and paint for chrome targets above them;
+`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
+room left after the panel and trays, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -105,7 +109,8 @@ dynamic widget imports, and initial settlement;
 landing across authored-document replacement, and the page-block reading used to
 start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
-`runtime/geometry.js` owns the shared readings of visible boxes and clipping;
+`runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
+conversion from viewport boxes to document-positioned chrome;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
 `runtime/conversation/model.js` adapts server-projected threads to browser callers;
@@ -184,12 +189,14 @@ Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
 choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
-rendered chrome, and writes only chrome boxes. It hears the shell's inline size
-without deriving a posture from it: `layoutSizes` watches `document.body`'s
-content-box width so a float placed in the margin is re-placed while a panel's
-eased margin is still narrowing the page, and reads nothing else off that box. A
-`ResizeObserver` callback must not resize the box it observes, directly or
-through a class or attribute that changes that box.
+rendered chrome, and writes only chrome boxes. `layoutSizes` watches
+`document.body`'s content-box size without deriving a posture from it. A width
+change schedules `syncLayout` and page repaint in the following frame while a
+panel's eased margin narrows the page; a height-only content reflow calls
+`pageShifted` during observer delivery so page paint follows targets that moved.
+That direct path may write only unobserved paint hosts and state or queue work for
+a frame. A `ResizeObserver` callback must not resize the box it observes, directly
+or through a class or attribute that changes that box.
 
 ## Startup and presentation
 
@@ -320,8 +327,8 @@ Acceptance and application are not the same fact. A successful POST must include
 state containing the event minted for the attempt. `deliver` then knows the
 request was accepted and may open the queue for the next entry. The caller of a
 successful comment waits until `receiveState` has either rendered that response
-or reported the local render error, because its continuation reveals and focuses
-the thread the response creates.
+or reported the local render error, because its continuation opens the complete
+conversation view and may focus the reply box the response creates.
 
 An accepted action stays in the outbox until a complete applied state contains
 its attempt and `committedProjection` proves the authoritative coordinate now
@@ -1112,7 +1119,7 @@ thread. `paintAnchors` resolves its anchor like any comment's and records it in
 `reacted` rather than `marked`: a wash through the `lf-react` highlight on a
 passage, `lf-react-el` on an element's shown parts, and a glyph reconciled by
 `seatReactions`. Its `.lf-reacts` span is an unpositioned contribution to the
-target's living-margin item, beside that target's decisions and actions; the
+target's Button cluster; the
 pill inside is the reaction's own eraser, posting the ordinary `undo` through
 `withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for the
 page's words. `markAt` does not see it: a reaction takes no press to a card and
@@ -1120,12 +1127,15 @@ has no hover. Export keeps the glyph with its press taken off and writes the was
 into the words as a `<mark>` (BAKE), the highlight registry being script state
 no file can hold.
 
-The bar the selection raises is `.lf-fab-bar`: the `.lf-fab` comment glyph every
-route into the composer still goes through, followed by one reaction ellipsis.
-For a page target, the ellipsis hands Comment and the layer's token buttons to
-that target's shared margin item; it never opens a box below the floating bar.
-`showFab` shows and places the compact bar; `activateAimTarget` raises it for both
-the ⌥ press and keyboard item hint. `r` opens the same choices on the selection,
+The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the `.lf-fab`
+comment glyph followed by one reaction ellipsis.
+For a page target, the ellipsis unfolds Comment and the layer's token Buttons in that
+target's existing Button cluster. Those temporary Buttons borrow the cluster's room
+and dock with it when necessary; they do not claim permanent rail width or raise a
+separate palette.
+`showFab` shows and places the compact bar; `selectResponseTarget` raises it for a
+keyboard item hint. The ⌥ press has already chosen Comment, so `openTargetComposer`
+opens the composer directly on the same captured anchor. `r` opens the same choices on the selection,
 the standing item, or the latest agent message in the thread the reader is in.
 With none of those targets, it shows “Select something to react to” and opens
 nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
@@ -1249,11 +1259,12 @@ status-like item may yield its own width so controls to its right remain fixed.
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
 container, `main` composes its left and right claims, and queries grant or withdraw
-margin postures. JavaScript may hear that shell's inline size as a signal to re-run
-`syncLayout` — `layoutSizes` watches `document.body`'s content-box width, because a
-panel's eased margin goes on narrowing the box a float stands in after `setPanel` has
-returned and one synchronous pass at the press reads only the wide box — but it derives
-no posture from it and mirrors no cramped state.
+margin postures. JavaScript may hear the shell's content-box size without deriving a
+posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
+repaint after a width change, because a panel's eased margin keeps narrowing the box a
+float stands in after `setPanel` returns. A height-only change sends `pageShifted`
+directly so a content reflow re-places document-attached paint without re-running
+chrome reservation.
 
 Which question a floor asks belongs to the posture it grants. A floor asking how much
 room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
@@ -1293,6 +1304,18 @@ covering media query of the default width and never of the reader's, or a drag
 changes the page's posture under the hand making it. Both trays share one width,
 which belongs to the side rather than to either tray.
 
+A workspace covering the page is drawn over it and never shown modally: the `<dialog>`
+it is built on is only ever `show()`n. Modality makes the rest of the document inert,
+and covering is the posture in which the page most needs to stay live — the banner
+toggle that opened the workspace is how it closes, the toggle beside it is the other
+workspace this one replaces, and the strip of page still showing beside a covering
+sheet is still page a hint can name. What modality would have carried is already owned
+elsewhere: the covering sheet's scroll lock is the stylesheet's, and Escape is the
+ladder's. The surfaces that really are modes of the page — the keyboard reference and
+the page map sheet — keep `showModal()` and the backdrop that comes with it. Opening a
+`<dialog>` runs the browser's focusing steps at either spelling, so a caller that means
+to leave the reader where they were has to put the focus back.
+
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every
@@ -1305,60 +1328,99 @@ chrome surface may lie above that reservation, but the reservation itself
 travels to print and export only when that medium contains the surface it
 serves.
 
-### Target margin items
+### Target Buttons
 
-The right margin has one projected item per page target. That item is the single
-place for controls the reader can use on the target, communications they can
+The right margin has one projected cluster per page target. Leaf calls its repeated
+fitting a Button: like a coat button, it is one consistent piece attached to the
+passage, not a synonym for every HTML `<button>` on the page. The cluster is the
+single place for controls the reader can use on the target, communications they can
 start about it, and standing information such as comment threads, decisions,
-outcomes, changes, or agent activity. It is a flex row: content controls precede
-the target's page-map marker, and temporary communication controls follow it. A
-target with no map reading may have controls without a marker.
+outcomes, changes, or agent activity.
+
+At rest a cluster shows at most one primary Button. A content contribution with an
+available primary action wins that place; its other controls move under the adjacent
+`…` Button. With no contributed control, standing information supplies a generated
+disclosure Button. `…` appears only when the cluster has secondary controls,
+information beside a direct action, or temporary communication choices. A target
+with one unambiguous control therefore gets one Button, not a row of variants.
 
 Content modules contribute through `registerMarginItem`; they own their verbs and
 events, never placement or control styling. Every press in a contribution is built
-with `marginAction(control, {glyph, label, tone, collapse})`. That is the one RHS
-control type: it owns the capsule, height, type, focus, state paint, and the glyph/word
-anatomy shared by decisions, editing, communications, and information triggers.
-Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
-complete target item fits and hides it only when the shared layout needs the room;
-`always` is for vocabulary whose glyph is sufficient in the row. Collapsing changes
-paint, not the DOM or accessible name.
+with `marginAction(control, {glyph, label, behavior, tone, collapse})`. That is the
+one RHS control type: it owns the capsule, height, radius, type, focus, state paint,
+and glyph/word anatomy shared by decisions, editing, communications, and information
+triggers. Its behavior states the promise before the press:
 
-The living margin groups contributions and state readings by exact target identity
-and owns one generated host plus its accessible group name. At wide widths it hoists
-that host into the main positioning context, preserving source and tab order when
-several targets share a top-level block. At compact widths it returns the host to flow
-immediately after the target's rendered text block (or the target itself). Adding
-another target action must not add another absolute row, control type, or rail
-measurement.
+- `action` is filled, carries an imperative verb, and performs its effect immediately;
+- `disclosure` is hollow, carries `aria-expanded` when it controls persistent context,
+  and opens or closes that context without settling it;
+- `options` is the hollow `…` Button and unfolds the cluster's secondary Buttons in
+  place.
+
+Shape and fill state carry that distinction without an added chevron. A lone
+non-thread informational Button reveals its target directly. Each additional
+non-thread reading gets its own peer Button under `…`; pressing one reveals that
+reading directly rather than collecting readings in a card. All threads at one target
+share one Thread Button and one conversation card. That card opens only on a press,
+never merely on focus or hover; when the document cannot leave it room beside the
+source, the same press opens the full Threads surface. The thread card is the only
+generated contextual pane, not a generic container for alternatives.
+
+The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
+over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
+on the next press; each rung is named on the key line before it runs.
+
+Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
+complete target cluster fits and hides it only when the shared layout needs the room;
+`always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes
+paint, not behavior, the DOM, or the accessible name.
+
+The living margin groups contributions and state readings by exact target identity,
+chooses the primary, and owns the generated disclosure and `…` Buttons plus the
+cluster's accessible group name. At wide widths it hoists that host into the main
+positioning context, preserving source and tab order when several targets share a
+top-level block. At compact widths it returns the host to flow immediately after the
+target's rendered text block (or the target itself). Adding another target action must
+not add another absolute row, control type, or rail measurement.
 
 That ordered target collection is the Page map's complete location count and the source
-for the `g m` address list. A location's informational marker announces its position in
+for the `g m` address list. A location's disclosure Button announces its position in
 the complete collection. The numbered chord exposes the collection's first nine
 locations; later locations remain in the Page map and ordinary focus order rather than
-making a one-digit chord ambiguous. Addressing an item opens its marker when it has one;
-an action-only item receives focus on its first available action without performing it.
-In the compact posture, an informational item opens the Page map sheet at that location
-instead of reviving the hidden desktop preview; an action-only item keeps its direct
-focus arrival on the action docked into the page.
+making a one-digit chord ambiguous. Addressing an item opens its disclosure Button when
+it has one; an action-only item receives focus on its first available action without
+performing it. In the compact posture, an informational item opens the Page map sheet
+at that location instead of reviving the hidden desktop preview; an action-only item
+keeps its direct focus arrival on the action docked into the page.
+
+A thread card names the target without offering a second route to the panel the banner
+already opens. At wide widths it is the conversation itself, measured eight pixels
+beside the pressed Thread Button in the same turn it is shown or changes size. While
+that Button keeps focus, `c` enters the card's one reply box; several roots leave the
+destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+open panel waits for the body's strip motion before choosing the card posture. When the
+document cannot leave the card room beside its Button, the press opens the full Threads
+surface instead.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
 lifetime, so settling an action cannot shift the readable column. A temporary
 contribution registers with `claim: false`: it borrows available RHS room and
 docks the complete host when it cannot fit, without moving the column on first
-open or leaving blank room after close. Below the margin breakpoint the complete
-host docks into flow. Visibility and vertical placement read `shownParts` and
-`shownBox`, not the target's raw client rect: a project may set `display: contents`
-while its rendered descendants remain usable, and a collapsed target has no
-rendered part to offer.
+open or leaving blank room after close. A stable contribution whose future primary
+and `…` fitting is wider than its resting one declares that pixel width with
+`reserve`; the claim includes it before the control changes. Below the margin
+breakpoint the complete host docks into flow. Visibility and vertical placement
+read `shownParts` and `shownBox`, not the target's raw client rect: a project may
+set `display: contents` while its rendered descendants remain usable, and a
+collapsed target has no rendered part to offer.
 
-The reaction key extends this same item for a page selection or item. It moves
-Comment and the declared reaction buttons to the right of the existing marker;
-it does not open a palette below the target. Conversation reactions remain in
-their conversation-owned strip. The event still carries its durable authored
-anchor, while the temporary item resolves selected text to the first rendered
-block, matching the target where replay later seats its standing reaction.
+The reaction key unfolds this same cluster's secondary Button group for a page
+selection or item. Comment and the declared reaction Buttons appear there as peer
+choices; they do not widen the rail or open a separate palette below the target.
+Conversation reactions remain in their conversation-owned strip. The event still carries its durable authored
+anchor, while the temporary item resolves selected text to the first rendered block,
+matching the target where replay later seats its standing reaction.
 
 ### Presentation and state motion
 
@@ -1591,17 +1653,20 @@ The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
 `g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
-window instead: the key line's pressed prefix advances from `g` to `g › h`, the
-page chips narrow from complete suffixes such as `h › 1` to that list's digits,
-and Escape returns to the destination menu before another Escape closes it.
+window instead. Each hint keeps its complete route, such as `g h 1`; `g`
+starts blue, then `h` turns blue in place when it is pressed. Escape returns to
+the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
-`versionsOffered` (there is a menu) answers for the key, the mode binding its
-Escape, and the button; `versionsToWalk` (there is somewhere to step) answers for
-the menu's own scope. One predicate for both left `v` opening a menu on a page
-whose Escape no scope was live to bind. A section merges the rows of every scope
-sharing its title, so a contributor the page hasn't got must bring none — `merge`
-drops it — or the two capabilities cannot differ in liveness under one heading.
+`versionsOffered` (there is a menu) answers for the key, the mode standing over
+the page, and the button; `versionsToWalk` (there is somewhere to step) answers
+for the menu's own scope. One predicate for both left `v` opening a menu on a
+page whose way out no scope was live over. Where the platform owns the dismissal
+the mode's own rows still have to be live over the same page, since a mode with
+no live row is a claim the surfaces never hear. A section merges the rows of
+every scope sharing its title, so a contributor the page hasn't got must bring
+none — `merge` drops it — or the two capabilities cannot differ in liveness under
+one heading.
 
 A press may deliberately leave layers standing while moving focus outside them. That is
 not an Escape rung, because it gives no layer back. The address chord states what remains
@@ -1612,15 +1677,19 @@ so its ordinary Escape rung remains the route back.
 ### Item selection is explicit
 
 `s` names the visible items and declared visual parts that Alt-click can aim at. Both
-routes read `aimTargetAt`, then raise the same comment and reaction bar. The target kind
-changes only the anchor: a whole item names its authored id, while a visual part adds
-its declared token and resolves the bar against that part's geometry.
+routes read `aimTargetAt`, and the target kind changes only the anchor: a whole item
+names its authored id, while a visual part adds its declared token. Their next surface
+follows the gesture's stated intent. `s` selects the target and raises its Comment and
+reaction bar; Alt-click promises Comment and opens the composer directly. The same
+anchor resolves either surface against the target's geometry.
 
 The short, viewport-local hints form a prefix-free tree over one alphabet. Most targets
 cost one letter; only the tail branches when the viewport holds more targets than the
 alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise across a
 scroll or revision. They are the whole route, so none may be dropped because its chip
-collides.
+collides. A target whose visible box is strictly smaller and fully enclosed by another
+target steps its chip right once per enclosing box. Equal boxes stay at the same depth;
+the collision pass separates their chips without inventing a hierarchy.
 
 Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses the
 last one announced. A viewport change that removes or renames that target clears the
@@ -1701,8 +1770,9 @@ reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
 
 Its destination is the anchor the 💬 carries, then the open thread the reader is
-in, then the item they are standing in, and, when none of those is in hand, the
-conversation itself. `commentDestination` decides it once and states the
+in or the single inline thread held by a pressed Page-map marker, then the item they are
+standing in, and, when none of those is in hand, the conversation itself.
+`commentDestination` decides it once and states the
 sentence, the key line and the press together, so the reference, the line and
 what happens cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader
@@ -1749,7 +1819,9 @@ A row has these meanings:
 - `keys` is a binding or computed list of bindings.
 - `does` is the sentence for the press, or a function when the current state
   changes the sentence.
-- `when` says whether the capability exists.
+- `when` says whether the capability exists. When a destination surface is available
+  independently of its members, its row stays live and opens the surface even when the
+  collection is empty. Member-dependent rows use the collection as their capability.
 - `at`, expressed by the current `readerIn` predicate, says whether this press
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
@@ -1830,7 +1902,13 @@ placeholder `address`, which is what a screen reader hears.
 A true mode may own the keyboard. An armed address chord and the open reference
 claim the relevant keys through their scope. A longer-lived menu keeps the
 reference available through `allButTheReference`. Closing an overlay restores
-focus to `helpFrom` so the reader returns to the control that opened it.
+focus to `helpFrom` so the reader returns to the control that opened it. A modal
+dialog clears the top layer's auto popovers on its way in, so the reference notes
+the ones it was opened over and stands them back up before that restore — the
+overlay that says what a menu's keys are cannot be what takes the menu away. It
+stands each one back up from that layer's own invoker — `lfInvoker`, the link a
+layer declares because the platform's own runs one way only — so the layer's way
+out survives the round trip too.
 
 Escape is an ordinary binding in the register for Leaf-owned modes. The innermost scope that binds it
 owns one unwind step. A control-specific Escape, panel dismissal, decision release,
@@ -1843,6 +1921,15 @@ layer, the page rung stands down and browser Escape closes it; Leaf updates from
 resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
 distinct inner step, such as leaving a text box before closing its dialog or collapsing
 the keyboard reference's expanded shelf.
+
+A popover hands focus back to whatever had it when the popover showed — not to its
+invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
+relationship and nothing about focus. So a key that opens a layer runs the press from
+the control itself rather than opening it from the page, and every door leaves the same
+way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
+rather than to focus landing on the body: a light dismissal restores nothing on purpose,
+and a reader who pressed away into the page is not asking to be moved to the control
+they pressed away from.
 
 `offer` creates the native element named by the caller; ordinary buttons and links need
 no Leaf activation binding. A `selectableOffer` registers its widget-specific keys.
@@ -2032,11 +2119,13 @@ reader's innermost scope and drops bindings shadowed there. The ordinary shortli
 the first live row, then a promotable Escape or the next row; rows declaring
 `linePriority: persistent` remain beside that context. An active chord instead shows
 every live row in its scope, so computed bindings, ranges, and capability filtering are
-the same ones dispatch and the reference use. Its pressed prefix appears once in the
-accent face; the available rows keep the ordinary key face. `lineWhen` may hide only an
-ordinary hint without changing the command's liveness or its place in the reference.
-Hint chips are `aria-hidden` because placeholders and live announcements carry the same
-facts for assistive technology.
+the same ones dispatch and the reference use. Each destination row keeps its complete
+chord: already pressed keys take the accent face and pending keys keep the ordinary face.
+Changing progress changes only those faces, not the sequence's keys or geometry. A mode's
+Escape or back row remains a separate control rather than appearing as a destination
+chord. `lineWhen` may hide only an ordinary hint without changing the command's liveness
+or its place in the reference. Hint chips are `aria-hidden` because placeholders and live
+announcements carry the same facts for assistive technology.
 
 The compact line wraps when persistent or chord rows need the room. Ordinary hints may
 yield from the end to stay within two rows, but persistent rows and active chord rows do
@@ -2183,9 +2272,9 @@ region.
 `g` opens one destination mode. `T`, `A`, `L`, and `M` complete a direct trip to
 Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
-available, or opens the complete sheet where the compact layout has no rail. `m`, `h`,
-and `f` name the page's numbered
-page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
+available, or opens the complete sheet where the compact layout has no rail or the map
+has no locations. `m`, `t`, `h`, and `f` name the page's numbered
+page-map item, tab, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2205,28 +2294,27 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it. Completing an address runs that list's destination: a hyperlink
-follows, a fold opens and takes focus, and a page-map item opens its marker or focuses
-its first available action.
+the rows inside it. Completing an address runs that list's destination: a tab selects
+and takes focus, a same-document hyperlink follows and leaves focus on its fragment
+target, an external hyperlink names the browser tab it opens, a fold opens and takes
+focus, and a page-map item opens its marker or focuses its first available action.
 
-Arming the mode shows the available list and direct-destination mnemonics in the key line.
-Each visible numbered member also shows the complete suffix still needed to reach it, such
-as `h › 1`. A direct mnemonic completes the travel and moves focus inside its destination.
-A numbered-list mnemonic narrows the inline hints to that list's first nine digits and
-reveals the same range in the key line. The following digit selects immediately. Escape
-backs out to the list menu before it closes the mode.
+Arming the mode shows the available direct destinations and numbered lists in the key
+line. Each row shows its complete chord. Each visible numbered member also shows its
+complete address, such as `g h 1`. A direct mnemonic completes the travel and moves
+focus inside its destination. A numbered-list mnemonic narrows the inline hints to that
+list's first nine members without changing their labels or geometry. The following digit
+selects immediately. Escape backs out to the list menu before it closes the mode.
 
 Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
-remains one decision point and is spoken as “g or G”; a muted `›` means “then” visually,
-and the sequence's accessible label spells that word out. In a live chord, pressed keys
-take the accent ground once at the start of the line. Available keys in the line and every
-unpressed key in an inline suffix remain neutral, matching ordinary bindings. The complete
-reference shows every route with all steps neutral because it describes rather than enacts
-them.
+remains one decision point and is spoken as “g or G”; a sequence's accessible label says
+“then” between adjacent keycaps. In a live chord, pressed keys take the accent ground and
+pending keys remain neutral, matching ordinary bindings. The complete reference shows
+every route with all steps neutral because it describes rather than enacts them.
 
 `chordKeys` is the structured reading of how far a numbered address has come. The key
-line draws that prefix once, the reference combines the standing-page prefix with each
-row's `completeChordSteps`, and page chips show the complete suffix still to press.
+line and page chips apply that progress to each complete route. The reference combines
+the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
 
 Numbered addresses are stable within the document and capped at nine per list. The
 first nine members do not change identity as the reader scrolls. Chips are painted
@@ -2412,7 +2500,10 @@ longer paint it. `showComposer` states the whole visible and focus outcome from
 `composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks and Escape hide
 without discarding words; Cancel explicitly discards.
 
-Sending a comment reveals and focuses the thread created by the accepted event.
+An accepted anchored comment opens its inline thread. When the reserved margin is too
+narrow, that thread may cover the page in its bounded card; it does not substitute the
+Threads panel. The send focuses the reply box only when no later selection, edit, or
+typing gesture stands.
 News arriving without the reader's send gesture may show a toast and count but
 does not move focus or scroll the panel. `showToast` clears click behavior as it
 fades so invisible toast chrome cannot remain a pointer target.

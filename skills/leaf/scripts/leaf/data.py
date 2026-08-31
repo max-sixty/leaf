@@ -170,11 +170,13 @@ def _write_source(
         value = json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
     except (TypeError, ValueError) as error:
         raise DataError(f"source {source!r} value is not JSON: {error}") from error
-    with PageTransaction(page_dir):
+    with PageTransaction(page_dir) as page:
         registry = require_registry(page_dir)
         if re.fullmatch(DATA_SOURCE_NAME, source) is None:
             raise DataError(f"invalid source name {source!r}")
-        bindings, binding_errors = working_data_bindings(page_dir, registry)
+        bindings, binding_errors = working_data_bindings(
+            page_dir, registry, page.events
+        )
         if binding_errors:
             raise DataError(
                 "the page history has conflicting data bindings: "
@@ -260,13 +262,13 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
     """Remove current and unreferenced captures, even under a changed schema."""
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
-    with PageTransaction(page_dir):
+    with PageTransaction(page_dir) as page:
         stored = read_data_store(page_dir)
         if source not in stored["sources"]:
             click.echo(f"data source {source!r} is already clear")
             return
         registry = require_registry(page_dir)
-        referenced = working_data_snapshot_references(page_dir, registry)
+        referenced = working_data_snapshot_references(page_dir, registry, page.events)
         standing = stored["sources"][source]
         retained = {
             snapshot_id: snapshot

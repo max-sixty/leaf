@@ -29,8 +29,10 @@ for the current custom vocabulary and its explanations; this contract does not
 mirror that inventory.
 
 Within a registry-validated action detail, a string or list of strings may point
-at existing ids inside the sending widget. An object is the creation form: its
-keys declare generated ids owned by that widget, and string values are the words
-their first authored form must carry. Keeping keys and values in separate typed
-positions lets continuity protect a generated element before it exists in source
-without ever treating arbitrary prose as an id.
+at existing ids inside the sending widget. A state verb that creates authored
+children declares `creates: {field, child}`. The optional detail field is the
+canonical map from generated element ids to their first authored words, and
+`child` names their exact tag. The browser snapshots the map's sorted keys in
+the action's `generated` field. Registry-free historical folds read that snapshot;
+source continuity and word validation read the declaration, so an arbitrary
+mapping is never inferred to contain ids.

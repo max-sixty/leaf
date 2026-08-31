@@ -5,9 +5,12 @@ registry entries for the exact widget contracts.
 
 ## Asks and sign-off
 
-Put each alternative's title, case, and evidence inside the option itself. When
-whole page sections are the alternatives, use short option labels that point at
-those sections. Allow multiple picks only when several options may stand.
+Make the ask self-contained: put each alternative's title, case, and
+decision-relevant evidence or preview inside the option itself. Use a short
+option that points elsewhere only to select among sections or work items that
+already exist independently of the decision; do not create separate sections
+to hold an ask's alternatives. Allow multiple picks only when several options
+may stand.
 
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all

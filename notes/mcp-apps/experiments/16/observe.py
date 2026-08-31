@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from importlib.util import module_from_spec, spec_from_file_location
 import json
 import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 from axe_playwright_python.sync_playwright import Axe
@@ -99,9 +99,11 @@ def main(
                 )
                 result["invocation"]["rendered_input"] = str(page_dir)
             elif stable_panels:
-                input_panel = page.locator('[title="Click to expand"]').filter(
-                    has_text="Tool Input"
-                ).last
+                input_panel = (
+                    page.locator('[title="Click to expand"]')
+                    .filter(has_text="Tool Input")
+                    .last
+                )
                 expect(input_panel).to_be_visible()
                 input_panel.click()
                 rendered_input = input_panel.locator("pre")
@@ -115,7 +117,9 @@ def main(
                 result["invocation"]["rendered_input"] = rendered_input.inner_text()
 
             outer, app, leaf = base.app_frame(page)
-            expect(leaf.get_by_role("heading", name="Where sessions live")).to_be_visible()
+            expect(
+                leaf.get_by_role("heading", name="Where sessions live")
+            ).to_be_visible()
 
             inline = base.measure(leaf)
             result["inline"] = inline
@@ -166,11 +170,11 @@ def main(
                 comment_button.click()
                 composer = leaf.locator(".lf-composer")
                 expect(composer).to_be_visible()
-                composer.locator("textarea").fill("Keep this rationale across versions.")
-                composer.get_by_role("button", name="Comment", exact=True).click()
-                leaf.locator("body").wait_for(
-                    state="visible"
+                composer.locator("textarea").fill(
+                    "Keep this rationale across versions."
                 )
+                composer.get_by_role("button", name="Comment", exact=True).click()
+                leaf.locator("body").wait_for(state="visible")
                 expect(leaf.locator(".lf-thread .lf-quote").first).to_contain_text(
                     "session state homeless: today it rides the app"
                 )
@@ -243,7 +247,7 @@ def main(
                     },
                 }
             )
-        except Exception as error:  # Preserve host evidence before failing the run.
+        except Exception as error:  # noqa: BLE001 — preserve evidence before failure
             failed = True
             failure_shot = HERE / "results/failure.png"
             page.screenshot(path=failure_shot, full_page=True)

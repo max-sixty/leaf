@@ -11,11 +11,14 @@ export function createSelectionComposer(runtime, dependencies) {
     composerSend,
     designIsOn,
     draftContexts,
+    elementById,
     fab,
     fabAnchor,
+    inChrome,
     landTyping,
     loadDraft,
     mayLandTyping,
+    openInlineThread,
     paintAnchors,
     paintHere,
     placeComposer,
@@ -113,15 +116,22 @@ export function createSelectionComposer(runtime, dependencies) {
       );
       if (!sent) return;
       // A later edit is still the reader's standing gesture. The earlier comment may
-      // render in the panel, but it may not close or move the composer holding that edit.
+      // render in another conversation view, but it may not close or move the composer
+      // holding that edit.
       if (loadDraft(ctx) !== null) return;
       let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       const shouldLand = mayLandTyping(reply, composerInput);
-      showThread(sent.id, { stand: shouldLand });
+      // Opening an inline view closes the panel and moves focus. Decide from the standing
+      // view first, so a later gesture in another reply box survives an earlier send.
+      const inlineReply = shouldLand ? openInlineThread(sent.id) : null;
+      reply = inlineReply ?? reply;
+      if (!inlineReply) {
+        showThread(sent.id, { stand: shouldLand });
+        reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
+      }
       // The composer this was sent from is gone with the send; the thread it became
       // carries the same conversation, so its reply box is where typing continues.
       if (shouldLand) {
-        reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
         landTyping(reply, composerInput);
       }
     },
@@ -192,6 +202,8 @@ export function createSelectionComposer(runtime, dependencies) {
     if (composerCtx(pendingAnchor) !== ctx) clearDraft(composerCtx(pendingAnchor));
     pendingAnchor = anchor || null;
     pendingAbout = about;
+    const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
+    composer.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
     composerInput.value = text || composerInput.value;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
@@ -263,5 +275,5 @@ export function createSelectionComposer(runtime, dependencies) {
   // Cancel discards. Escape and outside clicks only hide, keeping the draft either way.
   composerCancel.onclick = closeComposer;
 
-  return { closeComposer, hideComposer, openComposer, pendingComposer };
+  return { hideComposer, openComposer, pendingComposer };
 }

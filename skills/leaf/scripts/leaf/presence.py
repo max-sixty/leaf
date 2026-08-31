@@ -35,7 +35,7 @@ def other_leaves(page_dir: Path) -> list:
 
     The whole scan runs on every /api/state; what it reads of each neighbour is
     kept per file, so a state read costs the scan and the presence reads rather than a
-    parse of every live neighbour's page (`parse_version`)."""
+    parse of every live neighbour's active revision (`parse_revision`)."""
     candidates = []
     pages = state_home() / "pages"
     if pages.is_dir():

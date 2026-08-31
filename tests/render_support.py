@@ -5,7 +5,7 @@ runtime probes, and domain-specific readings. Existing tests import this facade 
 fixture can move between those owners without making test modules coordinate it.
 """
 
-from interact_support import COMMAND_HUB_PACKAGE
+from interact_support import COMMAND_HUB_PACKAGE, record_claim
 from render_cases_interaction import (
     BOXLESS_SECTION_PAGE,
     CHANGE_SHAPES_PAGE,
@@ -51,6 +51,9 @@ from render_cases_interaction import (
     ROOMS,
     ROSTER_PAGE,
     SCROLL_SETTLED,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
+    SEATED_QUESTION_PAGE,
     SETTLED_DECISION_PAGE,
     SHORT_SUGGESTION,
     SPECIMEN_EXAMPLES,
@@ -222,6 +225,7 @@ from render_cases_navigation import (
     compose,
     composer_quote,
     data_projection_page,
+    expect_address_steps,
     live_watcher,
     mark_point,
     mark_shows_beside_composer,
@@ -308,6 +312,7 @@ from render_harness import (
     hold_selection,
     key_line,
     leaf_page,
+    margins_laid_out,
     navigate,
     nudge,
     open_page,
@@ -316,7 +321,6 @@ from render_harness import (
     panel_settled,
     post_event,
     primed,
-    record_claim,
     refuse,
     resized,
     round_trip,
@@ -506,6 +510,9 @@ __all__ = (
     "SCROLL_SETTLED",
     "SCROLL_SETTLE_MS",
     "SCROLL_STILL",
+    "SEATED_ASK_LAYER",
+    "SEATED_ASK_WIDGETS",
+    "SEATED_QUESTION_PAGE",
     "SENTENCE",
     "SETTLED_DECISION_PAGE",
     "SETTLED_PAGE",
@@ -589,6 +596,7 @@ __all__ = (
     "draw_edge",
     "drifting_widget",
     "edge_settled",
+    "expect_address_steps",
     "flip_point",
     "geometry",
     "held_stale",
@@ -599,6 +607,7 @@ __all__ = (
     "live_leaf",
     "live_url",
     "live_watcher",
+    "margins_laid_out",
     "mark_edges",
     "mark_point",
     "mark_shows_beside_composer",

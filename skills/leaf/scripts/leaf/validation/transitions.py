@@ -8,6 +8,7 @@ from leaf.projection import (
     folded_facet,
     markup_facet,
 )
+from leaf.registry.contract import created_children
 
 from .markup import at
 
@@ -62,6 +63,7 @@ def restatement_errors(
     byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
+    action_specs = {event["id"]: spec for event, spec in projection.actions.values()}
     within = enclosing_of(now)
     for e, _spec in projection.actions.values():
         for subject in action_subjects(e, byid, within, registry):
@@ -115,16 +117,13 @@ def restatement_errors(
             for field, v in e["detail"].items()
             if field != "resolves" and isinstance(v, str)
         }
-        # A mapping detail declares generated id → authored words. The id was not in
-        # the action's source revision, so the event is the previous reading against
-        # which its first authored appearance must be checked. Mapping values remain
-        # prose rather than coordinates in action_rests_on.
+        # A creates declaration names the one mapping whose values are generated
+        # child prose. The event is their previous reading because those children
+        # were absent from the action's authored revision.
         generated_words = {
             collapse(value)
             for e in live
-            for field, mapping in e["detail"].items()
-            if field != "resolves" and isinstance(mapping, dict)
-            for identity, value in mapping.items()
+            for identity, value in created_children(e, action_specs[e["id"]]).items()
             if identity == sid and isinstance(value, str)
         }
         said = now.get(sid, EMPTY).words

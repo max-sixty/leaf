@@ -13,7 +13,9 @@ takes it, only on a page declaring <meta name="lf-review" content="sign-off"> �
 approval is the page's decision, and a page that asks nothing gets no terminal
 control at all), action (user; a widget reporting the
 user editing the document through it — widget=element id, action=verb, detail
-per widget, revision the edit was made against), report (agent; a worker's
+per widget, revision the edit was made against; a verb declaring `creates`
+also carries `generated`, the canonical sorted snapshot of the declared detail
+map's keys), report (agent; a worker's
 provisional state change on a page widget — same widget/action/detail/revision
 shape as an action, validated by the widget's x-report declaration at the
 `leaf report` door, and standing only until a stamped revision answers it),

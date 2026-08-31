@@ -130,15 +130,14 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g M` enters the Page map at its roving marker, or its complete compact sheet.
+ * `g M` enters the Page map at its roving marker, or opens its sheet when empty or compact.
  * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
- * Arming shows the destination and list mnemonics in the key line. Its one blue prefix
- * names the keys already pressed; the neutral entries use the ordinary binding face.
- * Visible members show the complete remaining suffix (`h › 3`) in that same neutral face.
- * A list letter narrows those inline hints to the digit still needed and reveals the range
- * in the line. Any other key disarms the window and keeps its
+ * Arming shows every complete route in the key line. Pressed keys use the blue face and
+ * pending keys use the ordinary face. Visible members show the same complete route in
+ * adjacent fixed keycaps. A list letter narrows those inline hints without moving the
+ * remaining routes. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other, and the rung is whichever scope in reach binds it
  * first, so backing out is one layer per press and the promise cannot drift from the
@@ -246,22 +245,17 @@ import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
-import {
-  actionAvailable,
-  actionStands,
-  createOutbox,
-  outbox,
-  sendAction,
-} from "./runtime/outbox.js";
+import { createOutbox, outbox, sendAction } from "./runtime/outbox.js";
 import { createRequests } from "./runtime/requests.js";
 import { createDataProjection } from "./runtime/projection/data.js";
-import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
+import { createProjection } from "./runtime/projection.js";
 import { createAnchors, itemWord } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
 import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
+  conversationInput,
   createConversationLanding,
   heldConversation,
   landIn,
@@ -269,13 +263,7 @@ import {
   standingConversation,
 } from "./runtime/conversation/landing.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
-import {
-  shownBand,
-  shownBox,
-  shownParts,
-  shownRect,
-  startsAt,
-} from "./runtime/geometry.js";
+import { shownBox, shownParts, shownRect, startsAt } from "./runtime/geometry.js";
 import {
   createPassages,
   inChrome,
@@ -283,7 +271,6 @@ import {
   renderRetired,
   says,
   textNodesUnder,
-  uiInside,
   wrote,
 } from "./runtime/passages.js";
 import { createViewContinuity } from "./runtime/view-continuity.js";
@@ -317,7 +304,6 @@ import {
   reserve,
   WORKS,
   WORKS_WITHOUT_TAB_STOP,
-  worksInside,
 } from "./runtime/widget-elements.js";
 import {
   MARKED_ANYWHERE,
@@ -776,10 +762,10 @@ const {
   VERSIONS,
   activationIsForced,
   clearForcedActivation,
+  closeVersionMenu,
   goActive,
   renderVersions,
   snapshotVersionNavigation,
-  showVersionMenu,
   versionBtn,
   versionLabel,
   versionMenu,
@@ -931,16 +917,17 @@ panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
 
 // The floating Comment control names a selection before it has a stable target row.
-// Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
-// adds the registry-declared reaction buttons to its right. One affordance, raised only
+// Pressing its ellipsis or `r` opens that target's shared Button options and puts
+// Comment beside the registry-declared reactions there. One affordance, raised only
 // where the reader has already pointed: a selection, a visual's click, an aimed item or
 // visual part, or `r`.
-const fabBar = el("div", "lf-ui lf-fab-bar");
+const fabBar = el("div", "lf-ui lf-fab-bar lf-page-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 const fab = marginAction(el("button", "lf-ui lf-pill lf-fab"), {
   glyph: "💬",
   label: "Comment",
+  behavior: "disclosure",
   collapse: "always",
 });
 fab.setAttribute("aria-label", "Comment");
@@ -949,8 +936,8 @@ fabBar.append(fab);
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
-const aimBox = el("div", "lf-ui lf-aim");
-const composer = el("div", "lf-ui lf-composer");
+const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
+const composer = el("div", "lf-ui lf-composer lf-target-paint");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
 // around it: this is the only injected chrome carrying an id, and "which section is this
@@ -1009,7 +996,7 @@ keylineMore.onclick = () => {
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
 // writer (paintInspect), beside the box it names.
-const inspectEl = el("div", "lf-ui lf-inspect");
+const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
 inspectEl.setAttribute("aria-hidden", "true");
 // Design mode's legend: a box for every item on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
@@ -1158,7 +1145,6 @@ chromeLayout = createChromeLayout({
   panelChanged: (open) => {
     if (open) livingMargin?.closePreview();
   },
-  panelFocusTarget: threadsBox,
   panelFoot,
   panelList: threadsBox,
   placeComposer: (...args) => placeComposer(...args),
@@ -1208,7 +1194,6 @@ const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection
   });
 
 const {
-  activateAimTarget,
   BANNER_CLEAR,
   activateVisual,
   beside,
@@ -1217,9 +1202,11 @@ const {
   fabTargetAt,
   fabReturnTo,
   openOnItem,
+  openTargetComposer,
   placeClear,
   placeComposer,
   refreshFab,
+  selectResponseTarget,
   showFab,
   standDown,
   updateFab,
@@ -1230,6 +1217,7 @@ const {
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
+  closeVersionMenu,
   collapseKeyline: () => keyline?.less(),
   designIsOn: () => designOn,
   designTarget,
@@ -1246,7 +1234,6 @@ const {
   openComposer,
   openOnDesign,
   pageRange: (...args) => pageRange(...args),
-  pageScroller,
   pageSelection,
   pageText: (...args) => pageText(...args),
   pageWords: (...args) => pageWords(...args),
@@ -1263,7 +1250,6 @@ const {
   selectionAnchor,
   setReact: (on) => setReact(on),
   showThread,
-  showVersionMenu,
   snapSelection,
   shownParts,
   shownRect: (...args) => shownRect(...args),
@@ -1274,12 +1260,12 @@ const {
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
-  activateAimTarget,
   aimTargetAt,
   designIsOn: () => designOn,
   designPress,
   designTarget,
   inChrome: (node) => inChrome(node),
+  openTargetComposer,
   openOnDesign,
   pointerAt,
   refreshAim,
@@ -1318,11 +1304,14 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   composerSend,
   designIsOn: () => designOn,
   draftContexts,
+  elementById: (...args) => elementById(...args),
   fab,
   fabAnchor: fabAnchorAt,
+  inChrome,
   landTyping,
   loadDraft,
   mayLandTyping,
+  openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
   paintAnchors,
   paintHere,
   placeComposer,
@@ -1338,9 +1327,6 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   wireInput,
 });
 
-function pendingComposer() {
-  return selectionComposerRuntime.pendingComposer();
-}
 function openComposer(
   anchor,
   text,
@@ -1352,9 +1338,6 @@ function openComposer(
   return selectionComposerRuntime.openComposer(anchor, text, left, top, suggest, about);
 }
 const hideComposer = () => selectionComposerRuntime.hideComposer();
-function closeComposer() {
-  return selectionComposerRuntime.closeComposer();
-}
 
 // What the general box is for, said once: its own placeholder wears it, and so does the
 // panel row whose key opens it. Two strings would be two chances to rename the mode in
@@ -1592,7 +1575,10 @@ const commentDestination = () => {
       ),
       go: () => fab.click(),
     };
-  const said = standingConversation();
+  const inline = livingMargin?.activeInlineThread();
+  const inlineBox = inline && conversationInput(inline);
+  const said =
+    standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
@@ -1923,8 +1909,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   enterPageMap: () => livingMargin?.enterPageMap(),
   focused,
   focusedThread,
+  fragmentId,
   glideTo,
   inPanel,
+  itemSays,
   keylineEl,
   leavesOffered,
   letGo,
@@ -1933,10 +1921,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   othersPanel,
   pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
-  pageMapOffered: () => livingMargin?.pageMapOffered() ?? false,
   paintHere,
   panelCovers,
   placeThreadEdge,
+  resolveAnchor,
   saying,
   seenScroller,
   setPanel,
@@ -1948,7 +1936,6 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
 
 const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
   createTargetSelection({
-    activateAimTarget,
     aimTargets,
     allButTheReference,
     anchoringIsReady: () => anchoringReady,
@@ -1972,6 +1959,8 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     selectionLayer,
     selectionSearch,
     selectionStatus,
+    selectResponseTarget,
+    shownParts,
     shownRect: (...args) => shownRect(...args),
     updateFab,
   });
@@ -2006,6 +1995,7 @@ const {
   focused,
   itemWord,
   offer,
+  openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,
   paintHere,
   post,
   reactionVocabulary: () => registry.$reactions?.tokens,
@@ -2091,6 +2081,28 @@ const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
   at: () => Boolean(keyline?.expanded),
   rows: [LESS_SHORTCUTS],
+};
+
+// A Thread card and the unfolded Button cluster that owns it are one page-map stack,
+// though the card itself is hoisted into the chrome. This registered rung precedes the
+// reaction and navigation modes just as the surface's old local listener did: Escape
+// closes the card first, then folds the cluster on a second press.
+const pageMapRung = (atFocus = true) => livingMargin?.keyboardRung({ atFocus }) ?? null;
+const PAGE_MAP = {
+  title: "In the page map",
+  when: () => Boolean(pageMapRung(false)),
+  at: () => Boolean(pageMapRung()),
+  rows: [
+    {
+      id: "margin.back",
+      keys: ["Escape"],
+      does: () => pageMapRung(false)?.does,
+      line: () => pageMapRung()?.says,
+      referenceWhen: () => Boolean(pageMapRung(false)),
+      when: () => Boolean(pageMapRung()),
+      run: () => pageMapRung()?.out(),
+    },
+  ],
 };
 
 // Below the element scopes: the page's own modes, then the page. The composer's rung is
@@ -2515,7 +2527,16 @@ const CHOOSER = {
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
-  run: () => versionBtn.click(),
+  // The control's own press, so the key and the pointer are one gesture: the menu is a
+  // popover the button declares, and the browser's invoker is what makes a second press a
+  // close. The focus first is what makes the handback the same on both doors — a popover
+  // restores focus to whatever had it when it showed, which the pointer leaves as the
+  // button of its own accord and this key would otherwise leave as the body, putting a
+  // reader who pressed `v` and then Escape on the page rather than back on the chooser.
+  run: () => {
+    versionBtn.focus();
+    versionBtn.click();
+  },
 };
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
@@ -2714,6 +2735,7 @@ const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
   HELP,
   SHORTCUT_SHELF,
+  PAGE_MAP,
   GO,
   REACT,
   SELECT,
@@ -2889,7 +2911,6 @@ const {
   sameLayer,
   showToast,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  stateSpecs: (...args) => stateSpecs(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
   versionLabel,
@@ -2956,18 +2977,22 @@ const unaccountedGesture = () =>
   outbox.length > 0 ||
   Boolean(document.querySelector(".lf-dragging"));
 // The user is mid-something navigation would destroy: the above, and the words they
-// have typed — a composition surface is a focused textarea, any holding words, or a
-// widget-built one (data-lf-offer) even empty, because deleting everything is still an
-// edit.
+// have typed — a composition surface is a focused textarea holding words or a draft, or
+// a widget-built one (data-lf-offer) even empty, because deleting everything is still an
+// edit. A reply the runtime merely opened and focused is the exception: that landing has
+// no reader-authored draft to preserve and therefore does not stop a live page following.
 const midComposition = () => {
   const active = focused();
+  const replyDraft = conversationRuntime?.replyBoxHasDraft(active) ?? null;
   return (
     composerOpen ||
     isSelecting() ||
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||
     (active?.tagName === "TEXTAREA" &&
-      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+      (active.value !== "" ||
+        replyDraft === true ||
+        (replyDraft === null && active.hasAttribute("data-lf-offer"))))
   );
 };
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
@@ -3020,12 +3045,6 @@ function narrowed(...args) {
 function awaitsReader(...args) {
   return conversationRuntime.awaitsReader(...args);
 }
-function awaitsAgent(...args) {
-  return conversationRuntime.awaitsAgent(...args);
-}
-function seatRoot(...args) {
-  return conversationRuntime.seatRoot(...args);
-}
 function setChildren(...args) {
   return conversationRuntime.setChildren(...args);
 }
@@ -3071,9 +3090,6 @@ function itemAt(...args) {
 }
 function itemSays(...args) {
   return anchorRuntime.itemSays(...args);
-}
-function visualPartAt(...args) {
-  return anchorRuntime.visualPartAt(...args);
 }
 function visualPartLabel(...args) {
   return anchorRuntime.visualPartLabel(...args);
@@ -3207,7 +3223,6 @@ const runtimeProjection = createProjection(runtime, {
   standOn,
   textNodesUnder,
   toast,
-  widgetEntries,
 });
 const {
   authoredDetails,
@@ -3236,7 +3251,6 @@ const {
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
-  stateSpecs,
   undoable,
   unitOf,
   withdraw,
@@ -3418,8 +3432,10 @@ livingMargin = createLivingMargin({
   comparisonChanges,
   compact: commentsEdge.over,
   closestAcross,
+  designIsOn: () => designOn,
   el,
   elementById,
+  focused,
   goToDecision,
   inChrome,
   itemSays,
@@ -3428,7 +3444,6 @@ livingMargin = createLivingMargin({
   offer,
   openDecisions,
   panelIsOpen: chromeLayout.panelIsOpen,
-  pageScroller,
   paintKeys,
   placedAt,
   renderMarginThread: conversationRuntime.renderMarginThread,
@@ -3437,6 +3452,7 @@ livingMargin = createLivingMargin({
   setPanel,
   showThread,
   stateProjection,
+  threadPanel: panel,
   threads: () => conversationRuntime.threadList,
   toggleBtn,
   updateSequence,
@@ -3467,6 +3483,7 @@ designRuntime = createDesign({
   ITEM,
   announce,
   banner,
+  closePageMapPreview: livingMargin.closePreview,
   closestAcross,
   containsAcross,
   cut,
@@ -3479,7 +3496,6 @@ designRuntime = createDesign({
   legendRoot,
   marginTargetAt: (...args) => livingMargin.marginTargetAt(...args),
   openComposer,
-  pageScroller,
   pageShifted,
   paintHere,
   refreshAim,
@@ -3604,7 +3620,7 @@ const { landArrival, savedView } = viewRuntime.installArrival({
   scrollToElement,
   tabStore,
 });
-const savedComposer = pendingComposer();
+const savedComposer = selectionComposerRuntime.pendingComposer();
 
 // ---------- start ----------
 // One positive fact for the one presentation boundary. Success has applied the log;
@@ -3632,7 +3648,7 @@ function presentPage() {
 // never top-level await: boot first publishes every factory-built owner capability, then
 // imports the behavior modules that consume the public facade.
 async function startPage() {
-  await Promise.all([
+  const [upgraded] = await Promise.all([
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
@@ -3641,6 +3657,7 @@ async function startPage() {
     // and a mark that arrived after it would leave the copy's tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
+  if (!upgraded) return;
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

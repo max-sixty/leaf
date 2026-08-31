@@ -48,9 +48,9 @@ def thread_structure(events: list) -> ThreadStructure:
 def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
     """Widget id → the conversation whose frozen markup holds it.
 
-    The relation on its own, apart from `thread_universe`, which wants it
-    alongside the records and words a vocabulary supplies — so a caller needing
-    only this does not load a registry to reach it. It takes the two readings
+    The relation on its own, apart from `frozen_thread_reading`, which carries it
+    alongside the records and words a vocabulary supplies. A caller needing only
+    this relation does not load a registry to reach it. It takes the two readings
     rather than the log, so the caller that already holds them does not parse
     every fragment a second time."""
     return {

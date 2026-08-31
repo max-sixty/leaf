@@ -21,6 +21,7 @@ from render_support import (
     KEYS_PAGE,
     LONG_PAGE,
     NOTED_PAGE,
+    SEATED_QUESTION_PAGE,
     SENTENCE,
     SMOOTH_LONG_PAGE,
     STORED_DRAFT_SETTLED,
@@ -54,6 +55,16 @@ def draft_controls(page, draft_id="draft-ops"):
     return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
 
 
+def cancel_draft(page, draft_id="draft-ops"):
+    """Cancel is the draft's alternative, reached through its one options Button."""
+    controls = draft_controls(page, draft_id)
+    item = controls.locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Cancel")
+    ).click()
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -81,15 +92,10 @@ def test_page_round_trip(browser, serve):
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
     page.locator(".lf-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_selector(".lf-thread")
+    page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Posting opened the panel, and the page is sliding into the width that leaves for
-    # it. Measuring a column mid-slide aims the drag below at where it was, not where
-    # it is going, and the drop lands outside the column it was meant for.
-    panel_settled(page)
-
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
     grip = page.locator("#card-x .lf-grip").bounding_box()
@@ -274,6 +280,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     page.mouse.dblclick(*spot)
     editor = page.locator("#draft-ops textarea")
     expect(editor).to_be_focused()
+    pencil = draft_controls(page).locator(".lf-draft-pencil")
     assert page.screenshot(clip=band) == outside_before, (
         "opening the editor painted outside the box the draft already occupied"
     )
@@ -306,7 +313,8 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # reaches for it the instant the editor goes, so a style that hadn't caught up
     # would drop a keyboard user back at the top of the page.
     page.keyboard.press("Escape")
-    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_focused()
+    expect(pencil).to_be_focused()
+    expect(pencil).to_have_attribute("aria-expanded", "false")
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft came back from an edit a different shape than it went in"
     )
@@ -542,7 +550,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     assert second_draft.locator("textarea").count() == 0, (
         "the second tab opened an editor for a keystroke nobody made there"
     )
-    draft_controls(first).get_by_role("button", name="Cancel").click()
+    cancel_draft(first)
     second.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     second_draft.locator(".lf-draft-body").dblclick()
     expect(second_draft.locator("textarea")).to_have_value(edited)
@@ -827,9 +835,9 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
-    """A sent comment clears a narrowing that hid its new thread, then leaves the
-    reader in that thread's reply box just as an already-visible comment does."""
+def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
+    """A sent comment preserves the panel's narrowing while its inline conversation
+    takes the reader; reopening the overview keeps that filter intact."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -850,8 +858,59 @@ def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')).to_be_focused()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    inline = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+    )
+    expect(inline.locator("textarea")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
+    """Focus handed to a new reply is not itself a draft; an edit to empty is."""
+    page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
+    resized(page, 1440, 900)
+    page.locator("#p1").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Follow this discussion.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+
+    sent = events_model.read_events(serve.page_dir)[-1]
+    reply = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"] textarea'
+    )
+    expect(reply).to_be_focused()
+
+    d = serve.page_dir
+    v2 = NOTED_PAGE.replace(
+        "A short second passage.", "A revised short second passage."
+    )
+    (d / "versions" / "v2.html").write_text(v2)
+    stamp_version_file(d, 2, "v2")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+
+    reply.fill("A thought I changed my mind about.")
+    reply.fill("")
+    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['id']}") == ""
+    v3 = v2.replace(
+        "A revised short second passage.", "A twice-revised short second passage."
+    )
+    (d / "versions" / "v3.html").write_text(v3)
+    stamp_version_file(d, 3, "v3")
+    told(page)
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(reply).to_have_value("")
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 
@@ -981,7 +1040,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     proves that readable absence is settlement rather than permission to trust the
     old in-memory value.
     """
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(
         browser,
@@ -1034,7 +1093,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_reader):
     """Both inline views may POST the shared reply; its attempt appends it once."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1082,7 +1141,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     browser, serve, one_reader
 ):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1139,7 +1198,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
@@ -1163,8 +1222,11 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw.strip()]
-    expect(first_say).to_be_hidden()
-    expect(second_say).to_be_hidden()
+    # Asked of the words rather than of the box: a seat that can hold keeps its composer
+    # standing after every root (renderConversations), so an empty one is what says the
+    # tab adopted the durable outcome instead of holding the words for a second send.
+    expect(first_say.locator("textarea")).to_have_value("")
+    expect(second_say.locator("textarea")).to_have_value("")
     assert first_errors == []
     assert second_errors == []
 
@@ -1173,7 +1235,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     """Persistence failure costs recovery, not the live textarea's Send action."""
     page, errors = open_page(
         browser,
-        serve(DECISION_PAGE),
+        serve(SEATED_QUESTION_PAGE),
         init_script="""Storage.prototype.setItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -1213,7 +1275,7 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     replacement must not learn the attempt is in the log before it sends, or it would
     correctly decline to. Both go through `held_stale` rather than a live `page.route`,
     which reaches no poll already in the wire."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, _ = open_page(browser, url, context=held_stale(one_reader))
     second_held = held_stale(one_reader)
     second, second_errors = open_page(browser, url, context=second_held)
@@ -1257,7 +1319,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     browser, serve, one_reader
 ):
     """A nondurable local generation outranks storage news about its predecessor."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     other, other_errors = open_page(browser, url, context=one_reader)
     old = "The older persisted answer."
     other_say = other.locator("#jobs > .lf-conversation > .lf-say")
@@ -1299,7 +1361,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     browser, serve, one_reader
 ):
     """A held older send reconciles its base before writing settlement."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     older, older_errors = open_page(
         browser,
         url,
@@ -1352,7 +1414,7 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
     browser, serve, one_reader
 ):
     """Only news from a branch's base may be replaced by that local branch."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     local, local_errors = open_page(
         browser,
         url,
@@ -1393,7 +1455,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     browser, serve, one_reader
 ):
     """Send refreshes shared storage instead of trusting a stale durable cache."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     stale, stale_errors = open_page(
         browser,
         url,
@@ -1451,7 +1513,7 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     expect(stale_draft.locator("textarea")).to_have_value(old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
 
-    draft_controls(stale).get_by_role("button", name="Cancel").click()
+    cancel_draft(stale)
     expect(current_draft.locator("textarea")).to_have_value(newer)
     assert current.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
     stale_draft.locator(".lf-draft-body").dblclick()
@@ -1464,7 +1526,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     browser, serve, one_reader
 ):
     """Log reconciliation settles only the generation still shared by storage."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     # The hold costs the most here, where the poll released at the end is the subject
     # rather than an interruption: an earlier poll reconciling this tab onto the newer
     # generation leaves settlement nothing older to be tempted by, so the assertions
@@ -1521,7 +1583,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     """The document cache owns its generation even when getItem later refuses it."""
     page, errors = open_page(
         browser,
-        serve(DECISION_PAGE),
+        serve(SEATED_QUESTION_PAGE),
         init_script="""Storage.prototype.getItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -1544,7 +1606,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
     browser, serve, one_reader
 ):
     """Settlement is a record and a log fact; draft cleanup never calls removeItem."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, first_errors = open_page(
         browser,
         url,
@@ -1561,7 +1623,11 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
     first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
 
     again, again_errors = open_page(browser, url, context=one_reader)
-    expect(again.locator("#jobs > .lf-conversation > .lf-say")).to_have_count(0)
+    # The composer is still standing — a seat that can hold keeps it — so the claim is
+    # about what it opens with: a settled draft is words the next tab must not be handed.
+    expect(again.locator("#jobs > .lf-conversation > .lf-say textarea")).to_have_value(
+        ""
+    )
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -1572,7 +1638,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
 
 def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serve):
     """Identity follows the edit generation, never content or a time window."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {

@@ -114,9 +114,9 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     assert address["count"] == address["mapCount"]
     assert address["count"] == 12
     assert address["number"] <= 9
-    assert (
-        address["targetTop"] > address["viewportHeight"]
-    ), "the target must begin off screen so this proves the address is page-wide"
+    assert address["targetTop"] > address["viewportHeight"], (
+        "the target must begin off screen so this proves the address is page-wide"
+    )
     marker.evaluate(
         """control => control.addEventListener('click', () => {
           control.dataset.activationClicks =
@@ -182,9 +182,9 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 3")
-    assert (
-        activation_state() == pointer_activation
-    ), "the page-map address and the marker's click leave different state"
+    assert activation_state() == pointer_activation, (
+        "the page-map address and the marker's click leave different state"
+    )
 
     page.keyboard.press("Escape")
     resized(page, 390, 760)
@@ -305,9 +305,9 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
         "const style = getComputedStyle(el); "
         "return [Math.round(box.height), style.borderRadius]; })"
     )
-    assert (
-        len({tuple(shape) for shape in shapes}) == 1
-    ), "Accept, Reject, Edit, and the information marker no longer share one shape"
+    assert len({tuple(shape) for shape in shapes}) == 1, (
+        "Accept, Reject, Edit, and the information marker no longer share one shape"
+    )
 
     accept = suggestion.locator(".lf-sug-accept")
     accept.focus()
@@ -597,18 +597,18 @@ def test_the_preview_stands_in_the_room_the_page_has_beside_the_panel(browser, s
     preview_box = preview.bounding_box()
     panel_box = page.locator(".lf-panel").bounding_box()
     room_right = page.evaluate("() => document.body.getBoundingClientRect().right")
-    assert panel_box["x"] < page.evaluate(
-        "innerWidth"
-    ), f"the panel is not standing beside the page, so this reads nothing: {panel_box}"
-    assert (
-        preview_box["x"] + preview_box["width"] <= panel_box["x"] + 0.5
-    ), f"the preview stands in the panel: {preview_box} against {panel_box}"
-    assert (
-        preview_box["x"] + preview_box["width"] <= room_right + 0.5
-    ), f"the preview stands outside the page's room: {preview_box} of {room_right}"
-    assert (
-        preview_box["x"] >= 0
-    ), f"the preview is off the left of the window: {preview_box}"
+    assert panel_box["x"] < page.evaluate("innerWidth"), (
+        f"the panel is not standing beside the page, so this reads nothing: {panel_box}"
+    )
+    assert preview_box["x"] + preview_box["width"] <= panel_box["x"] + 0.5, (
+        f"the preview stands in the panel: {preview_box} against {panel_box}"
+    )
+    assert preview_box["x"] + preview_box["width"] <= room_right + 0.5, (
+        f"the preview stands outside the page's room: {preview_box} of {room_right}"
+    )
+    assert preview_box["x"] >= 0, (
+        f"the preview is off the left of the window: {preview_box}"
+    )
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]').click()
     expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
@@ -868,9 +868,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
-    assert (
-        geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"]
-    ), geometry
+    assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
+        geometry
+    )
     assert geometry["cardScroll"] == 0, geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert geometry["openLeft"] < geometry["titleLeft"], geometry
@@ -1121,9 +1121,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     )
     assert text_insets
     for inset in text_insets:
-        assert inset["above"] == pytest.approx(
-            inset["below"], abs=1.5
-        ), f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")

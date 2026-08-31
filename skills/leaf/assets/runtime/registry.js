@@ -14,6 +14,31 @@ export const registry = runtime.registry;
 export const widgetEntries = () =>
   Object.entries(registry).filter(([tag]) => tag.startsWith("lf-"));
 
+let stateIndex;
+function indexedState() {
+  const generation = registry.$layer?.generation;
+  if (typeof generation !== "string" || !generation)
+    throw new Error("leaf: state vocabulary requested before registry loaded");
+  if (stateIndex?.generation === generation) return stateIndex;
+
+  const specs = [];
+  for (const [tag, entry] of widgetEntries())
+    for (const channel of ["x-state", "x-report"])
+      for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
+        specs.push({ tag, channel, verb, spec });
+  stateIndex = {
+    generation,
+    recordedWidgetSelector: [
+      ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag)),
+    ].join(","),
+    specs,
+  };
+  return stateIndex;
+}
+
+export const stateSpecs = () => indexedState().specs;
+export const recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
+
 // Shared `$` entries belong to the layer rather than to one widget. Return a copy so
 // a package module can read its cross-widget vocabulary without a registry write path.
 export function layerFact(name) {

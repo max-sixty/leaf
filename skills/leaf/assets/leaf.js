@@ -2870,7 +2870,6 @@ const {
   sameLayer,
   showToast,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  stateSpecs: (...args) => stateSpecs(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
   versionLabel,
@@ -3179,7 +3178,6 @@ const runtimeProjection = createProjection(runtime, {
   standOn,
   textNodesUnder,
   toast,
-  widgetEntries,
 });
 const {
   authoredDetails,
@@ -3208,7 +3206,6 @@ const {
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
-  stateSpecs,
   undoable,
   unitOf,
   withdraw,
@@ -3604,7 +3601,7 @@ function presentPage() {
 // never top-level await: boot first publishes every factory-built owner capability, then
 // imports the behavior modules that consume the public facade.
 async function startPage() {
-  await Promise.all([
+  const [upgraded] = await Promise.all([
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
@@ -3613,6 +3610,7 @@ async function startPage() {
     // and a mark that arrived after it would leave the copy's tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
+  if (!upgraded) return;
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

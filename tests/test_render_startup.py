@@ -290,6 +290,62 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
     page.close()
 
 
+def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serve):
+    """Derived state declarations belong to one complete registry generation.
+
+    Warming the index must not make later generations inherit its declarations. Both
+    channels contribute, while only recorded declarations contribute owner selectors.
+    """
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    indexed = page.evaluate(
+        """async () => {
+          const {
+            recordedWidgetSelector,
+            registry,
+            stateSpecs,
+          } = await import('/runtime/registry.js');
+          const before = stateSpecs();
+          const generation = registry.$layer.generation;
+          Object.assign(registry, {
+            'lf-index-action': {
+              'x-state': { set: { record: { kind: 'value' } } },
+            },
+            'lf-index-report': {
+              'x-report': { measure: { record: { kind: 'body' } } },
+            },
+            'lf-index-recordless': {
+              'x-state': { settle: {} },
+            },
+          });
+          registry.$layer = {
+            ...registry.$layer,
+            generation: `${generation}-next`,
+          };
+          const after = stateSpecs();
+          return {
+            beforeHadProbe: before.some(({ tag }) => tag.startsWith('lf-index-')),
+            declarations: after
+              .filter(({ tag }) => tag.startsWith('lf-index-'))
+              .map(({ tag, channel, verb, spec }) => [tag, channel, verb, !!spec.record]),
+            recorded: recordedWidgetSelector()
+              .split(',')
+              .filter((tag) => tag.startsWith('lf-index-')),
+          };
+        }"""
+    )
+    assert indexed == {
+        "beforeHadProbe": False,
+        "declarations": [
+            ["lf-index-action", "x-state", "set", True],
+            ["lf-index-report", "x-report", "measure", True],
+            ["lf-index-recordless", "x-state", "settle", False],
+        ],
+        "recorded": ["lf-index-action", "lf-index-report"],
+    }
+    assert errors == []
+    page.close()
+
+
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     """Acquiring web storage can itself throw before any method is called.
 
@@ -1420,6 +1476,20 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.get_by_role("button", name=re.compile("^Threads"))).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
+    assert (
+        page.evaluate(
+            """async () => {
+          const { stateSpecs } = await import('/runtime/registry.js');
+          try {
+            stateSpecs();
+          } catch (error) {
+            return error.message;
+          }
+          return null;
+        }"""
+        )
+        == "leaf: state vocabulary requested before registry loaded"
+    )
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()

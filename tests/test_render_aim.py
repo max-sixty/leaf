@@ -113,10 +113,10 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
     """The Asks strip moves body's containing block, not the page's coordinates.
 
-    The aim, action bar, and composer are absolute children of body. When the tray
-    shifted body right, each used a viewport x-position as its local x-position and
-    gained the tray's width a second time. Keep the whole route on the item the reader
-    pointed at: the promise outlines it, and Comment opens a visible box clear of it.
+    The aim and composer are absolute children of body. When the tray shifted body
+    right, each used a viewport x-position as its local x-position and gained the tray's
+    width a second time. Keep the whole route on the item the reader pointed at: the
+    promise outlines it, and the press opens a visible box clear of it.
     """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
@@ -143,8 +143,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
 
     target.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()
     placed = page.evaluate(
         """() => {

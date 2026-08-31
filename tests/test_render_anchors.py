@@ -641,8 +641,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
 
-    # The option's address and the chord's digit keep one physical key geometry. The option
-    # keeps its local accent outline; the chord digit is an ordinary available binding.
+    # The option's address and the chord's digit keep one physical key face. Both are
+    # ordinary available bindings, so geometry and emphasis stay the same.
     faces = """() => {
         const read = el => { const s = getComputedStyle(el);
             return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
@@ -672,9 +672,28 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
           })"""
     )
     option_emphasis, chord_emphasis, legend_emphasis = emphasis
-    assert option_emphasis["border"] == option_emphasis["ink"]
-    assert option_emphasis["ground"] != option_emphasis["ink"]
-    assert chord_emphasis == legend_emphasis
+    assert option_emphasis == chord_emphasis == legend_emphasis
+
+    # Item selection uses letters rather than digits, but it names the same physical
+    # keys. Closing the address chord and opening selection must not reveal a fourth face.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.keyboard.press("s")
+    target = page.locator(".lf-target-hint").first
+    expect(target).to_be_visible()
+    target_key = target.evaluate(
+        """el => { const s = getComputedStyle(el);
+          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
+            "border-top-width", "border-top-style", "border-radius", "font-family",
+            "font-size", "line-height", "text-align"]
+            .map(p => [p, s.getPropertyValue(p)])); }"""
+    )
+    assert target_key == option_key
+    target_emphasis = target.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
+    )
+    assert target_emphasis == option_emphasis
     assert errors == []
     page.close()
 

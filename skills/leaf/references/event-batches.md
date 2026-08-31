@@ -31,6 +31,12 @@ retries the same pointer with the same Leaf delivery id. This is at-least-once
 delivery and may create a retry turn; the task applies the page-and-sequence
 retry rule below.
 
+The Codex MCP App follows the same boundary without a wait process. It persists
+one reader event, sends the complete pending batch with a host follow-up, and
+advances the cursor only after the host accepts that turn. The app owns that
+acknowledgement; the receiving task processes the batch directly and does not
+run `leaf wait` or `leaf ack`.
+
 If direct wait output is truncated, acknowledge nothing and rerun with enough
 output capacity for the whole batch. After the complete batch reaches model
 context, run `leaf ack <page> <highest-seq>` for the page the batch's first line

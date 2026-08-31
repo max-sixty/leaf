@@ -78,8 +78,17 @@ you have. Sort on what the failure is.
   PR.
 - **Stale generated previews.** `preview inputs changed — rerun
   scripts/example-previews.py` means the checked-in catalog is behind its inputs.
-  Run the generator and review its diff. Commit a manifest-only refresh; if the
-  images change, report them for visual review.
+  What the hash cannot say is whether the gallery moved with them, and from CI
+  the generator's own stills are never the answer: `theme.css` asks for Charter
+  and `system-ui`, the runner has neither and substitutes, so a capture taken
+  here differs from every checked-in still whether or not anything changed.
+  Read it with an A/B instead — run the generator in a worktree at the last
+  commit whose manifest equalled its computed digest, again at the tip, and
+  compare the nine stills to each other rather than to what is checked in. All
+  identical means only the hash moved, and an `inputs_sha256`-only commit is the
+  fix. Any different means the gallery is genuinely behind: name the stills that
+  moved and leave the recapture to the authoring machine, which is the only place
+  the shipped faces exist.
 - **Contention.** Concurrent suites starve each other, and the failures surface
   as `Page.goto` timeouts and slow-read assertion failures scattered across
   unrelated tests — a shape that reads as "the browser layer is broken" when it

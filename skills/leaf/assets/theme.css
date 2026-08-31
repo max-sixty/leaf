@@ -91,6 +91,7 @@
      that has to fit something states its own number where it is set — a code block
      against the characters it takes across, a step badge against its disc. */
   --t-6: 11.5px; --t-5: 14px; --t-4: 17px; --t-3: 20px; --t-2: 24px; --t-1: 31px;
+  --code-size: 12.5px; --code-line: 19px;
   --serif: Charter, "Bitstream Charter", "Iowan Old Style", Georgia, ui-serif, serif;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -733,8 +734,9 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
  * number moving alone is lf-code changing size the moment its module runs, and a
  * rendered tree no longer matching the code blocks around it. */
 pre { background: var(--pre-bg); border: 1px solid var(--rule); border-radius: var(--r);
-      padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.55;
-      font-family: var(--mono); }
+      padding: 12px 14px; overflow-x: auto; font-size: var(--code-size);
+      line-height: var(--code-line); font-family: var(--mono);
+      font-variant-ligatures: none; }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the

@@ -386,6 +386,7 @@ installReachedForWordsGuard();
 
 createDataProjection({
   paintAnchors,
+  reachScrollers,
   setChildren,
 });
 
@@ -1279,6 +1280,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   designIsOn: () => designOn,
   designPress,
   designTarget,
+  elementFromPointAcross: (...args) => elementFromPointAcross(...args),
   inChrome: (node) => inChrome(node),
   openOnDesign,
   pointerAt,

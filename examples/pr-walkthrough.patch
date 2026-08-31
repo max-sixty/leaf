@@ -1,0 +1,37 @@
+diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -38,2 +38,4 @@ class Limiter:
+-    def bucket_key(self, request):
+-        return request.remote_addr
++    def bucket_key(self, request):
++        if request.token:
++            return f"tok:{request.token.id}"
++        return f"ip:{request.remote_addr}"
+diff --git a/gateway/middleware.py b/gateway/middleware.py
+--- a/gateway/middleware.py
++++ b/gateway/middleware.py
+@@ -12,3 +12,4 @@ def attach(app):
+     def wrap(request):
+-        limiter.check(request.remote_addr)
++        limiter.check(request)
++        request.limit_key = limiter.bucket_key(request)
+         return request
+diff --git a/gateway/ratelimit.conf b/gateway/ratelimit.conf
+--- a/gateway/ratelimit.conf
++++ b/gateway/ratelimit.conf
+@@ -1,2 +1,2 @@
+ burst_multiplier = 2
+-bucket_ttl_minutes = 10
++bucket_ttl_minutes = 30
+\ No newline at end of file
+diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042_token_buckets.sql
+--- /dev/null
++++ b/gateway/migrations/0042_token_buckets.sql
+@@ -0,0 +1,6 @@
++create table token_buckets (
++  key text primary key,
++  tokens integer not null,
++  refilled_at timestamptz not null
++);
++create index token_buckets_refilled_at_cleanup_idx on token_buckets (refilled_at) where tokens = 0;

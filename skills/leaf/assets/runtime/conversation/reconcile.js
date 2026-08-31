@@ -132,6 +132,7 @@ export function createConversation(dependencies) {
     itemSays,
     itemWord,
     markDeclared,
+    pageQueryAll,
     rememberAuthoredMarkup,
     renderQuiet,
     renderSaid,

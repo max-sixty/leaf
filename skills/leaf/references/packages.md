@@ -39,10 +39,12 @@ An explicit directory keeps a contribution separately owned and selectable. `.le
 is the project package and `~/.config/leaf` is the user package. Inside a repository
 dedicated to one package, use `.` as the package path.
 
-Leaf also ships optional packages that select by bare name:
+Leaf also ships optional packages that select by bare name. `command-hub` adds
+multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief:
 
 ```bash
 leaf page init --package command-hub PAGE
+leaf page init --package pr-review PAGE
 ```
 
 ## Package contract
@@ -364,7 +366,12 @@ non-empty string for the logical datum; `render` receives
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose, reconciles their order, and keeps comments attached by the
 projection/key pair even when a refresh replaces the text nodes. Export keeps the last
-rendering as a labelled snapshot and drops the code that could refresh it.
+rendering as a labelled snapshot and drops the code that could refresh it. A renderer
+that owns a nested layout passes `{nested: true}` and returns its existing descendants;
+Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
+should name a projected datum with a human coordinate; the stable key remains opaque to
+the runtime. If a `watchData` callback renders asynchronously, return that promise so
+Leaf does not publish the source revision as ready before the projection is complete.
 
 ## Seeing it
 

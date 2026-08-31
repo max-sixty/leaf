@@ -2697,6 +2697,67 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     page.close()
 
 
+def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser, serve):
+    """Each data notification owns the revision it dispatched.
+
+    Two async subscriber deliveries overlap. Releasing the older one after newer data
+    was accepted must not stamp that newer revision while its own delivery is still held;
+    render checks and presentation use the stamp as proof that every subscriber is done.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const releases = new Map();
+          const stop = watchData(widget, 'rows', snapshot => {
+            const value = snapshot?.value?.[0]?.value;
+            if (!value?.startsWith('Held')) return;
+            return new Promise(resolve => releases.set(value, resolve));
+          });
+          const waitFor = async value => {
+            while (!releases.has(value))
+              await new Promise(resolve => setTimeout(resolve, 0));
+          };
+          const dataAt = (revision, value) => ({
+            ...structuredClone(runtime.data),
+            revision,
+            sources: {
+              ...structuredClone(runtime.data.sources),
+              deployments: {
+                ...structuredClone(runtime.data.sources.deployments),
+                value: [{key: 'api', value}],
+              },
+            },
+          });
+          const before = document.body.getAttribute('data-lf-data-revision');
+          const olderRevision = runtime.data.revision + 1;
+          acceptData(dataAt(olderRevision, 'Held older'));
+          const older = notifyDataSubscribers();
+          await waitFor('Held older');
+          const newerRevision = olderRevision + 1;
+          acceptData(dataAt(newerRevision, 'Held newer'));
+          const newer = notifyDataSubscribers();
+          await waitFor('Held newer');
+
+          releases.get('Held older')();
+          await older;
+          const afterOlder = document.body.getAttribute('data-lf-data-revision');
+          releases.get('Held newer')();
+          await newer;
+          const afterNewer = document.body.getAttribute('data-lf-data-revision');
+          stop();
+          return {before, afterOlder, afterNewer, newerRevision};
+        }"""
+    )
+    assert result["afterOlder"] == result["before"], result
+    assert result["afterNewer"] == str(result["newerRevision"]), result
+    assert errors == []
+    page.close()
+
+
 def test_data_notification_waits_for_a_version_activation(browser, serve):
     """A crossed data response may advance its revision during activation, but its
     subscribers cannot paint the old or half-upgraded document.

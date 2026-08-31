@@ -438,6 +438,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         events=(),
         layer_registry=None,
         layer_widgets=None,
+        packages=None,
         seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
@@ -451,8 +452,9 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
+        selected_packages = EXAMPLE_PACKAGES if packages is None else packages
         selection_args = [
-            arg for name in EXAMPLE_PACKAGES for arg in ("--package", name)
+            arg for name in selected_packages for arg in ("--package", name)
         ]
         d = tmp_path / f"page{len(servers)}"
 
@@ -466,7 +468,12 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         if project.exists() or host_model.config_home().exists():
             initialize(d)
         else:
-            clone_initialized_page("examples", d, initialize)
+            template_name = (
+                "examples"
+                if packages is None
+                else "examples-" + ("-".join(selected_packages) or "no-packages")
+            )
+            clone_initialized_page(template_name, d, initialize)
         html = example.read_text() if example else source
         (d / "index.html").write_text(html)
         parsed = structure_model._StructParser()

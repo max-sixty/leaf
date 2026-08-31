@@ -13,90 +13,402 @@
       content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
+    <style>
+      .pr-agent-brief {
+        --lf-frame: 1;
+        margin: var(--sp-4) 0;
+        padding: var(--sp-4);
+        border: 1px solid var(--rule);
+        border-top: 3px solid var(--accent);
+        border-radius: var(--r);
+        background: color-mix(in srgb, var(--accent) 4%, var(--paper));
+      }
+
+      .pr-agent-brief > :first-child,
+      .pr-review-gesture > :first-child {
+        margin-top: 0;
+      }
+
+      .pr-agent-brief > :last-child,
+      .pr-review-gesture > :last-child {
+        margin-bottom: 0;
+      }
+
+      .pr-route {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--sp-2);
+        margin: var(--sp-3) 0 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: route;
+      }
+
+      .pr-route li {
+        counter-increment: route;
+        min-width: 0;
+        padding: var(--sp-2);
+        border-top: 1px solid var(--rule);
+        color: var(--ink-2);
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-route li::before {
+        content: counter(route, decimal-leading-zero);
+        display: block;
+        margin-bottom: 2px;
+        color: var(--accent);
+        font: var(--t-7) var(--mono);
+      }
+
+      .pr-route a {
+        color: inherit;
+        text-decoration-color: var(--rule);
+      }
+
+      .pr-focus {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: var(--sp-3);
+        margin: var(--sp-4) 0;
+      }
+
+      .pr-focus > article {
+        --lf-frame: 1;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+      }
+
+      .pr-focus h3 {
+        margin-top: 0;
+      }
+
+      .pr-focus p:last-child {
+        margin-bottom: 0;
+      }
+
+      .pr-review-gesture {
+        --lf-frame: 1;
+        margin: var(--sp-3) 0;
+        padding: var(--sp-3);
+        border-inline-start: 3px solid var(--accent);
+        background: color-mix(in srgb, var(--accent) 5%, transparent);
+      }
+
+      .pr-evidence-status {
+        white-space: nowrap;
+      }
+
+      .pr-evidence-status > span {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-status-passed {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+
+      .pr-status-gap {
+        background: var(--warn-tint);
+        color: var(--warn-ink);
+      }
+
+      @media (max-width: 680px) {
+        .pr-route,
+        .pr-focus {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media print {
+        .pr-agent-brief,
+        .pr-review-gesture {
+          background: transparent;
+        }
+      }
+    </style>
     <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main>
-      <p class="eyebrow">pr walkthrough</p>
+      <p class="eyebrow">agent review packet</p>
       <h1>Per-token rate limits</h1>
       <p class="lede" id="pr-lede">
-        Moves rate limiting from per-IP to per-token, so one office NAT can't exhaust
-        the budget for every client behind it. Four files, one new bucket table, no
-        behavior change for untokened requests.
+        A reviewer-first walkthrough of revision <code>8f61c2a</code>: author intent and
+        forge facts come from data, the agent explains the behavior, and the exact patch
+        remains the final authority.
       </p>
 
-      <section id="shape">
-        <h2>Shape of the change</h2>
-        <lf-tree id="files">
+      <lf-pull-request
+        id="pr-reviewed-request"
+        source="pr-review-facts"
+      ></lf-pull-request>
+
+      <aside class="sidebar" id="pr-sidebar">
+        <lf-toc id="pr-contents"></lf-toc>
+      </aside>
+
+      <section id="pr-orientation">
+        <h2>Agent brief</h2>
+        <div class="pr-agent-brief" id="pr-agent-summary">
+          <p>
+            <strong>The identity change is small and coherent.</strong> Authenticated
+            traffic moves from an address-wide collision domain to one bucket per token;
+            untokened traffic keeps an address fallback. Prefixing both keys prevents a
+            token id that resembles an IP address from sharing its bucket.
+          </p>
+          <p>
+            The patch also makes one behavior change the author description does not
+            call out: bucket lifetime rises from 10 to 30 minutes. That deserves a
+            deliberate answer because it changes cleanup pressure independently of the
+            identity fix. The new schema also lacks restart-level persistence evidence
+            in this packet. I would review the identity path, then the exact patch, then
+            settle those two evidence gates before signing off.
+          </p>
+          <ol class="pr-route" aria-label="Suggested review route">
+            <li><a href="#pr-system">Understand the request path</a></li>
+            <li><a href="#pr-hot-path">Inspect the key choice</a></li>
+            <li><a href="#pr-patch">Read all four files</a></li>
+            <li><a href="#pr-ttl">Settle TTL, then sign off</a></li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="pr-shape">
+        <h2>Review map</h2>
+        <lf-tree id="pr-files">
           <pre>
 gateway/
-  limits.py  +38 -9
+  limits.py  +4 -2
   middleware.py  +2 -1
   ratelimit.conf  +1 -1
   migrations/
     0042_token_buckets.sql  +6
 </pre>
         </lf-tree>
-        <p id="p-shape">
-          The interesting part is
-          <a href="https://github.com/example/gateway/blob/main/gateway/limits.py#L41"
-            ><code>gateway/limits.py:41</code> on GitHub</a
-          >: the bucket key changes from the remote address to the token id when one is
-          present. Everything else is plumbing that key through.
-        </p>
+        <div class="pr-focus">
+          <article id="pr-focus-identity">
+            <h3>Start here · identity</h3>
+            <p>
+              <code>Limiter.bucket_key</code> is the semantic center. Confirm token
+              precedence, the untokened fallback, and the
+              <lf-gloss
+                tip="A token id and an IP-shaped string can never name the same stored bucket because their keys begin with different prefixes."
+                >disjoint keyspace</lf-gloss
+              >.
+            </p>
+          </article>
+          <article id="pr-focus-lifetime">
+            <h3>Challenge this · lifetime</h3>
+            <p>
+              The 30-minute TTL is orthogonal to token identity and has no focused test
+              in this packet. Treat it as a separate review decision, not incidental
+              configuration churn.
+            </p>
+          </article>
+        </div>
       </section>
 
-      <section id="limits">
-        <h2>The ceilings themselves</h2>
-        <p id="p-limits">
-          None of these numbers move. What moves is what they are counted against: a
-          plan's ceiling used to be spent by every client behind one address, and is now
-          spent per token.
+      <section id="pr-system">
+        <h2>What changes at runtime</h2>
+        <p id="pr-system-intro">
+          Two views of the same change follow. Diagram nodes are individually
+          commentable. The
+          <lf-gloss
+            tip="This view is inferred from the patch. Dynamic dispatch and runtime wiring may add calls that static inspection cannot see."
+            >call diff is static</lf-gloss
+          >, so use it as a route into the source rather than as proof by itself.
         </p>
-        <table id="tiers">
+        <lf-tabs id="pr-impact-views">
+          <lf-tab id="pr-flow-tab" label="Request flow">
+            <h3>Before and after</h3>
+            <lf-diagram
+              id="pr-flow-diagram"
+              parts="node:BeforeRequest node:BeforeIP node:BeforeBucket node:AfterRequest node:Identity node:TokenKey node:IPKey node:BucketStore"
+            >
+              <pre>
+flowchart LR
+  subgraph Before[Before · address is identity]
+    BeforeRequest[Request] --> BeforeIP[Remote address]
+    BeforeIP --> BeforeBucket[Shared address bucket]
+  end
+  subgraph After[After · request chooses identity]
+    AfterRequest[Request] --> Identity{Token present?}
+    Identity -->|yes| TokenKey["tok: token.id"]
+    Identity -->|no| IPKey["ip: remote_addr"]
+    TokenKey --> BucketStore[Bucket lookup]
+    IPKey --> BucketStore
+  end
+</pre>
+            </lf-diagram>
+          </lf-tab>
+          <lf-tab id="pr-call-tab" label="Call diff">
+            <h3>Static call diff</h3>
+            <lf-diagram
+              id="pr-call-diagram"
+              parts="node:Middleware node:OldCheck node:NewCheck node:Assign node:Allow node:BucketKey node:TokenIdentity node:AddressFallback node:Take"
+            >
+              <pre>
+flowchart TD
+  Middleware["middleware.wrap(request)"] -. before .-> OldCheck["− limiter.check(request.remote_addr)"]
+  Middleware --> NewCheck["+ limiter.check(request)"]
+  Middleware --> Assign["+ request.limit_key = …"]
+  Assign --> BucketKey["limiter.bucket_key(request)"]
+  Allow["Limiter.allow(request)"] --> BucketKey
+  BucketKey --> TokenIdentity["+ Request.token.id"]
+  BucketKey --> AddressFallback["+ Request.remote_addr fallback"]
+  Allow --> Take["self.buckets[key].take()"]
+  classDef removed fill:#f8d7da,stroke:#9f2d38,color:#5b1118,stroke-dasharray:4 3
+  classDef added fill:#dff3e4,stroke:#2d7a46,color:#174426
+  class OldCheck removed
+  class NewCheck,Assign,TokenIdentity,AddressFallback added
+</pre>
+            </lf-diagram>
+          </lf-tab>
+        </lf-tabs>
+      </section>
+
+      <section id="pr-hot-path">
+        <h2>The hot path in four lines</h2>
+        <p id="pr-hot-path-intro">
+          Hover the numbered notes for the two claims that carry the design. The exact
+          implementation appears again in the patch below so every character can be
+          selected and discussed.
+        </p>
+        <lf-code id="pr-key-walk" language="python" hi="2-4">
+          <pre>
+def bucket_key(self, request):
+    if request.token:
+        return f"tok:{request.token.id}"
+    return f"ip:{request.remote_addr}"
+</pre>
+          <lf-note id="pr-note-precedence" at="2"
+            >A request with both values spends the token budget. This is the change's
+            central policy choice.</lf-note
+          >
+          <lf-note id="pr-note-prefixes" at="3"
+            >The <code>tok:</code> and <code>ip:</code> prefixes keep the two identity
+            namespaces from colliding.</lf-note
+          >
+        </lf-code>
+      </section>
+
+      <section id="pr-patch">
+        <h2>Exact patch · four files</h2>
+        <p id="pr-patch-intro">
+          This is the immutable captured patch for revision <code>8f61c2a</code>, not a
+          copy authored into the page. Each file has its own disclosure.
+        </p>
+        <aside class="pr-review-gesture" id="pr-comment-help">
+          <p>
+            <strong>Review in place.</strong> Alt-click a source line to comment on the
+            whole line, or drag across an exact expression to quote it in a comment.
+            Collapse a file when it is done; comments remain attached by file, side, and
+            line number.
+          </p>
+        </aside>
+        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="2">
+          <pre></pre>
+        </lf-diff>
+        <p id="pr-large-diff-limit">
+          <strong>Current boundary.</strong> This version parses and renders the
+          complete captured patch. File collapse lowers reading cost, but not startup or
+          DOM cost.
+        </p>
+        <details id="pr-large-diff-plan">
+          <summary>Scaling path for large reviews</summary>
+          <ol>
+            <li>
+              <strong>Index first.</strong> Load file paths, status, change counts, and
+              review signals before any file body.
+            </li>
+            <li>
+              <strong>Hydrate on demand.</strong> Render the focused file, prefetch the
+              next file, and virtualize hunks inside exceptionally large files.
+            </li>
+            <li>
+              <strong>Keep coordinates stable.</strong> Address comments by revision,
+              path, side, and line; a jump hydrates its file before resolving the
+              anchor.
+            </li>
+            <li>
+              <strong>Resume the review.</strong> Persist viewed files, open threads,
+              filters, and what changed since the reviewer last visited.
+            </li>
+          </ol>
+        </details>
+      </section>
+
+      <section id="pr-evidence">
+        <h2>Evidence and known gap</h2>
+        <table id="pr-evidence-table">
           <caption>
-            Ceilings per plan, and what each is counted against after this change.
+            What the branch proves, what it does not, and where a reviewer should look.
           </caption>
           <thead>
             <tr>
-              <th>Plan</th>
-              <th class="num">A minute</th>
-              <th class="num">Burst</th>
-              <th>Counted against</th>
+              <th>Claim</th>
+              <th>Evidence</th>
+              <th>Status</th>
+              <th>Review reading</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <th scope="row">Free</th>
-              <td class="num">60</td>
-              <td class="num">120</td>
-              <td>the token</td>
+              <th scope="row">Token precedence and IP fallback</th>
+              <td>
+                <code>test_bucket_key_prefers_token_and_falls_back_to_address</code>
+              </td>
+              <td class="pr-evidence-status">
+                <span class="pr-status-passed">passed</span>
+              </td>
+              <td>
+                Direct unit coverage of token precedence and the address fallback.
+              </td>
             </tr>
             <tr>
-              <th scope="row">Team</th>
-              <td class="num">600</td>
-              <td class="num">1,200</td>
-              <td>the token</td>
+              <th scope="row">Two tokens behind one NAT stay independent</th>
+              <td>
+                <code>test_two_tokens_behind_one_address_each_get_a_full_budget</code>
+              </td>
+              <td class="pr-evidence-status">
+                <span class="pr-status-passed">passed</span>
+              </td>
+              <td>
+                Direct limiter-level proof that two tokens receive separate budgets.
+              </td>
             </tr>
             <tr>
-              <th scope="row">Enterprise</th>
-              <td class="num">6,000</td>
-              <td class="num">12,000</td>
-              <td>the token, per environment</td>
+              <th scope="row">Migration applies on PostgreSQL 16</th>
+              <td><code>alembic upgrade head</code></td>
+              <td class="pr-evidence-status">
+                <span class="pr-status-passed">passed</span>
+              </td>
+              <td>Proves the table and partial cleanup index can be created.</td>
             </tr>
             <tr>
-              <th scope="row">Untokened</th>
-              <td class="num">60</td>
-              <td class="num">60</td>
-              <td>the remote address, as before</td>
+              <th scope="row">Thirty-minute cleanup behavior</th>
+              <td>No focused retention or load evidence</td>
+              <td class="pr-evidence-status"><span class="pr-status-gap">gap</span></td>
+              <td>The patch changes this independently of token identity.</td>
+            </tr>
+            <tr>
+              <th scope="row">Persistence across process restart</th>
+              <td>No restart or cross-process assertion</td>
+              <td class="pr-evidence-status"><span class="pr-status-gap">gap</span></td>
+              <td>Schema creation alone does not prove runtime persistence wiring.</td>
             </tr>
           </tbody>
         </table>
+
         <details id="pr-config-evidence">
-          <summary>The reviewed rate-limit configuration</summary>
+          <summary>Reviewed rate-limit configuration</summary>
           <p id="pr-config-note">
-            This is the exact branch snapshot the walkthrough was checked against, not a
-            second rendering of the diff.
+            The exact branch snapshot makes the TTL change inspectable outside the diff.
           </p>
           <lf-source
             id="pr-rate-config"
@@ -105,129 +417,93 @@ gateway/
             language="toml"
           ></lf-source>
         </details>
+
+        <details id="pr-test-evidence">
+          <summary>Focused unit transcript</summary>
+          <lf-code id="pr-test-transcript" hi="3">
+            <pre>
+$ pytest tests/ratelimit/test_bucket_identity.py -q
+...                                                                [100%]
+3 passed in 1.84s
+</pre>
+          </lf-code>
+        </details>
+
+        <details id="pr-test-source-evidence">
+          <summary>Focused unit test source</summary>
+          <p id="pr-test-source-note">
+            These are the exact assertions behind the aggregate transcript.
+          </p>
+          <lf-source
+            id="pr-test-source"
+            source="pr-review-tests"
+            snapshot="3"
+            language="python"
+          ></lf-source>
+        </details>
+
+        <details id="pr-migration-evidence">
+          <summary>Migration dry-run transcript</summary>
+          <p id="pr-migration-note">
+            The exact PostgreSQL 16 run behind the summarized migration check.
+          </p>
+          <lf-source
+            id="pr-migration-transcript"
+            source="pr-review-migration"
+            snapshot="4"
+          ></lf-source>
+        </details>
       </section>
 
-      <section id="core">
-        <h2>The core diff</h2>
-        <lf-diff id="limits-diff">
-          <pre>
-diff --git a/gateway/limits.py b/gateway/limits.py
---- a/gateway/limits.py
-+++ b/gateway/limits.py
-@@ -38,6 +38,8 @@ class Limiter:
--    def bucket_key(self, request):
--        return request.remote_addr
-+    def bucket_key(self, request):
-+        if request.token:
-+            return f"tok:{request.token.id}"
-+        return f"ip:{request.remote_addr}"
-&#32;
-     def allow(self, request):
-         key = self.bucket_key(request)
-         return self.buckets[key].take()
-diff --git a/gateway/middleware.py b/gateway/middleware.py
---- a/gateway/middleware.py
-+++ b/gateway/middleware.py
-@@ -12,3 +12,4 @@ def attach(app):
-     def wrap(request):
--        limiter.check(request.remote_addr)
-+        limiter.check(request)
-+        request.limit_key = limiter.bucket_key(request)
-         return request
-diff --git a/gateway/ratelimit.conf b/gateway/ratelimit.conf
---- a/gateway/ratelimit.conf
-+++ b/gateway/ratelimit.conf
-@@ -1,2 +1,2 @@
- burst_multiplier = 2
--bucket_ttl_minutes = 10
-+bucket_ttl_minutes = 30
-\ No newline at end of file
-diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042_token_buckets.sql
---- /dev/null
-+++ b/gateway/migrations/0042_token_buckets.sql
-@@ -0,0 +1,6 @@
-+create table token_buckets (
-+  key text primary key,
-+  tokens integer not null,
-+  refilled_at timestamptz not null
-+);
-+create index token_buckets_refilled_at_cleanup_idx on token_buckets (refilled_at) where tokens = 0;
-</pre>
-        </lf-diff>
+      <section id="pr-ttl">
+        <lf-decision id="pr-ttl-decision">
+          <h2>Should the longer bucket lifetime ship in this PR?</h2>
+          <p id="pr-ttl-context">
+            Nothing in the identity change requires a 30-minute TTL, and the supplied
+            evidence does not cover retention or cleanup load. Settle this before the
+            page-level review decision.
+          </p>
+          <lf-options id="pr-ttl-choice" choose>
+            <lf-option id="pr-ttl-restore">
+              <strong>Restore 10 minutes</strong> Keep this PR about identity and move
+              the retention change to evidence of its own.
+              <em>My take: this is the reviewable cut.</em>
+            </lf-option>
+            <lf-option id="pr-ttl-keep">
+              <strong>Keep 30 minutes</strong> Add cleanup-load evidence and explain the
+              operational reason in the PR description.
+            </lf-option>
+          </lf-options>
+        </lf-decision>
       </section>
 
-      <section id="walkthrough">
-        <h2>Prefixes keep token and address buckets disjoint</h2>
-        <lf-code id="key-walk" language="python" hi="3-4">
-          <pre>
-def bucket_key(self, request):
-    if request.token:
-        return f"tok:{request.token.id}"
-    return f"ip:{request.remote_addr}"
-</pre>
-          <lf-note id="note-prefixes" at="3"
-            >Unprefixed, a token id that happens to look like an IP would share a bucket
-            with that address. The prefixes make the two namespaces disjoint.</lf-note
-          >
-        </lf-code>
-        <aside class="callout" id="migration-note">
-          Existing buckets are keyed by bare address, so the migration renames them once
-          at deploy; mixed keys never coexist.
-        </aside>
-      </section>
-
-      <section id="testing">
-        <h2>Testing</h2>
-        <table id="test-table">
-          <caption>
-            What each half of the change proves, and the test that holds it.
-          </caption>
-          <thead>
-            <tr>
-              <th>Suite</th>
-              <th>What it proves</th>
-              <th>Held by</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Unit</th>
-              <td>The bucket key for tokened, untokened, and both-present requests.</td>
-              <td>
-                <code
-                  >test_the_bucket_key_prefers_the_token_and_falls_back_to_the_address</code
-                >
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">Integration</th>
-              <td>
-                Two tokens behind one address each get a full budget; two addresses on
-                one token share one.
-              </td>
-              <td>
-                <code>test_two_tokens_behind_one_address_each_get_a_full_budget</code>,
-                <code>test_two_addresses_on_one_token_share_one_budget</code>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p id="test-run">Both suites run under the rate-limit marker:</p>
-        <pre
-          id="test-cmd"
-        ><code class="language-bash"># the integration half needs the migration applied first
-cd gateway &amp;&amp; alembic upgrade head
-pytest tests/ -m ratelimit --maxfail=1</code></pre>
-        <p id="test-output">
-          The two-token case's transcript, from the branch as pushed:
-        </p>
-        <lf-code id="test-transcript" hi="3">
-          <pre>
-$ pytest tests/ratelimit/test_bucket_identity.py::test_two_tokens_behind_one_address_each_get_a_full_budget -q
-..                                                                 [100%]
-2 passed in 1.84s
-</pre>
-        </lf-code>
+      <section id="pr-outcome">
+        <lf-decision id="pr-outcome-decision">
+          <h2>What should this review report?</h2>
+          <p id="pr-outcome-context">
+            This records the reviewer’s recommendation in the packet; it does not call
+            the forge. Leave anchored comments first, then choose the outcome that those
+            findings support.
+          </p>
+          <lf-options id="pr-outcome-choice" choose>
+            <lf-option id="pr-outcome-request-changes">
+              <strong>Request changes</strong> A blocking finding must be resolved or
+              answered with evidence.
+              <em
+                >My take: request changes until the TTL is settled and persistence is
+                demonstrated.</em
+              >
+            </lf-option>
+            <lf-option id="pr-outcome-approve">
+              <strong>Approve</strong> The patch and supplied evidence are sufficient as
+              written.
+            </lf-option>
+            <lf-option id="pr-outcome-comment">
+              <strong>Comment without blocking</strong> The findings are useful but do
+              not need another revision.
+            </lf-option>
+          </lf-options>
+        </lf-decision>
       </section>
     </main>
   </body>

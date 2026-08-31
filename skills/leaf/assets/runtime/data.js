@@ -21,16 +21,16 @@ export function acceptData(candidate) {
   return true;
 }
 
-export function notifyDataSubscribers() {
-  document.dispatchEvent(new Event("lf-data"));
-  // The revision becomes a readiness fact only after synchronous subscribers have
-  // rendered it. Render checks and export compare this stamp with the server snapshot,
-  // so a data-only page cannot be read between acceptance and projection.
-  if (runtime.data.revision >= 0)
-    document.body.setAttribute(
-      PAGE_PAINT_ATTRIBUTE.dataRevision,
-      String(runtime.data.revision),
-    );
+export async function notifyDataSubscribers() {
+  const revision = runtime.data.revision;
+  const pending = [];
+  document.dispatchEvent(new CustomEvent("lf-data", { detail: { pending } }));
+  await Promise.allSettled(pending);
+  // The revision becomes a readiness fact only after every subscriber has rendered it.
+  // Render checks and export compare this stamp with the server snapshot, so a data-only
+  // page cannot be read between acceptance and an asynchronous projection.
+  if (revision >= 0 && runtime.data.revision === revision)
+    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataRevision, String(revision));
 }
 
 // A source value remains the server snapshot's to own. Subscribers name one input on
@@ -63,9 +63,14 @@ export function watchData(element, input, callback) {
   const selected = declaration.snapshot
     ? element.getAttribute(declaration.snapshot)
     : null;
-  const update = () => {
+  const deliver = (snapshot, event) => {
+    const rendering = callback(snapshot);
+    if (rendering?.then && Array.isArray(event?.detail?.pending))
+      event.detail.pending.push(rendering);
+  };
+  const update = (event) => {
     if (!source) {
-      callback(null);
+      deliver(null, event);
       return;
     }
     const present = Object.hasOwn(runtime.data.sources, source);
@@ -75,7 +80,7 @@ export function watchData(element, input, callback) {
           `but source ${source} carries ${runtime.data.sources[source].contract}`,
       );
     if (!present) {
-      callback(null);
+      deliver(null, event);
       return;
     }
     const sourceStore = runtime.data.sources[source];
@@ -85,17 +90,18 @@ export function watchData(element, input, callback) {
         throw new Error(
           `watchData(${element.localName}, ${input}) source ${source} has no snapshot ${selected}`,
         );
-      callback(
+      deliver(
         structuredClone({
           contract: sourceStore.contract,
           snapshot: selected,
           ...snapshot,
         }),
+        event,
       );
       return;
     }
     if (!Object.hasOwn(sourceStore, "value")) {
-      callback(null);
+      deliver(null, event);
       return;
     }
     const snapshot = {
@@ -105,7 +111,7 @@ export function watchData(element, input, callback) {
     };
     if (Object.hasOwn(sourceStore, "label")) snapshot.label = sourceStore.label;
     if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
-    callback(structuredClone(snapshot));
+    deliver(structuredClone(snapshot), event);
   };
   // Establish the subscription only after its first delivery succeeds. A package that
   // throws while mounting must not leave a listener behind to fail every later poll.

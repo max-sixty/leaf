@@ -7,9 +7,10 @@ import {
   failSoft,
   keys,
   langForPath,
-  once,
+  projectData,
   settle,
   shadowStage,
+  watchData,
 } from "/runtime/widget-api.js";
 import { parsePatchFiles, preloadDiffHTML } from "/vendor/pierre-diffs.esm.js";
 
@@ -65,6 +66,72 @@ const changeCounts = (file) =>
     }),
     { adds: 0, dels: 0 },
   );
+
+function sourceLines(file) {
+  const lines = [];
+  for (const hunk of file.hunks) {
+    let oldLine = hunk.deletionStart;
+    let newLine = hunk.additionStart;
+    for (const part of hunk.hunkContent) {
+      if (part.type === "context") {
+        for (let index = 0; index < part.lines; index++) {
+          lines.push({ path: file.name, side: "both", oldLine, newLine });
+          oldLine++;
+          newLine++;
+        }
+        continue;
+      }
+      if (part.type !== "change")
+        throw new Error(`unsupported ${part.type} line in ${file.name}`);
+      for (let index = 0; index < part.deletions; index++)
+        lines.push({ path: file.name, side: "old", oldLine: oldLine++ });
+      for (let index = 0; index < part.additions; index++)
+        lines.push({ path: file.name, side: "new", newLine: newLine++ });
+    }
+  }
+  return lines;
+}
+
+const lineKey = ({ path, side, oldLine, newLine }) =>
+  JSON.stringify(
+    side === "both"
+      ? [path, side, oldLine, newLine]
+      : [path, side, side === "old" ? oldLine : newLine],
+  );
+
+const lineLabel = ({ path, side, oldLine, newLine }) => {
+  const file = path || "(unnamed file)";
+  if (side === "old") return `${file} · old line ${oldLine}`;
+  if (side === "new") return `${file} · new line ${newLine}`;
+  return `${file} · old line ${oldLine} · new line ${newLine}`;
+};
+
+function renderedLines(file, rendered) {
+  const records = sourceLines(file);
+  const nodes = [...rendered.querySelectorAll("[data-content] [data-line]")];
+  if (nodes.length !== records.length)
+    throw new Error(
+      `Pierre returned ${nodes.length} source lines for ${file.name}; expected ${records.length}`,
+    );
+  return records.map((record, index) => {
+    const node = nodes[index];
+    const type =
+      record.side === "both"
+        ? "context"
+        : record.side === "old"
+          ? "change-deletion"
+          : "change-addition";
+    const shown = record.side === "old" ? record.oldLine : record.newLine;
+    const alternate = record.side === "both" ? record.oldLine : null;
+    if (
+      node.dataset.lineType !== type ||
+      node.dataset.line !== String(shown) ||
+      (alternate !== null && node.dataset.altLine !== String(alternate))
+    )
+      throw new Error(`Pierre returned an unexpected source line for ${file.name}`);
+    return { ...record, node };
+  });
+}
 
 function summaryNode(file) {
   const details = document.createElement("details");
@@ -178,21 +245,68 @@ async function renderFile(file, sharedStyles) {
   viewport.setAttribute("aria-label", file.name || "diff");
 
   const details = summaryNode(file);
+  const lines = renderedLines(file, rendered);
   details.append(rendered);
-  return details;
+  return { node: details, lines };
 }
 
 customElements.define(
   "lf-diff",
   class extends HTMLElement {
     connectedCallback() {
-      if (!once(this)) return;
-      settle(this.render());
+      if (this.stopWatching) return;
+      const bound = this.hasAttribute("source");
+      if (!bound) {
+        if (this.classList.contains("lf-rendered")) return;
+        if (this.inlineSource === undefined)
+          this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+        settle(this.render(this.inlineSource, false));
+        return;
+      }
+      let first = true;
+      this.stopWatching = watchData(this, "document", (snapshot) => {
+        const source = snapshot?.value ?? null;
+        if (this.boundSource === source)
+          return this.boundRendering ?? Promise.resolve();
+        this.boundSource = source;
+        const rendering = this.render(source, true);
+        this.boundRendering = rendering;
+        rendering.finally(() => {
+          if (this.boundRendering === rendering) this.boundRendering = null;
+        });
+        if (first) {
+          settle(rendering);
+          first = false;
+        }
+        return rendering;
+      });
     }
 
-    async render() {
-      const source = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+    disconnectedCallback() {
+      this.rendering = (this.rendering ?? 0) + 1;
+      this.stopWatching?.();
+      this.stopWatching = null;
+      this.boundSource = undefined;
+      this.boundRendering = null;
+    }
+
+    async render(source, bound) {
+      const rendering = (this.rendering ?? 0) + 1;
+      this.rendering = rendering;
       try {
+        if (source === null) {
+          this.replaceChildren();
+          shadowStage(this, []);
+          projectData(
+            this,
+            [],
+            () => "",
+            () => null,
+            { nested: true },
+          );
+          this.classList.remove("lf-rendered");
+          return;
+        }
         if (/^copy (?:from|to) /m.test(source))
           throw new Error(
             "unsupported copy diff (copy entries belong in prose; omit " +
@@ -231,14 +345,38 @@ customElements.define(
         for (const file of files)
           rendered.push(
             file.type === "rename-pure"
-              ? renameNode(file)
+              ? { node: renameNode(file), lines: [] }
               : await renderFile(file, sharedStyles),
           );
+        if (rendering !== this.rendering || !this.isConnected) return;
+        if (bound) for (const { node } of rendered) node.dataset.lfGen = "1";
         this.replaceChildren();
-        shadowStage(this, [...sharedStyles.values(), ...rendered]);
+        shadowStage(this, [
+          ...sharedStyles.values(),
+          ...rendered.map(({ node }) => node),
+        ]);
+        if (bound)
+          projectData(
+            this,
+            rendered.flatMap(({ lines }) => lines),
+            lineKey,
+            ({ node }) => node,
+            { nested: true, labelOf: lineLabel },
+          );
         this.classList.add("lf-rendered");
       } catch (err) {
+        if (rendering !== this.rendering || !this.isConnected) return;
+        this.classList.remove("lf-rendered");
         failSoft(this, err, source);
+        if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
+        if (bound)
+          projectData(
+            this,
+            [],
+            () => "",
+            () => null,
+            { nested: true },
+          );
       }
     }
   },

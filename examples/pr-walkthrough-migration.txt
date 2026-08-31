@@ -1,0 +1,8 @@
+$ psql --version
+psql (PostgreSQL) 16.4
+
+$ alembic upgrade head
+INFO  Running upgrade 0041 -> 0042, add persistent token buckets
+
+$ psql -XAtc "select indexdef from pg_indexes where indexname = 'token_buckets_refilled_at_cleanup_idx'"
+CREATE INDEX token_buckets_refilled_at_cleanup_idx ON public.token_buckets USING btree (refilled_at) WHERE (tokens = 0)

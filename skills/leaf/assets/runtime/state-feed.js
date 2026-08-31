@@ -79,7 +79,7 @@ export function createStateFeed({
   // definitively refused local action has the same authored correction even when no read has
   // succeeded yet. Never project a newer event list whose surrounding state threw before
   // lastEventSeq advanced.
-  function tick() {
+  async function tick() {
     const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
     if (
       (runtime.statePhase === "ready" || refusedCorrection) &&
@@ -88,16 +88,16 @@ export function createStateFeed({
     )
       paintKeys();
     document.dispatchEvent(new Event("lf-actions"));
-    notifyDataSubscribers();
+    await notifyDataSubscribers();
   }
 
   // What the page does with an answer that brought no state.
-  function readNothing() {
+  async function readNothing() {
     readAnswered = false;
     if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
     renderStatus(null);
     if (panelIsOpen()) renderPanel();
-    tick();
+    await tick();
   }
 
   // A read and its application together, for the callers that want to be told when the
@@ -108,7 +108,7 @@ export function createStateFeed({
     if ("error" in answer) throw answer.error;
     const { state } = answer;
     if (!state) {
-      readNothing();
+      await readNothing();
       return;
     }
     await receiveState(state);
@@ -182,7 +182,7 @@ export function createStateFeed({
               reportPageError(`presentation failed: ${error?.message ?? error}`);
             });
         else {
-          readNothing();
+          await readNothing();
           await present();
         }
       } catch (error) {

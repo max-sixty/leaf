@@ -3,6 +3,41 @@
     "rate-limit-config": {
       "text-file": "pr-walkthrough-source.toml",
       "label": "gateway/ratelimit.conf"
+    },
+    "pr-review-patch": {
+      "text-file": "pr-walkthrough.patch",
+      "label": "example/gateway PR #418 at 8f61c2a"
+    },
+    "pr-review-tests": {
+      "text-file": "pr-walkthrough-test.py",
+      "label": "tests/ratelimit/test_bucket_identity.py at 8f61c2a"
+    },
+    "pr-review-migration": {
+      "text-file": "pr-walkthrough-migration.txt",
+      "label": "PostgreSQL 16 migration dry run at 8f61c2a"
+    }
+  },
+  "pr-review-facts": {
+    "repository": "example/gateway",
+    "number": 418,
+    "title": "Move rate-limit identity from IP to token",
+    "author": "aria",
+    "base": "main",
+    "head": "aria/token-buckets",
+    "revision": "8f61c2a",
+    "status": "open",
+    "description": "Moves authenticated requests from shared per-IP buckets to per-token buckets. Requests without a token continue to use their remote address. Adds persistent token buckets and passes the request into the limiter.\n\nTest plan: unit coverage for key selection and token isolation, plus a migration dry run.",
+    "observedAt": "2026-08-30T14:10:00-07:00",
+    "diff": {
+      "files": 4,
+      "additions": 13,
+      "deletions": 4,
+      "commits": 3
+    },
+    "checks": {
+      "Unit · token isolation": "passed",
+      "Migration · PostgreSQL 16": "passed",
+      "Unit · bucket identity": "passed"
     }
   }
 }

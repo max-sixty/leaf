@@ -12,6 +12,7 @@ export function createConversationMessages(dependencies) {
     itemSays,
     itemWord,
     markDeclared,
+    pageQueryAll,
     rememberAuthoredMarkup,
     renderQuiet,
     renderSaid,
@@ -197,6 +198,16 @@ export function createConversationMessages(dependencies) {
   // control the press landed on where it landed on one (`part`), then the item — a
   // widget by its tag and id, a runtime part by its name — since a design comment's
   // subject is the element itself and its opening words would read as a quote.
+  function datumLabel(anchor) {
+    if (!anchor?.section || !anchor.datum) return "";
+    const datum = pageQueryAll("[data-lf-projection][data-lf-datum]").find(
+      (element) =>
+        element.dataset.lfProjection === anchor.section &&
+        element.dataset.lfDatum === anchor.datum,
+    );
+    return datum?.dataset.lfDatumLabel?.trim() ?? "";
+  }
+
   function anchorLabel(anchor, about) {
     if (about === "layer") {
       const item = anchor?.section ? elementById(anchor.section) : null;
@@ -204,6 +215,8 @@ export function createConversationMessages(dependencies) {
       const on = anchor?.part ? `${anchor.part} · ${name}` : name;
       return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
     }
+    const datum = datumLabel(anchor);
+    if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
     if (anchor?.quote) return `“${anchor.quote}”`;
     if (!anchor?.section) return "";
     const item = elementById(anchor.section);

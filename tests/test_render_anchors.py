@@ -6,6 +6,7 @@ import re
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from leaf import anchor_capture as anchor_capture_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import expect
@@ -44,6 +45,7 @@ from render_support import (
     compare_with,
     composer_quote,
     key_line,
+    leaf_page,
     live_url,
     mark_point,
     open_page,
@@ -52,6 +54,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sent_events,
     stamp_version_file,
     ticked,
     told,
@@ -1341,6 +1344,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const rendered = shadow.querySelector('pre[data-diff]');
       const statText = shadow.querySelector('.lf-diff-stat').textContent;
       const leafFont = getComputedStyle(reference).fontFamily;
+      const leafFontSize = getComputedStyle(reference).fontSize;
+      const leafLineHeight = getComputedStyle(reference).lineHeight;
       const leafBackground = getComputedStyle(reference).backgroundColor;
       reference.remove();
       return {
@@ -1358,8 +1363,12 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         coreSheets: shadow.querySelectorAll('style[data-core-css]').length,
         themeSheets: shadow.querySelectorAll('style[data-theme-css]').length,
         font: getComputedStyle(rendered).fontFamily,
+        fontSize: getComputedStyle(rendered).fontSize,
+        lineHeight: getComputedStyle(rendered).lineHeight,
         background: getComputedStyle(rendered).backgroundColor,
         leafFont,
+        leafFontSize,
+        leafLineHeight,
         leafBackground,
       };
     }""")
@@ -1374,6 +1383,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     )
     assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
     assert reading["font"] == reading["leafFont"], reading
+    assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
+    assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
     assert reading["background"] == reading["leafBackground"], reading
 
     py = by_path["gateway/limits.py"]
@@ -3267,6 +3278,176 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     assert landed is True, (
         f"the added line was picked, the mark went elsewhere ({landed})"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
+    """The data feed supplies the patch while its line key supplies both comment routes.
+
+    Both sides use the same source line number, so Alt-click proves the whole-line route
+    preserves its side. The precise selection ends at offset zero in the next syntax token:
+    exactly the boundary where sentence snapping once absorbed the interpolation's closing
+    brace and quote. Both comments must store the new side's datum, while only the selection
+    adds the exact expression as a quote.
+    """
+    authored = leaf_page(
+        "data-bound diff",
+        '<h1 id="title">Review</h1><div style="height: 900px"></div>'
+        '<lf-diff id="patch" source="review-patch">'
+        "<pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+ def route(request):
+-    return f"legacy:{request.token.id}"
++    return f"tok:{request.token.id}"
+""",
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+
+    old_key = '["app.py","old",2]'
+    new_key = '["app.py","new",2]'
+    deleted = page.locator(
+        f"lf-diff [data-line-type=\"change-deletion\"][data-lf-datum='{old_key}']"
+    )
+    added = page.locator(
+        f"lf-diff [data-line-type=\"change-addition\"][data-lf-datum='{new_key}']"
+    )
+    expect(deleted).to_have_count(1)
+    expect(added).to_have_count(1)
+    expect(deleted).to_have_attribute("data-lf-datum-label", "app.py · old line 2")
+    assert added.get_attribute("data-lf-projection") == "patch"
+    expect(added).to_have_attribute("data-lf-datum-label", "app.py · new line 2")
+    expect(added).to_have_attribute("aria-description", "app.py · new line 2")
+
+    details = page.locator("lf-diff details").first
+    details.evaluate(
+        "element => { element.open = false; window.__lfDiffDetails = element; }"
+    )
+    page.evaluate(
+        """async () => {
+          const pending = [];
+          document.dispatchEvent(new CustomEvent('lf-data', {detail: {pending}}));
+          await Promise.allSettled(pending);
+        }"""
+    )
+    assert details.evaluate("element => element === window.__lfDiffDetails")
+    expect(details).not_to_have_attribute("open", "")
+    details.evaluate("element => { element.open = true; }")
+
+    summary = details.locator("summary")
+    summary.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "patch")
+    page.keyboard.up("Alt")
+    summary.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(details).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
+
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    datum_hint = added.evaluate(
+        """line => {
+          const box = line.getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((left, right) => {
+              const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
+              return Math.hypot(a.left - box.left, a.top - box.top)
+                   - Math.hypot(b.left - box.left, b.top - box.top);
+            })[0].dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(datum_hint)
+    expect(page.locator(".lf-live")).to_contain_text("Selected app.py · new line 2")
+    page.keyboard.press("Escape")
+
+    added.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Review the whole added line.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    whole_line = page.locator(".lf-thread .lf-quote").first
+    expect(whole_line).to_have_text("§ app.py · new line 2")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    expect(added).not_to_be_in_viewport()
+    whole_line.click()
+    expect(added).to_be_in_viewport()
+    expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
+    expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, False)
+
+    selected = added.evaluate(
+        """line => {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const nodes = [], starts = [];
+          let flat = '';
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            starts.push(flat.length); nodes.push(node); flat += node.data;
+          }
+          const phrase = 'request.token.id';
+          const start = flat.indexOf(phrase);
+          if (start < 0) return null;
+          const at = offset => {
+            const index = starts.findLastIndex(value => value <= offset);
+            return [nodes[index], offset - starts[index]];
+          };
+          const range = document.createRange();
+          range.setStart(...at(start));
+          range.setEnd(...at(start + phrase.length));
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+          return {
+            text: selection.toString(),
+            crossesTokens: range.startContainer !== range.endContainer,
+            endsAtTokenStart: range.endOffset === 0,
+          };
+        }"""
+    )
+    assert selected == {
+        "text": "request.token.id",
+        "crossesTokens": True,
+        "endsAtTokenStart": True,
+    }, selected
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Review this expression.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
+        "app.py · new line 2 · “request.token.id”"
+    )
+
+    comments = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+    ]
+    assert [comment["anchor"] for comment in comments] == [
+        {"section": "patch", "datum": new_key},
+        {"section": "patch", "datum": new_key, "quote": "request.token.id"},
+    ]
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", "not a unified diff")
+    told(page)
+    expect(page.locator("lf-diff .lf-error")).to_be_visible()
+    quote_classes = page.locator(".lf-thread .lf-quote").evaluate_all(
+        "quotes => quotes.map(quote => [...quote.classList])"
+    )
+    assert all("detached" in classes for classes in quote_classes), quote_classes
     assert errors == []
     page.close()
 

@@ -43,13 +43,16 @@ picture between them.
 
 ## Source files and media
 
-Use `lf-source` when the literal text already lives in a UTF-8 file and should
-remain selectable and commentable without copying it into the authored HTML.
-First add a current-data binding to the page source so Leaf can give the source
-its page-lifetime contract:
+Use `lf-source` when literal UTF-8 text should remain selectable and commentable
+without copying it into the authored HTML. Use the same `text-document` capture
+with `lf-diff` when that file is a unified patch; the diff keeps its per-file view
+and gives each source line a stable comment coordinate. First add a current-data
+binding so Leaf can give the source its page-lifetime contract:
 
 ```html
 <lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+
+<lf-diff id="review-patch" source="pr-patch" snapshot="2"><pre></pre></lf-diff>
 ```
 
 Then capture the whole UTF-8 text file or an inclusive line range:
@@ -57,6 +60,7 @@ Then capture the whole UTF-8 text file or an inclusive line range:
 ```bash
 leaf data capture <page> leaf-skill --text-file SKILL.md --label SKILL.md
 leaf data capture <page> leaf-skill --text-file SKILL.md --lines 71:102
+leaf data capture <page> pr-patch --text-file change.patch --label "PR at 8f61c2a"
 ```
 
 Capture prints the data revision it retained. Add `snapshot="REVISION"` before
@@ -66,7 +70,9 @@ served page, the valid unpinned save that adds the binding may already have
 become an interim revision before capture. That is expected; the next valid save
 activates the pinned snapshot. Wrap `lf-source` in ordinary `<details>` or place
 it in an `lf-tabs` panel when the evidence should start collapsed or share a
-compact frame with alternatives.
+compact frame with alternatives. A bound `lf-diff` keeps one empty `<pre></pre>`
+because that is the shared data-body shape; the captured patch, not that element,
+supplies its text.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

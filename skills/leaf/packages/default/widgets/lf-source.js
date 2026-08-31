@@ -19,6 +19,7 @@ customElements.define(
           settle(rendering);
           first = false;
         }
+        return rendering;
       });
     }
 

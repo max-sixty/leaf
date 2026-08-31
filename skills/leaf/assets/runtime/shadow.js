@@ -12,7 +12,10 @@ import { tagsDeclaring } from "./registry.js";
 // to ask about.
 export const shadowRootsIn = (root) =>
   tagsDeclaring((entry) => entry["x-shadow"])
-    .flatMap((tag) => [...root.querySelectorAll(tag)])
+    .flatMap((tag) => [
+      ...(root.nodeType === Node.ELEMENT_NODE && root.matches(tag) ? [root] : []),
+      ...root.querySelectorAll(tag),
+    ])
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);

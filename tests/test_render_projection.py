@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -86,6 +87,104 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
+    authored = leaf_page(
+        "pull request brief",
+        """
+<h1 id="title">Review packet</h1>
+<p id="agent-summary">The reviewer found one changed request path.</p>
+<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>
+""",
+    )
+    url = serve(authored, packages=("pr-review",))
+    record = {
+        "repository": "acme/leaf",
+        "number": 1842,
+        "title": "Preserve request identity through retries",
+        "author": "mara",
+        "base": "main",
+        "head": "retry-ledger",
+        "revision": "8f3b2cd",
+        "status": "open",
+        "description": (
+            "Retries now retain the accepted request id.\n\n"
+            "This keeps receipts attached after a lost response."
+        ),
+        "observedAt": "2026-08-30T16:12:00-07:00",
+        "diff": {"files": 4, "additions": 86, "deletions": 19, "commits": 3},
+        "checks": {"Browser contract": "running", "Unit suite": "passed"},
+    }
+    data_model.cmd_data_set(serve.page_dir, "pr-1842", record)
+    page, errors = open_page(browser, url)
+    widget = page.locator("#reviewed-pr")
+    card = widget.locator(":scope > .lf-pr-card")
+
+    expect(card).to_have_attribute("data-lf-projection", "reviewed-pr")
+    expect(card).to_have_attribute("data-lf-datum", "acme/leaf#1842")
+    expect(card).to_contain_text("acme/leaf · PR #1842")
+    expect(card).to_contain_text("Preserve request identity through retries")
+    expect(card).to_contain_text("Opened by mara")
+    expect(card).to_contain_text("main → retry-ledger · revision 8f3b2cd")
+    expect(card.locator(".lf-pr-description-label")).to_have_text(
+        "Author's description"
+    )
+    expect(card.locator(".lf-pr-description-body")).to_have_text(record["description"])
+    expect(card.locator(".lf-pr-check", has_text="Browser contract")).to_contain_text(
+        "running"
+    )
+    expect(card.locator(".lf-pr-check", has_text="Unit suite")).to_contain_text(
+        "passed"
+    )
+    expect(page.locator("#agent-summary")).to_have_text(
+        "The reviewer found one changed request path."
+    )
+    assert (
+        card.evaluate("el => getComputedStyle(el).getPropertyValue('--lf-frame')")
+        == "1"
+    )
+
+    selected = card.locator(".lf-pr-description-body").evaluate(
+        """body => {
+          const text = body.firstChild;
+          const phrase = 'accepted request id';
+          const start = text.data.indexOf(phrase);
+          const range = document.createRange();
+          range.setStart(text, start);
+          range.setEnd(text, start + phrase.length);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          body.closest('.lf-pr-card').__reviewIdentity = true;
+          return selection.toString();
+        }"""
+    )
+    assert selected == "accepted request id"
+
+    changed = record | {
+        "observedAt": "2026-08-30T16:18:00-07:00",
+        "diff": {"files": 5, "additions": 91, "deletions": 19, "commits": 4},
+        "checks": {"Browser contract": "passed", "Unit suite": "passed"},
+    }
+    data_model.cmd_data_set(serve.page_dir, "pr-1842", changed)
+    told(page)
+    expect(card.locator(".lf-pr-fact", has_text="Files")).to_contain_text("5")
+    expect(card.locator(".lf-pr-check", has_text="Browser contract")).to_contain_text(
+        "passed"
+    )
+    assert card.evaluate("el => el.__reviewIdentity") is True
+    assert page.evaluate("() => getSelection().toString()") == "accepted request id"
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    page.emulate_media(media="print")
+    expect(card.locator(".lf-pr-description-body")).to_be_visible()
+    page.emulate_media(media="screen")
+    assert errors == []
+    page.close()
 
 
 def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(

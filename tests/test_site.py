@@ -288,8 +288,9 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     Holding /leaf.js proves widget upgrade cannot be what made the document visible.
     The waiting pseudo-element's computed content proves the loading sheet does not
     exist, without waiting for an animation threshold. Once JavaScript starts, holding
-    both seed files proves the runtime graph overlaps their reads. The shadow widget is
-    the second presentation boundary: it must progressively render before replay too.
+    both seed files proves the runtime graph overlaps their reads. The data-bound diff
+    remains empty while its captured source is held, then renders before presentation
+    completes once that source arrives.
     """
     boot = []
     seeds = []
@@ -318,16 +319,41 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
         assert len(seeds) == 2, "both session seed requests were not still in flight"
         assert page.locator("body").get_attribute("data-lf-presented") is None
-        expect(page.locator("#limits-diff")).to_have_class(
+        expect(page.locator("#pr-exact-patch")).not_to_have_class(
             re.compile(r"\blf-rendered\b")
         )
-        expect(page.locator("#limits-diff details").first).to_be_visible()
+        expect(page.locator("#pr-exact-patch details")).to_have_count(0)
+        page.evaluate(
+            """() => {
+              const body = document.body;
+              const diff = document.querySelector('#pr-exact-patch');
+              window.__lfDataStampSawRendered = null;
+              window.__lfPresentationSawRendered = null;
+              new MutationObserver(records => {
+                for (const record of records) {
+                  if (record.target !== body) continue;
+                  if (record.attributeName === 'data-lf-data-revision')
+                    window.__lfDataStampSawRendered = diff.classList.contains('lf-rendered');
+                  if (record.attributeName === 'data-lf-presented')
+                    window.__lfPresentationSawRendered = diff.classList.contains('lf-rendered');
+                }
+              }).observe(body, {attributes: true});
+            }"""
+        )
 
         for route in seeds:
             route.continue_()
         seeds.clear()
         page.wait_for_load_state("load")
+        expect(page.locator("#pr-exact-patch")).to_have_class(
+            re.compile(r"\blf-rendered\b")
+        )
+        expect(page.locator("#pr-exact-patch details").first).to_be_visible()
         page.wait_for_function(BOTH_STAMPS)
+        assert page.evaluate(
+            "() => window.__lfDataStampSawRendered === true && "
+            "window.__lfPresentationSawRendered === true"
+        ), "the data/presentation readiness stamp preceded the bound diff render"
         assert errors == []
     finally:
         if boot:

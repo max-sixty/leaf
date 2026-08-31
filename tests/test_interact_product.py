@@ -1637,7 +1637,10 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert packages
     assert all(not Path(name).is_absolute() for name in packages)
     resolved = layer_model.resolve_packages(tuple(packages))
-    assert resolved == [COMMAND_HUB_PACKAGE]
+    assert resolved == [
+        COMMAND_HUB_PACKAGE,
+        schema_model.BUNDLED_PACKAGES / "pr-review",
+    ]
     assert layer_model.checked_inputs(resolved) == resolved
 
 

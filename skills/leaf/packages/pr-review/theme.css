@@ -1,0 +1,227 @@
+/* Pull-request evidence uses the visual language of a change ledger: the branch path
+ * and revision form its spine, while the author's own words sit in an inset signed
+ * block. Surrounding page prose remains visually independent review analysis. */
+lf-pull-request {
+  display: block;
+  margin: var(--sp-4) 0;
+  container-type: inline-size;
+}
+
+.lf-pr-card {
+  --lf-frame: 1;
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--paper) 94%, var(--accent));
+  break-inside: avoid;
+}
+
+.lf-pr-head {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.lf-pr-identity,
+.lf-pr-byline,
+.lf-pr-route,
+.lf-pr-observed {
+  margin: 0;
+}
+
+.lf-pr-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  color: var(--muted);
+  font: var(--t-6) var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.lf-pr-status {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font: var(--t-6) var(--sans);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.lf-pr-status[data-status="open"],
+.lf-pr-status[data-status="merged"] {
+  border-color: color-mix(in srgb, var(--ok-ink) 45%, var(--rule));
+  background: var(--ok-tint);
+  color: var(--ok-ink);
+}
+
+.lf-pr-status[data-status="closed"] {
+  border-color: color-mix(in srgb, var(--danger-ink) 40%, var(--rule));
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+}
+
+.lf-pr-title {
+  display: block;
+  color: var(--ink);
+  font-size: var(--t-2);
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+}
+
+.lf-pr-byline {
+  color: var(--ink-2);
+  font: var(--t-6) var(--sans);
+}
+
+.lf-pr-route {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+  font: var(--t-6) var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.lf-pr-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--rule);
+}
+
+.lf-pr-fact {
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-2);
+  border-inline-start: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.lf-pr-fact:first-child {
+  border-inline-start: 0;
+}
+
+.lf-pr-fact-name,
+.lf-pr-description-label,
+.lf-pr-checks-label {
+  color: var(--muted);
+  font: var(--t-6) var(--sans);
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.lf-pr-fact-value {
+  color: var(--ink);
+  font: var(--t-4) var(--mono);
+}
+
+.lf-pr-description {
+  padding: var(--sp-3);
+  border-inline-start: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.lf-pr-description-label,
+.lf-pr-checks-label {
+  margin: 0 0 var(--sp-2);
+}
+
+.lf-pr-description-body {
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.lf-pr-checks {
+  min-width: 0;
+}
+
+.lf-pr-check-list {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lf-pr-check {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-block: var(--sp-1);
+  border-bottom: 1px solid var(--rule);
+  font: var(--t-6) var(--sans);
+}
+
+.lf-pr-check:last-child {
+  border-bottom: 0;
+}
+
+.lf-pr-check-name {
+  min-width: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.lf-pr-check-status {
+  flex: none;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.lf-pr-check[data-status="passed"] .lf-pr-check-status {
+  color: var(--ok-ink);
+}
+
+.lf-pr-check[data-status="failed"] .lf-pr-check-status {
+  color: var(--danger-ink);
+}
+
+.lf-pr-check[data-status="running"] .lf-pr-check-status,
+.lf-pr-check[data-status="queued"] .lf-pr-check-status {
+  color: var(--warn-ink);
+}
+
+.lf-pr-check-empty,
+.lf-pr-observed,
+.lf-pr-missing {
+  color: var(--muted);
+  font: var(--t-6) var(--sans);
+}
+
+.lf-pr-observed {
+  text-align: end;
+}
+
+@container (max-width: 34rem) {
+  .lf-pr-card {
+    padding: var(--sp-3);
+  }
+
+  .lf-pr-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lf-pr-fact:nth-child(3) {
+    border-inline-start: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .lf-pr-fact:nth-child(4) {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+@media print {
+  .lf-pr-card,
+  .lf-pr-description,
+  .lf-pr-status {
+    background: transparent;
+  }
+}

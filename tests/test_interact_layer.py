@@ -2591,6 +2591,33 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert list((command / "guidance").iterdir()) == []
 
 
+def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = schema_model.BUNDLED_PACKAGES / "pr-review"
+    page = tmp_path / "review"
+
+    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
+    initialized = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "pr-review", str(page)],
+    )
+
+    assert checked.exit_code == 0, checked.output
+    assert initialized.exit_code == 0, initialized.output
+    registry = json.loads((page / "registry.json").read_text())
+    widget = registry["lf-pull-request"]
+    assert registry["$layer"]["packages"] == ["pr-review"]
+    assert widget["x-data"] == {
+        "request": {
+            "contract": "pull-request",
+            "source": "source",
+            "snapshot": "snapshot",
+        }
+    }
+    assert "pull-request" in registry["$data"]["contracts"]
+    assert (page / "widgets" / "lf-pull-request.js").is_file()
+
+
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     local = tmp_path / "command-hub"

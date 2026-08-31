@@ -46,7 +46,7 @@ and tray panels;
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-and the one aggregated action, communication, and information item for each page target;
+and the one aggregated Button cluster for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
@@ -1114,7 +1114,7 @@ thread. `paintAnchors` resolves its anchor like any comment's and records it in
 `reacted` rather than `marked`: a wash through the `lf-react` highlight on a
 passage, `lf-react-el` on an element's shown parts, and a glyph reconciled by
 `seatReactions`. Its `.lf-reacts` span is an unpositioned contribution to the
-target's living-margin item, beside that target's decisions and actions; the
+target's Button cluster; the
 pill inside is the reaction's own eraser, posting the ordinary `undo` through
 `withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for the
 page's words. `markAt` does not see it: a reaction takes no press to a card and
@@ -1124,8 +1124,10 @@ no file can hold.
 
 The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the `.lf-fab`
 comment glyph followed by one reaction ellipsis.
-For a page target, the ellipsis hands Comment and the layer's token buttons to
-that target's shared margin item; it never opens a box below the floating bar.
+For a page target, the ellipsis unfolds Comment and the layer's token Buttons in that
+target's existing Button cluster. Those temporary Buttons borrow the cluster's room
+and dock with it when necessary; they do not claim permanent rail width or raise a
+separate palette.
 `showFab` shows and places the compact bar; `selectResponseTarget` raises it for a
 keyboard item hint. The ⌥ press has already chosen Comment, so `openTargetComposer`
 opens the composer directly on the same captured anchor. `r` opens the same choices on the selection,
@@ -1320,60 +1322,86 @@ chrome surface may lie above that reservation, but the reservation itself
 travels to print and export only when that medium contains the surface it
 serves.
 
-### Target margin items
+### Target Buttons
 
-The right margin has one projected item per page target. That item is the single
-place for controls the reader can use on the target, communications they can
+The right margin has one projected cluster per page target. Leaf calls its repeated
+fitting a Button: like a coat button, it is one consistent piece attached to the
+passage, not a synonym for every HTML `<button>` on the page. The cluster is the
+single place for controls the reader can use on the target, communications they can
 start about it, and standing information such as comment threads, decisions,
-outcomes, changes, or agent activity. It is a flex row: content controls precede
-the target's page-map marker, and temporary communication controls follow it. A
-target with no map reading may have controls without a marker.
+outcomes, changes, or agent activity.
+
+At rest a cluster shows at most one primary Button. A content contribution with an
+available primary action wins that place; its other controls move under the adjacent
+`…` Button. With no contributed control, standing information supplies a generated
+disclosure Button. `…` appears only when the cluster has secondary controls,
+information beside a direct action, or temporary communication choices. A target
+with one unambiguous control therefore gets one Button, not a row of variants.
 
 Content modules contribute through `registerMarginItem`; they own their verbs and
 events, never placement or control styling. Every press in a contribution is built
-with `marginAction(control, {glyph, label, tone, collapse})`. That is the one RHS
-control type: it owns the capsule, height, type, focus, state paint, and the glyph/word
-anatomy shared by decisions, editing, communications, and information triggers.
-Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
-complete target item fits and hides it only when the shared layout needs the room;
-`always` is for vocabulary whose glyph is sufficient in the row. Collapsing changes
-paint, not the DOM or accessible name.
+with `marginAction(control, {glyph, label, behavior, tone, collapse})`. That is the
+one RHS control type: it owns the capsule, height, radius, type, focus, state paint,
+and glyph/word anatomy shared by decisions, editing, communications, and information
+triggers. Its behavior states the promise before the press:
 
-The living margin groups contributions and state readings by exact target identity
-and owns one generated host plus its accessible group name. At wide widths it hoists
-that host into the main positioning context, preserving source and tab order when
-several targets share a top-level block. At compact widths it returns the host to flow
-immediately after the target's rendered text block (or the target itself). Adding
-another target action must not add another absolute row, control type, or rail
-measurement.
+- `action` is filled, carries an imperative verb, and performs its effect immediately;
+- `disclosure` is hollow, carries `aria-expanded` when it controls persistent context,
+  and opens or closes that context without settling it;
+- `options` is the hollow `…` Button and unfolds the cluster's secondary Buttons in
+  place.
+
+Shape and fill state carry that distinction without an added chevron. A lone
+non-thread informational Button reveals its target directly. Each additional
+non-thread reading gets its own peer Button under `…`; pressing one reveals that
+reading directly rather than collecting readings in a card. All threads at one target
+share one Thread Button and one conversation card. That card opens only on a press,
+never merely on focus or hover; when the document cannot leave it room beside the
+source, the same press opens the full Threads surface. The thread card is the only
+generated contextual pane, not a generic container for alternatives.
+
+Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
+complete target cluster fits and hides it only when the shared layout needs the room;
+`always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes
+paint, not behavior, the DOM, or the accessible name.
+
+The living margin groups contributions and state readings by exact target identity,
+chooses the primary, and owns the generated disclosure and `…` Buttons plus the
+cluster's accessible group name. At wide widths it hoists that host into the main
+positioning context, preserving source and tab order when several targets share a
+top-level block. At compact widths it returns the host to flow immediately after the
+target's rendered text block (or the target itself). Adding another target action must
+not add another absolute row, control type, or rail measurement.
 
 That ordered target collection is the Page map's complete location count and the source
-for the `g m` address list. A location's informational marker announces its position in
+for the `g m` address list. A location's disclosure Button announces its position in
 the complete collection. The numbered chord exposes the collection's first nine
 locations; later locations remain in the Page map and ordinary focus order rather than
-making a one-digit chord ambiguous. Addressing an item opens its marker when it has one;
-an action-only item receives focus on its first available action without performing it.
-In the compact posture, an informational item opens the Page map sheet at that location
-instead of reviving the hidden desktop preview; an action-only item keeps its direct
-focus arrival on the action docked into the page.
+making a one-digit chord ambiguous. Addressing an item opens its disclosure Button when
+it has one; an action-only item receives focus on its first available action without
+performing it. In the compact posture, an informational item opens the Page map sheet
+at that location instead of reviving the hidden desktop preview; an action-only item
+keeps its direct focus arrival on the action docked into the page.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
 lifetime, so settling an action cannot shift the readable column. A temporary
 contribution registers with `claim: false`: it borrows available RHS room and
 docks the complete host when it cannot fit, without moving the column on first
-open or leaving blank room after close. Below the margin breakpoint the complete
-host docks into flow. Visibility and vertical placement read `shownParts` and
-`shownBox`, not the target's raw client rect: a project may set `display: contents`
-while its rendered descendants remain usable, and a collapsed target has no
-rendered part to offer.
+open or leaving blank room after close. A stable contribution whose future primary
+and `…` fitting is wider than its resting one declares that pixel width with
+`reserve`; the claim includes it before the control changes. Below the margin
+breakpoint the complete host docks into flow. Visibility and vertical placement
+read `shownParts` and `shownBox`, not the target's raw client rect: a project may
+set `display: contents` while its rendered descendants remain usable, and a
+collapsed target has no rendered part to offer.
 
-The reaction key extends this same item for a page selection or item. It moves
-Comment and the declared reaction buttons to the right of the existing marker;
-it does not open a palette below the target. Conversation reactions remain in
-their conversation-owned strip. The event still carries its durable authored
-anchor, while the temporary item resolves selected text to the first rendered
-block, matching the target where replay later seats its standing reaction.
+The reaction key unfolds this same cluster's secondary Button group for a page
+selection or item. Comment and the declared reaction Buttons appear there as peer
+choices; they do not widen the rail or open a separate palette below the target.
+Conversation reactions remain in their conversation-owned strip. The event still carries its durable authored
+anchor, while the temporary item resolves selected text to the first rendered block,
+matching the target where replay later seats its standing reaction.
 
 ### Presentation and state motion
 

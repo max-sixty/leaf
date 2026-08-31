@@ -437,10 +437,10 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.close()
 
 
-def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
+def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
     """The other side of the guard above, and the one that cost more. A user reads
-    the sentence a suggestion sits in, drags across it, and then presses Accept — a
-    fresh press, long after that drag's own mouseup.
+    the sentence a suggestion sits in, drags across it, and then rejects it through
+    the target's options — a fresh press, long after that drag's own mouseup.
 
     Asking whether the live selection *contains* the control is a question about the
     DOM, and a suggestion's row is the column's own child in flow between the block
@@ -450,7 +450,8 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
     which is the shape of a bug nobody reports — it looks like a slip of the mouse.
 
     Both decisions the product exists to collect go through a press, so this asserts the
-    pointer and then the keyboard, with the selection standing throughout."""
+    pointer path through `…` and then the direct keyboard action, with the selection
+    standing throughout."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
@@ -463,10 +464,14 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
     )
     assert page.evaluate(
         "() => getSelection().containsNode(document.querySelector("
-        "'[data-lf-for=sug-refill] .lf-sug-reject'), true)"
+        "'[data-lf-for=sug-refill] .lf-sug-accept'), true)"
     ), "the selection doesn't reach the control, so this run tests nothing"
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Reject")
+    ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     assert page.evaluate("() => !getSelection().isCollapsed"), (
         "the press cleared the selection, so the keyboard half below is untested"
@@ -534,7 +539,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     ), "the bar never stepped past the row, so standing on no control proves nothing"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome"))
+        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -553,9 +558,10 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     page.close()
 
 
-def test_the_margin_offers_one_kind_of_press(browser, serve):
-    """The 💬 and a change's ✓ Accept stand in the same margin, sometimes on the same
-    line — the test above is that collision — so they have to read as one thing.
+def test_the_margin_offers_one_button_family_with_legible_behaviors(browser, serve):
+    """The 💬 disclosure and a change's ✓ Accept stand in the same margin, sometimes on
+    the same line — the test above is that collision — so they need one family while
+    still making their different promises visible.
 
     They did not. The button was the chrome's own idiom (a solid accent rectangle at
     the chrome's size, and, through a cascade nobody meant, set in the page's serif
@@ -565,11 +571,9 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     furniture a press is a .lf-btn and looks like one, and out in the margin it is a
     marginal mark.
 
-    Pinned by reading both off one page. marginAction is one statement now, but either
-    wearer can still restate a property in its own rules, and this is what says such a
-    restatement kept the family. The shadow is the one property allowed to differ, and
-    it is the difference that is real: only one of them floats over the page's own words
-    rather than standing in the empty rail."""
+    Pinned by reading both off one page. Geometry and typography are the Button family;
+    fill and ink distinguish a hollow disclosure from a committing action. The shadow is
+    the other deliberate difference: only one floats over the page's own words."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
@@ -585,14 +589,14 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
 
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size", "line-height",
-            "border-radius", "border-top-width", "border-top-style", "padding",
-            "background-color", "color"].map(p => [p, s.getPropertyValue(p)])); }"""
+            "border-radius", "border-top-width", "border-top-style", "padding"]
+            .map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab").evaluate(family)
     resident = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").evaluate(
         family
     )
     assert raised == resident, (
-        "the margin's two presses are drawn differently:\n  "
+        "the margin's two Button behaviors lost their common family:\n  "
         + "\n  ".join(
             f"{k}: {raised[k]!r} vs {resident[k]!r}"
             for k in raised
@@ -602,10 +606,18 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     assert "system-ui" in raised["font-family"], (
         f"the margin's presses speak in the document's voice: {raised['font-family']}"
     )
-    assert (
-        page.locator(".lf-fab").evaluate("el => getComputedStyle(el).boxShadow")
-        != "none"
-    ), "the one press that floats over the page says nothing about it"
+    fab = page.locator(".lf-fab")
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    expect(fab).to_have_attribute("data-lf-behavior", "disclosure")
+    expect(accept).to_have_attribute("data-lf-behavior", "action")
+    assert fab.evaluate(
+        "el => getComputedStyle(el).backgroundColor"
+    ) != accept.evaluate("el => getComputedStyle(el).backgroundColor"), (
+        "disclosure and action promise the same effect"
+    )
+    assert fab.evaluate("el => getComputedStyle(el).boxShadow") != "none", (
+        "the one press that floats over the page says nothing about it"
+    )
     assert errors == []
     page.close()
 

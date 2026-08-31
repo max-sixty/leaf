@@ -2079,14 +2079,13 @@ def test_the_composer_stands_in_the_margin_beside_the_passage(browser, serve):
 
 
 def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, serve):
-    """A float is an absolute child of body, so one standing past body's client box is
-    sideways-scrollable overflow. Placement clamps inside the box of that moment, and
-    the box then changes: the panel takes its strip, and a composer placed in a wide
-    window's margin overhung the narrowed page — the document panned 328px left under
-    a trackpad, with the composer standing on the panel that had displaced it. The
-    floats are placed again when layout reshapes, after the margin's own transition,
-    so the invariant is read with an auto-retrying wait rather than a one-shot read
-    racing the transitionend handler."""
+    """A document-attached float standing past body's client box creates sideways-scrollable
+    overflow. Placement clamps inside the box of that moment, and the box then changes:
+    the panel takes its strip, and a composer placed in a wide window's margin overhung the
+    narrowed page — the document panned 328px left under a trackpad, with the composer
+    standing on the panel that had displaced it. The floats are placed again when layout
+    reshapes, after the margin's own transition, so the invariant is read with an
+    auto-retrying wait rather than a one-shot read racing the transitionend handler."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     # The margin placement below is this test's precondition, so the window is the one
     # its own test states the width for.

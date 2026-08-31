@@ -46,7 +46,8 @@ and tray panels;
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-and the one aggregated Button cluster for each page target;
+the design-mode exclusion of its top-layer preview, and the one aggregated Button cluster
+for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
@@ -88,9 +89,11 @@ guards, deferred measurement, layout-change signalling, and control sizing;
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
 the declaration-derived names and layout queries the runtime supplies it, and keeps
-body's layout shell out of the containing-block chain for document-positioned chrome;
-`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
-document room left after the panel and trays;
+the root, body's layout shell, and the chrome's paint hosts out of the containing-block chain for
+document-positioned chrome. It also keeps page-attached paint below covering workspaces
+and paint for chrome targets above them;
+`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
+room left after the panel and trays, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -186,12 +189,14 @@ Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
 choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
-rendered chrome, and writes only chrome boxes. It hears the shell's inline size
-without deriving a posture from it: `layoutSizes` watches `document.body`'s
-content-box width so a float placed in the margin is re-placed while a panel's
-eased margin is still narrowing the page, and reads nothing else off that box. A
-`ResizeObserver` callback must not resize the box it observes, directly or
-through a class or attribute that changes that box.
+rendered chrome, and writes only chrome boxes. `layoutSizes` watches
+`document.body`'s content-box size without deriving a posture from it. A width
+change schedules `syncLayout` and page repaint in the following frame while a
+panel's eased margin narrows the page; a height-only content reflow calls
+`pageShifted` during observer delivery so page paint follows targets that moved.
+That direct path may write only unobserved paint hosts and state or queue work for
+a frame. A `ResizeObserver` callback must not resize the box it observes, directly
+or through a class or attribute that changes that box.
 
 ## Startup and presentation
 
@@ -1254,11 +1259,12 @@ status-like item may yield its own width so controls to its right remain fixed.
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
 container, `main` composes its left and right claims, and queries grant or withdraw
-margin postures. JavaScript may hear that shell's inline size as a signal to re-run
-`syncLayout` — `layoutSizes` watches `document.body`'s content-box width, because a
-panel's eased margin goes on narrowing the box a float stands in after `setPanel` has
-returned and one synchronous pass at the press reads only the wide box — but it derives
-no posture from it and mirrors no cramped state.
+margin postures. JavaScript may hear the shell's content-box size without deriving a
+posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
+repaint after a width change, because a panel's eased margin keeps narrowing the box a
+float stands in after `setPanel` returns. A height-only change sends `pageShifted`
+directly so a content reflow re-places document-attached paint without re-running
+chrome reservation.
 
 Which question a floor asks belongs to the posture it grants. A floor asking how much
 room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
@@ -2253,8 +2259,8 @@ region.
 Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
 available, or opens the complete sheet where the compact layout has no rail or the map
-has no locations. `m`, `h`, and `f` name the page's numbered
-page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
+has no locations. `m`, `t`, `h`, and `f` name the page's numbered
+page-map item, tab, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2274,10 +2280,10 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it. Completing an address runs that list's destination: a
-same-document hyperlink follows and leaves focus on its fragment target, an external
-hyperlink names the tab it opens, a fold opens and takes focus, and a page-map item opens
-its marker or focuses its first available action.
+the rows inside it. Completing an address runs that list's destination: a tab selects
+and takes focus, a same-document hyperlink follows and leaves focus on its fragment
+target, an external hyperlink names the browser tab it opens, a fold opens and takes
+focus, and a page-map item opens its marker or focuses its first available action.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
 line. Each row shows its complete chord. Each visible numbered member also shows its

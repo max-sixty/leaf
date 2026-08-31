@@ -682,6 +682,34 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.close()
 
 
+def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
+    browser, serve
+):
+    """Ordinary design paint never promises to rise above the browser's top layer."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(preview).to_be_hidden()
+    page.mouse.move(4, 200)
+    page.locator("body").focus()
+    marker.hover()
+    expect(preview).to_be_hidden()
+    page.locator("body").focus()
+    marker.focus()
+    expect(preview).to_be_hidden()
+
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     browser, serve
 ):

@@ -85,6 +85,7 @@ export function chromeStyle({
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
   :root {
+    position: static;
     --lf-safe-top: env(safe-area-inset-top, 0px);
     --lf-safe-right: env(safe-area-inset-right, 0px);
     --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -558,6 +559,10 @@ ${MARK_RULES}
     /* What the layer inherits from the document, answered at the layer's root, because
        the document below is a page of prose and this is not it.
 
+       position, because document-attached floats resolve against the initial containing
+       block. Broad authored positioning must not turn their outer wrapper or the
+       legend's nested paint host into a containing block.
+
        cursor, because the page's own body may be armed for ⌥ aiming — a statement about
        the document, not about anything in here. Stated on this side so the document side
        needs no mention of this container's class, which would widen the shared vocabulary
@@ -568,8 +573,15 @@ ${MARK_RULES}
        *wears* the class from walking past it — the 💬 button once inherited straight
        into the page's serif at 17px that way — and this is the same answer for the
        text around the controls. */
+    :scope, .lf-legend { position: static; }
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
+    /* Page paint belongs under a covering workspace. Paint whose target is inside the
+       chrome belongs above that workspace, including when the same aim or composer moves
+       between the two. The target owner states the plane; document order keeps aim,
+       composer, and inspect in their ordinary order within it. */
+    :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
+    .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
       display: flex;
       align-items: center; gap: 10px;
@@ -1019,8 +1031,8 @@ ${MARK_RULES}
        the section the reader was in to the disclosure they are now inside. */
     .lf-system { color: var(--ok); margin: 8px 0; }
     /* The two floats that point at the page live in the document's coordinate space
-       (absolute, body their containing block), because what they point at does: a
-       composer that held its viewport spot while the page scrolled sat pinned over
+       (absolute against the initial containing block), because what they point at does:
+       a composer that held its viewport spot while the page scrolled sat pinned over
        whatever arrived under it, no longer beside the item it was about. Everything
        else here is the viewport's own chrome and stays fixed. Below the banner's
        9000, so a float scrolled to the top slides under the bar, not over it. */
@@ -1038,7 +1050,7 @@ ${MARK_RULES}
        pill that floats over the page's own content rather than standing in the empty
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
-    .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
+    .lf-fab-bar { position: absolute; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
     /* The comment glyph and ellipsis are the bar's two stable presses. Both carry the
@@ -1107,10 +1119,10 @@ ${MARK_RULES}
        floats above (place), so a scroll moves it with the page between the events
        that re-derive it; under the floats themselves, which are chrome the reader
        works rather than paint about the page. */
-    .lf-aim { position: absolute; z-index: 8920; display: none; pointer-events: none;
+    .lf-aim { position: absolute; display: none; pointer-events: none;
       border: 2px solid var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); }
-    .lf-composer { position: absolute; z-index: 8950; display: none; width: 320px; background: var(--card);
+    .lf-composer { position: absolute; display: none; width: 320px; background: var(--card);
       border: 1px solid var(--border-2); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 10px; }
     /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
        on the hidden one this would out-specify .lf-unseen's own overflow. */
@@ -1351,7 +1363,7 @@ ${MARK_RULES}
       --lf-here-ring: target-search; outline-offset: 1px; }
     .lf-target-search-status { min-width: 58px; color: var(--muted);
       font-size: var(--t-6); text-align: right; white-space: nowrap; }
-    .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
+    .lf-legend-box { position: absolute; pointer-events: none;
       box-sizing: border-box;
       border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
     .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
@@ -1366,7 +1378,7 @@ ${MARK_RULES}
     .lf-banner.lf-designing { background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
     /* Document-anchored like the box it names (paintInspect adds the scroll), so the
        two move together between the events that re-derive them. */
-    .lf-inspect { position: absolute; z-index: 9060; pointer-events: none; display: none;
+    .lf-inspect { position: absolute; pointer-events: none; display: none;
       max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
       background: var(--accent); color: var(--paper); }

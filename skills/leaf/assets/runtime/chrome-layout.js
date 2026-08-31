@@ -244,42 +244,55 @@ export function createChromeLayout({
     syncLayout();
   });
   // Field sizing and every other chrome-size change feed the one chrome geometry writer.
+  // The document shell's size also feeds the page repaint door: content landing can move
+  // a target without emitting a pointer or scroll event.
   let layoutFrame = 0;
-  const scheduleLayout = () => {
+  let pageMoved = false;
+  const scheduleLayout = (shellMoved = false) => {
+    pageMoved ||= shellMoved;
     if (layoutFrame) return;
     layoutFrame = requestAnimationFrame(() => {
       layoutFrame = 0;
+      const repaintPage = pageMoved;
+      pageMoved = false;
       syncLayout();
+      if (repaintPage) pageShifted();
     });
   };
-  // Body's own inline size is the first of them, because the strip the page yields to the
-  // panel is an eased margin: setPanel writes the attribute and returns, and the box the
-  // floats are placed in goes on narrowing for another fifth of a second. One synchronous
-  // syncLayout at the press reads the wide box, so a composer standing in a wide window's
-  // margin kept a place the narrowed page no longer has — an absolute child past body's
-  // client box, which is sideways-scrollable overflow, with the box standing on the panel
-  // that displaced it. Watched rather than heard through `transitionend` because an
-  // interrupted slide still reports its last frame, and a strip a margin resident claims
-  // moves this width with no transition to end.
+  // Body's own box is the first of them, because the strip the page yields to a workspace
+  // is an eased margin: a state writer returns while the box and every page target keep
+  // moving for another fifth of a second. Width observation handles taking or returning
+  // room. Margin-transition frames handle an equal-width swap from a left tray to the
+  // right panel, where the shell translates without resizing. The attribute observation
+  // supplies the final reading when reduced motion removes the transition altogether.
   //
-  // Filtered to the content box's width: body's block size is the document's content
-  // height, so hearing every body resize would feed ordinary page growth back into a
-  // writer that reserves flow content. The width still hears both an outer strip and a
-  // padding rail. Writes land in the following animation frame, outside ResizeObserver
-  // delivery, so a reservation changing another watched chrome box cannot create an
-  // undelivered-notification loop.
+  // A height-only body resize is repaint-only. An image or font can move a later target
+  // without resizing that target or mutating the DOM, while sending that ordinary page
+  // growth through syncLayout would feed it into the writer that reserves flow content.
+  // Writes land in the following animation frame, outside ResizeObserver delivery, so a
+  // reservation changing another watched chrome box cannot create an undelivered-
+  // notification loop.
   let bodyContentWidth = 0;
+  let bodyContentHeight = 0;
   const layoutSizes = new ResizeObserver((entries) => {
-    let shellChanged = false;
+    let layoutChanged = false;
+    let shellMoved = false;
     for (const { contentRect, target } of entries) {
       if (target !== document.body) {
-        shellChanged = true;
+        layoutChanged = true;
         continue;
       }
-      if (contentRect.width !== bodyContentWidth) shellChanged = true;
+      const widthChanged = contentRect.width !== bodyContentWidth;
+      const heightChanged = contentRect.height !== bodyContentHeight;
+      if (widthChanged) {
+        layoutChanged = true;
+      }
+      if (widthChanged || heightChanged) shellMoved = true;
       bodyContentWidth = contentRect.width;
+      bodyContentHeight = contentRect.height;
     }
-    if (shellChanged) scheduleLayout();
+    if (layoutChanged) scheduleLayout(shellMoved);
+    else if (shellMoved) pageShifted();
   });
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
@@ -287,6 +300,35 @@ export function createChromeLayout({
   // The composer grows under typing (field-sizing), and a box placed above its passage
   // grows downward, back over the mark it was moved off — so its own resize re-places it.
   layoutSizes.observe(composer);
+
+  const movingMargins = new Set();
+  let shellFrame = 0;
+  const marginProperty = (event) =>
+    event.target === document.body &&
+    (event.propertyName === "margin-left" || event.propertyName === "margin-right");
+  function repaintMovingShell() {
+    shellFrame = 0;
+    pageShifted();
+    if (movingMargins.size) shellFrame = requestAnimationFrame(repaintMovingShell);
+  }
+  function scheduleShellRepaint() {
+    if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
+  }
+  document.body.addEventListener("transitionrun", (event) => {
+    if (!marginProperty(event)) return;
+    movingMargins.add(event.propertyName);
+    scheduleShellRepaint();
+  });
+  for (const type of ["transitionend", "transitioncancel"])
+    document.body.addEventListener(type, (event) => {
+      if (!marginProperty(event)) return;
+      movingMargins.delete(event.propertyName);
+      scheduleShellRepaint();
+    });
+  new MutationObserver(scheduleShellRepaint).observe(document.body, {
+    attributes: true,
+    attributeFilter: ["data-lf-panel", "data-lf-tray"],
+  });
 
   return { inPanel, panelCovers, panelIsOpen, setPanel, syncLayout };
 }

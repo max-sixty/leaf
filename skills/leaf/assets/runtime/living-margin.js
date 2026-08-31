@@ -181,6 +181,7 @@ export function createLivingMargin(dependencies) {
     comparisonChanges,
     compact,
     closestAcross,
+    designIsOn,
     el,
     elementById,
     goToDecision,
@@ -191,7 +192,6 @@ export function createLivingMargin(dependencies) {
     offer,
     openDecisions,
     panelIsOpen,
-    pageScroller,
     paintKeys,
     placedAt,
     renderMarginThread,
@@ -1078,7 +1078,7 @@ export function createLivingMargin(dependencies) {
   }
 
   function showPreview(entry, button, retry = true) {
-    if (!entry || suppressedKey === entry.key) return;
+    if (!entry || suppressedKey === entry.key || designIsOn()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry?.key !== entry.key) buildPreview(entry);
     if (previewButton && previewButton !== button)

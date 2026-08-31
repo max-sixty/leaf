@@ -46,7 +46,8 @@ and tray panels;
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-and the one aggregated action, communication, and information item for each page target;
+the design-mode exclusion of its top-layer preview, and the one aggregated action,
+communication, and information item for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
@@ -88,9 +89,11 @@ guards, deferred measurement, layout-change signalling, and control sizing;
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
 the declaration-derived names and layout queries the runtime supplies it, and keeps
-body's layout shell out of the containing-block chain for document-positioned chrome;
-`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
-document room left after the panel and trays;
+the root, body's layout shell, and the chrome's paint hosts out of the containing-block chain for
+document-positioned chrome. It also keeps page-attached paint below covering workspaces
+and paint for chrome targets above them;
+`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
+room left after the panel and trays, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;

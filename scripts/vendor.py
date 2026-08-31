@@ -41,6 +41,7 @@ PINS = {
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.3.6",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "shiki": "4.4.3",
     "esbuild": "0.28.2",
 }
@@ -427,8 +428,68 @@ def build_pierre(work: Path) -> list[Path]:
     return [out, notices]
 
 
+def build_mcp_app(work: Path) -> list[Path]:
+    """Bundle the MCP Apps surfaces into self-contained `ui://` resources.
+
+    An MCP host reads one HTML blob from the server; it does not fetch Leaf's
+    ordinary app assets. The SDK, application code, styles, and existing Leaf
+    mark are therefore inlined into committed files that an installed plugin can
+    serve without npm or network access. The complete-page resource may frame
+    the process-scoped page server, but the resource itself remains standalone.
+    """
+    source = ROOT / "scripts/mcp-app"
+    run(
+        "npm",
+        "install",
+        "--no-save",
+        "--no-package-lock",
+        "--silent",
+        spec("@modelcontextprotocol/ext-apps"),
+        spec("esbuild"),
+        cwd=work,
+    )
+    outputs = []
+    for name in ("compact", "page"):
+        entry = work / f"{name}-entry.js"
+        bundle = work / f"{name}-bundle.js"
+        out = ASSETS / f"vendor/mcp-{name}-app.html"
+        shutil.copyfile(source / f"{name}-app.js", entry)
+        esbuild(
+            entry.name,
+            "--bundle",
+            "--format=iife",
+            "--platform=browser",
+            "--target=chrome105",
+            "--minify",
+            "--legal-comments=inline",
+            f"--banner:js=/*! @modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
+            " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
+            f"--outfile={bundle}",
+            cwd=work,
+        )
+        html = (source / f"{name}-app.html").read_text(encoding="utf-8")
+        html = html.replace(
+            "/* LEAF_MCP_STYLE */",
+            (source / f"{name}-app.css").read_text(encoding="utf-8").strip(),
+        )
+        html = html.replace(
+            "/* LEAF_MCP_SCRIPT */",
+            bundle.read_text(encoding="utf-8")
+            .strip()
+            .replace("</script", "<\\/script"),
+        )
+        html = html.replace(
+            "<!-- LEAF_MCP_ICON -->",
+            (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
+        )
+        out.write_text(html, encoding="utf-8")
+        outputs.append(out)
+    return outputs
+
+
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "highlight": build_highlight,
+    "mcp-app": build_mcp_app,
     "plot": build_plot,
     "pierre": build_pierre,
 }
@@ -451,8 +512,9 @@ REBUILDS = {
     "highlight.js": ("highlight",),
     "@observablehq/plot": ("plot",),
     "@pierre/diffs": ("pierre",),
+    "@modelcontextprotocol/ext-apps": ("mcp-app",),
     "shiki": ("pierre",),
-    "esbuild": ("highlight", "plot", "pierre"),
+    "esbuild": ("highlight", "mcp-app", "plot", "pierre"),
 }
 
 

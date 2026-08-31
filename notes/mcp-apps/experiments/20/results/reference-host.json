@@ -1,0 +1,52 @@
+{
+  "reference_host": {
+    "repo": "https://github.com/modelcontextprotocol/ext-apps",
+    "commit": "10195ad91851502134930e9b80ec2c04e277a720"
+  },
+  "invocation": {
+    "selected_tool": "leaf_open_page",
+    "initial_input": "{}",
+    "submitted_input": "{\"page\": \"/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-20.wS9C17/page\"}"
+  },
+  "failure": {
+    "error": "AssertionError('Locator expected to be visible\\nActual value: None\\nError: element(s) not found \\nCall log:\\n  - Expect \"to_be_visible\" with timeout 5000ms\\n  - waiting for get_by_text(\"Tool Input\", exact=True).last\\n\\nAria snapshot:\\n- button \"🌙\"\\n- text: Leaf:leaf_open_page\\n- button \"×\"\\n- text: \"📥 Tool Input 99 chars ▶ { \\\\\"page\\\\\": \\\\\"/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-20.wS9C17/page\\\\\" }\"\\n- iframe\\n- text: \"📤 Tool Result 859 chars ▶ { \\\\\"content\\\\\": [ { \\\\\"type\\\\\": \\\\\"text\\\\\", \\\\\"text\\\\\": \\\\\"Decision: where sessions live: Opening t… Server\"\\n- combobox \"Server\":\\n  - option \"Leaf\" [selected]\\n- text: Tool\\n- combobox \"Tool\":\\n  - option \"leaf_open_compact_ask\"\\n  - option \"leaf_open_page\" [selected]\\n- text: Input\\n- textbox \"Input\": \"{\\\\\"page\\\\\": \\\\\"/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-20.wS9C17/page\\\\\"}\"\\n- button \"Call Tool\"')",
+    "url": "http://localhost:8080/?tool=leaf_open_page&server=Leaf&call=true",
+    "body": "🌙\nLeaf:leaf_open_page\n×\n📥 Tool Input\n99 chars\n▶\n{ \"page\": \"/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-20.wS9C17/page\" }\n📤 Tool Result\n859 chars\n▶\n{ \"content\": [ { \"type\": \"text\", \"text\": \"Decision: where sessions live: Opening t…\nServer\nLeaf\nTool\nleaf_open_compact_ask\nleaf_open_page\nInput\nCall Tool",
+    "screenshot": "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/20/results/failure.png"
+  },
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://localhost:8080/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://127.0.0.1:54308/theme.css",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://127.0.0.1:54308/leaf.js",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Leaf compact ask</title>
+    <style>
+      /* LEAF_MCP_STYLE */
+    </style>
+  </head>
+  <body>
+    <main class="shell" id="app">
+      <header class="mast">
+        <div class="identity">
+          <span class="mark" aria-hidden="true"><!-- LEAF_MCP_ICON --></span>
+          <span>
+            <span class="product">Leaf</span>
+            <span class="surface">inline ask</span>
+          </span>
+        </div>
+        <button class="quiet-button" id="refresh" type="button">Refresh</button>
+      </header>
+      <section class="content" id="content" aria-live="polite">
+        <p class="loading">Opening the current ask…</p>
+      </section>
+      <footer class="foot">
+        <span class="sequence" id="sequence">Waiting for Leaf</span>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+        <button class="link-button" id="open-full" type="button" hidden>
+          Open full page
+        </button>
+      </footer>
+    </main>
+    <script>
+      /* LEAF_MCP_SCRIPT */
+    </script>
+  </body>
+</html>

@@ -50,6 +50,24 @@ Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude C
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
 currently about.
 
+### Experimental MCP Apps surface
+
+A checkout can expose complete Leaf pages to a local
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps) host over stdio:
+
+```sh
+bin/leaf mcp run
+```
+
+The host calls `leaf_open_page` with an initialized page directory. Its app
+frames the ordinary Leaf browser interface from a process-scoped loopback
+server, including comments, widgets, version travel, and the existing event
+path. Closing the app loses only that presentation: the page directory and
+`comments.jsonl` remain the durable record. `leaf_open_compact_ask` is a separate
+optional projection for one small single-choice ask; it is not the boundary of
+what the MCP surface supports. Host registration and non-local page URLs remain
+deliberately manual while this surface is experimental.
+
 ## Packages
 
 A package carries a reusable theme, widget, browser module, data contract, or role

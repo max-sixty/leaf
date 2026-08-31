@@ -43,7 +43,11 @@ published file is already loadable:
 - Builds, where it is not, or where what ships is cut down to what the registry
   declares: `highlight` and `pierre`, both cut to `$languages.names`, and
   `plot`, bundled with d3 because Plot's published ESM leaves d3 as a bare
-  external import.
+  external import. `mcp-app` is the separate delivery-surface build: each tracked
+  shell under `scripts/mcp-app/` becomes one HTML blob containing the MCP Apps
+  SDK, its application code and styles, and the Leaf mark. The full-page shell
+  then frames the declared process-scoped page origin; the compact shell has no
+  network assets.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is
 pinned, which holds for the three copies and for `highlight`, so a clean

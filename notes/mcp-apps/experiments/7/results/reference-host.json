@@ -1,0 +1,102 @@
+{
+  "reference_host": {
+    "repo": "https://github.com/modelcontextprotocol/ext-apps",
+    "commit": "10195ad91851502134930e9b80ec2c04e277a720"
+  },
+  "model_visible_tools": [
+    "leaf_open_page"
+  ],
+  "initial": {
+    "viewport": {
+      "width": 414,
+      "height": 354
+    },
+    "client": {
+      "width": 414,
+      "height": 354
+    },
+    "scroll": {
+      "width": 414,
+      "height": 354
+    },
+    "question": "Where should a session live?",
+    "options": [
+      "Stateless JWT",
+      "Redis, cookie fallback",
+      "Postgres table"
+    ],
+    "focused": {
+      "tag": "button",
+      "id": null,
+      "option": "opt-redis"
+    }
+  },
+  "horizontal_overflow": false,
+  "vertical_overflow": false,
+  "keyboard_choice": {
+    "widget": "session-options",
+    "action": "choose",
+    "detail": {
+      "options": [
+        "opt-redis"
+      ]
+    },
+    "seq": 1
+  },
+  "after_choice": {
+    "viewport": {
+      "width": 414,
+      "height": 354
+    },
+    "client": {
+      "width": 414,
+      "height": 354
+    },
+    "scroll": {
+      "width": 414,
+      "height": 354
+    },
+    "question": "Nothing waiting here",
+    "options": [],
+    "focused": {
+      "tag": "body",
+      "id": null,
+      "option": null
+    }
+  },
+  "after_teardown_and_reopen": {
+    "viewport": {
+      "width": 414,
+      "height": 354
+    },
+    "client": {
+      "width": 414,
+      "height": 354
+    },
+    "scroll": {
+      "width": 414,
+      "height": 354
+    },
+    "question": "Nothing waiting here",
+    "options": [],
+    "focused": {
+      "tag": "body",
+      "id": null,
+      "option": null
+    }
+  },
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ],
+  "failed_responses": [],
+  "failed_requests": [
+    {
+      "url": "http://localhost:3001/mcp",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "screenshot": "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/7/results/compact-ask-420x360.png"
+}

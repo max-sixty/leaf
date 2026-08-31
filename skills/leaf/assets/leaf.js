@@ -696,7 +696,7 @@ const commentsEdge = drawnEdge({
   covering: COVERING,
 });
 
-const banner = el("div", "lf-ui lf-banner");
+const banner = el("header", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");

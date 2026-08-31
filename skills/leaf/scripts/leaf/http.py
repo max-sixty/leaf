@@ -92,6 +92,7 @@ class Handler(BaseHTTPRequestHandler):
     # Every server a user reaches exposes noted versions only.
     preview_upto = None
     preview_source = None
+    cookie_attributes = "SameSite=Strict"
 
     def versions_live(self, events):
         if self.preview_upto is None:
@@ -349,7 +350,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",
-                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict",
+                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; "
+                f"{self.cookie_attributes}",
             )
             self.set_cookie = False
         super().end_headers()
@@ -594,6 +596,7 @@ def handler_for(
     preview_upto=None,
     preview_source=None,
     protocol_version="HTTP/1.0",
+    cookie_attributes="SameSite=Strict",
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
@@ -607,6 +610,7 @@ def handler_for(
             "preview_upto": preview_upto,
             "preview_source": preview_source,
             "protocol_version": protocol_version,
+            "cookie_attributes": cookie_attributes,
             "event_endpoint": EventEndpoint(page_dir),
             "layer": layer_generation(page_dir),
         },

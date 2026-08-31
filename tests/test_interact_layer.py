@@ -55,6 +55,7 @@ Commands:
   data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
+  mcp         Expose pages to MCP Apps hosts.
   package     Create and check packages.
   page        Create pages and add media.
   receipt     Record the terminal outcome of a reader request.

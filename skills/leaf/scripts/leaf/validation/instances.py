@@ -150,9 +150,9 @@ def decision_region_errors(lf_elements: list, registry: dict) -> list:
             )
     for region in regions:
         headings = [
-            child
-            for child in region["children"]
-            if child in {f"h{n}" for n in range(1, 7)}
+            child["tag"]
+            for child in region["direct_text"]
+            if child["tag"] in {f"h{n}" for n in range(1, 7)}
         ]
         if len(headings) != 1:
             errors.append(

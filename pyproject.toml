@@ -35,7 +35,7 @@
 name = "leaf"
 version = "0"
 requires-python = ">=3.10"
-dependencies = ["click>=8", "jsonschema>=4", "playwright>=1.49", "tinycss2>=1.4"]
+dependencies = ["click>=8", "jsonschema>=4", "mcp>=2", "playwright>=1.49", "tinycss2>=1.4"]
 
 [project.scripts]
 leaf = "leaf.cli:cli"

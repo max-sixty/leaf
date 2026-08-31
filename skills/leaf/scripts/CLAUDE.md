@@ -23,6 +23,8 @@ The main owners are:
   delivery context, and conversation writes;
 - `work`: transient work claims and widget work seats;
 - `decisions`: declaration-driven page and thread decision projections;
+- `mcp_app`: the experimental MCP Apps server, process-scoped page delivery,
+  and compact ask projection;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
 - `host`: local paths, process readings, host identity, and session lifetime;
@@ -64,6 +66,8 @@ Read the reference that owns the boundary before changing it:
   service lifetime;
 - `../references/internals/validation.md` for static checks, browser checks,
   parsed source, and file-side passages.
+- `../references/internals/mcp-apps.md` for the experimental MCP server,
+  complete-page and compact resources, and their return paths.
 
 `../references/packages.md` owns the public package contract. The browser's
 parallel projection, passage, registry, and render rules live in `../CLAUDE.md`.

@@ -1,0 +1,18 @@
+(node:71241) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Host server:    http://localhost:8080
+Sandbox server: http://localhost:8081
+
+Press Ctrl+C to stop
+
+NotFoundError: Not Found
+    at createHttpError (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/send/index.js:861:12)
+    at SendStream.error (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/send/index.js:168:31)
+    at SendStream.pipe (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/send/index.js:468:14)
+    at sendfile (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/express/lib/response.js:1014:8)
+    at ServerResponse.sendFile (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/express/lib/response.js:411:3)
+    at <anonymous> (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/examples/basic-host/serve.ts:127:7)
+    at Layer.handleRequest (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/route.js:157:13)
+    at Route.dispatch (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/route.js:117:3)
+    at handle (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/index.js:435:11)

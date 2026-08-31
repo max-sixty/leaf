@@ -145,6 +145,9 @@ so a phase does not depend on discovering a chain of references.
 - `references/internals/validation.md`: when changing static or browser
   validation, passages, or parsed source. These internal contracts are not for
   ordinary page use.
+- `references/internals/mcp-apps.md`: when changing the experimental MCP Apps
+  server, complete-page delivery, compact projection, bundled `ui://` resources,
+  or either return path.
 
 ### Use a separate Codex watcher
 

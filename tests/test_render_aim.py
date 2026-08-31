@@ -111,12 +111,12 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
-    """The Asks strip moves body's containing block, not the page's coordinates.
+    """The Asks strip can move the page without moving its coordinate origin.
 
-    The aim and composer are absolute children of body. When the tray shifted body
-    right, each used a viewport x-position as its local x-position and gained the tray's
-    width a second time. Keep the whole route on the item the reader pointed at: the
-    promise outlines it, and the press opens a visible box clear of it.
+    Page-attached chrome is positioned from the initial containing block while its
+    targets are read in viewport coordinates. The tray therefore moves body's layout
+    shell without moving the coordinate space above it. Keep the whole comment route on
+    the item the reader pointed at.
     """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
@@ -132,10 +132,14 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
           const target = document.getElementById('lq-keep').getBoundingClientRect();
           const aim = document.querySelector('.lf-aim').getBoundingClientRect();
           return { bodyLeft: document.body.getBoundingClientRect().left,
+                   bodyPosition: getComputedStyle(document.body).position,
                    dx: aim.left - target.left, dy: aim.top - target.top };
         }"""
     )
     assert aligned["bodyLeft"] > 0, "the Asks tray took no strip from the page"
+    assert aligned["bodyPosition"] == "static", (
+        "body became a moving containing block for document-attached chrome"
+    )
     assert abs(aligned["dx"]) < 2 and abs(aligned["dy"]) < 2, (
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
         f"from its target with body starting at {aligned['bodyLeft']:.1f}px"

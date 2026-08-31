@@ -12,6 +12,7 @@ from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
+    TARGETS_PAGE,
     key_line,
     open_page,
     panel_comment,
@@ -287,11 +288,12 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     """Keyboard item selection leaves the response open. Choosing a token puts an
     element anchor in the log, which paints as a dashed hairline on the item's boxes
     and a glyph seated at its first line."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(3)
     code = page.evaluate(
         """() => {
-          const target = document.querySelector('#how-patch').getBoundingClientRect();
+          const target = document.querySelector('#prose').getBoundingClientRect();
           return [...document.querySelectorAll('.lf-target-hint')]
             .sort((a, b) => {
               const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
@@ -308,8 +310,8 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     page.locator('.lf-margin-reactions .lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
-    shown = painted(page, [["how-patch", "this"]])
+    assert sent["token"] == "this" and sent["anchor"] == {"section": "prose"}
+    shown = painted(page, [["prose", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
     assert errors == []
     page.close()

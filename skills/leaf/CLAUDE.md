@@ -87,7 +87,8 @@ guards, deferred measurement, layout-change signalling, and control sizing;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
-the declaration-derived names and layout queries the runtime supplies it;
+the declaration-derived names and layout queries the runtime supplies it, and keeps
+body's layout shell out of the containing-block chain for document-positioned chrome;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
 document room left after the panel and trays;
 `runtime/presentation.js` owns runtime paint and the words it projects;
@@ -106,7 +107,7 @@ landing across authored-document replacement, and the page-block reading used to
 start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
-conversion from viewport boxes to body-positioned document chrome;
+conversion from viewport boxes to document-positioned chrome;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
 `runtime/conversation/model.js` adapts server-projected threads to browser callers;

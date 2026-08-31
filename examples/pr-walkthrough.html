@@ -15,13 +15,7 @@
     <link rel="stylesheet" href="/theme.css" />
     <style>
       .pr-agent-brief {
-        --lf-frame: 1;
-        margin: var(--sp-4) 0;
-        padding: var(--sp-4);
-        border: 1px solid var(--rule);
-        border-top: 3px solid var(--accent);
-        border-radius: var(--r);
-        background: color-mix(in srgb, var(--accent) 4%, var(--paper));
+        margin: var(--sp-3) 0;
       }
 
       .pr-agent-brief > :first-child,
@@ -64,26 +58,6 @@
       .pr-route a {
         color: inherit;
         text-decoration-color: var(--rule);
-      }
-
-      .pr-focus {
-        display: grid;
-        gap: 0;
-        margin: var(--sp-4) 0;
-      }
-
-      .pr-focus > article {
-        --lf-frame: 1;
-        padding: var(--sp-2) 0 var(--sp-3) var(--sp-4);
-        border-inline-start: 1px solid var(--rule);
-      }
-
-      .pr-focus h3 {
-        margin-top: 0;
-      }
-
-      .pr-focus p:last-child {
-        margin-bottom: 0;
       }
 
       .pr-review-gesture {
@@ -196,7 +170,6 @@
       }
 
       @media print {
-        .pr-agent-brief,
         .pr-review-gesture {
           background: transparent;
         }
@@ -243,73 +216,140 @@
             can still stage its own temporary-index artifact when
             <code>TMPDIR</code> sits inside the worktree.
           </p>
-          <p id="pr-invariant-intro">
-            The agent’s review model reduces that architecture to three assertions; each
-            docked line note explains why its assertion matters.
-          </p>
-          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
-            <pre>
-assert_eq!(real_index_after, real_index_before);
-assert!(temp_index.is_operation_scoped());
-assert!(offscreen_worktree_preview.is_demand_loaded());
-</pre>
-            <lf-note id="pr-note-real-index" at="1"
-              >A clean status is insufficient: preview preparation must preserve the
-              real index byte for byte.</lf-note
-            >
-            <lf-note id="pr-note-temp-index" at="2"
-              >Random, exclusive temporary files prevent concurrent previews from
-              sharing or replacing one another’s index.</lf-note
-            >
-            <lf-note id="pr-note-demand-load" at="3"
-              >Moving off-screen worktrees out of prewarm protects startup, but leaves
-              selected-row latency as a separate measurement question.</lf-note
-            >
-          </lf-code>
           <ol class="pr-route" aria-label="Suggested review route">
             <li><a href="#pr-system">Understand the new diff path</a></li>
             <li><a href="#pr-call-tab">Inspect scheduling with CallDiff</a></li>
-            <li><a href="#pr-history">Read how review changed the branch</a></li>
+            <li><a href="#pr-history">See which findings changed the patch</a></li>
             <li><a href="#pr-patch">Review the exact 46-file patch</a></li>
           </ol>
         </div>
       </section>
 
       <section id="pr-shape">
-        <h2>Review map</h2>
-        <lf-tree id="pr-files">
-          <pre>
+        <div id="pr-scale">
+          <h2>Review the 46 files as six units</h2>
+          <p id="pr-scale-intro">
+            The patch is broad, but its risk concentrates in the Git repository layer
+            and picker runtime. Start with diff safety and preview scheduling, then use
+            the tests, documentation, and benchmarks to verify those behaviors across
+            the rest of the change.
+          </p>
+          <dl class="pr-scale-facts" aria-label="Observed Worktrunk PR 3865 scale">
+            <div>
+              <dt>Files</dt>
+              <dd>46</dd>
+            </div>
+            <div>
+              <dt>Hunks</dt>
+              <dd>191</dd>
+            </div>
+            <div>
+              <dt>Patch lines</dt>
+              <dd>4,126</dd>
+            </div>
+            <div>
+              <dt>Patch bytes</dt>
+              <dd>214 KB</dd>
+            </div>
+            <div>
+              <dt>Commits</dt>
+              <dd>6</dd>
+            </div>
+            <div>
+              <dt>Changed lines</dt>
+              <dd>2,268</dd>
+            </div>
+          </dl>
+          <div>
+            <table id="pr-scale-groups">
+              <caption>
+                Changed paths in recommended review order.
+              </caption>
+              <thead>
+                <tr>
+                  <th>Review unit</th>
+                  <th>Files</th>
+                  <th>Change</th>
+                  <th>First question</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="pr-focus-safety">
+                  <th scope="row">1 · Git repository layer</th>
+                  <td>4</td>
+                  <td><code>+312 −30</code></td>
+                  <td>
+                    Can untracked files enter while the
+                    <lf-gloss
+                      tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
+                      >real index remains byte-identical</lf-gloss
+                    >?
+                  </td>
+                </tr>
+                <tr id="pr-focus-latency">
+                  <th scope="row">2 · Picker runtime</th>
+                  <td>17</td>
+                  <td><code>+823 −466</code></td>
+                  <td>
+                    Can off-screen worktrees load on demand without breaking tab or row
+                    identity?
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">3 · Integration tests</th>
+                  <td>8</td>
+                  <td><code>+308 −92</code></td>
+                  <td>Do the tests observe index bytes and filesystem residue?</td>
+                </tr>
+                <tr>
+                  <th scope="row">4 · Other runtime</th>
+                  <td>6</td>
+                  <td><code>+42 −61</code></td>
+                  <td>Did every prior diff caller move to the shared abstraction?</td>
+                </tr>
+                <tr>
+                  <th scope="row">5 · Docs and shipped skills</th>
+                  <td>9</td>
+                  <td><code>+69 −42</code></td>
+                  <td>Is the Git 2.34 floor discoverable in every published copy?</td>
+                </tr>
+                <tr>
+                  <th scope="row">6 · Benchmarks</th>
+                  <td>2</td>
+                  <td><code>+13 −10</code></td>
+                  <td>Which cost moved from prewarm to selected-row demand?</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details id="pr-path-tree">
+            <summary>Path hierarchy · 46 files</summary>
+            <lf-tree id="pr-files">
+              <pre>
 max-sixty/worktrunk #3865
-  src/commands/picker/  17 files  +823 −466
-  src/git/repository/    4 files  +312 −30
-  other src/             6 files  +42  −61
-  tests/                 8 files  +308 −92
-  docs + shipped skills  9 files  +69  −42
-  benches/               2 files  +13  −10
+  src/
+    commands/picker/  17 files  +823 −466
+    git/repository/    4 files  +312 −30
+    other              6 files  +42  −61
+  tests/               8 files  +308 −92
+  docs + shipped skills
+                       9 files  +69  −42
+  benches/             2 files  +13  −10
 </pre>
-        </lf-tree>
-        <div class="pr-focus">
-          <article id="pr-focus-safety">
-            <h3>Start here · diff safety</h3>
-            <p>
-              Review <code>PreparedDiff</code>, temporary-index creation, untracked-file
-              registration, sparse-checkout behavior, and cleanup as one unit. The
-              invariant is
-              <lf-gloss
-                tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
-                >byte-identical real index</lf-gloss
-              >, not merely a clean <code>git status</code> afterwards.
-            </p>
-          </article>
-          <article id="pr-focus-latency">
-            <h3>Then · preview latency</h3>
-            <p>
-              The landing row and cheap branch-only rows are prewarmed. Off-screen
-              worktrees move to the demand worker. That avoids an eager
-              <code>git add -N</code> walk, but the selected-row delay is not measured
-              by the existing benchmark.
-            </p>
-          </article>
+            </lf-tree>
+          </details>
+          <ol class="pr-route" aria-label="Large pull request review route">
+            <li>
+              <strong>Orient.</strong> Read facts, units, checks, and prior findings.
+            </li>
+            <li><strong>Trace.</strong> Follow the diff and scheduling spines.</li>
+            <li>
+              <strong>Verify.</strong> Read focused tests beside their owning code.
+            </li>
+            <li>
+              <strong>Record.</strong> Comment on exact lines, then choose an outcome.
+            </li>
+          </ol>
         </div>
       </section>
 
@@ -376,6 +416,30 @@ flowchart LR
             ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
+        <h3 id="pr-invariant-heading">Three checks for the exact patch</h3>
+        <p id="pr-invariant-intro">
+          The agent’s review model reduces that architecture to three assertions; each
+          docked line note explains why its assertion matters.
+        </p>
+        <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+          <pre>
+assert_eq!(real_index_after, real_index_before);
+assert!(temp_index.is_operation_scoped());
+assert!(offscreen_worktree_preview.is_demand_loaded());
+</pre>
+          <lf-note id="pr-note-real-index" at="1"
+            >A clean status is insufficient: preview preparation must preserve the real
+            index byte for byte.</lf-note
+          >
+          <lf-note id="pr-note-temp-index" at="2"
+            >Random, exclusive temporary files prevent concurrent previews from sharing
+            or replacing one another’s index.</lf-note
+          >
+          <lf-note id="pr-note-demand-load" at="3"
+            >Moving off-screen worktrees out of prewarm protects startup, but leaves
+            selected-row latency as a separate measurement question.</lf-note
+          >
+        </lf-code>
         <details id="pr-comparison-research">
           <summary>Why this is a unified structural diff</summary>
           <p class="pr-research-note">
@@ -391,7 +455,7 @@ flowchart LR
       </section>
 
       <section id="pr-history">
-        <h2>The review changed the branch</h2>
+        <h2>Four review findings changed the final patch</h2>
         <p id="pr-history-intro">
           The final patch is easier to trust because the review trail records which
           risks were found, what changed, and which concerns remained non-blocking.
@@ -425,103 +489,6 @@ flowchart LR
             <strong>Merged</strong> Six commits landed after all reported checks passed.
           </lf-event>
         </lf-timeline>
-      </section>
-
-      <section id="pr-scale">
-        <h2>Review the 46 files as six units</h2>
-        <p id="pr-scale-intro">
-          The patch is broad, but its risk concentrates in the Git repository layer and
-          picker runtime. Start with diff safety and preview scheduling, then use the
-          tests, documentation, and benchmarks to verify those behaviors across the rest
-          of the change.
-        </p>
-        <dl class="pr-scale-facts" aria-label="Observed Worktrunk PR 3865 scale">
-          <div>
-            <dt>Files</dt>
-            <dd>46</dd>
-          </div>
-          <div>
-            <dt>Hunks</dt>
-            <dd>191</dd>
-          </div>
-          <div>
-            <dt>Patch lines</dt>
-            <dd>4,126</dd>
-          </div>
-          <div>
-            <dt>Patch bytes</dt>
-            <dd>214 KB</dd>
-          </div>
-          <div>
-            <dt>Commits</dt>
-            <dd>6</dd>
-          </div>
-          <div>
-            <dt>Changed lines</dt>
-            <dd>2,268</dd>
-          </div>
-        </dl>
-        <table id="pr-scale-groups">
-          <caption>
-            Review units derived from the PR’s changed paths.
-          </caption>
-          <thead>
-            <tr>
-              <th>Review unit</th>
-              <th>Files</th>
-              <th>Change</th>
-              <th>First question</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Picker runtime</th>
-              <td>17</td>
-              <td><code>+823 −466</code></td>
-              <td>Does the new default preserve tab and row identity?</td>
-            </tr>
-            <tr>
-              <th scope="row">Git repository layer</th>
-              <td>4</td>
-              <td><code>+312 −30</code></td>
-              <td>Can untracked files enter without changing the real index?</td>
-            </tr>
-            <tr>
-              <th scope="row">Other runtime</th>
-              <td>6</td>
-              <td><code>+42 −61</code></td>
-              <td>Did every prior diff caller move to the shared abstraction?</td>
-            </tr>
-            <tr>
-              <th scope="row">Integration tests</th>
-              <td>8</td>
-              <td><code>+308 −92</code></td>
-              <td>Do the tests observe index bytes and filesystem residue?</td>
-            </tr>
-            <tr>
-              <th scope="row">Docs and shipped skills</th>
-              <td>9</td>
-              <td><code>+69 −42</code></td>
-              <td>Is the Git 2.34 floor discoverable in every published copy?</td>
-            </tr>
-            <tr>
-              <th scope="row">Benchmarks</th>
-              <td>2</td>
-              <td><code>+13 −10</code></td>
-              <td>Which cost moved from prewarm to selected-row demand?</td>
-            </tr>
-          </tbody>
-        </table>
-        <ol class="pr-route" aria-label="Large pull request review route">
-          <li>
-            <strong>Orient.</strong> Read facts, units, checks, and prior findings.
-          </li>
-          <li><strong>Trace.</strong> Follow the diff and scheduling spines.</li>
-          <li><strong>Verify.</strong> Read focused tests beside their owning code.</li>
-          <li>
-            <strong>Record.</strong> Comment on exact lines, then choose an outcome.
-          </li>
-        </ol>
       </section>
 
       <section id="pr-patch">

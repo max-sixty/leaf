@@ -12,6 +12,7 @@ from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
+    TARGETS_PAGE,
     key_line,
     open_page,
     panel_comment,
@@ -283,15 +284,25 @@ def test_r_extends_the_targets_margin_item_and_needs_a_target(browser, serve):
     page.close()
 
 
-def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, serve):
-    """A whole element goes through the gesture that already names one: ⌥-click. The
-    bar comes up on the item with Comment first and a compact reaction trigger. Opening
-    it and choosing a token puts an element anchor in the log, which paints as a dashed
-    hairline on the item's boxes and a glyph seated at its first line."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
-    page.keyboard.down("Alt")
-    page.locator("#how-patch").click()
-    page.keyboard.up("Alt")
+def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serve):
+    """Keyboard item selection leaves the response open. Choosing a token puts an
+    element anchor in the log, which paints as a dashed hairline on the item's boxes
+    and a glyph seated at its first line."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(3)
+    code = page.evaluate(
+        """() => {
+          const target = document.querySelector('#prose').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+              return Math.hypot(ar.left - target.left, ar.top - target.top)
+                   - Math.hypot(br.left - target.left, br.top - target.top);
+            })[0].dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(code)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -299,8 +310,8 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     page.locator('.lf-margin-reactions .lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
-    shown = painted(page, [["how-patch", "this"]])
+    assert sent["token"] == "this" and sent["anchor"] == {"section": "prose"}
+    shown = painted(page, [["prose", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
     assert errors == []
     page.close()

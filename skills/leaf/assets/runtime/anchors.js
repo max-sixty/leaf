@@ -742,9 +742,8 @@ export function createAnchors(dependencies) {
     // a promise has to interrupt where an annotation may whisper, so the aim has a box
     // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
     // why). An open composer doesn't stand the aim down — a press while the box is up
-    // selects another target and raises its action bar — so the two can show at once,
-    // which is the true state: where the draft stands, and where the next response would
-    // land.
+    // moves the draft onto another target — so the two can show at once, which is the
+    // true state: where the draft stands, and where the next comment would land.
     const draft =
       composerIsOpen() && composerAnchor()
         ? resolveAnchor(composerAnchor(), text)

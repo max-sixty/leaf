@@ -1370,6 +1370,14 @@ The Page-map keyboard scope owns the cluster's way back out. When a thread card 
 over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
 on the next press; each rung is named on the key line before it runs.
 
+A gesture that unfolds a cluster for its own use puts that fold back, and only that one:
+putting the reaction choices away folds back the cluster the raise unfolded, so a disarm
+over a reply strip or over a fold the reader opened themselves takes away no layer the
+gesture put on. That put-down folds without claiming the focus — it runs from wherever
+the reader is standing, so taking the focus would throw them onto a cluster they may
+have left, and would send a press already on its way to a Button they were not standing
+on.
+
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;
 `always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes

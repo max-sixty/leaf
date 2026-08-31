@@ -1676,6 +1676,18 @@ export function createLivingMargin(dependencies) {
   render();
 
   return {
+    // The unfolded cluster, for a gesture that needs to know whether the fold standing
+    // open is one it opened itself. The cluster and not a flag, because a fold open
+    // somewhere is not the fold this gesture put on: the caller asks whose target it
+    // belongs to (`lfTarget`) rather than whether any fold is open. The Page-map scope's
+    // own rung reads the reader's position directly (`keyboardRung`) and needs neither.
+    unfoldedButtons: () =>
+      expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
+    // Folding on the reader's behalf — a disarm putting back a fold its own raise opened
+    // — happens wherever the reader is standing rather than inside the cluster, so it
+    // takes no focus with it: the reader may have left that cluster, and a press already
+    // on its way would land on a Button they were not standing on.
+    foldButtonOptions: () => setOptionsOpen(null, false),
     activeInlineThread: () => {
       if (
         !pinnedKey ||

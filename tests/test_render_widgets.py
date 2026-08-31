@@ -58,6 +58,7 @@ from render_support import (
     stamp_version_file,
     told,
     undo,
+    unfolded_button,
     wait_for_revision,
 )
 
@@ -1380,11 +1381,14 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     page.close()
 
 
+# `folded` is the layer's own division of the pair rather than a convenience: accept
+# rests in the rail as the target's primary Button, and reject is one press behind `…`.
 @pytest.mark.parametrize(
-    "outcome,verb", [("accept", "Accepted"), ("reject", "Rejected")]
+    "outcome,verb,folded",
+    [("accept", "Accepted", False), ("reject", "Rejected", True)],
 )
 def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
-    browser, serve, outcome, verb
+    browser, serve, outcome, verb, folded
 ):
     """The line saying a block carries a comment goes in the block, and a block inside a
     widget is still a block — so `textContent` on a widget's own slot now returns the
@@ -1399,7 +1403,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Vacuous otherwise: the line has to be inside the slot the label is read from.
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
-    page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}").click()
+    control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
+    (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-toast")).to_have_text(
         f"{verb} “Retry three times.” — recorded"
     )
@@ -1612,11 +1617,15 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         "the refused decision must never have been on the element at all"
     )
     # The row is the record of a decision, so a decision that was never taken must not
-    # be standing in it: both controls offering again, neither of them past tense.
+    # be standing in it: both controls offering again, neither of them past tense. The
+    # pair is one Button at rest and one behind `…` now, so the second is read where the
+    # reader would find it rather than in the rail it no longer stands in.
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
-    reject = page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
+    reject = unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject"))
     expect(accept).to_have_text("✓ Accept", use_inner_text=True)
     expect(reject).to_be_visible()
+    expect(reject).to_have_text("✗ Reject", use_inner_text=True)
+    assert reject.get_attribute("aria-disabled") == "false"
     assert accept.get_attribute("aria-disabled") == "false"
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
@@ -1705,7 +1714,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     row.locator(".lf-sug-accept").click()
     _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
     row.locator(".lf-sug-accept").click()
-    row.locator(".lf-sug-reject").click()
+    unfolded_button(row.locator(".lf-sug-reject")).click()
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1800,7 +1809,15 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     accepted = second.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(accepted).to_have_text("✓ Accepted", use_inner_text=True)
     assert accepted.get_attribute("aria-disabled") == "true"
-    expect(second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_be_hidden()
+    # Its pair gives up its ink and keeps its room. Read as the computed word and not
+    # as visibility alone: every secondary contribution is folded out of the rail, so
+    # `to_be_hidden` is true of a control still offering the press, and the settlement
+    # is the one that says the decision was taken.
+    rejected = second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
+    expect(rejected).to_be_hidden()
+    assert rejected.evaluate("el => getComputedStyle(el).visibility") == "hidden", (
+        "the settled pair still offers its press behind the fold"
+    )
     expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
 
     # Now the race the controls make possible: a window cut off from the log still
@@ -1814,7 +1831,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # to decide rather than the network's.
     told(second)
     expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
-    third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
+    unfolded_button(third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
     cut.restore()
     # The reject went out over a live channel, so every tab has to read it back —
     # the cut-off one included, which is where it stops being its own local click.

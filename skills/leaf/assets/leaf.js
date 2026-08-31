@@ -1993,6 +1993,7 @@ const {
   fabReturnTo,
   fabBar,
   focused,
+  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
   itemWord,
   offer,
   openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,
@@ -2005,6 +2006,7 @@ const {
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
+  unfoldedButtons: () => livingMargin?.unfoldedButtons() ?? null,
   visualPartLabel: (...args) => visualPartLabel(...args),
   withdraw: (...args) => withdraw(...args),
 });

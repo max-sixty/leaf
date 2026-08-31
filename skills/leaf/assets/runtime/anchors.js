@@ -1,4 +1,10 @@
-import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
+import {
+  clippedRect,
+  documentPoint,
+  shownBox,
+  shownParts,
+  shownRect,
+} from "./geometry.js";
 import { marginAction, registerMarginItem } from "./living-margin.js";
 import { moveScrollerBy } from "./scrolling.js";
 
@@ -555,12 +561,13 @@ export function createAnchors(dependencies) {
       return;
     }
     const { left, top, right, bottom } = r;
+    const at = documentPoint(left, top);
     aimBox.setAttribute("data-for", aimed.id);
     // The item's own corner radius, so the ring hugs the corner the item draws.
     Object.assign(aimBox.style, {
       display: "block",
-      left: left + "px",
-      top: top + pageScroller.scrollTop + "px",
+      left: at.left + "px",
+      top: at.top + "px",
       width: right - left + "px",
       height: bottom - top + "px",
       borderRadius: getComputedStyle(aimed).borderRadius,
@@ -579,8 +586,12 @@ export function createAnchors(dependencies) {
       : designName(target.el);
     if (inspectEl.textContent !== name) inspectEl.textContent = name;
     const above = corner.top - inspectEl.offsetHeight - 2;
-    inspectEl.style.left = `${Math.max(2, corner.left)}px`;
-    inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
+    const at = documentPoint(
+      Math.max(2, corner.left),
+      above >= 0 ? above : corner.top + 2,
+    );
+    inspectEl.style.left = `${at.left}px`;
+    inspectEl.style.top = `${at.top}px`;
   }
   let hovering = null;
   let hoverQueued = false;

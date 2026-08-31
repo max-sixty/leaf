@@ -1198,6 +1198,18 @@ def key_line(page):
     return page.locator(".lf-keyline").inner_text()
 
 
+def key_line_route(page, command):
+    """The keycaps one key-line binding draws, in the order they are pressed.
+
+    A chord's rows keep their complete route while the reader advances through it, so
+    the text alone no longer says how far a chord has come; `data-lf-key-state` does.
+    Read the keys through this locator and assert on both.
+    """
+    return page.locator(
+        f'.lf-keyline .lf-key[data-lf-commands~="{command}"] > .lf-key-sequence > kbd'
+    )
+
+
 def open_page(
     browser,
     url,

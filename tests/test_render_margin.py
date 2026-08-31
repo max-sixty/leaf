@@ -13,6 +13,7 @@ from render_support import (
     SUGGESTION_PAGE,
     _publish,
     compare_with,
+    key_line_route,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -165,13 +166,14 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     expect(marker).not_to_be_focused()
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
-    )
+    # The row keeps the whole route from the first press to the last, so how far the
+    # chord has come is the list key's face rather than which keys the line is drawing.
+    map_route = key_line_route(page, "navigation.page-map-item")
+    expect(map_route).to_have_text(["g", "m", "1–9"])
+    expect(map_route.nth(1)).to_have_attribute("data-lf-key-state", "neutral")
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"1–9\s*page-map items")
-    )
+    expect(map_route).to_have_text(["g", "m", "1–9"])
+    expect(map_route.nth(1)).to_have_attribute("data-lf-key-state", "pressed")
     page.keyboard.press(str(address["number"]))
 
     preview = page.locator(".lf-margin-preview")
@@ -275,13 +277,13 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
         }"""
     )
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
-    )
+    map_route = key_line_route(page, "navigation.page-map-item")
+    map_steps = ["g", "m", f"1–{min(draft_address['count'], 9)}"]
+    expect(map_route).to_have_text(map_steps)
+    expect(map_route.nth(1)).to_have_attribute("data-lf-key-state", "neutral")
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(rf"1–{min(draft_address['count'], 9)}\s*page-map items")
-    )
+    expect(map_route).to_have_text(map_steps)
+    expect(map_route.nth(1)).to_have_attribute("data-lf-key-state", "pressed")
     assert draft_address["number"] <= 9
     page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()

@@ -1354,10 +1354,16 @@ def margins_laid_out(page):
     The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "a fixed
     number of animation frames only guesses"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
-    that of a test reading the layout it produces."""
-    page.evaluate(
+    that of a test reading the layout it produces.
+
+    The module load is awaited from the driver rather than inside `page.evaluate`, which
+    takes no timeout in any binding: a preview that stalls on the way out would hold the
+    worker for the rest of the job step instead of failing in thirty seconds naming its
+    test. `SERVED_TIMEOUT_MS` is the same patience the payload's own probes carry."""
+    page.wait_for_function(
         "() => import('/runtime/margin-layout.js')"
-        ".then(({layoutMarginRows}) => layoutMarginRows())"
+        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
+        timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )
 
 

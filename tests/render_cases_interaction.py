@@ -206,6 +206,25 @@ mornings last winter.</p></section>
 )
 
 
+# The other place a question lives: a widget that seats its own conversation
+# (`x-conversation`), where the answer is words rather than a pick. The durable-draft
+# tests stand on one because a seat is where a single draft has two views at once — the
+# cell in the page and the row in the panel — which is the whole of what those tests
+# compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
+# `{section: "jobs"}` are the one coordinate the panel and the page share.
+SEATED_QUESTION_PAGE = leaf_page(
+    "seated question",
+    """
+<h1 id="h">Three jobs</h1>
+<lf-command id="hub" label="Before the frost">
+  <lf-task id="jobs" status="active" talk><strong>Which jobs are worth starting?</strong>
+  The mounts came down in January, the bird bath froze eleven mornings, and the camera
+  is still in its box.</lf-task>
+</lf-command>
+""",
+)
+
+
 def sent_events(page_dir):
     return [
         json.loads(line)
@@ -1075,9 +1094,12 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
 
 
 # A suggestion whose losing slot holds a widget. lf-old takes prose, and prose takes
-# widgets, so the mark on a chosen option can sit inside the half a decision removes.
-# `choose`, because that is the shape that bites: a group offering a pick renders the
-# mark as a press, which wears the chrome class *and* declares its word the page's.
+# widgets, so a generated label can sit inside the half a decision removes.
+# `settled`, because that is the shape that bites: the summary a retired group collapses
+# to is written by the module and declares its words the page's (`says: true`), which is
+# what lets a quote land on them. A pick mark is not that shape — it names the option for
+# a listening reader and says nothing the page speaks — so a group offering a live pick
+# would leave this case unexercised.
 RETIRED_WIDGET_PAGE = leaf_page(
     "retired",
     """
@@ -1086,7 +1108,7 @@ RETIRED_WIDGET_PAGE = leaf_page(
 <lf-suggestion id="sug-swap">
   <lf-old id="was">
     <lf-decision id="old-group-decision"><h2>How should sessions travel?</h2>
-    <lf-options id="old-group" choose>
+    <lf-options id="old-group" choose settled>
       <lf-option id="old-lax" chosen><strong>Lax cookie</strong> The way it stands.</lf-option>
     </lf-options></lf-decision>
   </lf-old>

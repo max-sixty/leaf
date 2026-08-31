@@ -1700,11 +1700,20 @@ RINGS_DRAWN = f"""async () => {{
     const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
     const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
     const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
+    // Each run sampled in the middle of the band it is, rather than half a pixel inside
+    // its outer edge. Both points are on the ring; the outer one is also the last
+    // fraction of a pixel of the control, and hit testing rounds a subpixel edge to the
+    // device pixel it shares with the next box. Butted cells are where that shows: an
+    // options group's rows meet on a fractional line, so the ring on the row the
+    // keyboard is on reported the row below as painting over its bottom edge — the
+    // seam's rounding, not anything drawn there. Floored at half a pixel so a hairline
+    // ring still samples inside itself.
+    const into = Math.max(w / 2, 0.5);
     for (const [side, x, y] of ordered && shownRun ? [
-      ['top', mid(...runX), ring.top + 0.5],
-      ['bottom', mid(...runX), ring.bottom - 0.5],
-      ['left', ring.left + 0.5, mid(...runY)],
-      ['right', ring.right - 0.5, mid(...runY)],
+      ['top', mid(...runX), ring.top + into],
+      ['bottom', mid(...runX), ring.bottom - into],
+      ['left', ring.left + into, mid(...runY)],
+      ['right', ring.right - into, mid(...runY)],
     ] : []) {{
       if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
       for (const over of document.elementsFromPoint(x, y)) {{

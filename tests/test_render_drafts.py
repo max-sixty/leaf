@@ -21,6 +21,7 @@ from render_support import (
     KEYS_PAGE,
     LONG_PAGE,
     NOTED_PAGE,
+    SEATED_QUESTION_PAGE,
     SENTENCE,
     SMOOTH_LONG_PAGE,
     STORED_DRAFT_SETTLED,
@@ -981,7 +982,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     proves that readable absence is settlement rather than permission to trust the
     old in-memory value.
     """
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(
         browser,
@@ -1034,7 +1035,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_reader):
     """Both inline views may POST the shared reply; its attempt appends it once."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1082,7 +1083,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     browser, serve, one_reader
 ):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1139,7 +1140,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
@@ -1163,8 +1164,11 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw.strip()]
-    expect(first_say).to_be_hidden()
-    expect(second_say).to_be_hidden()
+    # Asked of the words rather than of the box: a seat that can hold keeps its composer
+    # standing after every root (renderConversations), so an empty one is what says the
+    # tab adopted the durable outcome instead of holding the words for a second send.
+    expect(first_say.locator("textarea")).to_have_value("")
+    expect(second_say.locator("textarea")).to_have_value("")
     assert first_errors == []
     assert second_errors == []
 
@@ -1173,7 +1177,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     """Persistence failure costs recovery, not the live textarea's Send action."""
     page, errors = open_page(
         browser,
-        serve(DECISION_PAGE),
+        serve(SEATED_QUESTION_PAGE),
         init_script="""Storage.prototype.setItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -1213,7 +1217,7 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     replacement must not learn the attempt is in the log before it sends, or it would
     correctly decline to. Both go through `held_stale` rather than a live `page.route`,
     which reaches no poll already in the wire."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, _ = open_page(browser, url, context=held_stale(one_reader))
     second_held = held_stale(one_reader)
     second, second_errors = open_page(browser, url, context=second_held)
@@ -1257,7 +1261,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     browser, serve, one_reader
 ):
     """A nondurable local generation outranks storage news about its predecessor."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     other, other_errors = open_page(browser, url, context=one_reader)
     old = "The older persisted answer."
     other_say = other.locator("#jobs > .lf-conversation > .lf-say")
@@ -1299,7 +1303,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     browser, serve, one_reader
 ):
     """A held older send reconciles its base before writing settlement."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     older, older_errors = open_page(
         browser,
         url,
@@ -1352,7 +1356,7 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
     browser, serve, one_reader
 ):
     """Only news from a branch's base may be replaced by that local branch."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     local, local_errors = open_page(
         browser,
         url,
@@ -1393,7 +1397,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     browser, serve, one_reader
 ):
     """Send refreshes shared storage instead of trusting a stale durable cache."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     stale, stale_errors = open_page(
         browser,
         url,
@@ -1464,7 +1468,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     browser, serve, one_reader
 ):
     """Log reconciliation settles only the generation still shared by storage."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     # The hold costs the most here, where the poll released at the end is the subject
     # rather than an interruption: an earlier poll reconciling this tab onto the newer
     # generation leaves settlement nothing older to be tempted by, so the assertions
@@ -1521,7 +1525,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     """The document cache owns its generation even when getItem later refuses it."""
     page, errors = open_page(
         browser,
-        serve(DECISION_PAGE),
+        serve(SEATED_QUESTION_PAGE),
         init_script="""Storage.prototype.getItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -1544,7 +1548,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
     browser, serve, one_reader
 ):
     """Settlement is a record and a log fact; draft cleanup never calls removeItem."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     first, first_errors = open_page(
         browser,
         url,
@@ -1561,7 +1565,11 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
     first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
 
     again, again_errors = open_page(browser, url, context=one_reader)
-    expect(again.locator("#jobs > .lf-conversation > .lf-say")).to_have_count(0)
+    # The composer is still standing — a seat that can hold keeps it — so the claim is
+    # about what it opens with: a settled draft is words the next tab must not be handed.
+    expect(again.locator("#jobs > .lf-conversation > .lf-say textarea")).to_have_value(
+        ""
+    )
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -1572,7 +1580,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
 
 def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serve):
     """Identity follows the edit generation, never content or a time window."""
-    url = serve(DECISION_PAGE)
+    url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {

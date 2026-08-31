@@ -575,17 +575,26 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     The chrome wears the same band, because a reader who has backed out of the panel is
     standing on a button and that is the same fact about them. It wore the browser's own
     ring there, in the browser's blue, a few inches from a decision ringed in the page's
-    accent, with nothing saying the two rectangles meant one thing."""
+    accent, with nothing saying the two rectangles meant one thing.
+
+    A joined options control is the one shape that draws the band somewhere else: it is
+    already a framed box, so a ring around the decision outside it would read as a second
+    border that comes and goes, and the exact row the keyboard is on carries it instead.
+    Which row, in the same band — one ring still meaning one thing."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("a")
     expect(question).to_have_attribute("data-lf-decision", "1")
-    decision_ring = question.evaluate(RING)
-    assert decision_ring == [
+    assert question.evaluate(RING)[0] == "none", (
+        "the decision drew its own ring around a control that is already a frame: "
+        f"{question.evaluate(RING)}"
+    )
+    row_ring = page.locator("#lq-keep").evaluate(RING)
+    assert row_ring == [
         "solid",
         "2px",
         token_colour(page, "--accent"),
-    ], f"the decision is not ringed in the page's own band: {decision_ring}"
+    ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin and the focus lands on
     # it, so this arrival paints two marks for one fact — the ring on the change, the
@@ -596,6 +605,13 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("a")
     accept = page.locator(".lf-sug-accept")
     expect(accept).to_be_focused()
+    # A decision that is not a joined control wears the ring itself, and it is the band
+    # the row above wore: the two shapes say one thing about the reader.
+    decision_ring = page.locator("#sug-refill").evaluate(RING)
+    assert decision_ring == row_ring, (
+        "a decision and an options row are drawn in two different bands for the one "
+        f"fact: {decision_ring} against {row_ring}"
+    )
     assert accept.evaluate(RING) == decision_ring, (
         "the control in the margin is drawn in some other band than the decision it decides: "
         f"{accept.evaluate(RING)} against {decision_ring}"
@@ -607,13 +623,11 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question textarea").click()
+    page.locator("#live-question .lf-another input").click()
     expect(question).to_have_attribute("data-lf-decision", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
-    # the reader is working, and an answered one is no longer a question. Answering is
-    # what does this — leaving the reader's list does not, so a widget waiting on the
-    # agent in its own seat keeps the ring while the count drops.
+    # the reader is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
     expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
     expect(page.locator("[data-lf-decision]")).to_have_count(0)
@@ -2480,11 +2494,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
     """A decided suggestion's losing slot is off the page, and a label inside it goes
-    too. The label is the one thing that reads back over chrome — a pick mark says
-    "chosen" and declares those words the page's, which is what lets a user point at
-    it anywhere else — so the rule has to stop at the slot: a marker that outranks a look
-    must not outrank a decision, or a quote lands in the half the user removed."""
-    url = serve(RETIRED_WIDGET_PAGE, anchored=[("sug-swap", "chosen")])
+    too. The label is the one thing that reads back over chrome — a settled group's
+    summary says "Settled: …" and declares those words the page's, which is what lets a
+    user point at it anywhere else — so the rule has to stop at the slot: a marker that
+    outranks a look must not outrank a decision, or a quote lands in the half the user
+    removed."""
+    url = serve(RETIRED_WIDGET_PAGE, anchored=[("sug-swap", "Settled: Lax cookie")])
     events_model.append_event(
         serve.page_dir,
         {
@@ -2499,8 +2514,11 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
     page, errors = open_page(browser, url)
     expect(page.locator("#sug-swap lf-old")).to_be_hidden()
     assert (
-        page.locator("#old-lax .lf-pick").evaluate("el => el.textContent") == "chosen"
-    ), "fixture is not exercising the case — the mark the slot hides never rendered"
+        page.locator("#old-group .lf-settled [data-lf-said]").evaluate(
+            "el => el.textContent"
+        )
+        == "Settled: Lax cookie"
+    ), "fixture is not exercising the case — the label the slot hides never rendered"
     expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
         re.compile(r"\bdetached\b")
     )

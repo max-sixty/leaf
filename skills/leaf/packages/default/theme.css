@@ -671,10 +671,17 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
   ) { outline: none; }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > :is(
-      lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)),
-      .lf-another:has(input:is(:focus-visible, .lf-focus-visible))
-    ) {
+    > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
+      outline: var(--here-ring); --lf-here-ring: options-row;
+      outline-offset: calc(-1 * var(--here-ring-w));
+    }
+  /* The add field's own outline is off (below), so the row it sits in is the only thing
+   * that can answer the keyboard for it — in every group that shows the field, not just
+   * the open ones. A settled group opened by its disclosure shows the same cell, and
+   * scoped to :not([settled]) this rule left a reader who had Tabbed into it with
+   * nothing on screen saying where they were. */
+  lf-options[choose]:not(:where([data-lf-exhibit]) *)
+    > .lf-another:has(input:is(:focus-visible, .lf-focus-visible)) {
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
     }

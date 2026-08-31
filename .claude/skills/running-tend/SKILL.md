@@ -76,12 +76,16 @@ you have. Sort on what the failure is.
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
+- **Stale generated previews.** `preview inputs changed — rerun
+  scripts/example-previews.py` means the checked-in catalog is behind its inputs.
+  Run the generator and review its diff. Commit a manifest-only refresh; if the
+  images change, report them for visual review.
 - **Contention.** Concurrent suites starve each other, and the failures surface
   as `Page.goto` timeouts and slow-read assertion failures scattered across
   unrelated tests — a shape that reads as "the browser layer is broken" when it
   means "the machine was busy". Confirm it from the run rather than from the
   spread: unrelated tests failing on waits none of them owns, and every job on
-  the commit slow against its usual wall time. It is the rarest of the four.
+  the commit slow against its usual wall time.
 - **The network.** Tests marked `nightly` shell out to `bin/leaf`, which resolves
   everything it needs — Playwright included — through the host's index. CI passes
   `--run-nightly` deliberately (it holds a network). If only those tests fail

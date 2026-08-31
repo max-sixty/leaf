@@ -76,10 +76,6 @@ you have. Sort on what the failure is.
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
-- **Stale generated previews.** `preview inputs changed — rerun
-  scripts/example-previews.py` means the checked-in catalog is behind its inputs.
-  Run the generator and review its diff. Commit a manifest-only refresh; if the
-  images change, report them for visual review.
 - **Contention.** Concurrent suites starve each other, and the failures surface
   as `Page.goto` timeouts and slow-read assertion failures scattered across
   unrelated tests — a shape that reads as "the browser layer is broken" when it

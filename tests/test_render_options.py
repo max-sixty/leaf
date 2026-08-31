@@ -1892,6 +1892,13 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
     assert errors == []
     resized(page, 380, 900)
+    # The runtime's resize listener has run, but its composed-layout repaint lands in
+    # the following frame. Read the CSS containment after that frame has returned the
+    # root to the viewport; a broken specimen never satisfies this condition.
+    page.wait_for_function(
+        "() => document.documentElement.scrollWidth"
+        " === document.documentElement.clientWidth"
+    )
     wide = page.evaluate(
         "() => [document.documentElement.scrollWidth,"
         " document.documentElement.clientWidth,"

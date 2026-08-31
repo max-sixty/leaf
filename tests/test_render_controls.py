@@ -366,7 +366,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
         "after": 400,
         "overflow": "hidden",
     }, f"the action shelf bypassed the covering panel's page lock: {locked}"
-    page.locator(".lf-threads-toggle").click()
+    page.get_by_role("button", name="Close threads").click()
     expect(page.locator(".lf-panel")).to_be_hidden()
 
     # Simulate the row's reachable busy state at the upper covering breakpoint. The
@@ -830,7 +830,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             assert box["width"] >= 43.9 and box["height"] >= 43.9, (
                 f"a compact panel control kept a mouse-sized aim: {box}"
             )
-        page.locator(".lf-threads-toggle").tap()
+        page.get_by_role("button", name="Close threads").tap()
         panel_settled(page, open=False)
 
         # Across the covering boundary the banner fits the same touch aims. Its shelf and
@@ -1009,7 +1009,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        swipe(12, 280)
+        panel_box = page.locator(".lf-panel").bounding_box()
+        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -1022,6 +1023,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         )
 
         # The tray still has range at 320px, and its grip finishes sliding on screen.
+        page.get_by_role("button", name="Close threads").click()
+        panel_settled(page, open=False)
         page.locator(".lf-decisions").click()
         panel_settled(page, open=False)
         expect(page.locator(".lf-decisions-panel")).to_have_class(
@@ -2097,7 +2100,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
     # Closed with the key, the ring comes on — the reader's report, and the smaller half.
     page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
+    panel_settled(page, open=False)
     expect(toggle).to_be_focused()
     assert page.evaluate(ringed), "the control the reader is standing on says nothing"
 
@@ -2140,6 +2143,7 @@ def test_workspaces_replace_each_other_instead_of_stacking(browser, serve, width
     panel_settled(page)
     expect(decisions).not_to_have_class(re.compile(r"\bopen\b"))
 
+    page.get_by_role("button", name="Close threads").click()
     page.locator(".lf-decisions").click()
     panel_settled(page, open=False)
     expect(decisions).to_have_class(re.compile(r"\bopen\b"))
@@ -3824,6 +3828,14 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             else:
                 for key in keys:
                     page.keyboard.press(key)
+                    if scope == "the versions menu" and key == "v":
+                        # Native popover visibility precedes its queued toggle event. The
+                        # menu's handler moves focus to the current row; wait for that own
+                        # arrival before ArrowUp asks the menu to reach its comparison.
+                        page.wait_for_function(
+                            "() => document.querySelector('.lf-version-menu')"
+                            ".contains(document.activeElement)"
+                        )
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):

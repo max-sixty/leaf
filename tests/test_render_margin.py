@@ -164,13 +164,18 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     )
     expect(marker).not_to_be_focused()
 
-    page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
+    map_route = page.locator(
+        '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
+        " > .lf-key-sequence"
     )
+    page.keyboard.press("g")
+    expect(map_route.locator(":scope > kbd")).to_have_text(["g", "m", "1–9"])
+    assert map_route.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "neutral", "neutral"]
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"1–9\s*page-map items")
+    expect(map_route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "pressed"
     )
     page.keyboard.press(str(address["number"]))
 
@@ -274,13 +279,21 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
           return {number: Number(position[1]), count: Number(position[2])};
         }"""
     )
-    page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
+    map_route = page.locator(
+        '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
+        " > .lf-key-sequence"
     )
+    final_address = f"1–{min(draft_address['count'], 9)}"
+    page.keyboard.press("g")
+    expect(map_route.locator(":scope > kbd")).to_have_text(
+        ["g", "m", final_address]
+    )
+    assert map_route.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "neutral", "neutral"]
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(rf"1–{min(draft_address['count'], 9)}\s*page-map items")
+    expect(map_route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "pressed"
     )
     assert draft_address["number"] <= 9
     page.keyboard.press(str(draft_address["number"]))
@@ -831,6 +844,13 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(send).to_be_focused()
 
     resized(page, 1440, 480)
+    # The resize listener schedules the thread card's measured top for the next frame.
+    # Consume the geometry it is responsible for before reading it; a card that never
+    # returns inside the viewport still times out here.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".getBoundingClientRect().bottom <= innerHeight - 7"
+    )
     capped = preview.evaluate(
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();

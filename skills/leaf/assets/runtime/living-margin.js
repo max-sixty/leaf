@@ -296,6 +296,7 @@ export function createLivingMargin(dependencies) {
   let previewButton = null;
   let previewShowing = false;
   let pinnedKey = null;
+  let forcedInlineKey = null;
   let suppressedKey = null;
   let cardHovered = false;
   let highlighted = null;
@@ -971,7 +972,8 @@ export function createLivingMargin(dependencies) {
     const focusedItem = focusedNode?.dataset.lfMarginItem ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const hasThread = threadItems.length > 0;
-    const inlineThread = hasThread && !panelIsOpen() && threadBeside();
+    const inlineThread =
+      hasThread && !panelIsOpen() && (threadBeside() || forcedInlineKey === entry.key);
     const focusedThread = entry.items.find(
       (item) => item.id === focusedItem && item.kind === "comment",
     );
@@ -1081,6 +1083,7 @@ export function createLivingMargin(dependencies) {
 
   function showPreview(entry, button, retry = true) {
     if (!entry || suppressedKey === entry.key) return;
+    if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry?.key !== entry.key) buildPreview(entry);
     if (previewButton && previewButton !== button)
       previewButton.style.removeProperty("anchor-name");
@@ -1145,6 +1148,7 @@ export function createLivingMargin(dependencies) {
     const button = previewButton;
     if (returnFocus && button?.lfEntry) suppressedKey = button.lfEntry.key;
     pinnedKey = null;
+    forcedInlineKey = null;
     previewEntry = null;
     previewButton = null;
     button?.style.removeProperty("anchor-name");
@@ -1190,6 +1194,26 @@ export function createLivingMargin(dependencies) {
     closePreview(false);
     focusMapControl(entry);
     setPanel(true);
+  }
+
+  function openInlineThread(id) {
+    const itemId = `comment:${id}`;
+    const entry = pageMapEntries.find((candidate) =>
+      candidate.items.some((item) => item.id === itemId),
+    );
+    const button = entry && rows.get(entry.key);
+    if (!entry || !button) return null;
+    if (panelIsOpen()) setPanel(false);
+    pinnedKey = entry.key;
+    forcedInlineKey = entry.key;
+    suppressedKey = null;
+    buildPreview(entry);
+    showPreview(entry, button);
+    const item = [...previewList.children].find(
+      (candidate) => candidate.dataset.lfMarginItem === itemId,
+    );
+    item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+    return item?.querySelector("textarea") ?? null;
   }
 
   function renderSheet() {
@@ -1278,6 +1302,7 @@ export function createLivingMargin(dependencies) {
     if (event.newState !== "closed" || !previewEntry) return;
     const button = previewButton;
     pinnedKey = null;
+    forcedInlineKey = null;
     previewEntry = null;
     previewButton = null;
     button?.style.removeProperty("anchor-name");
@@ -1320,6 +1345,7 @@ export function createLivingMargin(dependencies) {
     closePreview: () => closePreview(false),
     enterPageMap,
     marginTargetAt,
+    openInlineThread,
     openPageMapItem,
     pageMapItems,
     render,

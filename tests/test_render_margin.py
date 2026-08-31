@@ -741,6 +741,48 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     page.close()
 
 
+@pytest.mark.parametrize(
+    ("width", "panel_open"), [(760, False), (1000, True), (1440, False)]
+)
+def test_a_new_anchored_comment_opens_its_inline_thread(
+    browser, serve, width, panel_open
+):
+    """A first message lands in its complete conversation at every page posture."""
+    page, errors = open_page(browser, serve(DECISION_PAGE))
+    resized(page, width, 900)
+    if panel_open:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+    page.locator("#mounts-p").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Check the January failure mode.")
+    page.locator(".lf-composer").get_by_role(
+        "button", name="Comment", exact=True
+    ).click()
+    round_trip(page)
+
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["text"]) == (
+        "comment",
+        "Check the January failure mode.",
+    )
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    thread = preview.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+    )
+    expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(thread.locator("textarea")).to_be_focused()
+    preview_box = preview.bounding_box()
+    assert preview_box["x"] >= 0, preview_box
+    assert preview_box["x"] + preview_box["width"] <= width, preview_box
+
+    assert errors == []
+    page.close()
+
+
 def test_a_shared_passage_opens_all_of_its_threads_without_choosing_one(browser, serve):
     """The shared header action is aggregate when one passage has several roots."""
     second_comment = {

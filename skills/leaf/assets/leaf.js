@@ -1692,6 +1692,18 @@ function rung() {
       does: "Clear the selection",
       out: dismissFab,
     };
+  // The Buttons `…` unfolded are a layer the reader put on, so Escape takes them back.
+  // It stands ahead of letting go because a target's cluster is hoisted into the page's
+  // own positioning context rather than into `.lf-chrome`, so a reader standing on one
+  // of its Buttons reads as standing on the page. A Thread card over that cluster is
+  // the layer above it and needs no rung: it is a popover, so the platform dismisses it
+  // first and this ladder is dead while it stands (browserDismissesTopLayer).
+  if (livingMargin?.buttonsUnfolded())
+    return {
+      says: "fold",
+      does: "Fold the extra Buttons away",
+      out: () => livingMargin.foldButtonOptions(),
+    };
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
@@ -1987,6 +1999,7 @@ const {
   fabReturnTo,
   fabBar,
   focused,
+  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
   itemWord,
   offer,
   openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,

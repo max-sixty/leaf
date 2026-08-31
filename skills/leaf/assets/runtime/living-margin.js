@@ -1245,26 +1245,6 @@ export function createLivingMargin(dependencies) {
         more.onclick = () => {
           setOptionsOpen(more.lfEntry, expandedOptionsKey !== more.lfEntry.key);
         };
-        host.addEventListener("keydown", (event) => {
-          if (event.key !== "Escape") return;
-          // A Thread card is the deeper layer in an unfolded Button cluster. Close
-          // it first and leave its owning Button visible; a second Escape can then
-          // fold the secondary Buttons back into `…`.
-          if (
-            preview.matches(":popover-open") &&
-            previewButton &&
-            host.contains(previewButton)
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-            closePreview(true);
-            return;
-          }
-          if (expandedOptionsKey !== host.lfEntry?.key) return;
-          event.preventDefault();
-          event.stopPropagation();
-          setOptionsOpen(host.lfEntry, false, { returnFocus: true });
-        });
         // Contributed primaries remain the owner's real control, so they do not pass
         // through the generated marker/proxy activation paths below. Close any unfolded
         // choices at the cluster boundary before that owner handles its press.
@@ -1624,12 +1604,6 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
-  preview.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    closePreview(true);
-  });
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed") return;
     if (!previewEntry) return;
@@ -1640,6 +1614,19 @@ export function createLivingMargin(dependencies) {
     previewButton = null;
     button?.style.removeProperty("anchor-name");
     highlight(null);
+    // Escape on a popover is the platform's own dismissal, and it hands focus back to
+    // whatever held it when the card was shown. That control may have gone with the
+    // gesture that opened the card — a composer sends its comment and closes — and a
+    // reader who walked into the card is still standing in it as it hides, which drops
+    // them on body a moment later. In both the reader is left with no way back into the
+    // margin, so hand focus back the way the card's own close control does. Focus
+    // anywhere else is the reader's own place and is left alone.
+    const held = document.activeElement;
+    if (!held || held === document.body || preview.contains(held)) {
+      if (button?.isConnected && button.checkVisibility())
+        button.focus({ preventScroll: true });
+      else if (button?.lfEntry) focusMapControl(button.lfEntry);
+    }
     for (const row of rows.values())
       syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
     for (const reading of readingButtons.values())
@@ -1662,6 +1649,13 @@ export function createLivingMargin(dependencies) {
   render();
 
   return {
+    // The unfolded cluster, said as one question and one act so the page's Escape ladder
+    // can carry it. A rung of the page rather than an element scope: an element scope
+    // claiming Escape is a control saying the press is already spoken for, which is what
+    // stops the reaction chord arming there (`claimsEsc`), and the fold is exactly where
+    // the chord's own choices stand.
+    buttonsUnfolded: () => expandedOptionsKey !== null,
+    foldButtonOptions: () => setOptionsOpen(null, false, { returnFocus: true }),
     closePreview: () => closePreview(false),
     enterPageMap,
     marginTargetAt,

@@ -1226,8 +1226,14 @@ ${MARK_RULES}
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+    /* Inset, because a row here fills the list to its own edge and the list is a
+       scroller: there is nothing outside the row for a ring to be drawn in, and an
+       outset one is cut on both sides by the box it scrolls in. The layer's rule for
+       a box whose edge touches something that paints (CLAUDE.md, "Standing somewhere").
+       The ring's width is the inset, so the band lands just inside the row's own edge. */
     .lf-page-map-action:focus-visible {
-      outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
+      outline: var(--here-ring); --lf-here-ring: page-map-action;
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);

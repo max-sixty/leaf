@@ -1360,6 +1360,17 @@ never merely on focus or hover; when the document cannot leave it room beside th
 source, the same press opens the full Threads surface. The thread card is the only
 generated contextual pane, not a generic container for alternatives.
 
+Both are layers the reader put on, and Escape gives them back deepest first: the card,
+then the unfolded Buttons. The card is a popover, so the platform's own dismissal is
+that rung and the page's ladder stands down while it is up; its `toggle` hands focus
+back only where the dismissal left it nowhere, because the control that opened the card
+may have gone with the gesture. The fold is a rung of the page's ladder (`rung`) rather
+than an element scope of its own: a control whose scope binds Escape is a control saying
+the press is already spoken for, and the reaction chord reads that (`claimsEsc`) to
+decide it cannot arm — which is exactly where the chord's own choices stand. Putting
+those choices away folds the cluster the raise unfolded, so cancelling leaves it as the
+press found it.
+
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;
 `always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes

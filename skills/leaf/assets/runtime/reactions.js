@@ -29,6 +29,7 @@ export function createReactions({
   fabReturnTo,
   fabBar,
   focused,
+  foldButtonOptions,
   itemWord,
   offer,
   openButtonOptions,
@@ -229,6 +230,10 @@ export function createReactions({
     marginOffer = null;
     seatCommentInBar(false);
     delete fabBar.dataset.lfMarginRaised;
+    // The raise unfolded the target's Buttons to stand these choices in; putting the
+    // choices away puts that fold back, so cancelling leaves the cluster as the press
+    // found it rather than an empty fold the reader has to close themselves.
+    foldButtonOptions();
   }
 
   function seatCommentInBar(takeFocus) {

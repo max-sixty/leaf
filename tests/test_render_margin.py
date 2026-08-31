@@ -1042,6 +1042,12 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
     assert preview_box["x"] >= 0, preview_box
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     if width == 760:
+        # One press, one rung, like every other Escape in the register: the reply box
+        # first, then the card the box stands in. The card is a popover, so the second
+        # press is the platform's own dismissal and the layer hears it as a `toggle`.
+        page.keyboard.press("Escape")
+        expect(preview).to_be_visible()
+        expect(thread).to_be_focused()
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()

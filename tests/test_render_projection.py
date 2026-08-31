@@ -83,6 +83,7 @@ from render_support import (
     told,
     trial_family,
     undo,
+    unfolded_button,
     wait_for_revision,
 )
 
@@ -2183,7 +2184,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
         == "Refill a feeder when its camera shows it half-empty."
     )
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
@@ -2569,7 +2570,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
         f"the attached thread's outline hangs on a box of no size: {box}"
     )
 
-    page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
+    unfolded_button(page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     assert errors == []

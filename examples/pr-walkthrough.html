@@ -315,31 +315,104 @@ def bucket_key(self, request):
           <pre></pre>
         </lf-diff>
         <p id="pr-large-diff-limit">
-          <strong>Current boundary.</strong> This version parses and renders the
-          complete captured patch. File collapse lowers reading cost, but not startup or
-          DOM cost.
+          <strong>Leaf treats this patch as data.</strong> The page binds
+          <code>lf-diff</code> to an immutable <code>text-document</code> snapshot in
+          <code>data.json</code>. Today the complete snapshot travels in
+          <code>/api/state</code>, then the widget parses every file and projects each
+          source line under a path, side, and line key. File collapse lowers reading
+          cost, but not startup, transport, or DOM cost.
         </p>
         <details id="pr-large-diff-plan">
-          <summary>Scaling path for large reviews</summary>
+          <summary>Current data path and the large-review design</summary>
+          <lf-diagram id="pr-diff-data-flow">
+            <pre>
+flowchart LR
+  H["Host patch"] --> D["Leaf data snapshot"] --> L["lf-diff line data"]
+            </pre>
+          </lf-diagram>
+          <table id="pr-large-diff-model">
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>This example</th>
+                <th>Large-review Leaf</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Authority</th>
+                <td>One captured patch string in <code>data.json</code>.</td>
+                <td>
+                  One typed manifest in <code>data.json</code> that names immutable,
+                  content-addressed file slices.
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Transport</th>
+                <td>The complete data store arrives with every state read.</td>
+                <td>
+                  State carries the manifest. Leaf's data runtime fetches a file slice
+                  by its declared key; the widget never fetches around Leaf.
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Rendering</th>
+                <td>All four files are parsed and rendered before the page settles.</td>
+                <td>
+                  Render the file index first, hydrate the focused file, prefetch the
+                  next, and virtualize hunks only when one file is exceptionally large.
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Anchors</th>
+                <td>
+                  Each rendered line is a datum keyed by path, old/new side, and source
+                  line; an exact selection adds its quote.
+                </td>
+                <td>
+                  Add the pull-request revision to that key. Navigation asks the data
+                  runtime to hydrate the named file before resolving and painting the
+                  comment.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p id="pr-large-diff-ownership">
+            <strong>Keep each fact with its owner.</strong> The manifest and patch bytes
+            are external data. Comments and a durable “reviewed at revision” gesture
+            belong in the append-only event log. Open threads are derived from that log.
+            Filters, the focused file, and disclosure state are local browser view
+            state.
+          </p>
           <ol>
             <li>
-              <strong>Index first.</strong> Load file paths, status, change counts, and
-              review signals before any file body.
+              <strong>The host publishes one review snapshot.</strong> Leaf validates
+              the manifest and every referenced file slice together, then records the
+              immutable mapping from slice key to content hash.
             </li>
             <li>
-              <strong>Hydrate on demand.</strong> Render the focused file, prefetch the
-              next file, and virtualize hunks inside exceptionally large files.
+              <strong>The runtime owns lazy loading.</strong> A generic data projection
+              API supplies slices to <code>lf-diff</code>; cache and fetch state do not
+              become widget state or another authority.
             </li>
             <li>
-              <strong>Keep coordinates stable.</strong> Address comments by revision,
-              path, side, and line; a jump hydrates its file before resolving the
-              anchor.
+              <strong>Anchors can name unloaded evidence.</strong> The projection
+              registers a resolver for its datum namespace. A comment jump hands its
+              unloaded key to that resolver, which loads the file before the ordinary
+              anchor pass runs.
             </li>
             <li>
-              <strong>Resume the review.</strong> Persist viewed files, open threads,
-              filters, and what changed since the reviewer last visited.
+              <strong>Resume from one recorded boundary.</strong> A reader action
+              records the reviewed pull-request revision. The review host compares that
+              boundary with the current revision and supplies the changed files in the
+              next manifest. A filter or collapsed file remains view state.
             </li>
           </ol>
+          <p id="pr-call-diff-data">
+            A call diff should use the same route: a separate typed source keyed by pull
+            request revision and call site, supplied by the analysis host rather than
+            written into the page by the agent.
+          </p>
         </details>
       </section>
 

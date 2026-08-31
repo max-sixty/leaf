@@ -93,6 +93,32 @@ PAGE_MAP_EVENTS = [
 ]
 
 
+# The key line's page-map-item route, and how far the chord has come through it. Every
+# destination carries its complete route from the moment `g` arms the chord, so the row's
+# text reads the same before and after `m` aims the list; what advances is each keycap's
+# state. `address.js` names the span the capped list actually holds, so it is derived here
+# the same way rather than written out.
+PAGE_MAP_ITEM_HINT = '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
+
+
+def address_span(count):
+    capped = min(count, 9)
+    return f"1–{capped}" if capped > 1 else "1"
+
+
+def expect_page_map_address(page, count, pressed):
+    hint = page.locator(PAGE_MAP_ITEM_HINT)
+    expect(hint).to_contain_text("page-map items")
+    keys = hint.locator(".lf-key-sequence > kbd")
+    expect(keys).to_have_text(["g", "m", address_span(count)])
+    # The route's text does not change when a step is pressed, so the repaint is waited for
+    # on the step that just changed face before the whole run is read in one evaluation.
+    expect(keys.nth(pressed - 1)).to_have_attribute("data-lf-key-state", "pressed")
+    assert keys.evaluate_all("keys => keys.map(key => key.dataset.lfKeyState)") == [
+        "pressed"
+    ] * pressed + ["neutral"] * (3 - pressed)
+
+
 def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     """The first nine Page-map locations keep their announced position as address."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
@@ -165,13 +191,9 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     expect(marker).not_to_be_focused()
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
-    )
+    expect_page_map_address(page, address["count"], pressed=1)
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"1–9\s*page-map items")
-    )
+    expect_page_map_address(page, address["count"], pressed=2)
     page.keyboard.press(str(address["number"]))
 
     preview = page.locator(".lf-margin-preview")
@@ -275,13 +297,9 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
         }"""
     )
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(r"m\s*page-map items")
-    )
+    expect_page_map_address(page, draft_address["count"], pressed=1)
     page.keyboard.press("m")
-    expect(page.locator(".lf-keyline")).to_contain_text(
-        re.compile(rf"1–{min(draft_address['count'], 9)}\s*page-map items")
-    )
+    expect_page_map_address(page, draft_address["count"], pressed=2)
     assert draft_address["number"] <= 9
     page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()

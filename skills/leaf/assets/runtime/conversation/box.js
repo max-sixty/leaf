@@ -71,5 +71,4 @@ export function createConversationBox({ post, renderPanel, showToast, wireInput 
     box.append(row);
     return box;
   };
-  return publishedConversationBox;
 }

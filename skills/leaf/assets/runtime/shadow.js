@@ -127,5 +127,4 @@ export function createShadowStage(watchDisclosures, watchExternalLinks) {
     watchExternalLinks(root);
     return root;
   };
-  return publishedShadowStage;
 }

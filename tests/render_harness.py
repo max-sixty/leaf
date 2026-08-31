@@ -1340,6 +1340,27 @@ def primed(browser, prepare):
     return SimpleNamespace(new_page=new_page)
 
 
+def margins_laid_out(page):
+    """Run the margin layout the page has scheduled, so a geometry read follows it.
+
+    The margin's own geometry owner answers a width change through a ResizeObserver on
+    the body and a `requestAnimationFrame`, which is one whole rendering turn later than
+    the resize event `resized` waits for. A read taken in between is a read of the rows
+    at the width they have just left: on a page narrowed to exactly what its residents
+    need, the widest margin row was still at its roomy width and hung 24px past the
+    window — but only on the runs where the frame had not landed yet, which is why the
+    same probe condensed on one run and not the next.
+
+    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "a fixed
+    number of animation frames only guesses"), so the work is run instead of guessed at.
+    Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
+    that of a test reading the layout it produces."""
+    page.evaluate(
+        "() => import('/runtime/margin-layout.js')"
+        ".then(({layoutMarginRows}) => layoutMarginRows())"
+    )
+
+
 def panel_settled(page, open=True):
     """Wait for the panel to reach `open` and the page to finish making room for it.
 

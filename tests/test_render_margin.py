@@ -15,6 +15,7 @@ from render_support import (
     compare_with,
     leaf_page,
     live_url,
+    margins_laid_out,
     open_page,
     panel_settled,
     resized,
@@ -1028,9 +1029,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     page.evaluate(
         "() => document.scrollingElement.scrollBy({top: 320, behavior: 'instant'})"
     )
-    page.evaluate(
-        "() => import('/runtime/margin-layout.js').then(({layoutMarginRows}) => layoutMarginRows())"
-    )
+    margins_laid_out(page)
     assert offset() == pytest.approx(before, abs=1)
 
     assert errors == []

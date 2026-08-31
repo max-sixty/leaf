@@ -1307,6 +1307,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   landTyping,
   loadDraft,
   mayLandTyping,
+  openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
   paintAnchors,
   paintHere,
   placeComposer,

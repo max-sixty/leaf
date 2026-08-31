@@ -1021,6 +1021,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
+    # The panel gives the room back on an eased margin, and the column re-wraps for the
+    # whole of it. Read on the way, this assertion passed on a layout that lasted a fifth
+    # of a second: the rows sat under their blocks in the narrow column the page was
+    # leaving, and the settled one dropped the in-card row back onto the sentence's last
+    # line. Only a loaded machine was slow enough to reach the settled layout first.
+    panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('.lf-sug-actions')]"

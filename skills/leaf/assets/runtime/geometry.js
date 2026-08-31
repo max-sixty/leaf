@@ -1,6 +1,19 @@
 import { uiInside } from "./passages.js";
 
 /* Shared readings of the boxes the page actually shows. */
+// Document-anchored chrome is absolutely positioned against body's padding box, while
+// the boxes it follows are read in viewport coordinates. Body normally starts at the
+// viewport's left edge, but the Asks strip moves that containing block to the right.
+// Convert at the boundary instead of making every overlay know which workspace is open.
+export function documentPoint(left, top) {
+  const body = document.body;
+  const origin = body.getBoundingClientRect();
+  return {
+    left: left - origin.left - body.clientLeft,
+    top: top - origin.top - body.clientTop,
+  };
+}
+
 // What a container lets the reader see of what it holds, or null where it shows all of
 // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
 // content-visibility both clip while overflow computes `visible`, and a box under either

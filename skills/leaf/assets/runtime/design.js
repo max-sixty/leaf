@@ -1,3 +1,5 @@
+import { documentPoint } from "./geometry.js";
+
 /* The reader commenting on the layer rather than the page: what a widget looks like or
  * does, a control, the runtime's own chrome. A mode rather than a chord, because it is
  * entered for a batch of remarks and changes what a press means everywhere: a press
@@ -39,7 +41,6 @@ export function createDesign(dependencies) {
     legendRoot,
     marginTargetAt,
     openComposer,
-    pageScroller,
     pageShifted,
     paintHere,
     refreshAim,
@@ -156,7 +157,6 @@ export function createDesign(dependencies) {
     // The reads.
     const clips = new Map();
     const under = banner.getBoundingClientRect().bottom;
-    const scrollTop = pageScroller.scrollTop;
     const placed = items.map((item) => {
       const entry = legendBoxes.get(item);
       entry.radius ??= getComputedStyle(item).borderRadius;
@@ -182,10 +182,11 @@ export function createDesign(dependencies) {
         box.style.display = "none";
         continue;
       }
+      const at = documentPoint(r.left - 1, r.top - 1);
       Object.assign(box.style, {
         display: "block",
-        left: r.left - 1 + "px",
-        top: r.top - 1 + scrollTop + "px",
+        left: at.left + "px",
+        top: at.top + "px",
         width: r.right - r.left + 2 + "px",
         height: r.bottom - r.top + 2 + "px",
         borderRadius: radius,

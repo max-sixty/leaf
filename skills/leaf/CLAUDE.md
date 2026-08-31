@@ -105,7 +105,8 @@ dynamic widget imports, and initial settlement;
 landing across authored-document replacement, and the page-block reading used to
 start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
-`runtime/geometry.js` owns the shared readings of visible boxes and clipping;
+`runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
+conversion from viewport boxes to body-positioned document chrome;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
 `runtime/conversation/model.js` adapts server-projected threads to browser callers;

@@ -325,8 +325,6 @@ export function chromeStyle({
     white-space: nowrap; }
   .lf-key-sequence > kbd, .lf-key-more kbd { display: inline-flex; align-items: center;
     justify-content: center; }
-  .lf-key-then { color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
-    line-height: 1; }
   .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
     background: var(--accent); color: var(--card); }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
@@ -1280,19 +1278,14 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's numbered document destinations. Each visible member shows the complete
-       suffix still needed to reach it at the corner where it starts. */
+    /* The g chord's numbered document destinations. Each visible member keeps the complete
+       route at the corner where it starts; key faces carry progress without changing its
+       geometry. */
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
     .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
-      border: 2px solid var(--accent); border-radius: 6px; background: var(--card);
-      box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 20%, transparent); }
-    .lf-addresses > .lf-chord-address::after { position: absolute; top: 100%; left: 50%;
-      width: 5px; height: 5px; box-sizing: border-box;
-      border: 0 solid var(--accent); border-width: 0 2px 2px 0;
-      background: var(--card); content: "";
-      transform: translate(-50%, -3px) rotate(45deg); }
+      border: 0; background: transparent; }
     /* Under the banner there is no room to straddle the corner, so the chip hangs below
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */
@@ -1419,10 +1412,6 @@ ${MARK_RULES}
       .lf-dot { background: CanvasText !important; }
       .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: Highlight;
         background: Highlight; color: HighlightText; }
-      .lf-addresses > .lf-chord-address { border-color: Highlight;
-        box-shadow: none; }
-      .lf-addresses > .lf-chord-address::after { border-color: Highlight;
-        background: Canvas; }
       :scope :focus-visible { outline: 2px solid Highlight !important;
         outline-offset: 2px !important; box-shadow: none !important; }
       :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {

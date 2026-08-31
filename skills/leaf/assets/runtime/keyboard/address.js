@@ -1,5 +1,5 @@
 import { labelOf, spell } from "./bindings.js";
-import { keySequence } from "./presentation.js";
+import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink } from "../presentation.js";
 
 export function createAddress({
@@ -233,13 +233,13 @@ export function createAddress({
   const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
   // How far the chord has come: `g`, and the list's letter once one has named a list. The
-  // key line shows this prefix once; the reference combines the standing-page prefix with
-  // each full route. Page chips omit that prefix and show the complete suffix still needed
-  // for their target.
+  // key line and page chips combine that progress with each full route; the reference shows
+  // the same routes at rest.
   const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
   const addressChip = (entry, n) => {
+    const steps = [labelOf(GOTO), entry.key, String(n)];
     const chip = el("span", "lf-address lf-chord-address");
-    chip.append(keySequence(aimedList ? [String(n)] : [entry.key, String(n)]));
+    chip.append(keySequence(steps, progressStates(steps, chordKeys().length)));
     return chip;
   };
 
@@ -284,10 +284,9 @@ export function createAddress({
   // placed from the member's own visible box, so a chip cannot claim room the page has
   // already refused — a thread scrolled out of the panel's list, a card half out of a board.
   //
-  // At the first stage, every visible member shows its list letter and digit, the complete
-  // remaining suffix that distinguishes it from the other lists. Naming a list narrows those
-  // chips to the digit still needed. Every key in a chip remains neutral because none of its
-  // displayed suffix has been pressed.
+  // Every visible member keeps its complete address. Naming a list narrows the members but
+  // does not narrow their labels: the list key changes from neutral to pressed in place, so
+  // the route's geometry stays fixed while the reader advances through it.
   //
   // The layer is the chrome's rather than the page's own markup for the reason every mark is
   // (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
@@ -511,11 +510,11 @@ export function createAddress({
       {
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
-        // inside it — the pressed prefix grows and the page chips narrow to that list — so
-        // one Escape gives the letter back and the next closes the window. It took both at
-        // once, which is the same drift `c` had at the panel: a reader who had narrowed to
-        // the wrong list wanted the other one, and cancelling put them back on the page,
-        // pressing `g` again to reach a window that had been standing the whole time.
+        // inside it. The complete routes stay fixed while that letter turns pressed, so one
+        // Escape gives the letter back and the next closes the window. It took both at once,
+        // which is the same drift `c` had at the panel: a reader who had narrowed to the
+        // wrong list wanted the other one, and cancelling put them back on the page, pressing
+        // `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
         chordControl: true,
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),

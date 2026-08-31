@@ -244,9 +244,21 @@ session.</p></details>
 )
 # What the chord's lists are offering, in the order they were drawn. Read through the
 # retrying assertion rather than evaluated: the chips are painted on a frame of the
-# runtime's own (paintHere), so a press and a plain read race each other. Each chip says
-# only the presses still needed to reach its target.
+# runtime's own (paintHere), so a press and a plain read race each other. Each chip keeps
+# its complete route while the pressed key faces show how far the reader has come.
 CHIPS = ".lf-addresses > .lf-address"
+
+
+def expect_address_steps(page, routes):
+    chips = page.locator(CHIPS)
+    expect(chips).to_have_text(["".join(route) for route in routes])
+    assert (
+        chips.evaluate_all(
+            """chips => chips.map(chip => [...chip.querySelectorAll('kbd')]
+          .map(key => key.textContent))"""
+        )
+        == routes
+    )
 
 
 NOTED_PAGE = leaf_page(

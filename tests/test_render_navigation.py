@@ -29,6 +29,7 @@ from render_support import (
     _publish,
     card_body,
     composer_quote,
+    expect_address_steps,
     hold_selection,
     key_line,
     leaf_page,
@@ -1029,14 +1030,17 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
     piles = page.evaluate(
         """() => {
              const boxes = [...document.querySelectorAll('.lf-addresses > .lf-address')]
-               .map(chip => ({keys: chip.textContent, r: chip.getBoundingClientRect()}));
+               .map(chip => ({
+                 keys: [...chip.querySelectorAll('kbd')].map(key => key.textContent),
+                 r: chip.getBoundingClientRect(),
+               }));
              const hit = (a, b) => a.left < b.right && b.left < a.right
                                 && a.top < b.bottom && b.top < a.bottom;
              const found = [];
              for (let i = 0; i < boxes.length; i++)
                for (let j = i + 1; j < boxes.length; j++)
                  if (hit(boxes[i].r, boxes[j].r))
-                   found.push(boxes[i].keys + ' under ' + boxes[j].keys);
+                   found.push(boxes[i].keys.join(' ') + ' under ' + boxes[j].keys.join(' '));
              return {found, drawn: boxes.map(b => b.keys)};
            }"""
     )
@@ -1056,9 +1060,10 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
         f"either dropped nothing or left too few to have checked a pair"
     )
     # And the ones that survived still say what they reach: pressing the first visible
-    # suffix follows that link, not the neighbour whose chip it might have worn.
+    # complete route follows that link, not the neighbour whose chip it might have worn.
     first = piles["drawn"][0]
-    letter, digit = first.split("›")
+    leader, letter, digit = first
+    assert leader == "g"
     assert letter == "h", f"the first surviving route is not a hyperlink: {first}"
     page.keyboard.press(letter)
     page.keyboard.press(digit)
@@ -1180,8 +1185,8 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
-    # Armed, the line names the available panels and document lists. Each visible list
-    # member wears the complete suffix that reaches it; a panel is one complete destination.
+    # Armed, the line names the available panels and document lists. Every destination
+    # keeps its complete route, with the leader painted as already pressed.
     page.keyboard.press("g")
     key_line(page)
     visible_chord = line.locator(".lf-key:not([hidden])")
@@ -1195,37 +1200,47 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
         "the armed line and live Go to register diverged: "
         f"line={sorted(visible_commands)}, reference={sorted(reference_commands)}"
     )
-    prefix = line.locator(".lf-chord-prefix .lf-key-sequence")
-    expect(prefix.locator(":scope > kbd")).to_have_text(["g"])
-    expect(prefix.locator(":scope > kbd")).to_have_attribute(
-        "data-lf-key-state", "pressed"
-    )
     for command, steps, states, words in [
-        ("navigation.panel.threads", ["T"], ["neutral"], "Threads panel"),
-        ("navigation.panel.decisions", ["A"], ["neutral"], "Asks panel"),
-        ("navigation.page-map", ["M"], ["neutral"], "Page map"),
+        (
+            "navigation.panel.threads",
+            ["g", "T"],
+            ["pressed", "neutral"],
+            "Threads panel",
+        ),
+        (
+            "navigation.panel.decisions",
+            ["g", "A"],
+            ["pressed", "neutral"],
+            "Asks panel",
+        ),
+        (
+            "navigation.page-map",
+            ["g", "M"],
+            ["pressed", "neutral"],
+            "Page map",
+        ),
         (
             "navigation.page-map-item",
-            ["m"],
-            ["neutral"],
+            ["g", "m", "1–3"],
+            ["pressed", "neutral", "neutral"],
             "page-map items",
         ),
         (
             "navigation.link",
-            ["h"],
-            ["neutral"],
+            ["g", "h", "1–2"],
+            ["pressed", "neutral", "neutral"],
             "hyperlinks",
         ),
         (
             "navigation.fold",
-            ["f"],
-            ["neutral"],
+            ["g", "f", "1"],
+            ["pressed", "neutral", "neutral"],
             "folds",
         ),
         (
             "navigation.page.top",
-            ["g / G"],
-            ["neutral"],
+            ["g", "g / G"],
+            ["pressed", "neutral"],
             "top / bottom",
         ),
         (
@@ -1388,7 +1403,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # same preview as its marker, including a thread anchored at that location.
     page.keyboard.press("g")
     page.keyboard.press("m")
-    expect(page.locator(CHIPS)).to_have_text(["1", "2", "3"])
+    expect_address_steps(page, [["g", "m", "1"], ["g", "m", "2"], ["g", "m", "3"]])
     page.keyboard.press("1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     assert page.locator(".lf-margin-thread").count() >= 1
@@ -1404,7 +1419,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_text(["1", "2"])
+    expect_address_steps(page, [["g", "h", "1"], ["g", "h", "2"]])
     assert page.evaluate(
         """() => {
              const links = [...document.querySelectorAll('#refs a[href]')];
@@ -1448,10 +1463,17 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
     page.keyboard.press("g")
-    expect(line).to_contain_text(re.compile(r"h\s*hyperlinks"))
-    expect(line).not_to_contain_text(re.compile(r"1–2\s*hyperlinks"))
+    link_route = line.locator(
+        '.lf-key[data-lf-commands~="navigation.link"] > .lf-key-sequence'
+    )
+    expect(link_route.locator(":scope > kbd")).to_have_text(["g", "h", "1–2"])
+    expect(link_route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "neutral"
+    )
     page.keyboard.press("h")
-    expect(line).to_contain_text(re.compile(r"1–2\s*hyperlinks"))
+    expect(link_route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "pressed"
+    )
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("2")
     assert page.evaluate("() => window.addressedClicks") == 1
@@ -1465,8 +1487,10 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     told(page)
     expect(page.locator("details.lf-details")).to_have_count(1)
     page.keyboard.press("g")
-    expect(line).to_contain_text(re.compile(r"f\s*folds"))
-    expect(line).not_to_contain_text(re.compile(r"1–2\s*folds"))
+    fold_route = line.locator(
+        '.lf-key[data-lf-commands~="navigation.fold"] > .lf-key-sequence'
+    )
+    expect(fold_route.locator(":scope > kbd")).to_have_text(["g", "f", "1"])
     page.keyboard.press("Escape")
 
     # The folds, and the one arrival that changes the page it arrives at. Every
@@ -1476,7 +1500,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("f")
-    expect(page.locator(CHIPS)).to_have_text(["1"])
+    expect_address_steps(page, [["g", "f", "1"]])
     assert page.evaluate(
         """() => {
              const c = document.querySelector('.lf-addresses > .lf-address')
@@ -1626,66 +1650,116 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     page.close()
 
 
-def test_numbered_addresses_show_the_remaining_route_in_the_ordinary_key_face(
+def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
     browser, serve
 ):
-    """The page shows every suffix that can still reach a visible target.
+    """Each inline hint and key-line binding keeps one complete chord in one geometry.
 
-    Before the list key, the letter keeps identical digits distinct. Afterwards only the
-    digit remains. Every unpressed key uses the ordinary available-binding face, while
-    the carrier identifies the live targeting layer without making the route bulky."""
+    A press changes the completed key's face from beige to blue. It does not remove that
+    key or move the remaining keycaps while the chord narrows to one numbered list."""
     url = serve(ADDRESSED_PAGE)
     page, errors = open_page(browser, url)
     resized(page, 1280, 800)
 
     page.keyboard.press("g")
-    choice = page.locator(
-        '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] > .lf-key-sequence > kbd'
+    legend = page.locator(
+        '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] > .lf-key-sequence'
     )
-    expect(choice).to_have_text("h")
-    expect(choice).to_have_attribute("data-lf-key-state", "neutral")
-    expect(page.locator(CHIPS)).to_have_text(["m›1", "h›1", "h›2", "f›1"])
-    assert page.locator(CHIPS).first.evaluate(
-        """chip => {
-          const style = getComputedStyle(chip);
-          return style.borderTopStyle === 'solid'
-            && style.borderTopWidth !== '0px'
-            && style.backgroundColor !== 'rgba(0, 0, 0, 0)'
-            && style.boxShadow !== 'none';
-        }"""
-    ), "the active inline route has no accent carrier"
-    assert page.locator(CHIPS).first.evaluate(
-        """chip => chip.getBoundingClientRect().height
-          <= chip.querySelector('kbd').getBoundingClientRect().height + 4"""
-    ), "the accent carrier makes the inline route needlessly tall"
+    expect(legend.locator(":scope > kbd")).to_have_text(["g", "h", "1–2"])
+    assert legend.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "neutral", "neutral"]
+    expect_address_steps(
+        page,
+        [["g", "m", "1"], ["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
+    )
     assert (
         page.locator(f"{CHIPS} kbd").evaluate_all(
             "keys => keys.map(key => key.dataset.lfKeyState)"
         )
-        == ["neutral"] * 8
+        == ["pressed", "neutral", "neutral"] * 4
     )
 
+    def sequence_geometry(locator):
+        return locator.evaluate(
+            """sequence => {
+              const box = sequence.getBoundingClientRect();
+              return {
+                width: box.width,
+                height: box.height,
+                keys: [...sequence.querySelectorAll(':scope > kbd')].map(key => {
+                  const at = key.getBoundingClientRect();
+                  return {left: at.left - box.left, width: at.width, height: at.height};
+                }),
+              };
+            }"""
+        )
+
+    def link_geometry():
+        return page.locator(CHIPS).evaluate_all(
+            """chips => chips.filter(chip => {
+                const keys = [...chip.querySelectorAll('kbd')].map(key => key.textContent);
+                return keys[0] === 'g' && keys[1] === 'h';
+              })
+              .map(chip => {
+                const box = chip.getBoundingClientRect();
+                return {
+                  text: chip.textContent,
+                  left: box.left,
+                  top: box.top,
+                  width: box.width,
+                  height: box.height,
+                  keys: [...chip.querySelectorAll('kbd')].map(key => {
+                    const at = key.getBoundingClientRect();
+                    return {left: at.left - box.left, width: at.width, height: at.height};
+                  }),
+                };
+              })"""
+        )
+
+    initial_legend_geometry = sequence_geometry(legend)
+    initial_link_geometry = link_geometry()
+    assert len(initial_link_geometry) == 2
+
     page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_text(["1", "2"])
-    inline = page.locator(f"{CHIPS} kbd").first
-    legend = page.locator(
-        '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] > .lf-key-sequence > kbd'
+    expect_address_steps(page, [["g", "h", "1"], ["g", "h", "2"]])
+    expect(legend.locator(":scope > kbd")).to_have_text(["g", "h", "1–2"])
+    expect(legend.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "pressed"
     )
+    assert legend.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "pressed", "neutral"]
+    assert (
+        page.locator(f"{CHIPS} kbd").evaluate_all(
+            "keys => keys.map(key => key.dataset.lfKeyState)"
+        )
+        == ["pressed", "pressed", "neutral"] * 2
+    )
+    assert sequence_geometry(legend) == initial_legend_geometry, (
+        "the key-line chord moved its keys when h became pressed"
+    )
+    assert link_geometry() == initial_link_geometry, (
+        "the inline chords moved when h became pressed"
+    )
+    inline = page.locator(f"{CHIPS} .lf-key-sequence > kbd").last
+    pending_legend = legend.locator(":scope > kbd").last
     expect(inline).to_have_attribute("data-lf-key-state", "neutral")
-    expect(legend).to_have_attribute("data-lf-key-state", "neutral")
+    expect(pending_legend).to_have_attribute("data-lf-key-state", "neutral")
     assert page.evaluate(
         """() => {
-          const inline = document.querySelector('.lf-addresses > .lf-address kbd');
+          const inline = [...document.querySelectorAll(
+            '.lf-addresses > .lf-address kbd')].at(-1);
           const legend = document.querySelector(
             '.lf-keyline .lf-key[data-lf-commands~="navigation.link"]'
-            + ' > .lf-key-sequence > kbd');
+            + ' > .lf-key-sequence > kbd:last-child');
           const properties = ['border-top-color', 'background-color', 'color',
             'font-family', 'font-size', 'height', 'border-radius'];
           const read = el => Object.fromEntries(properties.map(property =>
             [property, getComputedStyle(el).getPropertyValue(property)]));
           return JSON.stringify(read(inline)) === JSON.stringify(read(legend));
         }"""
-    ), "an inline digit and its bottom-legend binding use different key faces"
+    ), "an inline pending key and its bottom-legend binding use different beige faces"
     assert errors == []
     page.close()
 
@@ -2059,13 +2133,20 @@ def test_numbered_addresses_stop_at_nine_and_choose_in_one_press(browser, serve)
     )
 
     page.keyboard.press("g")
-    expect(line).to_contain_text(re.compile(r"h\s*hyperlinks"))
-    expect(line).not_to_contain_text(re.compile(r"1–9\s*hyperlinks"))
-    expect(page.locator(CHIPS)).to_have_text([f"h›{n}" for n in range(1, 10)])
+    route = line.locator(
+        '.lf-key[data-lf-commands~="navigation.link"] > .lf-key-sequence'
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "h", "1–9"])
+    expect(route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "neutral"
+    )
+    expect_address_steps(page, [["g", "h", str(n)] for n in range(1, 10)])
     page.keyboard.press("h")
-    expect(line).to_contain_text(re.compile(r"1–9\s*hyperlinks"))
+    expect(route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "pressed"
+    )
     expect(line).not_to_contain_text(re.compile(r"1–12\s*hyperlinks"))
-    expect(page.locator(CHIPS)).to_have_text([str(n) for n in range(1, 10)])
+    expect_address_steps(page, [["g", "h", str(n)] for n in range(1, 10)])
     page.keyboard.press("1")
     page.wait_for_url(re.compile(r"#link-1$"))
     expect(page.locator(CHIPS)).to_have_count(0)
@@ -2097,17 +2178,24 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
 
     It spent both on one press, which put a reader who had narrowed to the wrong list
     back on the page — pressing `g` again to reach a window that had been standing the
-    whole time. The line's pressed prefix and the changing inline suffixes make the two
-    stages visible. Direct panel destinations complete on their mnemonic and therefore
-    add no intermediate Escape rung."""
+    whole time. Complete routes stay in place while their pressed keys make the two stages
+    visible. Direct panel destinations complete on their mnemonic and therefore add no
+    intermediate Escape rung."""
     page, errors = open_page(browser, serve(ADDRESSED_PAGE))
     line = page.locator(".lf-keyline")
 
     page.keyboard.press("g")
-    expect(
-        line.locator('.lf-chord-prefix kbd[data-lf-key-state="pressed"]')
-    ).to_have_text(["g"])
-    expect(page.locator(CHIPS)).to_have_text(["m›1", "h›1", "h›2", "f›1"])
+    link_route = line.locator(
+        '.lf-key[data-lf-commands~="navigation.link"] > .lf-key-sequence'
+    )
+    expect(link_route.locator(":scope > kbd")).to_have_text(["g", "h", "1–2"])
+    assert link_route.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "neutral", "neutral"]
+    expect_address_steps(
+        page,
+        [["g", "m", "1"], ["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
+    )
     expect(line).to_contain_text("cancel")
     expect(line.locator('[data-lf-commands="navigation.address.back"]')).to_have_class(
         re.compile(r"\blf-chord-control\b")
@@ -2115,19 +2203,28 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
 
     # The letter narrows the window to its own list, which is the second layer.
     page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_text(["1", "2"])
+    expect_address_steps(page, [["g", "h", "1"], ["g", "h", "2"]])
+    expect(link_route.locator(":scope > kbd").nth(1)).to_have_attribute(
+        "data-lf-key-state", "pressed"
+    )
+    assert link_route.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "pressed", "neutral"]
     expect(line).to_contain_text("back to the lists")
 
     # One press gives that back and no more: the window still stands, over every list.
     page.keyboard.press("Escape")
-    expect(
-        line.locator('.lf-chord-prefix kbd[data-lf-key-state="pressed"]')
-    ).to_have_text(["g"])
-    expect(page.locator(CHIPS)).to_have_text(["m›1", "h›1", "h›2", "f›1"])
+    expect_address_steps(
+        page,
+        [["g", "m", "1"], ["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
+    )
+    assert link_route.locator(":scope > kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "neutral", "neutral"]
     expect(line).to_contain_text("cancel")
     # And a letter still names one, so what came back is the window and not its ghost.
     page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_text(["1", "2"])
+    expect_address_steps(page, [["g", "h", "1"], ["g", "h", "2"]])
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -4247,7 +4344,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     # claimed Escape, or one press would have two owners — the grip consuming it,
     # the chord promising its cancel.
     page.keyboard.press("g")
-    # No blue pressed prefix appears, which proves the chord refused to arm even if the
+    # No blue pressed key appears, which proves the chord refused to arm even if the
     # ordinary line happens to reuse one of its words.
     expect(page.locator('.lf-keyline kbd[data-lf-key-state="pressed"]')).to_have_count(
         0

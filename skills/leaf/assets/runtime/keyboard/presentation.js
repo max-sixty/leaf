@@ -15,9 +15,10 @@ export const completeRowSteps = (row, route = null) => {
   return word(row.completeChordSteps) ?? rowSteps(row);
 };
 
-export const pressedStates = (steps) => steps.map(() => "pressed");
-
 export const neutralStates = (steps) => steps.map(() => "neutral");
+
+export const progressStates = (steps, pressed) =>
+  steps.map((_, i) => (i < pressed ? "pressed" : "neutral"));
 
 export function keySequence(steps, states = neutralStates(steps), spokenSteps = steps) {
   if (
@@ -37,13 +38,6 @@ export function keySequence(steps, states = neutralStates(steps), spokenSteps = 
   steps.forEach((step, i) => {
     const state = states[i];
     if (!STATES.has(state)) throw new Error(`leaf: unknown key state ${String(state)}`);
-    if (i) {
-      const then = document.createElement("span");
-      then.className = "lf-key-then";
-      then.setAttribute("aria-hidden", "true");
-      then.textContent = "›";
-      sequence.append(then);
-    }
     const key = document.createElement("kbd");
     key.dataset.lfKeyState = state;
     key.setAttribute("aria-hidden", "true");

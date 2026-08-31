@@ -1603,9 +1603,9 @@ The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
 `g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
-window instead: the key line's pressed prefix advances from `g` to `g › h`, the
-page chips narrow from complete suffixes such as `h › 1` to that list's digits,
-and Escape returns to the destination menu before another Escape closes it.
+window instead. Each hint keeps its complete route, such as `g h 1`; `g`
+starts blue, then `h` turns blue in place when it is pressed. Escape returns to
+the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
 `versionsOffered` (there is a menu) answers for the key, the mode binding its
@@ -2046,11 +2046,13 @@ reader's innermost scope and drops bindings shadowed there. The ordinary shortli
 the first live row, then a promotable Escape or the next row; rows declaring
 `linePriority: persistent` remain beside that context. An active chord instead shows
 every live row in its scope, so computed bindings, ranges, and capability filtering are
-the same ones dispatch and the reference use. Its pressed prefix appears once in the
-accent face; the available rows keep the ordinary key face. `lineWhen` may hide only an
-ordinary hint without changing the command's liveness or its place in the reference.
-Hint chips are `aria-hidden` because placeholders and live announcements carry the same
-facts for assistive technology.
+the same ones dispatch and the reference use. Each destination row keeps its complete
+chord: already pressed keys take the accent face and pending keys keep the ordinary face.
+Changing progress changes only those faces, not the sequence's keys or geometry. A mode's
+Escape or back row remains a separate control rather than appearing as a destination
+chord. `lineWhen` may hide only an ordinary hint without changing the command's liveness
+or its place in the reference. Hint chips are `aria-hidden` because placeholders and live
+announcements carry the same facts for assistive technology.
 
 The compact line wraps when persistent or chord rows need the room. Ordinary hints may
 yield from the end to stay within two rows, but persistent rows and active chord rows do
@@ -2224,24 +2226,22 @@ same-document hyperlink follows and leaves focus on its fragment target, an exte
 hyperlink names the tab it opens, a fold opens and takes focus, and a page-map item opens
 its marker or focuses its first available action.
 
-Arming the mode shows the available list and direct-destination mnemonics in the key line.
-Each visible numbered member also shows the complete suffix still needed to reach it, such
-as `h › 1`. A direct mnemonic completes the travel and moves focus inside its destination.
-A numbered-list mnemonic narrows the inline hints to that list's first nine digits and
-reveals the same range in the key line. The following digit selects immediately. Escape
-backs out to the list menu before it closes the mode.
+Arming the mode shows the available direct destinations and numbered lists in the key
+line. Each row shows its complete chord. Each visible numbered member also shows its
+complete address, such as `g h 1`. A direct mnemonic completes the travel and moves
+focus inside its destination. A numbered-list mnemonic narrows the inline hints to that
+list's first nine members without changing their labels or geometry. The following digit
+selects immediately. Escape backs out to the list menu before it closes the mode.
 
 Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
-remains one decision point and is spoken as “g or G”; a muted `›` means “then” visually,
-and the sequence's accessible label spells that word out. In a live chord, pressed keys
-take the accent ground once at the start of the line. Available keys in the line and every
-unpressed key in an inline suffix remain neutral, matching ordinary bindings. The complete
-reference shows every route with all steps neutral because it describes rather than enacts
-them.
+remains one decision point and is spoken as “g or G”; a sequence's accessible label says
+“then” between adjacent keycaps. In a live chord, pressed keys take the accent ground and
+pending keys remain neutral, matching ordinary bindings. The complete reference shows
+every route with all steps neutral because it describes rather than enacts them.
 
 `chordKeys` is the structured reading of how far a numbered address has come. The key
-line draws that prefix once, the reference combines the standing-page prefix with each
-row's `completeChordSteps`, and page chips show the complete suffix still to press.
+line and page chips apply that progress to each complete route. The reference combines
+the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
 
 Numbered addresses are stable within the document and capped at nine per list. The
 first nine members do not change identity as the reader scrolls. Chips are painted

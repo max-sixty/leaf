@@ -134,11 +134,10 @@
  * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
- * Arming shows the destination and list mnemonics in the key line. Its one blue prefix
- * names the keys already pressed; the neutral entries use the ordinary binding face.
- * Visible members show the complete remaining suffix (`h › 3`) in that same neutral face.
- * A list letter narrows those inline hints to the digit still needed and reveals the range
- * in the line. Any other key disarms the window and keeps its
+ * Arming shows every complete route in the key line. Pressed keys use the blue face and
+ * pending keys use the ordinary face. Visible members show the same complete route in
+ * adjacent fixed keycaps. A list letter narrows those inline hints without moving the
+ * remaining routes. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other, and the rung is whichever scope in reach binds it
  * first, so backing out is one layer per press and the promise cannot drift from the

@@ -626,7 +626,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     expect(picked).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("h")
-    addressed = page.locator(f"{CHIPS} kbd").first
+    addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
 
     # The option's address and the chord's digit keep one physical key geometry. The option
@@ -638,7 +638,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
                 "font-size", "line-height", "text-align"]
                 .map(p => [p, s.getPropertyValue(p)])); };
         return [read(document.querySelector('#tq-one .lf-address')),
-                read(document.querySelector('.lf-addresses > .lf-address kbd'))]; }"""
+                read(document.querySelector(
+                  '.lf-addresses > .lf-address kbd:last-child'))]; }"""
     option_key, chord_key = page.evaluate(faces)
     assert option_key == chord_key, (
         "one physical key has two geometries:\n  "
@@ -651,8 +652,9 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert "mono" in option_key["font-family"]
     assert addressed.get_attribute("data-lf-key-state") == "neutral"
     emphasis = page.evaluate(
-        """() => ['#tq-one .lf-address', '.lf-addresses > .lf-address kbd',
-          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd']
+        """() => ['#tq-one .lf-address',
+          '.lf-addresses > .lf-address kbd:last-child',
+          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd:last-child']
           .map(sel => { const s = getComputedStyle(document.querySelector(sel));
             return {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color};
           })"""

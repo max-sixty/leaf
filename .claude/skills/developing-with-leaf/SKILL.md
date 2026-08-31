@@ -34,6 +34,22 @@ source line.
    thread. Codex Annotation mode creates visual comments that the user sends with
    their next chat message.
 
+## Compare runtime versions
+
+Choose one authored source and serve it through two named preview slots:
+
+```bash
+scripts/preview.py --source <source.html> --runtime <baseline-root> \
+  --slot baseline --background
+scripts/preview.py --source <source.html> --runtime <candidate-root> \
+  --slot candidate --background
+```
+
+Each command verifies the checkout launcher, vendors an independent page, starts
+its service, and prints its exact URL. Exercise the same journey and viewport at
+both URLs, check both browser consoles, then open both as Codex browser targets.
+Hand off the labeled URL pair and the action that reveals the difference.
+
 ## Author or revise a page
 
 Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,

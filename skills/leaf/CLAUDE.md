@@ -1366,29 +1366,17 @@ never merely on focus or hover; when the document cannot leave it room beside th
 source, the same press opens the full Threads surface. The thread card is the only
 generated contextual pane, not a generic container for alternatives.
 
-Both are layers the reader put on, and Escape gives them back deepest first: the card,
-then the unfolded Buttons. The card is a popover, so the platform's own dismissal is
-that rung and the page's ladder stands down while it is up; its `toggle` hands focus
-back only where the dismissal left it nowhere, because the control that opened the card
-may have gone with the gesture. The fold is a rung of the page's ladder (`rung`) rather
-than an element scope of its own: a control whose scope binds Escape is a control saying
-the press is already spoken for, and the reaction chord reads that (`claimsEsc`) to
-decide it cannot arm — which is exactly where the chord's own choices stand.
+The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
+over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
+on the next press; each rung is named on the key line before it runs.
 
-A rung of the page is still the page's rule, so the fold answers where the reader is
-standing and not the fact that a fold is open: it is their rung inside that cluster or
-with nothing held, and a reader who left it for a tray or the panel gets the rung that
-closes what they are in. The question is asked of the cluster rather than of the chrome,
-because half the clusters are in the chrome — a core entry docks in the toolbar — and
-those Buttons are as much the reader's layer as a hoisted one. The same rule holds where
-a gesture unfolded the cluster for its own use: putting the reaction choices away folds
-back the cluster that raise unfolded, and only that one, so a disarm over a reply strip
-or over a fold the reader opened themselves takes away no layer the gesture put on. That
-put-down folds without claiming the focus. Landing the reader on the cluster's `…` is the
-Escape rung's promise and the rung only fires from inside the cluster, while the put-down
-runs from wherever the reader is standing — so taking the focus there would throw them
-onto a cluster they had left, and would send a press already on its way to a Button they
-were not standing on.
+A gesture that unfolds a cluster for its own use puts that fold back, and only that one:
+putting the reaction choices away folds back the cluster the raise unfolded, so a disarm
+over a reply strip or over a fold the reader opened themselves takes away no layer the
+gesture put on. That put-down folds without claiming the focus — it runs from wherever
+the reader is standing, so taking the focus would throw them onto a cluster they may
+have left, and would send a press already on its way to a Button they were not standing
+on.
 
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;

@@ -1698,29 +1698,6 @@ function rung() {
       does: "Clear the selection",
       out: dismissFab,
     };
-  // The Buttons `…` unfolded are a layer the reader put on, so Escape takes them back —
-  // while they are standing in that cluster, or standing nowhere yet. It stands ahead of
-  // letting go because a target's cluster is hoisted into the page's own positioning
-  // context rather than into `.lf-chrome`, so a reader standing on one of its Buttons
-  // reads as standing on the page.
-  //
-  // Where the reader is and not whether a fold happens to be open, which is the ladder's
-  // rule two comments above: a reader who left the cluster for a tray or the panel is
-  // standing in the chrome, and the rung they want there is the one that closes what they
-  // are in. Asking the cluster rather than the chrome also keeps the half of the fold
-  // that does live in the chrome — a core entry docks in the toolbar, and `nav` is inside
-  // `.lf-chrome` — which a `!inChrome(active)` guard would have dropped.
-  //
-  // A Thread card over that cluster is the layer above it and needs no rung: it is a
-  // popover, so the platform dismisses it first and this ladder is dead while it stands
-  // (browserDismissesTopLayer).
-  const unfolded = livingMargin?.unfoldedButtons();
-  if (unfolded && (!holding || unfolded.contains(active)))
-    return {
-      says: "fold",
-      does: "Fold the extra Buttons away",
-      out: () => livingMargin.foldButtonOptions(),
-    };
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
@@ -2106,6 +2083,28 @@ const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
   at: () => Boolean(keyline?.expanded),
   rows: [LESS_SHORTCUTS],
+};
+
+// A Thread card and the unfolded Button cluster that owns it are one page-map stack,
+// though the card itself is hoisted into the chrome. This registered rung precedes the
+// reaction and navigation modes just as the surface's old local listener did: Escape
+// closes the card first, then folds the cluster on a second press.
+const pageMapRung = (atFocus = true) => livingMargin?.keyboardRung({ atFocus }) ?? null;
+const PAGE_MAP = {
+  title: "In the page map",
+  when: () => Boolean(pageMapRung(false)),
+  at: () => Boolean(pageMapRung()),
+  rows: [
+    {
+      id: "margin.back",
+      keys: ["Escape"],
+      does: () => pageMapRung(false)?.does,
+      line: () => pageMapRung()?.says,
+      referenceWhen: () => Boolean(pageMapRung(false)),
+      when: () => Boolean(pageMapRung()),
+      run: () => pageMapRung()?.out(),
+    },
+  ],
 };
 
 // Below the element scopes: the page's own modes, then the page. The composer's rung is
@@ -2738,6 +2737,7 @@ const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
   HELP,
   SHORTCUT_SHELF,
+  PAGE_MAP,
   GO,
   REACT,
   SELECT,
@@ -3437,6 +3437,7 @@ livingMargin = createLivingMargin({
   designIsOn: () => designOn,
   el,
   elementById,
+  focused,
   goToDecision,
   inChrome,
   itemSays,

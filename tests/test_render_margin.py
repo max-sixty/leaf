@@ -293,7 +293,15 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(preview).to_be_hidden()
     expect(more).to_have_attribute("aria-expanded", "true")
     expect(more).to_be_focused()
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-keyline")).to_contain_text("close options")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-help")
+    expect(reference).to_be_visible()
+    back = reference.locator('.lf-help-command[data-lf-command="margin.back"]')
+    expect(back).to_have_text("Fold the secondary page actions")
+    back.click()
+    expect(reference).to_be_hidden()
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
     more.click()
@@ -449,11 +457,18 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(options).to_be_visible()
-    page.locator(".lf-margin-preview-close").click()
+    expect(page.locator(".lf-keyline")).to_contain_text("close thread")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(options).to_be_visible()
+    expect(thread_button).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("close options")
+    page.keyboard.press("Escape")
+    expect(options).to_be_hidden()
+    expect(more).to_be_focused()
 
     # The shared behavior belongs to the target item, not specifically to a
     # suggestion: focusing the draft's resting Edit action extends that same item.
-    page.keyboard.press("Escape")
     draft_controls.locator(".lf-draft-pencil").focus()
     page.keyboard.press("r")
     expect(
@@ -913,6 +928,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-keyline")).to_contain_text("close thread")
     expect(marker).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -1111,16 +1127,11 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
     expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
     expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(thread.locator("textarea")).to_be_focused()
+    expect(page.locator(".lf-keyline")).to_contain_text("close thread")
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= 0, preview_box
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     if width == 760:
-        # One press, one rung, like every other Escape in the register: the reply box
-        # first, then the card the box stands in. The card is a popover, so the second
-        # press is the platform's own dismissal and the layer hears it as a `toggle`.
-        page.keyboard.press("Escape")
-        expect(preview).to_be_visible()
-        expect(thread).to_be_focused()
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()

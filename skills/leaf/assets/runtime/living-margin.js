@@ -192,6 +192,7 @@ export function createLivingMargin(dependencies) {
     designIsOn,
     el,
     elementById,
+    focused,
     goToDecision,
     inChrome,
     itemSays,
@@ -1467,6 +1468,34 @@ export function createLivingMargin(dependencies) {
     paintKeys();
   }
 
+  // The card and its owning Button cluster are one page-map stack even though the card
+  // is hoisted into the chrome. Expose the current rung to the one keyboard register so
+  // it can stand ahead of reaction and navigation modes, preserving the local surface's
+  // old order without another keydown listener. One press closes only the deepest rung.
+  function keyboardRung({ atFocus = true } = {}) {
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    if (
+      preview.matches(":popover-open") &&
+      (!atFocus ||
+        preview.contains(active) ||
+        (previewButton && host?.contains(previewButton)))
+    )
+      return {
+        does: "Close the thread card",
+        says: "close thread",
+        out: () => closePreview(true),
+      };
+    const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
+    if (optionsHost?.lfEntry?.key === expandedOptionsKey)
+      return {
+        does: "Fold the secondary page actions",
+        says: "close options",
+        out: () => setOptionsOpen(optionsHost.lfEntry, false, { returnFocus: true }),
+      };
+    return null;
+  }
+
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
@@ -1622,19 +1651,6 @@ export function createLivingMargin(dependencies) {
     previewButton = null;
     button?.style.removeProperty("anchor-name");
     highlight(null);
-    // Escape on a popover is the platform's own dismissal, and it hands focus back to
-    // whatever held it when the card was shown. That control may have gone with the
-    // gesture that opened the card — a composer sends its comment and closes — and a
-    // reader who walked into the card is still standing in it as it hides, which drops
-    // them on body a moment later. In both the reader is left with no way back into the
-    // margin, so hand focus back the way the card's own close control does. Focus
-    // anywhere else is the reader's own place and is left alone.
-    const held = document.activeElement;
-    if (!held || held === document.body || preview.contains(held)) {
-      if (button?.isConnected && button.checkVisibility())
-        button.focus({ preventScroll: true });
-      else if (button?.lfEntry) focusMapControl(button.lfEntry);
-    }
     for (const row of rows.values())
       syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
     for (const reading of readingButtons.values())
@@ -1660,24 +1676,17 @@ export function createLivingMargin(dependencies) {
   render();
 
   return {
-    // The unfolded cluster, said as one question and one act so the page's Escape ladder
-    // can carry it. A rung of the page rather than an element scope: an element scope
-    // claiming Escape is a control saying the press is already spoken for, which is what
-    // stops the reaction chord arming there (`claimsEsc`), and the fold is exactly where
-    // the chord's own choices stand.
-    //
-    // The cluster itself and not a flag, because a fold standing open somewhere is not
-    // the layer the reader is in. Both callers ask a question of the element rather than
-    // of the page: the ladder asks whether the reader is standing in this cluster, and a
-    // raise that unfolds one to stand its choices in asks whose target it belongs to
-    // (`lfTarget`).
+    // The unfolded cluster, for a gesture that needs to know whether the fold standing
+    // open is one it opened itself. The cluster and not a flag, because a fold open
+    // somewhere is not the fold this gesture put on: the caller asks whose target it
+    // belongs to (`lfTarget`) rather than whether any fold is open. The Page-map scope's
+    // own rung reads the reader's position directly (`keyboardRung`) and needs neither.
     unfoldedButtons: () =>
       expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
-    // The Escape rung folds from inside the cluster, so putting the reader back on its
-    // `…` is where the press leaves them standing. A caller folding on the reader's
-    // behalf — a disarm putting back a fold its own raise opened — is standing wherever
-    // the reader is instead, and says `returnFocus: false` rather than throwing them
-    // onto a cluster they may have left.
+    // Folding on the reader's behalf — a disarm putting back a fold its own raise opened
+    // — happens wherever the reader is standing rather than inside the cluster, so it
+    // says `returnFocus: false` rather than throwing them onto a cluster they may have
+    // left. The rung folds from inside the cluster and keeps the default.
     foldButtonOptions: ({ returnFocus = true } = {}) =>
       setOptionsOpen(null, false, { returnFocus }),
     activeInlineThread: () => {
@@ -1696,6 +1705,7 @@ export function createLivingMargin(dependencies) {
     },
     closePreview: () => closePreview(false),
     enterPageMap,
+    keyboardRung,
     marginTargetAt,
     openButtonOptions,
     openInlineThread,

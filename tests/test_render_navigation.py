@@ -145,10 +145,13 @@ def test_an_addressed_link_leaves_the_reader_at_its_destination(
 
 
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
-    """The strip says which workstream is open, while one enclosing surface says how
-    far that workstream runs. Without the shared frame and inset, an inline tab starts
-    like a section heading and finishes like ordinary page flow, so the reader has no
-    visible answer to which headings and paragraphs belong to it."""
+    """The strip reads as an index inside the one frame that bounds its workstream.
+
+    The selected name becomes one compact paper face; the tab around it does not grow a
+    second frame inside the shared surface. The strip's closing rule keeps the index
+    distinct from the panel, whose enclosing frame still answers how far that
+    workstream runs.
+    """
     page, errors = open_page(
         browser,
         serve(
@@ -190,7 +193,26 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
             const rect = element.getBoundingClientRect();
             return {left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom};
           };
-          const style = element => getComputedStyle(element);
+          const style = (element, pseudo) => getComputedStyle(element, pseudo);
+          const face = tab => {
+            const tabStyle = style(tab);
+            const label = tab.querySelector('[data-lf-said]');
+            const labelStyle = style(label);
+            const markStyle = style(label, '::before');
+            return {
+              ground: tabStyle.backgroundColor,
+              border: ['Top', 'Right', 'Bottom', 'Left'].map(
+                edge => parseFloat(tabStyle[`border${edge}Width`])),
+              shadow: tabStyle.boxShadow,
+              tabDecoration: tabStyle.textDecorationLine,
+              labelGround: labelStyle.backgroundColor,
+              labelInk: labelStyle.color,
+              labelDecoration: labelStyle.textDecorationLine,
+              labelPadding: ['Top', 'Right', 'Bottom', 'Left'].map(
+                edge => parseFloat(labelStyle[`padding${edge}`])),
+              beforeContent: markStyle.content,
+            };
+          };
           return {
             tabs: box(tabs), strip: box(strip), panel: box(panel),
             opening: box(opening), closing: box(closing), next: box(next),
@@ -202,9 +224,15 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               color: style(tabs).borderTopColor,
               ground: style(tabs).backgroundColor,
             },
-            stripGround: style(strip).backgroundColor,
-            selectedGround: style(selected).backgroundColor,
-            inactiveGround: style(inactive).backgroundColor,
+            divider: {
+              width: parseFloat(style(strip).borderBottomWidth),
+              color: style(strip).borderBottomColor,
+            },
+            palette: {
+              ink: style(document.body).color,
+            },
+            selected: face(selected),
+            inactive: face(inactive),
           };
         }"""
     )
@@ -216,14 +244,40 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
         f"the tab surface has an open edge: {boundary['frame']}"
     )
     assert boundary["frame"]["color"] != "rgba(0, 0, 0, 0)", boundary
-    assert boundary["selectedGround"] == boundary["frame"]["ground"], boundary
-    assert boundary["selectedGround"] != boundary["stripGround"], boundary
-    assert boundary["inactiveGround"] != boundary["selectedGround"], boundary
+    assert boundary["divider"]["width"] > 0, boundary
+    assert boundary["divider"]["color"] != "rgba(0, 0, 0, 0)", boundary
+    assert boundary["selected"]["ground"] == "rgba(0, 0, 0, 0)", boundary
+    assert boundary["inactive"]["ground"] == boundary["selected"]["ground"], boundary
+    assert max(boundary["selected"]["border"]) == 0, boundary
+    assert max(boundary["inactive"]["border"]) == 0, boundary
+    assert boundary["selected"]["shadow"] == "none", boundary
+    assert boundary["inactive"]["shadow"] == "none", boundary
+    assert boundary["selected"]["tabDecoration"] == "none", boundary
+    assert boundary["selected"]["labelGround"] == boundary["frame"]["ground"], boundary
+    assert boundary["inactive"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
+    assert boundary["selected"]["labelInk"] == boundary["palette"]["ink"], boundary
+    assert (
+        boundary["selected"]["labelPadding"] == boundary["inactive"]["labelPadding"]
+    ), boundary
+    assert boundary["selected"]["labelDecoration"] == "none", boundary
+    assert boundary["inactive"]["labelDecoration"] == "none", boundary
+    assert boundary["selected"]["beforeContent"] == "none", boundary
+    assert boundary["inactive"]["beforeContent"] == "none", boundary
     assert boundary["opening"]["top"] - boundary["strip"]["bottom"] >= 16, boundary
     assert boundary["opening"]["left"] - boundary["tabs"]["left"] >= 16, boundary
     assert boundary["tabs"]["right"] - boundary["opening"]["right"] >= 16, boundary
     assert boundary["tabs"]["bottom"] - boundary["closing"]["bottom"] >= 16, boundary
     assert boundary["next"]["top"] > boundary["tabs"]["bottom"], boundary
+
+    selected = page.locator('#workstreams [aria-selected="true"]')
+    selected.focus()
+    focus = selected.evaluate(
+        """element => {
+          const style = getComputedStyle(element);
+          return {width: parseFloat(style.outlineWidth), style: style.outlineStyle};
+        }"""
+    )
+    assert focus["width"] > 0 and focus["style"] != "none", focus
     assert errors == []
     page.close()
 

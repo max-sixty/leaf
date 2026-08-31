@@ -6,7 +6,6 @@ from pathlib import Path
 import click
 from referencing.exceptions import Unresolvable
 
-from .event_log import read_events
 from .files import list_revisions, revision_path
 from .registry.contract import aware_instant, json_validator
 from .schema import DATA_SOURCE_NAME
@@ -76,14 +75,10 @@ def declared_data_snapshot_references(lf_elements: list, registry: dict) -> dict
     return references
 
 
-def page_data_snapshot_selections(
-    page_dir: Path,
-    registry: dict,
-    events: list | None = None,
-) -> dict:
+def data_snapshot_selections(documents: list[tuple[list, str]], registry: dict) -> dict:
     """Exact immutable selection at each document/widget/input coordinate."""
     selections = {}
-    for lf_elements, document in page_data_documents(page_dir, events):
+    for lf_elements, document in documents:
         for ordinal, rec in enumerate(lf_elements):
             for input_name, spec in (
                 registry.get(rec["tag"], {}).get("x-data", {}).items()
@@ -139,14 +134,14 @@ def merge_data_bindings(
 
 def page_data_documents(
     page_dir: Path,
-    events: list | None = None,
+    events: list,
 ) -> list[tuple[list, str]]:
     """The immutable page and thread documents that can consume external data."""
     documents = []
     for revision in list_revisions(page_dir):
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         documents.append((parse_structure(html).lf_elements, f"revision r{revision}"))
-    for event in read_events(page_dir) if events is None else events:
+    for event in events:
         if markup := event.get("markup"):
             documents.append(
                 (
@@ -159,7 +154,7 @@ def page_data_documents(
 
 def working_data_documents(
     page_dir: Path,
-    events: list | None = None,
+    events: list,
     *,
     authored: list | None = None,
     incoming: list[tuple[list, str]] | None = None,
@@ -176,22 +171,10 @@ def working_data_documents(
     return documents
 
 
-def page_data_bindings(
-    page_dir: Path,
-    registry: dict,
-    events: list | None = None,
-) -> tuple[dict, list[str]]:
-    """One source-to-contract map across versions and frozen thread documents."""
-    return merge_data_bindings(
-        page_data_documents(page_dir, events),
-        registry,
-    )
-
-
 def working_data_bindings(
     page_dir: Path,
     registry: dict,
-    events: list | None = None,
+    events: list,
 ) -> tuple[dict, list[str]]:
     """Source contracts across immutable documents and the current source."""
     return merge_data_bindings(
@@ -203,7 +186,7 @@ def working_data_bindings(
 def working_data_snapshot_references(
     page_dir: Path,
     registry: dict,
-    events: list | None = None,
+    events: list,
 ) -> dict:
     """Snapshot ids selected by immutable documents and the current source."""
     references = {}
@@ -218,7 +201,7 @@ def working_data_snapshot_references(
 def page_data_binding_inventory(
     page_dir: Path,
     registry: dict,
-    events: list | None = None,
+    events: list,
 ) -> dict:
     """Page-lifetime bindings in the form a producer needs from `page state`."""
     documents = page_data_documents(page_dir, events)
@@ -321,7 +304,7 @@ def data_binding_errors(
     page_dir: Path,
     registry: dict,
     stored: dict,
-    events: list | None = None,
+    events: list,
     *,
     authored: list | None = None,
     incoming: list[tuple[list, str]] | None = None,

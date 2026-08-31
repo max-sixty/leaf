@@ -2812,7 +2812,10 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
                 "",
             )
         )
-    immutable, errors = data_contracts_model.page_data_bindings(page_dir, registry)
+    documents = data_contracts_model.page_data_documents(
+        page_dir, events_model.read_events(page_dir)
+    )
+    immutable, errors = data_contracts_model.merge_data_bindings(documents, registry)
     assert errors == [] and "project-feed" not in immutable
     events_model.append_event(
         page_dir,

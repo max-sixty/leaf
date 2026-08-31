@@ -1,5 +1,19 @@
 /* The private comment-layer stylesheet. The public runtime supplies the
    declaration-derived names and layout queries interpolated into it. */
+/* One sequential step keeps one geometry in options, the key line, page addresses and
+   the reference. A sequence composes these fixed boxes instead of making spaces inside
+   one keycap carry time. A compact choice label such as g / G remains one decision
+   point. It is one statement read by two selectors rather than one selector, because
+   only one of the elements wearing it stands in the page: an option's address chip is
+   the page's, while every sequence and the key line's More key are the chrome's own, and
+   a rule that reaches both has to sit outside the @scope block and take the chrome's
+   private names to document level with it. */
+const KEY_BOX = `box-sizing: border-box;
+    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
+    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
+    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
+    line-height: 1.478; text-align: center; white-space: nowrap;`;
+
 export function chromeStyle({
   COVERING,
   MARK_RULES,
@@ -311,22 +325,12 @@ export function chromeStyle({
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
   .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
   .lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
-  /* One sequential step keeps one geometry in options, the key line, page addresses and
-     the reference. A sequence composes these fixed boxes instead of making spaces inside
-     one keycap carry time. A compact choice label such as g / G remains one decision point. */
-  .lf-address, .lf-key-sequence > kbd, .lf-key-more kbd { box-sizing: border-box;
-    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
-    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
-    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-    line-height: 1.478; text-align: center; white-space: nowrap; }
-  .lf-address { display: none; border-color: var(--accent); background: var(--card);
-    color: var(--accent); z-index: 1; }
-  .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
-    white-space: nowrap; }
-  .lf-key-sequence > kbd, .lf-key-more kbd { display: inline-flex; align-items: center;
-    justify-content: center; }
-  .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
-    background: var(--accent); color: var(--card); }
+  /* The address chip is worn on both sides of the scope — an option's own corner in the
+     page, and the chord's chips in the chrome's address layer — so its box is stated
+     here. KEY_BOX is that box; the chrome's own step keys read the same statement from
+     inside @scope. */
+  .lf-address { ${KEY_BOX} display: none; border-color: var(--accent);
+    background: var(--card); color: var(--accent); z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -1261,6 +1265,15 @@ ${MARK_RULES}
     .lf-keyline .lf-key[hidden] { display: none; }
     .lf-keyline .lf-chord-control { margin-inline-start: 4px;
       padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
+    /* The chrome's own step boxes: the key line's sequences and its More key, and the
+       reference's routes. Every element wearing these stands inside the runtime's
+       container, so the rules do too, and the box itself is the one KEY_BOX states. */
+    .lf-key-sequence > kbd, .lf-key-more kbd { ${KEY_BOX}
+      display: inline-flex; align-items: center; justify-content: center; }
+    .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
+      white-space: nowrap; }
+    .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
+      background: var(--accent); color: var(--card); }
     .lf-key-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
       pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
       border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }

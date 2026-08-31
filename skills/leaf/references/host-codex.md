@@ -1,9 +1,46 @@
-# Codex delivery loop
+# Codex handoff and delivery
 
-Read this immediately before starting Codex delivery for a page.
+Read this immediately before handing a page to Codex.
 
-After setting the page `waiting`, run `leaf codex start <page>`, then finish the
-turn normally. One detached adapter watches every page this task owns. It gives
+## Experimental embedded MCP App
+
+This path is merged for testing in installed Codex builds. Prefer it when it is
+available so the experiment receives real use, but preserve the full browser
+path and do not treat the merge as a commitment to keep or expand the embedded
+surface. Leaf will decide whether to remove it, keep it compact, or build on it
+after evaluating that use.
+
+Prefer the bundled Leaf MCP tool whose exposed name ends in
+`leaf_present` when it is available **and the tool result visibly attaches an
+app**. Call it with the page's absolute directory. The app labels and renders the
+active authored revision with the current event and delivery cursors; it does
+not claim to show the browser's log-projected widget state. It writes comments
+through Leaf's ordinary browser-event validator into `comments.jsonl`. It does
+not start a loopback server, create a watcher, or introduce another current-state
+store.
+
+The embedded surface is deliberately a compact review, not a second copy of the
+complete browser runtime. It renders the authored page and its local media,
+supports page, passage, and element comments on text the file-side passage
+reading can resolve, and can request fullscreen. Authored widget source is not
+quotable and widget controls are inert. Start the browser path below when the user needs a
+choice, drag, request, sign-off, or another package-owned interaction; also use
+it when Codex returns only the tool's text fallback instead of rendering the app.
+The app's **Full page** action asks Codex to start and open that browser path
+when no live page URL is already available.
+
+After the app durably appends a comment, it sends the exact pending Leaf batch
+into model context and asks Codex for a follow-up turn. Only after the host
+accepts that turn does the app acknowledge the batch. The arriving turn sets the
+page `working`, follows `event-batches.md`, processes every event, then hands the
+page back to `waiting` or `idle`. Do not call the app-only write, refresh, or ack
+tools from the model; the embedded UI owns them.
+
+## Full browser fallback
+
+Run `leaf server start <page>` and retain its exact URL. After setting the page
+`waiting`, run `leaf codex start <page>`, then finish the turn normally with that
+URL. One detached adapter watches every page this task owns. It gives
 each complete batch a stable delivery id, queues it as a new user turn in this
 same task, and acknowledges only after Codex accepts the durable queue item.
 

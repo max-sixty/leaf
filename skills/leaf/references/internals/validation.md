@@ -48,6 +48,11 @@ never spans a fence, so "the page has words here that the file doesn't" becomes
 a refusal when the comment is written, rather than an anchor that detaches later
 in the user's browser. Anchor on an opaque widget's element instead
 (`--section`), which is the same anchor a click on a diagram makes.
+The browser event door repeats that semantic check for page and passage comment
+anchors under the append transaction. A transport may omit optional context for
+a quote that is unique in its declared section; when a quote repeats, its supplied
+prefix and suffix must resolve exactly one current occurrence. Widget source,
+retired text, and unresolved ambiguous passages are refused before append.
 
 ## Parsed source
 

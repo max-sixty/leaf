@@ -255,6 +255,7 @@ import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
+  conversationInput,
   createConversationLanding,
   heldConversation,
   landIn,
@@ -920,7 +921,7 @@ panel.append(panelHead, findRow, threadsBox, panelFoot);
 // Comment beside the registry-declared reactions there. One affordance, raised only
 // where the reader has already pointed: a selection, a visual's click, an aimed item or
 // visual part, or `r`.
-const fabBar = el("div", "lf-ui lf-fab-bar");
+const fabBar = el("div", "lf-ui lf-fab-bar lf-page-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 const fab = marginAction(el("button", "lf-ui lf-pill lf-fab"), {
@@ -935,8 +936,8 @@ fabBar.append(fab);
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
-const aimBox = el("div", "lf-ui lf-aim");
-const composer = el("div", "lf-ui lf-composer");
+const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
+const composer = el("div", "lf-ui lf-composer lf-target-paint");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
 // around it: this is the only injected chrome carrying an id, and "which section is this
@@ -995,7 +996,7 @@ keylineMore.onclick = () => {
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
 // writer (paintInspect), beside the box it names.
-const inspectEl = el("div", "lf-ui lf-inspect");
+const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
 inspectEl.setAttribute("aria-hidden", "true");
 // Design mode's legend: a box for every item on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
@@ -1303,8 +1304,10 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   composerSend,
   designIsOn: () => designOn,
   draftContexts,
+  elementById: (...args) => elementById(...args),
   fab,
   fabAnchor: fabAnchorAt,
+  inChrome,
   landTyping,
   loadDraft,
   mayLandTyping,
@@ -1572,7 +1575,10 @@ const commentDestination = () => {
       ),
       go: () => fab.click(),
     };
-  const said = standingConversation();
+  const inline = livingMargin?.activeInlineThread();
+  const inlineBox = inline && conversationInput(inline);
+  const said =
+    standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
@@ -3428,6 +3434,7 @@ livingMargin = createLivingMargin({
   comparisonChanges,
   compact: commentsEdge.over,
   closestAcross,
+  designIsOn: () => designOn,
   el,
   elementById,
   goToDecision,
@@ -3438,7 +3445,6 @@ livingMargin = createLivingMargin({
   offer,
   openDecisions,
   panelIsOpen: chromeLayout.panelIsOpen,
-  pageScroller,
   paintKeys,
   placedAt,
   renderMarginThread: conversationRuntime.renderMarginThread,
@@ -3478,6 +3484,7 @@ designRuntime = createDesign({
   ITEM,
   announce,
   banner,
+  closePageMapPreview: livingMargin.closePreview,
   closestAcross,
   containsAcross,
   cut,

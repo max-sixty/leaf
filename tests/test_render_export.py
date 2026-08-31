@@ -1,5 +1,6 @@
 """Standalone export tests."""
 
+import importlib.util
 import itertools
 import subprocess
 import sys
@@ -62,6 +63,31 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert page.locator("style").count() > 0
     assert errors == []
     page.close()
+
+
+def test_exporting_an_example_leaves_the_live_preview_untouched(
+    monkeypatch, page_dir, standing_server
+):
+    """A static handoff can be made while its interactive proof stays live."""
+    live_source = (page_dir / "index.html").read_bytes()
+    live_server = standing_server(page_dir)
+    spec = importlib.util.spec_from_file_location(
+        "leaf_preview_script", ROOT / "scripts" / "preview.py"
+    )
+    assert spec and spec.loader
+    preview = importlib.util.module_from_spec(spec)
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
+    spec.loader.exec_module(preview)
+    monkeypatch.setattr(preview, "PAGE", page_dir)
+    monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
+
+    try:
+        preview.main()
+        assert live_server.poll() is None
+        assert (page_dir / "index.html").read_bytes() == live_source
+    finally:
+        CliRunner().invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        live_server.wait(timeout=5)
 
 
 def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):

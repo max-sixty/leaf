@@ -649,7 +649,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     draft = {
         "kind": "comment",
         "revision": 2,
-        "anchor": {"quote": "hello"},
+        "anchor": {"section": "plan", "quote": "The cutoff lives in"},
         "text": "The words a reader typed before the version moved.",
         "attempt": "attempt-draft-0001",
     }

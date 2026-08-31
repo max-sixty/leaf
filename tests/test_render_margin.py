@@ -841,8 +841,6 @@ def test_one_information_button_does_not_raise_a_preview(browser, serve):
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1600, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="decision"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
@@ -939,6 +937,37 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.close()
 
 
+def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
+    browser, serve
+):
+    """Ordinary design paint never promises to rise above the browser's top layer."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(preview).to_be_hidden()
+    page.mouse.move(4, 200)
+    page.locator("body").focus()
+    marker.hover()
+    expect(preview).to_be_hidden()
+    page.locator("body").focus()
+    marker.focus()
+    expect(preview).to_be_hidden()
+    page.keyboard.press("Enter")
+    expect(preview).to_be_hidden()
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     browser, serve
 ):
@@ -949,16 +978,40 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-action-glyph")).to_have_text("💬")
-    marker.click()
+    first_frame = marker.evaluate(
+        """async marker => {
+          const card = document.querySelector('.lf-margin-preview');
+          const painted = new Promise(resolve => requestAnimationFrame(() => {
+            const box = card.getBoundingClientRect();
+            resolve({open: card.matches(':popover-open'),
+                     thread: card.hasAttribute('data-lf-thread'),
+                     left: box.left,
+                     top: box.top,
+                     placedLeft: card.style.getPropertyValue('--lf-thread-left'),
+                     placed: card.style.getPropertyValue('--lf-thread-top')});
+          }));
+          marker.focus();
+          marker.click();
+          return painted;
+        }"""
+    )
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread")
     reply = thread.locator("textarea")
 
+    assert first_frame["open"] and first_frame["thread"], first_frame
+    assert first_frame["placed"], first_frame
+    assert first_frame["placedLeft"], first_frame
+    assert first_frame["left"] == pytest.approx(
+        float(first_frame["placedLeft"].removesuffix("px")), abs=0.5
+    ), first_frame
+    assert first_frame["top"] == pytest.approx(
+        float(first_frame["placed"].removesuffix("px")), abs=0.5
+    ), first_frame
     expect(thread.locator(".lf-conversation-body")).to_have_text(
         COMMENT_ON_DECISION["text"]
     )
-    open_in_threads = preview.get_by_role("button", name="Open this thread in Threads")
-    expect(open_in_threads).to_be_visible()
+    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
     geometry = page.evaluate(
         """() => {
@@ -970,9 +1023,14 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
                   cardLeft: card.left, cardWidth: card.width};
         }"""
     )
-    assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        geometry["markerRight"] + 8, abs=0.5
+    ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
+    expect(page.locator(".lf-keyline")).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
     expect(reply).to_have_value("Yes. One visit can cover both jobs.")
@@ -996,9 +1054,24 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     assert [event["text"] for event in replies] == [
         "Yes. One visit can cover both jobs."
     ]
-    open_in_threads.click()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+
+    preview.evaluate(
+        """card => {
+          window.__openedMarginModes = [];
+          card.addEventListener('toggle', event => {
+            if (event.newState === 'open')
+              window.__openedMarginModes.push(card.hasAttribute('data-lf-thread'));
+          });
+        }"""
+    )
+    marker.click()
+    panel_settled(page, open=False)
+    expect(preview).to_be_visible()
+    assert page.evaluate("() => window.__openedMarginModes") == [True]
 
     assert errors == []
     page.close()
@@ -1056,8 +1129,8 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
     page.close()
 
 
-def test_a_shared_passage_opens_all_of_its_threads_without_choosing_one(browser, serve):
-    """The shared header action is aggregate when one passage has several roots."""
+def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, serve):
+    """Several roots need no repeated category label or local panel handoff."""
     second_comment = {
         "kind": "comment",
         "author": "user",
@@ -1074,11 +1147,9 @@ def test_a_shared_passage_opens_all_of_its_threads_without_choosing_one(browser,
 
     expect(preview.locator(".lf-margin-thread")).to_have_count(2)
     expect(preview.locator(".lf-conversation-open")).to_have_count(0)
-    open_in_threads = preview.get_by_role(
-        "button", name="Open threads for this passage"
-    )
-    expect(open_in_threads).to_have_text("Threads")
-    open_in_threads.click()
+    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
 
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
@@ -1096,7 +1167,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     page, errors = open_page(browser, serve(example))
     resized(page, 1440, 900)
     marker = page.get_by_role(
-        "group", name=re.compile(r"Page actions for task · iOS resync stall")
+        "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
     ).locator(":scope > .lf-margin-marker")
     expect(marker).to_have_count(1)
     marker.evaluate(
@@ -1107,20 +1178,18 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-title")).to_have_text("iOS resync stall")
+    expect(preview.locator(".lf-margin-preview-title")).to_have_text(
+        "iOS reconnect stall"
+    )
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
-    open_in_threads = preview.get_by_role("button", name="Open this thread in Threads")
-    expect(preview.locator(".lf-margin-thread-action")).to_have_count(1)
+    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
-    expect(open_in_threads).to_have_text("Threads")
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          const open = document.querySelector('.lf-margin-thread-action')
-            .getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
@@ -1131,7 +1200,6 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   cardBottom: card.bottom, cardWidth: card.width,
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
-                  openLeft: open.left, openRight: open.right, openTop: open.top,
                   titleLeft: title.left, titleTop: title.top,
                   cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
@@ -1148,9 +1216,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     )
     assert geometry["cardScroll"] == 0, geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
-    assert geometry["openLeft"] < geometry["titleLeft"], geometry
-    assert geometry["openRight"] <= geometry["titleLeft"], geometry
-    assert abs(geometry["openTop"] - geometry["titleTop"]) <= 4, geometry
+    assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
     send = preview.get_by_role("button", name="Send")
@@ -1181,7 +1247,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     marker.click()
     expect(preview).to_be_visible()
 
-    open_in_threads.click()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.get_by_role("button", name="Close threads").click()
@@ -1195,15 +1262,18 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
+          const marker = document.querySelector('[data-lf-kinds="comment"]')
+            .getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {mainRight: main.right, cardLeft: card.left,
+          return {mainRight: main.right, markerRight: marker.right, cardLeft: card.left,
                   cardRight: card.right, cardWidth: card.width,
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
-    assert beside["cardRight"] <= beside["shellWidth"] + 0.5, beside
-    assert beside["cardWidth"] >= 459, beside
+    assert beside["cardLeft"] == pytest.approx(beside["markerRight"] + 8, abs=0.5)
+    assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
+    assert beside["cardWidth"] >= 447, beside
 
     resized(page, 1207, 900)
     expect(preview).to_be_hidden()

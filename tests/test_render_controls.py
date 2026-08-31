@@ -502,6 +502,11 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
     resized(pinned, 320, 844)
     expect(pinned.locator(".lf-latest-chip")).to_be_hidden()
     assert pinned.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") == 0
+    # A control the page has taken away is taken away on the shelf too. The shelf's own
+    # rules state display for the row's box, and a rule that states it without excluding
+    # the hidden ones puts an absent destination back between the reader and a real one.
+    expect(pinned.locator(".lf-page-map-toggle")).to_be_hidden()
+    assert pinned.locator(".lf-page-map-toggle").evaluate("el => el.offsetWidth") == 0
     version = pinned.locator(".lf-version").evaluate(
         "el => { const r = el.getBoundingClientRect(); return {left: r.left, right: r.right}; }"
     )

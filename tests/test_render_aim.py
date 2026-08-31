@@ -578,15 +578,16 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         ("layer", {"section": "opt-shim"})
     ]
     assert [e for e in events if e["kind"] == "action"] == []
-    # The panel names the thread the same way the composer named the box, and the send
-    # lands typing in that thread's reply box.
+    # The retained thread names the target the same way the composer named the box, while
+    # the send lands typing in the visible inline conversation.
     expect(page.locator(".lf-thread .lf-quote")).to_have_text(
         "layer · lf-option · opt-shim"
     )
-    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    inline = page.locator(".lf-margin-thread .lf-conversation-thread")
+    expect(inline.locator("textarea")).to_be_focused()
     # Escape backs out one rung at a time — the box, then the mode.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread")).to_be_focused()
+    expect(inline).to_be_focused()
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))

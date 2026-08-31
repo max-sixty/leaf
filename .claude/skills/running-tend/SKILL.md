@@ -82,13 +82,18 @@ you have. Sort on what the failure is.
   the generator's own stills are never the answer: `theme.css` asks for Charter
   and `system-ui`, the runner has neither and substitutes, so a capture taken
   here differs from every checked-in still whether or not anything changed.
-  Read it with an A/B instead — run the generator in a worktree at the last
-  commit whose manifest equalled its computed digest, again at the tip, and
-  compare the nine stills to each other rather than to what is checked in. All
-  identical means only the hash moved, and an `inputs_sha256`-only commit is the
-  fix. Any different means the gallery is genuinely behind: name the stills that
-  moved and leave the recapture to the authoring machine, which is the only place
-  the shipped faces exist.
+  Read it with an A/B instead — run the generator in a throwaway worktree at the
+  last commit whose manifest equalled its computed digest, and in a second one
+  at the tip, so the runner-font captures and the manifest it rewrites never
+  reach the branch you commit from. That baseline is in the manifest's own
+  history: walk `git log --format=%H -- docs/example-previews.json` newest first
+  and take the first tree whose recorded `inputs_sha256` equals the digest
+  computed there. Compare the nine stills to each other rather than to what is
+  checked in. All identical means only the hash moved — unless what changed is
+  the font stack in `theme.css`, which both trees substitute away — and an
+  `inputs_sha256`-only commit is the fix. Any different means the gallery is
+  genuinely behind: name the stills that moved and leave the recapture to the
+  authoring machine, which is the only place the shipped faces exist.
 - **Contention.** Concurrent suites starve each other, and the failures surface
   as `Page.goto` timeouts and slow-read assertion failures scattered across
   unrelated tests — a shape that reads as "the browser layer is broken" when it

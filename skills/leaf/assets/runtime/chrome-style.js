@@ -1175,31 +1175,30 @@ ${MARK_RULES}
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
     .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
-      position-area: inline-start center; position-try-fallbacks: flip-inline, flip-block;
+      position-area: inline-end center; position-try-fallbacks: flip-inline, flip-block;
       z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+    .lf-margin-preview[data-lf-left] { position-area: inline-start center; }
     /* A compact preview follows its marker through native anchor positioning. The full
-       conversation instead has its fixed top measured from that marker: the card also
+       conversation instead has its fixed position measured from that marker: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */
     .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
       position-try-fallbacks: none;
-      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) 8px auto auto;
-      width: min(var(--thread-card), calc(100vw - 24px));
+      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
+        var(--lf-thread-left, 8px);
+      width: min(var(--thread-card), calc(100vw - var(--lf-thread-left, 8px) - 8px));
       max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
       gap: 8px; }
-    .lf-margin-thread-action { flex: none; margin: 0; padding: 2px 7px;
-      border-color: var(--rule); background: transparent; color: var(--muted);
-      font-size: var(--t-6); }
-    .lf-margin-thread-action[hidden] { display: none; }
     .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
       line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
     .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .lf-margin-preview-kinds[hidden] { display: none; }
     .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
       border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
     .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
@@ -1213,11 +1212,14 @@ ${MARK_RULES}
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
+    .lf-margin-preview-action.lf-margin-comment-action {
+      grid-template-columns: minmax(0, 1fr); }
     .lf-margin-preview-action:is(:hover, :focus-visible),
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
     .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
       outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
     .lf-margin-action-kind { font-size: var(--t-6); font-weight: 600; }
+    .lf-margin-action-kind[hidden] { display: none; }
     .lf-margin-action-text { color: var(--ink-2); overflow-wrap: anywhere; }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;

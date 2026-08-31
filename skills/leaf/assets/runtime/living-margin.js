@@ -258,13 +258,11 @@ export function createLivingMargin(dependencies) {
   preview.id = "lf-margin-preview";
   preview.setAttribute("popover", "auto");
   const previewHead = el("div", "lf-margin-preview-head");
-  const previewThreadAction = el("button", "lf-btn lf-margin-thread-action", "Threads");
-  previewThreadAction.type = "button";
   const previewTitle = el("strong", "lf-margin-preview-title");
   const previewClose = el("button", "lf-btn lf-margin-preview-close", "×");
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Close page-map preview");
-  previewHead.append(previewThreadAction, previewTitle, previewClose);
+  previewHead.append(previewTitle, previewClose);
   const previewKinds = el("div", "lf-margin-preview-kinds");
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewKinds, previewList);
@@ -298,6 +296,7 @@ export function createLivingMargin(dependencies) {
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
+  let previewRequest = 0;
   // The cascade owns available room: panels and trays change the body's named
   // container, while an authored sidebar claims the page's left strip. Read the
   // posture it resolved instead of asking the viewport a different question.
@@ -316,28 +315,46 @@ export function createLivingMargin(dependencies) {
       render();
     });
   }
+  function placeThreadPreview() {
+    if (
+      !preview.matches(":popover-open") ||
+      !preview.hasAttribute("data-lf-thread") ||
+      !previewButton?.isConnected
+    )
+      return;
+    const marker = previewButton.getBoundingClientRect();
+    const besideLeft = Math.max(8, marker.right + 8);
+    preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
+    const card = preview.getBoundingClientRect();
+    const bannerBottom =
+      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
+    const firstTop = bannerBottom + 8;
+    const lastTop = innerHeight - card.height - 8;
+    const besideTop = (marker.top + marker.bottom - card.height) / 2;
+    preview.style.setProperty(
+      "--lf-thread-top",
+      `${Math.max(firstTop, Math.min(besideTop, lastTop))}px`,
+    );
+  }
   function scheduleThreadPreviewPosition() {
     if (previewPositionFrame) return;
     previewPositionFrame = requestAnimationFrame(() => {
       previewPositionFrame = 0;
-      if (
-        !preview.matches(":popover-open") ||
-        !preview.hasAttribute("data-lf-thread") ||
-        !previewButton?.isConnected
-      )
-        return;
-      const marker = previewButton.getBoundingClientRect();
-      const cardHeight = preview.getBoundingClientRect().height;
-      const bannerBottom =
-        document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-      const firstTop = bannerBottom + 8;
-      const lastTop = innerHeight - cardHeight - 8;
-      const besideTop = (marker.top + marker.bottom - cardHeight) / 2;
-      preview.style.setProperty(
-        "--lf-thread-top",
-        `${Math.max(firstTop, Math.min(besideTop, lastTop))}px`,
-      );
+      placeThreadPreview();
     });
+  }
+  function placeCompactPreview() {
+    if (
+      !preview.matches(":popover-open") ||
+      preview.hasAttribute("data-lf-thread") ||
+      !previewButton?.isConnected
+    )
+      return;
+    preview.removeAttribute("data-lf-left");
+    const marker = previewButton.getBoundingClientRect();
+    const cardWidth = preview.getBoundingClientRect().width;
+    const roomRight = document.body.getBoundingClientRect().right;
+    preview.toggleAttribute("data-lf-left", marker.right + 8 + cardWidth > roomRight);
   }
   // A viewport posture change can replace the focused full conversation with its
   // compact action. Reconcile after resize delivery so the browser can finish its
@@ -886,13 +903,28 @@ export function createLivingMargin(dependencies) {
         });
         marker.onclick = () => {
           // The marker always means the contextual thread. If the overview is open,
-          // hand the right edge back before building the anchored conversation.
-          if (
-            panelIsOpen() &&
-            marker.lfEntry.items.some((item) => item.kind === "comment")
-          )
+          // hand the right edge back before building the anchored conversation. Wait
+          // for that room rather than painting the compact handoff while the document
+          // is still moving and replacing it with the full thread a moment later.
+          const entry = marker.lfEntry;
+          if (panelIsOpen() && entry.items.some((item) => item.kind === "comment")) {
+            const request = ++previewRequest;
             setPanel(false);
-          togglePinned(marker.lfEntry, marker);
+            const movements = document.body.getAnimations();
+            Promise.allSettled(movements.map((movement) => movement.finished)).then(
+              () => {
+                if (
+                  request === previewRequest &&
+                  marker.isConnected &&
+                  (document.activeElement === marker || marker.matches(":hover"))
+                )
+                  togglePinned(entry, marker);
+              },
+            );
+            return;
+          }
+          previewRequest += 1;
+          togglePinned(entry, marker);
         };
         marker.addEventListener("pointerenter", () => {
           suppressedKey = null;
@@ -979,30 +1011,22 @@ export function createLivingMargin(dependencies) {
     )
       previewClose.focus({ preventScroll: true });
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
-    const title = inlineThread
-      ? trimmed(targetHeading || entry.title, 72)
-      : entry.title;
+    const title = trimmed((hasThread && targetHeading) || entry.title, 72);
     preview.toggleAttribute("data-lf-thread", inlineThread);
-    if (inlineThread) scheduleThreadPreviewPosition();
-    else preview.style.removeProperty("--lf-thread-top");
+    if (!inlineThread) {
+      preview.style.removeProperty("--lf-thread-top");
+      preview.style.removeProperty("--lf-thread-left");
+    }
     preview.setAttribute("aria-label", inlineThread ? `Thread for ${title}` : title);
     previewClose.setAttribute(
       "aria-label",
       inlineThread ? "Close thread" : "Close page-map preview",
     );
     previewTitle.textContent = title;
-    previewThreadAction.hidden = !inlineThread;
-    previewThreadAction.setAttribute(
-      "aria-label",
-      threadItems.length === 1
-        ? "Open this thread in Threads"
-        : "Open threads for this passage",
-    );
-    previewThreadAction.onclick = inlineThread
-      ? () => openThreads(threadItems, entry)
-      : null;
+    const shownKinds = kindsIn(entry).filter(({ kind }) => kind !== "comment");
+    previewKinds.hidden = shownKinds.length === 0;
     previewKinds.replaceChildren(
-      ...kindsIn(entry).map(({ kind, label, symbol, count }) => {
+      ...shownKinds.map(({ kind, label, symbol, count }) => {
         const chip = el("span", `lf-margin-kind lf-margin-${kind}`);
         chip.append(
           el("span", "lf-margin-kind-symbol", symbol),
@@ -1032,6 +1056,8 @@ export function createLivingMargin(dependencies) {
           previewClose);
       destination.focus({ preventScroll: true });
     }
+    if (inlineThread) placeThreadPreview();
+    else placeCompactPreview();
   }
 
   function previewItemNode(entry, item, { inlineThread }) {
@@ -1057,7 +1083,10 @@ export function createLivingMargin(dependencies) {
         node.append(el("span"), el("span", "lf-margin-action-text"));
       }
       const kind = node.firstElementChild;
+      const isComment = item.kind === "comment";
+      node.classList.toggle("lf-margin-comment-action", isComment);
       kind.className = `lf-margin-action-kind lf-margin-${item.kind}`;
+      kind.hidden = isComment;
       kind.textContent = KINDS[item.kind].label;
       node.lastElementChild.textContent = item.text || entry.title;
       node.setAttribute(
@@ -1103,6 +1132,10 @@ export function createLivingMargin(dependencies) {
         // the anchor-name written above rather than the implicit anchor a source would
         // give, so the placement asks nothing of this.
         preview.showPopover();
+        // showPopover makes the card measurable synchronously. Place it in this turn,
+        // before the browser can paint the fallback top and move it on the next frame.
+        placeThreadPreview();
+        placeCompactPreview();
       } catch (error) {
         // Chromium also refuses a second popover operation in the same rendering turn,
         // even when it belongs to another surface. Keep the requested marker current and
@@ -1119,7 +1152,8 @@ export function createLivingMargin(dependencies) {
         previewShowing = false;
       }
     }
-    scheduleThreadPreviewPosition();
+    placeThreadPreview();
+    placeCompactPreview();
     highlight(entry.target);
     for (const [key, row] of rows) {
       row.setAttribute("aria-expanded", String(key === entry.key));
@@ -1179,17 +1213,6 @@ export function createLivingMargin(dependencies) {
     }
     focusMapControl(entry);
     item.activate();
-  }
-
-  function openThreads(threadItems, entry) {
-    if (threadItems.length === 1) {
-      activate(threadItems[0], entry);
-      return;
-    }
-    suppressedKey = entry.key;
-    closePreview(false);
-    focusMapControl(entry);
-    setPanel(true);
   }
 
   function openInlineThread(id) {
@@ -1334,10 +1357,28 @@ export function createLivingMargin(dependencies) {
     },
     { capture: true, passive: true },
   );
-  window.addEventListener("resize", schedulePostureRender);
+  window.addEventListener("resize", () => {
+    placeThreadPreview();
+    placeCompactPreview();
+    schedulePostureRender();
+  });
   render();
 
   return {
+    activeInlineThread: () => {
+      if (
+        !pinnedKey ||
+        previewEntry?.key !== pinnedKey ||
+        document.activeElement !== previewButton ||
+        !preview.matches(":popover-open") ||
+        !preview.hasAttribute("data-lf-thread")
+      )
+        return null;
+      const conversations = previewList.querySelectorAll(
+        ".lf-margin-thread .lf-conversation-thread",
+      );
+      return conversations.length === 1 ? conversations[0] : null;
+    },
     closePreview: () => closePreview(false),
     enterPageMap,
     marginTargetAt,

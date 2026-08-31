@@ -285,9 +285,7 @@ def record(
     page.locator(".lf-composer").get_by_role("button", name="Comment").click()
     page.wait_for_selector(".lf-margin-thread")
     shot(1500)
-    page.locator(".lf-margin-preview").get_by_role(
-        "button", name="Open this thread in Threads"
-    ).click()
+    page.locator(".lf-threads-toggle").click()
     page.wait_for_selector(".lf-thread")
 
     comment_id = wait_for_comment(page_dir)

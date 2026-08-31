@@ -1353,9 +1353,18 @@ the complete collection. The numbered chord exposes the collection's first nine
 locations; later locations remain in the Page map and ordinary focus order rather than
 making a one-digit chord ambiguous. Addressing an item opens its marker when it has one;
 an action-only item receives focus on its first available action without performing it.
-In the compact posture, an informational item opens the Page map sheet at that location
-instead of reviving the hidden desktop preview; an action-only item keeps its direct
-focus arrival on the action docked into the page.
+A desktop marker preview opens on the marker's right and flips left only when that side
+cannot hold it. In the compact posture, an informational item opens the Page map sheet
+at that location instead of reviving the hidden desktop preview; an action-only item
+keeps its direct focus arrival on the action docked into the page.
+
+A comment marker's preview names the target and never repeats the thread category. At
+wide widths the preview is the conversation itself, with no second route to the panel
+that the banner already opens. While the pressed marker keeps focus, `c` enters its one
+thread's reply box. Several roots leave that destination ambiguous and keep the page's
+ordinary route to the panel. Replacing an open panel waits for the body's strip motion
+before choosing the preview posture, and a full thread is measured beside its marker in
+the same turn it is shown or changes size.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
@@ -1723,8 +1732,9 @@ reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
 
 Its destination is the anchor the 💬 carries, then the open thread the reader is
-in, then the item they are standing in, and, when none of those is in hand, the
-conversation itself. `commentDestination` decides it once and states the
+in or the single inline thread held by a pressed Page-map marker, then the item they are
+standing in, and, when none of those is in hand, the conversation itself.
+`commentDestination` decides it once and states the
 sentence, the key line and the press together, so the reference, the line and
 what happens cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader

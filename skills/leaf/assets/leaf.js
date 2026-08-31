@@ -255,6 +255,7 @@ import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
+  conversationInput,
   createConversationLanding,
   heldConversation,
   landIn,
@@ -1571,7 +1572,10 @@ const commentDestination = () => {
       ),
       go: () => fab.click(),
     };
-  const said = standingConversation();
+  const inline = livingMargin?.activeInlineThread();
+  const inlineBox = inline && conversationInput(inline);
+  const said =
+    standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };

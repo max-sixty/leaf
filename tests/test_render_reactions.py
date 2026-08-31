@@ -12,6 +12,7 @@ from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
+    SUGGESTION_PAGE,
     TARGETS_PAGE,
     key_line,
     open_page,
@@ -47,6 +48,30 @@ def select_paragraph(page, selector):
         (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
         steps=16,
     )
+
+
+NEAREST_HINT = """(selector) => {
+  const target = document.querySelector(selector).getBoundingClientRect();
+  return [...document.querySelectorAll('.lf-target-hint')]
+    .sort((a, b) => {
+      const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+      return Math.hypot(ar.left - target.left, ar.top - target.top)
+           - Math.hypot(br.left - target.left, br.top - target.top);
+    })[0].dataset.lfTarget;
+}"""
+
+
+def hint_code(page, selector, hints):
+    """Press `s` and hand back the code the hint nearest one item carries.
+
+    The codes are the layer's to hand out, so a test naming one names whichever item
+    the run gave it to. `hints` is the count the page offers, asserted before the codes
+    are read: the overlay paints on a frame of its own, and a read before it lands finds
+    no hint to be nearest to.
+    """
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(hints)
+    return page.evaluate(NEAREST_HINT, selector)
 
 
 def painted(page, glyphs):
@@ -291,20 +316,7 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     element anchor in the log, which paints as a dashed hairline on the item's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).to_have_count(3)
-    code = page.evaluate(
-        """() => {
-          const target = document.querySelector('#prose').getBoundingClientRect();
-          return [...document.querySelectorAll('.lf-target-hint')]
-            .sort((a, b) => {
-              const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-              return Math.hypot(ar.left - target.left, ar.top - target.top)
-                   - Math.hypot(br.left - target.left, br.top - target.top);
-            })[0].dataset.lfTarget;
-        }"""
-    )
-    page.keyboard.type(code)
+    page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -315,6 +327,79 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     assert sent["token"] == "this" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
+    assert errors == []
+    page.close()
+
+
+def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
+    browser, serve
+):
+    """A raise stands the choices in the target's own fold, so putting them down folds
+    that cluster back rather than leaving an empty fold for the reader to close. Only the
+    cluster this raise unfolded, and only where it did the unfolding: the put-down runs on
+    every disarm, a reply strip's included, and that one never raised the margin at all —
+    `marginOffer?.unregister()` is written for exactly that case. Folding on the strength
+    of the disarm alone took away a layer the gesture had never put on, from a reader
+    working in the panel with their own `…` open out on the page."""
+    url = serve(SUGGESTION_PAGE)
+    root = panel_comment(serve.page_dir, "Why thistle?", {"section": "insert"})
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "parent": root,
+            "text": "Because the finches take it through the cold.",
+        },
+    )["id"]
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    unfolded = page.locator("[data-lf-options-open]")
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    more = item.locator(":scope > .lf-margin-more")
+    more.click()
+    expect(unfolded).to_have_count(1)
+
+    # The reader's own fold, and a reaction on a reply whose surface is that reply's
+    # strip: the disarm has no fold of its own to put back and must leave theirs alone.
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    strip.locator(".lf-react-trigger").click()
+    expect(strip.locator(".lf-react:visible")).to_have_count(6)
+    page.keyboard.press("Escape")
+    expect(strip.locator(".lf-react:visible")).to_have_count(0)
+    expect(unfolded).to_have_count(1)
+
+    # Nor does the raise that finds the fold already open: standing the choices in a
+    # cluster the reader unfolded for themselves borrows it, and `openButtonOptions` is
+    # a no-op there, so putting them down leaves the fold where the press found it.
+    # Focus goes back to the page first, the panel's own scope owning `s` where it is.
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.type(hint_code(page, "#sug-refill", 10))
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("r")
+    expect(page.locator(".lf-margin-reactions")).to_be_visible()
+    expect(unfolded).to_have_count(1)
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(item).to_have_attribute("data-lf-options-open", "")
+
+    # The raise that does unfold a cluster to stand its choices in still folds it back.
+    more.click()
+    expect(unfolded).to_have_count(0)
+    select_paragraph(page, "#replace")
+    # The bar standing is the selection's arrival: the anchor `r` reads is captured on
+    # the frame that raises it, and a press before then has no reaction target at all.
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("r")
+    surface = page.locator(".lf-margin-reactions")
+    expect(surface).to_have_class(re.compile("lf-react-open"))
+    expect(unfolded).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(surface).to_have_count(0)
+    expect(unfolded).to_have_count(0)
     assert errors == []
     page.close()
 

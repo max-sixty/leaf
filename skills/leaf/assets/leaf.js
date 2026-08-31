@@ -1692,13 +1692,24 @@ function rung() {
       does: "Clear the selection",
       out: dismissFab,
     };
-  // The Buttons `…` unfolded are a layer the reader put on, so Escape takes them back.
-  // It stands ahead of letting go because a target's cluster is hoisted into the page's
-  // own positioning context rather than into `.lf-chrome`, so a reader standing on one
-  // of its Buttons reads as standing on the page. A Thread card over that cluster is
-  // the layer above it and needs no rung: it is a popover, so the platform dismisses it
-  // first and this ladder is dead while it stands (browserDismissesTopLayer).
-  if (livingMargin?.buttonsUnfolded())
+  // The Buttons `…` unfolded are a layer the reader put on, so Escape takes them back —
+  // while they are standing in that cluster, or standing nowhere yet. It stands ahead of
+  // letting go because a target's cluster is hoisted into the page's own positioning
+  // context rather than into `.lf-chrome`, so a reader standing on one of its Buttons
+  // reads as standing on the page.
+  //
+  // Where the reader is and not whether a fold happens to be open, which is the ladder's
+  // rule two comments above: a reader who left the cluster for a tray or the panel is
+  // standing in the chrome, and the rung they want there is the one that closes what they
+  // are in. Asking the cluster rather than the chrome also keeps the half of the fold
+  // that does live in the chrome — a core entry docks in the toolbar, and `nav` is inside
+  // `.lf-chrome` — which a `!inChrome(active)` guard would have dropped.
+  //
+  // A Thread card over that cluster is the layer above it and needs no rung: it is a
+  // popover, so the platform dismisses it first and this ladder is dead while it stands
+  // (browserDismissesTopLayer).
+  const unfolded = livingMargin?.unfoldedButtons();
+  if (unfolded && (!holding || unfolded.contains(active)))
     return {
       says: "fold",
       does: "Fold the extra Buttons away",
@@ -2012,6 +2023,7 @@ const {
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
+  unfoldedButtons: () => livingMargin?.unfoldedButtons() ?? null,
   visualPartLabel: (...args) => visualPartLabel(...args),
   withdraw: (...args) => withdraw(...args),
 });

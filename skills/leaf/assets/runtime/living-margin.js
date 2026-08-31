@@ -1654,7 +1654,14 @@ export function createLivingMargin(dependencies) {
     // claiming Escape is a control saying the press is already spoken for, which is what
     // stops the reaction chord arming there (`claimsEsc`), and the fold is exactly where
     // the chord's own choices stand.
-    buttonsUnfolded: () => expandedOptionsKey !== null,
+    //
+    // The cluster itself and not a flag, because a fold standing open somewhere is not
+    // the layer the reader is in. Both callers ask a question of the element rather than
+    // of the page: the ladder asks whether the reader is standing in this cluster, and a
+    // raise that unfolds one to stand its choices in asks whose target it belongs to
+    // (`lfTarget`).
+    unfoldedButtons: () =>
+      expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
     foldButtonOptions: () => setOptionsOpen(null, false, { returnFocus: true }),
     closePreview: () => closePreview(false),
     enterPageMap,

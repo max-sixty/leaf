@@ -25,6 +25,7 @@ from render_support import (
     ROOT,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
+    SUGGESTION_PAGE,
     TARGETS_PAGE,
     TOKEN,
     WHERE_I_STAND_PAGE,
@@ -3674,6 +3675,50 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         expect(page.locator(".lf-keyline")).to_contain_text("close threads")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-panel")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_the_unfolded_buttons_are_the_rung_of_the_reader_standing_in_them(
+    browser, serve
+):
+    """The fold `…` opens is a layer the reader put on, so Escape takes it back — from
+    inside it. Asked of a page-global flag instead, the rung stood in front of every
+    other rung the ladder has: a reader who unfolded a cluster and then walked into the
+    thread panel pressed Escape, folded a cluster behind them, kept the panel they were
+    standing in, and had their focus thrown back out onto `…` for good measure. The rule
+    is stated a few lines above the rung — it unwinds from where the reader is standing,
+    not from what happens to be open — and a fold out on the page is not the layer a
+    reader in the chrome is in."""
+    url = serve(SUGGESTION_PAGE, comments=2)
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    unfolded = page.locator("[data-lf-options-open]")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    item.locator(":scope > .lf-margin-more").click()
+    expect(unfolded).to_have_count(1)
+
+    # Standing on `…`, in the cluster the press just unfolded: the fold is the rung.
+    expect(item.locator(":scope > .lf-margin-more")).to_be_focused()
+    expect(line).to_contain_text("fold")
+
+    # Standing in the chrome, the rung is the chrome's, and the press takes what the
+    # reader is in. The fold behind them keeps its own press for when they are back.
+    page.get_by_role("button", name="Close threads").focus()
+    expect(line).to_contain_text("close threads")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel.open")).to_have_count(0)
+    expect(unfolded).to_have_count(1)
+
+    # Back in the cluster, one press folds it and leaves the reader on the Button that
+    # opened it, which is the whole of what the rung promises.
+    item.locator(":scope > .lf-margin-more").focus()
+    expect(line).to_contain_text("fold")
+    page.keyboard.press("Escape")
+    expect(unfolded).to_have_count(0)
+    expect(item.locator(":scope > .lf-margin-more")).to_be_focused()
     assert errors == []
     page.close()
 

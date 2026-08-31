@@ -1367,9 +1367,17 @@ back only where the dismissal left it nowhere, because the control that opened t
 may have gone with the gesture. The fold is a rung of the page's ladder (`rung`) rather
 than an element scope of its own: a control whose scope binds Escape is a control saying
 the press is already spoken for, and the reaction chord reads that (`claimsEsc`) to
-decide it cannot arm — which is exactly where the chord's own choices stand. Putting
-those choices away folds the cluster the raise unfolded, so cancelling leaves it as the
-press found it.
+decide it cannot arm — which is exactly where the chord's own choices stand.
+
+A rung of the page is still the page's rule, so the fold answers where the reader is
+standing and not the fact that a fold is open: it is their rung inside that cluster or
+with nothing held, and a reader who left it for a tray or the panel gets the rung that
+closes what they are in. The question is asked of the cluster rather than of the chrome,
+because half the clusters are in the chrome — a core entry docks in the toolbar — and
+those Buttons are as much the reader's layer as a hoisted one. The same rule holds where
+a gesture unfolded the cluster for its own use: putting the reaction choices away folds
+back the cluster that raise unfolded, and only that one, so a disarm over a reply strip
+or over a fold the reader opened themselves takes away no layer the gesture put on.
 
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;

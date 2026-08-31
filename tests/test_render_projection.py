@@ -188,6 +188,124 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.close()
 
 
+def test_call_diff_projects_stable_commentable_rows(browser, serve):
+    authored = leaf_page(
+        "call diff",
+        """
+<h1 id="title">Request call change</h1>
+<lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
+<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
+""",
+    )
+    url = serve(authored, packages=("pr-review",))
+    call_diff = """calldiff diff main → feature
+
+  Limiter.bucket_key(self, request)  gateway/limits.py:38
++ └─ if request.token  gateway/limits.py:39
+"""
+    patch = """diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -38,2 +38,4 @@ class Limiter:
+-    def bucket_key(self, request):
+-        return request.remote_addr
++    def bucket_key(self, request):
++        if request.token:
++            return f"tok:{request.token.id}"
++        return f"ip:{request.remote_addr}"
+"""
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page, errors = open_page(browser, url)
+    widget = page.locator("#request-calls")
+    lines = widget.locator(":scope > .lf-call-line")
+
+    expect(lines).to_have_count(3)
+    expect(lines.nth(0)).to_have_attribute("data-meta", "")
+    expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
+        "calldiff diff main → feature"
+    )
+    expect(lines.nth(1)).to_have_attribute("data-root", "")
+    expect(lines.nth(1)).to_have_attribute("data-lf-projection", "request-calls")
+    expect(lines.nth(1)).to_have_attribute("data-lf-datum", re.compile(r".+"))
+    expect(lines.nth(2)).to_have_attribute("data-status", "added")
+    expect(lines.nth(2).locator(".lf-call-marker")).to_have_text("+")
+    expect(lines.nth(2)).to_have_attribute(
+        "data-lf-datum-label",
+        "added call-tree item └─ if request.token at gateway/limits.py:39",
+    )
+    expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
+        "gateway/limits.py:39"
+    )
+    assert (
+        lines.nth(2)
+        .locator(".lf-call-marker")
+        .evaluate("el => getComputedStyle(el).userSelect")
+        == "none"
+    )
+
+    selected = (
+        lines.nth(2)
+        .locator(".lf-call-body")
+        .evaluate(
+            """body => {
+          const range = document.createRange();
+          range.selectNodeContents(body);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          body.closest('.lf-call-line').__callIdentity = true;
+          return selection.toString();
+        }"""
+        )
+    )
+    assert selected == "└─ if request.token"
+
+    updated = call_diff.replace(
+        "calldiff diff main → feature", "calldiff diff main → feature-2"
+    )
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
+    told(page)
+    expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
+        "gateway/limits.py:39"
+    )
+    assert lines.nth(2).evaluate("el => el.__callIdentity") is True
+    assert page.evaluate("() => getSelection().toString()") == "└─ if request.token"
+
+    lines.nth(2).locator(".lf-call-location").click()
+    expect(page).to_have_url(re.compile(r"#patch$"))
+    added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",39]\']')
+    expect(added).to_be_in_viewport()
+    assert page.evaluate(
+        "() => document.querySelector('#patch').shadowRoot.activeElement"
+        ".matches('summary')"
+    )
+
+    page.evaluate("() => getSelection().removeAllRanges()")
+    lines.nth(2).click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Review this added call.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
+        "§ added call-tree item └─ if request.token at gateway/limits.py:39"
+    )
+
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "the first line must be a CallDiff diff header"
+    )
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     browser, serve
 ):

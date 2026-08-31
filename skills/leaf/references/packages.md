@@ -40,12 +40,20 @@ is the project package and `~/.config/leaf` is the user package. Inside a reposi
 dedicated to one package, use `.` as the package path.
 
 Leaf also ships optional packages that select by bare name. `command-hub` adds
-multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief:
+multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief and a
+data-backed unified call diff:
 
 ```bash
 leaf page init --package command-hub PAGE
 leaf page init --package pr-review PAGE
 ```
+
+`lf-call-diff` binds a captured `text-document` containing CallDiff-style plain text.
+The analysis host owns that source; the widget keeps unchanged tree items beside
+additions and removals and projects every row as a commentable datum. Its required `diff` target
+turns source coordinates into navigation to matching lines in the exact patch. For a
+large repository, capture one affected entry point per source rather than one unbounded
+call graph.
 
 ## Package contract
 

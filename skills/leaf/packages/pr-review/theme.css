@@ -225,3 +225,101 @@ lf-pull-request {
     background: transparent;
   }
 }
+
+/* CallDiff is literal review evidence rather than a second diagram language. Its
+ * unchanged rows hold the mental map still while additions and removals carry the
+ * same semantic washes as the source diff. */
+lf-call-diff {
+  --lf-frame: 1;
+  display: block;
+  max-width: 100%;
+  margin: var(--sp-3) 0;
+  overflow-x: auto;
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+  background: var(--pre-bg);
+  color: var(--code-ink);
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  font-variant-ligatures: none;
+  line-height: var(--code-line);
+}
+
+.lf-call-line {
+  display: grid;
+  grid-template-columns: 2rem max-content max-content;
+  min-width: max-content;
+  padding-inline-end: var(--sp-3);
+  white-space: pre;
+}
+
+.lf-call-line + .lf-call-line {
+  border-top: 1px solid color-mix(in srgb, var(--code-border) 45%, transparent);
+}
+
+.lf-call-line[data-status="added"] {
+  background: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
+}
+
+.lf-call-line[data-status="removed"] {
+  background: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
+}
+
+.lf-call-line[data-root] .lf-call-body {
+  font-weight: 700;
+}
+
+.lf-call-line[data-meta] {
+  padding-block: var(--sp-1);
+  background: var(--code-chrome);
+  color: var(--code-muted);
+}
+
+.lf-call-marker {
+  padding-inline: var(--sp-2);
+  color: var(--code-muted);
+  text-align: center;
+  user-select: none;
+}
+
+.lf-call-line[data-status="added"] .lf-call-marker {
+  color: var(--ok-ink);
+}
+
+.lf-call-line[data-status="removed"] .lf-call-marker {
+  color: var(--danger-ink);
+}
+
+.lf-call-location {
+  margin-inline-start: var(--sp-4);
+  color: var(--code-muted);
+  text-decoration-color: var(--rule);
+  text-underline-offset: 2px;
+}
+
+.lf-call-location:hover {
+  color: var(--accent);
+}
+
+.lf-call-missing,
+.lf-call-invalid {
+  display: block;
+  min-width: 0;
+  padding: var(--sp-3);
+  color: var(--code-muted);
+  font-family: var(--sans);
+  white-space: normal;
+}
+
+.lf-call-invalid {
+  color: var(--danger-ink);
+}
+
+@media print {
+  lf-call-diff,
+  .lf-call-line[data-meta],
+  .lf-call-line[data-status="added"],
+  .lf-call-line[data-status="removed"] {
+    background: transparent;
+  }
+}

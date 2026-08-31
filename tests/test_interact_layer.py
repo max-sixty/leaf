@@ -2607,6 +2607,7 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     assert initialized.exit_code == 0, initialized.output
     registry = json.loads((page / "registry.json").read_text())
     widget = registry["lf-pull-request"]
+    call_diff = registry["lf-call-diff"]
     assert registry["$layer"]["packages"] == ["pr-review"]
     assert widget["x-data"] == {
         "request": {
@@ -2617,6 +2618,14 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     }
     assert "pull-request" in registry["$data"]["contracts"]
     assert (page / "widgets" / "lf-pull-request.js").is_file()
+    assert call_diff["x-data"] == {
+        "document": {
+            "contract": "text-document",
+            "source": "source",
+            "snapshot": "snapshot",
+        }
+    }
+    assert (page / "widgets" / "lf-call-diff.js").is_file()
 
 
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):

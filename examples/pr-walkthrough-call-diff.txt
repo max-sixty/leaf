@@ -1,0 +1,8 @@
+calldiff diff HEAD~1 → HEAD
+
+  Limiter.bucket_key(self, request)  gateway/limits.py:38
++ └─ if request.token  gateway/limits.py:39
+cta:
+  description: "Suggested command:"
+  commands[1]{command,description}:
+    calldiff tree --entry Limiter.bucket_key,View full call tree for Limiter.bucket_key

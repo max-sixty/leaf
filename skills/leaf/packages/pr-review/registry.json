@@ -152,5 +152,49 @@
     },
     "x-upgrade": true,
     "x-example": "<lf-pull-request id=\"reviewed-pr\" source=\"pr-1842\" snapshot=\"7\"></lf-pull-request>"
+  },
+  "lf-call-diff": {
+    "description": "A commentable, unified call-tree diff supplied by an analysis host. Author an empty element with an id, bind its required `document` input through `source`, point `diff` at the exact `lf-diff` evidence, and optionally pin an immutable data revision through `snapshot`. The widget preserves CallDiff's adjacent unchanged, removed, and added tree items instead of redrawing two independently laid-out graphs. Each rendered row is a stable projected datum, so a reader can comment on one item or select its exact text; source coordinates navigate to a matching line in the bound patch.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "diff": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "snapshot": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "diff"
+    ],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-data": {
+      "document": {
+        "contract": "text-document",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
+    },
+    "x-guidance": {
+      "author": "Capture authentic CallDiff plain-text output as a `text-document`, then bind one empty `lf-call-diff` to that source and set `diff` to the id of the exact `lf-diff` patch. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. A source coordinate becomes a link when its path and line occur in that patch. Prefer one focused entry point per widget for a large repository, and use `snapshot` when the review packet must remain pinned to one analyzed revision. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
+    },
+    "x-refers": {
+      "diff": {}
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-call-diff id=\"request-calls\" source=\"request-call-diff\" snapshot=\"8\" diff=\"request-patch\"></lf-call-diff>"
   }
 }

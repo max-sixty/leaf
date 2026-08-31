@@ -117,10 +117,84 @@
         color: var(--warn-ink);
       }
 
+      .pr-change-key {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        margin: var(--sp-2) 0;
+        color: var(--muted);
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-change-key span {
+        padding: 2px 8px;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+      }
+
+      .pr-change-key .pr-added {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+
+      .pr-change-key .pr-removed {
+        background: var(--danger-tint);
+        color: var(--danger-ink);
+      }
+
+      .pr-research-note {
+        color: var(--ink-2);
+        font-size: var(--t-5);
+      }
+
+      .pr-scale-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: var(--sp-3) 0;
+        border-block: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts > div {
+        min-width: 0;
+        padding: var(--sp-2);
+        border-inline-start: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts > div:nth-child(3n + 1) {
+        border-inline-start: 0;
+      }
+
+      .pr-scale-facts > div:nth-child(n + 4) {
+        border-top: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts dt {
+        color: var(--muted);
+        font: var(--t-7) var(--sans);
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+      }
+
+      .pr-scale-facts dd {
+        margin: 2px 0 0;
+        color: var(--ink);
+        font: var(--t-3) var(--mono);
+      }
+
       @media (max-width: 680px) {
         .pr-route,
-        .pr-focus {
+        .pr-focus,
+        .pr-scale-facts {
           grid-template-columns: 1fr;
+        }
+
+        .pr-scale-facts > div {
+          border-inline-start: 0;
+          border-top: 1px solid var(--rule);
+        }
+
+        .pr-scale-facts > div:first-child {
+          border-top: 0;
         }
       }
 
@@ -216,60 +290,80 @@ gateway/
       <section id="pr-system">
         <h2>What changes at runtime</h2>
         <p id="pr-system-intro">
-          Two views of the same change follow. Diagram nodes are individually
-          commentable. The
+          The behavior view holds one request path still and marks changes in place. The
+          call view is captured analysis data whose rows are individually commentable.
+          The
           <lf-gloss
             tip="This view is inferred from the patch. Dynamic dispatch and runtime wiring may add calls that static inspection cannot see."
             >call diff is static</lf-gloss
           >, so use it as a route into the source rather than as proof by itself.
         </p>
         <lf-tabs id="pr-impact-views">
-          <lf-tab id="pr-flow-tab" label="Request flow">
-            <h3>Before and after</h3>
+          <lf-tab id="pr-flow-tab" label="Behavior diff">
+            <h3>One request path, changes in place</h3>
+            <p class="pr-change-key" aria-label="Change legend">
+              <span class="pr-removed">− removed path</span>
+              <span>unchanged anchor</span>
+              <span class="pr-added">+ added path</span>
+            </p>
             <lf-diagram
               id="pr-flow-diagram"
-              parts="node:BeforeRequest node:BeforeIP node:BeforeBucket node:AfterRequest node:Identity node:TokenKey node:IPKey node:BucketStore"
+              parts="node:Request node:OldIP node:Identity node:TokenKey node:IPKey node:BucketStore"
             >
               <pre>
 flowchart LR
-  subgraph Before[Before · address is identity]
-    BeforeRequest[Request] --> BeforeIP[Remote address]
-    BeforeIP --> BeforeBucket[Shared address bucket]
-  end
-  subgraph After[After · request chooses identity]
-    AfterRequest[Request] --> Identity{Token present?}
-    Identity -->|yes| TokenKey["tok: token.id"]
-    Identity -->|no| IPKey["ip: remote_addr"]
-    TokenKey --> BucketStore[Bucket lookup]
-    IPKey --> BucketStore
-  end
+  Request[Request]
+  OldIP["− remote address is identity"]
+  Identity{"+ choose identity"}
+  TokenKey["+ tok: token.id"]
+  IPKey["+ ip: remote_addr"]
+  BucketStore[Bucket lookup]
+  Request -. removed .-> OldIP
+  OldIP -. removed .-> BucketStore
+  Request --> Identity
+  Identity -->|token| TokenKey
+  Identity -->|none| IPKey
+  TokenKey --> BucketStore
+  IPKey --> BucketStore
+  classDef removed fill:#f7e0da,stroke:#b4402f,color:#6b2118,stroke-dasharray:4 3
+  classDef added fill:#dfeddf,stroke:#3f7d4e,color:#1f512e
+  class OldIP removed
+  class Identity,TokenKey,IPKey added
 </pre>
             </lf-diagram>
           </lf-tab>
           <lf-tab id="pr-call-tab" label="Call diff">
-            <h3>Static call diff</h3>
-            <lf-diagram
+            <h3>Call-tree structure changed here</h3>
+            <p>
+              This follows
+              <a href="https://github.com/tanishqkancharla/calldiff">CallDiff</a>:
+              unchanged tree items preserve the stack-shaped mental map while additions
+              and removals stay adjacent. This exact tool capture finds the new branch
+              inside <code>bucket_key</code>; the patch still owns the middleware
+              change. Select a row to discuss it, or follow its source location to the
+              exact line.
+            </p>
+            <lf-call-diff
               id="pr-call-diagram"
-              parts="node:Middleware node:OldCheck node:NewCheck node:Assign node:Allow node:BucketKey node:TokenIdentity node:AddressFallback node:Take"
-            >
-              <pre>
-flowchart TD
-  Middleware["middleware.wrap(request)"] -. before .-> OldCheck["− limiter.check(request.remote_addr)"]
-  Middleware --> NewCheck["+ limiter.check(request)"]
-  Middleware --> Assign["+ request.limit_key = …"]
-  Assign --> BucketKey["limiter.bucket_key(request)"]
-  Allow["Limiter.allow(request)"] --> BucketKey
-  BucketKey --> TokenIdentity["+ Request.token.id"]
-  BucketKey --> AddressFallback["+ Request.remote_addr fallback"]
-  Allow --> Take["self.buckets[key].take()"]
-  classDef removed fill:#f8d7da,stroke:#9f2d38,color:#5b1118,stroke-dasharray:4 3
-  classDef added fill:#dff3e4,stroke:#2d7a46,color:#174426
-  class OldCheck removed
-  class NewCheck,Assign,TokenIdentity,AddressFallback added
-</pre>
-            </lf-diagram>
+              source="pr-call-diff"
+              snapshot="3"
+              diff="pr-exact-patch"
+            ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
+        <details id="pr-comparison-research">
+          <summary>Why this is not a separate before and after</summary>
+          <p class="pr-research-note">
+            <a href="https://www.cs.cmu.edu/~ishafer/pubs/pathception-infovis13.pdf"
+              >Controlled comparison research</a
+            >
+            found that side-by-side views help overall orientation, but correspondence
+            degrades as layouts diverge; explicit diffs keep changes adjacent and
+            compact. Leaf therefore defaults to one stable structural view, with
+            unchanged nodes as anchors and state-specific inspection as a secondary
+            action.
+          </p>
+        </details>
       </section>
 
       <section id="pr-hot-path">
@@ -320,7 +414,131 @@ def bucket_key(self, request):
           <code>data.json</code>. Today the complete snapshot travels in
           <code>/api/state</code>, then the widget parses every file and projects each
           source line under a path, side, and line key. File collapse lowers reading
-          cost, but not startup, transport, or DOM cost.
+          cost, but not startup, transport, or DOM cost. The scale rehearsal below shows
+          where that stops working.
+        </p>
+      </section>
+
+      <section id="pr-scale">
+        <h2>A 63-file review starts from the manifest</h2>
+        <p id="pr-scale-intro">
+          <a href="https://github.com/max-sixty/leaf/pull/82">Leaf PR #82</a> is a
+          useful real rehearsal: it spans runtime behavior, browser tests, theme work,
+          examples, and contracts. Loading its entire patch into this page would turn
+          navigation into search. The first view should expose shape and risk, then
+          hydrate one review unit.
+        </p>
+        <dl class="pr-scale-facts" aria-label="Observed Leaf PR 82 scale">
+          <div>
+            <dt>Files</dt>
+            <dd>63</dd>
+          </div>
+          <div>
+            <dt>Hunks</dt>
+            <dd>217</dd>
+          </div>
+          <div>
+            <dt>Patch lines</dt>
+            <dd>5,167</dd>
+          </div>
+          <div>
+            <dt>Patch bytes</dt>
+            <dd>253 KB</dd>
+          </div>
+          <div>
+            <dt>Commits</dt>
+            <dd>53</dd>
+          </div>
+          <div>
+            <dt>Changed lines</dt>
+            <dd>3,170</dd>
+          </div>
+        </dl>
+        <table id="pr-scale-groups">
+          <caption>
+            Review units inferred from the changed paths, observed 30 August 2026.
+          </caption>
+          <thead>
+            <tr>
+              <th>Review unit</th>
+              <th>Files</th>
+              <th>Change</th>
+              <th>First question</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Browser tests</th>
+              <td>11</td>
+              <td><code>+1,721 −236</code></td>
+              <td>Which behaviors are newly pinned, and which snapshots are churn?</td>
+            </tr>
+            <tr>
+              <th scope="row">Reader runtime</th>
+              <td>25</td>
+              <td><code>+754 −181</code></td>
+              <td>Which interaction contracts changed across modules?</td>
+            </tr>
+            <tr>
+              <th scope="row">Widgets and theme</th>
+              <td>7</td>
+              <td><code>+98 −50</code></td>
+              <td>Do the visible changes remain legible at every supported width?</td>
+            </tr>
+            <tr>
+              <th scope="row">Examples and docs</th>
+              <td>16</td>
+              <td><code>+73 −20</code></td>
+              <td>Do the authored examples teach the new behavior?</td>
+            </tr>
+            <tr>
+              <th scope="row">Contracts and tooling</th>
+              <td>4</td>
+              <td><code>+25 −12</code></td>
+              <td>Did validation and generated outputs move with the runtime?</td>
+            </tr>
+          </tbody>
+        </table>
+        <ol class="pr-route" aria-label="Large pull request review route">
+          <li>
+            <strong>Orient.</strong> Load metadata, file groups, checks, and open
+            threads.
+          </li>
+          <li>
+            <strong>Focus.</strong> Hydrate one file slice and prefetch the next in its
+            unit.
+          </li>
+          <li>
+            <strong>Record.</strong> Mark files reviewed at a revision; keep comment
+            anchors durable.
+          </li>
+          <li>
+            <strong>Resume.</strong> Reopen only files changed since the recorded
+            boundary.
+          </li>
+        </ol>
+        <p class="pr-research-note" id="pr-scale-precedent">
+          The route preserves conventions reviewers already know:
+          <a
+            href="https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request?tool=webui"
+            >GitHub</a
+          >
+          and
+          <a href="https://docs.gitlab.com/user/project/merge_requests/changes/"
+            >GitLab</a
+          >
+          keep file filters and revision-aware viewed state, while
+          <a
+            href="https://gerrit-review.googlesource.com/Documentation/user-review-ui.html"
+            >Gerrit</a
+          >
+          adds explicit patch-set comparison and context controls.
+        </p>
+        <p id="pr-scale-call-limit">
+          Scale applies to call analysis too. An unfiltered CallDiff run on PR #82
+          produced
+          <strong>3,109 lines at depth five</strong>; the useful unit is one entry point
+          or affected path, not “the repository call graph.”
         </p>
         <details id="pr-large-diff-plan">
           <summary>Current data path and the large-review design</summary>
@@ -409,9 +627,10 @@ flowchart LR
             </li>
           </ol>
           <p id="pr-call-diff-data">
-            A call diff should use the same route: a separate typed source keyed by pull
-            request revision and call site, supplied by the analysis host rather than
-            written into the page by the agent.
+            The call diff already follows the same ownership rule: it is a separate
+            captured data source supplied by the analysis host, projected row by row by
+            <code>lf-call-diff</code>, and pinned to the reviewed revision. At larger
+            scale, a manifest would name one immutable capture per entry point.
           </p>
         </details>
       </section>
@@ -510,7 +729,7 @@ $ pytest tests/ratelimit/test_bucket_identity.py -q
           <lf-source
             id="pr-test-source"
             source="pr-review-tests"
-            snapshot="3"
+            snapshot="4"
             language="python"
           ></lf-source>
         </details>
@@ -523,7 +742,7 @@ $ pytest tests/ratelimit/test_bucket_identity.py -q
           <lf-source
             id="pr-migration-transcript"
             source="pr-review-migration"
-            snapshot="4"
+            snapshot="5"
           ></lf-source>
         </details>
       </section>

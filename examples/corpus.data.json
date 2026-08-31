@@ -8,6 +8,11 @@
       "text-file": "pr-walkthrough.patch",
       "label": "example/gateway PR #418 at 8f61c2a"
     },
+    "pr-call-diff": {
+      "text-file": "pr-walkthrough-call-diff.txt",
+      "label": "CallDiff 0.5.0 reproduction of the gateway patch",
+      "lines": "1:4"
+    },
     "pr-review-tests": {
       "text-file": "pr-walkthrough-test.py",
       "label": "tests/ratelimit/test_bucket_identity.py at 8f61c2a"

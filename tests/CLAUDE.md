@@ -507,8 +507,11 @@ spends its timeout budget on transport rather than on the assertion.
 
 For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's finite
-animations to empty. `resized` waits for the resize event to reach listeners; a new
-viewport size says only that the browser resized, not that page layout handled it.
+animations to empty. `resized` waits for the resize event to reach listeners and then
+for one rendering update behind it; a new viewport size says only that the browser
+resized, not that page layout handled it, and the event says only that the page was
+told — the document's own scrolling area is published in the update after the one the
+event arrived in.
 An observer or protocol record that outlives a motion is read after `moving` says finite
 motion has ended; a fixed number of animation frames only guesses when that record will
 be delivered under load.

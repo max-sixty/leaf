@@ -6,6 +6,7 @@ import { bindings } from "../keyboard/bindings.js";
 // directly or from that map.
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
+const HINT_INDENT = 10;
 const MIN_SEARCH = 3;
 
 export function createTargetSelection({
@@ -127,6 +128,16 @@ export function createTargetSelection({
     return targets.map((target, index) => ({
       ...target,
       code: codes[index],
+      nesting: targets.filter(
+        (outer) =>
+          outer !== target &&
+          outer.rect.left <= target.rect.left &&
+          outer.rect.top <= target.rect.top &&
+          outer.rect.right >= target.rect.right &&
+          outer.rect.bottom >= target.rect.bottom &&
+          (outer.rect.right - outer.rect.left > target.rect.right - target.rect.left ||
+            outer.rect.bottom - outer.rect.top > target.rect.bottom - target.rect.top),
+      ).length,
     }));
   }
 
@@ -409,7 +420,7 @@ export function createTargetSelection({
         const rect = refreshed ? target.rect : shownRect(target.element, cache);
         if (!exposed(rect)) continue;
         const chip = hintChip(target);
-        chip.style.left = `${Math.max(10, rect.left)}px`;
+        chip.style.left = `${Math.max(10, rect.left + target.nesting * HINT_INDENT)}px`;
         chip.style.top = `${Math.min(bottomCovered() - 10, Math.max(covered(), rect.top))}px`;
         if (rect.clippedTop || rect.top < covered()) chip.classList.add("lf-in");
         drawn.push(chip);

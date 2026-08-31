@@ -212,31 +212,38 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.close()
 
 
-def test_nested_item_hints_do_not_cover_each_other(browser, serve):
+def test_nested_item_hints_show_containment_without_covering_each_other(browser, serve):
     """A container and its first child may paint the same box corner. Both remain
-    reachable, because both are item targets, and their hint faces remain distinct."""
+    reachable, while the enclosed target steps right to show which hint names it."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
-        head="<style>section, p { margin: 0; }</style>",
+        head="<style>section { padding-bottom: 5rem; } section, p { margin: 0; }</style>",
     )
     page, errors = open_page(browser, serve(html))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-hint")
     expect(hints).to_have_count(2)
-    boxes = hints.evaluate_all(
-        """nodes => nodes.map(node => {
+    geometry = page.evaluate(
+        """() => ({
+          targetLefts: ['outer', 'inner'].map(id =>
+            document.getElementById(id).getBoundingClientRect().left),
+          hints: [...document.querySelectorAll('.lf-target-hint')].map(node => {
           const { left, top, right, bottom } = node.getBoundingClientRect();
-          return { left, top, right, bottom };
+            return { left, top, right, bottom, centre: (left + right) / 2 };
+          }),
         })"""
     )
+    boxes = geometry["hints"]
+    assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
+    assert boxes[1]["centre"] - boxes[0]["centre"] >= 9, geometry
     assert not (
         boxes[0]["left"] < boxes[1]["right"]
         and boxes[1]["left"] < boxes[0]["right"]
         and boxes[0]["top"] < boxes[1]["bottom"]
         and boxes[1]["top"] < boxes[0]["bottom"]
-    ), boxes
+    ), geometry
     assert errors == []
     page.close()
 

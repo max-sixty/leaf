@@ -1632,7 +1632,9 @@ The short, viewport-local hints form a prefix-free tree over one alphabet. Most 
 cost one letter; only the tail branches when the viewport holds more targets than the
 alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise across a
 scroll or revision. They are the whole route, so none may be dropped because its chip
-collides.
+collides. A target whose visible box is strictly smaller and fully enclosed by another
+target steps its chip right once per enclosing box. Equal boxes stay at the same depth;
+the collision pass separates their chips without inventing a hierarchy.
 
 Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses the
 last one announced. A viewport change that removes or renames that target clears the

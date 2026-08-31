@@ -21,8 +21,7 @@ ANSWER_DECISION_INSTRUCTION = (
     "`response.kind: version` is answered by revising the page and resolving it; open a "
     "separate `leaf comment --section <decision-id>` on the same Decision if that revision "
     "needs an answer first. Reply to other threads with `leaf reply <page> --to "
-    "<id> --text ...`, or close one the work has since answered with `leaf resolve "
-    "<page> --to <id>`."
+    "<id> --text ...`; an ordinary reply leaves the thread open for the reader."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "A wait result prints one page's unacknowledged user events and worker reports "

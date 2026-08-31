@@ -1359,7 +1359,12 @@ def margins_laid_out(page):
     The module load is awaited from the driver rather than inside `page.evaluate`, which
     takes no timeout in any binding: a preview that stalls on the way out would hold the
     worker for the rest of the job step instead of failing in thirty seconds naming its
-    test. `SERVED_TIMEOUT_MS` is the same patience the payload's own probes carry."""
+    test. `SERVED_TIMEOUT_MS` is the same patience the payload's own probes carry.
+
+    The `true` is load-bearing, not the comma operator's leftover: `wait_for_function`
+    awaits a promise the predicate returns, but a falsy resolution ends the wait rather
+    than polling again, so a predicate handing back the layout's own result would return
+    at once and prove nothing."""
     page.wait_for_function(
         "() => import('/runtime/margin-layout.js')"
         ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",

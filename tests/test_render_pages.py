@@ -2012,7 +2012,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         ...marginItems.map(node => node.getBoundingClientRect().right));
       const measure = (value) => {
         const probe = document.createElement('i');
-        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:'
+        probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;height:0;padding:0;border:0;width:'
           + value;
         main.append(probe);
         const width = probe.getBoundingClientRect().width;
@@ -2031,10 +2031,12 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         marginCount: marginItems.length, marginRight,
         viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
-        sideways: document.documentElement.scrollWidth
-          - document.documentElement.clientWidth,
       };
     }"""
+    sideways = (
+        "() => document.documentElement.scrollWidth"
+        " - document.documentElement.clientWidth"
+    )
 
     resized(page, 1400, 900)
     margins_laid_out(page)
@@ -2055,7 +2057,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
-    assert roomy["sideways"] == 0
+    assert page.evaluate(sideways) == 0
 
     # The rail claim is monotonic, so narrowing the same page carries its widest
     # right-margin row into the tighter layout. The sidebar and rail use the outer
@@ -2082,7 +2084,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert tighter["sidebar"]["left"] >= -1
     assert tighter["marginCount"] > 0
     assert tighter["marginRight"] <= tighter["viewportWidth"] + 1
-    assert tighter["sideways"] == 0
+    assert page.evaluate(sideways) == 0
 
     resized(page, 1400, 900)
 
@@ -2102,7 +2104,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert cramped["strip"] == 0
     assert cramped["float"] == "none" and cramped["position"] == "static"
     assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
-    assert cramped["sideways"] == 0
+    assert page.evaluate(sideways) == 0
     assert errors == []
     page.close()
 
@@ -2112,7 +2114,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert narrow["strip"] == 0
     assert narrow["float"] == "none" and narrow["position"] == "static"
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
-    assert narrow["sideways"] == 0
+    assert page.evaluate(sideways) == 0
 
     resized(page, 1400, 900)
     page.emulate_media(media="print")

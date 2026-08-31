@@ -762,8 +762,19 @@ ${MARK_RULES}
       box-sizing: border-box;
       z-index: 8900; color: var(--ink); font: inherit;
       background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
-      flex-direction: column; padding-right: var(--lf-safe-right);
-      padding-bottom: var(--lf-safe-bottom); }
+      flex-direction: column;
+      /* Written as the shorthand, and for the same reason margin and border above it are:
+         a <dialog> arrives wearing the UA's own box, and a rule that states one side
+         leaves the rest of it standing. padding: 1em stayed on the top and the left, which
+         is 14px of the sheet that belongs to nothing inside it — the head sat 14px in from
+         a rule that had already placed it, and a finger landing in the strip down the left
+         edge, which is where a thumb holding a phone lands, met the dialog rather than the
+         list and scrolled nothing. It was invisible while the reserved gutter hung the
+         whole panel a bar's width off the left of the window (see the root's rule above,
+         and #121), which put the list back under that strip by accident. The safe-area
+         sides are the tray's, mirrored: this sheet takes the right inset and that one the
+         left, and both take the bottom. */
+      padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
     .lf-panel[open] { display: flex; }
     /* No ::backdrop: the panel is shown rather than shown modally (showPanelLayer says
        why), so a non-modal dialog paints none, and a scrim over a page the reader can

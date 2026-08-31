@@ -864,16 +864,21 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         ("layer", {"section": "opt-shim"})
     ]
     assert [e for e in events if e["kind"] == "action"] == []
-    # The retained thread names the target the same way the composer named the box, while
-    # the send lands typing in the visible inline conversation.
-    expect(page.locator(".lf-thread .lf-quote")).to_have_text(
+    # The retained thread names the target the same way the composer named the box. The
+    # top-layer margin card stays retired while design mode stands, so the send lands
+    # typing in the ordinary Threads workspace instead of a hidden inline reply.
+    panel = page.locator(".lf-panel")
+    expect(panel).to_be_visible()
+    expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
         "layer · lf-option · opt-shim"
     )
-    inline = page.locator(".lf-margin-thread .lf-conversation-thread")
-    expect(inline.locator("textarea")).to_be_focused()
-    # Escape backs out one rung at a time — the box, then the mode.
+    panel_reply = panel.locator(".lf-thread textarea:focus")
+    expect(panel_reply).to_have_count(1)
+    expect(panel_reply).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    # Escape backs out one rung at a time — the reply, then the mode.
     page.keyboard.press("Escape")
-    expect(inline).to_be_focused()
+    expect(panel.locator(".lf-thread:focus")).to_have_count(1)
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))

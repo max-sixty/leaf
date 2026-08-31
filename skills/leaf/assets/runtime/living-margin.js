@@ -1420,7 +1420,7 @@ export function createLivingMargin(dependencies) {
   }
 
   function showPreview(entry, button, retry = true) {
-    if (!entry || designIsOn()) return;
+    if (!entry) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     previewEntry = entry;
     transferThreadCard(button);
@@ -1532,7 +1532,7 @@ export function createLivingMargin(dependencies) {
     const entry = pageMapEntries.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
-    if (!entry) return null;
+    if (!entry || designIsOn()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
     if (panelIsOpen()) setPanel(false);

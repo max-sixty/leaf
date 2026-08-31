@@ -269,9 +269,11 @@ export function createChromeLayout({
   // A height-only body resize is repaint-only. An image or font can move a later target
   // without resizing that target or mutating the DOM, while sending that ordinary page
   // growth through syncLayout would feed it into the writer that reserves flow content.
-  // Writes land in the following animation frame, outside ResizeObserver delivery, so a
-  // reservation changing another watched chrome box cannot create an undelivered-
-  // notification loop.
+  // A width change schedules syncLayout and its page repaint in the following animation
+  // frame, outside ResizeObserver delivery, so a reservation changing another watched
+  // chrome box cannot create an undelivered-notification loop. A height-only change calls
+  // pageShifted during delivery; its direct geometry write belongs to the unobserved aim
+  // box, while hover, legend, and action placement defer their work to frames.
   let bodyContentWidth = 0;
   let bodyContentHeight = 0;
   const layoutSizes = new ResizeObserver((entries) => {

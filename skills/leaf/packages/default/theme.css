@@ -467,16 +467,19 @@ html.lf-copy lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
                                        font-family: var(--sans); font-weight: 700; }
 lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
-/* The digit a keyboard pick answers by, worn as the shared address chip. The option's
- * gutter reads status, address, then prose, so the digit starts after the status rule
- * and ends before the option's words. A card aligns it with the top of its content; a
- * row centres it on the complete row. It appears only while one of the group's marks
- * holds keyboard focus, when the digit can take a press. */
-lf-option > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
+/* The keys this group answers, worn as shared address chips. The gutter reads status,
+ * address, then prose, so each chip starts after the status rule and ends before the
+ * cell's words. A card aligns its digit with the top of its content; rows and the add
+ * cell centre theirs. They appear only while one of the group's marks holds keyboard
+ * focus, when each key can take a press. */
+lf-option > .lf-address,
+.lf-another > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
 @media screen {
  html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
-                    > lf-option > .lf-address { display: block; }
+                    > lf-option > .lf-address,
+ html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
+                    > .lf-another > .lf-address { display: block; }
 }
 /* The thread multi-question's submit (the module adds it there alone): one press
  * stating the set is whole, since every toggle already reached the agent as it
@@ -685,7 +688,8 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
     }
-  .lf-another { display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another > .lf-address { top: 0; bottom: 0; margin: auto 0; }
   .lf-another input { flex: 1; min-width: 0; padding: 0; border: 0;
                      outline: none; background: transparent; color: inherit; font: inherit; }
   /* The leading column holds the keyboard address and the gap before the option's

@@ -65,10 +65,10 @@
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap), 1–9 pick outright, and
- * Enter reaches the page's box for another option — each option wears its digit in a
- * column of its own, painted only while a mark holds keyboard focus, so nothing appears
- * on a page nobody is answering. The column is held whether or not a digit is in it,
- * which is the theme's half of this. The rows are
+ * Enter reaches the page's box for another option — each option wears its digit and the
+ * add cell wears Enter in their shared column, painted only while a mark holds keyboard
+ * focus, so nothing appears on a page nobody is answering. The column is held whether or
+ * not a key is in it, which is the theme's half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise "toggle the nth" with
  * focus on a link inside one. An armed `g` chord keeps its own digits without this module
@@ -103,6 +103,7 @@ import {
   inChrome,
   keys,
   landInConversation,
+  labelOf,
   offer,
   once,
   quoted,
@@ -135,6 +136,12 @@ const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
 const SECTION = "In a question's options";
+const WRITE_ANOTHER = {
+  id: "option.write",
+  keys: ["Enter"],
+  does: "Write another option",
+  line: "write another option",
+};
 
 customElements.define(
   "lf-options",
@@ -156,6 +163,7 @@ customElements.define(
         if (choosable || option.hasAttribute("chosen")) this.#mark(option, choosable);
       this.#addition = new OptionAddition(this, {
         offered: choosable && !inChrome(this),
+        shortcut: labelOf(WRITE_ANOTHER),
         commit: (detail, attempt) => {
           this.#applyChoice(detail);
           return sendAction(this, "choose", detail, { attempt });
@@ -338,10 +346,7 @@ customElements.define(
             },
           },
           {
-            id: "option.write",
-            keys: ["Enter"],
-            does: "Write another option",
-            line: "write another option",
+            ...WRITE_ANOTHER,
             when: () => Boolean(this.#words()),
             run: () => {
               if (this.#addition.input) this.#addition.input.focus();

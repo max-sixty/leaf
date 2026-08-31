@@ -1693,7 +1693,7 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    border goes solid and accent for as long as an edit is open.
 
    The controls are a fixed part of that box rather than something an edit adds to it:
-   one row under the text in both views, holding ✎ while reading and Cancel and Save
+   one row under the text in both views, holding ✎ while reading and Save and Cancel
    while editing, all three the same button, so the row's height is the same in either
    view and nothing under the pointer moves. It cost the ✎ its floating corner. An
    absolute corner costs no height, but then the row replacing it does, and the box grew
@@ -1744,7 +1744,9 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
   }
 }
 .lf-draft-controls { justify-content: flex-end; gap: 4px; margin-top: 6px; }
-.lf-margin-item > .lf-draft-controls { align-items: center; margin-top: 0; }
+.lf-margin-item > .lf-draft-controls {
+  align-items: center; justify-content: flex-start; margin-top: 0;
+}
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
                     font-size: var(--t-5); color: var(--ink-2); }
 .lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }

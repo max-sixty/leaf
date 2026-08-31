@@ -116,8 +116,25 @@ export function createConversationThreadList(dependencies) {
   // to the next card without trying to recover its old position after the mutation.
   let activeHold = null;
   const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrollTop;
+  // The box a card can hold the list's place by, or null where it can hold nothing: a
+  // fold renames its node out of .lf-thread on the way out, a narrowing takes one off
+  // the list, and a closed disclosure leaves one connected with no box to measure. One
+  // statement of it, so what takes a hold and what corrects one cannot disagree over
+  // which cards are still standing.
+  const heldBox = (card) => {
+    if (
+      !card.isConnected ||
+      !threadsBox.contains(card) ||
+      !card.matches(".lf-thread") ||
+      !card.checkVisibility()
+    )
+      return null;
+    const box = card.getBoundingClientRect();
+    return box.width && box.height ? box : null;
+  };
   function takeScrollHold() {
-    if (activeHold) correctScrollHold(activeHold);
+    const priorHold = activeHold;
+    if (priorHold) correctScrollHold(priorHold);
     activeHold = null;
     if (!panelIsOpen()) {
       threadsBox.style.removeProperty("overflow-anchor");
@@ -149,14 +166,26 @@ export function createConversationThreadList(dependencies) {
         );
       })
       .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
-    const lead = underPointer || standing || visible[0];
+    // A fold is a mutation still running, and the hold that took it is the page's one
+    // account of where the reader was standing when it started. The list slides both
+    // ways around a folding card — the room closes under the cards below it and the
+    // cards above come down into it — so the pointer stops naming that place as soon as
+    // the motion begins: read again mid-fold it answers with whatever slid under it,
+    // and a hold taken from that pins the wrong side of the movement while everything
+    // past the fold, the successor the reader was aiming at among it, goes on moving.
+    // A render arriving inside a fold therefore inherits the standing hold's own
+    // reference, which has already handed off past the card that is leaving.
+    const inherited = hasFolding()
+      ? priorHold?.references.find(({ card }) => heldBox(card))?.card
+      : null;
+    const lead = inherited || underPointer || standing || visible[0];
     const leadAt = visible.indexOf(lead);
     const fallbacks =
       leadAt < 0
         ? visible
         : [...visible.slice(leadAt + 1), ...visible.slice(0, leadAt + 1)];
     const seen = new Set();
-    const references = [underPointer, standing, ...fallbacks]
+    const references = [inherited, underPointer, standing, ...fallbacks]
       .filter((card) => {
         if (!card || !threadsBox.contains(card) || seen.has(card)) return false;
         seen.add(card);
@@ -187,15 +216,8 @@ export function createConversationThreadList(dependencies) {
     if (activeHold !== hold || !panelIsOpen()) return false;
     let box = null;
     const reference = hold.references.find(({ card }) => {
-      if (
-        !card.isConnected ||
-        !threadsBox.contains(card) ||
-        !card.matches(".lf-thread") ||
-        !card.checkVisibility()
-      )
-        return false;
-      box = card.getBoundingClientRect();
-      return box.width && box.height;
+      box = heldBox(card);
+      return box;
     });
     if (!reference) return false;
     // A card's viewport top moves both when content before it reflows and when the reader
@@ -208,16 +230,8 @@ export function createConversationThreadList(dependencies) {
     // the correction, or handing off later would apply movement already paid for while
     // the primary stood.
     for (const candidate of hold.references) {
-      if (
-        !candidate.card.isConnected ||
-        !threadsBox.contains(candidate.card) ||
-        !candidate.card.matches(".lf-thread") ||
-        !candidate.card.checkVisibility()
-      )
-        continue;
-      const candidateBox = candidate.card.getBoundingClientRect();
-      if (candidateBox.width && candidateBox.height)
-        candidate.contentTop = candidateBox.top + threadsBox.scrollTop;
+      const candidateBox = heldBox(candidate.card);
+      if (candidateBox) candidate.contentTop = candidateBox.top + threadsBox.scrollTop;
     }
     return true;
   }

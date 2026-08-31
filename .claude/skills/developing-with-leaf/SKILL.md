@@ -10,14 +10,15 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Choose one workflow. Preview a shipped example when the request names one;
-otherwise author or revise a page.
+Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow.
+Preview a shipped example when the request names one or that handoff requires
+interactive proof. Otherwise author or revise a page.
 
-Before presenting a page or visible Leaf change as finished, inspect the rendered
-page at the exact served URL: confirm the expected content, review the changed
-surface at a representative viewport, and check the browser console. Hand off
-only that URL as the preview. An authored HTML path is source, not a runnable
-preview; use the Codex review pane when feedback belongs to a source line.
+Before presenting a served page or visible runtime change as finished, inspect
+the exact served URL: confirm the expected content, review the changed surface at
+a representative viewport, and check the browser console. Hand off that URL and
+keep its process alive. Use the Codex review pane when feedback belongs to a
+source line.
 
 ## Preview a shipped example
 

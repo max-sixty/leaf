@@ -33,9 +33,10 @@
  *
  * Editing has two doors: double-click the text (the fast path), or the ✎ button (the
  * door keyboards and touch can use; it also makes the block *look* editable). The draft
- * contributes that control to its target's shared margin item. Cancel and Save replace
- * it for the length of an edit, inside width reserved before presentation, so opening the
- * editor changes what the one RHS item offers without moving the document. Unsent
+ * contributes that disclosure to its target's shared Button cluster. Save and an options
+ * Button replace it for the length of an edit, with Cancel under the latter and their width
+ * reserved before presentation, so opening the editor changes what the one RHS item offers
+ * without moving the document. Unsent
  * keystrokes ride the runtime's draft store
  * (saveDraft/clearDraft), the composer's discipline: written on input, cleared only by a
  * successful send or explicit Cancel, so reload, version switch, server death and the
@@ -162,6 +163,7 @@ customElements.define(
     #ta = null;
     #sending = false;
     #margin = null;
+    #buttonReserve = 0;
 
     connectedCallback() {
       if (!once(this)) {
@@ -196,22 +198,33 @@ customElements.define(
         },
       ]);
 
-      this.#pencil = this.#marginButton("✎", "Edit", () => this.#open());
+      this.#pencil = this.#marginButton(
+        "✎",
+        "Edit",
+        () => this.#open(),
+        "neutral",
+        "disclosure",
+      );
       this.#pencil.classList.add("lf-draft-pencil");
       this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
       this.#pencil.title = "Edit this text — or double-click it";
       this.#row = offer("div", "lf-draft-controls");
       this.#row.dataset.lfFor = this.id;
       this.#cancel = this.#marginButton("×", "Cancel", () => this.#close(true));
-      this.#save = this.#marginButton("✓", "Save", () => this.#commit(), "primary");
+      this.#save = this.#marginButton("✓", "Save", () => this.#commit());
       // Reserve the editor's wider pair before the page is presented, then keep the
       // resting pencil against the marker at the row's right edge. Opening the editor
       // changes what the one row offers without moving the document beneath it.
       this.#row.style.opacity = "0";
-      this.#row.append(this.#cancel, this.#save);
+      this.#row.append(this.#save, this.#cancel);
       this.#offer();
       measure(this.#row, () => {
-        this.#row.style.minWidth = `${Math.ceil(this.#row.getBoundingClientRect().width)}px`;
+        // The open cluster is Save + `…`; reserve that complete fitting while the
+        // detached measurement row contains its direct controls, before resting Edit
+        // replaces them. Thirty-four pixels are the 30px options Button and its 4px gap.
+        const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
+        this.#buttonReserve = saveWidth + 34;
+        this.#row.style.minWidth = `${saveWidth}px`;
         this.#row.replaceChildren(this.#pencil);
         this.#row.style.opacity = "";
         this.#margin?.update();
@@ -262,6 +275,7 @@ customElements.define(
       this.#margin = registerMarginItem({
         target: () => this,
         controls: this.#row,
+        reserve: () => this.#buttonReserve,
         items: () => [
           {
             id: `draft:${this.id}`,
@@ -278,11 +292,12 @@ customElements.define(
       return b;
     }
 
-    #marginButton(glyph, label, onClick, tone = "neutral") {
+    #marginButton(glyph, label, onClick, tone = "neutral", behavior = "action") {
       const button = marginAction(offer("button", ""), {
         glyph,
         label,
         tone,
+        behavior,
       });
       button.addEventListener("click", onClick);
       return button;
@@ -459,7 +474,7 @@ customElements.define(
           run: () => this.#close(false),
         },
       ]);
-      this.#row.replaceChildren(this.#cancel, this.#save);
+      this.#row.replaceChildren(this.#save, this.#cancel);
       this.#ta = ta;
       this.#body.after(ta);
       this.#margin?.update();

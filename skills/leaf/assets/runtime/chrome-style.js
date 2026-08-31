@@ -244,6 +244,20 @@ export function chromeStyle({
     font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
+  .lf-margin-action[hidden] { display: none; }
+  /* A Button carries one of three promises. An action has a filled face and an
+     imperative word. A disclosure stays hollow. The ellipsis is the same hollow face
+     and unfolds secondary Buttons in the target cluster. All three keep one height,
+     radius, type, and focus treatment. */
+  .lf-margin-action[data-lf-behavior="action"] {
+    border-color: color-mix(in srgb, var(--ink-2) 38%, var(--border-2));
+    background: var(--chip); color: var(--ink);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  .lf-margin-action[data-lf-behavior="disclosure"],
+  .lf-margin-action[data-lf-behavior="options"] {
+    background: var(--paper); color: var(--muted); box-shadow: none;
+  }
   /* The look is the control's and the hand is the press's, which is one rule apart —
      the same split the pill above states, and for the same reason. A copy keeps the
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
@@ -277,17 +291,19 @@ export function chromeStyle({
   .lf-margin-action[data-lf-tone="negative"][aria-disabled="true"] {
     border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
   }
-  .lf-margin-action[data-lf-tone="primary"] {
-    border-color: var(--accent); background: var(--accent); color: var(--paper);
-  }
-  .lf-margin-action[data-lf-tone="primary"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-    filter: brightness(.92); background: var(--accent);
-  }
   .lf-margin-action.lf-react[aria-pressed="true"] {
     border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
   }
   .lf-margin-action-glyph { line-height: 1; }
   .lf-margin-action-space { white-space: pre; }
+  .lf-margin-item > .lf-margin-contribution >
+    .lf-margin-action:not([data-lf-button-primary]),
+  .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
+    display: none;
+  }
+  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not(:has(> [data-lf-button-primary])) {
+    display: none;
+  }
   .lf-margin-item.lf-condensed > .lf-margin-contribution { min-width: 0 !important; }
   .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
     width: 30px; min-width: 30px !important; padding-inline: 0;
@@ -1211,26 +1227,19 @@ ${MARK_RULES}
     .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
       line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
-    .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-    .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
-      border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
-    .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
     .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
     .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
     .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
     .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
     .lf-margin-thread .lf-say { align-items: flex-end; }
     .lf-margin-thread .lf-say textarea { min-width: 0; }
-    .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
+    .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-    .lf-margin-preview-action:is(:hover, :focus-visible),
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
-    .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+    .lf-page-map-action:focus-visible {
       outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
-    .lf-margin-action-kind { font-size: var(--t-6); font-weight: 600; }
-    .lf-margin-action-text { color: var(--ink-2); overflow-wrap: anywhere; }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
@@ -1249,7 +1258,7 @@ ${MARK_RULES}
     }
     @media (forced-colors: active) {
       .lf-margin-preview, .lf-page-map-sheet { border: 1px solid CanvasText; box-shadow: none; }
-      .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+      .lf-page-map-action:focus-visible {
         outline: 2px solid Highlight; }
     }
     /* The key line: a contextual shortlist plus persistent rows, rendered from the

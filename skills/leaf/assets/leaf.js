@@ -916,8 +916,8 @@ panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
 
 // The floating Comment control names a selection before it has a stable target row.
-// Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
-// adds the registry-declared reaction buttons to its right. One affordance, raised only
+// Pressing its ellipsis or `r` opens that target's shared Button options and puts
+// Comment beside the registry-declared reactions there. One affordance, raised only
 // where the reader has already pointed: a selection, a visual's click, an aimed item or
 // visual part, or `r`.
 const fabBar = el("div", "lf-ui lf-fab-bar lf-page-paint");
@@ -926,6 +926,7 @@ fabBar.setAttribute("aria-label", "Respond");
 const fab = marginAction(el("button", "lf-ui lf-pill lf-fab"), {
   glyph: "💬",
   label: "Comment",
+  behavior: "disclosure",
   collapse: "always",
 });
 fab.setAttribute("aria-label", "Comment");
@@ -1990,6 +1991,7 @@ const {
   focused,
   itemWord,
   offer,
+  openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,
   paintHere,
   post,
   reactionVocabulary: () => registry.$reactions?.tokens,
@@ -3422,6 +3424,7 @@ livingMargin = createLivingMargin({
   setPanel,
   showThread,
   stateProjection,
+  threadPanel: panel,
   threads: () => conversationRuntime.threadList,
   toggleBtn,
   updateSequence,

@@ -1874,21 +1874,23 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         if f.startswith("[light] code marked cm is the ink of the code around it")
     ], unanswered
 
+    # The ratio the gate prints is a reading of the theme's own surfaces, so pinning
+    # its digits here makes every palette change a failure of this test rather than of
+    # the page. What the assertions ask instead is which role came back unread, which
+    # is the whole of what each case is arranged to distinguish: the gate names a role
+    # in this sentence only where it read under 4.5:1, so the finding is the claim.
     faint = render_gate_model.render_version(browser, serve(FAINT_CODE_PAGE))
-    assert [
-        f for f in faint if f.startswith("[light] code marked cm reads at 3.3:1")
-    ], faint
+    assert [f for f in faint if f.startswith("[light] code marked cm reads at ")], faint
     assert not [f for f in faint if "code marked st" in f], (
         "only the role the style touched is unread, so the rest name the reading "
         "rather than the rule"
     )
 
     tinted = render_gate_model.render_version(browser, serve(TINTED_LINE_PAGE))
-    assert [
-        f for f in tinted if f.startswith("[light] code marked st reads at 1.6:1")
-    ], (
+    assert [f for f in tinted if f.startswith("[light] code marked st reads at ")], (
         "the reading is of the surface each span is actually set on, not of one "
-        f"block colour taken once per role — {tinted}"
+        "block colour taken once per role — that role clears the threshold on the "
+        f"block, so a gate stopping at its clean line says nothing at all: {tinted}"
     )
 
     page, errors = open_page(browser, serve(SHADOW_CODE_PAGE))

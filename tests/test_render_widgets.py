@@ -492,16 +492,34 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert prepare.evaluate("node => node.matches(':hover')")
 
+    # The lens is the viewport's position, not a destination travelling toward it.
+    # Capture the first style turn after the scroll: a transition can finish at the
+    # right place while still trailing every intermediate reading.
+    page.evaluate(
+        """() => {
+          const rows = document.querySelector('.lf-toc-rows');
+          const lens = document.querySelector('.lf-toc-window');
+          window.lfTocLensFrame = null;
+          new MutationObserver((records, observer) => {
+            if (!records.some(record => record.attributeName === 'style')) return;
+            const rowBox = rows.getBoundingClientRect();
+            const start =
+              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start')) / 100;
+            window.lfTocLensFrame = {
+              actual: lens.getBoundingClientRect().top,
+              expected: rowBox.top + rowBox.height * start,
+            };
+            observer.disconnect();
+          }).observe(rows, {attributes: true, attributeFilter: ['style']});
+        }"""
+    )
     page.locator("#verify").evaluate(
         "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
     expect(verify).to_have_attribute("aria-current", "location")
-    page.wait_for_function(
-        "({ before, travel }) => "
-        "document.querySelector('.lf-toc-window').getBoundingClientRect().y "
-        "> before + travel",
-        arg={"before": lens_before["y"], "travel": nav_box["height"] * 0.08},
-    )
+    page.wait_for_function("() => window.lfTocLensFrame !== null")
+    lens_frame = page.evaluate("window.lfTocLensFrame")
+    assert lens_frame["actual"] == pytest.approx(lens_frame["expected"], abs=1)
     lens_after = lens.bounding_box()
     assert lens_after is not None
     assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08

@@ -38,6 +38,7 @@ ACK_BATCH_INSTRUCTION = (
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the
@@ -117,6 +118,16 @@ ACTION_REQUIREMENT = {
     "additionalProperties": False,
 }
 
+ACTION_CREATES = {
+    "type": "object",
+    "properties": {
+        "field": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "child": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+    },
+    "required": ["field", "child"],
+    "additionalProperties": False,
+}
+
 
 def _verbs_schema(
     records: list,
@@ -138,6 +149,7 @@ def _verbs_schema(
     }
     if conditional:
         properties["requires"] = ACTION_REQUIREMENT
+        properties["creates"] = ACTION_CREATES
     if updates:
         # A report may carry one short prose update beside the structured state it
         # records. Naming the detail field is what lets the common update feed expose

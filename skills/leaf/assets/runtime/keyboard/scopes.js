@@ -5,6 +5,8 @@ import {
   bindings,
   checked,
   live,
+  parsed,
+  spokenBinding,
   validateRows,
   word,
 } from "./bindings.js";
@@ -193,11 +195,12 @@ export function createScopes({ paintHere, upFrom }) {
   // announce two ways by accident: an option group's digits are spelled "1–3" because its label
   // happens to be a string, while the chord's were read out as "1 or 2 or 3" because its label
   // counts what the page holds and so has to be a function.
-  const spoken = (row) =>
-    word(row.label) ??
-    bindings(row)
-      .map((b) => (b === " " ? "Space" : b))
-      .join(" or ");
+  const spoken = (row) => {
+    const active = bindings(row);
+    if (active.some((binding) => parsed(binding).mods.length))
+      return active.map(spokenBinding).join(" or ");
+    return word(row.label) ?? active.map(spokenBinding).join(" or ");
+  };
 
   const deepestFocus = () => {
     let el = document.activeElement;

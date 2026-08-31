@@ -121,6 +121,12 @@ tags. In particular, an interactive affordance stands down inside
 inlined into an export, so use fonts available on the reader's machine rather than a
 remote font a standalone copy would have to fetch.
 
+`body[data-lf-presented]` means the initial authoritative projection, or the deliberate
+offline fallback, is visible and interactive. Leaf disables transitions on page
+elements before that stamp, so package styles need no arrival guard. Scriptless pages
+and `data-lf-eager` showcases remain unchanged. A declared `x-shadow` widget gets the
+same protection when it builds its root with `shadowStage`.
+
 ## A widget
 
 The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
@@ -143,6 +149,14 @@ The widget still owns its implementation: supporting modules can sit beside its 
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
+
+An `x-state` verb that lets the reader add real children declares
+`creates: {field, child}`. The named optional detail field has the canonical
+`{element-id: non-empty words}` map schema. The child tag admits the sender through
+`x-parent`, requires only its canonical `id`, and has `x-content: prose`. `sendAction`
+then records the map's sorted ids in `generated`, allowing registry-free historical
+folds to retain their liveness while version checks enforce the declared tag and
+direct-parent relation.
 
 Every row passed to `keys()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget

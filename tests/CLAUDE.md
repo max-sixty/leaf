@@ -217,6 +217,15 @@ vendored page and use its HTTP API. A render-gate test should call
 helper directly only when the helper itself carries a contract that would otherwise
 be hard to diagnose, such as the traffic wait reaching its deadline.
 
+A reading the layer makes from declarations belongs on a widget that declares them,
+not on whichever shipped entry currently happens to. `serve` takes `layer_registry`
+and `layer_widgets` for that: a project-package entry and its module, written as a
+`render_cases_*` constant and reachable from any test module. Borrowing a shipped tag
+reads the same for as long as the default package carries the declaration and goes red
+the day it stops, with nothing about the reading having changed — which is how the two
+guards over `seat_with_agent` came to rest on `lf-options` and failed when its
+`x-conversation` came off.
+
 Re-vendor before trusting a result that depends on runtime, theme, registry, or
 widget changes. A page directory owns the layer copied into it by `page init`; it
 does not read the checkout's current assets. A green render against a stale page is
@@ -451,12 +460,13 @@ A surface that reads the same before and after the press cannot be its own wait 
 `expect(...).to_have_text(...)` is satisfied by the frame the press has not reached yet,
 and a measurement taken behind it then compares a reading with itself and passes. It is
 the same coalesced frame as above, but it fails differently: not late by a poll, but
-green because nothing was ever asserted. `test_numbered_addresses_show_the_remaining_route_in_the_ordinary_key_face`
-waits for the `h` row after `g` before asserting the complete inline suffixes, then waits
-for digit-only suffixes after `h`. When a surface does not itself change, a test whose
-subject is
-what a press does *within* it waits on some other fact of that press, and its bug-back is
-run more than once: a wait that is sometimes real looks exactly like a wait that is.
+green because nothing was ever asserted.
+`test_numbered_addresses_show_progress_on_complete_routes_without_moving` waits for the
+complete `g h 1–2` row after `g`, then waits for `h` to wear its pressed state after
+the next press. The route's text and geometry deliberately stay unchanged. When a surface
+does not itself change, a test whose subject is what a press does *within* it waits on some
+other fact of that press, and its bug-back is run more than once: a wait that is sometimes
+real looks exactly like a wait that is.
 
 A retrying assertion that a paint has *not* happened is the same trap wearing the other
 sign, and it is worse, because retrying is what usually rescues a reader from it. A

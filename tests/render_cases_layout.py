@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -32,7 +33,6 @@ from render_harness import (
     RENDERED,
     TOKEN,
     leaf_page,
-    record_claim,
     stamp_version_file,
 )
 
@@ -49,6 +49,21 @@ CUSTOM_WIDGET_PAGE = leaf_page(
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
 }));"""
+ARRIVAL_TRANSITIONS = """window.lfArrivalTransitions = [];
+const lfSeenTransitions = new Set();
+addEventListener("transitionrun", (event) => {
+  if (document.body?.hasAttribute("data-lf-presented")) return;
+  if (!(event.target instanceof Element) || !event.target.closest("main")) return;
+  const id = event.target.id ? `#${event.target.id}` : "";
+  const target = `${event.target.localName}${id}${event.pseudoElement ?? ""}`;
+  const key = `${target}:${event.propertyName}`;
+  if (lfSeenTransitions.has(key)) return;
+  lfSeenTransitions.add(key);
+  window.lfArrivalTransitions.push({
+    target,
+    property: event.propertyName,
+  });
+}, true);"""
 
 
 def resize_notice_after_last_probe(page):
@@ -75,6 +90,14 @@ def arrange_return(page, arrangement):
     render_checks_model.evaluate_probe(page, "arrange", arrangement)
 
 
+def arrival_transition_findings(page, arrival):
+    return [
+        f"[{arrival}] {transition['property']} transitioned on "
+        f"{transition['target']} before presentation"
+        for transition in page.evaluate("() => window.lfArrivalTransitions")
+    ]
+
+
 def arrival_findings(browser, url):
     """Whether a page comes up at all in each arrangement a reader can return to.
 
@@ -95,15 +118,17 @@ def arrival_findings(browser, url):
 
     One page, reloaded into each arrangement, which is what a returning reader does:
     the store is written on the origin the page is already on and read while the next
-    load evaluates. What comes back is the upgrade stamp and the console and no more,
-    because coming up is the whole question here. Boxes are not measured again: every
-    shipped example was measured in each of these arrangements and none of them moved
-    a box that a first visit didn't.
+    load evaluates. What comes back is completed presentation, any page transition that
+    began before it, and the console. Boxes are not measured again: every shipped example
+    was measured in each of these arrangements and none of them moved a box that a first
+    visit didn't.
     """
 
     page = browser.new_page(
         viewport=render_checks_model.RENDER_VIEWPORT, color_scheme="light"
     )
+    # A transition is transient, so preserve its own event through presentation.
+    page.add_init_script(ARRIVAL_TRANSITIONS)
     errors = []
     notices = []
 
@@ -138,12 +163,14 @@ def arrival_findings(browser, url):
             # design-decision.html, and buys this nothing.
             page.goto(url, wait_until="load")
             render_checks_model.wait_for_probe(page, "upgraded")
+            render_checks_model.wait_for_probe(page, "presented")
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
                 "arranged — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
             ]
+        found += arrival_transition_findings(page, "first visit")
         for arrangement in reader_arrangements(page):
             arrange_return(page, arrangement)
             # A console the last arrangement dirtied is not this one's news.
@@ -152,6 +179,7 @@ def arrival_findings(browser, url):
             try:
                 page.reload(wait_until="load")
                 render_checks_model.wait_for_probe(page, "upgraded")
+                render_checks_model.wait_for_probe(page, "presented")
             except PlaywrightTimeout:
                 found.append(
                     f"[{arrangement['name']}] the page never finished coming up — "
@@ -161,6 +189,7 @@ def arrival_findings(browser, url):
                     )
                 )
                 continue
+            found += arrival_transition_findings(page, arrangement["name"])
             # A ResizeObserver notice is the gate's to adjudicate over two attempts on
             # the same document; one seen here says nothing on its own.
             found += [f"[{arrangement['name']}] console: {e}" for e in errors]
@@ -594,16 +623,18 @@ def ceiling(limit, approvals):
 UNANSWERED_CODE_PAGE = COLORED_CODE_PAGE.replace(
     "</head>", "<style>[data-lf-syn] { color: inherit; }</style>\n</head>"
 )
-# What --syn-comment carried until this gate was written: 3.3:1 on --pre-bg, and the
-# reading a user reported as the highlighting being gone.
+# What --syn-comment carried until this gate was written: under 4.5:1 on --pre-bg, and
+# the reading a user reported as the highlighting being gone. The colour is stated and
+# the ratio is not, because the ratio is a reading of whatever --pre-bg currently is.
 FAINT_CODE_PAGE = COLORED_CODE_PAGE.replace(
     "</head>", '<style>[data-lf-syn="cm"] { color: #8b8577; }</style>\n</head>'
 )
 
 # A role that reads on the block and not on the tint one of its lines wears. The clean
-# line comes first on purpose: a gate that stopped at a role's first span would take the
-# 7.9:1 reading and never reach the 1.6:1 one two lines down, and a walkthrough's hi band
-# is the surface where a code line is most often set on something other than --pre-bg.
+# line comes first on purpose: a gate that stopped at a role's first span would take that
+# line's reading, which clears the threshold, and never reach the one two lines down, and
+# a walkthrough's hi band is the surface where a code line is most often set on something
+# other than --pre-bg.
 TINTED_LINE_PAGE = LONG_PAGE.replace(
     "</head>", "<style>:root { --hi-tint: #6f6a60; }</style>\n</head>"
 ).replace(
@@ -1671,11 +1702,20 @@ RINGS_DRAWN = f"""async () => {{
     const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
     const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
     const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
+    // Each run sampled in the middle of the band it is, rather than half a pixel inside
+    // its outer edge. Both points are on the ring; the outer one is also the last
+    // fraction of a pixel of the control, and hit testing rounds a subpixel edge to the
+    // device pixel it shares with the next box. Butted cells are where that shows: an
+    // options group's rows meet on a fractional line, so the ring on the row the
+    // keyboard is on reported the row below as painting over its bottom edge — the
+    // seam's rounding, not anything drawn there. Floored at half a pixel so a hairline
+    // ring still samples inside itself.
+    const into = Math.max(w / 2, 0.5);
     for (const [side, x, y] of ordered && shownRun ? [
-      ['top', mid(...runX), ring.top + 0.5],
-      ['bottom', mid(...runX), ring.bottom - 0.5],
-      ['left', ring.left + 0.5, mid(...runY)],
-      ['right', ring.right - 0.5, mid(...runY)],
+      ['top', mid(...runX), ring.top + into],
+      ['bottom', mid(...runX), ring.bottom - into],
+      ['left', ring.left + into, mid(...runY)],
+      ['right', ring.right - into, mid(...runY)],
     ] : []) {{
       if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
       for (const over of document.elementsFromPoint(x, y)) {{

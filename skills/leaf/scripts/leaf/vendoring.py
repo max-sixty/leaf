@@ -9,10 +9,11 @@ from typing import NamedTuple
 from .data import empty_data, read_data_store
 from .data_contracts import (
     data_contract_errors,
-    page_data_bindings,
-    page_data_snapshot_selections,
+    data_snapshot_selections,
+    merge_data_bindings,
+    page_data_documents,
 )
-from .event_log import flocked, now_iso, read_events
+from .event_log import flocked, now_iso
 from .files import (
     json_bytes,
     latest_revision,
@@ -95,6 +96,7 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         _vendor_page(
             page_dir,
             fresh=True,
+            events=[],
             inputs=inputs,
             page_target=page_target,
             selected=selected,
@@ -104,10 +106,11 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
     # page also has its ordinary transaction, which gives the vocabulary check
     # and contract commit one order against every browser append. No path takes
     # the page transaction and then the init lease, so this order cannot invert.
-    with PageTransaction(page_dir):
+    with PageTransaction(page_dir) as page:
         _vendor_page(
             page_dir,
             fresh=False,
+            events=page.events,
             inputs=inputs,
             page_target=page_target,
             selected=selected,
@@ -168,12 +171,9 @@ def _refuse_data_contract_drift(
     # validating it with today's rules would prevent `page init` from replacing the
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
-        standing_bindings, standing_errors = page_data_bindings(
-            page_dir, current, events
-        )
-        incoming_bindings, incoming_errors = page_data_bindings(
-            page_dir, incoming, events
-        )
+        documents = page_data_documents(page_dir, events)
+        standing_bindings, standing_errors = merge_data_bindings(documents, current)
+        incoming_bindings, incoming_errors = merge_data_bindings(documents, incoming)
         binding_errors = list(dict.fromkeys(standing_errors + incoming_errors))
         binding_changes = [
             (
@@ -185,8 +185,8 @@ def _refuse_data_contract_drift(
             for source, contract in standing_bindings.items()
             if incoming_bindings.get(source) != contract
         ]
-        standing_snapshots = page_data_snapshot_selections(page_dir, current, events)
-        incoming_snapshots = page_data_snapshot_selections(page_dir, incoming, events)
+        standing_snapshots = data_snapshot_selections(documents, current)
+        incoming_snapshots = data_snapshot_selections(documents, incoming)
         selection_changes = [
             f"{document} <{tag}{'#' + widget if widget else ''}> input `{input_name}` "
             f"changes immutable snapshot selection from {standing_snapshots.get(seat)} "
@@ -242,8 +242,9 @@ def _refuse_unseated_work(page_dir: Path, events: list[dict], incoming: dict) ->
         )
 
 
-def _validate_page_transition(page_dir: Path, incoming: dict) -> None:
-    events = read_events(page_dir)
+def _validate_page_transition(
+    page_dir: Path, events: list[dict], incoming: dict
+) -> None:
     _refuse_vocabulary_drift(page_dir, events, incoming)
     _refuse_data_contract_drift(page_dir, events, incoming)
     _refuse_unseated_work(page_dir, events, incoming)
@@ -405,6 +406,7 @@ def _vendor_page(
     page_dir: Path,
     *,
     fresh: bool,
+    events: list[dict],
     inputs: list[Path],
     page_target: Path,
     selected: tuple[str, ...],
@@ -415,7 +417,7 @@ def _vendor_page(
     # A bad late package must not leave the registry newer than the theme or its
     # modules.
     composition = compose_layer(roots)
-    _validate_page_transition(page_dir, composition.registry)
+    _validate_page_transition(page_dir, events, composition.registry)
     layer = _stamp_layer(composition, selected)
     directories = _checked_destinations(page_dir, layer)
     _commit_layer(page_dir, fresh=fresh, layer=layer, directories=directories)

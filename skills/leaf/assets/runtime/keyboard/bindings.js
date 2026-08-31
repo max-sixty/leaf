@@ -54,6 +54,18 @@ export const spell = (binding) => {
     return /^\w/.test(glyph) ? `${glyph}+${rest}` : `${glyph}${rest}`;
   }, GLYPH[key] ?? key);
 };
+// Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
+// which is the keyboard's face, while a listener needs the physical press because many
+// speech configurations do not distinguish letter case.
+export const spokenBinding = (binding) => {
+  const { key, mods } = parsed(binding);
+  const spokenModifier = (mod) => {
+    if (mod === "Mod") return MAC ? "Command" : "Control";
+    return mod;
+  };
+  const spokenKey = key === " " ? "Space" : key;
+  return [...mods.map(spokenModifier), spokenKey].join("+");
+};
 // A cell is read where it is painted, never where it is written, so it may be a function
 // of the page. That is what lets a key whose meaning moves say the meaning it has: the
 // surfaces render this press rather than the set of presses the key could be.
@@ -272,6 +284,10 @@ export function checked(rows, where) {
     if (row.linePriority != null && row.linePriority !== "persistent")
       throw new Error(
         `leaf: row ${i} of ${where} has unknown key-line priority ${String(row.linePriority)}`,
+      );
+    if (row.chordControl != null && row.chordControl !== true)
+      throw new Error(
+        `leaf: row ${i} of ${where} has invalid chord-control presentation ${String(row.chordControl)}`,
       );
     for (const binding of declared) {
       for (const mod of parsed(binding).mods)

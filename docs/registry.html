@@ -514,7 +514,8 @@
                 What x-state declares, once per widget with an action channel: each
                 verb's detail schema (the payload half of the log's forever-contract),
                 its semantic facet, fold unit, optional current-state
-                <code>requires</code>, and the record form its state takes in markup.
+                <code>requires</code>, optional generated-child <code>creates</code>,
+                and the record form its state takes in markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-state contract">Full contract</summary>
@@ -545,7 +546,7 @@
                   rather than the fact an answer was once given, so an answer that a
                   later action at that coordinate supersedes, or that a
                   <code>restated</code> takes back, leaves the thread open again. The
-                  facet, unit, requires, and record forms are $state's.
+                  facet, unit, requires, creates, and record forms are $state's.
                 </p>
               </details>
             </div>

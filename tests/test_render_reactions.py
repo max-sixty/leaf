@@ -1223,5 +1223,15 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     assert copy == {"washed": ["every edit"], "glyph": [["−", "img", "cut", None]]}, (
         copy
     )
+    # The other half of the same promise, and the half no gate can see: the copy's
+    # `offering` reads the cursor and nothing else, so paint that arrives with the
+    # pointer rather than standing on the page is invisible to it. A receipt in a file
+    # that lifts under the pointer says a press is there to take.
+    mark = page.locator(
+        '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
+    )
+    resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
+    mark.hover()
+    assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
     assert errors == []
     page.close()

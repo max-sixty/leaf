@@ -230,7 +230,7 @@ $ leaf version stamp ./review --text "Two ways to shed load — which?"
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
 {"page": "/home/you/review", "threads": []}
-{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
+{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "generated": [], "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
 {"kind": "comment", "author": "user", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
 
 $ leaf ack ./review 3</code></pre>

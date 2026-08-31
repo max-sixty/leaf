@@ -1,5 +1,6 @@
 import { labelOf, spell } from "./bindings.js";
-import { keySequence } from "./presentation.js";
+import { keySequence, progressStates } from "./presentation.js";
+import { isExternalPageLink } from "../presentation.js";
 
 export function createAddress({
   EVERYTHING,
@@ -14,8 +15,10 @@ export function createAddress({
   enterPageMap,
   focused,
   focusedThread,
+  fragmentId,
   glideTo,
   inPanel,
+  itemSays,
   keylineEl,
   leavesOffered,
   letGo,
@@ -24,10 +27,10 @@ export function createAddress({
   othersPanel,
   pageMapItems,
   pageParts,
-  pageMapOffered,
   paintHere,
   panelCovers,
   placeThreadEdge,
+  resolveAnchor,
   saying,
   seenScroller,
   setPanel,
@@ -84,6 +87,59 @@ export function createAddress({
   // `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
   // the count a reader wants under `g` is of the sections the author wrote.
 
+  // A link keeps the platform activation that its author wrote. The chord adds only the
+  // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
+  // revealed, while an external link names the new tab that Leaf opens. A cancelled click
+  // does neither, because its handler has replaced the link's trip with one of its own.
+  function fragmentSection(link) {
+    try {
+      const url = new URL(link.getAttribute("href"), document.baseURI);
+      if (!url.hash) return null;
+      const here = new URL(location.href);
+      if (
+        url.origin !== here.origin ||
+        url.pathname !== here.pathname ||
+        url.search !== here.search
+      )
+        return null;
+      return fragmentId(url.hash);
+    } catch {
+      return null;
+    }
+  }
+  function focusDestination(destination) {
+    destination.focus({ preventScroll: true });
+    if (destination.matches(":focus")) return;
+    if (destination.hasAttribute("tabindex")) return;
+    destination.tabIndex = -1;
+    destination.focus({ preventScroll: true });
+    if (!destination.matches(":focus")) {
+      destination.removeAttribute("tabindex");
+      return;
+    }
+    destination.addEventListener(
+      "blur",
+      () => destination.removeAttribute("tabindex"),
+      { once: true },
+    );
+  }
+  function followLink(link) {
+    const section = fragmentSection(link);
+    let activation = null;
+    link.addEventListener("click", (event) => (activation = event), {
+      capture: true,
+      once: true,
+    });
+    link.click();
+    if (!activation || activation.defaultPrevented) return;
+    const destination = section && resolveAnchor({ section })?.element;
+    if (destination) return focusDestination(destination);
+    if (isExternalPageLink(link) && link.target === "_blank") {
+      const name = link.getAttribute("aria-label")?.trim() || itemSays(link) || "Link";
+      announce(`Opened ${name} in a new tab`);
+    }
+  }
+
   // One-off direct travel is one vocabulary too. The mnemonic completes the trip, and
   // every destination owns the liveness and landing that make its surface useful rather
   // than leaving the dispatcher to know which furniture it enters.
@@ -126,7 +182,7 @@ export function createAddress({
       key: "Shift+m",
       does: "Go to the Page map",
       line: "Page map",
-      when: pageMapOffered,
+      when: () => true,
       go: enterPageMap,
     },
   ];
@@ -147,8 +203,8 @@ export function createAddress({
       list: pageLinks,
       // Completing the address is the link's activation. Use the platform click method
       // so authored handlers, cancellation, fragments, targets, and downloads keep their
-      // anchor semantics.
-      go: (link) => link.click(),
+      // anchor semantics; followLink adds the chord's focus and announcement afterwards.
+      go: followLink,
     },
     {
       id: "navigation.fold",
@@ -177,13 +233,13 @@ export function createAddress({
   const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
   // How far the chord has come: `g`, and the list's letter once one has named a list. The
-  // key line shows this prefix once; the reference combines the standing-page prefix with
-  // each full route. Page chips omit that prefix and show the complete suffix still needed
-  // for their target.
+  // key line and page chips combine that progress with each full route; the reference shows
+  // the same routes at rest.
   const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
   const addressChip = (entry, n) => {
+    const steps = [labelOf(GOTO), entry.key, String(n)];
     const chip = el("span", "lf-address lf-chord-address");
-    chip.append(keySequence(aimedList ? [String(n)] : [entry.key, String(n)]));
+    chip.append(keySequence(steps, progressStates(steps, chordKeys().length)));
     return chip;
   };
 
@@ -228,10 +284,9 @@ export function createAddress({
   // placed from the member's own visible box, so a chip cannot claim room the page has
   // already refused — a thread scrolled out of the panel's list, a card half out of a board.
   //
-  // At the first stage, every visible member shows its list letter and digit, the complete
-  // remaining suffix that distinguishes it from the other lists. Naming a list narrows those
-  // chips to the digit still needed. Every key in a chip remains neutral because none of its
-  // displayed suffix has been pressed.
+  // Every visible member keeps its complete address. Naming a list narrows the members but
+  // does not narrow their labels: the list key changes from neutral to pressed in place, so
+  // the route's geometry stays fixed while the reader advances through it.
   //
   // The layer is the chrome's rather than the page's own markup for the reason every mark is
   // (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
@@ -455,18 +510,23 @@ export function createAddress({
       {
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
-        // inside it — the pressed prefix grows and the page chips narrow to that list — so
-        // one Escape gives the letter back and the next closes the window. It took both at
-        // once, which is the same drift `c` had at the panel: a reader who had narrowed to
-        // the wrong list wanted the other one, and cancelling put them back on the page,
-        // pressing `g` again to reach a window that had been standing the whole time.
+        // inside it. The complete routes stay fixed while that letter turns pressed, so one
+        // Escape gives the letter back and the next closes the window. It took both at once,
+        // which is the same drift `c` had at the panel: a reader who had narrowed to the
+        // wrong list wanted the other one, and cancelling put them back on the page, pressing
+        // `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
+        chordControl: true,
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),
         line: () => (aimedList ? "back to the lists" : "cancel"),
         // Re-arming rather than a field of its own: `setChord` is where arming, aiming and
         // disarming already live, and re-opening the window with no list named is exactly
         // what the second stage backs out to.
-        run: () => setChord(Boolean(aimedList)),
+        run: () => {
+          if (aimedList) return setChord(true);
+          setChord(false);
+          announce("Go to cancelled");
+        },
       },
     ],
   };

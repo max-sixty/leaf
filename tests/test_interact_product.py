@@ -895,6 +895,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         "widget": "choice",
         "action": "choose",
         "detail": {"options": ["flag-first"]},
+        "generated": [],
     }
     if not pick_after_proposal:
         events_model.append_event(page_dir, pick)

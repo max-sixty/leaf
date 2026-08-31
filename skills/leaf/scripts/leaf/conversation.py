@@ -7,7 +7,6 @@ from pathlib import Path
 from leaf.anchor_capture import capture_anchor
 from leaf.decisions import local_decision_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
-from leaf.event_log import append_event
 from leaf.files import (
     latest_published,
     latest_revision,
@@ -144,7 +143,7 @@ def cmd_comment(
             event["anchor"] = anchor
         if markup:
             event["markup"] = markup
-        accepted = append_event(page, event)
+        accepted = page.append_event(event)
     print(json.dumps(accepted, ensure_ascii=False))
 
 
@@ -189,7 +188,7 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
             event["awaits"] = True
         if markup:
             event["markup"] = markup
-        return append_event(page, event)
+        return page.append_event(event)
 
 
 @contract_writer
@@ -225,8 +224,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
             sys.exit(f"message {to!r} has no agent session identity")
         if owner != identity.get("session"):
             sys.exit(f"message {to!r} belongs to agent session {owner!r}")
-        return append_event(
-            page,
+        return page.append_event(
             {
                 "kind": "edit",
                 "author": "claude",
@@ -261,7 +259,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
             **message_identity(),
             "parent": to,
         }
-        accepted = append_event(page, event)
+        accepted = page.append_event(event)
     print(json.dumps(accepted, ensure_ascii=False))
 
 
@@ -299,5 +297,5 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             event, parse_revision(page_dir, revision).by_id, registry
         ):
             sys.exit(error)
-        accepted = append_event(page, event)
+        accepted = page.append_event(event)
     print(json.dumps(accepted, ensure_ascii=False))

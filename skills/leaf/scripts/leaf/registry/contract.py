@@ -12,7 +12,7 @@ from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
-from leaf.schema import EXTENSION_SCHEMA, GUIDANCE_SCHEMA
+from leaf.schema import ELEMENT_ID, EXTENSION_SCHEMA, GUIDANCE_SCHEMA
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
@@ -71,6 +71,19 @@ def schema_error(schema: dict, instance) -> str | None:
 # are the whole of the case.
 EXTENSION_READER = json_validator(EXTENSION_SCHEMA)
 GUIDANCE_READER = json_validator(GUIDANCE_SCHEMA)
+
+CREATED_CHILDREN_DETAIL_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{ELEMENT_ID}$"},
+    "additionalProperties": {"type": "string", "minLength": 1},
+}
+
+
+def created_children(event: dict, spec: dict) -> dict:
+    """The generated child id-to-words map declared by one validated action."""
+    creates = spec.get("creates")
+    return event["detail"].get(creates["field"], {}) if creates else {}
 
 
 def visual_part_attribute(entry: dict) -> str | None:

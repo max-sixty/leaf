@@ -7,6 +7,7 @@ export function createSelectionSurface({
   composer,
   composerInput,
   composerIsOpen,
+  closeVersionMenu,
   collapseKeyline,
   designIsOn,
   designTarget,
@@ -40,7 +41,6 @@ export function createSelectionSurface({
   selectionAnchor,
   setReact,
   showThread,
-  showVersionMenu,
   snapSelection,
   shownParts,
   shownRect,
@@ -497,7 +497,7 @@ export function createSelectionSurface({
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))
-      showVersionMenu(false);
+      closeVersionMenu();
   }
   document.addEventListener("mousedown", (ev) => standDown(ev.target));
 

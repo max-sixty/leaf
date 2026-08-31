@@ -15,6 +15,7 @@ from render_support import (
     compare_with,
     leaf_page,
     live_url,
+    margins_laid_out,
     open_page,
     panel_settled,
     resized,
@@ -40,6 +41,7 @@ OUTCOME_ON_DECISION = {
     "widget": "bracket",
     "action": "choose",
     "detail": {"options": ["br-steel"]},
+    "generated": [],
 }
 
 
@@ -1027,9 +1029,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     page.evaluate(
         "() => document.scrollingElement.scrollBy({top: 320, behavior: 'instant'})"
     )
-    page.evaluate(
-        "() => import('/runtime/margin-layout.js').then(({layoutMarginRows}) => layoutMarginRows())"
-    )
+    margins_laid_out(page)
     assert offset() == pytest.approx(before, abs=1)
 
     assert errors == []
@@ -1049,6 +1049,21 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     assert toggle.evaluate(
         "button => button.previousElementSibling.matches('.lf-signoff, .lf-threads-toggle')"
     ), "the small-screen map is not beside the primary feedback controls"
+    text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
+        """buttons => buttons.map(button => {
+          const box = button.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(button);
+          const text = range.getBoundingClientRect();
+          return {label: button.textContent.trim(),
+                  above: text.top - box.top, below: box.bottom - text.bottom};
+        })"""
+    )
+    assert text_insets
+    for inset in text_insets:
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")

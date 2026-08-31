@@ -1301,6 +1301,18 @@ covering media query of the default width and never of the reader's, or a drag
 changes the page's posture under the hand making it. Both trays share one width,
 which belongs to the side rather than to either tray.
 
+A workspace covering the page is drawn over it and never shown modally: the `<dialog>`
+it is built on is only ever `show()`n. Modality makes the rest of the document inert,
+and covering is the posture in which the page most needs to stay live — the banner
+toggle that opened the workspace is how it closes, the toggle beside it is the other
+workspace this one replaces, and the strip of page still showing beside a covering
+sheet is still page a hint can name. What modality would have carried is already owned
+elsewhere: the covering sheet's scroll lock is the stylesheet's, and Escape is the
+ladder's. The surfaces that really are modes of the page — the keyboard reference and
+the page map sheet — keep `showModal()` and the backdrop that comes with it. Opening a
+`<dialog>` runs the browser's focusing steps at either spelling, so a caller that means
+to leave the reader where they were has to put the focus back.
+
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every
@@ -1599,17 +1611,20 @@ The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
 `g`. A panel mnemonic exchanges that window for its destination, so `g T` leaves
 the Threads panel as one Escape rung. A document-list mnemonic narrows the
-window instead: the key line's pressed prefix advances from `g` to `g › h`, the
-page chips narrow from complete suffixes such as `h › 1` to that list's digits,
-and Escape returns to the destination menu before another Escape closes it.
+window instead. Each hint keeps its complete route, such as `g h 1`; `g`
+starts blue, then `h` turns blue in place when it is pressed. Escape returns to
+the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
-`versionsOffered` (there is a menu) answers for the key, the mode binding its
-Escape, and the button; `versionsToWalk` (there is somewhere to step) answers for
-the menu's own scope. One predicate for both left `v` opening a menu on a page
-whose Escape no scope was live to bind. A section merges the rows of every scope
-sharing its title, so a contributor the page hasn't got must bring none — `merge`
-drops it — or the two capabilities cannot differ in liveness under one heading.
+`versionsOffered` (there is a menu) answers for the key, the mode standing over
+the page, and the button; `versionsToWalk` (there is somewhere to step) answers
+for the menu's own scope. One predicate for both left `v` opening a menu on a
+page whose way out no scope was live over. Where the platform owns the dismissal
+the mode's own rows still have to be live over the same page, since a mode with
+no live row is a claim the surfaces never hear. A section merges the rows of
+every scope sharing its title, so a contributor the page hasn't got must bring
+none — `merge` drops it — or the two capabilities cannot differ in liveness under
+one heading.
 
 A press may deliberately leave layers standing while moving focus outside them. That is
 not an Escape rung, because it gives no layer back. The address chord states what remains
@@ -1628,7 +1643,9 @@ The short, viewport-local hints form a prefix-free tree over one alphabet. Most 
 cost one letter; only the tail branches when the viewport holds more targets than the
 alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise across a
 scroll or revision. They are the whole route, so none may be dropped because its chip
-collides.
+collides. A target whose visible box is strictly smaller and fully enclosed by another
+target steps its chip right once per enclosing box. Equal boxes stay at the same depth;
+the collision pass separates their chips without inventing a hierarchy.
 
 Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses the
 last one announced. A viewport change that removes or renames that target clears the
@@ -1757,7 +1774,9 @@ A row has these meanings:
 - `keys` is a binding or computed list of bindings.
 - `does` is the sentence for the press, or a function when the current state
   changes the sentence.
-- `when` says whether the capability exists.
+- `when` says whether the capability exists. When a destination surface is available
+  independently of its members, its row stays live and opens the surface even when the
+  collection is empty. Member-dependent rows use the collection as their capability.
 - `at`, expressed by the current `readerIn` predicate, says whether this press
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
@@ -1838,7 +1857,13 @@ placeholder `address`, which is what a screen reader hears.
 A true mode may own the keyboard. An armed address chord and the open reference
 claim the relevant keys through their scope. A longer-lived menu keeps the
 reference available through `allButTheReference`. Closing an overlay restores
-focus to `helpFrom` so the reader returns to the control that opened it.
+focus to `helpFrom` so the reader returns to the control that opened it. A modal
+dialog clears the top layer's auto popovers on its way in, so the reference notes
+the ones it was opened over and stands them back up before that restore — the
+overlay that says what a menu's keys are cannot be what takes the menu away. It
+stands each one back up from that layer's own invoker — `lfInvoker`, the link a
+layer declares because the platform's own runs one way only — so the layer's way
+out survives the round trip too.
 
 Escape is an ordinary binding in the register for Leaf-owned modes. The innermost scope that binds it
 owns one unwind step. A control-specific Escape, panel dismissal, decision release,
@@ -1851,6 +1876,15 @@ layer, the page rung stands down and browser Escape closes it; Leaf updates from
 resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
 distinct inner step, such as leaving a text box before closing its dialog or collapsing
 the keyboard reference's expanded shelf.
+
+A popover hands focus back to whatever had it when the popover showed — not to its
+invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
+relationship and nothing about focus. So a key that opens a layer runs the press from
+the control itself rather than opening it from the page, and every door leaves the same
+way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
+rather than to focus landing on the body: a light dismissal restores nothing on purpose,
+and a reader who pressed away into the page is not asking to be moved to the control
+they pressed away from.
 
 `offer` creates the native element named by the caller; ordinary buttons and links need
 no Leaf activation binding. A `selectableOffer` registers its widget-specific keys.
@@ -2040,11 +2074,13 @@ reader's innermost scope and drops bindings shadowed there. The ordinary shortli
 the first live row, then a promotable Escape or the next row; rows declaring
 `linePriority: persistent` remain beside that context. An active chord instead shows
 every live row in its scope, so computed bindings, ranges, and capability filtering are
-the same ones dispatch and the reference use. Its pressed prefix appears once in the
-accent face; the available rows keep the ordinary key face. `lineWhen` may hide only an
-ordinary hint without changing the command's liveness or its place in the reference.
-Hint chips are `aria-hidden` because placeholders and live announcements carry the same
-facts for assistive technology.
+the same ones dispatch and the reference use. Each destination row keeps its complete
+chord: already pressed keys take the accent face and pending keys keep the ordinary face.
+Changing progress changes only those faces, not the sequence's keys or geometry. A mode's
+Escape or back row remains a separate control rather than appearing as a destination
+chord. `lineWhen` may hide only an ordinary hint without changing the command's liveness
+or its place in the reference. Hint chips are `aria-hidden` because placeholders and live
+announcements carry the same facts for assistive technology.
 
 The compact line wraps when persistent or chord rows need the room. Ordinary hints may
 yield from the end to stay within two rows, but persistent rows and active chord rows do
@@ -2191,8 +2227,8 @@ region.
 `g` opens one destination mode. `T`, `A`, `L`, and `M` complete a direct trip to
 Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
-available, or opens the complete sheet where the compact layout has no rail. `m`, `h`,
-and `f` name the page's numbered
+available, or opens the complete sheet where the compact layout has no rail or the map
+has no locations. `m`, `h`, and `f` name the page's numbered
 page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
@@ -2213,28 +2249,27 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it. Completing an address runs that list's destination: a hyperlink
-follows, a fold opens and takes focus, and a page-map item opens its marker or focuses
-its first available action.
+the rows inside it. Completing an address runs that list's destination: a
+same-document hyperlink follows and leaves focus on its fragment target, an external
+hyperlink names the tab it opens, a fold opens and takes focus, and a page-map item opens
+its marker or focuses its first available action.
 
-Arming the mode shows the available list and direct-destination mnemonics in the key line.
-Each visible numbered member also shows the complete suffix still needed to reach it, such
-as `h › 1`. A direct mnemonic completes the travel and moves focus inside its destination.
-A numbered-list mnemonic narrows the inline hints to that list's first nine digits and
-reveals the same range in the key line. The following digit selects immediately. Escape
-backs out to the list menu before it closes the mode.
+Arming the mode shows the available direct destinations and numbered lists in the key
+line. Each row shows its complete chord. Each visible numbered member also shows its
+complete address, such as `g h 1`. A direct mnemonic completes the travel and moves
+focus inside its destination. A numbered-list mnemonic narrows the inline hints to that
+list's first nine members without changing their labels or geometry. The following digit
+selects immediately. Escape backs out to the list menu before it closes the mode.
 
 Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
-remains one decision point and is spoken as “g or G”; a muted `›` means “then” visually,
-and the sequence's accessible label spells that word out. In a live chord, pressed keys
-take the accent ground once at the start of the line. Available keys in the line and every
-unpressed key in an inline suffix remain neutral, matching ordinary bindings. The complete
-reference shows every route with all steps neutral because it describes rather than enacts
-them.
+remains one decision point and is spoken as “g or G”; a sequence's accessible label says
+“then” between adjacent keycaps. In a live chord, pressed keys take the accent ground and
+pending keys remain neutral, matching ordinary bindings. The complete reference shows
+every route with all steps neutral because it describes rather than enacts them.
 
 `chordKeys` is the structured reading of how far a numbered address has come. The key
-line draws that prefix once, the reference combines the standing-page prefix with each
-row's `completeChordSteps`, and page chips show the complete suffix still to press.
+line and page chips apply that progress to each complete route. The reference combines
+the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
 
 Numbered addresses are stable within the document and capped at nine per list. The
 first nine members do not change identity as the reader scrolls. Chips are painted

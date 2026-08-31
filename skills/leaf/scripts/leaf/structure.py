@@ -4,7 +4,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
-from .files import file_stamp, revision_path, version_path
+from .files import file_stamp, revision_path
 from .schema import MEDIA_DIR
 
 # ---------- check: deterministic pre-handover lint ----------
@@ -524,48 +524,19 @@ def parse_structure(markup: str) -> _StructParser:
     return parser
 
 
-_versions = {}  # version file -> (its stamp, the structural reading of it)
+_revisions = {}  # revision file -> (its stamp, the structural reading of it)
 
 
 def parse_revision(page_dir: Path, revision: int) -> _StructParser:
     """One cached structural reading of an immutable working revision."""
     path = revision_path(page_dir, revision)
     stamp = file_stamp(path)
-    if stamp and (held := _versions.get(path)) and held[0] == stamp:
+    if stamp and (held := _revisions.get(path)) and held[0] == stamp:
         return held[1]
     parser = parse_structure(path.read_text(encoding="utf-8"))
     if stamp:
-        _versions[path] = (stamp, parser)
+        _revisions[path] = (stamp, parser)
     return parser
-
-
-def parse_version(page_dir: Path, version: int) -> _StructParser:
-    """One structural reading per immutable revision file.
-
-    activation writes a revision and nothing writes it again, while the
-    readings that cost most are the ones a reader waits through: the action door
-    checks a press against the version it was made on, and every poll reads each
-    live neighbour's newest version for the one string the tray shows of it. That
-    last one made a title cost a parse of the whole page, once a second, per
-    neighbour — seven neighbours put more time between a press and its paint than
-    everything else the server did for it put together."""
-    path = version_path(page_dir, version)
-    stamp = file_stamp(path)
-    if stamp and (held := _versions.get(path)) and held[0] == stamp:
-        return held[1]
-    parser = parse_structure(path.read_text(encoding="utf-8"))
-    if stamp:
-        _versions[path] = (stamp, parser)
-    return parser
-
-
-def version_review_mode(page_dir: Path, version: int):
-    """The review decision declared by an immutable revision, or None for threads only."""
-    parser = parse_version(page_dir, version)
-    return next(
-        (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
-        None,
-    )
 
 
 def revision_review_mode(page_dir: Path, revision: int):

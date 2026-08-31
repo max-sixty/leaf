@@ -5,7 +5,13 @@ import {
   commandRoutes,
   word,
 } from "./bindings.js";
-import { keySequence, neutralStates, pressedStates, rowSteps } from "./presentation.js";
+import {
+  completeRowSteps,
+  keySequence,
+  neutralStates,
+  progressStates,
+  rowSteps,
+} from "./presentation.js";
 
 export function createKeyline({
   announce,
@@ -166,8 +172,10 @@ export function createKeyline({
             ...referenceRows,
             ...projectedRows.filter((row) => row.linePriority === "persistent"),
           ];
-    // Read where it is painted, like every other cell. A chord says its completed prefix
-    // once; every row then keeps the ordinary face used for an available binding.
+    // Read where it is painted, like every other cell. Every destination keeps its complete
+    // chord while the reader advances through it: completed keys change face, but no key is
+    // added, removed, or moved. A chord control such as Escape is a way out of the mode, not
+    // another destination, so it keeps its ordinary one-step face.
     const chordScope = complete?.scope;
     const chord = word(chordScope?.chord) ?? [];
     // Everything but More, which the reader may be standing on. `textContent = ""` takes
@@ -187,6 +195,7 @@ export function createKeyline({
         const active = bindings(row);
         const commands = commandPresentations(row, active).map(({ id }) => id);
         span.dataset.lfCommands = commands.join(" ");
+        if (row.chordControl) span.classList.add("lf-chord-control");
       }
       span.append(keySequence(steps, states));
       if (said) span.append(el("span", "", said));
@@ -194,13 +203,13 @@ export function createKeyline({
       else keylineEl.insertBefore(span, seated ? keylineMore : null);
       return span;
     };
-    if (chord.length) {
-      const prefix = chip(chord, "", pressedStates(chord));
-      prefix.classList.add("lf-chord-prefix");
-    }
     const drawn = ordered.map((row) => {
-      const steps = rowSteps(row);
-      const span = chip(steps, word(row.line), neutralStates(steps), false, row);
+      const inChord = chord.length && !row.chordControl;
+      const steps = inChord ? [chord[0], ...completeRowSteps(row)] : rowSteps(row);
+      const states = inChord
+        ? progressStates(steps, chord.length)
+        : neutralStates(steps);
+      const span = chip(steps, word(row.line), states, false, row);
       span.hidden = row === referenceRow || (!shelf && !shown.has(row));
       return { row, span };
     });

@@ -9,5 +9,4 @@ export function createDisclosure({ disclosed, inChrome }) {
     if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
     return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
   };
-  return publishedDisclosure;
 }

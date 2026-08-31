@@ -36,5 +36,4 @@ export function createArrangements({
     },
     { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
   ];
-  return publishedArrangements;
 }

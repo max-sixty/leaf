@@ -130,15 +130,14 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g M` enters the Page map at its roving marker, or its complete compact sheet.
+ * `g M` enters the Page map at its roving marker, or opens its sheet when empty or compact.
  * `g m 3` goes to the third page-map item in the right margin.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
- * Arming shows the destination and list mnemonics in the key line. Its one blue prefix
- * names the keys already pressed; the neutral entries use the ordinary binding face.
- * Visible members show the complete remaining suffix (`h › 3`) in that same neutral face.
- * A list letter narrows those inline hints to the digit still needed and reveals the range
- * in the line. Any other key disarms the window and keeps its
+ * Arming shows every complete route in the key line. Pressed keys use the blue face and
+ * pending keys use the ordinary face. Visible members show the same complete route in
+ * adjacent fixed keycaps. A list letter narrows those inline hints without moving the
+ * remaining routes. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other, and the rung is whichever scope in reach binds it
  * first, so backing out is one layer per press and the promise cannot drift from the
@@ -246,16 +245,10 @@ import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
-import {
-  actionAvailable,
-  actionStands,
-  createOutbox,
-  outbox,
-  sendAction,
-} from "./runtime/outbox.js";
+import { createOutbox, outbox, sendAction } from "./runtime/outbox.js";
 import { createRequests } from "./runtime/requests.js";
 import { createDataProjection } from "./runtime/projection/data.js";
-import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
+import { createProjection } from "./runtime/projection.js";
 import { createAnchors, itemWord } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
 import { createBannerShelf } from "./runtime/banner-shelf.js";
@@ -269,13 +262,7 @@ import {
   standingConversation,
 } from "./runtime/conversation/landing.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
-import {
-  shownBand,
-  shownBox,
-  shownParts,
-  shownRect,
-  startsAt,
-} from "./runtime/geometry.js";
+import { shownBox, shownParts, shownRect, startsAt } from "./runtime/geometry.js";
 import {
   createPassages,
   inChrome,
@@ -283,7 +270,6 @@ import {
   renderRetired,
   says,
   textNodesUnder,
-  uiInside,
   wrote,
 } from "./runtime/passages.js";
 import { createViewContinuity } from "./runtime/view-continuity.js";
@@ -317,7 +303,6 @@ import {
   reserve,
   WORKS,
   WORKS_WITHOUT_TAB_STOP,
-  worksInside,
 } from "./runtime/widget-elements.js";
 import {
   MARKED_ANYWHERE,
@@ -777,10 +762,10 @@ const {
   VERSIONS,
   activationIsForced,
   clearForcedActivation,
+  closeVersionMenu,
   goActive,
   renderVersions,
   snapshotVersionNavigation,
-  showVersionMenu,
   versionBtn,
   versionLabel,
   versionMenu,
@@ -1159,7 +1144,6 @@ chromeLayout = createChromeLayout({
   panelChanged: (open) => {
     if (open) livingMargin?.closePreview();
   },
-  panelFocusTarget: threadsBox,
   panelFoot,
   panelList: threadsBox,
   placeComposer: (...args) => placeComposer(...args),
@@ -1231,6 +1215,7 @@ const {
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
+  closeVersionMenu,
   collapseKeyline: () => keyline?.less(),
   designIsOn: () => designOn,
   designTarget,
@@ -1264,7 +1249,6 @@ const {
   selectionAnchor,
   setReact: (on) => setReact(on),
   showThread,
-  showVersionMenu,
   snapSelection,
   shownParts,
   shownRect: (...args) => shownRect(...args),
@@ -1340,9 +1324,6 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   wireInput,
 });
 
-function pendingComposer() {
-  return selectionComposerRuntime.pendingComposer();
-}
 function openComposer(
   anchor,
   text,
@@ -1354,9 +1335,6 @@ function openComposer(
   return selectionComposerRuntime.openComposer(anchor, text, left, top, suggest, about);
 }
 const hideComposer = () => selectionComposerRuntime.hideComposer();
-function closeComposer() {
-  return selectionComposerRuntime.closeComposer();
-}
 
 // What the general box is for, said once: its own placeholder wears it, and so does the
 // panel row whose key opens it. Two strings would be two chances to rename the mode in
@@ -1925,8 +1903,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   enterPageMap: () => livingMargin?.enterPageMap(),
   focused,
   focusedThread,
+  fragmentId,
   glideTo,
   inPanel,
+  itemSays,
   keylineEl,
   leavesOffered,
   letGo,
@@ -1935,10 +1915,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   othersPanel,
   pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
-  pageMapOffered: () => livingMargin?.pageMapOffered() ?? false,
   paintHere,
   panelCovers,
   placeThreadEdge,
+  resolveAnchor,
   saying,
   seenScroller,
   setPanel,
@@ -1974,6 +1954,7 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     selectionLayer,
     selectionSearch,
     selectionStatus,
+    shownParts,
     shownRect: (...args) => shownRect(...args),
     updateFab,
   });
@@ -2517,7 +2498,16 @@ const CHOOSER = {
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
-  run: () => versionBtn.click(),
+  // The control's own press, so the key and the pointer are one gesture: the menu is a
+  // popover the button declares, and the browser's invoker is what makes a second press a
+  // close. The focus first is what makes the handback the same on both doors — a popover
+  // restores focus to whatever had it when it showed, which the pointer leaves as the
+  // button of its own accord and this key would otherwise leave as the body, putting a
+  // reader who pressed `v` and then Escape on the page rather than back on the chooser.
+  run: () => {
+    versionBtn.focus();
+    versionBtn.click();
+  },
 };
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
@@ -2891,7 +2881,6 @@ const {
   sameLayer,
   showToast,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  stateSpecs: (...args) => stateSpecs(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
   versionLabel,
@@ -3022,12 +3011,6 @@ function narrowed(...args) {
 function awaitsReader(...args) {
   return conversationRuntime.awaitsReader(...args);
 }
-function awaitsAgent(...args) {
-  return conversationRuntime.awaitsAgent(...args);
-}
-function seatRoot(...args) {
-  return conversationRuntime.seatRoot(...args);
-}
 function setChildren(...args) {
   return conversationRuntime.setChildren(...args);
 }
@@ -3073,9 +3056,6 @@ function itemAt(...args) {
 }
 function itemSays(...args) {
   return anchorRuntime.itemSays(...args);
-}
-function visualPartAt(...args) {
-  return anchorRuntime.visualPartAt(...args);
 }
 function visualPartLabel(...args) {
   return anchorRuntime.visualPartLabel(...args);
@@ -3209,7 +3189,6 @@ const runtimeProjection = createProjection(runtime, {
   standOn,
   textNodesUnder,
   toast,
-  widgetEntries,
 });
 const {
   authoredDetails,
@@ -3238,7 +3217,6 @@ const {
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
-  stateSpecs,
   undoable,
   unitOf,
   withdraw,
@@ -3606,7 +3584,7 @@ const { landArrival, savedView } = viewRuntime.installArrival({
   scrollToElement,
   tabStore,
 });
-const savedComposer = pendingComposer();
+const savedComposer = selectionComposerRuntime.pendingComposer();
 
 // ---------- start ----------
 // One positive fact for the one presentation boundary. Success has applied the log;
@@ -3634,7 +3612,7 @@ function presentPage() {
 // never top-level await: boot first publishes every factory-built owner capability, then
 // imports the behavior modules that consume the public facade.
 async function startPage() {
-  await Promise.all([
+  const [upgraded] = await Promise.all([
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
@@ -3643,6 +3621,7 @@ async function startPage() {
     // and a mark that arrived after it would leave the copy's tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
+  if (!upgraded) return;
   syncLayout();
   // Before the first poll's replay: the authored facets are the markup's
   // initial condition, and replay is about to overwrite them in the DOM.

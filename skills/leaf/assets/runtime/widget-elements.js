@@ -83,7 +83,6 @@ export function createMeasurements({ shownBox }) {
   }
 
   publishedMeasure = measure;
-  return { measure };
 }
 
 // Mention, not use: a widget inside one the registry marks x-exhibit is quoted

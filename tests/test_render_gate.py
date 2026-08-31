@@ -35,6 +35,7 @@ from render_support import (
     LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
+    PANEL_PAGE,
     REPLY_HOST_PAGE,
     RESIZE_LOOP_EVENT,
     ROOM_EVERY_FRAME,
@@ -288,13 +289,31 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
             "if (held.length) console.error('returned holding ' + held.join());"
         )
 
-    url = serve(LONG_PAGE)
+    url = serve(
+        CHANGE_SHAPES_PAGE,
+        events=[
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sug-rewrite",
+                "action": "accept",
+                "detail": {},
+            }
+        ],
+    )
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
-    render_checks_model.wait_for_probe(declared, "upgraded")
+    render_checks_model.wait_for_probe(declared, "presented")
     arrangements = reader_arrangements(declared)
+    suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
+    option_transition = declared.locator("#wait-day").evaluate(
+        "element => getComputedStyle(element).transitionProperty"
+    )
     declared.close()
     assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+    assert suggestion_state == "accept"
+    assert option_transition == "box-shadow, transform"
 
     arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [
@@ -310,6 +329,69 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
     for finding, arrangement in zip(arrived, arrangements):
         held = set(finding.split("returned holding ")[1].split(","))
         assert held & arranged == {arrangement["key"]}, finding
+
+
+def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
+    url = serve(
+        leaf_page(
+            "arrival transition",
+            '<h1 id="title">Arrival transition</h1>'
+            '<p id="arrival" style="transition: color 60s linear !important">'
+            "At rest.</p>",
+            head="<style>#arrival.lf-arrived { color: rgb(72, 48, 24); }</style>",
+        )
+    )
+
+    def start_transition(page):
+        page.add_init_script(
+            """addEventListener("DOMContentLoaded", () => {
+              const target = document.querySelector("#arrival");
+              getComputedStyle(target).color;
+              requestAnimationFrame(() => target.classList.add("lf-arrived"));
+            }, { once: true });"""
+        )
+
+    arrival = arrival_findings(primed(browser, start_transition), url)
+    assert (
+        "[first visit] color transitioned on p#arrival before presentation" in arrival
+    )
+
+
+def test_shadow_stage_withholds_package_transitions_until_presentation(browser, serve):
+    """The shared shadow stage suppresses a package transition during arrival."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(serve(PANEL_PAGE), wait_until="load")
+        render_checks_model.wait_for_probe(page, "upgraded")
+        assert held, "the state read completed before the shadow guard was observed"
+        assert page.locator("body").get_attribute("data-lf-presented") is None
+        assert (
+            page.evaluate(
+                """() => {
+                  const root = document.querySelector("#how-patch").shadowRoot;
+                  const style = document.createElement("style");
+                  style.textContent = "details { transition: color 60s linear; }";
+                  root.append(style);
+                  return getComputedStyle(root.querySelector("details")).transitionProperty;
+                }"""
+            )
+            == "none"
+        )
+
+        held.pop().continue_()
+        page.unroute("**/api/state*")
+        render_checks_model.wait_for_probe(page, "presented")
+        assert (
+            page.evaluate(
+                """() => getComputedStyle(document.querySelector("#how-patch")
+                  .shadowRoot.querySelector("details")).transitionProperty"""
+            )
+            == "color"
+        )
+    finally:
+        page.close()
 
 
 def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
@@ -1792,21 +1874,23 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         if f.startswith("[light] code marked cm is the ink of the code around it")
     ], unanswered
 
+    # The ratio the gate prints is a reading of the theme's own surfaces, so pinning
+    # its digits here makes every palette change a failure of this test rather than of
+    # the page. What the assertions ask instead is which role came back unread, which
+    # is the whole of what each case is arranged to distinguish: the gate names a role
+    # in this sentence only where it read under 4.5:1, so the finding is the claim.
     faint = render_gate_model.render_version(browser, serve(FAINT_CODE_PAGE))
-    assert [
-        f for f in faint if f.startswith("[light] code marked cm reads at 3.3:1")
-    ], faint
+    assert [f for f in faint if f.startswith("[light] code marked cm reads at ")], faint
     assert not [f for f in faint if "code marked st" in f], (
         "only the role the style touched is unread, so the rest name the reading "
         "rather than the rule"
     )
 
     tinted = render_gate_model.render_version(browser, serve(TINTED_LINE_PAGE))
-    assert [
-        f for f in tinted if f.startswith("[light] code marked st reads at 1.6:1")
-    ], (
+    assert [f for f in tinted if f.startswith("[light] code marked st reads at ")], (
         "the reading is of the surface each span is actually set on, not of one "
-        f"block colour taken once per role — {tinted}"
+        "block colour taken once per role — that role clears the threshold on the "
+        f"block, so a gate stopping at its clean line says nothing at all: {tinted}"
     )
 
     page, errors = open_page(browser, serve(SHADOW_CODE_PAGE))
@@ -2034,10 +2118,11 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     moved. It had never been pointed at a decision made in the panel.
 
     A widget an agent sent in a reply is folded by a projection of its own
-    (`thread_state`) and replayed into a tree the panel built, and the probe reads
-    `standingState`, which returns early when nothing is standing. No page the gate was
-    ever run over held an action at all, so it was reporting clean on an empty list.
-    The population is therefore asserted before the gate is asked anything.
+    (`frozen_thread_reading`) and replayed into a tree the panel built, and the
+    probe reads `standingState`, which returns early when nothing is standing. No
+    page the gate was ever run over held an action at all, so it was reporting
+    clean on an empty list. The population is therefore asserted before the gate
+    is asked anything.
 
     Both of the group's verbs stand here, and only one of them can be held to much.
     `choose` declares a record, so replaying it writes a state `shallowSigs` reads and
@@ -2085,6 +2170,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "widget": "an-set",
             "action": "choose",
             "detail": {"options": ["an-chase", "an-say"]},
+            "generated": [],
         },
     )
     # The Done press. Recordless, and the last word on the group.

@@ -32,7 +32,6 @@ export { agentName, revisionLabel } from "./context.js";
 export { watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
-  closestDeclaring,
   declarationFor,
   elementsDeclaring,
   layerFact,

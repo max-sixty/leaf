@@ -1,6 +1,13 @@
 """Widget state, record, and retirement contract validation."""
 
-from .contract import RegistryError, declares_string, state_specs
+from leaf.schema import ELEMENT_ID
+
+from .contract import (
+    CREATED_CHILDREN_DETAIL_SCHEMA,
+    RegistryError,
+    declares_string,
+    state_specs,
+)
 
 
 def _validate_widget_state_relations(
@@ -39,6 +46,54 @@ def _validate_widget_state_relations(
     # rollup. Runtime evaluators then neither guess a widget family nor maintain a
     # second representation of whether descendant reader work remains open.
     for verb, spec in entry.get("x-state", {}).items():
+        creates = spec.get("creates")
+        if creates:
+            field = creates["field"]
+            detail = spec["detail"]
+            fields = detail.get("properties", {})
+            if fields.get(field) != CREATED_CHILDREN_DETAIL_SCHEMA:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates through "
+                    f"detail field `{field}`, which must be the canonical non-empty "
+                    "element-id to non-empty string map"
+                )
+            if field in detail.get("required", []):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates detail field "
+                    f"`{field}` must be optional"
+                )
+            child_tag = creates["child"]
+            child = widgets.get(child_tag)
+            if child is None:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates unknown child "
+                    f"<{child_tag}>"
+                )
+            if tag not in child.get("x-parent", []):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
+                    "whose x-parent does not admit the sender"
+                )
+            if child.get("x-content") != "prose":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
+                    "which must declare x-content prose"
+                )
+            if set(child.get("required", [])) != {"id"}:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
+                    "which must require id and no other authored attributes"
+                )
+            expected_id = {
+                "type": "string",
+                "pattern": f"^{ELEMENT_ID}$",
+            }
+            if child.get("properties", {}).get("id") != expected_id:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
+                    "whose required id must use the canonical element-id schema"
+                )
+
         requirement = spec.get("requires")
         if not requirement:
             continue

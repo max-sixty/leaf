@@ -174,5 +174,4 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
   }
 
   publishedProjectData = projectData;
-  return { projectData };
 }

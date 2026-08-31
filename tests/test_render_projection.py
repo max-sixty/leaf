@@ -65,6 +65,7 @@ from render_support import (
     compare_with,
     composer_quote,
     drifting_widget,
+    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -673,17 +674,26 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     The chrome wears the same band, because a reader who has backed out of the panel is
     standing on a button and that is the same fact about them. It wore the browser's own
     ring there, in the browser's blue, a few inches from a decision ringed in the page's
-    accent, with nothing saying the two rectangles meant one thing."""
+    accent, with nothing saying the two rectangles meant one thing.
+
+    A joined options control is the one shape that draws the band somewhere else: it is
+    already a framed box, so a ring around the decision outside it would read as a second
+    border that comes and goes, and the exact row the keyboard is on carries it instead.
+    Which row, in the same band — one ring still meaning one thing."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("a")
     expect(question).to_have_attribute("data-lf-decision", "1")
-    decision_ring = question.evaluate(RING)
-    assert decision_ring == [
+    assert question.evaluate(RING)[0] == "none", (
+        "the decision drew its own ring around a control that is already a frame: "
+        f"{question.evaluate(RING)}"
+    )
+    row_ring = page.locator("#lq-keep").evaluate(RING)
+    assert row_ring == [
         "solid",
         "2px",
         token_colour(page, "--accent"),
-    ], f"the decision is not ringed in the page's own band: {decision_ring}"
+    ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin and the focus lands on
     # it, so this arrival paints two marks for one fact — the ring on the change, the
@@ -694,6 +704,13 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("a")
     accept = page.locator(".lf-sug-accept")
     expect(accept).to_be_focused()
+    # A decision that is not a joined control wears the ring itself, and it is the band
+    # the row above wore: the two shapes say one thing about the reader.
+    decision_ring = page.locator("#sug-refill").evaluate(RING)
+    assert decision_ring == row_ring, (
+        "a decision and an options row are drawn in two different bands for the one "
+        f"fact: {decision_ring} against {row_ring}"
+    )
     assert accept.evaluate(RING) == decision_ring, (
         "the control in the margin is drawn in some other band than the decision it decides: "
         f"{accept.evaluate(RING)} against {decision_ring}"
@@ -705,13 +722,11 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question textarea").click()
+    page.locator("#live-question .lf-another input").click()
     expect(question).to_have_attribute("data-lf-decision", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
-    # the reader is working, and an answered one is no longer a question. Answering is
-    # what does this — leaving the reader's list does not, so a widget waiting on the
-    # agent in its own seat keeps the ring while the count drops.
+    # the reader is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
     expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
     expect(page.locator("[data-lf-decision]")).to_have_count(0)
@@ -2578,11 +2593,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
 
 def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve):
     """A decided suggestion's losing slot is off the page, and a label inside it goes
-    too. The label is the one thing that reads back over chrome — a pick mark says
-    "chosen" and declares those words the page's, which is what lets a user point at
-    it anywhere else — so the rule has to stop at the slot: a marker that outranks a look
-    must not outrank a decision, or a quote lands in the half the user removed."""
-    url = serve(RETIRED_WIDGET_PAGE, anchored=[("sug-swap", "chosen")])
+    too. The label is the one thing that reads back over chrome — a settled group's
+    summary says "Settled: …" and declares those words the page's, which is what lets a
+    user point at it anywhere else — so the rule has to stop at the slot: a marker that
+    outranks a look must not outrank a decision, or a quote lands in the half the user
+    removed."""
+    url = serve(RETIRED_WIDGET_PAGE, anchored=[("sug-swap", "Settled: Lax cookie")])
     events_model.append_event(
         serve.page_dir,
         {
@@ -2597,8 +2613,11 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
     page, errors = open_page(browser, url)
     expect(page.locator("#sug-swap lf-old")).to_be_hidden()
     assert (
-        page.locator("#old-lax .lf-pick").evaluate("el => el.textContent") == "chosen"
-    ), "fixture is not exercising the case — the mark the slot hides never rendered"
+        page.locator("#old-group .lf-settled [data-lf-said]").evaluate(
+            "el => el.textContent"
+        )
+        == "Settled: Lax cookie"
+    ), "fixture is not exercising the case — the label the slot hides never rendered"
     expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
         re.compile(r"\bdetached\b")
     )
@@ -2885,6 +2904,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "widget": "rp-live",
             "action": "choose",
             "detail": {"options": ["rp-shim"]},
+            "generated": [],
         },
     )
     page, errors = open_page(browser, live_url(url))
@@ -3305,6 +3325,101 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
         """worker => [...worker.children].map(child => child.classList.contains('lf-agent-line')
           ? 'line' : child.id).filter(Boolean)"""
     ) == ["line", "proof"]
+    assert errors == []
+    page.close()
+
+
+def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
+    """The head is a disclosure, so the keys that work it are `DISCLOSE`'s answer and not
+    a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
+    and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
+    Space alone took the arrow off both surfaces while the arrow went on opening the
+    tree — the shape `skills/leaf/CLAUDE.md` names as one promise rather than two.
+
+    Both surfaces of that promise, because a row naming the wrong keys names them wrongly
+    on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —
+    and the row is the only thing here either one can be wrong about: the repaint that
+    turns them over together is the document's disclosure watch, held up by
+    `test_a_widgets_native_control_names_the_press_the_platform_makes`, and not anything
+    this widget does. Read once and never retried, for the reason `key_line` is: the
+    heartbeat repaints scopes too, and an assertion that retries goes green on whichever
+    tick lands inside its budget.
+
+    And both places the head stands, because the row's `run` is what carries it from one
+    to the other. The runtime's disclosure scope stops at the chrome, and this head is a
+    span, so a message's frozen copy has no platform pair underneath it the way a
+    `details > summary` does: the row's own press is the only thing there. Reading
+    `DISCLOSE` for the keys and leaving the press to that scope named ⏎ / space in the
+    panel over a head that answered neither."""
+    command = leaf_page(
+        "worker evidence",
+        """
+<lf-roster id="team">
+  <lf-agent id="worker" state="working"><strong>worker</strong> Owns the remit.
+    <lf-worktree id="proof" source="atlas-worktrees"></lf-worktree>
+  </lf-agent>
+</lf-roster>
+""",
+    )
+    page, errors = open_page(browser, serve(command))
+    head = page.locator("#proof > .lf-worktree-snapshot > .lf-worktree-head")
+    head.focus()
+
+    expect(head).to_have_attribute("aria-expanded", "false")
+    assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    said = key_line(page)
+    assert re.search(r"⏎ / space / →\s*open", said), said
+
+    page.keyboard.press("ArrowRight")
+    expect(head).to_have_attribute("aria-expanded", "true")
+    said = key_line(page)
+    assert re.search(r"⏎ / space / ←\s*close", said), said
+    assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
+
+    # A direction and not a toggle: the press that must change nothing follows one that
+    # changed something, so a scope answering nothing at all could not pass this.
+    page.keyboard.press("ArrowRight")
+    expect(head).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowLeft")
+    expect(head).to_have_attribute("aria-expanded", "false")
+
+    # The same head frozen into thread markup, where the runtime's disclosure scope does
+    # not reach: its `at` refuses anything in the chrome, so whatever the widget's row
+    # does not run there, nothing runs. `DISCLOSE` answers for that too and drops the
+    # arrow, leaving the pair — and the pair is the half a `details > summary` gets from
+    # the platform and a span gets from nowhere. So the row keeps its own `run`, and this
+    # is the surface that says whether it does.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-tree",
+            "author": "claude",
+            "revision": 1,
+            "text": "The worker's evidence, for the record.",
+            "markup": '<lf-roster id="msg-team"><lf-agent id="msg-worker" '
+            'state="working"><strong>worker</strong> Owned the remit.'
+            '<lf-worktree id="msg-proof" source="atlas-worktrees"></lf-worktree>'
+            "</lf-agent></lf-roster>",
+        },
+    )
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    frozen = page.locator("#msg-proof > .lf-worktree-snapshot > .lf-worktree-head")
+    frozen.focus()
+    expect(frozen).to_be_focused()
+    expect(frozen).to_have_attribute("aria-expanded", "false")
+    assert frozen.get_attribute("aria-keyshortcuts") == "Enter Space"
+
+    # The arrow the page has and the panel does not, first: it moves nothing here, so the
+    # press that follows cannot be read as the arrow arriving late.
+    page.keyboard.press("ArrowRight")
+    expect(frozen).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("Enter")
+    expect(frozen).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press(" ")
+    expect(frozen).to_have_attribute("aria-expanded", "false")
     assert errors == []
     page.close()
 

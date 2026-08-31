@@ -634,15 +634,11 @@ export function createLivingMargin(dependencies) {
     return true;
   }
 
-  function pageMapOffered() {
-    return pageMapEntries.length > 0;
-  }
-
   // The Page map has one capability and two responsive surfaces. The margin rail is the
-  // direct reading position where it exists; the compact sheet is the complete map where
-  // the rail has deliberately left the layout.
+  // direct reading position where it has a member; the sheet is the complete map where
+  // the rail has deliberately left the layout or the map is empty.
   function enterPageMap() {
-    if (!focusPageMap() && pageMapOffered()) openSheet();
+    if (!focusPageMap()) openSheet();
   }
 
   function focusMapControl(entry = null) {
@@ -1326,7 +1322,6 @@ export function createLivingMargin(dependencies) {
     marginTargetAt,
     openPageMapItem,
     pageMapItems,
-    pageMapOffered,
     render,
   };
 }

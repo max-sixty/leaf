@@ -58,7 +58,6 @@ export function createConversationLanding({ scrollToThread }) {
     focusConversation({ held, box });
     return true;
   };
-  return publishedLand;
 }
 
 export function createPanelLanding({ reachedForWords, setPanel, threadsBox, widen }) {

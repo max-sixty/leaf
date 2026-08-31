@@ -15,7 +15,6 @@ from .event_log import (
     AttemptConflict,
     AttemptExecution,
     _attempt_payload,
-    append_event,
 )
 from .events import undo_error
 from .files import list_revisions, version_revisions
@@ -317,5 +316,5 @@ class EventEndpoint:
                 if rejection := validation.rejection():
                     return rejection
                 event["author"] = "page" if event["kind"] == "error" else "user"
-                append_event(page, event)
+                page.append_event(event)
         return 200, {"ok": True, "state": state()}

@@ -3822,8 +3822,19 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(opener).click()
                 page.locator(arrival).first.focus()
             else:
+                # Each press read on a rendered frame, the way every Tab below it is. A
+                # key that opens a layer hands the reader their place in it from the
+                # platform's own event rather than from the press — a popover lands focus
+                # on a row from `toggle`, which is queued — so the next key of the
+                # sequence arrives at whatever the press left focus on, and the scope's
+                # own keys, bound inside the layer, never see it. `v ArrowUp ArrowUp` was
+                # reaching the versions menu and standing on the row the open had landed
+                # on, both walk presses spent on the chooser outside it: the comparison
+                # press a Tab beyond the row above was never a stop, and the ring it
+                # wears went unpainted for the whole corpus.
                 for key in keys:
                     page.keyboard.press(key)
+                    page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):

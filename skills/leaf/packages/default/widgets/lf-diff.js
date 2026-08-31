@@ -17,7 +17,7 @@ import { parsePatchFiles, preloadDiffHTML } from "/vendor/pierre-diffs.esm.js";
 const OPTIONS = Object.freeze({
   diffStyle: "unified",
   diffIndicators: "classic",
-  disableLineNumbers: true,
+  disableLineNumbers: false,
   disableFileHeader: true,
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
@@ -133,9 +133,9 @@ function renderedLines(file, rendered) {
   });
 }
 
-function summaryNode(file) {
+function summaryNode(file, open) {
   const details = document.createElement("details");
-  details.open = true;
+  details.open = open;
   const summary = document.createElement("summary");
   const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
@@ -215,18 +215,21 @@ function pathOnlyRenames(source) {
     });
 }
 
-async function renderFile(file, sharedStyles) {
+async function renderFile(file, sharedStyles, open) {
   file.lang = langForPath(file.name) ?? "text";
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({ fileDiff: file, options: OPTIONS });
   const rendered = template.content;
 
-  // The static rendering has no Pierre interaction manager, so its unused icon
-  // sprite and disabled line numbers go. Separator wording is useful chrome, but not
-  // source a comment can quote; the source lines and file path remain in the reading.
+  // The static rendering has no Pierre interaction manager, so its unused icon sprite
+  // goes. Line numbers and separator wording are useful chrome, but not source a comment
+  // can quote; the source lines and file path remain in the reading.
   rendered.querySelector("svg[data-icon-sprite]")?.remove();
-  for (const number of rendered.querySelectorAll("[data-line-number-content]"))
-    number.remove();
+  for (const number of rendered.querySelectorAll("[data-line-number-content]")) {
+    number.classList.add("lf-ui");
+    number.dataset.lfGen = "1";
+    number.setAttribute("aria-hidden", "true");
+  }
   for (const separator of rendered.querySelectorAll("[data-separator]"))
     separator.classList.add("lf-ui");
   for (const style of [...rendered.children].filter(
@@ -244,7 +247,7 @@ async function renderFile(file, sharedStyles) {
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
 
-  const details = summaryNode(file);
+  const details = summaryNode(file, open);
   const lines = renderedLines(file, rendered);
   details.append(rendered);
   return { node: details, lines };
@@ -342,11 +345,12 @@ customElements.define(
             );
         const sharedStyles = new Map();
         const rendered = [];
+        const open = !this.hasAttribute("collapsed");
         for (const file of files)
           rendered.push(
             file.type === "rename-pure"
               ? { node: renameNode(file), lines: [] }
-              : await renderFile(file, sharedStyles),
+              : await renderFile(file, sharedStyles, open),
           );
         if (rendering !== this.rendering || !this.isConnected) return;
         if (bound) for (const { node } of rendered) node.dataset.lfGen = "1";

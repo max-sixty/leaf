@@ -774,15 +774,16 @@ flowchart LR
             </lf-diagram>
           </lf-tab>
           <lf-tab id="pr-call-tab" label="CallDiff">
-            <h3>Three changed roots, not a repository-sized graph</h3>
+            <h3>One unchanged root, replacement calls in context</h3>
             <p>
               This is the exact semantic output of
               <code
-                >calldiff@0.5.0 diff … --file
-                src/commands/picker/preview_orchestrator.rs --locs --max-depth 4</code
-              >. Each changed root folds independently; its summary reports added,
-              removed, and contextual tree items. Expand one root, comment on any row,
-              or follow a location into the authoritative patch.
+                >calldiff@0.5.0 diff … --entry compute_combined_diff --locs --max-depth
+                1</code
+              >. The stable <code>compute_combined_diff</code> root keeps its
+              neighboring calls while direct Git command assembly disappears and
+              <code>PreparedDiff</code> calls appear in the same branch. Comment on any
+              row, or follow a location into the authoritative patch.
             </p>
             <lf-call-diff
               id="pr-call-diagram"
@@ -801,7 +802,7 @@ flowchart LR
             found that separate layouts help orientation but make correspondence harder
             as structures diverge. CallDiff keeps unchanged calls as landmarks and puts
             additions and removals beside them. Leaf adds folding at changed roots so a
-            106-line capture can remain both compact and inspectable.
+            31-line capture can remain both compact and inspectable.
           </p>
         </details>
       </section>
@@ -943,8 +944,8 @@ flowchart LR
         <h2>Exact patch · 46 files</h2>
         <p id="pr-patch-intro">
           This is GitHub’s captured patch for revision <code>9ca8f78b</code>, not a
-          transcription in the page. Use the map above to choose a review unit, then
-          collapse files as they are finished.
+          transcription in the page. All files start closed: use the map above to choose
+          a review unit, then open only the files you need.
         </p>
         <aside class="pr-review-gesture" id="pr-comment-help">
           <p>
@@ -953,7 +954,7 @@ flowchart LR
             the file, side, line, and quote even when the file disclosure is closed.
           </p>
         </aside>
-        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1">
+        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1" collapsed>
           <pre></pre>
         </lf-diff>
         <p id="pr-large-diff-limit">

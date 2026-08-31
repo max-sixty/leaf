@@ -52,7 +52,7 @@ binding so Leaf can give the source its page-lifetime contract:
 ```html
 <lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
 
-<lf-diff id="review-patch" source="pr-patch" snapshot="2"><pre></pre></lf-diff>
+<lf-diff id="review-patch" source="pr-patch" snapshot="2" collapsed><pre></pre></lf-diff>
 ```
 
 Then capture the whole UTF-8 text file or an inclusive line range:
@@ -72,7 +72,8 @@ activates the pinned snapshot. Wrap `lf-source` in ordinary `<details>` or place
 it in an `lf-tabs` panel when the evidence should start collapsed or share a
 compact frame with alternatives. A bound `lf-diff` keeps one empty `<pre></pre>`
 because that is the shared data-body shape; the captured patch, not that element,
-supplies its text.
+supplies its text. Add `collapsed` to a large diff so each file starts closed; a
+comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

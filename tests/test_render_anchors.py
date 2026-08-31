@@ -1285,9 +1285,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     """Pierre renders each file in its own language without changing copyable source.
 
     A unified diff has no one language, so the file path chooses it and an unknown path
-    stays plain. The indicator column is presentation, not source: it must be absent from
-    both syntax input and selection text. Pierre still tokenizes each reconstructed side
-    as a whole, so a Python string spanning changed lines remains a string."""
+    stays plain. Line-number and indicator columns are presentation, not source: both must
+    be absent from syntax input and selection text. Pierre still tokenizes each
+    reconstructed side as a whole, so a Python string spanning changed lines remains a
+    string."""
     page, errors = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -1317,6 +1318,13 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           text: s.textContent.trim(),
           chrome: s.classList.contains('lf-ui'),
         })),
+        numbers: [...d.querySelectorAll('[data-line-number-content]')].map(n => ({
+          text: n.textContent,
+          chrome: n.classList.contains('lf-ui'),
+          generated: n.dataset.lfGen === '1',
+          hidden: n.getAttribute('aria-hidden'),
+          userSelect: getComputedStyle(n).userSelect,
+        })),
       };
     })""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -1337,6 +1345,16 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     separators = [separator for file in files for separator in file["separators"]]
     assert separators, "the fixture exercised no Pierre hunk separator"
     assert all(separator["chrome"] for separator in separators), separators
+    numbers = [number for file in files for number in file["numbers"]]
+    assert numbers, "the rendered diff has no visible line numbers"
+    assert all(
+        number["text"].isdigit()
+        and number["chrome"]
+        and number["generated"]
+        and number["hidden"] == "true"
+        and number["userSelect"] == "none"
+        for number in numbers
+    ), numbers
 
     reading = page.evaluate("""async () => {
       const { says, textNodesUnder, wrote } = await import('/runtime/widget-api.js');
@@ -1362,7 +1380,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         wrotePath: wrote(document).includes('gateway/limits.py'),
         saysStat: says(document).includes(statText),
         wroteStat: wrote(document).includes(statText),
-        hiddenNumbers: segments
+        lineNumberWords: segments
           .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
           .map(({node}) => node.data),
         separatorText: segments
@@ -1387,8 +1405,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
     assert reading["saysPath"] and reading["wrotePath"], reading
     assert reading["saysStat"] and not reading["wroteStat"], reading
-    assert reading["hiddenNumbers"] == [], (
-        f"hidden line numbers entered the page reading: {reading}"
+    assert reading["lineNumberWords"] == [], (
+        f"line number chrome entered the page reading: {reading}"
     )
     assert reading["separatorText"] == [], (
         f"Pierre separator chrome entered the page reading: {reading}"
@@ -1551,6 +1569,25 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         for line in lines
     )
 
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
+    """A large patch can defer every file body without losing native disclosure."""
+    authored = DIFF_PAGE.replace(
+        '<lf-diff id="patch"><pre>', '<lf-diff id="patch" collapsed><pre>'
+    )
+    page, errors = open_page(browser, serve(authored))
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+
+    details = page.locator("lf-diff details")
+    expect(details).to_have_count(3)
+    assert details.evaluate_all("items => items.every(item => !item.open)")
+    details.first.locator("summary").click()
+    expect(details.first).to_have_attribute("open", "")
     assert errors == []
     page.close()
 
@@ -3412,7 +3449,9 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.locator(".lf-composer textarea").fill("Review the whole added line.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    whole_line = page.locator(".lf-thread .lf-quote").first
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()

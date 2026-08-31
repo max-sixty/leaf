@@ -6,8 +6,8 @@
     },
     "pr-call-diff": {
       "text-file": "pr-walkthrough-call-diff.txt",
-      "label": "CallDiff 0.5.0 over preview_orchestrator.rs at 9ca8f78b",
-      "lines": "1:106"
+      "label": "CallDiff 0.5.0 for compute_combined_diff at 9ca8f78b",
+      "lines": "1:31"
     },
     "pr-prepared-diff-source": {
       "text-file": "pr-walkthrough-prepared-diff.rs",

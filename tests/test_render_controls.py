@@ -36,6 +36,8 @@ from render_support import (
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
     SCROLLED,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
     SUGGESTION_PAGE,
     TOKEN,
     UNBREAKABLE_PAGE,
@@ -1344,35 +1346,34 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     page.close()
 
 
-def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
-    browser, serve, tmp_path, monkeypatch
-):
+def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     """The reader's own remark must not lock the control it is a remark about.
 
-    A conversation standing in the group's seat takes the decision off the reader's
-    list — the banner stops counting it — but answers nothing, so the pick that
-    would answer it is still live. This is the browser half of the split, and the
-    half the reader meets first: the POST door only sees a hand-posted event, while
-    here `actionAvailable` paints the control and `sendAction` guards the press, and
-    `lf-options` has already painted the pick by the time either runs. Reading the
-    reader's list at this door therefore does not refuse the press so much as
-    swallow it — the option flips, nothing is logged, no toast fires, and the next
-    poll puts it back with nothing anywhere saying why."""
-    monkeypatch.chdir(tmp_path)
-    overlay = tmp_path / ".leaf"
-    overlay.mkdir()
-    standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
-    options = standard["lf-options"]
-    options["x-state"]["choose"]["requires"] = {"target": "self", "awaiting": True}
-    (overlay / "registry.json").write_text(json.dumps({"lf-options": options}))
+    A conversation standing in the widget's seat takes the decision off the reader's
+    list — the banner stops counting it — but answers nothing, so the press that would
+    answer it is still live. This is the browser half of the split, and the half the
+    reader meets first: the POST door only sees a hand-posted event, while here
+    `actionAvailable` paints the control and `sendAction` guards the press, and the
+    module has already painted the answer by the time either runs. Reading the reader's
+    list at this door therefore does not refuse the press so much as swallow it — the
+    widget flips, nothing is logged, no toast fires, and the next poll puts it back with
+    nothing anywhere saying why.
+
+    The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
+    of the default package, because the pair the split needs — a visible ask and a seat
+    of the widget's own — is a pair of declarations and not a tag. No shipped entry has
+    carried both since 292de9c took `x-conversation` off `lf-options`, and the reading
+    under test never asked which widget it was."""
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision"><h2>Which option?</h2>'
-            '<lf-options id="pick" choose>'
-            '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options></lf-decision>',
-        )
+            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision">'
+            "<h2>Cap the retries?</h2>"
+            '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
+            "</lf-decision>",
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
     )
     events_model.append_event(
         serve.page_dir,
@@ -1388,14 +1389,14 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
     # Off the reader's list, which is the whole reason the two readings differ here.
     expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
 
-    page.get_by_role("checkbox", name=re.compile(r"^choose one: A")).click()
+    page.get_by_role("button", name="Accept").click()
     round_trip(page)
 
-    expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
-    # The log is what holds this, and the attribute above cannot: the module paints
-    # the pick before either guard runs, so with the wrong reading at this door the
-    # option wears `chosen` exactly as it does here and the log stays empty.
-    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
+    expect(page.get_by_role("button", name="Accepted")).to_have_count(1)
+    # The log is what holds this, and the control above cannot: the module paints the
+    # answer before either guard runs, so with the wrong reading at this door the press
+    # reads exactly as it does here and the log stays empty.
+    assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
     assert errors == []
     page.close()
 

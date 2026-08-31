@@ -1192,7 +1192,6 @@ const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection
   });
 
 const {
-  activateAimTarget,
   BANNER_CLEAR,
   activateVisual,
   beside,
@@ -1201,9 +1200,11 @@ const {
   fabTargetAt,
   fabReturnTo,
   openOnItem,
+  openTargetComposer,
   placeClear,
   placeComposer,
   refreshFab,
+  selectResponseTarget,
   showFab,
   standDown,
   updateFab,
@@ -1258,12 +1259,12 @@ const {
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
-  activateAimTarget,
   aimTargetAt,
   designIsOn: () => designOn,
   designPress,
   designTarget,
   inChrome: (node) => inChrome(node),
+  openTargetComposer,
   openOnDesign,
   pointerAt,
   refreshAim,
@@ -1929,7 +1930,6 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
 
 const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
   createTargetSelection({
-    activateAimTarget,
     aimTargets,
     allButTheReference,
     anchoringIsReady: () => anchoringReady,
@@ -1953,6 +1953,7 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     selectionLayer,
     selectionSearch,
     selectionStatus,
+    selectResponseTarget,
     shownParts,
     shownRect: (...args) => shownRect(...args),
     updateFab,

@@ -1,16 +1,16 @@
 import { sameAnchor } from "../anchors.js";
 import { bindings } from "../keyboard/bindings.js";
 
-// Keyboard item aim and whole-page text search. `s` opens a viewport-local map of the
-// same stable items and visual parts Alt-click reaches; `/` opens the page's text search
-// directly or from that map.
+// Keyboard item selection and whole-page text search. `s` opens a viewport-local map of
+// the same stable items and visual parts Alt-click reaches, then raises their general
+// response actions; `/` opens the page's text search directly or from that map.
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const HINT_INDENT = 10;
 const MIN_SEARCH = 3;
 
 export function createTargetSelection({
-  activateAimTarget,
+  selectResponseTarget,
   aimTargets,
   allButTheReference,
   anchoringIsReady,
@@ -273,7 +273,7 @@ export function createTargetSelection({
   function choose(target) {
     setOpen(false);
     document.body.focus({ preventScroll: true });
-    activateAimTarget(target);
+    selectResponseTarget(target);
     announce(`Selected ${target.label}. Choose a response.`);
   }
 

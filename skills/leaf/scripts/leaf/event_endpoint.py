@@ -160,10 +160,11 @@ class _TransactionValidation:
         anchor = self.event.get("anchor") or {}
         # A passage anchor a runtime resolved against the rendered page is already
         # answered: the page holds words no file reading can produce — a widget's
-        # label, a module's own rendering — and the selection that made it wrote the
-        # quote in its own whitespace. Reading it back off the file would refuse both.
-        # A transport that resolves nothing (the MCP surface, which renders the
-        # authored source with no runtime behind it) asks for the capture instead.
+        # label, a module's own rendering — and an earlier runtime may spell the same
+        # words in whitespace this reading collapses away. Reading it back off the
+        # file would refuse both. A transport that resolves nothing (the MCP surface,
+        # which renders the authored source with no runtime behind it) asks for the
+        # capture instead.
         recapture = bool(self.capture_anchors and anchor) and not (
             anchor.get("datum") or anchor.get("visual") or anchor.get("part")
         )

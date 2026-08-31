@@ -7,7 +7,6 @@ from typing import NamedTuple, Protocol
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .decisions import page_decisions, thread_decisions
-from .event_contracts import thread_state
 from .events import bare_reaction, build_threads, is_reaction, seats_with_agent
 from .files import (
     active_descriptor,
@@ -18,8 +17,10 @@ from .files import (
 from .passages import enclosing_of, page_passages
 from .presence import presence
 from .projection import (
+    FrozenThreadReading,
     StateProjection,
     canonical_updates,
+    frozen_thread_reading,
     page_projection,
     record_lag_entries,
     retirement_outcomes,
@@ -31,7 +32,6 @@ from .revisioning import activate_source
 from .schema import DATA_FILE
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .thread_context import thread_structure
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -109,6 +109,7 @@ def _base_state(
     threads: dict,
     stored_data: dict,
     registry: dict,
+    requests: list,
 ) -> dict:
     return {
         "page": str(page_dir),
@@ -132,7 +133,7 @@ def _base_state(
         "elements": [],
         "state": [],
         "updates": [],
-        "requests": request_lifecycles(page_dir, events),
+        "requests": requests,
         "data": {"file": DATA_FILE, "revision": stored_data["revision"]},
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
@@ -235,7 +236,7 @@ def _apply_document_state(
     )
 
 
-def _apply_thread_state(state: dict, events: list, registry: dict) -> None:
+def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the reader
     # answering one is answering the page. The projection above is of the published
@@ -248,7 +249,9 @@ def _apply_thread_state(state: dict, events: list, registry: dict) -> None:
     # of this can take the two halves the same way, and the elements come along so
     # nothing here names a widget the same object never lists. Both lists are then in
     # one order rather than two sorted halves.
-    thread_actions, thread_byid, thread_of = thread_state(events, registry)
+    thread_actions = thread.projection
+    thread_byid = thread.by_id
+    thread_of = thread.thread_by_widget
     state["elements"] += [
         {
             "tag": record["tag"],
@@ -298,6 +301,8 @@ def _write_page_state(
     spoken = document.spoken if document is not None else {}
     threads = build_threads(events, enclosing_of(spoken))
     stored_data = read_data(page_dir)
+    thread_reading = frozen_thread_reading(events, registry)
+    requests = request_lifecycles(page_dir, events, thread_reading.structure)
     state = _base_state(
         page_dir,
         events,
@@ -308,20 +313,15 @@ def _write_page_state(
         threads,
         stored_data,
         registry,
+        requests,
     )
     if document is not None:
         _apply_document_state(
             state, document, events, revision, threads, stored_data, registry
         )
-    structure = thread_structure(events)
-    thread_elements = [
-        record
-        for fragment in structure.fragments.values()
-        for record in fragment.lf_elements
-    ]
     thread_requests = request_lifecycles_for(
         events,
-        thread_elements,
+        thread_reading.elements,
         registry,
         {"kind": "thread"},
     )
@@ -330,6 +330,7 @@ def _write_page_state(
         registry,
         {root for root, thread in threads.items() if thread["resolved"]},
         request_phases=request_phases(thread_requests),
+        reading=thread_reading,
     )
     state["updates"] = canonical_updates(
         document.projection if document is not None else None,
@@ -337,5 +338,5 @@ def _write_page_state(
         threads,
         events,
     )
-    _apply_thread_state(state, events, registry)
+    _apply_thread_state(state, thread_reading)
     print(json.dumps(state, indent=2, ensure_ascii=False))

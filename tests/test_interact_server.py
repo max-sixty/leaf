@@ -3362,6 +3362,12 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "parent": "c-lost",
             "revision": 1,
             "text": "the answer that survived it",
+            "markup": (
+                '<lf-decision id="orphan-decision"><h3>Which repair?</h3>'
+                '<lf-options id="orphan-choice" choose>'
+                '<lf-option id="orphan-retry">Retry it</lf-option>'
+                "</lf-options></lf-decision>"
+            ),
         },
     )
     log = page_dir / "comments.jsonl"
@@ -3381,6 +3387,29 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
+    # The surviving message is still the frozen document that owns its widgets.
+    # Reading only the thread shell would miss this harder half of the torn-root case:
+    # its question has to remain actionable and every element still names the lost
+    # root as its conversation.
+    open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert open_state.exit_code == 0, open_state.output
+    open_reading = json.loads(open_state.output)
+    assert open_reading["decisions"] == [
+        {
+            "id": "orphan-decision",
+            "tag": "lf-decision",
+            "thread": "c-lost",
+        }
+    ]
+    orphan_elements = [
+        element for element in open_reading["elements"] if element["thread"] == "c-lost"
+    ]
+    assert [element["id"] for element in orphan_elements] == [
+        "orphan-decision",
+        "orphan-choice",
+        "orphan-retry",
+    ]
+
     closed = event_model.append_event(
         page_dir,
         {"kind": "resolve", "author": "user", "parent": "c-lost"},
@@ -3390,8 +3419,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     # exact thread lookup recovers every surviving record that explains it.
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
-    [thread] = json.loads(state.output)["threads"]
+    closed_reading = json.loads(state.output)
+    [thread] = closed_reading["threads"]
     assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
+    assert closed_reading["decisions"] == []
+    assert [
+        element["id"]
+        for element in closed_reading["elements"]
+        if element["thread"] == "c-lost"
+    ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
         cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
     )

@@ -10,7 +10,7 @@ from .leases import contract_writer
 from .registry.contract import schema_error
 from .service import PageTransaction
 from .structure import parse_revision
-from .thread_context import thread_structure
+from .thread_context import ThreadStructure, thread_structure
 from .validation.admission import read_text_arg
 from .validation.instances import reference_contract_error
 
@@ -190,9 +190,10 @@ def receipt_contract_error(event: dict, events: list) -> str | None:
     return None
 
 
-def request_lifecycles(page_dir: Path, events: list) -> list[dict]:
+def request_lifecycles(
+    page_dir: Path, events: list, thread: ThreadStructure
+) -> list[dict]:
     """Every occupied request seat, derived with its owning document identity."""
-    thread = thread_structure(events)
     revisions = {}
     seats = []
     seen = set()

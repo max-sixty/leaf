@@ -2116,10 +2116,11 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     moved. It had never been pointed at a decision made in the panel.
 
     A widget an agent sent in a reply is folded by a projection of its own
-    (`thread_state`) and replayed into a tree the panel built, and the probe reads
-    `standingState`, which returns early when nothing is standing. No page the gate was
-    ever run over held an action at all, so it was reporting clean on an empty list.
-    The population is therefore asserted before the gate is asked anything.
+    (`frozen_thread_reading`) and replayed into a tree the panel built, and the
+    probe reads `standingState`, which returns early when nothing is standing. No
+    page the gate was ever run over held an action at all, so it was reporting
+    clean on an empty list. The population is therefore asserted before the gate
+    is asked anything.
 
     Both of the group's verbs stand here, and only one of them can be held to much.
     `choose` declares a record, so replaying it writes a state `shallowSigs` reads and

@@ -11,43 +11,11 @@ from leaf.decisions import (
 )
 from leaf.events import build_threads
 from leaf.files import revision_path
-from leaf.passages import enclosing_ids, spoken
-from leaf.projection import page_projection, state_projection
+from leaf.passages import enclosing_ids
+from leaf.projection import frozen_thread_reading, page_projection
 from leaf.registry.contract import created_children, schema_error, visual_parts
 from leaf.requests import request_lifecycles_for, request_phases
 from leaf.structure import parse_revision
-from leaf.thread_context import thread_roots, thread_structure, thread_widgets
-
-
-def thread_universe(events: list, registry: dict):
-    """Every widget the log's frozen markup holds, read as one document.
-
-    id → record and id → spoken words, which is the panel's answer to a version's
-    `parser.by_id`/`spoken` pair, plus the thread each widget was sent in. A
-    version's element universe is one file; the panel's is every fragment the log
-    carries, and the two are separate documents that happen to share a page."""
-    structure = thread_structure(events)
-    byid, spk = {}, {}
-    for e in events:
-        if markup := e.get("markup"):
-            byid.update(structure.fragments[e["id"]].by_id)
-            spk.update(spoken(markup, registry))
-    return byid, spk, thread_widgets(structure, thread_roots(events))
-
-
-def thread_state(events: list, registry: dict):
-    """What the reader's gestures leave standing on the widgets an agent sent.
-
-    Thread markup is frozen in its event: no version window bounds it and no
-    retraction floor reaches it, so every action on it reads the whole
-    conversation window. Both doors that must answer for such a widget read it
-    here — the action gate, deciding whether a fresh press is allowed, and
-    `page state`, telling a session picking the page up what the reader has
-    already settled — so a decision made in the panel cannot stand at one door
-    and be missing at the other."""
-    byid, spk, thread_of = thread_universe(events, registry)
-    projection = state_projection(events, byid, spk, registry, None, floors={})
-    return projection, byid, thread_of
 
 
 def event_record_error(contract: dict, event: dict, browser: bool = False):
@@ -236,7 +204,9 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     # declaration is looked up in and the projection the requirement is judged
     # against are the same frozen fragments, and parsing them twice was two
     # readings that could only ever agree.
-    thread_projection, thread_by_id, _threads = thread_state(events, registry)
+    thread = frozen_thread_reading(events, registry)
+    thread_projection = thread.projection
+    thread_by_id = thread.by_id
     if error := declared_action_error(event, page.by_id, thread_by_id, registry):
         return error
     page_rec = page.by_id.get(event["widget"])
@@ -286,11 +256,12 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
             request_phases=request_phases(
                 request_lifecycles_for(
                     events,
-                    list(thread_by_id.values()),
+                    thread.elements,
                     registry,
                     {"kind": "thread"},
                 )
             ),
+            reading=thread,
         )
 
     holders = projected_action_holders(projection, byid, registry)

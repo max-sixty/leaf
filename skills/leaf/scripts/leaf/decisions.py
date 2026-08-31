@@ -1,16 +1,16 @@
 """Declaration-driven page and thread decision projections."""
 
-from leaf.passages import page_passages, spoken
+from leaf.passages import page_passages
 from leaf.projection import (
+    FrozenThreadReading,
     StateProjection,
     enclosing_widgets,
     folded_facet,
+    frozen_thread_reading,
     markup_facet,
     retirement_outcomes,
     state_coordinate,
-    state_projection,
 )
-from leaf.thread_context import thread_roots, thread_structure
 
 
 def local_decision_entry(entry: dict) -> bool:
@@ -411,7 +411,7 @@ def thread_decision_projection(
     registry: dict,
     settled: set,
     *,
-    prepared: tuple | None = None,
+    reading: FrozenThreadReading | None = None,
     request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict]:
     """Decisions standing in thread markup, read from the log.
@@ -428,33 +428,22 @@ def thread_decision_projection(
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
-    if prepared is None:
-        structure = thread_structure(events)
-        projection = None
-        records, byid, spk = [], {}, {}
-        thread_of = thread_roots(events)
-    else:
-        projection, byid, spk, thread_of, structure = prepared
-        records = []
+    thread_reading = reading or frozen_thread_reading(events, registry)
+    records = []
     for e in events:
         if e["kind"] not in ("comment", "reply"):
             continue
         markup = e.get("markup")
-        if not markup or thread_of[e["id"]] in settled:
+        if not markup or thread_reading.roots[e["id"]] in settled:
             continue
-        frag = structure.fragments[e["id"]]
-        if prepared is None:
-            byid.update(frag.by_id)
-            spk.update(spoken(markup, registry))
-        records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
-    if projection is None:
-        projection = state_projection(events, byid, spk, registry, None, {})
+        frag = thread_reading.structure.fragments[e["id"]]
+        records.extend((thread_reading.roots[e["id"]], rec) for rec in frag.lf_elements)
 
     decisions, values = page_decision_projection(
         [rec for _thread, rec in records],
-        projection,
-        byid,
-        spk,
+        thread_reading.projection,
+        thread_reading.by_id,
+        thread_reading.spoken,
         registry,
         dropped=set(),
         # Frozen thread markup seats no conversation of its own: the thread's reply
@@ -479,7 +468,13 @@ def thread_decisions(
     registry: dict,
     settled: set,
     request_phases: dict[str, str] | None = None,
+    *,
+    reading: FrozenThreadReading | None = None,
 ) -> list:
     return thread_decision_projection(
-        events, registry, settled, request_phases=request_phases
+        events,
+        registry,
+        settled,
+        reading=reading,
+        request_phases=request_phases,
     )[0]

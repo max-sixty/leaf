@@ -293,10 +293,10 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # And the third thing a log carries: what the reader did to one of those
         # widgets. A decision on a widget a message carries is folded from thread
         # markup rather than from the version, through a projection of its own
-        # (`thread_state`), and replayed into a tree the panel built — so a corpus
-        # that seeds the question and not the answer reads the untouched half of
-        # every such widget and leaves the whole standing-decision route to
-        # unit-style fixtures. The seed is what puts it under the sweeps.
+        # (`frozen_thread_reading`), and replayed into a tree the panel built — so
+        # a corpus that seeds the question and not the answer reads the untouched
+        # half of every such widget and leaves the whole standing-decision route
+        # to unit-style fixtures. The seed is what puts it under the sweeps.
         decided_here = [
             e["widget"]
             for e in events

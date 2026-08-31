@@ -761,10 +761,10 @@ const {
   VERSIONS,
   activationIsForced,
   clearForcedActivation,
+  closeVersionMenu,
   goActive,
   renderVersions,
   snapshotVersionNavigation,
-  showVersionMenu,
   versionBtn,
   versionLabel,
   versionMenu,
@@ -1214,6 +1214,7 @@ const {
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
+  closeVersionMenu,
   collapseKeyline: () => keyline?.less(),
   designIsOn: () => designOn,
   designTarget,
@@ -1247,7 +1248,6 @@ const {
   selectionAnchor,
   setReact: (on) => setReact(on),
   showThread,
-  showVersionMenu,
   snapSelection,
   shownParts,
   shownRect: (...args) => shownRect(...args),
@@ -2496,7 +2496,16 @@ const CHOOSER = {
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
-  run: () => versionBtn.click(),
+  // The control's own press, so the key and the pointer are one gesture: the menu is a
+  // popover the button declares, and the browser's invoker is what makes a second press a
+  // close. The focus first is what makes the handback the same on both doors — a popover
+  // restores focus to whatever had it when it showed, which the pointer leaves as the
+  // button of its own accord and this key would otherwise leave as the body, putting a
+  // reader who pressed `v` and then Escape on the page rather than back on the chooser.
+  run: () => {
+    versionBtn.focus();
+    versionBtn.click();
+  },
 };
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row

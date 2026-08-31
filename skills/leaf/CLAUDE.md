@@ -1608,12 +1608,15 @@ starts blue, then `h` turns blue in place when it is pressed. Escape returns to
 the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
-`versionsOffered` (there is a menu) answers for the key, the mode binding its
-Escape, and the button; `versionsToWalk` (there is somewhere to step) answers for
-the menu's own scope. One predicate for both left `v` opening a menu on a page
-whose Escape no scope was live to bind. A section merges the rows of every scope
-sharing its title, so a contributor the page hasn't got must bring none — `merge`
-drops it — or the two capabilities cannot differ in liveness under one heading.
+`versionsOffered` (there is a menu) answers for the key, the mode standing over
+the page, and the button; `versionsToWalk` (there is somewhere to step) answers
+for the menu's own scope. One predicate for both left `v` opening a menu on a
+page whose way out no scope was live over. Where the platform owns the dismissal
+the mode's own rows still have to be live over the same page, since a mode with
+no live row is a claim the surfaces never hear. A section merges the rows of
+every scope sharing its title, so a contributor the page hasn't got must bring
+none — `merge` drops it — or the two capabilities cannot differ in liveness under
+one heading.
 
 A press may deliberately leave layers standing while moving focus outside them. That is
 not an Escape rung, because it gives no layer back. The address chord states what remains
@@ -1846,7 +1849,13 @@ placeholder `address`, which is what a screen reader hears.
 A true mode may own the keyboard. An armed address chord and the open reference
 claim the relevant keys through their scope. A longer-lived menu keeps the
 reference available through `allButTheReference`. Closing an overlay restores
-focus to `helpFrom` so the reader returns to the control that opened it.
+focus to `helpFrom` so the reader returns to the control that opened it. A modal
+dialog clears the top layer's auto popovers on its way in, so the reference notes
+the ones it was opened over and stands them back up before that restore — the
+overlay that says what a menu's keys are cannot be what takes the menu away. It
+stands each one back up from that layer's own invoker — `lfInvoker`, the link a
+layer declares because the platform's own runs one way only — so the layer's way
+out survives the round trip too.
 
 Escape is an ordinary binding in the register for Leaf-owned modes. The innermost scope that binds it
 owns one unwind step. A control-specific Escape, panel dismissal, decision release,
@@ -1859,6 +1868,15 @@ layer, the page rung stands down and browser Escape closes it; Leaf updates from
 resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
 distinct inner step, such as leaving a text box before closing its dialog or collapsing
 the keyboard reference's expanded shelf.
+
+A popover hands focus back to whatever had it when the popover showed — not to its
+invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
+relationship and nothing about focus. So a key that opens a layer runs the press from
+the control itself rather than opening it from the page, and every door leaves the same
+way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
+rather than to focus landing on the body: a light dismissal restores nothing on purpose,
+and a reader who pressed away into the page is not asking to be moved to the control
+they pressed away from.
 
 `offer` creates the native element named by the caller; ordinary buttons and links need
 no Leaf activation binding. A `selectableOffer` registers its widget-specific keys.

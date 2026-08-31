@@ -26,6 +26,7 @@ function parse(text) {
   if (!lines[0]?.startsWith("calldiff diff "))
     throw new Error("the first line must be a CallDiff diff header");
   let entry = "Call diff";
+  let groupKey = "meta";
   const occurrences = new Map();
   return lines.map((line, index) => {
     const meta = index === 0;
@@ -50,14 +51,19 @@ function parse(text) {
     const body = matched ? matched[1] : displayed;
     const location = matched?.[2] ?? "";
     const root = !meta && !/[├└]/u.test(body);
+    if (!meta && !root && groupKey === "meta")
+      throw new Error(`line ${index + 1} appears before a changed root`);
     if (root) entry = body.trim();
     const identity = `${entry}\u0000${status}\u0000${body}\u0000${location}`;
     const occurrence = occurrences.get(identity) ?? 0;
     occurrences.set(identity, occurrence + 1);
+    const key = JSON.stringify([entry, status, body, location, occurrence]);
+    if (root) groupKey = key;
     return {
       body,
       entry,
-      key: JSON.stringify([entry, status, body, location, occurrence]),
+      groupKey,
+      key,
       location,
       meta,
       root,
@@ -66,14 +72,79 @@ function parse(text) {
   });
 }
 
-function buildLine() {
-  const line = make("div", "lf-call-line");
+function reconcileChildren(parent, wanted) {
+  const retained = new Set(wanted);
+  for (const child of [...parent.childNodes])
+    if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
+  let cursor = parent.firstElementChild;
+  for (const child of wanted) {
+    if (child !== cursor) parent.insertBefore(child, cursor);
+    cursor = child.nextElementSibling;
+  }
+  for (const child of [...parent.children]) if (!retained.has(child)) child.remove();
+}
+
+function buildLine(tag = "div") {
+  const line = make(tag, "lf-call-line");
   const marker = make("span", "lf-call-marker");
   const body = make("span", "lf-call-body");
   const location = make("a", "lf-call-location");
   marker.setAttribute("aria-hidden", "true");
   line.append(marker, body, location);
   return line;
+}
+
+function updateDisclosureControl(owner) {
+  const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
+  const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
+  if (!button) return;
+  const expand = groups.some((group) => !group.open);
+  setText(button, `${expand ? "Expand" : "Collapse"} all`);
+  button.setAttribute(
+    "aria-label",
+    `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`,
+  );
+}
+
+function buildToolbar(owner) {
+  const toolbar = make("div", "lf-call-tools");
+  const summary = make("p", "lf-call-summary");
+  const button = make("button", "lf-call-toggle");
+  toolbar.dataset.lfUi = "";
+  button.type = "button";
+  button.addEventListener("click", () => {
+    const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
+    const open = groups.some((group) => !group.open);
+    for (const group of groups) group.open = open;
+    updateDisclosureControl(owner);
+    announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
+  });
+  toolbar.append(summary, button);
+  return toolbar;
+}
+
+function buildGroup(owner, key) {
+  const group = make("details", "lf-call-group");
+  const summary = buildLine("summary");
+  const body = make("div", "lf-call-group-body");
+  group.dataset.callGroup = key;
+  summary.classList.add("lf-call-group-summary");
+  group.append(summary, body);
+  group.addEventListener("toggle", () => updateDisclosureControl(owner));
+  return { body, group, summary };
+}
+
+function groupLabel(records) {
+  const added = records.filter((record) => record.status === "added").length;
+  const removed = records.filter((record) => record.status === "removed").length;
+  const context = records.length - added - removed;
+  return [
+    added ? `${added} added` : "",
+    removed ? `${removed} removed` : "",
+    context ? `${context} context` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function matchingLine(diff, record) {
@@ -133,6 +204,7 @@ function renderLine(record, prior, owner) {
   location.onclick = (event) => {
     if (!travelToLine(owner, record)) return;
     event.preventDefault();
+    event.stopPropagation();
   };
   return line;
 }
@@ -168,29 +240,120 @@ customElements.define(
     }
 
     show(snapshot) {
-      let projected;
+      let records;
       try {
-        const records = snapshot?.value ? parse(snapshot.value) : [];
-        projected = records.length ? records : [{ key: "unavailable", missing: true }];
+        records = snapshot?.value ? parse(snapshot.value) : [];
       } catch (error) {
-        projected = [{ key: "invalid", invalid: error.message }];
+        this.replaceChildren();
+        projectData(
+          this,
+          [{ key: "invalid", invalid: error.message }],
+          ({ key }) => key,
+          (record, prior) =>
+            renderMessage(
+              prior,
+              `Call-diff data is invalid: ${record.invalid}.`,
+              "lf-call-invalid",
+            ),
+          { labelOf },
+        );
+        return;
       }
-      projectData(
-        this,
-        projected,
-        ({ key }) => key,
-        (record, prior) =>
-          record.missing
-            ? renderMessage(prior, "Waiting for call-diff data.")
-            : record.invalid
-              ? renderMessage(
-                  prior,
-                  `Call-diff data is invalid: ${record.invalid}.`,
-                  "lf-call-invalid",
-                )
-              : renderLine(record, prior, this),
-        { labelOf },
+      if (!records.length) {
+        this.replaceChildren();
+        projectData(
+          this,
+          [{ key: "unavailable", missing: true }],
+          ({ key }) => key,
+          (record, prior) => renderMessage(prior, "Waiting for call-diff data."),
+          { labelOf },
+        );
+        return;
+      }
+
+      const toolbar =
+        this.querySelector(":scope > .lf-call-tools") ?? buildToolbar(this);
+      const summary = toolbar.querySelector(".lf-call-summary");
+      const dataRows = records.filter((record) => !record.meta);
+      const roots = records.filter((record) => record.root);
+      const added = dataRows.filter((record) => record.status === "added").length;
+      const removed = dataRows.filter((record) => record.status === "removed").length;
+      setText(
+        summary,
+        `${roots.length} changed ${roots.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
       );
+
+      const oldGroups = new Map(
+        [...this.querySelectorAll(":scope > .lf-call-group")].map((group) => [
+          group.dataset.callGroup,
+          {
+            body: group.querySelector(":scope > .lf-call-group-body"),
+            group,
+            summary: group.querySelector(":scope > .lf-call-group-summary"),
+          },
+        ]),
+      );
+      const groups = new Map();
+      for (const root of roots)
+        groups.set(
+          root.groupKey,
+          oldGroups.get(root.groupKey) ?? buildGroup(this, root.groupKey),
+        );
+
+      const headerTarget =
+        this.querySelector(":scope > .lf-call-line[data-meta]") ?? buildLine();
+      reconcileChildren(this, [
+        toolbar,
+        headerTarget,
+        ...[...groups.values()].map(({ group }) => group),
+      ]);
+
+      const nodes = projectData(
+        this,
+        records,
+        ({ key }) => key,
+        (record, prior) => {
+          if (record.meta) return renderLine(record, prior ?? headerTarget, this);
+          const group = groups.get(record.groupKey);
+          const rendered = renderLine(
+            record,
+            prior ?? (record.root ? group.summary : null),
+            this,
+          );
+          if (!record.root && !rendered.isConnected) group.body.append(rendered);
+          return rendered;
+        },
+        { nested: true, labelOf },
+      );
+      const nodesByKey = new Map(
+        records.map((record, index) => [record.key, nodes[index]]),
+      );
+      const header = nodesByKey.get(records[0].key);
+      for (const [key, parts] of groups) {
+        const groupRecords = records.filter((record) => record.groupKey === key);
+        const root = groupRecords.find((record) => record.root);
+        const rootNode = nodesByKey.get(root.key);
+        let count = rootNode.querySelector(".lf-call-group-count");
+        if (!count) {
+          count = make("span", "lf-call-group-count");
+          count.dataset.lfUi = "";
+          rootNode.append(count);
+        }
+        setText(count, groupLabel(groupRecords));
+        reconcileChildren(
+          parts.body,
+          groupRecords
+            .filter((record) => !record.root)
+            .map((record) => nodesByKey.get(record.key)),
+        );
+        reconcileChildren(parts.group, [rootNode, parts.body]);
+      }
+      reconcileChildren(this, [
+        toolbar,
+        header,
+        ...[...groups.values()].map(({ group }) => group),
+      ]);
+      updateDisclosureControl(this);
     }
   },
 );

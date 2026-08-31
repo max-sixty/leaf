@@ -50,10 +50,10 @@ leaf page init --package pr-review PAGE
 
 `lf-call-diff` binds a captured `text-document` containing CallDiff-style plain text.
 The analysis host owns that source; the widget keeps unchanged tree items beside
-additions and removals and projects every row as a commentable datum. Its required `diff` target
-turns source coordinates into navigation to matching lines in the exact patch. For a
-large repository, capture one affected entry point per source rather than one unbounded
-call graph.
+additions and removals, folds the result by changed root, and projects every row as a
+commentable datum. Its required `diff` target turns source coordinates into navigation
+to matching lines in the exact patch. For a large repository, capture one affected file
+or entry point per source rather than one unbounded call graph.
 
 ## Package contract
 

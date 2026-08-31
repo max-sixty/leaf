@@ -1,5 +1,5 @@
 {
-  "inputs_sha256": "5e54cf91bf92fcf37750c2b868e283f44f8e0d89c35a3f44fcdf3a3b22c60859",
+  "inputs_sha256": "bb99a1cc5928a36d624a5fcf703c3179fedb31fddfd1cb43a8b0c987052ca919",
   "previews": {
     "command-hub": {
       "file": "example-command-hub.jpg",
@@ -33,7 +33,7 @@
     },
     "pr-walkthrough": {
       "file": "example-pr-walkthrough.jpg",
-      "sha256": "483fce13cf95cece71bf0754ed57e602c4327ccc6f9342f86fd05104a0ebe7e3",
+      "sha256": "16a16f939976cd4eb2eb05e565b0fb4a93735cc3b81864b0fa11344e84fabd75",
       "width": 896,
       "height": 560
     },

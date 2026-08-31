@@ -624,11 +624,12 @@ graph LR
 </lf-tab>
 
 <lf-tab id="corpus-pr-walkthrough" label="PR">
-<h1>Per-token rate limits</h1>
+<h1>Unified diff in the switch picker</h1>
       <p class="lede" id="pr-lede">
-        A reviewer-first walkthrough of revision <code>8f61c2a</code>: author intent and
-        forge facts come from data, the agent explains the behavior, and the exact patch
-        remains the final authority.
+        A reviewer-first walkthrough of
+        <a href="https://github.com/max-sixty/worktrunk/pull/3865">Worktrunk PR #3865</a
+        >. The forge facts, author description, exact 46-file patch, and CallDiff output
+        are captured data; the surrounding analysis is the agent’s reading of them.
       </p>
 
       <lf-pull-request
@@ -644,24 +645,49 @@ graph LR
         <h2>Agent brief</h2>
         <div class="pr-agent-brief" id="pr-agent-summary">
           <p>
-            <strong>The identity change is small and coherent.</strong> Authenticated
-            traffic moves from an address-wide collision domain to one bucket per token;
-            untokened traffic keeps an address fallback. Prefixing both keys prevents a
-            token id that resembles an IP address from sharing its bucket.
+            <strong>This large change has a small architectural spine.</strong>
+            <code>PreparedDiff</code> owns one complete Git diff invocation, while
+            <code>TempIndex</code> admits untracked files without changing the user’s
+            real index. The picker then decides which rows to warm immediately and which
+            worktree previews to load only when selected.
           </p>
           <p>
-            The patch also makes one behavior change the author description does not
-            call out: bucket lifetime rises from 10 to 30 minutes. That deserves a
-            deliberate answer because it changes cleanup pressure independently of the
-            identity fix. The new schema also lacks restart-level persistence evidence
-            in this packet. I would review the identity path, then the exact patch, then
-            settle those two evidence gates before signing off.
+            The historical review found the right failure modes: sparse-checkout
+            divergence, a predictable shared temporary directory, a symlink race while
+            copying the index, and stale claims about prewarming. Those were corrected
+            before merge. Two follow-ups remain visible rather than buried: selected-row
+            demand latency has no benchmark, and <code>wt step commit --dry-run</code>
+            can still stage its own temporary-index artifact when
+            <code>TMPDIR</code> sits inside the worktree.
           </p>
+          <p id="pr-invariant-intro">
+            The agent’s review model reduces that architecture to three assertions; each
+            docked line note explains why its assertion matters.
+          </p>
+          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+            <pre>
+assert_eq!(real_index_after, real_index_before);
+assert!(temp_index.is_operation_scoped());
+assert!(offscreen_worktree_preview.is_demand_loaded());
+</pre>
+            <lf-note id="pr-note-real-index" at="1"
+              >A clean status is insufficient: preview preparation must preserve the
+              real index byte for byte.</lf-note
+            >
+            <lf-note id="pr-note-temp-index" at="2"
+              >Random, exclusive temporary files prevent concurrent previews from
+              sharing or replacing one another’s index.</lf-note
+            >
+            <lf-note id="pr-note-demand-load" at="3"
+              >Moving off-screen worktrees out of prewarm protects startup, but leaves
+              selected-row latency as a separate measurement question.</lf-note
+            >
+          </lf-code>
           <ol class="pr-route" aria-label="Suggested review route">
-            <li><a href="#pr-system">Understand the request path</a></li>
-            <li><a href="#pr-hot-path">Inspect the key choice</a></li>
-            <li><a href="#pr-patch">Read all four files</a></li>
-            <li><a href="#pr-ttl">Settle TTL, then sign off</a></li>
+            <li><a href="#pr-system">Understand the new diff path</a></li>
+            <li><a href="#pr-call-tab">Inspect scheduling with CallDiff</a></li>
+            <li><a href="#pr-history">Read how review changed the branch</a></li>
+            <li><a href="#pr-patch">Review the exact 46-file patch</a></li>
           </ol>
         </div>
       </section>
@@ -670,32 +696,35 @@ graph LR
         <h2>Review map</h2>
         <lf-tree id="pr-files">
           <pre>
-gateway/
-  limits.py  +4 -2
-  middleware.py  +2 -1
-  ratelimit.conf  +1 -1
-  migrations/
-    0042_token_buckets.sql  +6
+max-sixty/worktrunk #3865
+  src/commands/picker/  17 files  +823 −466
+  src/git/repository/    4 files  +312 −30
+  other src/             6 files  +42  −61
+  tests/                 8 files  +308 −92
+  docs + shipped skills  9 files  +69  −42
+  benches/               2 files  +13  −10
 </pre>
         </lf-tree>
         <div class="pr-focus">
-          <article id="pr-focus-identity">
-            <h3>Start here · identity</h3>
+          <article id="pr-focus-safety">
+            <h3>Start here · diff safety</h3>
             <p>
-              <code>Limiter.bucket_key</code> is the semantic center. Confirm token
-              precedence, the untokened fallback, and the
+              Review <code>PreparedDiff</code>, temporary-index creation, untracked-file
+              registration, sparse-checkout behavior, and cleanup as one unit. The
+              invariant is
               <lf-gloss
-                tip="A token id and an IP-shaped string can never name the same stored bucket because their keys begin with different prefixes."
-                >disjoint keyspace</lf-gloss
-              >.
+                tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
+                >byte-identical real index</lf-gloss
+              >, not merely a clean <code>git status</code> afterwards.
             </p>
           </article>
-          <article id="pr-focus-lifetime">
-            <h3>Challenge this · lifetime</h3>
+          <article id="pr-focus-latency">
+            <h3>Then · preview latency</h3>
             <p>
-              The 30-minute TTL is orthogonal to token identity and has no focused test
-              in this packet. Treat it as a separate review decision, not incidental
-              configuration churn.
+              The landing row and cheap branch-only rows are prewarmed. Off-screen
+              worktrees move to the demand worker. That avoids an eager
+              <code>git add -N</code> walk, but the selected-row delay is not measured
+              by the existing benchmark.
             </p>
           </article>
         </div>
@@ -704,173 +733,152 @@ gateway/
       <section id="pr-system">
         <h2>What changes at runtime</h2>
         <p id="pr-system-intro">
-          The behavior view holds one request path still and marks changes in place. The
-          call view is captured analysis data whose rows are individually commentable.
-          The
+          The behavior view keeps the picker path fixed and changes the default preview
+          in place. The call view is a scoped
           <lf-gloss
-            tip="This view is inferred from the patch. Dynamic dispatch and runtime wiring may add calls that static inspection cannot see."
-            >call diff is static</lf-gloss
-          >, so use it as a route into the source rather than as proof by itself.
+            tip="CallDiff is syntax-derived. Trait dispatch, subprocess behavior, and runtime scheduling can add edges the static tree cannot see."
+            >static analysis</lf-gloss
+          >
+          of the orchestration file, so every source coordinate leads back to the exact
+          patch.
         </p>
         <lf-tabs id="pr-impact-views">
           <lf-tab id="pr-flow-tab" label="Behavior diff">
-            <h3>One request path, changes in place</h3>
+            <h3>One picker path, changes in place</h3>
             <p class="pr-change-key" aria-label="Change legend">
-              <span class="pr-removed">− removed path</span>
-              <span>unchanged anchor</span>
-              <span class="pr-added">+ added path</span>
+              <span class="pr-removed">− old default</span>
+              <span>unchanged boundary</span>
+              <span class="pr-added">+ new path</span>
             </p>
             <lf-diagram
               id="pr-flow-diagram"
-              parts="node:Request node:OldIP node:Identity node:TokenKey node:IPKey node:BucketStore"
+              parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
             >
               <pre>
 flowchart LR
-  Request[Request]
-  OldIP["− remote address is identity"]
-  Identity{"+ choose identity"}
-  TokenKey["+ tok: token.id"]
-  IPKey["+ ip: remote_addr"]
-  BucketStore[Bucket lookup]
-  Request -. removed .-> OldIP
-  OldIP -. removed .-> BucketStore
-  Request --> Identity
-  Identity -->|token| TokenKey
-  Identity -->|none| IPKey
-  TokenKey --> BucketStore
-  IPKey --> BucketStore
+  Row[Selected row] --> Mode[Preview mode]
+  Mode -. old default .-> Working["− working-tree diff"]
+  Mode --> Unified["+ unified diff"]
+  Mode --> Tabs[Working / committed tabs]
+  Unified --> Prepared[PreparedDiff]
+  Prepared --> History[Committed changes]
+  Prepared --> Temp[TempIndex]
+  Temp --> Staged[Staged]
+  Temp --> Unstaged[Unstaged]
+  Temp --> Untracked[Untracked]
   classDef removed fill:#f7e0da,stroke:#b4402f,color:#6b2118,stroke-dasharray:4 3
   classDef added fill:#dfeddf,stroke:#3f7d4e,color:#1f512e
-  class OldIP removed
-  class Identity,TokenKey,IPKey added
+  class Working removed
+  class Unified,Prepared,Temp added
 </pre>
             </lf-diagram>
           </lf-tab>
-          <lf-tab id="pr-call-tab" label="Call diff">
-            <h3>Call-tree structure changed here</h3>
+          <lf-tab id="pr-call-tab" label="CallDiff">
+            <h3>Three changed roots, not a repository-sized graph</h3>
             <p>
-              This follows
-              <a href="https://github.com/tanishqkancharla/calldiff">CallDiff</a>:
-              unchanged tree items preserve the stack-shaped mental map while additions
-              and removals stay adjacent. This exact tool capture finds the new branch
-              inside <code>bucket_key</code>; the patch still owns the middleware
-              change. Select a row to discuss it, or follow its source location to the
-              exact line.
+              This is the exact semantic output of
+              <code
+                >calldiff@0.5.0 diff … --file
+                src/commands/picker/preview_orchestrator.rs --locs --max-depth 4</code
+              >. Each changed root folds independently; its summary reports added,
+              removed, and contextual tree items. Expand one root, comment on any row,
+              or follow a location into the authoritative patch.
             </p>
             <lf-call-diff
               id="pr-call-diagram"
               source="pr-call-diff"
-              snapshot="3"
+              snapshot="2"
               diff="pr-exact-patch"
             ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
         <details id="pr-comparison-research">
-          <summary>Why this is not a separate before and after</summary>
+          <summary>Why this is a unified structural diff</summary>
           <p class="pr-research-note">
             <a href="https://www.cs.cmu.edu/~ishafer/pubs/pathception-infovis13.pdf"
               >Controlled comparison research</a
             >
-            found that side-by-side views help overall orientation, but correspondence
-            degrades as layouts diverge; explicit diffs keep changes adjacent and
-            compact. Leaf therefore defaults to one stable structural view, with
-            unchanged nodes as anchors and state-specific inspection as a secondary
-            action.
+            found that separate layouts help orientation but make correspondence harder
+            as structures diverge. CallDiff keeps unchanged calls as landmarks and puts
+            additions and removals beside them. Leaf adds folding at changed roots so a
+            106-line capture can remain both compact and inspectable.
           </p>
         </details>
       </section>
 
-      <section id="pr-hot-path">
-        <h2>The hot path in four lines</h2>
-        <p id="pr-hot-path-intro">
-          Hover the numbered notes for the two claims that carry the design. The exact
-          implementation appears again in the patch below so every character can be
-          selected and discussed.
+      <section id="pr-history">
+        <h2>The review changed the branch</h2>
+        <p id="pr-history-intro">
+          The final patch is easier to trust because the review trail records which
+          risks were found, what changed, and which concerns remained non-blocking.
         </p>
-        <lf-code id="pr-key-walk" language="python" hi="2-4">
-          <pre>
-def bucket_key(self, request):
-    if request.token:
-        return f"tok:{request.token.id}"
-    return f"ip:{request.remote_addr}"
-</pre>
-          <lf-note id="pr-note-precedence" at="2"
-            >A request with both values spends the token budget. This is the change's
-            central policy choice.</lf-note
-          >
-          <lf-note id="pr-note-prefixes" at="3"
-            >The <code>tok:</code> and <code>ip:</code> prefixes keep the two identity
-            namespaces from colliding.</lf-note
-          >
-        </lf-code>
-      </section>
-
-      <section id="pr-patch">
-        <h2>Exact patch · four files</h2>
-        <p id="pr-patch-intro">
-          This is the immutable captured patch for revision <code>8f61c2a</code>, not a
-          copy authored into the page. Each file has its own disclosure.
-        </p>
-        <aside class="pr-review-gesture" id="pr-comment-help">
-          <p>
-            <strong>Review in place.</strong> Alt-click a source line to comment on the
-            whole line, or drag across an exact expression to quote it in a comment.
-            Collapse a file when it is done; comments remain attached by file, side, and
-            line number.
-          </p>
-        </aside>
-        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="2">
-          <pre></pre>
-        </lf-diff>
-        <p id="pr-large-diff-limit">
-          <strong>Leaf treats this patch as data.</strong> The page binds
-          <code>lf-diff</code> to an immutable <code>text-document</code> snapshot in
-          <code>data.json</code>. Today the complete snapshot travels in
-          <code>/api/state</code>, then the widget parses every file and projects each
-          source line under a path, side, and line key. File collapse lowers reading
-          cost, but not startup, transport, or DOM cost. The scale rehearsal below shows
-          where that stops working.
-        </p>
+        <lf-timeline id="pr-review-timeline">
+          <lf-event id="pr-event-open" at="03:32 UTC" kind="info">
+            <strong>PR opened</strong> The first revision introduced the unified picker
+            tab, shared diff preparation, and broad integration coverage.
+          </lf-event>
+          <lf-event id="pr-event-first-review" at="03:43 UTC" kind="warning">
+            <strong>First review withheld approval</strong> It found divergent sparse
+            handling, a predictable shared temp directory, startup-cost uncertainty, and
+            documentation drift.
+          </lf-event>
+          <lf-event id="pr-event-temp-fix" at="04:13 UTC" kind="action">
+            <strong>Temp indexes became random, exclusive files</strong> Sparse
+            registration and worktree-local temp-directory exclusion gained focused
+            tests.
+          </lf-event>
+          <lf-event id="pr-event-race-fix" at="04:32 UTC" kind="action">
+            <strong>The index copy kept ownership of its pathname</strong> Writing
+            through the still-open file closed the symlink race, and off-screen
+            worktrees moved out of eager prewarm.
+          </lf-event>
+          <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
+            <strong>Final review approved with follow-ups</strong> The shared
+            <code>TempIndex</code> path and orchestration prose converged; selected-row
+            latency and dry-run temp artifacts remained visible notes.
+          </lf-event>
+          <lf-event id="pr-event-merged" at="05:18 UTC" kind="info">
+            <strong>Merged</strong> Six commits landed after all reported checks passed.
+          </lf-event>
+        </lf-timeline>
       </section>
 
       <section id="pr-scale">
-        <h2>A 63-file review starts from the manifest</h2>
+        <h2>This packet is the large-diff rehearsal</h2>
         <p id="pr-scale-intro">
-          <a href="https://github.com/max-sixty/leaf/pull/82">Leaf PR #82</a> is a
-          useful real rehearsal: it spans runtime behavior, browser tests, theme work,
-          examples, and contracts. Loading its entire patch into this page would turn
-          navigation into search. The first view should expose shape and risk, then
-          hydrate one review unit.
+          The page no longer describes a large PR from a tiny example. It carries the
+          complete public patch and uses the file manifest, call slice, review history,
+          and risk table to decide what to open first.
         </p>
-        <dl class="pr-scale-facts" aria-label="Observed Leaf PR 82 scale">
+        <dl class="pr-scale-facts" aria-label="Observed Worktrunk PR 3865 scale">
           <div>
             <dt>Files</dt>
-            <dd>63</dd>
+            <dd>46</dd>
           </div>
           <div>
             <dt>Hunks</dt>
-            <dd>217</dd>
+            <dd>191</dd>
           </div>
           <div>
             <dt>Patch lines</dt>
-            <dd>5,167</dd>
+            <dd>4,126</dd>
           </div>
           <div>
             <dt>Patch bytes</dt>
-            <dd>253 KB</dd>
+            <dd>214 KB</dd>
           </div>
           <div>
             <dt>Commits</dt>
-            <dd>53</dd>
+            <dd>6</dd>
           </div>
           <div>
             <dt>Changed lines</dt>
-            <dd>3,170</dd>
+            <dd>2,268</dd>
           </div>
         </dl>
         <table id="pr-scale-groups">
           <caption>
-            Review units inferred from the changed paths, observed 30 August 2026.
+            Review units derived from the PR’s changed paths.
           </caption>
           <thead>
             <tr>
@@ -882,92 +890,96 @@ def bucket_key(self, request):
           </thead>
           <tbody>
             <tr>
-              <th scope="row">Browser tests</th>
-              <td>11</td>
-              <td><code>+1,721 −236</code></td>
-              <td>Which behaviors are newly pinned, and which snapshots are churn?</td>
+              <th scope="row">Picker runtime</th>
+              <td>17</td>
+              <td><code>+823 −466</code></td>
+              <td>Does the new default preserve tab and row identity?</td>
             </tr>
             <tr>
-              <th scope="row">Reader runtime</th>
-              <td>25</td>
-              <td><code>+754 −181</code></td>
-              <td>Which interaction contracts changed across modules?</td>
-            </tr>
-            <tr>
-              <th scope="row">Widgets and theme</th>
-              <td>7</td>
-              <td><code>+98 −50</code></td>
-              <td>Do the visible changes remain legible at every supported width?</td>
-            </tr>
-            <tr>
-              <th scope="row">Examples and docs</th>
-              <td>16</td>
-              <td><code>+73 −20</code></td>
-              <td>Do the authored examples teach the new behavior?</td>
-            </tr>
-            <tr>
-              <th scope="row">Contracts and tooling</th>
+              <th scope="row">Git repository layer</th>
               <td>4</td>
-              <td><code>+25 −12</code></td>
-              <td>Did validation and generated outputs move with the runtime?</td>
+              <td><code>+312 −30</code></td>
+              <td>Can untracked files enter without changing the real index?</td>
+            </tr>
+            <tr>
+              <th scope="row">Other runtime</th>
+              <td>6</td>
+              <td><code>+42 −61</code></td>
+              <td>Did every prior diff caller move to the shared abstraction?</td>
+            </tr>
+            <tr>
+              <th scope="row">Integration tests</th>
+              <td>8</td>
+              <td><code>+308 −92</code></td>
+              <td>Do the tests observe index bytes and filesystem residue?</td>
+            </tr>
+            <tr>
+              <th scope="row">Docs and shipped skills</th>
+              <td>9</td>
+              <td><code>+69 −42</code></td>
+              <td>Is the Git 2.34 floor discoverable in every published copy?</td>
+            </tr>
+            <tr>
+              <th scope="row">Benchmarks</th>
+              <td>2</td>
+              <td><code>+13 −10</code></td>
+              <td>Which cost moved from prewarm to selected-row demand?</td>
             </tr>
           </tbody>
         </table>
         <ol class="pr-route" aria-label="Large pull request review route">
           <li>
-            <strong>Orient.</strong> Load metadata, file groups, checks, and open
-            threads.
+            <strong>Orient.</strong> Read facts, units, checks, and prior findings.
           </li>
+          <li><strong>Trace.</strong> Follow the diff and scheduling spines.</li>
+          <li><strong>Verify.</strong> Read focused tests beside their owning code.</li>
           <li>
-            <strong>Focus.</strong> Hydrate one file slice and prefetch the next in its
-            unit.
-          </li>
-          <li>
-            <strong>Record.</strong> Mark files reviewed at a revision; keep comment
-            anchors durable.
-          </li>
-          <li>
-            <strong>Resume.</strong> Reopen only files changed since the recorded
-            boundary.
+            <strong>Record.</strong> Comment on exact lines, then choose an outcome.
           </li>
         </ol>
-        <p class="pr-research-note" id="pr-scale-precedent">
-          The route preserves conventions reviewers already know:
-          <a
-            href="https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request?tool=webui"
-            >GitHub</a
-          >
-          and
-          <a href="https://docs.gitlab.com/user/project/merge_requests/changes/"
-            >GitLab</a
-          >
-          keep file filters and revision-aware viewed state, while
-          <a
-            href="https://gerrit-review.googlesource.com/Documentation/user-review-ui.html"
-            >Gerrit</a
-          >
-          adds explicit patch-set comparison and context controls.
+      </section>
+
+      <section id="pr-patch">
+        <h2>Exact patch · 46 files</h2>
+        <p id="pr-patch-intro">
+          This is GitHub’s captured patch for revision <code>9ca8f78b</code>, not a
+          transcription in the page. Use the map above to choose a review unit, then
+          collapse files as they are finished.
         </p>
-        <p id="pr-scale-call-limit">
-          Scale applies to call analysis too. An unfiltered CallDiff run on PR #82
-          produced
-          <strong>3,109 lines at depth five</strong>; the useful unit is one entry point
-          or affected path, not “the repository call graph.”
+        <aside class="pr-review-gesture" id="pr-comment-help">
+          <p>
+            <strong>Review in place.</strong> Alt-click a source line to comment on the
+            whole line, or drag across an exact expression to quote it. Comments retain
+            the file, side, line, and quote even when the file disclosure is closed.
+          </p>
+        </aside>
+        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1">
+          <pre></pre>
+        </lf-diff>
+        <p id="pr-large-diff-limit">
+          <strong>Leaf treats this patch as external data.</strong> The complete 214 KB
+          snapshot currently travels in <code>data.json</code>; <code>lf-diff</code>
+          parses all 46 files and projects every source line under a stable path, side,
+          and line key. File disclosures reduce reading cost, but they do not reduce
+          transport or DOM cost.
         </p>
         <details id="pr-large-diff-plan">
-          <summary>Current data path and the large-review design</summary>
+          <summary>How Leaf should cross the next size boundary</summary>
           <lf-diagram id="pr-diff-data-flow">
             <pre>
 flowchart LR
-  H["Host patch"] --> D["Leaf data snapshot"] --> L["lf-diff line data"]
-            </pre>
+  G[GitHub PR revision] --> M[Typed file manifest]
+  M --> S[Immutable file slice]
+  S --> D[lf-diff line data]
+  D --> C[Comment coordinate]
+</pre>
           </lf-diagram>
           <table id="pr-large-diff-model">
             <thead>
               <tr>
                 <th>Layer</th>
-                <th>This example</th>
-                <th>Large-review Leaf</th>
+                <th>This 46-file packet</th>
+                <th>Larger-review Leaf</th>
               </tr>
             </thead>
             <tbody>
@@ -975,85 +987,45 @@ flowchart LR
                 <th scope="row">Authority</th>
                 <td>One captured patch string in <code>data.json</code>.</td>
                 <td>
-                  One typed manifest in <code>data.json</code> that names immutable,
-                  content-addressed file slices.
+                  A typed manifest naming immutable, content-addressed file slices.
                 </td>
               </tr>
               <tr>
                 <th scope="row">Transport</th>
-                <td>The complete data store arrives with every state read.</td>
+                <td>The complete patch arrives with the state read.</td>
                 <td>
-                  State carries the manifest. Leaf's data runtime fetches a file slice
-                  by its declared key; the widget never fetches around Leaf.
+                  State carries the manifest; Leaf fetches the focused file slice.
                 </td>
               </tr>
               <tr>
                 <th scope="row">Rendering</th>
-                <td>All four files are parsed and rendered before the page settles.</td>
+                <td>All 46 files render before the page settles.</td>
                 <td>
-                  Render the file index first, hydrate the focused file, prefetch the
-                  next, and virtualize hunks only when one file is exceptionally large.
+                  Render the index, hydrate one file, and prefetch the next in its unit.
                 </td>
               </tr>
               <tr>
                 <th scope="row">Anchors</th>
+                <td>Path, old/new side, line, and optional quote.</td>
                 <td>
-                  Each rendered line is a datum keyed by path, old/new side, and source
-                  line; an exact selection adds its quote.
-                </td>
-                <td>
-                  Add the pull-request revision to that key. Navigation asks the data
-                  runtime to hydrate the named file before resolving and painting the
-                  comment.
+                  Add PR revision and hydrate the named slice before anchor resolution.
                 </td>
               </tr>
             </tbody>
           </table>
           <p id="pr-large-diff-ownership">
-            <strong>Keep each fact with its owner.</strong> The manifest and patch bytes
-            are external data. Comments and a durable “reviewed at revision” gesture
-            belong in the append-only event log. Open threads are derived from that log.
-            Filters, the focused file, and disclosure state are local browser view
-            state.
-          </p>
-          <ol>
-            <li>
-              <strong>The host publishes one review snapshot.</strong> Leaf validates
-              the manifest and every referenced file slice together, then records the
-              immutable mapping from slice key to content hash.
-            </li>
-            <li>
-              <strong>The runtime owns lazy loading.</strong> A generic data projection
-              API supplies slices to <code>lf-diff</code>; cache and fetch state do not
-              become widget state or another authority.
-            </li>
-            <li>
-              <strong>Anchors can name unloaded evidence.</strong> The projection
-              registers a resolver for its datum namespace. A comment jump hands its
-              unloaded key to that resolver, which loads the file before the ordinary
-              anchor pass runs.
-            </li>
-            <li>
-              <strong>Resume from one recorded boundary.</strong> A reader action
-              records the reviewed pull-request revision. The review host compares that
-              boundary with the current revision and supplies the changed files in the
-              next manifest. A filter or collapsed file remains view state.
-            </li>
-          </ol>
-          <p id="pr-call-diff-data">
-            The call diff already follows the same ownership rule: it is a separate
-            captured data source supplied by the analysis host, projected row by row by
-            <code>lf-call-diff</code>, and pinned to the reviewed revision. At larger
-            scale, a manifest would name one immutable capture per entry point.
+            Patch bytes and CallDiff captures remain replace-in-place external data.
+            Comments and “reviewed at revision” belong in the append-only event log.
+            Focused file, filters, and disclosure state remain local browser view state.
           </p>
         </details>
       </section>
 
       <section id="pr-evidence">
-        <h2>Evidence and known gap</h2>
+        <h2>Evidence and remaining gaps</h2>
         <table id="pr-evidence-table">
           <caption>
-            What the branch proves, what it does not, and where a reviewer should look.
+            What the final revision proves and what the historical review left open.
           </caption>
           <thead>
             <tr>
@@ -1065,148 +1037,112 @@ flowchart LR
           </thead>
           <tbody>
             <tr>
-              <th scope="row">Token precedence and IP fallback</th>
+              <th scope="row">Unified and subsidiary tabs show the intended changes</th>
               <td>
-                <code>test_bucket_key_prefers_token_and_falls_back_to_address</code>
+                <code
+                  >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
+                >
               </td>
               <td class="pr-evidence-status">
                 <span class="pr-status-passed">passed</span>
               </td>
-              <td>
-                Direct unit coverage of token precedence and the address fallback.
-              </td>
+              <td>The same test requires the real index to remain byte-identical.</td>
             </tr>
             <tr>
-              <th scope="row">Two tokens behind one NAT stay independent</th>
+              <th scope="row">Sparse checkouts retain out-of-cone untracked files</th>
               <td>
-                <code>test_two_tokens_behind_one_address_each_get_a_full_budget</code>
+                <code
+                  >test_picker_dry_run_includes_untracked_outside_sparse_checkout</code
+                >
               </td>
               <td class="pr-evidence-status">
                 <span class="pr-status-passed">passed</span>
               </td>
-              <td>
-                Direct limiter-level proof that two tokens receive separate budgets.
-              </td>
+              <td>Exercises the regression the first review found.</td>
             </tr>
             <tr>
-              <th scope="row">Migration applies on PostgreSQL 16</th>
-              <td><code>alembic upgrade head</code></td>
+              <th scope="row">
+                Worktree-local temp directories leave no index artifacts
+              </th>
+              <td>
+                <code
+                  >test_picker_dry_run_tempdir_inside_worktree_has_no_index_artifacts</code
+                >
+              </td>
               <td class="pr-evidence-status">
                 <span class="pr-status-passed">passed</span>
               </td>
-              <td>Proves the table and partial cleanup index can be created.</td>
+              <td>Also makes glob escaping load-bearing through a bracketed path.</td>
             </tr>
             <tr>
-              <th scope="row">Thirty-minute cleanup behavior</th>
-              <td>No focused retention or load evidence</td>
+              <th scope="row">Off-screen worktrees are demand-loaded</th>
+              <td>
+                <code
+                  >initial_precompute_skips_offscreen_worktrees_but_warms_branches</code
+                >
+              </td>
+              <td class="pr-evidence-status">
+                <span class="pr-status-passed">passed</span>
+              </td>
+              <td>Proves scheduling shape, not selected-row latency.</td>
+            </tr>
+            <tr>
+              <th scope="row">Selected-row demand remains fast</th>
+              <td>No latency benchmark</td>
               <td class="pr-evidence-status"><span class="pr-status-gap">gap</span></td>
-              <td>The patch changes this independently of token identity.</td>
+              <td>
+                The correctness test allows up to 60 seconds and cannot answer this.
+              </td>
             </tr>
             <tr>
-              <th scope="row">Persistence across process restart</th>
-              <td>No restart or cross-process assertion</td>
+              <th scope="row">
+                Commit dry-run excludes its own temp index under local TMPDIR
+              </th>
+              <td>No focused regression in this PR</td>
               <td class="pr-evidence-status"><span class="pr-status-gap">gap</span></td>
-              <td>Schema creation alone does not prove runtime persistence wiring.</td>
+              <td>
+                A reviewer reproduced the extra index and lock entries with plain Git.
+              </td>
             </tr>
           </tbody>
         </table>
-
-        <details id="pr-config-evidence">
-          <summary>Reviewed rate-limit configuration</summary>
-          <p id="pr-config-note">
-            The exact branch snapshot makes the TTL change inspectable outside the diff.
+        <details id="pr-prepared-diff-evidence">
+          <summary>Exact PreparedDiff source at the merged revision</summary>
+          <p id="pr-prepared-diff-note">
+            This focused 169-line slice is captured from the repository, not copied into
+            the page. It shows the source-owning abstraction and all three preparation
+            entry points without making the full patch the only way to inspect them.
           </p>
           <lf-source
-            id="pr-rate-config"
-            source="rate-limit-config"
-            snapshot="1"
-            language="toml"
+            id="pr-prepared-diff-source"
+            source="pr-prepared-diff-source"
+            snapshot="3"
+            language="rust"
           ></lf-source>
         </details>
-
-        <details id="pr-test-evidence">
-          <summary>Focused unit transcript</summary>
-          <lf-code id="pr-test-transcript" hi="3">
-            <pre>
-$ pytest tests/ratelimit/test_bucket_identity.py -q
-...                                                                [100%]
-3 passed in 1.84s
-</pre>
-          </lf-code>
-        </details>
-
-        <details id="pr-test-source-evidence">
-          <summary>Focused unit test source</summary>
-          <p id="pr-test-source-note">
-            These are the exact assertions behind the aggregate transcript.
-          </p>
-          <lf-source
-            id="pr-test-source"
-            source="pr-review-tests"
-            snapshot="4"
-            language="python"
-          ></lf-source>
-        </details>
-
-        <details id="pr-migration-evidence">
-          <summary>Migration dry-run transcript</summary>
-          <p id="pr-migration-note">
-            The exact PostgreSQL 16 run behind the summarized migration check.
-          </p>
-          <lf-source
-            id="pr-migration-transcript"
-            source="pr-review-migration"
-            snapshot="5"
-          ></lf-source>
-        </details>
-      </section>
-
-      <section id="pr-ttl">
-        <lf-decision id="pr-ttl-decision">
-          <h2>Should the longer bucket lifetime ship in this PR?</h2>
-          <p id="pr-ttl-context">
-            Nothing in the identity change requires a 30-minute TTL, and the supplied
-            evidence does not cover retention or cleanup load. Settle this before the
-            page-level review decision.
-          </p>
-          <lf-options id="pr-ttl-choice" choose>
-            <lf-option id="pr-ttl-restore">
-              <strong>Restore 10 minutes</strong> Keep this PR about identity and move
-              the retention change to evidence of its own.
-              <em>My take: this is the reviewable cut.</em>
-            </lf-option>
-            <lf-option id="pr-ttl-keep">
-              <strong>Keep 30 minutes</strong> Add cleanup-load evidence and explain the
-              operational reason in the PR description.
-            </lf-option>
-          </lf-options>
-        </lf-decision>
       </section>
 
       <section id="pr-outcome">
         <lf-decision id="pr-outcome-decision">
-          <h2>What should this review report?</h2>
+          <h2>What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
-            This records the reviewer’s recommendation in the packet; it does not call
-            the forge. Leave anchored comments first, then choose the outcome that those
-            findings support.
+            The historical pull request merged with approval. This choice records a
+            reviewer’s recommendation in Leaf; it does not publish another forge review.
           </p>
           <lf-options id="pr-outcome-choice" choose>
-            <lf-option id="pr-outcome-request-changes">
-              <strong>Request changes</strong> A blocking finding must be resolved or
-              answered with evidence.
-              <em
-                >My take: request changes until the TTL is settled and persistence is
-                demonstrated.</em
-              >
+            <lf-option id="pr-outcome-follow-up">
+              <strong>Approve with a follow-up</strong> The safety invariants and
+              behavior are covered; track demand latency and dry-run temp artifacts
+              separately.
+              <em>My take: this best matches the final evidence and review trail.</em>
             </lf-option>
             <lf-option id="pr-outcome-approve">
-              <strong>Approve</strong> The patch and supplied evidence are sufficient as
-              written.
+              <strong>Approve as complete</strong> The remaining notes do not merit
+              additional tracked work.
             </lf-option>
-            <lf-option id="pr-outcome-comment">
-              <strong>Comment without blocking</strong> The findings are useful but do
-              not need another revision.
+            <lf-option id="pr-outcome-request-changes">
+              <strong>Request changes</strong> One remaining gap must be resolved on the
+              branch before approval.
             </lf-option>
           </lf-options>
         </lf-decision>

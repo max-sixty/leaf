@@ -218,9 +218,19 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page, errors = open_page(browser, url)
     widget = page.locator("#request-calls")
-    lines = widget.locator(":scope > .lf-call-line")
+    lines = widget.locator(".lf-call-line")
 
     expect(lines).to_have_count(3)
+    expect(widget.locator(".lf-call-summary")).to_have_text(
+        "1 changed root · 1 added · 0 removed · 2 items"
+    )
+    group = widget.locator(":scope > .lf-call-group")
+    expect(group).to_have_count(1)
+    expect(group.locator(":scope > summary")).to_have_count(1)
+    expect(group).not_to_have_attribute("open", "")
+    widget.locator(".lf-call-toggle").click()
+    expect(group).to_have_attribute("open", "")
+    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
     expect(lines.nth(0)).to_have_attribute("data-meta", "")
     expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
         "calldiff diff main → feature"
@@ -266,6 +276,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
+    expect(group).to_have_attribute("open", "")
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:39"
     )
@@ -296,6 +307,16 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     told(page)
     expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
         "the first line must be a CallDiff diff header"
+    )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → feature\n+ └─ orphan()  gateway/limits.py:39",
+    )
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "line 2 appears before a changed root"
     )
 
     resized(page, 390, 900)

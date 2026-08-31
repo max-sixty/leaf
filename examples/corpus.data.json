@@ -1,49 +1,44 @@
 {
   "$captures": {
-    "rate-limit-config": {
-      "text-file": "pr-walkthrough-source.toml",
-      "label": "gateway/ratelimit.conf"
-    },
     "pr-review-patch": {
       "text-file": "pr-walkthrough.patch",
-      "label": "example/gateway PR #418 at 8f61c2a"
+      "label": "max-sixty/worktrunk PR #3865 at 9ca8f78b"
     },
     "pr-call-diff": {
       "text-file": "pr-walkthrough-call-diff.txt",
-      "label": "CallDiff 0.5.0 reproduction of the gateway patch",
-      "lines": "1:4"
+      "label": "CallDiff 0.5.0 over preview_orchestrator.rs at 9ca8f78b",
+      "lines": "1:106"
     },
-    "pr-review-tests": {
-      "text-file": "pr-walkthrough-test.py",
-      "label": "tests/ratelimit/test_bucket_identity.py at 8f61c2a"
-    },
-    "pr-review-migration": {
-      "text-file": "pr-walkthrough-migration.txt",
-      "label": "PostgreSQL 16 migration dry run at 8f61c2a"
+    "pr-prepared-diff-source": {
+      "text-file": "pr-walkthrough-prepared-diff.rs",
+      "label": "src/git/repository/diff.rs at 9ca8f78b",
+      "lines": "1:169"
     }
   },
   "heat-weather-gap": 38,
   "pr-review-facts": {
-    "repository": "example/gateway",
-    "number": 418,
-    "title": "Move rate-limit identity from IP to token",
-    "author": "aria",
+    "repository": "max-sixty/worktrunk",
+    "number": 3865,
+    "title": "Add unified diff to switch picker",
+    "author": "max-sixty",
     "base": "main",
-    "head": "aria/token-buckets",
-    "revision": "8f61c2a",
-    "status": "open",
-    "description": "Moves authenticated requests from shared per-IP buckets to per-token buckets. Requests without a token continue to use their remote address. Adds persistent token buckets and passes the request into the limiter.\n\nTest plan: unit coverage for key selection and token isolation, plus a migration dry run.",
-    "observedAt": "2026-08-30T14:10:00-07:00",
+    "head": "codex/switch-unified-diff",
+    "revision": "9ca8f78b",
+    "status": "merged",
+    "description": "`wt switch` now opens local rows on a unified diff that combines committed, staged, unstaged, and untracked changes. Working-tree and committed changes remain available as subsidiary tabs, and Tab/Shift-Tab skip tabs without content while Alt-1 through Alt-8 keep direct access.\n\nThe diff execution path is shared with `wt step diff` through `PreparedDiff`. Untracked files use operation-scoped temporary index copies under the system temp directory, leaving the real index unchanged. Sparse checkouts and temp directories inside the worktree are covered. The implementation requires Git 2.34 for `git add --sparse`, documented in the existing FAQ installation section.\n\nThe landing row and cacheable branch-only rows are prewarmed. Off-screen worktrees are loaded by the selected-row demand worker, avoiding a skeleton-time `git add -N` walk for every worktree.\n\nTested with `cargo run -- hook pre-merge --yes` (4,670 tests passed; formatting, clippy, docs, doctests, lockfile, and snapshots passed).\n\n> _This was written by Codex on behalf of max-sixty_",
+    "observedAt": "2026-08-30T22:23:41-07:00",
     "diff": {
-      "files": 4,
-      "additions": 13,
-      "deletions": 4,
-      "commits": 3
+      "files": 46,
+      "additions": 1567,
+      "deletions": 701,
+      "commits": 6
     },
     "checks": {
-      "Unit · token isolation": "passed",
-      "Migration · PostgreSQL 16": "passed",
-      "Unit · bucket identity": "passed"
+      "CI · lint": "passed",
+      "CI · test (Linux, macOS, Windows)": "passed",
+      "Coverage · patch and project": "passed",
+      "Docs": "passed",
+      "Tend · review": "passed"
     }
   },
   "atlas-worktrees": {

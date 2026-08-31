@@ -234,7 +234,7 @@ lf-call-diff {
   display: block;
   max-width: 100%;
   margin: var(--sp-3) 0;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   background: var(--pre-bg);
@@ -243,6 +243,78 @@ lf-call-diff {
   font-size: var(--code-size);
   font-variant-ligatures: none;
   line-height: var(--code-line);
+  container-type: inline-size;
+}
+
+.lf-call-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--code-border);
+  background: var(--code-chrome);
+  color: var(--code-muted);
+  font-family: var(--sans);
+}
+
+.lf-call-summary {
+  margin: 0;
+  font-size: var(--t-6);
+}
+
+.lf-call-toggle {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid var(--code-border);
+  border-radius: 999px;
+  background: var(--pre-bg);
+  color: var(--code-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.lf-call-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lf-call-group {
+  border-top: 1px solid var(--code-border);
+}
+
+.lf-call-group:first-of-type {
+  border-top: 0;
+}
+
+.lf-call-group > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.lf-call-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lf-call-group > summary::before {
+  content: "›";
+  align-self: center;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  color: var(--code-muted);
+  font-family: var(--sans);
+  font-weight: 700;
+  text-align: center;
+  transition: transform 120ms ease;
+}
+
+.lf-call-group[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.lf-call-group-body {
+  overflow-x: auto;
+  border-top: 1px solid color-mix(in srgb, var(--code-border) 60%, transparent);
 }
 
 .lf-call-line {
@@ -253,8 +325,51 @@ lf-call-diff {
   white-space: pre;
 }
 
+.lf-call-group-summary {
+  box-sizing: border-box;
+  grid-template-columns: 1.25rem 2rem minmax(0, 1fr) max-content;
+  grid-template-rows: auto auto;
+  width: 100%;
+  min-width: 0;
+  padding-block: var(--sp-1);
+}
+
+.lf-call-group-summary .lf-call-body {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lf-call-group-summary .lf-call-location {
+  grid-column: 3 / 5;
+  grid-row: 2;
+  min-width: 0;
+  margin-inline-start: 0;
+  overflow: hidden;
+  font-size: var(--t-7);
+  text-overflow: ellipsis;
+}
+
+.lf-call-group-count {
+  align-self: center;
+  grid-column: 4;
+  grid-row: 1;
+  margin-inline-start: var(--sp-4);
+  color: var(--code-muted);
+  font-family: var(--sans);
+  font-size: var(--t-7);
+  text-align: end;
+  white-space: nowrap;
+}
+
 .lf-call-line + .lf-call-line {
   border-top: 1px solid color-mix(in srgb, var(--code-border) 45%, transparent);
+}
+
+.lf-call-group-body .lf-call-line:first-child {
+  border-top: 0;
 }
 
 .lf-call-line[data-status="added"] {
@@ -270,6 +385,8 @@ lf-call-diff {
 }
 
 .lf-call-line[data-meta] {
+  min-width: 0;
+  overflow-x: auto;
   padding-block: var(--sp-1);
   background: var(--code-chrome);
   color: var(--code-muted);
@@ -321,5 +438,36 @@ lf-call-diff {
   .lf-call-line[data-status="added"],
   .lf-call-line[data-status="removed"] {
     background: transparent;
+  }
+
+  .lf-call-tools {
+    background: transparent;
+  }
+
+  .lf-call-toggle {
+    display: none;
+  }
+
+  .lf-call-group:not([open]) > .lf-call-group-body {
+    display: block;
+  }
+}
+
+@container (max-width: 34rem) {
+  .lf-call-tools {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lf-call-group-count {
+    display: none;
+  }
+
+  .lf-call-group-summary {
+    grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
+  }
+
+  .lf-call-group-summary .lf-call-location {
+    grid-column-end: 4;
   }
 }

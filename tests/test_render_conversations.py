@@ -1676,8 +1676,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # and lf-address is worn on both sides of the scope, which puts that rule at
         # document level and carries these names out with it. Scoping their half
         # separately would make a second copy of the geometry the rule exists to keep
-        # single; that a name reaching document level touches nothing in the page is
-        # what the moved-property assertion above already holds.
+        # single. What keeps them harmless is only that nothing in the page wears them:
+        # the moved-property assertion cannot speak to it, since its probe drops every
+        # document-level name by construction, so this pin is what holds that fact.
         "lf-key-sequence",
         "lf-key-more",
         "lf-over-mark",

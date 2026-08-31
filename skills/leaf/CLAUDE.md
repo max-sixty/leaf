@@ -320,8 +320,8 @@ Acceptance and application are not the same fact. A successful POST must include
 state containing the event minted for the attempt. `deliver` then knows the
 request was accepted and may open the queue for the next entry. The caller of a
 successful comment waits until `receiveState` has either rendered that response
-or reported the local render error, because its continuation reveals and focuses
-the thread the response creates.
+or reported the local render error, because its continuation opens the complete
+conversation view and may focus the reply box the response creates.
 
 An accepted action stays in the outbox until a complete applied state contains
 its attempt and `committedProjection` proves the authoritative coordinate now
@@ -2455,7 +2455,10 @@ longer paint it. `showComposer` states the whole visible and focus outcome from
 `composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks and Escape hide
 without discarding words; Cancel explicitly discards.
 
-Sending a comment reveals and focuses the thread created by the accepted event.
+An accepted anchored comment opens its inline thread. When the reserved margin is too
+narrow, that thread may cover the page in its bounded card; it does not substitute the
+Threads panel. The send focuses the reply box only when no later selection, edit, or
+typing gesture stands.
 News arriving without the reader's send gesture may show a toast and count but
 does not move focus or scroll the panel. `showToast` clears click behavior as it
 fades so invisible toast chrome cannot remain a pointer target.

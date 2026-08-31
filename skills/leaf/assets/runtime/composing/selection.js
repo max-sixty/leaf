@@ -16,6 +16,7 @@ export function createSelectionComposer(runtime, dependencies) {
     landTyping,
     loadDraft,
     mayLandTyping,
+    openInlineThread,
     paintAnchors,
     paintHere,
     placeComposer,
@@ -113,15 +114,21 @@ export function createSelectionComposer(runtime, dependencies) {
       );
       if (!sent) return;
       // A later edit is still the reader's standing gesture. The earlier comment may
-      // render in the panel, but it may not close or move the composer holding that edit.
+      // render in another conversation view, but it may not close or move the composer
+      // holding that edit.
       if (loadDraft(ctx) !== null) return;
-      let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
+      const inlineReply = openInlineThread(sent.id);
+      let reply =
+        inlineReply ??
+        threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       const shouldLand = mayLandTyping(reply, composerInput);
-      showThread(sent.id, { stand: shouldLand });
+      if (!inlineReply) {
+        showThread(sent.id, { stand: shouldLand });
+        reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
+      }
       // The composer this was sent from is gone with the send; the thread it became
       // carries the same conversation, so its reply box is where typing continues.
       if (shouldLand) {
-        reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
         landTyping(reply, composerInput);
       }
     },

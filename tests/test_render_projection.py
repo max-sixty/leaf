@@ -2267,6 +2267,13 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
     page.locator(".lf-composer").get_by_role("button", name="Comment").click()
 
+    inline = page.locator(".lf-margin-thread")
+    expect(inline.locator(".lf-conversation-body")).to_have_text(
+        "Half-empty by whose reading?"
+    )
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Open this thread in Threads"
+    ).click()
     thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).to_be_visible()
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))

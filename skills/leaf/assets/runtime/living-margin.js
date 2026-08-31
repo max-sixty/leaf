@@ -1420,7 +1420,7 @@ export function createLivingMargin(dependencies) {
   }
 
   function showPreview(entry, button, retry = true) {
-    if (!entry) return;
+    if (!entry || designIsOn()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     previewEntry = entry;
     transferThreadCard(button);

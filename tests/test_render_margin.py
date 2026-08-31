@@ -962,6 +962,9 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     page.locator("body").focus()
     marker.focus()
     expect(preview).to_be_hidden()
+    page.keyboard.press("Enter")
+    expect(preview).to_be_hidden()
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
 
     assert errors == []
     page.close()

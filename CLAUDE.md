@@ -141,6 +141,8 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 Before finishing a feature:
 
 - Keep the implementation, tests, and any owning protocol or reference aligned.
+- Give every action a keyboard route. Chords keep actions reachable without spending a
+  page-level binding on each one.
 - Make the feature appear in at least one authored page under `examples/`.
   Implementing or changing it includes adding or updating a source example and
   regenerating the derived corpus.

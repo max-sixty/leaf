@@ -2259,8 +2259,8 @@ region.
 Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
 available, or opens the complete sheet where the compact layout has no rail or the map
-has no locations. `m`, `h`, and `f` name the page's numbered
-page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
+has no locations. `m`, `t`, `h`, and `f` name the page's numbered
+page-map item, tab, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2280,10 +2280,10 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it. Completing an address runs that list's destination: a
-same-document hyperlink follows and leaves focus on its fragment target, an external
-hyperlink names the tab it opens, a fold opens and takes focus, and a page-map item opens
-its marker or focuses its first available action.
+the rows inside it. Completing an address runs that list's destination: a tab selects
+and takes focus, a same-document hyperlink follows and leaves focus on its fragment
+target, an external hyperlink names the browser tab it opens, a fold opens and takes
+focus, and a page-map item opens its marker or focuses its first available action.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
 line. Each row shows its complete chord. Each visible numbered member also shows its

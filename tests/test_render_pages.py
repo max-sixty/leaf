@@ -52,6 +52,7 @@ from render_support import (
     composer_quote,
     leaf_page,
     live_url,
+    margins_laid_out,
     nudge,
     open_page,
     page_registry,
@@ -2036,6 +2037,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     }"""
 
     resized(page, 1400, 900)
+    margins_laid_out(page)
     roomy = page.evaluate(reading)
     assert roomy["strip"] == 264
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
@@ -2069,6 +2071,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     # root scrollport holds outside the container query's own width.
     exact = roomy["strip"] + 720 + roomy["rail"]
     resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
+    margins_laid_out(page)
     tighter = page.evaluate(reading)
     assert exact <= tighter["pageWidth"] <= exact + 1, (
         f"the narrowed page is not the width the residents and column need: {tighter}"

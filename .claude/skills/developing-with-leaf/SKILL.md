@@ -13,6 +13,12 @@ throughout; a bare `leaf` command may resolve to the installed plugin instead.
 Choose one workflow. Preview a shipped example when the request names one;
 otherwise author or revise a page.
 
+Before presenting a page or visible Leaf change as finished, inspect the rendered
+page at the exact served URL: confirm the expected content, review the changed
+surface at a representative viewport, and check the browser console. Hand off
+only that URL as the preview. An authored HTML path is source, not a runnable
+preview; use the Codex review pane when feedback belongs to a source line.
+
 ## Preview a shipped example
 
 1. From the repository root, start `scripts/preview.py <example>` in a
@@ -26,9 +32,6 @@ otherwise author or revise a page.
 4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
    thread. Codex Annotation mode creates visual comments that the user sends with
    their next chat message.
-
-Keep the URL in the handoff. Use the Codex review pane when feedback belongs to a
-source line rather than the rendered example.
 
 ## Author or revise a page
 

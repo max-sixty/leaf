@@ -404,9 +404,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.close()
 
 
-def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(
-    browser, serve
-):
+def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser, serve):
     """The Escape rung folds from inside the cluster, so it can put the reader back on
     the `…` they opened it with. The put-down has no such standing: it runs on every
     disarm, from wherever the reader happens to be, so claiming the focus as well threw

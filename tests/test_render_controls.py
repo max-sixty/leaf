@@ -693,6 +693,13 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     # A control that settles its own decisions disappears while it still owns focus. Hand the
     # reader to the next standing destination instead of silently dropping them on body.
     answer_all = page.locator(".lf-answer-all")
+    # The blanket answer decides its decisions one at a time, so the press owes one round
+    # trip per decision the control counts. Read that number off the control's own face
+    # rather than writing the fixture's arithmetic out here.
+    owed = int(re.search(r"\((\d+)\)", answer_all.text_content()).group(1))
+    assert owed > 1, (
+        f"the fixture left the blanket answer a single trip, not a sequence: {owed}"
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
@@ -706,6 +713,19 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     assert _traffic(page).sends == 1, "one blanket-answer press became two event runs"
     held[0].continue_()
     page.unroute("**/api/event")
+    # Released, the press spends a whole trip on each remaining decision, so the last is
+    # still in flight when the first has settled. Say so here rather than letting the
+    # hide assertion absorb the transport: its budget is one repaint's worth, three
+    # sequential trips outlast it on a loaded machine, and the red then reads as a
+    # control that never went instead of a wait that was never stated.
+    # `test_accept_all_decides_every_pending_suggestion` stages the same sequence through
+    # each widget's own settle; this test is about where focus lands, so it names the
+    # outbox instead.
+    _until(
+        page,
+        lambda traffic: traffic.sends == owed and not traffic.pending,
+        f"settled every one of the {owed} answers the blanket press owed",
+    )
     expect(answer_all).to_be_hidden()
     version = page.locator(".lf-version")
     expect(version).to_be_focused()

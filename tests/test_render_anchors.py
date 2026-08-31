@@ -61,12 +61,6 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
-def leave_new_thread(page):
-    """End the reply posture so a live page may follow its next revision."""
-    page.locator(".lf-margin-preview-close").click()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
     """The document reserves exactly the head covered by the painted banner.
 
@@ -239,7 +233,6 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
 
     thread = page.locator(".lf-thread .lf-quote").first
     assert thread.text_content().strip().strip("“”") == "In flight"
-    leave_new_thread(page)
 
     # A second version reworking one card's prose and nothing else. The page follows it,
     # and the anchor is on a word only the runtime puts there, so it has to be found
@@ -425,7 +418,6 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 
     thread = page.locator(".lf-thread .lf-quote").first
     assert thread.text_content().strip().strip("“”") == "Heated bird bath"
-    leave_new_thread(page)
 
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
@@ -2319,7 +2311,6 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
     }""")
     assert landed is True, f"couldn't post the comment ({landed})"
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    leave_new_thread(page)
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(DRIFT_V2)
@@ -2620,7 +2611,6 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     }""")
     assert posted is True, f"couldn't post the comment ({posted})"
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    leave_new_thread(page)
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(THIN_V2)

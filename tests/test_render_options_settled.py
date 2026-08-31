@@ -14,6 +14,7 @@ from render_support import (
     live_url,
     open_page,
     page_registry,
+    panel_settled,
     round_trip,
     select,
     undo,
@@ -153,6 +154,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     ], "the comment landed on the summary line rather than the card it was made on"
     row.click()
 
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     page.locator(".lf-panel .lf-quote", has_text="arrives logged out").click()
     assert page.locator("#opt-strict").is_visible(), (
         "clicking a thread's quote must open the group holding it"

@@ -2946,18 +2946,22 @@ const unaccountedGesture = () =>
   outbox.length > 0 ||
   Boolean(document.querySelector(".lf-dragging"));
 // The user is mid-something navigation would destroy: the above, and the words they
-// have typed — a composition surface is a focused textarea, any holding words, or a
-// widget-built one (data-lf-offer) even empty, because deleting everything is still an
-// edit.
+// have typed — a composition surface is a focused textarea holding words or a draft, or
+// a widget-built one (data-lf-offer) even empty, because deleting everything is still an
+// edit. A reply the runtime merely opened and focused is the exception: that landing has
+// no reader-authored draft to preserve and therefore does not stop a live page following.
 const midComposition = () => {
   const active = focused();
+  const replyDraft = conversationRuntime?.replyBoxHasDraft(active) ?? null;
   return (
     composerOpen ||
     isSelecting() ||
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||
     (active?.tagName === "TEXTAREA" &&
-      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+      (active.value !== "" ||
+        replyDraft === true ||
+        (replyDraft === null && active.hasAttribute("data-lf-offer"))))
   );
 };
 // Through the chooser's one door, so the chip opens exactly the version it names. At the

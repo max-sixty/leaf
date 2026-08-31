@@ -2143,7 +2143,6 @@ def test_workspaces_replace_each_other_instead_of_stacking(browser, serve, width
     panel_settled(page)
     expect(decisions).not_to_have_class(re.compile(r"\bopen\b"))
 
-    page.get_by_role("button", name="Close threads").click()
     page.locator(".lf-decisions").click()
     panel_settled(page, open=False)
     expect(decisions).to_have_class(re.compile(r"\bopen\b"))
@@ -3826,16 +3825,15 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(opener).click()
                 page.locator(arrival).first.focus()
             else:
+                # Each press read on a rendered frame, the way every Tab below it is. A
+                # key that opens a layer hands the reader their place in it from the
+                # platform's own event rather than from the press — a popover lands focus
+                # on a row from `toggle`, which is queued — so the next key of the
+                # sequence arrives at whatever the press left focus on, and the scope's
+                # own keys, bound inside the layer, never see it.
                 for key in keys:
                     page.keyboard.press(key)
-                    if scope == "the versions menu" and key == "v":
-                        # Native popover visibility precedes its queued toggle event. The
-                        # menu's handler moves focus to the current row; wait for that own
-                        # arrival before ArrowUp asks the menu to reach its comparison.
-                        page.wait_for_function(
-                            "() => document.querySelector('.lf-version-menu')"
-                            ".contains(document.activeElement)"
-                        )
+                    page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):

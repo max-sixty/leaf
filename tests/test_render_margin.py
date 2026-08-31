@@ -13,6 +13,7 @@ from render_support import (
     SUGGESTION_PAGE,
     _publish,
     compare_with,
+    key_line,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -43,6 +44,29 @@ OUTCOME_ON_DECISION = {
     "detail": {"options": ["br-steel"]},
     "generated": [],
 }
+
+PAGE_MAP_ITEM_HINT = '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
+
+
+def address_span(count):
+    capped = min(count, 9)
+    return f"1–{capped}" if capped > 1 else "1"
+
+
+def expect_page_map_address(page, count, pressed):
+    key_line(page)
+    hint = page.locator(PAGE_MAP_ITEM_HINT)
+    expect(hint).to_have_count(1)
+    expect(hint).to_contain_text("page-map items")
+    keys = hint.locator(".lf-key-sequence > kbd")
+    assert keys.evaluate_all("keys => keys.map(key => key.textContent)") == [
+        "g",
+        "m",
+        address_span(count),
+    ]
+    assert keys.evaluate_all("keys => keys.map(key => key.dataset.lfKeyState)") == [
+        "pressed"
+    ] * pressed + ["neutral"] * (3 - pressed)
 
 
 def resized_shell(page, inline_size, height):
@@ -164,19 +188,10 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     )
     expect(marker).not_to_be_focused()
 
-    map_route = page.locator(
-        '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
-        " > .lf-key-sequence"
-    )
     page.keyboard.press("g")
-    expect(map_route.locator(":scope > kbd")).to_have_text(["g", "m", "1–9"])
-    assert map_route.locator(":scope > kbd").evaluate_all(
-        "keys => keys.map(key => key.dataset.lfKeyState)"
-    ) == ["pressed", "neutral", "neutral"]
+    expect_page_map_address(page, address["count"], 1)
     page.keyboard.press("m")
-    expect(map_route.locator(":scope > kbd").nth(1)).to_have_attribute(
-        "data-lf-key-state", "pressed"
-    )
+    expect_page_map_address(page, address["count"], 2)
     page.keyboard.press(str(address["number"]))
 
     preview = page.locator(".lf-margin-preview")
@@ -279,20 +294,10 @@ def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
           return {number: Number(position[1]), count: Number(position[2])};
         }"""
     )
-    map_route = page.locator(
-        '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
-        " > .lf-key-sequence"
-    )
-    final_address = f"1–{min(draft_address['count'], 9)}"
     page.keyboard.press("g")
-    expect(map_route.locator(":scope > kbd")).to_have_text(["g", "m", final_address])
-    assert map_route.locator(":scope > kbd").evaluate_all(
-        "keys => keys.map(key => key.dataset.lfKeyState)"
-    ) == ["pressed", "neutral", "neutral"]
+    expect_page_map_address(page, draft_address["count"], 1)
     page.keyboard.press("m")
-    expect(map_route.locator(":scope > kbd").nth(1)).to_have_attribute(
-        "data-lf-key-state", "pressed"
-    )
+    expect_page_map_address(page, draft_address["count"], 2)
     assert draft_address["number"] <= 9
     page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
@@ -884,13 +889,6 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(send).to_be_focused()
 
     resized(page, 1440, 480)
-    # The resize listener schedules the thread card's measured top for the next frame.
-    # Consume the geometry it is responsible for before reading it; a card that never
-    # returns inside the viewport still times out here.
-    page.wait_for_function(
-        "() => document.querySelector('.lf-margin-preview')"
-        ".getBoundingClientRect().bottom <= innerHeight - 7"
-    )
     capped = preview.evaluate(
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();

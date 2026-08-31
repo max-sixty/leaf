@@ -1,57 +1,57 @@
 {
-  "inputs_sha256": "c51a8720e2ca83d91e4eee728bb48653a328ff63c550cfd54a0827295b31981b",
+  "inputs_sha256": "ae6f4b2df724a80367f54f2da7feee56279f6b52b23369557e3013b953a2cd02",
   "previews": {
     "command-hub": {
       "file": "example-command-hub.jpg",
-      "sha256": "a4e79523a4e736b883156251704ad3c115d3b06ead670410544e78414f9144a5",
+      "sha256": "1690a6bc0d3853ee9fd28635e2fea1b3c062ebdee7505f8b924ac5072810cace",
       "width": 896,
       "height": 560
     },
     "design-decision": {
       "file": "example-design-decision.jpg",
-      "sha256": "f5978aac094985f8c3175825af40e610539755c0cd1e74d6c0cf68ddbc3a52ae",
+      "sha256": "49bb106902703c97e53493fd0d7ef6cfb38452272af7270677c47a2059a563df",
       "width": 896,
       "height": 560
     },
     "heat-loss": {
       "file": "example-heat-loss.jpg",
-      "sha256": "2b30cd4e6a60159f0a834b12b252ae03bc1ad46e77f465da9f0e65f8ec4651f2",
+      "sha256": "a2197ef913bea3ce8eed26205628fb84b807e5640b9d03ae4848605e6c1b3932",
       "width": 896,
       "height": 560
     },
     "live-progress": {
       "file": "example-live-progress.jpg",
-      "sha256": "1aaff7f2fa0c9e05cfd7e69e80508c75e6cf0461052514dc628e185ccfbdfb76",
+      "sha256": "ecc397cf866ba347d4872bf1625befff3a79b8ef47b4450e6eabca19aa8dbb46",
       "width": 896,
       "height": 560
     },
     "postmortem": {
       "file": "example-postmortem.jpg",
-      "sha256": "3880d182ec07c61799482d68c55c726aa4434928d4120c33f39b5aea5303c1c3",
+      "sha256": "c4bbd257c3113fb945825e6a583ea454238a041b525dafc8872b536ce99227ee",
       "width": 896,
       "height": 560
     },
     "pr-walkthrough": {
       "file": "example-pr-walkthrough.jpg",
-      "sha256": "27f0bc2f5306e2bb4ce062460243419bab17cdacfbb7eff99427e2f0f2ce7d38",
+      "sha256": "055abec3c343f6e05f122f75cb26eca69debdc1c498de0ae95d6a74c5b56ec14",
       "width": 896,
       "height": 560
     },
     "release-notes": {
       "file": "example-release-notes.jpg",
-      "sha256": "4716dd876488ad9fed8adb561cef889217ad1946a73cc866374962ab2ac9a394",
+      "sha256": "3ac51b8c577e07bf197e90840176264177368f65ce55785b0d68f043b7e8a6a5",
       "width": 896,
       "height": 560
     },
     "ship-review": {
       "file": "example-ship-review.jpg",
-      "sha256": "bebbb75472d1fbac7d2922c05a8e4944b6e727ca08baf1eb1bb41c2dbde033e4",
+      "sha256": "3cbf250737f905f7ded8172893276e48d71bde46686f158cfc6aba5c11fd2d51",
       "width": 896,
       "height": 560
     },
     "triage-board": {
       "file": "example-triage-board.jpg",
-      "sha256": "58b258656b0d6683a957bab610dcb27b4b847000ea197e25047dfcf2bf00b0b1",
+      "sha256": "f29b5383126ff5c9ad32e81fc7619b3032e811244dec1af9f2f4169ddc0fdf95",
       "width": 896,
       "height": 560
     }

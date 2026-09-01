@@ -32,7 +32,10 @@ path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
 `PATH`. If the resolved file is absent, report that the plugin payload is
 incomplete. A checkout keeps it at `bin/leaf`.
 
-1. Run `leaf page init <page>`.
+1. Run `leaf page init <page>`. Their renderers are large and most pages want
+   neither, so a Mermaid diagram or a unified diff needs its package named here:
+   `leaf page init --package diagram --package diff <page>`. Re-running
+   `page init` with the selection adds it to a page already written.
 2. Read `references/page-authoring.md`, including its selective `registry.json`
    queries. Read `references/authoring-decisions.md` while authoring a new,
    unanswered ask or sign-off; read `references/authoring-revisions.md` before

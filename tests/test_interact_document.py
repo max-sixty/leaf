@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     PHRASING_CONTENT,
+    SHIPPED_PACKAGES,
     SUGGESTION,
     X,
     Y,
@@ -470,25 +470,32 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
-    holds, which a one-version corpus cannot earn."""
-    registry = validation_model.incoming_registry(
-        [
-            schema_model.ASSETS,
-            schema_model.DEFAULT_PACKAGE,
-            COMMAND_HUB_PACKAGE,
-        ]
-    )
+    holds, which a one-version corpus cannot earn.
+
+    The floor reads every package the examples select rather than a list written
+    here, which is how it followed lf-diagram and lf-diff into their own packages.
+    Widening it that way brought pr-review's two widgets under the floor for the
+    first time and found one uncovered attribute, exempted below."""
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     used = {}
     for path in (Path(__file__).parent.parent / "examples").glob("*.html"):
         for rec in structure_model.parse_structure(path.read_text()).lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
+    # An example pins a snapshot by writing the data revision a capture retained, and
+    # a source that only ever takes `data set` retains none: examples/*.data.json can
+    # attach a capture label to a `$captures` file and not to a set value, so
+    # pr-review-facts has no revision for lf-pull-request to name. The manifest, not
+    # this floor, is where that is fixed.
+    unreachable = {("lf-pull-request", "snapshot")}
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry.get("properties", {}).items():
             if attr in {"restated", "overruled", "resolves"}:
+                continue
+            if (tag, attr) in unreachable:
                 continue
             seen = used.get(tag, {}).get(attr)
             if seen is None:

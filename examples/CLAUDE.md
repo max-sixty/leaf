@@ -26,7 +26,12 @@ until a fixture was written for it by hand
 (`test_the_specimen_gutter_is_painted_in_both_schemes`).
 `test_every_widget_in_the_vocabulary_stands_in_an_example` is the floor now: it
 reads the widget list off the registry, so the next widget joins the corpus by
-being declared.
+being declared. Which registry is the other half of that question, and it is read
+off `layer.json` (`SHIPPED_PACKAGES`) rather than written into the test. A floor
+that names its own packages stops covering the next one: `lf-diagram` and
+`lf-diff` moved into the `diagram` and `diff` packages and would have dropped out
+of every sweep in silence, and `pr-review`'s two widgets had never been under one
+at all.
 
 Idioms — the catalog's other half — sit under the same floor, and holding them
 there takes a second test. An idiom is declared as a CSS selector rather than as
@@ -85,7 +90,9 @@ fixture can establish a cause, but it cannot stand in for the composed surface.
 
 `examples/layer.json` names the package selections shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
-layer the website serves.
+layer the website serves. Every bundled package belongs in it, whether or not a
+page uses that package today: the list is what the corpus floors read to decide
+which vocabulary they cover.
 
 An example's markup is the source stamped as v1, and nothing ever revises it.
 That puts `restated` and `overruled` out of reach: each answers something only a

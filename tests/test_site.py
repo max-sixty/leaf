@@ -24,7 +24,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
-from interact_support import COMMAND_HUB_PACKAGE
+from interact_support import SHIPPED_PACKAGES
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -33,7 +33,6 @@ from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select, 
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
-DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -117,11 +116,15 @@ def test_the_pages_link_the_theme_the_site_serves(site):
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
     served = (site / "theme.css").read_text()
-    for source in (
-        ASSETS / "theme.css",
-        DEFAULT_PACKAGE / "theme.css",
-        COMMAND_HUB_PACKAGE / "theme.css",
-    ):
+    # Every half the site's own layer composes, read off examples/layer.json rather
+    # than listed, so a package added there is covered without a second edit here.
+    halves = [
+        root / "theme.css"
+        for root in SHIPPED_PACKAGES
+        if (root / "theme.css").is_file()
+    ]
+    assert len(halves) > 3, halves
+    for source in halves:
         assert source.read_text().rstrip() in served, (
             f"the theme the site serves is missing {source.parent.name}'s half"
         )

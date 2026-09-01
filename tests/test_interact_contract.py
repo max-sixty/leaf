@@ -3407,9 +3407,19 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     """A hold is recorded against the declaration that admitted it."""
     package = page_dir.parent / "mutable-command-hub"
     shutil.copytree(COMMAND_HUB_PACKAGE, package)
+    # An explicit selection replaces the recorded one, so it restates `diagram` for
+    # PAGE's lf-diagram beside the copy of command-hub this test mutates.
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "./mutable-command-hub", str(page_dir)],
+        [
+            "page",
+            "init",
+            "--package",
+            "./mutable-command-hub",
+            "--package",
+            "diagram",
+            str(page_dir),
+        ],
     )
     assert selected.exit_code == 0, selected.output
     version = page_dir / "versions" / "v1.html"

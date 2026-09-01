@@ -37,8 +37,10 @@ keep it when the product can make those frames stale.
 ## Vendored bundles
 
 `vendor.py` rebuilds them — all of them by default, or the ones you name. Every
-pinned version sits in one table there, and the six divide by whether upstream's
-published file is already loadable:
+pinned version sits in one table there, and each bundle lands in the package whose
+widget imports it: `mermaid` in `diagram`, `pierre` in `diff`, `plot` and `sortable`
+in `default`, the rest in the kernel's own `assets/vendor/`. The six divide by whether
+upstream's published file is already loadable:
 
 - Copies, where it is, so vendoring is three values: `marked`, the Markdown
   renderer for runtime-supplied text; `mermaid`, the diagram renderer `lf-diagram`

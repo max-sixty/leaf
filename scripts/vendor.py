@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Rebuild the third-party bundles a Leaf page loads.
 
-The tracked files under `skills/leaf/assets/vendor/` and
-`skills/leaf/packages/default/vendor/` are payload: a page vendors them and a
-reader's browser runs them, and nothing builds them at install time.
+The tracked files under `skills/leaf/assets/vendor/` and each package's own
+`vendor/` are payload: a page vendors them and a reader's browser runs them, and
+nothing builds them at install time.
 
 They arrive two ways, which is the shape of this file. Where upstream already
 publishes a file a browser can load, vendoring is three values — the package,
@@ -28,7 +28,18 @@ from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
-PACKAGE_VENDOR = ROOT / "skills/leaf/packages/default/vendor"
+PACKAGES = ROOT / "skills/leaf/packages"
+
+
+def package_vendor(package: str) -> Path:
+    """Where a bundle lands, which is the package whose widget imports it.
+
+    A vendored library is payload of the package that draws with it, not of the
+    layer: mermaid and Pierre are 5.3MB between them and reach a page only when it
+    selects `diagram` or `diff`, so a page that draws neither carries neither.
+    """
+    return PACKAGES / package / "vendor"
+
 
 # Every pinned version, exact and in one place. A range would let a dependency
 # move under a bundle nobody rebuilt, and then the tracked bytes stop being what
@@ -72,7 +83,9 @@ COPIES = {
     # and that scheme has moved between minor versions. Run
     # tests/test_render_aim.py against a new one.
     "mermaid": Copy(
-        "mermaid", "dist/mermaid.min.js", PACKAGE_VENDOR / "mermaid.min.js"
+        "mermaid",
+        "dist/mermaid.min.js",
+        package_vendor("diagram") / "mermaid.min.js",
     ),
     # SortableJS drags lf-board's cards. The package ships its ESM entry three
     # times over, carrying the same plugin code each time and differing only in
@@ -82,7 +95,9 @@ COPIES = {
     # `sortable.complete.esm.js` mounts swap and multi-drag on top, and lf-board
     # sets neither.
     "sortable": Copy(
-        "sortablejs", "modular/sortable.esm.js", PACKAGE_VENDOR / "sortable.esm.js"
+        "sortablejs",
+        "modular/sortable.esm.js",
+        package_vendor("default") / "sortable.esm.js",
     ),
 }
 
@@ -210,10 +225,9 @@ def build_plot(work: Path) -> list[Path]:
     The whole of Plot goes in rather than the marks lf-chart happens to use
     today. Naming the marks here would put the module's mark list in a second
     place, where a chart kind added in the module renders as a TypeError instead;
-    the list is worth about 100KB, against a payload whose mermaid bundle is
-    3.4MB.
+    the list is worth about 100KB, against a 385KB bundle.
     """
-    out = PACKAGE_VENDOR / "plot.esm.js"
+    out = package_vendor("default") / "plot.esm.js"
     run(
         "npm",
         "install",
@@ -387,8 +401,8 @@ def build_pierre(work: Path) -> list[Path]:
     so this bundle carries only the grammars the registry names plus the two
     fixed token themes lf-diff maps onto Leaf's syntax roles.
     """
-    out = PACKAGE_VENDOR / "pierre-diffs.esm.js"
-    notices = PACKAGE_VENDOR / "pierre-diffs.LICENSES.txt"
+    out = package_vendor("diff") / "pierre-diffs.esm.js"
+    notices = package_vendor("diff") / "pierre-diffs.LICENSES.txt"
     shiki = PINS["shiki"]
     run(
         "npm",

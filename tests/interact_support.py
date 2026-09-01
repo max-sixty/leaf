@@ -55,6 +55,21 @@ PLUGIN_ROOT = ROOT
 # nothing and reports nothing.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = SKILL_ROOT / "packages" / "command-hub"
+# The complete shipped vocabulary, in the order `page init` composes it for an example.
+# Read from examples/layer.json rather than listed here, because a floor that names its
+# own packages stops covering the next one: lf-diagram and lf-diff left the default
+# package for `diagram` and `diff` and would have dropped out of every sweep silently,
+# and pr-review's two widgets had never been in one.
+SHIPPED_PACKAGES = [
+    schema_model.ASSETS,
+    schema_model.DEFAULT_PACKAGE,
+    *(
+        SKILL_ROOT / "packages" / name
+        for name in json.loads(
+            (ROOT / "examples" / "layer.json").read_text(encoding="utf-8")
+        )
+    ),
+]
 COMMAND_SUBJECTS = (
     '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
     '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
@@ -151,16 +166,28 @@ graph LR
 """
 
 
+# The fixture's own layer. PAGE holds an lf-diagram, and the interact suite borrows
+# lf-diagram and lf-diff declarations out of the vendored registry, so the selection
+# names the packages those three now travel in. The template cache is keyed by this
+# same list, so a page built for one selection is never handed to another.
+PAGE_PACKAGES = ("command-hub", "diagram", "diff")
+
+
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, clone_initialized_page):
-    """A page with the default and Command Hub package vocabularies and a valid v1."""
+    """A page with the default, Command Hub, diagram and diff vocabularies and a v1."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     d = tmp_path / "page"
 
     def initialize(template):
         result = CliRunner().invoke(
             cli_model.cli,
-            ["page", "init", "--package", "command-hub", str(template)],
+            [
+                "page",
+                "init",
+                *(arg for name in PAGE_PACKAGES for arg in ("--package", name)),
+                str(template),
+            ],
         )
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
@@ -168,7 +195,7 @@ def page_dir(tmp_path, monkeypatch, clone_initialized_page):
         assert activated.error is None and activated.revision == 1
         (template / "versions" / "v1.html").write_text(PAGE)
 
-    clone_initialized_page("command-hub", d, initialize)
+    clone_initialized_page("-".join(PAGE_PACKAGES), d, initialize)
     return d
 
 
@@ -819,7 +846,11 @@ def trial_page(tmp_path, monkeypatch):
     source.write_text(json.dumps(entries))
 
     page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    # The version is built out of PAGE, which holds an lf-diagram; the project package
+    # under test is the `.leaf` overlay beside it.
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+    )
     assert initialized.exit_code == 0, initialized.output
     (page / "versions" / "v1.html").write_text(
         trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE)

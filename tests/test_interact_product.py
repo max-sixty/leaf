@@ -16,6 +16,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
     ROOT,
+    SHIPPED_PACKAGES,
     _report,
     _tasks_version,
     check,
@@ -446,13 +447,7 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     lf-shot and lf-specimen were outside them from the day each was written.
     examples/CLAUDE.md carries the rest, including the shapes this floor doesn't
     reach."""
-    registry = validation_model.incoming_registry(
-        [
-            schema_model.ASSETS,
-            schema_model.DEFAULT_PACKAGE,
-            COMMAND_HUB_PACKAGE,
-        ]
-    )
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = " ".join(
         p.read_text()
@@ -468,13 +463,7 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():
-    registry = validation_model.incoming_registry(
-        [
-            schema_model.ASSETS,
-            schema_model.DEFAULT_PACKAGE,
-            COMMAND_HUB_PACKAGE,
-        ]
-    )
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     titled = [
         tag
         for tag, entry in registry.items()
@@ -1645,6 +1634,8 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert all(not Path(name).is_absolute() for name in packages)
     resolved = layer_model.resolve_packages(tuple(packages))
     assert resolved == [
+        schema_model.BUNDLED_PACKAGES / "diagram",
+        schema_model.BUNDLED_PACKAGES / "diff",
         COMMAND_HUB_PACKAGE,
         schema_model.BUNDLED_PACKAGES / "pr-review",
     ]

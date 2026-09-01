@@ -38,6 +38,7 @@ from render_support import (
     open_page,
     painted,
     panel_settled,
+    pending_text,
     refuse,
     resized,
     round_trip,
@@ -76,8 +77,7 @@ def test_page_round_trip(browser, serve):
     page.evaluate("window.__leafJourneyDocument = 'held'")
 
     # Select the passage from the keyboard's path: a real Range, then the keyup
-    # the runtime watches for keyboard selections, then the c binding — which
-    # runs the same the fab's own click as the floating button's click.
+    # the runtime watches for keyboard selections. The immediate field takes focus.
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.getElementById('intro'));
@@ -86,12 +86,12 @@ def test_page_round_trip(browser, serve):
         document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }""")
     page.wait_for_selector(
-        ".lf-fab", state="visible"
+        ".lf-fab-input", state="visible"
     )  # the selection raised the button
-    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
     page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
@@ -807,13 +807,13 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     comment still appears, but its arrival must not move focus into its new thread."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
     page.locator("#p3").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
     page.locator(".lf-threads-toggle").click()
@@ -845,12 +845,12 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
     page.locator("#p1").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(
         "This comment starts outside the filter."
     )
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
 
     sent = next(
@@ -877,10 +877,10 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     page.locator("#p1").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Follow this discussion.")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
 
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -929,18 +929,20 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     as a 💬 that never came up for the passage picked out after a send."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.locator("#p1").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
     page.locator("#p2").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_value("")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -952,12 +954,45 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     # only a fresh decision repaints, so it stands wherever the last one left it — while
     # the key that comments on a selection reads the live one, and answers the general
     # box where there is none.
-    assert page.evaluate("() => getSelection().toString()").strip() == (
-        "A short second passage."
-    ), "the send's landing collapsed the passage the reader had picked out"
-    page.keyboard.press("c")
+    assert pending_text(page) == "A short second passage.", (
+        "the send's landing lost the passage the reader had picked out"
+    )
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    assert errors == []
+    page.close()
+
+
+def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
+    browser, serve
+):
+    """Opening fields is automatic, so selecting a new passage is not re-anchoring.
+
+    Each passage keeps its own durable draft: the newly selected passage starts empty,
+    and returning to the original passage restores the words written about it."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    field = page.locator(".lf-fab-input")
+    original = "These words belong to the first passage."
+
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_focused()
+    field.fill(original)
+
+    page.locator("#p2").click(click_count=3)
+    expect(field).to_be_focused()
+    expect(field).to_have_value("")
+    assert (
+        page.evaluate(
+            """() => Object.keys(localStorage)
+          .filter(key => key.startsWith('lf-draft:composer:')).length"""
+        )
+        == 1
+    )
+
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_focused()
+    expect(field).to_have_value(original)
     assert errors == []
     page.close()
 
@@ -1694,7 +1729,7 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(browser, serve):
     box = page.locator(".lf-composer textarea")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
     box.fill(newer)
 
@@ -1771,7 +1806,7 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
 
     sent = "The point is buried, and the paragraph after it repeats it."
     first.locator(".lf-composer textarea").fill(sent)
-    first.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    first.keyboard.press("Enter")
     round_trip(first)
     expect(second.locator(".lf-composer")).to_be_hidden()
     said = [

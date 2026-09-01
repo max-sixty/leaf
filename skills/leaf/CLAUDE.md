@@ -1038,9 +1038,9 @@ element outlines, and the open composer's pending mark. It clears and paints
 through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
-The anchor runtime exposes only the questions those features ask — `isMarked`,
-`placedAt`, and a snapshot from `pendingMarkParts` — so the pass-owned maps and
-arrays cannot acquire a second writer through the entrypoint.
+The anchor runtime exposes only the questions other features ask — `isMarked` and
+`placedAt` — so the pass-owned maps and arrays cannot acquire a second writer through
+the entrypoint.
 
 The same pass answers a second question and records it apart. `placed` is where
 each thread's passage lands in this version; `marked` is what was drawn for it.
@@ -1131,22 +1131,33 @@ has no hover. Export keeps the glyph with its press taken off and writes the was
 into the words as a `<mark>` (BAKE), the highlight registry being script state
 no file can hold.
 
-The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the `.lf-fab`
-comment glyph followed by one reaction ellipsis.
-For a page target, the ellipsis unfolds Comment and the layer's token Buttons in that
-target's existing Button cluster. Those temporary Buttons borrow the cluster's room
-and dock with it when necessary; they do not claim permanent rail width or raise a
-separate palette.
-`showFab` shows and places the compact bar; `selectResponseTarget` raises it for a
-keyboard item hint. The ⌥ press has already chosen Comment, so `openTargetComposer`
-opens the composer directly on the same captured anchor. `r` opens the same choices on the selection,
-the standing item, or the latest agent message in the thread the reader is in.
+The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
+compact `.lf-fab-input` followed by one response ellipsis. Naming a target opens and
+focuses that field immediately; it grows in place and never transfers text into a
+second composer card. Enter sends and Shift-Enter inserts a newline. Tab changes the
+same bar into Comment, Suggest when the anchor is a quote, and the layer's reaction
+tokens. `.lf-response-control` keeps the field and every choice on one baseline with
+one type, border, and elevation; the bar keeps its DOM owner and accessible name while
+its contents change. Comment restores the field and Suggest restores it in
+replacement-text mode.
+
+`showFab` places the bar; `openComposer` binds its field to the durable draft and focuses
+it. `selectResponseTarget` does both for a keyboard item hint, and the ⌥ press uses
+`focusTargetComment` on the same captured anchor. Automatic passage selection opens that
+passage's own durable draft; these explicit Comment gestures carry unsent words onto the
+new anchor. Submitted words still in flight remain owned by their original anchor, while
+a later target starts clean and keeps focus. For a page
+target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
+that target's existing Button options. Those temporary Buttons borrow the cluster's room
+and dock with it when necessary; they do not claim permanent rail width. A thread-local
+`r` opens the conversation-owned row on the latest agent message.
 With none of those targets, it shows “Select something to react to” and opens
 nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
-comment box. `REACT` claims the keyboard while a list is open: arrows move among
-tokens, Enter or Space presses the focused one, digits remain optional accelerators
-in declaration order, and a stray key closes the list before keeping its ordinary
-meaning.
+comment box. `REACT` claims the keyboard while a list is open. Arrow keys wrap through
+every choice in the row, including Comment and Suggest when the target offers them;
+Tab and Shift-Tab follow that same order.
+Enter or Space presses the focused choice, digits remain optional reaction accelerators
+in declaration order, and a stray key closes the list before keeping its ordinary meaning.
 
 `conversation/model.js` reads the log by `isReaction`, `spoken`, `turns`, and
 `bareReaction`, the names `events.py` reads it by, and answers `reactionsOn` and
@@ -1437,12 +1448,13 @@ read `shownParts` and `shownBox`, not the target's raw client rect: a project ma
 set `display: contents` while its rendered descendants remain usable, and a
 collapsed target has no rendered part to offer.
 
-The reaction key unfolds this same cluster's secondary Button group for a page
-selection or item. Comment and the declared reaction Buttons appear there as peer
-choices; they do not widen the rail or open a separate palette below the target.
-Conversation reactions remain in their conversation-owned strip. The event still carries its durable authored
-anchor, while the temporary item resolves selected text to the first rendered block,
-matching the target where replay later seats its standing reaction.
+The `r` key unfolds this same cluster's secondary Button group for a page selection or
+item. Comment, Suggest where available, and the declared reaction Buttons appear there
+as peer choices; they do not widen the rail or open a separate palette below the target.
+The compact response bar's Tab state stays in that bar. Conversation reactions remain in
+their conversation-owned strip. The event still carries its durable authored anchor,
+while the temporary item resolves selected text to the first rendered block, matching
+the target where replay later seats its standing reaction.
 
 ### Presentation and state motion
 
@@ -1701,9 +1713,12 @@ so its ordinary Escape rung remains the route back.
 `s` names the visible items and declared visual parts that Alt-click can aim at. Both
 routes read `aimTargetAt`, and the target kind changes only the anchor: a whole item
 names its authored id, while a visual part adds its declared token. Their next surface
-follows the gesture's stated intent. `s` selects the target and raises its Comment and
-reaction bar; Alt-click promises Comment and opens the composer directly. The same
-anchor resolves either surface against the target's geometry.
+follows the gesture's stated intent. Both `s` and Alt-click select the target, open the
+compact Comment field, and focus its cursor in the same transaction. Tab exchanges that
+field for choices in the same bar and focuses Comment first. Tab, Shift-Tab, and the
+arrow keys then wrap through every choice. Comment and Escape restore the field; Escape
+from the field hides the draft. The same anchor resolves both states against the
+target's geometry.
 
 The short, viewport-local hints form a prefix-free tree over one alphabet. Most targets
 cost one letter; only the tail branches when the viewport holds more targets than the
@@ -2513,16 +2528,19 @@ reveal authored disclosures and tabs. `paintAnchors` marks a link detached when
 this version no longer has the id and refuses its press. A thread outlives its
 version, but a fragment target may not.
 
-`wireInput` gives runtime textareas the same input contract: persist each edit,
-send with `Mod+Enter`, keep the send button and placeholder current, and prevent
-parallel sends of one local surface. The stylesheet owns textarea growth through
-`field-sizing: content`. Script does not measure or set textarea height.
+`wireInput` gives runtime textareas one configurable input contract: persist each edit,
+keep the send button and placeholder current, and prevent parallel sends of one local
+surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer passes
+`Enter`, leaving Shift-Enter to the textarea's native newline. The stylesheet owns
+textarea growth through `field-sizing: content`. Script does not measure or set textarea
+height.
 
-The selection composer keeps its passage painted after focus moves into the
-textarea. It quotes the passage in the box only when the current version can no
-longer paint it. `showComposer` states the whole visible and focus outcome from
-`composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks and Escape hide
-without discarding words; Cancel explicitly discards.
+The selection composer keeps its passage painted after focus moves into the textarea.
+Its `.lf-composer` wrapper contributes state and draft machinery through
+`display: contents`; only `.lf-fab-input` draws. `showComposer` states the whole visible
+and focus outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks
+and Escape hide without discarding words. A successful send or an explicit draft close
+discards the local record.
 
 An accepted anchored comment opens its inline thread. When the reserved margin is too
 narrow, that thread may cover the page in its bounded card; it does not substitute the

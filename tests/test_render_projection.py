@@ -2161,13 +2161,13 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
         getSelection().addRange(r);
         document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }""")
-    page.wait_for_selector(".lf-fab", state="visible")
-    page.locator(".lf-fab").click()
+    page.wait_for_selector(".lf-fab-input", state="visible")
+    page.locator(".lf-fab-input").click()
     page.wait_for_selector(".lf-composer", state="visible")
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "Refill a feeder when its camera shows it half-empty."
     page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-conversation-body")).to_have_text(
@@ -4060,9 +4060,9 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
           document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         }"""
     )
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Keep this branch evidence visible.")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,

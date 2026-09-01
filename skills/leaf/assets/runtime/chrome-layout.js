@@ -40,8 +40,6 @@ export const PANEL_KEY = "lf-panel-open";
 export function createChromeLayout({
   chromeRoot,
   commentsEdge,
-  composer,
-  composerIsOpen,
   closeReactions,
   containsAcross,
   currentTray,
@@ -54,7 +52,6 @@ export function createChromeLayout({
   panelChanged,
   panelFoot,
   panelList,
-  placeComposer,
   readerStore,
   refreshFab,
   refreshHover,
@@ -182,20 +179,11 @@ export function createChromeLayout({
     syncFloats();
     dockSeats();
   }
-  // The floats live in the document, and syncLayout is where its box changes shape — the
-  // panel takes or returns its strip, a resize moves every rect, the composer's own
-  // textarea grows under typing — so whatever float is up is placed again against the
-  // new geometry: the composer from its own marks (a detached one re-clamps where it
-  // stands), the button from the live selection where one still stands, and by
-  // re-clamping alone where none does. Skipping this leaves a float placed at a wide
-  // window's edge overhanging the box a panel then narrows, and an absolute child past
-  // body's client box is sideways-scrollable overflow: the document panned 328px left
-  // under a trackpad, with the composer standing on the panel that had displaced it.
+  // The response bar lives in the document, and syncLayout is where its containing box
+  // changes shape — the panel takes or returns its strip and a resize moves every rect.
+  // Re-place it against the durable anchor so it cannot overhang the narrowed shell and
+  // create sideways-scrollable overflow.
   function syncFloats() {
-    if (composerIsOpen()) {
-      const box = composer.getBoundingClientRect();
-      placeComposer(box.left, box.top);
-    }
     if (syncReactLayout()) return;
     refreshFab();
   }
@@ -299,9 +287,6 @@ export function createChromeLayout({
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(keylineEl);
-  // The composer grows under typing (field-sizing), and a box placed above its passage
-  // grows downward, back over the mark it was moved off — so its own resize re-places it.
-  layoutSizes.observe(composer);
 
   const movingMargins = new Set();
   let shellFrame = 0;

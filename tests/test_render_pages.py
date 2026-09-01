@@ -1104,7 +1104,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
         },
     )
     out = tmp_path / "decided.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -1356,7 +1356,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
         },
     )
     out = tmp_path / "banded.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     errors = []
     copy = browser.new_page(viewport={"width": 1600, "height": 900})
@@ -1863,7 +1863,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     what says the floor is still there."""
     url = serve(WIDE_AND_NARROW_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     errors = watched(page)
@@ -1919,7 +1919,7 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     answer in both, being layout rather than measurement."""
     url = serve(NOTE_AND_WIDE_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page, errors = open_page(browser, url)
     resized(page, NOTE_BAND, 900)
@@ -2221,7 +2221,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     )
     url = serve(source)
     out = tmp_path / "margin-residents.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);

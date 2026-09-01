@@ -253,6 +253,9 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # The banner is built in one pass, so a control standing in it is what makes the
     # absence beside it worth reading rather than a row that never rendered.
     expect(page.locator(".lf-threads-toggle")).to_be_visible()
+    assert page.locator(".lf-banner").evaluate("element => element.localName") == (
+        "header"
+    )
     expect(page.locator(".lf-banner-actions > *").last).to_have_class(
         re.compile(r"\blf-threads-toggle\b")
     )

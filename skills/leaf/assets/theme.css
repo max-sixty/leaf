@@ -223,7 +223,7 @@
     --warn-tint: #322715;   --warn-ink: #e2bb75;
     --danger-tint: #35211b; --danger-ink: #e0a091;
     --add-tint: #1b2a1c; --del-tint: #33201b; --hi-tint: #342d14;
-    --syn-comment: #a29a8b; --syn-keyword: #e59a8c; --syn-string: #9dc4dd;
+    --syn-comment: #a59d8e; --syn-keyword: #e59a8c; --syn-string: #9dc4dd;
     --syn-number: #a8c4e2;  --syn-name: #c3a8de;    --syn-type: #dcb27e;
     /* Stepped against this ground rather than lightened from the light set: the band a
        mark has to sit in over a brown-black is a different band, and the five above

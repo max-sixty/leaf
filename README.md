@@ -42,17 +42,18 @@ codex plugin add leaf@leaf
 
 ### Experimental Codex MCP App
 
-The Codex plugin registers a bundled, local MCP server. This path is included so
-we can test an embedded Leaf review in installed Codex builds; the experiment will
-decide whether Leaf removes it, keeps the compact surface, or builds on it. It is
-not a commitment to replace the browser runtime.
+The Codex plugin registers one bundled local MCP server. On builds that render
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps), the agent can attach
+the complete Leaf interface directly to the task: comments, package widgets,
+version travel, and the ordinary event path all run unchanged. One ephemeral
+loopback origin serves every page opened by that MCP process under a separate
+random capability path. It writes no service state and disappears with the MCP
+session; the page directory and `comments.jsonl` remain the durable record.
 
-On Codex builds that render MCP Apps, the agent can attach the compact review
-directly to the task. The page and event log remain ordinary local files, while
-comments travel back as a follow-up turn. MCP App rendering is still gated in some
-Codex builds, so Leaf falls back to its full browser page and detached delivery
-loop there. The browser remains the full-fidelity surface for widget actions such
-as dragging and choosing.
+The embedded route is experimental and local-host-only. A comments-only authored
+snapshot remains available as an explicit fallback, and builds that do not render
+the app use the normal full browser page. In every case the detached Codex adapter,
+not an MCP host message, carries durable feedback into the next task turn.
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
@@ -63,6 +64,15 @@ already configured), plus a browser on the same machine as the session.
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
 currently about.
+
+To expose the same resources from a checkout to another local MCP Apps host, run:
+
+```sh
+bin/leaf mcp
+```
+
+The model-visible `leaf_present` tool takes an initialized page's absolute
+directory. `leaf_present_snapshot` selects the smaller fallback explicitly.
 
 ## Packages
 

@@ -7,13 +7,14 @@ import sys
 from pathlib import Path
 
 from leaf import event_log as events_model
-from leaf.mcp_app import APP_MIME, APP_URI, ack_delivery, app_snapshot, apply_event
+from leaf.mcp_app import APP_MIME, APP_URI, app_snapshot, apply_event
+from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
 from leaf.mcp_server import make_mcp_server
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
-def test_mcp_event_round_trip_is_durable_retryable_and_acknowledged(page_dir):
+def test_snapshot_event_round_trip_is_durable_retryable_and_canonical(page_dir):
     candidate = {
         "kind": "comment",
         "revision": 1,
@@ -30,15 +31,11 @@ def test_mcp_event_round_trip_is_durable_retryable_and_acknowledged(page_dir):
     assert len(events_model.read_events(page_dir)) == 1
     accepted = first.structured_content["accepted"]
     assert accepted["attempt"] == "mcp-comment-one-1"
-    private = repeated.meta["leaf"]
-    delivery = [json.loads(line) for line in private["delivery"].splitlines()]
-    assert delivery[0]["page"] == str(page_dir)
-    assert delivery[1] == events_model.read_events(page_dir)[0]
-
-    acknowledged = ack_delivery(str(page_dir), private["deliverySeq"])
-
-    assert acknowledged.meta["leaf"]["delivery"] is None
-    assert events_model.read_events(page_dir)[0]["text"] == candidate["text"]
+    stored = events_model.read_events(page_dir)[0]
+    assert stored["text"] == candidate["text"]
+    assert stored["anchor"]["quote"] == "The cutoff lives in"
+    assert stored["anchor"]["section"] == "plan"
+    assert stored["anchor"]["suffix"]
 
 
 def test_mcp_write_requires_attempt_identity(page_dir):
@@ -102,9 +99,13 @@ def test_codex_manifest_launches_the_bundled_server():
         "mcpServers": {"leaf": {"command": "./bin/leaf", "args": ["mcp"], "cwd": "."}}
     }
 
-    capabilities = make_mcp_server()._lowlevel_server.get_capabilities(
-        protocol_version="2026-07-28"
-    )
+    pages = ProcessPageServer()
+    try:
+        capabilities = make_mcp_server(pages)._lowlevel_server.get_capabilities(
+            protocol_version="2026-07-28"
+        )
+    finally:
+        pages.close()
     assert capabilities.extensions == {
         "io.modelcontextprotocol/ui": {"mimeTypes": [APP_MIME]}
     }
@@ -128,7 +129,7 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
             initialized = await session.initialize()
             tools = await session.list_tools()
             resources = await session.list_resources()
-            resource = await session.read_resource(APP_URI)
+            resource = await session.read_resource(PAGE_RESOURCE_URI)
             result = await session.call_tool("leaf_present", {"page": str(page_dir)})
             return initialized, tools, resources, resource, result
 
@@ -138,23 +139,27 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
     assert initialized.protocol_version == "2025-11-25"
     assert set(by_name) == {
         "leaf_present",
-        "leaf_apply_event",
         "leaf_refresh",
-        "leaf_delivery_ack",
+        "leaf_present_snapshot",
+        "leaf_snapshot_apply_event",
+        "leaf_snapshot_refresh",
     }
     assert by_name["leaf_present"].meta == {
-        "ui": {"resourceUri": APP_URI, "visibility": ["model"]}
+        "ui": {"resourceUri": PAGE_RESOURCE_URI, "visibility": ["model"]}
     }
     assert by_name["leaf_present"].annotations.read_only_hint is False
-    assert by_name["leaf_apply_event"].meta["ui"] == {
+    assert by_name["leaf_snapshot_apply_event"].meta["ui"] == {
         "resourceUri": APP_URI,
         "visibility": ["app"],
     }
-    assert str(resources.resources[0].uri) == APP_URI
-    assert resources.resources[0].mime_type == APP_MIME
+    assert {str(item.uri) for item in resources.resources} == {
+        PAGE_RESOURCE_URI,
+        APP_URI,
+    }
     assert resource.contents[0].mime_type == APP_MIME
     assert "ui/initialize" in resource.contents[0].text
     assert result.is_error is False
     assert result.structured_content["title"] == "t"
     assert "document" not in result.structured_content
-    assert "document" in result.meta["leaf"]
+    assert "inline_url" in result.meta["leaf"]
+    assert "inline_url" not in result.structured_content

@@ -1,0 +1,458 @@
+{
+  "first_process": {
+    "initialize": {
+      "_meta": null,
+      "protocolVersion": "2025-11-25",
+      "capabilities": {
+        "experimental": {},
+        "logging": null,
+        "prompts": {
+          "listChanged": false
+        },
+        "resources": {
+          "subscribe": false,
+          "listChanged": false
+        },
+        "tools": {
+          "listChanged": false
+        },
+        "completions": null,
+        "extensions": null,
+        "tasks": null
+      },
+      "serverInfo": {
+        "name": "Leaf",
+        "title": null,
+        "version": "0.1.0",
+        "description": "Open compact Leaf asks backed by the ordinary page log.",
+        "websiteUrl": null,
+        "icons": null
+      },
+      "instructions": null
+    },
+    "tools": [
+      {
+        "name": "leaf_open_page",
+        "title": "Open a compact Leaf ask",
+        "description": "Open one initialized Leaf page as a compact inline ask. Use when the user wants to review or answer that page inside the conversation.",
+        "inputSchema": {
+          "properties": {
+            "page": {
+              "title": "Page",
+              "type": "string"
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "type": "object",
+          "title": "leaf_open_pageArguments"
+        },
+        "execution": null,
+        "outputSchema": null,
+        "icons": null,
+        "annotations": {
+          "title": null,
+          "readOnlyHint": true,
+          "destructiveHint": null,
+          "idempotentHint": null,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://leaf/compact-ask.html",
+            "visibility": [
+              "model"
+            ]
+          }
+        }
+      },
+      {
+        "name": "leaf_read_page",
+        "title": null,
+        "description": "Read the current compact projection of an initialized Leaf page.",
+        "inputSchema": {
+          "properties": {
+            "page": {
+              "title": "Page",
+              "type": "string"
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "type": "object",
+          "title": "leaf_read_pageArguments"
+        },
+        "execution": null,
+        "outputSchema": null,
+        "icons": null,
+        "annotations": {
+          "title": null,
+          "readOnlyHint": true,
+          "destructiveHint": null,
+          "idempotentHint": null,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://leaf/compact-ask.html",
+            "visibility": [
+              "app"
+            ]
+          }
+        }
+      },
+      {
+        "name": "leaf_post_event",
+        "title": null,
+        "description": "Validate and append one browser-shaped event to an initialized Leaf page.",
+        "inputSchema": {
+          "properties": {
+            "page": {
+              "title": "Page",
+              "type": "string"
+            },
+            "event": {
+              "additionalProperties": true,
+              "title": "Event",
+              "type": "object"
+            }
+          },
+          "required": [
+            "page",
+            "event"
+          ],
+          "type": "object",
+          "title": "leaf_post_eventArguments"
+        },
+        "execution": null,
+        "outputSchema": null,
+        "icons": null,
+        "annotations": {
+          "title": null,
+          "readOnlyHint": null,
+          "destructiveHint": false,
+          "idempotentHint": null,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://leaf/compact-ask.html",
+            "visibility": [
+              "app"
+            ]
+          }
+        }
+      }
+    ],
+    "resources": [
+      {
+        "name": "ui://leaf/compact-ask.html",
+        "title": "Leaf compact ask",
+        "uri": "ui://leaf/compact-ask.html",
+        "description": "A disposable inline projection of one current Leaf options ask.",
+        "mimeType": "text/html;profile=mcp-app",
+        "size": null,
+        "icons": null,
+        "annotations": null,
+        "_meta": {
+          "ui": {
+            "prefersBorder": true
+          }
+        }
+      }
+    ],
+    "resource": {
+      "uri": "ui://leaf/compact-ask.html",
+      "mime_type": "text/html;profile=mcp-app",
+      "length": 385152,
+      "sha256": "f8dbab209fb870925c48016c196181ac4cc5cf047d58c070a232aadf10a29339"
+    },
+    "opened": {
+      "format": "leaf.compact-ask/v1",
+      "page": "/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-9.WWYySG/page",
+      "title": "Decision: where sessions live",
+      "event_seq": 0,
+      "active": {
+        "revision": 1,
+        "version": null,
+        "url": "/revisions/r1-31077e1fbb435da3.html",
+        "label": "Draft",
+        "activated_at": "2026-08-31T03:26:59.067451+00:00",
+        "file": "revisions/r1-31077e1fbb435da3.html"
+      },
+      "source_error": null,
+      "full_page_url": null,
+      "mode": "ask",
+      "reason": null,
+      "message": "Choose one option.",
+      "ask": {
+        "surface": "session-options-decision",
+        "source": "session-options",
+        "question": "Where should a session live?",
+        "context": "",
+        "options": [
+          {
+            "id": "opt-jwt",
+            "label": "Stateless JWT",
+            "summary": "effort: low risk: high Stateless JWT Revoke build a denylist Outage unaffected New ops none, at first Sessions become signed tokens; no store at all. Revocation requires a denylist, which quietly reintroduces the store — with the hard parts (replication, expiry) still attached, and the account-takeover response waiting on them. With nothing stored there is nothing to list, so the support console loses its per-device Revoke and \"log out all devices\" waits on the token's own expiry."
+          },
+          {
+            "id": "opt-redis",
+            "label": "Redis, cookie fallback",
+            "summary": "effort: med risk: low Redis, cookie fallback Revoke delete the key Outage reads ride the cookie New ops what we already do Sessions in the Redis we already run, keyed by an opaque id; a short-lived signed cookie covers Redis outages for reads, so a blip doesn't log everyone out. Revocation is a delete — which is the shape support's \"log out all devices\" needs. My take: this preserves revocation without making Redis an outage."
+          },
+          {
+            "id": "opt-db",
+            "label": "Postgres table",
+            "summary": "effort: low risk: med Postgres table Revoke delete the row Outage shares the database's fate New ops vacuum pressure One table, no new moving parts. Every request writes a row (rolling expiry), so at our volume that's the primary's headroom spent on expiry bookkeeping — and a session outage becomes a database outage."
+          }
+        ],
+        "submit": {
+          "kind": "action",
+          "revision": 1,
+          "widget": "session-options",
+          "action": "choose"
+        }
+      }
+    },
+    "posted": {
+      "ok": true,
+      "state": {
+        "format": "leaf.compact-ask/v1",
+        "page": "/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-9.WWYySG/page",
+        "title": "Decision: where sessions live",
+        "event_seq": 1,
+        "active": {
+          "revision": 1,
+          "version": null,
+          "url": "/revisions/r1-31077e1fbb435da3.html",
+          "label": "Draft",
+          "activated_at": "2026-08-31T03:26:59.067451+00:00",
+          "file": "revisions/r1-31077e1fbb435da3.html"
+        },
+        "source_error": null,
+        "full_page_url": null,
+        "mode": "empty",
+        "reason": "no-open-ask",
+        "message": "This page has no open ask.",
+        "ask": null
+      },
+      "status": 200
+    }
+  },
+  "second_process": {
+    "initialize": {
+      "_meta": null,
+      "protocolVersion": "2025-11-25",
+      "capabilities": {
+        "experimental": {},
+        "logging": null,
+        "prompts": {
+          "listChanged": false
+        },
+        "resources": {
+          "subscribe": false,
+          "listChanged": false
+        },
+        "tools": {
+          "listChanged": false
+        },
+        "completions": null,
+        "extensions": null,
+        "tasks": null
+      },
+      "serverInfo": {
+        "name": "Leaf",
+        "title": null,
+        "version": "0.1.0",
+        "description": "Open compact Leaf asks backed by the ordinary page log.",
+        "websiteUrl": null,
+        "icons": null
+      },
+      "instructions": null
+    },
+    "tools": [
+      {
+        "name": "leaf_open_page",
+        "title": "Open a compact Leaf ask",
+        "description": "Open one initialized Leaf page as a compact inline ask. Use when the user wants to review or answer that page inside the conversation.",
+        "inputSchema": {
+          "properties": {
+            "page": {
+              "title": "Page",
+              "type": "string"
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "type": "object",
+          "title": "leaf_open_pageArguments"
+        },
+        "execution": null,
+        "outputSchema": null,
+        "icons": null,
+        "annotations": {
+          "title": null,
+          "readOnlyHint": true,
+          "destructiveHint": null,
+          "idempotentHint": null,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://leaf/compact-ask.html",
+            "visibility": [
+              "model"
+            ]
+          }
+        }
+      },
+      {
+        "name": "leaf_read_page",
+        "title": null,
+        "description": "Read the current compact projection of an initialized Leaf page.",
+        "inputSchema": {
+          "properties": {
+            "page": {
+              "title": "Page",
+              "type": "string"
+            }
+          },
+          "required": [
+            "page"
+          ],
+          "type": "object",
+          "title": "leaf_read_pageArguments"
+        },
+        "execution": null,
+        "outputSchema": null,
+        "icons": null,
+        "annotations": {
+          "title": null,
+          "readOnlyHint": true,
+          "destructiveHint": null,
+          "idempotentHint": null,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://leaf/compact-ask.html",
+            "visibility": [
+              "app"
+            ]
+          }
+        }
+      },
+      {
+        "name": "leaf_post_event",
+        "title": null,
+        "description": "Validate and append one browser-shaped event to an initialized Leaf page.",
+        "inputSchema": {
+          "properties": {
+            "page": {
+              "title": "Page",
+              "type": "string"
+            },
+            "event": {
+              "additionalProperties": true,
+              "title": "Event",
+              "type": "object"
+            }
+          },
+          "required": [
+            "page",
+            "event"
+          ],
+          "type": "object",
+          "title": "leaf_post_eventArguments"
+        },
+        "execution": null,
+        "outputSchema": null,
+        "icons": null,
+        "annotations": {
+          "title": null,
+          "readOnlyHint": null,
+          "destructiveHint": false,
+          "idempotentHint": null,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "ui": {
+            "resourceUri": "ui://leaf/compact-ask.html",
+            "visibility": [
+              "app"
+            ]
+          }
+        }
+      }
+    ],
+    "resources": [
+      {
+        "name": "ui://leaf/compact-ask.html",
+        "title": "Leaf compact ask",
+        "uri": "ui://leaf/compact-ask.html",
+        "description": "A disposable inline projection of one current Leaf options ask.",
+        "mimeType": "text/html;profile=mcp-app",
+        "size": null,
+        "icons": null,
+        "annotations": null,
+        "_meta": {
+          "ui": {
+            "prefersBorder": true
+          }
+        }
+      }
+    ],
+    "resource": {
+      "uri": "ui://leaf/compact-ask.html",
+      "mime_type": "text/html;profile=mcp-app",
+      "length": 385152,
+      "sha256": "f8dbab209fb870925c48016c196181ac4cc5cf047d58c070a232aadf10a29339"
+    },
+    "opened": {
+      "format": "leaf.compact-ask/v1",
+      "page": "/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-9.WWYySG/page",
+      "title": "Decision: where sessions live",
+      "event_seq": 1,
+      "active": {
+        "revision": 1,
+        "version": null,
+        "url": "/revisions/r1-31077e1fbb435da3.html",
+        "label": "Draft",
+        "activated_at": "2026-08-31T03:26:59.067451+00:00",
+        "file": "revisions/r1-31077e1fbb435da3.html"
+      },
+      "source_error": null,
+      "full_page_url": null,
+      "mode": "empty",
+      "reason": "no-open-ask",
+      "message": "This page has no open ask.",
+      "ask": null
+    }
+  },
+  "shipped_resource": {
+    "length": 385160,
+    "sha256": "f8dbab209fb870925c48016c196181ac4cc5cf047d58c070a232aadf10a29339"
+  },
+  "log": [
+    {
+      "kind": "action",
+      "revision": 1,
+      "widget": "session-options",
+      "action": "choose",
+      "detail": {
+        "options": [
+          "opt-redis"
+        ]
+      },
+      "attempt": "mcp-app-stdio-0001",
+      "author": "user",
+      "id": "aa5e0fef0fb7c36dc39a746d7f63f4a0",
+      "ts": "2026-08-30T20:26:59-07:00",
+      "seq": 1
+    }
+  ]
+}

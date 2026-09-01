@@ -1,0 +1,16 @@
+Host server:    http://localhost:8080
+Sandbox server: http://localhost:8081
+
+Press Ctrl+C to stop
+
+NotFoundError: Not Found
+    at error (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/send/index.js:168:31)
+    at pipe (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/send/index.js:468:14)
+    at sendfile (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/express/lib/response.js:1014:8)
+    at sendFile (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/express/lib/response.js:411:3)
+    at <anonymous> (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/examples/basic-host/serve.ts:127:7)
+    at handleRequest (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/route.js:157:13)
+    at dispatch (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/route.js:117:3)
+    at handle (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/index.js:435:11)
+    at handleRequest (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/node_modules/router/lib/layer.js:152:17)

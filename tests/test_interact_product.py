@@ -410,7 +410,12 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
             if operation["kind"] == "set":
-                data_model.cmd_data_set(d, operation["source"], operation["value"])
+                data_model.cmd_data_set(
+                    d,
+                    operation["source"],
+                    operation["value"],
+                    operation["capture_label"],
+                )
             else:
                 data_model.cmd_data_capture(
                     d,
@@ -1638,7 +1643,10 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert packages
     assert all(not Path(name).is_absolute() for name in packages)
     resolved = layer_model.resolve_packages(tuple(packages))
-    assert resolved == [COMMAND_HUB_PACKAGE]
+    assert resolved == [
+        COMMAND_HUB_PACKAGE,
+        schema_model.BUNDLED_PACKAGES / "pr-review",
+    ]
     assert layer_model.checked_inputs(resolved) == resolved
 
 
@@ -1683,7 +1691,12 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
             if operation["kind"] == "set":
-                data_model.cmd_data_set(d, operation["source"], operation["value"])
+                data_model.cmd_data_set(
+                    d,
+                    operation["source"],
+                    operation["value"],
+                    operation["capture_label"],
+                )
             else:
                 data_model.cmd_data_capture(
                     d,

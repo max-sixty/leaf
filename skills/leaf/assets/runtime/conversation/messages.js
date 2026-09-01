@@ -1,4 +1,6 @@
 /* Conversation message rendering, caching, and printed anchor labels. */
+import { loadMarkdown, renderMarkdown } from "../markdown.js";
+
 export function createConversationMessages(dependencies) {
   const {
     MARKED_ANYWHERE,
@@ -12,6 +14,7 @@ export function createConversationMessages(dependencies) {
     itemSays,
     itemWord,
     markDeclared,
+    pageQueryAll,
     rememberAuthoredMarkup,
     renderQuiet,
     renderSaid,
@@ -19,9 +22,6 @@ export function createConversationMessages(dependencies) {
     visualPartLabel,
     tokenEntry,
   } = dependencies;
-
-  const escapeHtml = (s) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   // Lazily, like the tokenizer: a page is usually handed over before anyone has said
   // anything, and one with no messages never pays the parse. poll() awaits this before
@@ -35,23 +35,10 @@ export function createConversationMessages(dependencies) {
   // Plain escaped text until the renderer arrives, so a failed vendor import
   // degrades a body's Markdown to its own words instead of refusing the poll
   // that carries it.
-  let renderMarkdown = (text) => escapeHtml(text);
-  let markedReady;
   const loadMarked = () =>
-    (markedReady ??= import("/vendor/marked.esm.js")
-      .then((m) => {
-        const md = new m.Marked({
-          breaks: true,
-          renderer: { html: (t) => escapeHtml(t.text) },
-        });
-        renderMarkdown = (text) => md.parse(text);
-      })
-      .catch((error) => {
-        // Retry on a later poll rather than caching the rejection for the life
-        // of the load — one transient failure otherwise left every body plain.
-        markedReady = undefined;
-        reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`);
-      }));
+    loadMarkdown((error) =>
+      reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
+    );
 
   // Bodies are cached per message id and re-adopted when a thread node is rebuilt — which
   // the reconcile leaves one occasion for, a thread resolving. An edit is a later log
@@ -197,6 +184,16 @@ export function createConversationMessages(dependencies) {
   // control the press landed on where it landed on one (`part`), then the item — a
   // widget by its tag and id, a runtime part by its name — since a design comment's
   // subject is the element itself and its opening words would read as a quote.
+  function datumLabel(anchor) {
+    if (!anchor?.section || !anchor.datum) return "";
+    const datum = pageQueryAll("[data-lf-projection][data-lf-datum]").find(
+      (element) =>
+        element.dataset.lfProjection === anchor.section &&
+        element.dataset.lfDatum === anchor.datum,
+    );
+    return datum?.dataset.lfDatumLabel?.trim() ?? "";
+  }
+
   function anchorLabel(anchor, about) {
     if (about === "layer") {
       const item = anchor?.section ? elementById(anchor.section) : null;
@@ -204,6 +201,8 @@ export function createConversationMessages(dependencies) {
       const on = anchor?.part ? `${anchor.part} · ${name}` : name;
       return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
     }
+    const datum = datumLabel(anchor);
+    if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
     if (anchor?.quote) return `“${anchor.quote}”`;
     if (!anchor?.section) return "";
     const item = elementById(anchor.section);

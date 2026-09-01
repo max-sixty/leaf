@@ -207,6 +207,24 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     expect(target).to_have_attribute("data-lf-gen", "1")
     expect(target).to_have_class(re.compile(r"\blf-ui\b"))
 
+    # A generated fragment target must not trap the heading's collapsed top margin
+    # inside an otherwise transparent section. The section, target, and first visible
+    # heading should begin at the same rendered edge.
+    verify_geometry = page.get_by_role("heading", name="Verify").evaluate(
+        """heading => {
+          const section = heading.parentElement;
+          const target = heading.previousElementSibling;
+          return {
+            sectionTop: section.getBoundingClientRect().top,
+            targetTop: target.getBoundingClientRect().top,
+            headingTop: heading.getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert max(verify_geometry.values()) - min(verify_geometry.values()) < 0.5, (
+        verify_geometry
+    )
+
     details = page.locator("details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
@@ -1100,7 +1118,7 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     page.close()
 
     out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
     copy.goto(out.as_uri(), wait_until="load")
     assert copy.locator(".lf-sug-actions").count() == 0, (

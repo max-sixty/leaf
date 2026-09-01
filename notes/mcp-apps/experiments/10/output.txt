@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/maximilian/.codex/worktrees/a5c8/leaf
+configfile: pyproject.toml
+plugins: xdist-3.8.0, anyio-4.14.2
+collected 9 items
+
+tests/test_mcp_app.py .........                                          [100%]
+
+============================== 9 passed in 3.56s ===============================
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-10.JTd3t9/page
+✓ index.html: parses, widgets validate, one module script + theme link, protected ids and decisions carried over, nothing overflows the 720px column
+Traceback (most recent call last):
+  File "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/10/observe.py", line 144, in <module>
+    main()
+    ~~~~^^
+  File "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/10/observe.py", line 87, in main
+    axe = Axe().run(frame)
+  File "/Users/maximilian/.codex/worktrees/a5c8/leaf/.venv/lib/python3.14/site-packages/axe_playwright_python/sync_playwright.py", line 32, in run
+    page.evaluate(self.axe_script)
+    ^^^^^^^^^^^^^
+AttributeError: 'FrameLocator' object has no attribute 'evaluate'

@@ -41,14 +41,18 @@ pinned version sits in one table there, and the six divide by whether upstream's
 published file is already loadable:
 
 - Copies, where it is, so vendoring is three values: `marked`, the Markdown
-  renderer for thread messages; `mermaid`, the diagram renderer `lf-diagram`
+  renderer for runtime-supplied text; `mermaid`, the diagram renderer `lf-diagram`
   draws with, taken as the IIFE build because the widget loads it through a
   `<script src>` tag rather than importing it; and `sortable`, the drag library
   `lf-board` moves cards with.
 - Builds, where it is not, or where what ships is cut down to what the registry
   declares: `highlight` and `pierre`, both cut to `$languages.names`, and
   `plot`, bundled with d3 because Plot's published ESM leaves d3 as a bare
-  external import.
+  external import. `mcp-app` is the separate delivery-surface build: each tracked
+  shell under `scripts/mcp-app/` becomes one HTML blob containing the MCP Apps
+  SDK, its application code and styles, and the Leaf mark. The page shell then
+  frames the exact process-scoped origin declared by the resource. The separate
+  comments-only fallback lives as a self-contained authored asset.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is
 pinned, which holds for the three copies and for `highlight`, so a clean

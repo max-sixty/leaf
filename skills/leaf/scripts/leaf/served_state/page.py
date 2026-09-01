@@ -3,11 +3,12 @@
 import time
 from pathlib import Path
 
-from ..data import read_data
+from ..data import browser_data
 from ..event_log import now_iso
 from ..files import active_descriptor, version_descriptors
 from ..presence import presence
-from ..registry.storage import layer_metadata
+from ..registry.contract import RegistryError
+from ..registry.storage import layer_metadata, load_registry
 from .browser import project_browser_state
 
 
@@ -37,6 +38,10 @@ def full_state(
         present["claims"],
         source_overrides,
     )
+    try:
+        registry = load_registry(page_dir)
+    except RegistryError:
+        registry = None
     identity = layer_identity or layer_metadata(page_dir)
     return {
         "layer": identity,
@@ -59,7 +64,7 @@ def full_state(
         "active": active,
         "versions": version_descriptors(page_dir, events),
         "source_error": source_error,
-        "data": read_data(page_dir),
+        "data": browser_data(page_dir, registry),
         **present,
         "browser": browser,
         # As logged: a message's text is Markdown the page's vendored runtime renders,

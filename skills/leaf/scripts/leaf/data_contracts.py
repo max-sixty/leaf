@@ -381,6 +381,40 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
             f"unresolved reference {error.ref!r}"
         )
     if error is None:
+        fragments = declaration.get("fragments")
+        items = (
+            value.get(fragments["items"])
+            if fragments and isinstance(value, dict)
+            else None
+        )
+        if items is not None:
+            if not isinstance(items, list):
+                return (
+                    f"source {source!r} contract {contract!r} fragment field "
+                    f"{fragments['items']!r} must be an array"
+                )
+            keys = set()
+            duplicates = set()
+            for index, item in enumerate(items):
+                key = item.get(fragments["key"]) if isinstance(item, dict) else None
+                if not isinstance(key, str) or not key:
+                    return (
+                        f"source {source!r} contract {contract!r} fragment item "
+                        f"{index} needs a non-empty string {fragments['key']!r}"
+                    )
+                if fragments["value"] not in item:
+                    return (
+                        f"source {source!r} contract {contract!r} fragment item "
+                        f"{index} needs {fragments['value']!r}"
+                    )
+                if key in keys:
+                    duplicates.add(key)
+                keys.add(key)
+            if duplicates:
+                return (
+                    f"source {source!r} contract {contract!r} fragment keys must be "
+                    f"unique; repeated {sorted(duplicates)}"
+                )
         return None
     return (
         f"source {source!r} value is invalid for contract {contract!r} at "

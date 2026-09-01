@@ -125,6 +125,11 @@ its own page and in corpus composition, so the first capture in the first contri
 example owns snapshot `1`; grow this fixture convention only when another capture
 actually needs to compose.
 
+A large unified diff stays in its `.patch` source file. Put it under `$imports` as
+`unified-diff-file` plus `label`; the example tooling splits it into the `unified-diff`
+file manifest and applies it with `data set --capture-label`. The raw patch remains the
+human-auditable fixture, while the browser receives only its manifest until a file opens.
+
 Wherever the page is served, the cursor is set to the end of the seeded log. A
 seed is history, not news. Leave the cursor at zero and every preview hands the
 next agent session a question to answer that the same log already answers two

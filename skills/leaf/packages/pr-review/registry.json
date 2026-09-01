@@ -1,0 +1,201 @@
+{
+  "$data": {
+    "description": "Reusable pull-request facts supplied by a review host.",
+    "contracts": {
+      "pull-request": {
+        "description": "One observed pull request, including its Markdown author description, revision, diff statistics, and checks.",
+        "guidance": {
+          "producer": "Replace the complete source whenever the pull request or its checks change:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file pull-request.json\n```\n\nThe JSON object carries `repository`, positive integer `number`, `title`, `author`, `base`, `head`, `revision`, `status`, a Markdown `description`, RFC 3339 `observedAt`, a complete `diff` object, and a `checks` map from check name to status. Keep the source id on the same pull request for the page's lifetime. Leaf presents these supplied facts; it does not query a forge."
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "number": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "author": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "draft",
+                "open",
+                "merged",
+                "closed"
+              ]
+            },
+            "description": {
+              "type": "string",
+              "description": "The author's pull-request description as Markdown. Raw HTML is displayed as text."
+            },
+            "observedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "diff": {
+              "type": "object",
+              "properties": {
+                "files": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "additions": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "deletions": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "commits": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "files",
+                "additions",
+                "deletions",
+                "commits"
+              ],
+              "additionalProperties": false
+            },
+            "checks": {
+              "type": "object",
+              "propertyNames": {
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "enum": [
+                  "queued",
+                  "running",
+                  "passed",
+                  "failed",
+                  "cancelled",
+                  "skipped"
+                ]
+              }
+            }
+          },
+          "required": [
+            "repository",
+            "number",
+            "title",
+            "author",
+            "base",
+            "head",
+            "revision",
+            "status",
+            "description",
+            "observedAt",
+            "diff",
+            "checks"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-pull-request": {
+    "description": "A compact, commentable account of the pull request being reviewed. Author an empty element with an id, bind its required `request` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget renders the original author's Markdown description safely and keeps it visibly labeled and separate from the surrounding reviewer's or agent's analysis. Repository identity, revision, branch path, status, diff statistics, observation time, and named checks all come from the typed source.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "snapshot": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source"
+    ],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-data": {
+      "request": {
+        "contract": "pull-request",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
+    },
+    "x-guidance": {
+      "author": "Place one empty `lf-pull-request` before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description itself, so the surrounding prose can stay the reviewer's analysis. Use `snapshot` when the page must keep one captured source revision."
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-pull-request id=\"reviewed-pr\" source=\"pr-1842\" snapshot=\"7\"></lf-pull-request>"
+  },
+  "lf-call-diff": {
+    "description": "A commentable, unified call-tree diff supplied by an analysis host. Author an empty element with an id, bind its required `document` input through `source`, point `diff` at the exact `lf-diff` evidence, and optionally pin an immutable data revision through `snapshot`. The widget groups CallDiff's adjacent unchanged, removed, and added tree items under collapsible changed roots instead of redrawing two independently laid-out graphs. Each rendered row is a stable projected datum, so a reader can comment on one item or select its exact text; source coordinates navigate to a matching line in the bound patch.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "diff": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "snapshot": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "diff"
+    ],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-data": {
+      "document": {
+        "contract": "text-document",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
+    },
+    "x-guidance": {
+      "author": "Capture authentic CallDiff plain-text output as a `text-document`, then bind one empty `lf-call-diff` to that source and set `diff` to the id of the exact `lf-diff` patch. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. The widget summarizes and folds each changed root without removing its commentable rows. A source coordinate becomes a link when its path and line occur in that patch. Prefer one focused file or entry point per widget for a large repository, and use `snapshot` when the review packet must remain pinned to one analyzed revision. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
+    },
+    "x-refers": {
+      "diff": {}
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-call-diff id=\"request-calls\" source=\"request-call-diff\" snapshot=\"8\" diff=\"request-patch\"></lf-call-diff>"
+  }
+}

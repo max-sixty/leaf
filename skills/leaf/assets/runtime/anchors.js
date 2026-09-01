@@ -324,7 +324,8 @@ export function createAnchors(dependencies) {
   // upward past what is not one, because the enclosing item is what is on screen.
   function itemAt(node) {
     let at = node?.nodeType === 1 ? node : node?.parentElement;
-    for (; at; at = at.parentElement) if (isItem(at)) return at;
+    for (; at; at = at.parentElement ?? at.getRootNode()?.host ?? null)
+      if (isItem(at)) return at;
     return null;
   }
   // What to call an item, in a word the user reads beside a thread's § label. A widget
@@ -420,6 +421,14 @@ export function createAnchors(dependencies) {
     element: item,
     label: aimLabel(item),
   });
+  const datumAimTarget = (datum) => ({
+    anchor: {
+      section: datum.dataset.lfProjection,
+      datum: datum.dataset.lfDatum,
+    },
+    element: datum,
+    label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
+  });
   // One reading for the pointer aim and the keyboard's item hints. A declared picture
   // part outranks the authored item around it; everywhere else the innermost stable id
   // is the target.
@@ -431,12 +440,15 @@ export function createAnchors(dependencies) {
         element: visual.part.element,
         label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
       };
+    const datum = closestAcross(node, DATUM);
+    if (datum) return datumAimTarget(datum);
     const item = itemAt(node);
     return item ? itemAimTarget(item) : null;
   }
   function aimTargets() {
     return [
       ...pageQueryAll(ITEM).filter(isItem).map(itemAimTarget),
+      ...pageQueryAll(DATUM).map(datumAimTarget),
       ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
         [...declaredVisualParts(visual)].flatMap((token) => {
           const part = visualPart(visual, token);
@@ -455,9 +467,9 @@ export function createAnchors(dependencies) {
     if (anchor.datum) {
       const source = sectionOf(anchor);
       const datum = source
-        ? [...source.children].filter(
+        ? pageQueryAll(DATUM).filter(
             (el) =>
-              el.matches(DATUM) &&
+              containsAcross(source, el) &&
               el.dataset.lfProjection === anchor.section &&
               el.dataset.lfDatum === anchor.datum,
           )
@@ -466,7 +478,13 @@ export function createAnchors(dependencies) {
       // duplicates refuse to guess. Where its old display text still stands, mark those
       // exact words. Where the value changed, outline the same datum whole instead of
       // silently following the old string to some other fact.
-      if (datum.length !== 1) return null;
+      if (datum.length > 1) return null;
+      if (!datum.length) {
+        const virtual = source?.lfDataDatum?.(anchor.datum);
+        if (!(virtual instanceof Element) || !containsAcross(source, virtual))
+          return null;
+        return { element: virtual };
+      }
       if (!anchor.quote) return { element: datum[0] };
       const segments = findQuote(text, anchor.quote, anchor, datum[0]);
       return segments.length ? { segments } : { element: datum[0] };
@@ -1103,6 +1121,27 @@ export function createAnchors(dependencies) {
   // of the region that holds it. No transient effect waits on that motion or survives it
   // as separate state.
   function scrollToThread(id) {
+    const thread = buildThreads().find((candidate) => candidate.root.id === id);
+    const anchor = thread?.root.anchor;
+    if (anchor?.datum) {
+      const source = sectionOf(anchor);
+      const exact = source
+        ? pageQueryAll(DATUM).some(
+            (datum) =>
+              containsAcross(source, datum) &&
+              datum.dataset.lfProjection === anchor.section &&
+              datum.dataset.lfDatum === anchor.datum,
+          )
+        : false;
+      const hydration = !exact && source?.lfRevealDatum?.(anchor.datum);
+      if (hydration?.then) {
+        hydration.then(() => {
+          paintAnchors();
+          scrollToThread(id);
+        });
+        return;
+      }
+    }
     let where = marksOf(id)[0] ?? placed.get(id);
     if (!where) return;
     const holder =

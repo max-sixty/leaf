@@ -1,0 +1,31 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/maximilian/.codex/worktrees/a5c8/leaf
+configfile: pyproject.toml
+plugins: xdist-3.8.0, anyio-4.14.2
+collected 7 items
+
+tests/test_mcp_app.py .......                                            [100%]
+
+============================== 7 passed in 2.41s ===============================
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-5.5gNYde/page
+✓ index.html: parses, widgets validate, one module script + theme link, protected ids and decisions carried over, nothing overflows the 720px column
+Cloning into '/tmp/leaf-mcp-apps-reference-10195ad9'...
+Note: switching to '10195ad91851502134930e9b80ec2c04e277a720'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 10195ad9 docs: add Alpic Playground to supported clients (#729)

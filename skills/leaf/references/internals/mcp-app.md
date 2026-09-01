@@ -1,54 +1,81 @@
 # MCP App transport
 
-Status: experimental. This transport is merged to test the embedded review in
-installed Codex builds. Its inclusion does not commit Leaf to retaining it or
-expanding it toward browser parity; that decision follows from real use.
+Status: experimental. The Codex plugin registers this transport so the complete
+Leaf interface can be evaluated in shipped MCP Apps hosts without replacing the
+browser fallback.
 
-Leaf's bundled stdio server is a host transport over the existing page model.
-It never owns current state: `index.html` starts state, immutable revisions hold
-valid saves, `comments.jsonl` changes them, and the page transaction remains the
-only read/write boundary. `PageStateService` is shared by HTTP and MCP so those
-transports cannot drift into different projections.
+## Authorities
 
-The Codex manifest points at `.codex-plugin/mcp.json`, which launches `bin/leaf
-mcp` from the installed plugin root. Keeping the config off the root `.mcp.json`
-path prevents Claude Code from auto-registering this Codex transport. The server
-exposes one model-visible presentation tool,
-`leaf_present`, and one `ui://leaf/review/v1.html` resource with
-`text/html;profile=mcp-app`. The tool's ordinary content and structured result
-contain only a small summary. Authored HTML, theme, current projection basis,
-and the pending event batch live under result `_meta.leaf`, which the host sends
-to the app but does not put in model context. The card identifies this as an
-authored snapshot; projected widgets, threads, and package interactions belong
-to the full browser.
+The bundled stdio server is a delivery route over the existing page model.
+`index.html` starts state, immutable revisions hold valid saves,
+`comments.jsonl` changes them, and `PageTransaction` remains the read/write
+boundary. The MCP resource, its iframe shell, and its loopback server own no
+current state, replay, undo, versions, or delivery cursor. Closing an app loses
+only that presentation.
 
-The compact app always exposes **Full page**. It opens the live page through
-`ui/open-link` when a server URL is present and the host supports links;
-otherwise it uses `ui/message` to ask the task to start the full browser flow.
+The Codex manifest launches `bin/leaf mcp` from the installed plugin root. The
+server advertises `text/html;profile=mcp-app` and two resources:
 
-Three app-visible tools complete the loop:
+- `ui://leaf/page/v1.html` is the primary complete page;
+- `ui://leaf/review/v1.html` is an explicit comments-only snapshot fallback.
 
-- `leaf_apply_event` sends one attempt-identified event through `EventEndpoint`;
-- `leaf_refresh` takes a fresh authoritative snapshot;
-- `leaf_delivery_ack` advances the cursor after the host accepts a follow-up.
+## Complete page
 
-The app must persist an event before asking the host for a new turn. It first
-offers the exact batch through `ui/update-model-context`, then calls `ui/message`;
-if the host refuses hidden context, it includes the batch in that message. It
-best-effort clears accepted model context after that follow-up, then acknowledges
-once the follow-up itself is accepted. A clear refusal cannot turn a known delivery
-into a retry and duplicate the turn. A failed follow-up leaves the batch pending and
-offers a retry. This is the same at-least-once page-and-sequence contract as the
-detached adapter.
+`leaf_present` is model-visible and binds the complete resource. `leaf_refresh`
+is app-only. Both activate and read the named initialized page using
+`PageStateService`; presentation can therefore create a valid immutable revision
+and does not advertise the read-only hint. The ordinary text and structured
+result carry a small summary. The local frame address and optional ordinary
+browser URL live only under `_meta.leaf`, which the host sends to the app without
+adding it to model context.
 
-The resource is self-contained and declares no network or external-resource
-domains. It strips executable document content, uses a shadow root for authored
-markup and theme rules, disables page controls, and supports comments only. Do
-not point an iframe at Leaf's dynamic loopback URL or grant a wildcard CSP to
-recover the full runtime. Package-owned actions stay in the browser until the
-runtime has a transport-independent bundle rather than a second implementation.
-A selection here is resolved by nothing, so this transport asks the door to
-capture it: passage comments are read under the append transaction against Leaf's
-file-side current passage reading, and widget source or any anchor that would
-detach is refused before append. The served runtime's own anchors keep their
-browser reading and are not re-read this way.
+One `ProcessPageServer` binds `127.0.0.1` on an ephemeral port before the resource
+is registered. Its exact `http://localhost:<port>` origin is the resource's sole
+`frameDomains` entry. Every opened page receives an unguessable
+`/p/<capability>/` path on that origin; the process reuses a page's path, writes
+no `service.json`, and drops every path when it exits. There is no wildcard CSP,
+query token, cookie, or durable host key in the tool result.
+
+The canonical page contract speaks root-relative Leaf routes. At this multiplexing
+boundary, every HTML response and validated frozen `markup` value in state passes
+through document route scoping, textual served assets scope their known routes, and
+version URLs in state receive the page prefix. Together these adapt `api`, `runtime`,
+`widgets`, `vendor`, `media`, registry, theme, icon, and runtime paths below the
+capability. This keeps arbitrary package modules on the ordinary
+`/runtime/widget-api.js` contract while ensuring every subsequent request proves the
+same page capability. Unknown or unscoped paths receive 404. The nested frame
+therefore runs the same authored document, package modules, comments, actions,
+versions, state stream, and `EventEndpoint` as an ordinary Leaf tab.
+
+This route is local-host-only. The browser rendering the MCP App must share the
+machine running the stdio server. A remote page address requires an explicit
+deployment and security contract rather than a widened loopback server.
+
+## Snapshot fallback
+
+`leaf_present_snapshot` is a separate model-visible fallback, not the primary
+interface and not a compact vocabulary projector. It renders inert authored
+markup and theme rules, supports page, element, and passage comments, and offers
+the ordinary browser route when one exists. `leaf_snapshot_apply_event` and
+`leaf_snapshot_refresh` are app-only. The append gate canonicalizes abbreviated
+text anchors before storing them, so fallback clients do not create weaker
+durable anchors. Served runtime anchors keep the browser reading that already
+resolved them; only the snapshot endpoint requests file-side capture.
+
+The resource is self-contained, runs no authored code, and declares no network
+domains. It does not implement package actions. The old single-choice
+`lf-options` projector is deliberately absent: a fixed shape was a second Leaf
+interface and understated what the complete route can carry.
+
+## Return and wake
+
+Both surfaces persist reader gestures before reporting success. Neither calls
+`ui/message` to claim delivery or advances the event cursor from an MCP response:
+the host may accept that JSON-RPC request without starting or durably queueing a
+turn. `leaf codex start <page>` remains the authoritative return carrier. Its
+detached adapter waits on the same log, queues an exact persisted batch into the
+same Codex task, and acknowledges only after durable queue acceptance.
+
+The complete and snapshot resources are tracked bundles generated from
+`scripts/mcp-app/` by `scripts/vendor.py mcp-app`; do not patch the generated HTML
+under `assets/vendor/` directly.

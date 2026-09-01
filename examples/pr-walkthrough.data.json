@@ -1,8 +1,45 @@
 {
   "$captures": {
-    "rate-limit-config": {
-      "text-file": "pr-walkthrough-source.toml",
-      "label": "gateway/ratelimit.conf"
+    "pr-call-diff": {
+      "text-file": "pr-walkthrough-call-diff.txt",
+      "label": "CallDiff 0.5.0 for compute_combined_diff at 9ca8f78b",
+      "lines": "1:31"
+    },
+    "pr-prepared-diff-source": {
+      "text-file": "pr-walkthrough-prepared-diff.rs",
+      "label": "src/git/repository/diff.rs at 9ca8f78b",
+      "lines": "1:169"
+    }
+  },
+  "$imports": {
+    "pr-review-patch": {
+      "unified-diff-file": "pr-walkthrough.patch",
+      "label": "max-sixty/worktrunk PR #3865 at 9ca8f78b"
+    }
+  },
+  "pr-review-facts": {
+    "repository": "max-sixty/worktrunk",
+    "number": 3865,
+    "title": "Add unified diff to switch picker",
+    "author": "max-sixty",
+    "base": "main",
+    "head": "codex/switch-unified-diff",
+    "revision": "9ca8f78b",
+    "status": "merged",
+    "description": "`wt switch` now opens local rows on a unified diff that combines committed, staged, unstaged, and untracked changes. Working-tree and committed changes remain available as subsidiary tabs, and Tab/Shift-Tab skip tabs without content while Alt-1 through Alt-8 keep direct access.\n\nThe diff execution path is shared with `wt step diff` through `PreparedDiff`. Untracked files use operation-scoped temporary index copies under the system temp directory, leaving the real index unchanged. Sparse checkouts and temp directories inside the worktree are covered. The implementation requires Git 2.34 for `git add --sparse`, documented in the existing FAQ installation section.\n\nThe landing row and cacheable branch-only rows are prewarmed. Off-screen worktrees are loaded by the selected-row demand worker, avoiding a skeleton-time `git add -N` walk for every worktree.\n\nTested with `cargo run -- hook pre-merge --yes` (4,670 tests passed; formatting, clippy, docs, doctests, lockfile, and snapshots passed).\n\n> _This was written by Codex on behalf of max-sixty_",
+    "observedAt": "2026-08-30T22:23:41-07:00",
+    "diff": {
+      "files": 46,
+      "additions": 1567,
+      "deletions": 701,
+      "commits": 6
+    },
+    "checks": {
+      "CI · lint": "passed",
+      "CI · test (Linux, macOS, Windows)": "passed",
+      "Coverage · patch and project": "passed",
+      "Docs": "passed",
+      "Tend · review": "passed"
     }
   }
 }

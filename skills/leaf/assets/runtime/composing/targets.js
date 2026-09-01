@@ -46,6 +46,7 @@ export function createTargetSelection({
   let hintActive = -1;
   let opener = null;
   let searchReturnsToHints = false;
+  let scrolling = false;
 
   const clips = () => new Map();
   const covered = () => banner.getBoundingClientRect().bottom;
@@ -68,11 +69,13 @@ export function createTargetSelection({
     const y = Math.max(covered(), Math.min(innerHeight - 1, box.top + 1));
     return !inChrome(document.elementFromPoint(x, y));
   };
-  // Chromium retains geometry for descendants suppressed by a closed disclosure.
-  // Require a part the browser paints before that stale box can enter or remain in the
-  // hint map. shownParts keeps display: contents items eligible through visible children.
+  // Chromium retains geometry for descendants suppressed by a closed disclosure. Ask
+  // visibility before geometry so those descendants cost no box reads. A display: contents
+  // item has no box of its own and stays eligible through a visible child.
   const targetShown = ({ element }) =>
-    shownParts(element).some((part) => part.checkVisibility());
+    element.checkVisibility() ||
+    (getComputedStyle(element).display === "contents" &&
+      shownParts(element).some((part) => part.checkVisibility()));
 
   function clippedRect(box, clip) {
     if (!box || !clip) return null;
@@ -115,6 +118,12 @@ export function createTargetSelection({
     return codes.slice(0, count);
   }
 
+  const sameVisibleBox = (a, b) =>
+    Math.abs(a.left - b.left) < 0.5 &&
+    Math.abs(a.top - b.top) < 0.5 &&
+    Math.abs(a.right - b.right) < 0.5 &&
+    Math.abs(a.bottom - b.bottom) < 0.5;
+
   function visibleTargets() {
     const cache = clips();
     const targets = aimTargets()
@@ -123,11 +132,24 @@ export function createTargetSelection({
       .map((target) => ({ ...target, rect: shownRect(target.element, cache) }))
       .filter(({ rect }) => exposed(rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
-    const codes = hintCodes(targets.length);
-    return targets.map((target, index) => ({
+    // Direct aiming chooses the innermost stable item under the pointer. When an
+    // ancestor and descendant paint the same visible box, naming both would offer two
+    // keys for that one choice. Keep distinct nested extents and unrelated overlaps.
+    const unique = targets.filter(
+      (outer) =>
+        !targets.some(
+          (inner) =>
+            inner !== outer &&
+            outer.element !== inner.element &&
+            outer.element.contains(inner.element) &&
+            sameVisibleBox(outer.rect, inner.rect),
+        ),
+    );
+    const codes = hintCodes(unique.length);
+    return unique.map((target, index) => ({
       ...target,
       code: codes[index],
-      nesting: targets.filter(
+      nesting: unique.filter(
         (outer) =>
           outer !== target &&
           outer.rect.left <= target.rect.left &&
@@ -151,6 +173,7 @@ export function createTargetSelection({
     matches = [];
     active = -1;
     hintActive = -1;
+    scrolling = false;
     selectionInput.value = "";
     selectionSearch.hidden = true;
     if (on && withHints) {
@@ -390,9 +413,9 @@ export function createTargetSelection({
       if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
       return;
     }
-    const refreshed = !searching && !prefix;
+    const refreshed = !searching && !prefix && !scrolling;
+    const heard = hinted()[hintActive];
     if (refreshed) {
-      const heard = hinted()[hintActive];
       candidates = visibleTargets();
       const still = heard
         ? candidates.findIndex(
@@ -403,6 +426,7 @@ export function createTargetSelection({
       hintActive = still;
     }
     const drawn = [];
+    const drawnTargets = new Set();
     if (!searching) {
       const cache = clips();
       for (const target of candidates) {
@@ -415,6 +439,7 @@ export function createTargetSelection({
         chip.style.top = `${Math.min(bottomCovered() - 10, Math.max(covered(), rect.top))}px`;
         if (rect.clippedTop || rect.top < covered()) chip.classList.add("lf-in");
         drawn.push(chip);
+        drawnTargets.add(target);
       }
     } else if (matches[active]) {
       const owner = matchOwner(matches[active]);
@@ -431,6 +456,7 @@ export function createTargetSelection({
           drawn.push(mark);
         }
     }
+    if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
     selectionLayer.replaceChildren(...drawn);
     if (!searching) spreadHints(drawn);
   }
@@ -440,11 +466,25 @@ export function createTargetSelection({
     "scroll",
     () => {
       if (!open) return;
+      scrolling = true;
       paintHere();
     },
     { capture: true, passive: true },
   );
-  addEventListener("resize", () => open && paintHere());
+  addEventListener(
+    "scrollend",
+    () => {
+      if (!open || !scrolling) return;
+      scrolling = false;
+      paintHere();
+    },
+    { capture: true, passive: true },
+  );
+  addEventListener("resize", () => {
+    if (!open) return;
+    scrolling = false;
+    paintHere();
+  });
 
   const PAGE_SEARCH = {
     id: "page.search.open",

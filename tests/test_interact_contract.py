@@ -895,7 +895,11 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
 
-    with render_gate_model.preview_server(page_dir, 1):
+    with render_gate_model.preview_server(
+        page_dir,
+        (page_dir / "index.html").read_bytes(),
+        1,
+    ):
         initing = threading.Thread(target=revendoring, name="re-vendor")
         initing.start()
         assert init_waiting.wait(5)
@@ -1051,6 +1055,16 @@ def test_check_refuses_a_malformed_registry(page_dir):
                 }
             },
             "must be self-contained",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {"type": "object"},
+                    "fragments": {"items": "rows", "key": "id", "value": "id"},
+                }
+            },
+            "fragments must name distinct",
         ),
     ],
 )

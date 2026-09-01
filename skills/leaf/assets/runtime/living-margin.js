@@ -1806,11 +1806,6 @@ export function createLivingMargin(dependencies) {
       syncThreadRelation(reading, reading.lfChoice?.kind === "comment");
     paintKeys();
   });
-  // TODO(2026-08-31): Reconcile this provisional acknowledgment-to-Button adapter
-  // with the in-flight Target Button implementation before their combined changes
-  // land. The canonical acknowledgment projection and page-edge placement remain the
-  // contract; only this presentation seam should follow the final Button API.
-  //
   // The row's acknowledgment face is read out of the state projection, so it follows the
   // applied log on `lf-actions` rather than the receipt paint: every path that reconciles
   // a complete state dispatches that once it has reconciled, and both of the paths that

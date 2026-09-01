@@ -193,7 +193,11 @@ import {
 import { createSelectionSurface } from "./runtime/composing/surface.js";
 import { createTargetSelection } from "./runtime/composing/targets.js";
 import { agentName, runtime } from "./runtime/context.js";
-import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
+import {
+  acceptData,
+  configureDataReporting,
+  notifyDataSubscribers,
+} from "./runtime/data.js";
 import { createDeferredModals } from "./runtime/deferred-modals.js";
 import { createLayerClient } from "./runtime/layer-client.js";
 import {
@@ -369,6 +373,7 @@ const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
 });
+configureDataReporting(reportPageError);
 const { pointerAt } = createPointer();
 
 createMeasurements({ shownBox });
@@ -377,6 +382,7 @@ installReachedForWordsGuard();
 
 createDataProjection({
   paintAnchors,
+  reachScrollers,
   setChildren,
 });
 
@@ -539,7 +545,8 @@ function paintHere() {
 // target geometry before the scroll. Called before every scroll-to-content.
 function reveal(el) {
   const chain = [];
-  for (let a = el; a; a = a.parentElement) chain.push(a);
+  for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
+    chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
@@ -687,7 +694,7 @@ const commentsEdge = drawnEdge({
   covering: COVERING,
 });
 
-const banner = el("div", "lf-ui lf-banner");
+const banner = el("header", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");
@@ -1275,6 +1282,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   designIsOn: () => designOn,
   designPress,
   designTarget,
+  elementFromPointAcross: (...args) => elementFromPointAcross(...args),
   inChrome: (node) => inChrome(node),
   focusTargetComment,
   openOnDesign,

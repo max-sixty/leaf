@@ -6,6 +6,7 @@ import re
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from leaf import anchor_capture as anchor_capture_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import expect
@@ -44,6 +45,7 @@ from render_support import (
     compare_with,
     composer_quote,
     key_line,
+    leaf_page,
     live_url,
     mark_point,
     open_page,
@@ -53,6 +55,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sent_events,
     stamp_version_file,
     ticked,
     told,
@@ -1182,9 +1185,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     """Pierre renders each file in its own language without changing copyable source.
 
     A unified diff has no one language, so the file path chooses it and an unknown path
-    stays plain. The indicator column is presentation, not source: it must be absent from
-    both syntax input and selection text. Pierre still tokenizes each reconstructed side
-    as a whole, so a Python string spanning changed lines remains a string."""
+    stays plain. Line-number and indicator columns are presentation, not source: both must
+    be absent from syntax input and selection text. Pierre still tokenizes each
+    reconstructed side as a whole, so a Python string spanning changed lines remains a
+    string."""
     page, errors = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -1214,6 +1218,13 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           text: s.textContent.trim(),
           chrome: s.classList.contains('lf-ui'),
         })),
+        numbers: [...d.querySelectorAll('[data-line-number-content]')].map(n => ({
+          text: n.textContent,
+          chrome: n.classList.contains('lf-ui'),
+          generated: n.dataset.lfGen === '1',
+          hidden: n.getAttribute('aria-hidden'),
+          userSelect: getComputedStyle(n).userSelect,
+        })),
       };
     })""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -1234,6 +1245,16 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     separators = [separator for file in files for separator in file["separators"]]
     assert separators, "the fixture exercised no Pierre hunk separator"
     assert all(separator["chrome"] for separator in separators), separators
+    numbers = [number for file in files for number in file["numbers"]]
+    assert numbers, "the rendered diff has no visible line numbers"
+    assert all(
+        number["text"].isdigit()
+        and number["chrome"]
+        and number["generated"]
+        and number["hidden"] == "true"
+        and number["userSelect"] == "none"
+        for number in numbers
+    ), numbers
 
     reading = page.evaluate("""async () => {
       const { says, textNodesUnder, wrote } = await import('/runtime/widget-api.js');
@@ -1259,7 +1280,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         wrotePath: wrote(document).includes('gateway/limits.py'),
         saysStat: says(document).includes(statText),
         wroteStat: wrote(document).includes(statText),
-        hiddenNumbers: segments
+        lineNumberWords: segments
           .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
           .map(({node}) => node.data),
         separatorText: segments
@@ -1284,16 +1305,16 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
     assert reading["saysPath"] and reading["wrotePath"], reading
     assert reading["saysStat"] and not reading["wroteStat"], reading
-    assert reading["hiddenNumbers"] == [], (
-        f"hidden line numbers entered the page reading: {reading}"
+    assert reading["lineNumberWords"] == [], (
+        f"line number chrome entered the page reading: {reading}"
     )
     assert reading["separatorText"] == [], (
         f"Pierre separator chrome entered the page reading: {reading}"
     )
     assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
     assert reading["font"] == reading["leafFont"], reading
-    assert reading["fontSize"] == reading["leafFontSize"], reading
-    assert reading["lineHeight"] == reading["leafLineHeight"], reading
+    assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
+    assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
     assert reading["background"] == reading["leafBackground"], reading
     assert reading["backgroundIsNearlyNeutral"], reading
     assert reading["backgroundLeansWarm"], reading
@@ -1448,6 +1469,25 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         for line in lines
     )
 
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
+    """A large patch can defer every file body without losing native disclosure."""
+    authored = DIFF_PAGE.replace(
+        '<lf-diff id="patch"><pre>', '<lf-diff id="patch" collapsed><pre>'
+    )
+    page, errors = open_page(browser, serve(authored))
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+
+    details = page.locator("lf-diff details")
+    expect(details).to_have_count(3)
+    assert details.evaluate_all("items => items.every(item => !item.open)")
+    details.first.locator("summary").click()
+    expect(details.first).to_have_attribute("open", "")
     assert errors == []
     page.close()
 
@@ -3205,6 +3245,488 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     assert landed is True, (
         f"the added line was picked, the mark went elsewhere ({landed})"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
+    """The data feed supplies the patch while its line key supplies both comment routes.
+
+    Both sides use the same source line number, so Alt-click proves the whole-line route
+    preserves its side. The precise selection ends at offset zero in the next syntax token:
+    exactly the boundary where sentence snapping once absorbed the interpolation's closing
+    brace and quote. Both comments must store the new side's datum, while only the selection
+    adds the exact expression as a quote.
+    """
+    authored = leaf_page(
+        "data-bound diff",
+        '<h1 id="title">Review</h1><div style="height: 900px"></div>'
+        '<lf-diff id="patch" source="review-patch">'
+        "<pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+ def route(request):
+-    return f"legacy:{request.token.id}"
++    return f"tok:{request.token.id}"
+""",
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+
+    old_key = '["app.py","old",2]'
+    new_key = '["app.py","new",2]'
+    deleted = page.locator(
+        f"lf-diff [data-line-type=\"change-deletion\"][data-lf-datum='{old_key}']"
+    )
+    added = page.locator(
+        f"lf-diff [data-line-type=\"change-addition\"][data-lf-datum='{new_key}']"
+    )
+    expect(deleted).to_have_count(1)
+    expect(added).to_have_count(1)
+    expect(deleted).to_have_attribute("data-lf-datum-label", "app.py · old line 2")
+    assert added.get_attribute("data-lf-projection") == "patch"
+    expect(added).to_have_attribute("data-lf-datum-label", "app.py · new line 2")
+    expect(added).to_have_attribute("aria-description", "app.py · new line 2")
+
+    details = page.locator("lf-diff details").first
+    details.evaluate(
+        "element => { element.open = false; window.__lfDiffDetails = element; }"
+    )
+    page.evaluate(
+        """async () => {
+          const pending = [];
+          document.dispatchEvent(new CustomEvent('lf-data', {detail: {pending}}));
+          await Promise.allSettled(pending);
+        }"""
+    )
+    assert details.evaluate("element => element === window.__lfDiffDetails")
+    expect(details).not_to_have_attribute("open", "")
+    details.evaluate("element => { element.open = true; }")
+
+    summary = details.locator("summary")
+    summary.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "patch")
+    page.keyboard.up("Alt")
+    summary.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(details).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
+
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    datum_hint = added.evaluate(
+        """line => {
+          const box = line.getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((left, right) => {
+              const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
+              return Math.hypot(a.left - box.left, a.top - box.top)
+                   - Math.hypot(b.left - box.left, b.top - box.top);
+            })[0].dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(datum_hint)
+    expect(page.locator(".lf-live")).to_contain_text("Selected app.py · new line 2")
+    page.keyboard.press("Escape")
+
+    added.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Review the whole added line.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
+    expect(whole_line).to_have_text("§ app.py · new line 2")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    expect(added).not_to_be_in_viewport()
+    whole_line.click()
+    expect(added).to_be_in_viewport()
+    expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
+    expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, False)
+
+    selected = added.evaluate(
+        """line => {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const nodes = [], starts = [];
+          let flat = '';
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            starts.push(flat.length); nodes.push(node); flat += node.data;
+          }
+          const phrase = 'request.token.id';
+          const start = flat.indexOf(phrase);
+          if (start < 0) return null;
+          const at = offset => {
+            const index = starts.findLastIndex(value => value <= offset);
+            return [nodes[index], offset - starts[index]];
+          };
+          const range = document.createRange();
+          range.setStart(...at(start));
+          range.setEnd(...at(start + phrase.length));
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+          return {
+            text: selection.toString(),
+            crossesTokens: range.startContainer !== range.endContainer,
+            endsAtTokenStart: range.endOffset === 0,
+          };
+        }"""
+    )
+    assert selected == {
+        "text": "request.token.id",
+        "crossesTokens": True,
+        "endsAtTokenStart": True,
+    }, selected
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Review this expression.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
+        "app.py · new line 2 · “request.token.id”"
+    )
+
+    comments = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+    ]
+    assert [comment["anchor"] for comment in comments] == [
+        {"section": "patch", "datum": new_key},
+        {"section": "patch", "datum": new_key, "quote": "request.token.id"},
+    ]
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", "not a unified diff")
+    told(page)
+    expect(page.locator("lf-diff .lf-error")).to_be_visible()
+    quote_classes = page.locator(".lf-thread .lf-quote").evaluate_all(
+        "quotes => quotes.map(quote => [...quote.classList])"
+    )
+    assert all("detached" in classes for classes in quote_classes), quote_classes
+    assert errors == []
+    page.close()
+
+
+def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
+    """Comment travel crosses the composed tree before asking containers to reveal.
+
+    The datum itself lives in lf-diff's shadow root while the widget lives in an
+    inactive authored tab. Opening only ancestors inside the root leaves the target
+    without geometry; the reveal walk must cross through the host to reach lf-tab.
+    """
+    authored = leaf_page(
+        "shadow datum reveal",
+        """
+<h1 id="title">Review</h1>
+<lf-tabs id="views">
+  <lf-tab id="overview" label="Overview"><p>Start here.</p></lf-tab>
+  <lf-tab id="patch-tab" label="Patch">
+    <lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
+  </lf-tab>
+</lf-tabs>
+""",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the new value.",
+            "anchor": {"section": "patch", "datum": '["app.py","new",1]'},
+        },
+    )
+    page, errors = open_page(browser, url)
+    patch_tab = page.locator("#patch-tab")
+    expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    quote = page.locator(".lf-threads > .lf-thread .lf-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+
+    quote.click()
+
+    expect(patch_tab).not_to_have_attribute("hidden", re.compile(".*"))
+    added = page.locator(
+        "lf-diff [data-line-type='change-addition']"
+        '[data-lf-datum=\'["app.py","new",1]\']'
+    )
+    expect(added).to_be_in_viewport()
+    expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
+    browser, serve
+):
+    """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
+
+    Opening one file fetches and renders only that file. A standing line thread on a
+    different unopened file remains attached at its disclosure; pressing its quote
+    hydrates that fragment before ordinary exact-line navigation resumes.
+    """
+    authored = leaf_page(
+        "fragmented diff",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "first.py",
+                    "path": "first.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/first.py b/first.py
+--- a/first.py
++++ b/first.py
+@@ -1 +1 @@
+-return "old first"
++return "new first"
+""",
+                },
+                {
+                    "key": "second.py",
+                    "path": "second.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/second.py b/second.py
+--- a/second.py
++++ b/second.py
+@@ -1 +1 @@
+-return "old second"
++return "new second"
+""",
+                },
+            ]
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the second value.",
+            "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
+        },
+    )
+    page, errors = open_page(
+        browser,
+        url,
+        init_script="""
+          window.__leafFragmentRequests = [];
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            const url = new URL(input instanceof Request ? input.url : String(input),
+                                location.href);
+            if (url.pathname === '/api/data')
+              window.__leafFragmentRequests.push(url.searchParams.get('key'));
+            return originalFetch(input, init);
+          };
+        """,
+    )
+
+    expect(page.locator("lf-diff details")).to_have_count(2)
+    expect(page.locator("lf-diff [data-line]")).to_have_count(0)
+    assert page.evaluate("window.__leafFragmentRequests") == []
+
+    page.locator("lf-diff summary").first.click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
+    ).to_have_count(1)
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    ).to_have_count(0)
+    assert page.evaluate("window.__leafFragmentRequests") == ["first.py"]
+
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    quote = page.locator(".lf-threads > .lf-thread .lf-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    quote.click()
+    second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    expect(second).to_be_in_viewport()
+    expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
+    assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
+    assert errors == []
+    page.close()
+
+
+def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
+    browser, serve, monkeypatch
+):
+    """A source write is an identity, not its second-resolution wall clock.
+
+    Replacing a manifest inside the same second must discard its prior file keys before
+    fragments use the new data revision. A transient fragment refusal remains local to
+    that disclosure and closing and reopening it retries the exact current file.
+    """
+    authored = leaf_page(
+        "changing fragmented diff",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    monkeypatch.setattr(data_model, "now_iso", lambda: "2026-09-01T06:00:00-07:00")
+
+    def manifest(path, old, new):
+        return {
+            "files": [
+                {
+                    "key": path,
+                    "path": path,
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": f"""diff --git a/{path} b/{path}
+--- a/{path}
++++ b/{path}
+@@ -1 +1 @@
+-return {old!r}
++return {new!r}
+""",
+                }
+            ]
+        }
+
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", manifest("first.py", "old", "first")
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("lf-diff summary")).to_contain_text("first.py")
+
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", manifest("second.py", "old", "second")
+    )
+    told(page)
+    summary = page.locator("lf-diff summary")
+    expect(summary).to_contain_text("second.py")
+    expect(summary).not_to_contain_text("first.py")
+
+    refused = []
+
+    def refuse_once(route):
+        if not refused:
+            refused.append(True)
+            route.fulfill(status=200, json={"revision": -1})
+        else:
+            route.continue_()
+
+    page.route("**/api/data*", refuse_once)
+    summary.click()
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "data fragment response does not match its request"
+    )
+    summary.click()
+    summary.click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    ).to_have_count(1)
+    assert len(refused) == 1
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
+    """Thread travel attempts a failing unopened file once rather than recursing.
+
+    Automatic reveal marks the failed entry as terminal for navigation. Closing and
+    reopening its disclosure is the reader's explicit request to try the file again.
+    """
+    authored = leaf_page(
+        "failed fragmented diff",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "second.py",
+                    "path": "second.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/second.py b/second.py
+--- a/second.py
++++ b/second.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+                }
+            ]
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the unavailable line.",
+            "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
+        },
+    )
+    requests = []
+
+    def refuse(route):
+        requests.append(True)
+        route.fulfill(status=200, json={"revision": -1})
+
+    page, errors = open_page(browser, url)
+    page.route("**/api/data*", refuse)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    page.locator(".lf-threads > .lf-thread .lf-quote").click()
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "data fragment response does not match its request"
+    )
+    page.wait_for_timeout(250)
+    assert len(requests) == 1, "thread hydration retried without another reader gesture"
+
+    summary = page.locator("lf-diff summary")
+    summary.click()
+    with page.expect_request(lambda request: "/api/data" in request.url):
+        summary.click()
+    assert len(requests) == 2
     assert errors == []
     page.close()
 

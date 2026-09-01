@@ -1,6 +1,7 @@
 """HTTP transport and routes for one served page."""
 
 import json
+import re
 import secrets
 import select
 import time
@@ -10,12 +11,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import presence as presence_model
+from .data import DataError, read_data_fragment
+from .data_contracts import valid_snapshot_id
 from .event_endpoint import EventEndpoint, event_rejection
 from .event_log import read_events
 from .files import (
     latest_revision,
     list_revisions,
-    list_versions,
     published_versions,
     revision_num,
     revision_path,
@@ -25,7 +27,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
-from .registry.storage import layer_metadata
+from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
@@ -59,7 +61,120 @@ ALIVE_S = 5.0
 PRESENCE_S = 2.0
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+_ROOTED_PAGE_ROUTE = re.compile(
+    rb'(?P<before>["\'`(])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")"
+)
+
+_ROOTED_PAGE_ATTRIBUTE = re.compile(
+    rb'(?P<before>=\s*["\'])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")",
+    re.IGNORECASE,
+)
+_HTML_START_TAG = re.compile(rb"<[A-Za-z](?:[^<>\"']|\"[^\"]*\"|'[^']*')*>", re.DOTALL)
+_STYLE_ATTRIBUTE = re.compile(
+    rb'(?P<before>\bstyle\s*=\s*)(?P<quote>["\'])(?P<value>.*?)(?P=quote)',
+    re.IGNORECASE | re.DOTALL,
+)
+_STYLE_ELEMENT = re.compile(
+    rb"(?P<open><style\b(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>)"
+    rb"(?P<value>.*?)(?P<close></style\s*>)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def scope_page_routes(body: bytes, page_root: str) -> bytes:
+    """Put Leaf's canonical root routes below one delivery capability path.
+
+    Package modules intentionally speak the same root-relative browser contract as
+    the kernel. The process-scoped MCP server multiplexes pages on one origin, so it
+    adapts those known routes at its HTTP boundary instead of making packages learn a
+    second addressing convention.
+    """
+    if not page_root:
+        return body
+    root = page_root.rstrip("/").encode()
+    return _ROOTED_PAGE_ROUTE.sub(
+        lambda match: match.group("before") + root + b"/" + match.group("path"),
+        body,
+    )
+
+
+def scope_document_routes(body: bytes, page_root: str) -> bytes:
+    """Scope only route-bearing HTML attributes in an authored document.
+
+    Authored prose is also the anchorable record. A route-looking phrase in that
+    prose must therefore remain byte-for-byte identical to the immutable revision,
+    while actual browser addresses still need the process page capability.
+    """
+    if not page_root:
+        return body
+    root = page_root.rstrip("/").encode()
+
+    def scope_routes(value: bytes) -> bytes:
+        return _ROOTED_PAGE_ROUTE.sub(
+            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            value,
+        )
+
+    def scope_start_tag(tag_match: re.Match) -> bytes:
+        tag = _ROOTED_PAGE_ATTRIBUTE.sub(
+            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            tag_match.group(),
+        )
+        return _STYLE_ATTRIBUTE.sub(
+            lambda match: (
+                match.group("before")
+                + match.group("quote")
+                + scope_routes(match.group("value"))
+                + match.group("quote")
+            ),
+            tag,
+        )
+
+    scoped = _HTML_START_TAG.sub(scope_start_tag, body)
+    return _STYLE_ELEMENT.sub(
+        lambda match: (
+            match.group("open")
+            + scope_routes(match.group("value"))
+            + match.group("close")
+        ),
+        scoped,
+    )
+
+
+def scope_page_urls(value, page_root: str):
+    """Scope the canonical version addresses in a multiplexed state response."""
+    if not page_root:
+        return value
+    if isinstance(value, list):
+        return [scope_page_urls(item, page_root) for item in value]
+    if not isinstance(value, dict):
+        return value
+    scoped = {}
+    for key, item in value.items():
+        if (
+            key == "url"
+            and isinstance(item, str)
+            and item.startswith(("/versions/", "/revisions/"))
+        ):
+            scoped[key] = page_root.rstrip("/") + item
+        elif key == "markup" and isinstance(item, str):
+            scoped[key] = scope_document_routes(item.encode(), page_root).decode()
+        else:
+            scoped[key] = scope_page_urls(item, page_root)
+    return scoped
+
+
+def runtime_document(
+    source: str,
+    revision: int,
+    version: int | None = None,
+) -> bytes:
     """Inject the exact immutable identity beside the canonical runtime script."""
     parsed = parse_structure(source)
     scripts = [
@@ -86,20 +201,10 @@ class Handler(BaseHTTPRequestHandler):
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
-    # The legacy stamped-version preview widens the public version window for one
-    # render process. Exact mutable-source previews use `preview_source` instead.
-    # Every server a user reaches exposes noted versions only.
-    preview_upto = None
     preview_source = None
-
-    def versions_live(self, events):
-        if self.preview_upto is None:
-            return published_versions(self.page_dir, events)
-        return [
-            version
-            for version in list_versions(self.page_dir)
-            if version <= self.preview_upto
-        ]
+    # Empty on the ordinary one-page server. The MCP delivery server sets this to
+    # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+    page_root = ""
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -161,6 +266,35 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("view sequence must be a non-negative integer")
         return sequence
 
+    def data_fragment(self) -> dict:
+        """One contract-declared payload from the data revision the tab holds."""
+        query = parse_qs(urlsplit(self.path).query)
+        raw_revision = query.get("data_revision", [None])[-1]
+        try:
+            data_revision = int(raw_revision)
+        except (TypeError, ValueError) as error:
+            raise ValueError("data_revision must be a non-negative integer") from error
+        if data_revision < 0:
+            raise ValueError("data_revision must be a non-negative integer")
+        source = query.get("source", [None])[-1]
+        key = query.get("key", [None])[-1]
+        snapshot = query.get("snapshot", [None])[-1]
+        if not isinstance(source, str) or not source:
+            raise ValueError("source is required")
+        if not isinstance(key, str) or not key:
+            raise ValueError("key is required")
+        if snapshot is not None and not valid_snapshot_id(snapshot):
+            raise ValueError("snapshot must be a positive decimal revision")
+        with PageTransaction(self.page_dir):
+            return read_data_fragment(
+                self.page_dir,
+                require_registry(self.page_dir),
+                data_revision=data_revision,
+                source=source,
+                key=key,
+                snapshot_id=snapshot,
+            )
+
     def log_message(self, *args):
         pass
 
@@ -215,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Before the word goes out, so a listener that has heard the first
                 # one is a browser the page already counts as holding it open.
                 if (
-                    self.preview_upto is None
+                    self.preview_source is None
                     and time.time() - getattr(cls, "viewed_at", 0) > 30
                 ):
                     cls.viewed_at = time.time()
@@ -286,6 +420,12 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
+        if ctype.startswith("text/html"):
+            body = scope_document_routes(body, self.page_root)
+        elif ctype.startswith(
+            ("text/css", "text/javascript", "application/javascript")
+        ):
+            body = scope_page_routes(body, self.page_root)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -297,7 +437,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, obj, status: int = 200) -> None:
         self._send(
-            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
+            status,
+            "application/json",
+            json.dumps(
+                scope_page_urls(obj, self.page_root), ensure_ascii=False
+            ).encode(),
         )
 
     def do_GET(self):
@@ -376,7 +520,7 @@ class Handler(BaseHTTPRequestHandler):
             events = read_events(self.page_dir)
             revision = self.preview_source["active"]["revision"]
             source = self.preview_source["data"].decode("utf-8")
-            version = None
+            version = self.preview_source["active"]["version"]
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir, page.events)
@@ -400,7 +544,10 @@ class Handler(BaseHTTPRequestHandler):
             version = version_num(Path(path).name)
             events = read_events(self.page_dir)
             mapping = version_revisions(events)
-            if version not in self.versions_live(events) or version not in mapping:
+            if (
+                version not in published_versions(self.page_dir, events)
+                or version not in mapping
+            ):
                 self._json(
                     {"error": "not stamped yet; run `leaf version stamp` first"},
                     404,
@@ -461,6 +608,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json(state)
             return
+        if path == "/api/data":
+            try:
+                fragment = self.data_fragment()
+            except (DataError, ValueError) as error:
+                status = 409 if " is stale; current revision is " in str(error) else 400
+                self._json({"error": str(error)}, status)
+                return
+            self._json(fragment)
+            return
         if path == "/api/view":
             try:
                 revision = self.requested_view_revision()
@@ -491,7 +647,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         # Preview requests have passed authentication and body preparation, so
         # their refusal can name the attempt without writing to the real log.
-        if self.preview_upto is not None or self.preview_source is not None:
+        if self.preview_source is not None:
             self._refuse("the preview server is read-only", 403)
             return
         current_layer = self.layer
@@ -522,7 +678,6 @@ class Handler(BaseHTTPRequestHandler):
 def handler_for(
     page_dir: Path,
     token: str,
-    preview_upto=None,
     preview_source=None,
     protocol_version="HTTP/1.0",
 ):
@@ -536,7 +691,6 @@ def handler_for(
         {
             "page_dir": page_dir,
             "token": token,
-            "preview_upto": preview_upto,
             "preview_source": preview_source,
             "protocol_version": protocol_version,
             "event_endpoint": EventEndpoint(page_dir),

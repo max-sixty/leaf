@@ -1,0 +1,63 @@
+{
+  "reference_host": {
+    "repo": "https://github.com/modelcontextprotocol/ext-apps",
+    "commit": "10195ad91851502134930e9b80ec2c04e277a720"
+  },
+  "invocation": {
+    "selected_tool": "leaf_open_page",
+    "initial_input": "{}",
+    "submitted_input": "{\"page\": \"/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-25.BowDLq/page\"}",
+    "rendered_input": "/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-25.BowDLq/page"
+  },
+  "inline": {
+    "viewport": {
+      "width": 1060,
+      "height": 332
+    },
+    "document": {
+      "client_width": 1060,
+      "client_height": 332,
+      "scroll_width": 1060,
+      "scroll_height": 2857
+    },
+    "stamps": {
+      "upgraded": "1",
+      "applied": "0",
+      "presented": "1"
+    },
+    "headings": [
+      "Where sessions live",
+      "Constraints",
+      "Settled: the session id travels in a host-only Lax cookie",
+      "The payments precedent is useful — and not equivalent",
+      "Where should a session live?",
+      "The two cookies"
+    ],
+    "widgets": [
+      "lf-gloss",
+      "lf-options",
+      "lf-compare",
+      "lf-options",
+      "lf-compare"
+    ]
+  },
+  "failure": {
+    "error": "AttributeError(\"'FrameLocator' object has no attribute 'evaluate'\")",
+    "url": "http://localhost:8080/?tool=leaf_open_page&server=Leaf&call=true",
+    "body": "🌙\nLeaf:leaf_open_page\n×\n📥 Tool Input\n99 chars\n▶\n{ \"page\": \"/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-25.BowDLq/page\" }\n📤 Tool Result\n859 chars\n▶\n{ \"content\": [ { \"type\": \"text\", \"text\": \"Decision: where sessions live: Opening t…\nServer\nLeaf\nTool\nleaf_open_compact_ask\nleaf_open_page\nInput\nCall Tool",
+    "screenshot": "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/25/results/failure.png"
+  },
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://localhost:8080/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ]
+}

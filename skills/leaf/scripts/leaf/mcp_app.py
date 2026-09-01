@@ -12,8 +12,6 @@ from .files import revision_path
 from .registry.storage import layer_generation
 from .schema import SKILL_ROOT
 from .served_state.service import PageStateService
-from .service import PageTransaction, unacknowledged
-from .session import PageTick, acknowledge, batch_jsonl
 from .structure import parse_structure
 
 APP_URI = "ui://leaf/review/v1.html"
@@ -52,24 +50,6 @@ def state_service(page_dir: Path) -> PageStateService:
     return PageStateService(page_dir)
 
 
-def pending_delivery(page_dir: Path) -> tuple[str | None, int | None]:
-    with PageTransaction(page_dir) as page:
-        pending = unacknowledged(page.events, page.cursor)
-        if not pending:
-            return None, None
-        reading = PageTick(
-            page_dir=page_dir,
-            status=page.status,
-            batch=pending,
-            live=page.status["state"] != "idle",
-            watch_state="watching",
-            lost=False,
-            restarted=None,
-            transaction=page,
-        )
-        return batch_jsonl(reading), pending[-1]["seq"]
-
-
 def app_snapshot(page: str) -> tuple[dict, dict]:
     page_dir = resolve_page(page)
     state = state_service(page_dir).page_state()
@@ -86,7 +66,6 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
     theme, dark_theme = split_theme(
         (page_dir / "theme.css").read_text(encoding="utf-8")
     )
-    delivery, delivery_seq = pending_delivery(page_dir)
     server = state.get("server") or {}
     summary = {
         "page": str(page_dir),
@@ -102,8 +81,6 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         "authoredCss": inline_css_assets(parsed.css, page_dir),
         "theme": theme,
         "darkTheme": dark_theme,
-        "delivery": delivery,
-        "deliverySeq": delivery_seq,
     }
     return summary, private
 
@@ -175,16 +152,6 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
     result.structured_content["accepted"] = receipt
     result.structured_content["ok"] = True
     return result
-
-
-def ack_delivery(page: str, seq: int) -> CallToolResult:
-    page_dir = resolve_page(page)
-    with PageTransaction(page_dir) as transaction:
-        acknowledge(transaction, seq)
-    return result_for_page(
-        str(page_dir),
-        message=f"Leaf acknowledged the delivered batch through event {seq}.",
-    )
 
 
 def app_html() -> str:

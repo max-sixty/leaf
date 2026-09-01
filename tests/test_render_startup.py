@@ -2929,9 +2929,12 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
           const {runtime} = await import('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           const before = document.body.getAttribute('data-lf-data-revision');
-          const stopMount = watchData(widget, 'rows', () =>
-            Promise.reject(new Error('mount projection failed'))
-          );
+          let mountDeliveries = 0;
+          const stopMount = watchData(widget, 'rows', () => {
+            mountDeliveries += 1;
+            return Promise.reject(new Error('mount projection failed'));
+          });
+          await notifyDataSubscribers();
           await notifyDataSubscribers();
           stopMount();
           const afterMount = document.body.getAttribute('data-lf-data-revision');
@@ -2948,15 +2951,19 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
           stopUpdate();
           return {
             before,
+            mountDeliveries,
             afterMount,
             afterUpdate: document.body.getAttribute('data-lf-data-revision'),
             revision,
           };
         }"""
     )
+    assert result["mountDeliveries"] == 1, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == str(result["revision"]), result
-    assert any("data subscriber failed: mount projection failed" in e for e in errors)
+    assert (
+        sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
+    )
     assert any("data subscriber failed: update projection failed" in e for e in errors)
     page.close()
 

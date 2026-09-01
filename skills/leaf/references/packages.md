@@ -433,7 +433,9 @@ should name a projected datum with a human coordinate; the stable key remains op
 the runtime. If a `watchData` callback renders asynchronously, return that promise so
 Leaf does not publish the source revision as ready before the projection settles. A
 rejection is reported as that subscriber's page error; it does not make later state
-reads repeat the same page-wide failure.
+reads repeat the same page-wide failure. A rejection from the callback's first run is
+stronger: Leaf drops that subscription, so the callback is not asked to restate again
+until the element is reconnected.
 
 ## Seeing it
 

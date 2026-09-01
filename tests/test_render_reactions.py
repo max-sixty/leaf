@@ -1079,53 +1079,6 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
     page.close()
 
 
-def test_a_drag_cannot_press_the_response_button_it_raises(browser, serve):
-    """Model the browser's retargeted compatibility click at the event boundary: a
-    pointer drag starts on page words, the response surface arrives under its endpoint,
-    and that inherited click is refused. A later pointerdown makes an ordinary press."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
-    result = page.evaluate(
-        """() => {
-          const words = document.querySelector('#how-store');
-          const surface = document.querySelector('.lf-fab-bar');
-          const response = surface.querySelector('.lf-react-trigger');
-          let presses = 0;
-          response.addEventListener('click', () => { presses += 1; });
-          const pointer = (type, target, x) => target.dispatchEvent(new PointerEvent(type, {
-            bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse',
-            isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
-            clientX: x, clientY: 100,
-          }));
-          pointer('pointerdown', words, 10);
-          pointer('pointermove', words, 30);
-
-          // The bar is the production response surface; making it paint here stands in
-          // for the layout turn that can put it under the release before click retargets.
-          surface.style.display = 'flex';
-          pointer('pointerup', response, 30);
-          const inheritedAccepted = response.dispatchEvent(new MouseEvent('click', {
-            bubbles: true, cancelable: true, detail: 1,
-          }));
-          const afterInherited = presses;
-
-          pointer('pointerdown', response, 30);
-          pointer('pointerup', response, 30);
-          const deliberateAccepted = response.dispatchEvent(new MouseEvent('click', {
-            bubbles: true, cancelable: true, detail: 1,
-          }));
-          return {inheritedAccepted, afterInherited, deliberateAccepted, presses};
-        }"""
-    )
-    assert result == {
-        "inheritedAccepted": False,
-        "afterInherited": 0,
-        "deliberateAccepted": True,
-        "presses": 1,
-    }
-    assert errors == []
-    page.close()
-
-
 def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     """When a keyboard-raised action completes, focus returns to the proxy that named
     the target instead of remaining inside a hidden action bar."""

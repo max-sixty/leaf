@@ -533,24 +533,6 @@ export function createSelectionSurface({
   }
   document.addEventListener("mousedown", (ev) => standDown(ev.target));
 
-  // A response bar may be raised between a drag's mouseup and its compatibility click.
-  // If its new box lands under the release point, the browser retargets that click to
-  // the Button that was not there when the press began. The Button's own handler runs
-  // before the document's bubble listener below, so refuse that inherited click in
-  // capture: the drag selected page words and cannot also press chrome its own selection
-  // just created. A later deliberate press has its own pointerdown, which resets
-  // selectionDragged before this guard sees its click.
-  document.addEventListener(
-    "click",
-    (ev) => {
-      if (ev.detail && selectionDragged && ev.target.closest?.(".lf-react-surface")) {
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-      }
-    },
-    true,
-  );
-
   // What a click on the page means, decided once. A mark under the pointer opens its thread;
   // otherwise a diagram or image is a find handed to updateFab, which raises the same compact
   // field on an element anchor — the id the visual lives under. A newly dragged passage

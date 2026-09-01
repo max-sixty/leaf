@@ -50,10 +50,14 @@ loopback origin serves every page opened by that MCP process under a separate
 random capability path. It writes no service state and disappears with the MCP
 session; the page directory and `comments.jsonl` remain the durable record.
 
-The embedded route is experimental and local-host-only. A comments-only authored
-snapshot remains available as an explicit fallback, and builds that do not render
-the app use the normal full browser page. In every case the detached Codex adapter,
-not an MCP host message, carries durable feedback into the next task turn.
+The embedded route is experimental and local-host-only. One adaptive app resource
+renders either that complete route or the explicit comments-only authored snapshot,
+according to the tool result. It keeps the nested route hidden until Leaf reports
+that it is ready, skips origins absent from the host's approved frame domains, and
+falls back to the snapshot when a host disallows or cannot load the frame.
+Builds that do not render the app use the normal full browser page. In every case
+the detached Codex adapter, not an MCP host message, carries durable feedback into
+the next task turn.
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
@@ -67,14 +71,19 @@ Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude C
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
 currently about.
 
-To expose the same resources from a checkout to another local MCP Apps host, run:
+To expose the same resource from a checkout to another local MCP Apps host, run:
 
 ```sh
 bin/leaf mcp
 ```
 
 The model-visible `leaf_present` tool takes an initialized page's absolute
-directory. `leaf_present_snapshot` selects the smaller fallback explicitly.
+directory. `leaf_present_snapshot` selects the smaller fallback explicitly. The
+presentation and refresh tools use the read-only hint so opening a page does not
+request write approval. A presentation may materialize a changed, valid `index.html`
+as Leaf's next immutable revision inside that page directory; it does not edit the
+source, append an event, or write outside Leaf's revision store. Only a snapshot
+comment append requests write approval.
 
 ## Packages
 

@@ -47,6 +47,21 @@ def _accepted_retry(
     """Read an attempted retry before mutable-state validation."""
     if "attempt" not in event:
         return False, None
+    # The append gate enriches an abbreviated text anchor with its canonical
+    # context. A later retry still carries the original browser payload, so compare
+    # it as that same payload rather than treating server-added fields as a conflict.
+    existing = next(
+        (logged for logged in page.events if logged.get("attempt") == event["attempt"]),
+        None,
+    )
+    if (
+        existing
+        and event.get("kind") == existing.get("kind") == "comment"
+        and isinstance(event.get("anchor"), dict)
+        and isinstance(existing.get("anchor"), dict)
+    ):
+        for field, value in existing["anchor"].items():
+            event["anchor"].setdefault(field, value)
     event["author"] = "user"
     try:
         existing = page.matching_attempt(event)
@@ -198,6 +213,10 @@ class _TransactionValidation:
                     self.event,
                     f"comment anchor {field} does not match the current page reading",
                 )
+        # Store the file-side reading, not the client's abbreviated proof. Compact
+        # clients may name only quote and section; capture adds the context needed to
+        # keep that passage attached when the same words occur elsewhere later.
+        self.event["anchor"] = canonical
         return None
 
     def parent_rejection(self) -> EventAnswer | None:

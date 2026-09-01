@@ -252,9 +252,6 @@
       </header>
       <div class="status" id="status" role="status" aria-live="polite">
         <span id="status-text"></span>
-        <button class="btn primary" id="handoff" type="button" hidden>
-          Send to Codex
-        </button>
       </div>
       <div id="page-host"><p class="empty">Waiting for the Leaf page…</p></div>
       <form class="composer" id="composer">
@@ -328,11 +325,10 @@
           field.style.height = `${Math.min(Math.max(field.scrollHeight, 66), 240)}px`;
         }
 
-        function showStatus(text, { error = false, handoff = false } = {}) {
+        function showStatus(text, { error = false } = {}) {
           $("status-text").textContent = text;
           $("status").classList.toggle("show", Boolean(text));
           $("status").classList.toggle("error", error);
-          $("handoff").hidden = !handoff;
         }
 
         function applyHostContext(update) {
@@ -397,11 +393,6 @@
           if (!hostCapabilities.serverTools) {
             showStatus(
               "This host shows Leaf read-only. Use Full page to leave feedback.",
-            );
-          } else if (leaf.delivery) {
-            showStatus(
-              `Reader feedback through event ${leaf.deliverySeq} is waiting for Codex.`,
-              { handoff: true },
             );
           } else {
             showStatus("");
@@ -482,68 +473,17 @@
         $("comment").addEventListener("input", sizeComment);
 
         $("comment-page").addEventListener("click", () => {
-          selection = null;
-          $("quote").textContent = "On this page";
-          $("comment").placeholder = "Comment on this page";
+          selection = captureSelection();
+          $("quote").textContent = selection
+            ? `On “${selection.quote.length > 150 ? `${selection.quote.slice(0, 147)}…` : selection.quote}”`
+            : "On this page";
+          $("comment").placeholder = selection
+            ? "Comment on this passage"
+            : "Comment on this page";
           $("composer").classList.add("open");
           sizeComment();
           $("comment").focus();
         });
-
-        async function handoff() {
-          if (!snapshot?.delivery || busy) return;
-          busy = true;
-          $("handoff").disabled = true;
-          showStatus("Sending the durable feedback to Codex…");
-          let contextAccepted = false;
-          try {
-            try {
-              await request("ui/update-model-context", {
-                content: [{ type: "text", text: snapshot.delivery }],
-                structuredContent: {
-                  page: snapshot.page,
-                  throughSeq: snapshot.deliverySeq,
-                },
-              });
-              contextAccepted = true;
-            } catch (_) {}
-            const intro = `Leaf reader feedback is ready for ${snapshot.page} through event ${snapshot.deliverySeq}. Process every event and continue the review.`;
-            await request("ui/message", {
-              role: "user",
-              content: {
-                type: "text",
-                text: contextAccepted ? intro : `${intro}\n\n${snapshot.delivery}`,
-              },
-            });
-            let contextClearFailed = false;
-            if (contextAccepted) {
-              try {
-                await request("ui/update-model-context", { content: [] });
-              } catch (_) {
-                contextClearFailed = true;
-              }
-            }
-            await callTool("leaf_delivery_ack", {
-              page: snapshot.page,
-              seq: snapshot.deliverySeq,
-            });
-            showStatus(
-              contextClearFailed
-                ? "Feedback sent to Codex; the host kept its temporary context."
-                : "Feedback sent to Codex.",
-            );
-          } catch (error) {
-            showStatus(
-              `Feedback is saved, but the handoff failed: ${errorText(error)}`,
-              { error: true, handoff: true },
-            );
-          } finally {
-            busy = false;
-            $("handoff").disabled = false;
-          }
-        }
-
-        $("handoff").addEventListener("click", handoff);
 
         $("composer").addEventListener("submit", async (event) => {
           event.preventDefault();
@@ -560,7 +500,7 @@
               attempt: attemptId(),
               ...(selection && { anchor: selection }),
             };
-            await callTool("leaf_apply_event", {
+            await callTool("leaf_snapshot_apply_event", {
               page: snapshot.page,
               view_revision: snapshot.revision,
               event: leafEvent,
@@ -569,8 +509,9 @@
             sizeComment();
             $("composer").classList.remove("open");
             selection = null;
-            busy = false;
-            await handoff();
+            showStatus(
+              "Feedback saved in the Leaf log. The Codex adapter will deliver it.",
+            );
           } catch (error) {
             showStatus(errorText(error), { error: true });
           } finally {
@@ -584,7 +525,7 @@
           busy = true;
           $("refresh").disabled = true;
           try {
-            await callTool("leaf_refresh", { page: snapshot.page });
+            await callTool("leaf_snapshot_refresh", { page: snapshot.page });
           } catch (error) {
             showStatus(errorText(error), { error: true });
           } finally {

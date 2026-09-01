@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/maximilian/.codex/worktrees/a5c8/leaf
+configfile: pyproject.toml
+plugins: xdist-3.8.0, anyio-4.14.2
+collected 14 items
+
+tests/test_mcp_app.py ....                                               [ 28%]
+tests/test_interact_mcp.py ......                                        [ 71%]
+tests/test_render_mcp.py ....                                            [100%]
+
+============================= 14 passed in 13.69s ==============================
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-30.t5wNns/page
+{"kind": "note", "author": "claude", "agent": "Codex", "session": "01a054d1-f145-7bd3-979a-69e45dd5980d", "version": 1, "revision": 1, "text": "Exact-origin MCP page", "id": "5351617f764faf9aaa15889caa6c93c7", "ts": "2026-09-01T00:07:39-07:00"}

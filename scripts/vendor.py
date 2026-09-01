@@ -449,7 +449,7 @@ def build_mcp_app(work: Path) -> list[Path]:
         cwd=work,
     )
     outputs = []
-    for name in ("compact", "page"):
+    for name in ("page",):
         entry = work / f"{name}-entry.js"
         bundle = work / f"{name}-bundle.js"
         out = ASSETS / f"vendor/mcp-{name}-app.html"

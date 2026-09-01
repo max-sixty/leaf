@@ -148,9 +148,7 @@ so a phase does not depend on discovering a chain of references.
   validation, passages, or parsed source. These internal contracts are not for
   ordinary page use.
 - `references/internals/mcp-app.md`: when changing the MCP tools, app resource,
-  host bridge, private result payload, or MCP delivery acknowledgement.
-- `references/internals/mcp-apps.md`: when examining the full-page and options
-  prototypes against that bundled MCP transport and their recorded experiments.
+  process-scoped page server, private result payload, or snapshot fallback.
 
 ### Use a separate Codex watcher
 

@@ -1,13 +1,16 @@
 """The MCP App bridge renders a page and returns durable feedback to its host."""
 
-from leaf.mcp_app import ack_delivery, app_html, app_snapshot, apply_event
+from leaf.event_log import append_event, read_events
+from leaf.mcp_app import app_html, app_snapshot, apply_event
+from leaf.mcp_page import ProcessPageServer
+from leaf.revisioning import activate_source
+from playwright.sync_api import expect
 
 HOST = """<!doctype html>
 <iframe id="app" style="width:100%;height:760px;border:0"></iframe>
 <script>
 window.calls = [];
 window.currentLeaf = null;
-window.failContextClear = false;
 window.hostCapabilities = {openLinks: {}, serverTools: {}};
 const answer = (target, id, result) => target.postMessage(
   {jsonrpc: "2.0", id, result}, "*"
@@ -45,26 +48,16 @@ window.addEventListener("message", (event) => {
   }
   if (message.method === "tools/call") {
     const name = message.params.name;
-    if (name === "leaf_apply_event") {
+    if (name === "leaf_snapshot_apply_event") {
       window.currentLeaf = {
         ...window.currentLeaf,
         eventSeq: window.currentLeaf.eventSeq + 1,
-        delivery: '{"page":"test"}\\n{"kind":"comment","seq":1}',
-        deliverySeq: window.currentLeaf.eventSeq + 1,
       };
-    }
-    if (name === "leaf_delivery_ack") {
-      window.currentLeaf = {...window.currentLeaf, delivery: null, deliverySeq: null};
     }
     answer(event.source, message.id, toolResult(window.currentLeaf));
     return;
   }
-  if (["ui/update-model-context", "ui/message"].includes(message.method)) {
-    if (message.method === "ui/update-model-context" &&
-        message.params.content?.length === 0 && window.failContextClear) {
-      refuse(event.source, message.id, "Context clear denied");
-      return;
-    }
+  if (message.method === "ui/message") {
     answer(event.source, message.id, {});
     return;
   }
@@ -74,10 +67,84 @@ window.addEventListener("message", (event) => {
 """
 
 
-def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
+def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
+    append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 1,
+            "revision": 1,
+            "text": "published",
+        },
+    )
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace("<h2>Plan</h2>", "<h2>Plan now</h2>"),
+        encoding="utf-8",
+    )
+    activated = activate_source(page_dir, read_events(page_dir))
+    assert activated.error is None and activated.revision == 2
+    pages = ProcessPageServer()
+    page = browser.new_page(viewport={"width": 1100, "height": 900})
+    errors = []
+    page.on(
+        "console",
+        lambda message: (
+            errors.append(message.text) if message.type == "error" else None
+        ),
+    )
+    try:
+        url = pages.open(page_dir)
+        root = url.removeprefix(pages.origin).rstrip("/")
+        page.goto(url)
+        page.wait_for_function(
+            "() => document.body.getAttribute('data-lf-presented') === '1'"
+        )
+
+        assert page.title() == "t"
+        assert page.locator(".lf-banner").is_visible()
+        assert page.evaluate(
+            "() => performance.getEntriesByType('resource').map(r => r.name)"
+        )
+        assert all(
+            urlsplit.startswith(f"{pages.origin}{root}/")
+            for urlsplit in page.evaluate(
+                "() => performance.getEntriesByType('resource').map(r => r.name)"
+            )
+            if urlsplit.startswith(pages.origin)
+        )
+
+        page.locator("#plan > p").click(click_count=3)
+        page.locator(".lf-fab").click()
+        page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
+        with page.expect_response(lambda response: response.url.endswith("/api/event")):
+            page.locator(".lf-composer").get_by_role(
+                "button", name="Comment", exact=True
+            ).click()
+
+        assert read_events(page_dir)[-1]["text"] == "Delivered through the MCP page."
+        expect(page.locator(".lf-thread")).to_contain_text(
+            "Delivered through the MCP page."
+        )
+
+        page.locator(".lf-version").click()
+        page.locator('.lf-version-row[data-lf-version="1"]').click()
+        page.wait_for_function(
+            "() => document.body.getAttribute('data-lf-presented') === '1'"
+        )
+        assert page.url.startswith(f"{pages.origin}{root}/versions/v1.html")
+        assert page.locator("#plan > h2").inner_text() == "Plan"
+        assert errors == []
+    finally:
+        page.close()
+        pages.close()
+
+
+def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_delivery(
     browser, page_dir
 ):
-    standing = apply_event(
+    apply_event(
         str(page_dir),
         {
             "kind": "comment",
@@ -87,7 +154,6 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         },
         1,
     )
-    ack_delivery(str(page_dir), standing.meta["leaf"]["deliverySeq"])
     _, private = app_snapshot(str(page_dir))
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     try:
@@ -111,8 +177,14 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         app.locator("#comment").fill("Explain the migration boundary.")
         app.locator("#send").click()
         page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
+            "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
         )
+        assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
+        assert not [
+            call
+            for call in page.evaluate("window.calls")
+            if call["method"] == "ui/message"
+        ]
 
         app.evaluate(
             """() => {
@@ -173,10 +245,9 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         )
         assert app.locator("#comment").input_value() == "Keep this near the decision."
 
-        page.evaluate("window.failContextClear = true")
         app.locator("#send").click()
         page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 2"
+            "() => window.calls.filter(call => call.method === 'tools/call').length === 2"
         )
 
         calls = page.evaluate("window.calls")
@@ -184,7 +255,7 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
             call
             for call in calls
             if call["method"] == "tools/call"
-            and call["params"]["name"] == "leaf_apply_event"
+            and call["params"]["name"] == "leaf_snapshot_apply_event"
         ]
         assert "anchor" not in applies[0]["params"]["arguments"]["event"]
         anchor = applies[1]["params"]["arguments"]["event"]["anchor"]
@@ -192,28 +263,15 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         assert anchor["section"] == "plan"
         assert "prefix" not in anchor
         assert "suffix" not in anchor
-        assert (
-            len(
-                [
-                    call
-                    for call in calls
-                    if call["method"] == "tools/call"
-                    and call["params"]["name"] == "leaf_delivery_ack"
-                ]
-            )
-            == 2
-        )
-        context_updates = [
+        assert not [
             call for call in calls if call["method"] == "ui/update-model-context"
         ]
-        assert len(context_updates) == 4
-        assert context_updates[-1]["params"] == {"content": []}
-        assert "Feedback sent to Codex" in app.locator("#status").text_content()
+        assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
 
         assert app.locator("#browser").inner_text() == "Full page"
         app.locator("#browser").click()
         page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 3"
+            "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
         )
         full_page = [
             call

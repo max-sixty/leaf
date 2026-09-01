@@ -25,7 +25,12 @@ let mode = "inline";
 let busy = false;
 
 function payload(result) {
-  return result?.structuredContent ?? result?.structured_content ?? null;
+  return (
+    result?._meta?.leaf ??
+    result?.structuredContent ??
+    result?.structured_content ??
+    null
+  );
 }
 
 function announce(message) {
@@ -54,8 +59,10 @@ function render(state, announcement) {
   pageTitle.textContent = state.title || "Untitled page";
   sequence.textContent = `event ${state.event_seq} · ${state.active?.label ?? "no revision"}`;
   sourceWarning.hidden = !state.source_error;
-  openPage.disabled = !state.url;
-  if (state.mode !== "page" || !state.url) {
+  const inlineUrl = state.inline_url;
+  const browserUrl = state.browser_url ?? inlineUrl;
+  openPage.disabled = !browserUrl;
+  if (state.mode !== "page" || !inlineUrl) {
     frame.hidden = true;
     frame.removeAttribute("src");
     loading.hidden = false;
@@ -63,7 +70,8 @@ function render(state, announcement) {
   } else {
     loading.hidden = true;
     frame.hidden = false;
-    frame.src = safePageUrl(state.url);
+    const next = safePageUrl(inlineUrl);
+    if (frame.src !== next) frame.src = next;
   }
   if (announcement) announce(announcement);
   else status.textContent = "";
@@ -74,12 +82,12 @@ async function readCurrent() {
   setBusy(true);
   try {
     const result = await app.callServerTool({
-      name: "leaf_read_page",
+      name: "leaf_refresh",
       arguments: { page: pagePath },
     });
     const answer = payload(result);
-    if (!answer?.ok) throw new Error(answer?.error ?? "Leaf refused the read");
-    render(answer.state, "Refreshed the Leaf page");
+    if (!answer?.page) throw new Error(answer?.error ?? "Leaf refused the read");
+    render(answer, "Refreshed the Leaf page");
   } catch (error) {
     announce(`Could not refresh: ${String(error)}`);
   } finally {
@@ -104,7 +112,7 @@ function applyContext(context) {
 
 app.ontoolresult = (result) => {
   const answer = payload(result);
-  if (answer?.state) render(answer.state);
+  if (answer?.page) render(answer);
 };
 app.onhostcontextchanged = applyContext;
 app.onerror = (error) => announce(`Host error: ${String(error)}`);
@@ -116,9 +124,10 @@ app.onteardown = async () => {
 frame.addEventListener("load", () => announce("Leaf page loaded"));
 refresh.addEventListener("click", readCurrent);
 openPage.addEventListener("click", async () => {
-  if (!current?.url) return;
+  const url = current?.browser_url ?? current?.inline_url;
+  if (!url) return;
   try {
-    const answer = await app.openLink({ url: current.url });
+    const answer = await app.openLink({ url });
     if (answer?.isError) announce("The host did not open the page");
   } catch (error) {
     announce(`Could not open the page: ${String(error)}`);

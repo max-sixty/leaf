@@ -1,0 +1,44 @@
+{
+  "reference_host": {
+    "repo": "https://github.com/modelcontextprotocol/ext-apps",
+    "commit": "10195ad91851502134930e9b80ec2c04e277a720"
+  },
+  "tool": "leaf_present",
+  "resource_csp": {
+    "frameDomains": [
+      "http://localhost:59857"
+    ]
+  },
+  "inner_url": "http://localhost:59857/p/RjvO7cTim42U_745ZdE9Zk24azyZGz93/",
+  "queryless_capability_path": true,
+  "presented": "1",
+  "keyboard_choice": {
+    "widget": "session-options",
+    "action": "choose",
+    "detail": {
+      "options": [
+        "opt-redis"
+      ]
+    },
+    "seq": 2
+  },
+  "mode_control": {
+    "return_inline_visible": true
+  },
+  "axe": {
+    "violations": 1,
+    "snapshot": "region (moderate) : 1"
+  },
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://localhost:8080/favicon.ico"
+    }
+  ],
+  "leaf_console": [],
+  "screenshots": {
+    "inline": "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/30/results/exact-origin-inline.png",
+    "fullscreen": "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/30/results/exact-origin-fullscreen.png"
+  }
+}

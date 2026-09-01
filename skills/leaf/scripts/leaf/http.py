@@ -1,6 +1,7 @@
 """HTTP transport and routes for one served page."""
 
 import json
+import re
 import secrets
 import select
 import time
@@ -58,7 +59,58 @@ ALIVE_S = 5.0
 PRESENCE_S = 2.0
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+_ROOTED_PAGE_ROUTE = re.compile(
+    rb'(?P<before>["\'`(])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")"
+)
+
+
+def scope_page_routes(body: bytes, page_root: str) -> bytes:
+    """Put Leaf's canonical root routes below one delivery capability path.
+
+    Package modules intentionally speak the same root-relative browser contract as
+    the kernel. The process-scoped MCP server multiplexes pages on one origin, so it
+    adapts those known routes at its HTTP boundary instead of making packages learn a
+    second addressing convention.
+    """
+    if not page_root:
+        return body
+    root = page_root.rstrip("/").encode()
+    return _ROOTED_PAGE_ROUTE.sub(
+        lambda match: match.group("before") + root + b"/" + match.group("path"),
+        body,
+    )
+
+
+def scope_page_urls(value, page_root: str):
+    """Scope the canonical version addresses in a multiplexed state response."""
+    if not page_root:
+        return value
+    if isinstance(value, list):
+        return [scope_page_urls(item, page_root) for item in value]
+    if not isinstance(value, dict):
+        return value
+    scoped = {}
+    for key, item in value.items():
+        if (
+            key == "url"
+            and isinstance(item, str)
+            and item.startswith(("/versions/", "/revisions/"))
+        ):
+            scoped[key] = page_root.rstrip("/") + item
+        else:
+            scoped[key] = scope_page_urls(item, page_root)
+    return scoped
+
+
+def runtime_document(
+    source: str,
+    revision: int,
+    version: int | None = None,
+    page_root: str = "",
+) -> bytes:
     """Inject the exact immutable identity beside the canonical runtime script."""
     parsed = parse_structure(source)
     scripts = [
@@ -75,7 +127,9 @@ def runtime_document(source: str, revision: int, version: int | None = None) -> 
         if version is not None
         else ""
     )
-    return (source[:offset] + markers + source[offset:]).encode()
+    return scope_page_routes(
+        (source[:offset] + markers + source[offset:]).encode(), page_root
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -91,6 +145,9 @@ class Handler(BaseHTTPRequestHandler):
     preview_upto = None
     preview_source = None
     cookie_attributes = "SameSite=Strict"
+    # Empty on the ordinary one-page server. The MCP delivery server sets this to
+    # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+    page_root = ""
 
     def versions_live(self, events):
         if self.preview_upto is None:
@@ -297,6 +354,10 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
+        if ctype.startswith(
+            ("text/css", "text/html", "text/javascript", "application/javascript")
+        ):
+            body = scope_page_routes(body, self.page_root)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -308,7 +369,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, obj, status: int = 200) -> None:
         self._send(
-            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
+            status,
+            "application/json",
+            json.dumps(
+                scope_page_urls(obj, self.page_root), ensure_ascii=False
+            ).encode(),
         )
 
     def do_GET(self):
@@ -400,7 +465,7 @@ class Handler(BaseHTTPRequestHandler):
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
         try:
-            projected = runtime_document(source, revision, version)
+            projected = runtime_document(source, revision, version, self.page_root)
         except ValueError as error:
             self._json({"error": str(error)}, 500)
             return
@@ -421,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(
                 200,
                 "text/html; charset=utf-8",
-                runtime_document(source, mapping[version], version),
+                runtime_document(source, mapping[version], version, self.page_root),
             )
             return True
         if path.startswith("/revisions/"):

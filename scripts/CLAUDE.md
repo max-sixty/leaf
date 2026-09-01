@@ -47,9 +47,9 @@ published file is already loadable:
   `plot`, bundled with d3 because Plot's published ESM leaves d3 as a bare
   external import. `mcp-app` is the separate delivery-surface build: each tracked
   shell under `scripts/mcp-app/` becomes one HTML blob containing the MCP Apps
-  SDK, its application code and styles, and the Leaf mark. The full-page shell
-  then frames the declared process-scoped page origin; the compact shell has no
-  network assets.
+  SDK, its application code and styles, and the Leaf mark. The page shell then
+  frames the exact process-scoped origin declared by the resource. The separate
+  comments-only fallback lives as a self-contained authored asset.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is
 pinned, which holds for the three copies and for `highlight`, so a clean

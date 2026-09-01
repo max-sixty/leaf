@@ -10,28 +10,32 @@
 
 ## Current Status
 
-### Latest Results: experiment 29
+### Latest Results: experiment 30
 
-The complete page is green end to end in the official reference host. In
-addition to the clean layout, accessibility, fullscreen, and options evidence,
-an anchored comment appended through Leaf's ordinary event path and remained
-resolved while the page traveled v2 → v1 → v2.
+The production candidate passed in the official reference host: one exact CSP
+origin served the canonical page at a queryless random capability path, reached
+Leaf's presentation gate, appended a keyboard option action through the ordinary
+event endpoint, negotiated fullscreen, and produced no Leaf-origin console
+failure. This removes the earlier wildcard CSP, per-page server, query token,
+partitioned cookie, and hard-coded single-choice compact interface.
 
 ### Current Experiment: none
 
-**Status**: Baseline complete
-**Purpose**: The local reference-host primitive now covers the complete page,
-durable actions, anchored comments, and immutable-version travel.
+**Status**: Local reference-host candidate complete
+**Purpose**: The combined registered server now covers the complete canonical
+page, an explicit authored-snapshot fallback, and exact-origin capability routing.
 
 ## Next Steps
 
-1. Probe one shipped host and record whether HTTPS,
-   private-network policy, or host CSP changes the result.
-2. Probe `ui/message` turn behavior independently; neither page transport path
-   should make a wake claim from an event append alone.
+1. Probe the installed Codex host and record whether its private-network policy
+   accepts the exact localhost frame origin.
+2. Keep the detached Codex adapter as the sole durable wake and acknowledgement
+   carrier; no remaining implementation decision depends on `ui/message` policy.
+3. If accessibility parity becomes the next question, compare Axe before and
+   after the option action to isolate experiment 30's moderate `region` result.
 
 ## Reference
 
-- Reproduce experiment 29: `bash notes/mcp-apps/experiments/29/commands.sh`
-- Read its result: `sed -n '1,380p' notes/mcp-apps/experiments/29/results/reference-host.json`
+- Reproduce experiment 30: `bash notes/mcp-apps/experiments/30/commands.sh`
+- Read its result: `cat notes/mcp-apps/experiments/30/results/reference-host.json`
 - Inspect the current project: `sed -n '1,240p' notes/mcp-apps/PROJECT.md`

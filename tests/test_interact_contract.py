@@ -1052,6 +1052,16 @@ def test_check_refuses_a_malformed_registry(page_dir):
             },
             "must be self-contained",
         ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {"type": "object"},
+                    "fragments": {"items": "rows", "key": "id", "value": "id"},
+                }
+            },
+            "fragments must name distinct",
+        ),
     ],
 )
 def test_the_registry_door_validates_data_contracts(page_dir, contracts, message):

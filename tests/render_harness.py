@@ -473,7 +473,12 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         if example:
             for operation in data_operations(example):
                 if operation["kind"] == "set":
-                    data_model.cmd_data_set(d, operation["source"], operation["value"])
+                    data_model.cmd_data_set(
+                        d,
+                        operation["source"],
+                        operation["value"],
+                        operation["capture_label"],
+                    )
                 else:
                     data_model.cmd_data_capture(
                         d,

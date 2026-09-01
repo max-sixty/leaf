@@ -3,9 +3,9 @@
     "description": "Reusable pull-request facts supplied by a review host.",
     "contracts": {
       "pull-request": {
-        "description": "One observed pull request, including its author description, revision, diff statistics, and checks.",
+        "description": "One observed pull request, including its Markdown author description, revision, diff statistics, and checks.",
         "guidance": {
-          "producer": "Replace the complete source whenever the pull request or its checks change:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file pull-request.json\n```\n\nThe JSON object carries `repository`, positive integer `number`, `title`, `author`, `base`, `head`, `revision`, `status`, `description`, RFC 3339 `observedAt`, a complete `diff` object, and a `checks` map from check name to status. Keep the source id on the same pull request for the page's lifetime. Leaf presents these supplied facts; it does not query a forge."
+          "producer": "Replace the complete source whenever the pull request or its checks change:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file pull-request.json\n```\n\nThe JSON object carries `repository`, positive integer `number`, `title`, `author`, `base`, `head`, `revision`, `status`, a Markdown `description`, RFC 3339 `observedAt`, a complete `diff` object, and a `checks` map from check name to status. Keep the source id on the same pull request for the page's lifetime. Leaf presents these supplied facts; it does not query a forge."
         },
         "schema": {
           "type": "object",
@@ -47,7 +47,8 @@
               ]
             },
             "description": {
-              "type": "string"
+              "type": "string",
+              "description": "The author's pull-request description as Markdown. Raw HTML is displayed as text."
             },
             "observedAt": {
               "type": "string",
@@ -118,7 +119,7 @@
     }
   },
   "lf-pull-request": {
-    "description": "A compact, commentable account of the pull request being reviewed. Author an empty element with an id, bind its required `request` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps the original author's description visibly labeled and separate from the surrounding reviewer's or agent's analysis. Repository identity, revision, branch path, status, diff statistics, observation time, and named checks all come from the typed source.",
+    "description": "A compact, commentable account of the pull request being reviewed. Author an empty element with an id, bind its required `request` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget renders the original author's Markdown description safely and keeps it visibly labeled and separate from the surrounding reviewer's or agent's analysis. Repository identity, revision, branch path, status, diff statistics, observation time, and named checks all come from the typed source.",
     "type": "object",
     "properties": {
       "id": {

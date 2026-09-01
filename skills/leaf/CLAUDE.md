@@ -72,6 +72,7 @@ state commit, projection, notification, outbox accounting, and rollback;
 overflow travel, and the banner's touch bridge to the document scroller;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
+`runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;

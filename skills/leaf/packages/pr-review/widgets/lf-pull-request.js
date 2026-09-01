@@ -1,7 +1,14 @@
 /* A pull request is observed review evidence. The page binds one typed source; this
  * widget projects it without querying a forge or turning review state into a second
  * authority. */
-import { ago, projectData, watchData } from "/runtime/widget-api.js";
+import {
+  ago,
+  highlightBlocks,
+  loadMarkdown,
+  projectData,
+  renderMarkdown,
+  watchData,
+} from "/runtime/widget-api.js";
 
 const setText = (element, value) => {
   if (element.textContent !== value) element.textContent = value;
@@ -27,8 +34,9 @@ function buildCard() {
   const descriptionLabel = make("h3", "lf-pr-description-label");
   const descriptionBody = make("div", "lf-pr-description-body");
   const checks = make("section", "lf-pr-checks");
-  const checksLabel = make("h3", "lf-pr-checks-label");
-  const checksList = make("ul", "lf-pr-check-list");
+  const checksTable = make("table", "lf-pr-check-table");
+  const checksLabel = make("caption", "lf-pr-checks-label");
+  const checksBody = document.createElement("tbody");
   const observed = make("p", "lf-pr-observed");
 
   setText(descriptionLabel, "Author's description");
@@ -36,7 +44,8 @@ function buildCard() {
   identity.append(identityLabel, status);
   header.append(identity, title, byline, route);
   description.append(descriptionLabel, descriptionBody);
-  checks.append(checksLabel, checksList);
+  checksTable.append(checksLabel, checksBody);
+  checks.append(checksTable);
   card.append(header, facts, description, checks, observed);
   return card;
 }
@@ -65,40 +74,60 @@ function renderFacts(card, record) {
 }
 
 function renderChecks(card, checks) {
-  const list = card.querySelector(".lf-pr-check-list");
-  const prior = new Map([...list.children].map((item) => [item.dataset.check, item]));
+  const body = card.querySelector(".lf-pr-check-table tbody");
+  const prior = new Map([...body.children].map((item) => [item.dataset.check, item]));
   const wanted = [];
   for (const [checkName, checkStatus] of Object.entries(checks).sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
-    const item = prior.get(checkName) ?? make("li", "lf-pr-check");
+    const item = prior.get(checkName) ?? make("tr", "lf-pr-check");
     item.dataset.check = checkName;
     item.dataset.status = checkStatus;
     let name = item.querySelector(".lf-pr-check-name");
     let status = item.querySelector(".lf-pr-check-status");
     if (!name) {
-      name = make("span", "lf-pr-check-name");
-      status = make("span", "lf-pr-check-status");
+      name = make("th", "lf-pr-check-name");
+      name.scope = "row";
+      status = make("td", "lf-pr-check-status");
       item.append(name, status);
     }
     setText(name, checkName);
     setText(status, checkStatus);
     wanted.push(item);
   }
-  let cursor = list.firstElementChild;
+  let cursor = body.firstElementChild;
   for (const item of wanted) {
-    if (item !== cursor) list.insertBefore(item, cursor);
+    if (item !== cursor) body.insertBefore(item, cursor);
     cursor = item.nextElementSibling;
   }
-  for (const item of [...list.children]) if (!wanted.includes(item)) item.remove();
+  for (const item of [...body.children]) if (!wanted.includes(item)) item.remove();
   if (!wanted.length) {
-    const empty = make("li", "lf-pr-check lf-pr-check-empty");
-    setText(empty, "No checks reported");
-    list.append(empty);
+    const empty = make("tr", "lf-pr-check lf-pr-check-empty");
+    const cell = document.createElement("td");
+    cell.colSpan = 2;
+    empty.append(cell);
+    setText(cell, "No checks reported");
+    body.append(empty);
   }
 }
 
-function renderCard(record, prior, snapshot) {
+// Keep the undecorated rendering separately from the live DOM. Leaf adds syntax
+// spans and external-link affordances after projection, so comparing innerHTML
+// would mistake those decorations for a data change and replace an unchanged
+// description (destroying a reader's active selection in the process).
+const renderedDescriptions = new WeakMap();
+
+function renderDescription(element, source) {
+  const rendered = renderMarkdown(source);
+  if (renderedDescriptions.get(element) === rendered) return false;
+  const template = document.createElement("template");
+  template.innerHTML = rendered;
+  element.replaceChildren(template.content);
+  renderedDescriptions.set(element, rendered);
+  return true;
+}
+
+function renderCard(record, prior, snapshot, descriptionChanged) {
   const card = prior ?? buildCard();
   const identityLabel = card.querySelector(".lf-pr-identity-label");
   const status = card.querySelector(".lf-pr-status");
@@ -118,10 +147,13 @@ function renderCard(record, prior, snapshot) {
   setText(title, record.title);
   setText(byline, `Opened by ${record.author}`);
   setText(route, `${record.base} → ${record.head} · revision ${record.revision}`);
-  setText(
-    description,
-    record.description || "No description was provided by the author.",
-  );
+  if (
+    renderDescription(
+      description,
+      record.description || "No description was provided by the author.",
+    )
+  )
+    descriptionChanged.value = true;
   const capture = snapshot?.snapshot
     ? ` · ${snapshot.label || `snapshot ${snapshot.snapshot}`}`
     : "";
@@ -152,18 +184,28 @@ customElements.define(
       this.stopWatching = null;
     }
 
-    show(snapshot) {
+    async show(snapshot) {
       const record = snapshot?.value ?? null;
+      if (record)
+        await loadMarkdown((error) =>
+          console.error(
+            `leaf: pull request Markdown failed to load: ${error?.message ?? error}`,
+          ),
+        );
       const projected = record
         ? [{ ...record, key: `${record.repository}#${record.number}` }]
         : [{ key: "unavailable", missing: true }];
+      const descriptionChanged = { value: false };
       projectData(
         this,
         projected,
         ({ key }) => key,
         (next, prior) =>
-          next.missing ? renderMissing(prior) : renderCard(next, prior, snapshot),
+          next.missing
+            ? renderMissing(prior)
+            : renderCard(next, prior, snapshot, descriptionChanged),
       );
+      if (descriptionChanged.value) await highlightBlocks(this);
     }
   },
 );

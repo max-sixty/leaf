@@ -170,10 +170,20 @@ function matchingLine(diff, record) {
   return candidates.find(({ rank }) => rank >= 0)?.element ?? null;
 }
 
-function travelToLine(owner, record) {
+async function travelToLine(owner, record) {
   const diff = document.getElementById(owner.getAttribute("diff"));
-  const target = matchingLine(diff, record);
-  if (!diff || !target) return false;
+  if (!diff) return false;
+  let target = matchingLine(diff, record);
+  if (!target) {
+    const matched = record.location.match(/^(.*):(\d+)(?:-\d+)?$/);
+    if (matched) {
+      const [, path, rawLine] = matched;
+      const side = record.status === "removed" ? "old" : "new";
+      await diff.lfRevealDatum?.(JSON.stringify([path, side, Number(rawLine)]));
+      target = matchingLine(diff, record);
+    }
+  }
+  if (!target) return false;
   const disclosure = target.closest("details");
   if (disclosure) disclosure.open = true;
   disclosure?.querySelector("summary")?.focus({ preventScroll: true });
@@ -201,10 +211,18 @@ function renderLine(record, prior, owner) {
   setText(location, record.location);
   location.hidden = !record.location;
   location.href = `#${owner.getAttribute("diff")}`;
-  location.onclick = (event) => {
-    if (!travelToLine(owner, record)) return;
+  location.onclick = async (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (await travelToLine(owner, record)) return;
+    const url = new URL(window.location.href);
+    url.hash = owner.getAttribute("diff");
+    history.pushState(null, "", url);
+    document.getElementById(owner.getAttribute("diff"))?.scrollIntoView({
+      behavior: scrollBehavior(),
+      block: "start",
+    });
+    announce(`${record.location} is not present in the exact patch`);
   };
   return line;
 }

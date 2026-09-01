@@ -2,10 +2,11 @@
  *
  * A page directory is files plus a process. The files a static host serves perfectly —
  * the vendored layer sits at this site's root, and every example under /examples is the
- * file in the tree — and the process answers four paths: GET /api/state, which hands
- * the page the log and who is behind it, GET /api/view, which projects one exact read,
- * POST /api/event, which appends, and GET /api/news, a stream on which the page hears
- * that the log has moved. So that is what this is: those four paths, answered in the
+ * file in the tree — and the process answers five paths: GET /api/state, which hands
+ * the page the log and who is behind it; GET /api/data, which delivers one split source
+ * payload; GET /api/view, which projects one exact read; POST /api/event, which appends;
+ * and GET /api/news, a stream on which the page hears that the log has moved. So that is
+ * what this is: those five paths, answered in the
  * tab.
  *
  * Which makes the pages on this site live rather than pictures of live ones. Every
@@ -431,7 +432,19 @@ const state = () => ({
   // Package-declared source state is served beside the event log. Unlike local reader
   // gestures it does not change in this static session, but it enters through the same
   // full-state field as a live host and therefore exercises the same package modules.
-  data: DATA,
+  data: (() => {
+    const delivered = structuredClone(DATA);
+    for (const source of Object.values(delivered.sources)) {
+      const fragments = REGISTRY.$data?.contracts?.[source.contract]?.fragments;
+      if (!fragments) continue;
+      for (const snapshot of [source, ...Object.values(source.snapshots ?? {})]) {
+        const items = snapshot.value?.[fragments.items];
+        if (!Array.isArray(items)) continue;
+        for (const item of items) delete item[fragments.value];
+      }
+    }
+    return delivered;
+  })(),
   events,
   browser: demoBrowser(),
   // The reading a served page stamps on its state and names on its stream, so a tab
@@ -454,15 +467,42 @@ window.fetch = async (input, init) => {
     input instanceof Request ? input.url : String(input),
     location.href,
   );
-  // Only this page's three request doors. Everything else — the theme, the registry, the widget
-  // modules, another version's markup — is a file the host serves, and the runtime
-  // reaches for it exactly as it would anywhere else.
+  // Only this page's request doors. Everything else — the theme, the registry, the
+  // widget modules, another version's markup — is a file the host serves, and the
+  // runtime reaches for it exactly as it would anywhere else.
   if (url.origin !== location.origin) return realFetch(input, init);
-  if (!["/api/state", "/api/view", "/api/event"].includes(url.pathname))
+  if (!["/api/state", "/api/view", "/api/data", "/api/event"].includes(url.pathname))
     return realFetch(input, init);
 
   await sessionReady;
   if (url.pathname === "/api/state") return json(state());
+  if (url.pathname === "/api/data") {
+    const revision = Number(url.searchParams.get("data_revision"));
+    const sourceName = url.searchParams.get("source");
+    const key = url.searchParams.get("key");
+    const snapshotId = url.searchParams.get("snapshot");
+    const source = DATA.sources[sourceName];
+    const fragments = source && REGISTRY.$data?.contracts?.[source.contract]?.fragments;
+    const selected = snapshotId ? source?.snapshots?.[snapshotId] : source;
+    const matches = selected?.value?.[fragments?.items]?.filter(
+      (item) => item[fragments.key] === key,
+    );
+    if (
+      revision !== DATA.revision ||
+      !fragments ||
+      !Array.isArray(matches) ||
+      matches.length !== 1
+    )
+      return json({ error: "the static exhibit holds no such data fragment" }, 400);
+    return json({
+      revision,
+      source: sourceName,
+      contract: source.contract,
+      ...(snapshotId && { snapshot: snapshotId }),
+      key,
+      value: matches[0][fragments.value],
+    });
+  }
   if (url.pathname === "/api/view") {
     const browser = demoBrowser();
     const revision = Number(url.searchParams.get("revision"));

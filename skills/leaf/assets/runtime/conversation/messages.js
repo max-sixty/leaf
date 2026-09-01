@@ -1,4 +1,6 @@
 /* Conversation message rendering, caching, and printed anchor labels. */
+import { loadMarkdown, renderMarkdown } from "../markdown.js";
+
 export function createConversationMessages(dependencies) {
   const {
     MARKED_ANYWHERE,
@@ -21,9 +23,6 @@ export function createConversationMessages(dependencies) {
     tokenEntry,
   } = dependencies;
 
-  const escapeHtml = (s) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
   // Lazily, like the tokenizer: a page is usually handed over before anyone has said
   // anything, and one with no messages never pays the parse. poll() awaits this before
   // the panel builds a body, which is what keeps msgNode synchronous.
@@ -36,23 +35,10 @@ export function createConversationMessages(dependencies) {
   // Plain escaped text until the renderer arrives, so a failed vendor import
   // degrades a body's Markdown to its own words instead of refusing the poll
   // that carries it.
-  let renderMarkdown = (text) => escapeHtml(text);
-  let markedReady;
   const loadMarked = () =>
-    (markedReady ??= import("/vendor/marked.esm.js")
-      .then((m) => {
-        const md = new m.Marked({
-          breaks: true,
-          renderer: { html: (t) => escapeHtml(t.text) },
-        });
-        renderMarkdown = (text) => md.parse(text);
-      })
-      .catch((error) => {
-        // Retry on a later poll rather than caching the rejection for the life
-        // of the load — one transient failure otherwise left every body plain.
-        markedReady = undefined;
-        reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`);
-      }));
+    loadMarkdown((error) =>
+      reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
+    );
 
   // Bodies are cached per message id and re-adopted when a thread node is rebuilt — which
   // the reconcile leaves one occasion for, a thread resolving. An edit is a later log

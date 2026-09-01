@@ -134,45 +134,50 @@ lf-pull-request {
 
 .lf-pr-description-body {
   color: var(--ink);
-  white-space: pre-wrap;
+}
+
+.lf-pr-description-body > :first-child {
+  margin-top: 0;
+}
+
+.lf-pr-description-body > :last-child {
+  margin-bottom: 0;
 }
 
 .lf-pr-checks {
   min-width: 0;
 }
 
-.lf-pr-check-list {
-  display: grid;
-  gap: var(--sp-1);
+.lf-pr-check-table {
+  width: 100%;
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lf-pr-check {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  padding-block: var(--sp-1);
-  border-bottom: 1px solid var(--rule);
+  border-collapse: collapse;
   font: var(--t-6) var(--sans);
 }
 
-.lf-pr-check:last-child {
+.lf-pr-check > * {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.lf-pr-check:last-child > * {
   border-bottom: 0;
 }
 
 .lf-pr-check-name {
-  min-width: 0;
+  width: 100%;
+  padding-inline-end: var(--sp-3);
   color: var(--ink-2);
+  font-weight: 400;
+  text-align: start;
   overflow-wrap: anywhere;
 }
 
 .lf-pr-check-status {
-  flex: none;
   color: var(--muted);
+  text-align: end;
   text-transform: capitalize;
+  white-space: nowrap;
 }
 
 .lf-pr-check[data-status="passed"] .lf-pr-check-status {

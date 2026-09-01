@@ -3524,6 +3524,171 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.close()
 
 
+def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
+    """Comment travel crosses the composed tree before asking containers to reveal.
+
+    The datum itself lives in lf-diff's shadow root while the widget lives in an
+    inactive authored tab. Opening only ancestors inside the root leaves the target
+    without geometry; the reveal walk must cross through the host to reach lf-tab.
+    """
+    authored = leaf_page(
+        "shadow datum reveal",
+        """
+<h1 id="title">Review</h1>
+<lf-tabs id="views">
+  <lf-tab id="overview" label="Overview"><p>Start here.</p></lf-tab>
+  <lf-tab id="patch-tab" label="Patch">
+    <lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
+  </lf-tab>
+</lf-tabs>
+""",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the new value.",
+            "anchor": {"section": "patch", "datum": '["app.py","new",1]'},
+        },
+    )
+    page, errors = open_page(browser, url)
+    patch_tab = page.locator("#patch-tab")
+    expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    quote = page.locator(".lf-threads > .lf-thread .lf-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+
+    quote.click()
+
+    expect(patch_tab).not_to_have_attribute("hidden", re.compile(".*"))
+    added = page.locator(
+        "lf-diff [data-line-type='change-addition']"
+        '[data-lf-datum=\'["app.py","new",1]\']'
+    )
+    expect(added).to_be_in_viewport()
+    expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
+    browser, serve
+):
+    """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
+
+    Opening one file fetches and renders only that file. A standing line thread on a
+    different unopened file remains attached at its disclosure; pressing its quote
+    hydrates that fragment before ordinary exact-line navigation resumes.
+    """
+    authored = leaf_page(
+        "fragmented diff",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "first.py",
+                    "path": "first.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/first.py b/first.py
+--- a/first.py
++++ b/first.py
+@@ -1 +1 @@
+-return "old first"
++return "new first"
+""",
+                },
+                {
+                    "key": "second.py",
+                    "path": "second.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/second.py b/second.py
+--- a/second.py
++++ b/second.py
+@@ -1 +1 @@
+-return "old second"
++return "new second"
+""",
+                },
+            ]
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the second value.",
+            "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
+        },
+    )
+    page, errors = open_page(
+        browser,
+        url,
+        init_script="""
+          window.__leafFragmentRequests = [];
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            const url = new URL(input instanceof Request ? input.url : String(input),
+                                location.href);
+            if (url.pathname === '/api/data')
+              window.__leafFragmentRequests.push(url.searchParams.get('key'));
+            return originalFetch(input, init);
+          };
+        """,
+    )
+
+    expect(page.locator("lf-diff details")).to_have_count(2)
+    expect(page.locator("lf-diff [data-line]")).to_have_count(0)
+    assert page.evaluate("window.__leafFragmentRequests") == []
+
+    page.locator("lf-diff summary").first.click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
+    ).to_have_count(1)
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    ).to_have_count(0)
+    assert page.evaluate("window.__leafFragmentRequests") == ["first.py"]
+
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    quote = page.locator(".lf-threads > .lf-thread .lf-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    quote.click()
+    second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    expect(second).to_be_in_viewport()
+    expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
+    assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
+    assert errors == []
+    page.close()
+
+
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     """Every question the runtime asks by id goes through one lookup, and a widget that
     stages its authored children carries their ids into its shadow tree with them. While

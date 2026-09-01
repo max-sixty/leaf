@@ -110,8 +110,14 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "revision": "8f3b2cd",
         "status": "open",
         "description": (
-            "Retries now retain the accepted request id.\n\n"
-            "This keeps receipts attached after a lost response."
+            "**Retries** now retain the accepted request id.\n\n"
+            "This keeps receipts attached after a lost response and preserves "
+            "`Vec<T>` exactly; see the [retry notes](https://example.com/retry).\n\n"
+            "> Reviewed against the retry ledger.\n\n"
+            "Unsafe destinations stay words: [script](javascript:alert(1)), "
+            "[inline data](data:text/html,boom), [local file](file:///tmp/secret), "
+            "and [custom handler](editor://open/project).\n\n"
+            '<span id="external-html">Raw HTML stays text.</span>'
         ),
         "observedAt": "2026-08-30T16:12:00-07:00",
         "diff": {"files": 4, "additions": 86, "deletions": 19, "commits": 3},
@@ -131,7 +137,37 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     expect(card.locator(".lf-pr-description-label")).to_have_text(
         "Author's description"
     )
-    expect(card.locator(".lf-pr-description-body")).to_have_text(record["description"])
+    description = card.locator(".lf-pr-description-body")
+    expect(description.locator("strong")).to_have_text("Retries")
+    expect(description.locator("code")).to_have_text("Vec<T>")
+    expect(description.get_by_role("link", name="retry notes")).to_have_attribute(
+        "target",
+        "_blank",
+    )
+    expect(description.locator("blockquote")).to_contain_text(
+        "Reviewed against the retry ledger."
+    )
+    expect(description).to_contain_text(
+        '<span id="external-html">Raw HTML stays text.</span>'
+    )
+    expect(description.locator("#external-html")).to_have_count(0)
+    expect(
+        description.locator(
+            'a[href^="javascript:"], a[href^="data:"], '
+            'a[href^="file:"], a[href^="editor:"]'
+        )
+    ).to_have_count(0)
+    expect(description).to_contain_text(
+        "Unsafe destinations stay words: script, inline data, local file, "
+        "and custom handler."
+    )
+    expect(card.locator("table.lf-pr-check-table")).to_have_count(1)
+    expect(
+        card.locator(".lf-pr-check-name", has_text="Browser contract")
+    ).to_have_js_property(
+        "scope",
+        "row",
+    )
     expect(card.locator(".lf-pr-check", has_text="Browser contract")).to_contain_text(
         "running"
     )
@@ -148,8 +184,11 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
 
     selected = card.locator(".lf-pr-description-body").evaluate(
         """body => {
-          const text = body.firstChild;
+          const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
           const phrase = 'accepted request id';
+          let text = walker.nextNode();
+          while (text && !text.data.includes(phrase)) text = walker.nextNode();
+          if (!text) throw new Error(`missing ${phrase}`);
           const start = text.data.indexOf(phrase);
           const range = document.createRange();
           range.setStart(text, start);
@@ -195,7 +234,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
 """,
     )
     url = serve(authored, packages=("pr-review",))
@@ -216,7 +255,22 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 +        return f"ip:{request.remote_addr}"
 """
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "gateway/limits.py",
+                    "path": "gateway/limits.py",
+                    "kind": "patch",
+                    "additions": 4,
+                    "deletions": 2,
+                    "patch": patch,
+                }
+            ]
+        },
+    )
     page, errors = open_page(browser, url)
     widget = page.locator("#request-calls")
     lines = widget.locator(".lf-call-line")
@@ -287,6 +341,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
     assert page.evaluate("() => getSelection().toString()") == "└─ if request.token"
 
+    expect(page.locator("#patch [data-line-type]")).to_have_count(0)
     lines.nth(2).locator(".lf-call-location").click()
     expect(page).to_have_url(re.compile(r"#patch$"))
     added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",39]\']')
@@ -2859,6 +2914,16 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     expect(link).to_have_attribute("target", "_blank")
     expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
     expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(
+        body.locator(
+            'a[href^="javascript:"], a[href^="data:"], '
+            'a[href^="file:"], a[href^="editor:"]'
+        )
+    ).to_have_count(0)
+    expect(body).to_contain_text(
+        "Unsafe destinations stay words: script, inline data, local file, "
+        "and custom handler."
+    )
     # The paragraph's asterisks are gone from the words, not merely hidden, and the
     # raw tag's characters are still among them: what the user can select is what
     # the message says.

@@ -125,6 +125,102 @@ def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     assert snapshot["sources"]["builds"]["value"] == {"main": "green"}
 
 
+def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
+    server, page_dir
+):
+    schema = {
+        "type": "object",
+        "properties": {
+            "files": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "path": {"type": "string"},
+                        "patch": {"type": "string"},
+                    },
+                    "required": ["key", "path", "patch"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["files"],
+        "additionalProperties": False,
+    }
+    declare_data_input(page_dir, "review-patch", schema, contract="diff-files")
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["diff-files"]["fragments"] = {
+        "items": "files",
+        "key": "key",
+        "value": "patch",
+    }
+    registry_path.write_text(json.dumps(registry))
+    with pytest.raises(data_model.DataError, match="fragment keys must be unique"):
+        data_model.cmd_data_set(
+            page_dir,
+            "review-patch",
+            {
+                "files": [
+                    {"key": "src/a.py", "path": "first", "patch": "one"},
+                    {"key": "src/a.py", "path": "second", "patch": "two"},
+                ]
+            },
+        )
+    data_model.cmd_data_set(
+        page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "src/a.py",
+                    "path": "src/a.py",
+                    "patch": "diff --git a/src/a.py b/src/a.py\n",
+                },
+                {
+                    "key": "src/b.py",
+                    "path": "src/b.py",
+                    "patch": "diff --git a/src/b.py b/src/b.py\n",
+                },
+            ]
+        },
+    )
+
+    status, body = fetch(f"{server}/api/state")
+    assert status == 200
+    data = json.loads(body)["data"]
+    assert data["sources"]["review-patch"]["value"] == {
+        "files": [
+            {"key": "src/a.py", "path": "src/a.py"},
+            {"key": "src/b.py", "path": "src/b.py"},
+        ]
+    }
+
+    status, body = fetch(
+        f"{server}/api/data?data_revision=1&source=review-patch&key=src%2Fa.py"
+    )
+    assert status == 200
+    assert json.loads(body) == {
+        "revision": 1,
+        "source": "review-patch",
+        "contract": "diff-files",
+        "key": "src/a.py",
+        "value": "diff --git a/src/a.py b/src/a.py\n",
+    }
+
+    data_model.cmd_data_set(
+        page_dir,
+        "review-patch",
+        {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
+    )
+    status, body = fetch(
+        f"{server}/api/data?data_revision=1&source=review-patch&key=src%2Fa.py"
+    )
+    assert status == 409
+    assert "data revision 1 is stale" in json.loads(body)["error"]
+
+
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     server, page_dir
 ):

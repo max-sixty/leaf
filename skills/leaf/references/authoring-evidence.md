@@ -44,8 +44,8 @@ picture between them.
 ## Source files and media
 
 Use `lf-source` when literal UTF-8 text should remain selectable and commentable
-without copying it into the authored HTML. Use the same `text-document` capture
-with `lf-diff` when that file is a unified patch; the diff keeps its per-file view
+without copying it into the authored HTML. Use a unified-patch capture with
+`lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. First add a current-data
 binding so Leaf can give the source its page-lifetime contract:
 
@@ -63,7 +63,20 @@ leaf data capture <page> leaf-skill --text-file SKILL.md --lines 71:102
 leaf data capture <page> pr-patch --text-file change.patch --label "PR at 8f61c2a"
 ```
 
-Capture prints the data revision it retained. Add `snapshot="REVISION"` before
+That text capture is the compact path for an ordinary patch. For a large review, set a
+structured `unified-diff` value whose `files` array carries `key`, `path`, `kind`,
+`additions`, `deletions`, and `patch` for each file. Keep `key` equal to `path`. Leaf
+sends only the manifest at startup and fetches each `patch` fragment when its disclosure
+opens; `--capture-label` gives the structured value the same immutable snapshot behavior
+as a text capture.
+
+```bash
+leaf data set <page> pr-patch --file change-manifest.json \
+  --capture-label "PR at 8f61c2a"
+```
+
+Capture and structured `data set --capture-label` print the data revision retained. Add
+`snapshot="REVISION"` before
 stamping or handing over the reviewed page to freeze that capture; omit the
 attribute when the block should follow later captures or `data set` calls. On a
 served page, the valid unpinned save that adds the binding may already have

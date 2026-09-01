@@ -534,7 +534,8 @@ function paintHere() {
 // target geometry before the scroll. Called before every scroll-to-content.
 function reveal(el) {
   const chain = [];
-  for (let a = el; a; a = a.parentElement) chain.push(a);
+  for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
+    chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;

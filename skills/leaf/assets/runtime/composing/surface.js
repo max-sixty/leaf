@@ -66,8 +66,16 @@ export function createSelectionSurface({
   // So the one writer of their position is where the coordinates change space: clamp in
   // the viewport and above any key line it would cross, then store in the document.
   function place(node, left, top) {
-    const x = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
-    node.style.left = x + "px";
+    const containingLeft = node.offsetParent?.getBoundingClientRect().left ?? 0;
+    const x = Math.max(
+      containingLeft + 8,
+      Math.min(left, rightEdge() - node.offsetWidth),
+    );
+    // The Asks tray yields its width by moving body's containing block to the right.
+    // Inputs and clamps are viewport coordinates, while an absolute child's `left` is
+    // relative to that moved block. Store the coordinate in the space CSS will read or
+    // the tray's offset is added twice and a composer lands off the right edge.
+    node.style.left = x - containingLeft + "px";
     const keyline = keylineEl.getBoundingClientRect();
     const overlapsKeyline =
       keyline.height && x < keyline.right && x + node.offsetWidth > keyline.left;

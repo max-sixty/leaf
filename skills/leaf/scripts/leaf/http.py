@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import presence as presence_model
+from .data import DataError, read_data_fragment
+from .data_contracts import valid_snapshot_id
 from .event_endpoint import EventEndpoint, event_rejection
 from .event_log import read_events
 from .files import (
@@ -26,7 +28,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
-from .registry.storage import layer_generation
+from .registry.storage import layer_generation, require_registry
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
@@ -229,6 +231,35 @@ class Handler(BaseHTTPRequestHandler):
         if sequence < 0:
             raise ValueError("view sequence must be a non-negative integer")
         return sequence
+
+    def data_fragment(self) -> dict:
+        """One contract-declared payload from the data revision the tab holds."""
+        query = parse_qs(urlsplit(self.path).query)
+        raw_revision = query.get("data_revision", [None])[-1]
+        try:
+            data_revision = int(raw_revision)
+        except (TypeError, ValueError) as error:
+            raise ValueError("data_revision must be a non-negative integer") from error
+        if data_revision < 0:
+            raise ValueError("data_revision must be a non-negative integer")
+        source = query.get("source", [None])[-1]
+        key = query.get("key", [None])[-1]
+        snapshot = query.get("snapshot", [None])[-1]
+        if not isinstance(source, str) or not source:
+            raise ValueError("source is required")
+        if not isinstance(key, str) or not key:
+            raise ValueError("key is required")
+        if snapshot is not None and not valid_snapshot_id(snapshot):
+            raise ValueError("snapshot must be a positive decimal revision")
+        with PageTransaction(self.page_dir):
+            return read_data_fragment(
+                self.page_dir,
+                require_registry(self.page_dir),
+                data_revision=data_revision,
+                source=source,
+                key=key,
+                snapshot_id=snapshot,
+            )
 
     def log_message(self, *args):
         pass
@@ -529,6 +560,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(error)}, 400)
                 return
             self._json(state)
+            return
+        if path == "/api/data":
+            try:
+                fragment = self.data_fragment()
+            except (DataError, ValueError) as error:
+                status = 409 if " is stale; current revision is " in str(error) else 400
+                self._json({"error": str(error)}, status)
+                return
+            self._json(fragment)
             return
         if path == "/api/view":
             try:

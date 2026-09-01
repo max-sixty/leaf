@@ -1,9 +1,5 @@
 {
   "$captures": {
-    "pr-review-patch": {
-      "text-file": "pr-walkthrough.patch",
-      "label": "max-sixty/worktrunk PR #3865 at 9ca8f78b"
-    },
     "pr-call-diff": {
       "text-file": "pr-walkthrough-call-diff.txt",
       "label": "CallDiff 0.5.0 for compute_combined_diff at 9ca8f78b",
@@ -13,6 +9,12 @@
       "text-file": "pr-walkthrough-prepared-diff.rs",
       "label": "src/git/repository/diff.rs at 9ca8f78b",
       "lines": "1:169"
+    }
+  },
+  "$imports": {
+    "pr-review-patch": {
+      "unified-diff-file": "pr-walkthrough.patch",
+      "label": "max-sixty/worktrunk PR #3865 at 9ca8f78b"
     }
   },
   "pr-review-facts": {

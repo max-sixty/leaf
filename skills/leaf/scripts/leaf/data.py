@@ -158,6 +158,104 @@ def read_data(page_dir: Path) -> dict:
     return read_data_store(page_dir)
 
 
+def _fragment_spec(registry: dict, contract: str) -> dict | None:
+    """The optional contract-owned split-delivery coordinate."""
+    return (
+        registry.get("$data", {})
+        .get("contracts", {})
+        .get(contract, {})
+        .get("fragments")
+    )
+
+
+def browser_data(page_dir: Path, registry: dict | None) -> dict:
+    """Project the source store to the lightweight snapshot sent in page state.
+
+    ``data.json`` remains the complete authority.  A contract may mark one field on
+    each item as a separately delivered fragment; page state carries the surrounding
+    manifest and the fragment door reads the omitted value from that same store.
+    """
+    # read_data returns a fresh JSON decoding, so this projection can remove payloads
+    # in place without copying a potentially very large diff a second time.
+    stored = read_data(page_dir)
+    # State remains readable when an older page's frozen vocabulary no longer
+    # validates against this layer. Without a trustworthy fragment declaration,
+    # send the complete value: the broken registry already prevents interaction,
+    # while the readable state lets the browser and Stop hook explain that failure.
+    if registry is None:
+        return stored
+    for source_store in stored["sources"].values():
+        spec = _fragment_spec(registry, source_store["contract"])
+        if spec is None:
+            continue
+        for snapshot in [source_store, *source_store.get("snapshots", {}).values()]:
+            value = snapshot.get("value")
+            if not isinstance(value, dict):
+                continue
+            items = value.get(spec["items"])
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict):
+                    item.pop(spec["value"], None)
+    return stored
+
+
+def read_data_fragment(
+    page_dir: Path,
+    registry: dict,
+    *,
+    data_revision: int,
+    source: str,
+    key: str,
+    snapshot_id: str | None = None,
+) -> dict:
+    """Read one declared fragment from the exact source revision a tab accepted."""
+    stored = read_data(page_dir)
+    if stored["revision"] != data_revision:
+        raise DataError(
+            f"data revision {data_revision} is stale; current revision is "
+            f"{stored['revision']}"
+        )
+    source_store = stored["sources"].get(source)
+    if source_store is None:
+        raise DataError(f"unknown data source {source!r}")
+    spec = _fragment_spec(registry, source_store["contract"])
+    if spec is None:
+        raise DataError(
+            f"data source {source!r} contract {source_store['contract']!r} "
+            "does not declare fragments"
+        )
+    selected = source_store
+    if snapshot_id is not None:
+        selected = source_store.get("snapshots", {}).get(snapshot_id)
+        if selected is None:
+            raise DataError(f"data source {source!r} has no snapshot {snapshot_id!r}")
+    value = selected.get("value")
+    items = value.get(spec["items"]) if isinstance(value, dict) else None
+    if not isinstance(items, list):
+        raise DataError(f"data source {source!r} has no fragmented value")
+    matches = [
+        item
+        for item in items
+        if isinstance(item, dict) and item.get(spec["key"]) == key
+    ]
+    if len(matches) != 1:
+        reason = "unknown" if not matches else "duplicate"
+        raise DataError(f"{reason} fragment key {key!r} in data source {source!r}")
+    item = matches[0]
+    if spec["value"] not in item:
+        raise DataError(f"fragment {key!r} in data source {source!r} has no value")
+    return {
+        "revision": stored["revision"],
+        "source": source,
+        "contract": source_store["contract"],
+        **({"snapshot": snapshot_id} if snapshot_id is not None else {}),
+        "key": key,
+        "value": item[spec["value"]],
+    }
+
+
 def _write_source(
     page_dir: Path, source: str, value, capture: dict | None = None
 ) -> int:
@@ -216,10 +314,16 @@ def _write_source(
     return revision
 
 
-def cmd_data_set(page_dir: Path, source: str, value) -> None:
+def cmd_data_set(
+    page_dir: Path, source: str, value, capture_label: str | None = None
+) -> None:
     """Validate and atomically replace one source's complete current value."""
-    revision = _write_source(page_dir, source, value)
-    click.echo(f"set data source {source!r} at revision {revision}")
+    if capture_label is not None and not capture_label:
+        raise DataError("capture label must be a non-empty string")
+    capture = {"label": capture_label} if capture_label is not None else None
+    revision = _write_source(page_dir, source, value, capture)
+    verb = "captured" if capture is not None else "set"
+    click.echo(f"{verb} data source {source!r} at revision {revision}")
 
 
 def cmd_data_capture(

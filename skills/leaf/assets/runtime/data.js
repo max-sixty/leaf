@@ -21,11 +21,19 @@ export function acceptData(candidate) {
   return true;
 }
 
+// A watcher can mount after its source snapshot has already been accepted (most notably
+// while a newer document is activating). Keep that first render in the same readiness
+// boundary as the next data notification instead of letting the notification stamp the
+// revision while the mount is still painting it.
+const initialRenders = [];
+
 export async function notifyDataSubscribers() {
   const revision = runtime.data.revision;
+  const mounting = initialRenders.splice(0);
+  await Promise.all(mounting);
   const pending = [];
   document.dispatchEvent(new CustomEvent("lf-data", { detail: { pending } }));
-  await Promise.allSettled(pending);
+  await Promise.all(pending);
   // The revision becomes a readiness fact only after every subscriber has rendered it.
   // Render checks and export compare this stamp with the server snapshot, so a data-only
   // page cannot be read between acceptance and an asynchronous projection.
@@ -67,11 +75,11 @@ export function watchData(element, input, callback) {
     const rendering = callback(snapshot);
     if (rendering?.then && Array.isArray(event?.detail?.pending))
       event.detail.pending.push(rendering);
+    return rendering;
   };
   const update = (event) => {
     if (!source) {
-      deliver(null, event);
-      return;
+      return deliver(null, event);
     }
     const present = Object.hasOwn(runtime.data.sources, source);
     if (present && runtime.data.sources[source].contract !== declaration.contract)
@@ -80,8 +88,7 @@ export function watchData(element, input, callback) {
           `but source ${source} carries ${runtime.data.sources[source].contract}`,
       );
     if (!present) {
-      deliver(null, event);
-      return;
+      return deliver(null, event);
     }
     const sourceStore = runtime.data.sources[source];
     if (selected) {
@@ -90,7 +97,7 @@ export function watchData(element, input, callback) {
         throw new Error(
           `watchData(${element.localName}, ${input}) source ${source} has no snapshot ${selected}`,
         );
-      deliver(
+      return deliver(
         structuredClone({
           contract: sourceStore.contract,
           snapshot: selected,
@@ -101,8 +108,7 @@ export function watchData(element, input, callback) {
       return;
     }
     if (!Object.hasOwn(sourceStore, "value")) {
-      deliver(null, event);
-      return;
+      return deliver(null, event);
     }
     const snapshot = {
       contract: sourceStore.contract,
@@ -111,11 +117,73 @@ export function watchData(element, input, callback) {
     };
     if (Object.hasOwn(sourceStore, "label")) snapshot.label = sourceStore.label;
     if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
-    deliver(structuredClone(snapshot), event);
+    return deliver(structuredClone(snapshot), event);
   };
   // Establish the subscription only after its first delivery succeeds. A package that
   // throws while mounting must not leave a listener behind to fail every later poll.
-  update();
+  const initial = update();
+  if (initial?.then) initialRenders.push(initial);
   document.addEventListener("lf-data", update);
   return () => document.removeEventListener("lf-data", update);
+}
+
+// A fragmented contract keeps its complete value in data.json while page state carries
+// only the surrounding manifest. The widget asks for one omitted value by the same
+// declared input it watches; source, contract, optional snapshot, and accepted data
+// revision therefore come from the binding rather than from module-authored URLs.
+export async function loadDataFragment(element, input, key) {
+  if (!(element instanceof Element))
+    throw new TypeError("loadDataFragment element must be a widget element");
+  if (typeof input !== "string" || !input)
+    throw new TypeError("loadDataFragment input must be a non-empty string");
+  if (typeof key !== "string" || !key)
+    throw new TypeError("loadDataFragment key must be a non-empty string");
+  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  if (!declaration)
+    throw new Error(
+      `loadDataFragment(${element.localName}, ${input}) input is not declared by this widget`,
+    );
+  const contract = registry.$data?.contracts?.[declaration.contract];
+  if (!contract?.fragments)
+    throw new Error(
+      `loadDataFragment(${element.localName}, ${input}) contract ${declaration.contract} ` +
+        "does not declare fragments",
+    );
+  const source = element.getAttribute(declaration.source);
+  if (!source)
+    throw new Error(
+      `loadDataFragment(${element.localName}, ${input}) has no bound source`,
+    );
+  const snapshot = declaration.snapshot
+    ? element.getAttribute(declaration.snapshot)
+    : null;
+  const revision = runtime.data.revision;
+  const params = new URLSearchParams({
+    data_revision: String(revision),
+    source,
+    key,
+  });
+  if (snapshot) params.set("snapshot", snapshot);
+  const response = await fetch(`/api/data?${params}`);
+  const responseLayer = response.headers.get("Leaf-Layer");
+  if (response.ok && responseLayer && responseLayer !== registry.$layer?.generation) {
+    location.reload();
+    throw new Error("Leaf's data vocabulary changed while loading a fragment");
+  }
+  const answer = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Error(
+      answer.error || `data fragment failed to load (${response.status})`,
+    );
+  if (
+    answer.revision !== revision ||
+    answer.source !== source ||
+    answer.contract !== declaration.contract ||
+    answer.key !== key ||
+    (snapshot ? answer.snapshot !== snapshot : Object.hasOwn(answer, "snapshot"))
+  )
+    throw new Error("data fragment response does not match its request");
+  if (runtime.data.revision !== revision)
+    throw new Error(`data revision ${revision} changed while loading fragment ${key}`);
+  return structuredClone(answer.value);
 }

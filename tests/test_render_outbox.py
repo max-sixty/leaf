@@ -2114,6 +2114,50 @@ def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, 
     page.close()
 
 
+def test_a_float_uses_the_page_coordinate_after_the_asks_tray_moves_body(
+    browser, serve
+):
+    """The Asks tray moves body's containing block right rather than taking a strip
+    from its right. Float placement reads viewport boxes, but CSS `left` is relative to
+    that moved block; storing the viewport coordinate directly adds the tray twice and
+    puts an Alt-click composer beyond the right edge.
+    """
+    source = LONG_PAGE.replace(
+        "</main>",
+        """
+<lf-decision id="review-decision"><h2>What should ship?</h2>
+  <lf-options id="review-choice" choose>
+    <lf-option id="review-a">Ship the current revision.</lf-option>
+    <lf-option id="review-b">Request another pass.</lf-option>
+  </lf-options>
+</lf-decision>
+</main>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    page.locator("#p30").scroll_into_view_if_needed()
+    page.locator(".lf-decisions").click()
+    expect(page.get_by_role("navigation", name="Asks from this page")).to_be_visible()
+    page.wait_for_function("() => document.body.getBoundingClientRect().left >= 250")
+
+    page.locator("#p30").click(modifiers=["Alt"])
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    geometry = page.evaluate(
+        """() => {
+          const body = document.body.getBoundingClientRect();
+          const box = document.querySelector('.lf-composer').getBoundingClientRect();
+          return {bodyLeft: body.left, bodyRight: body.right,
+                  boxLeft: box.left, boxRight: box.right};
+        }"""
+    )
+    assert geometry["boxLeft"] >= geometry["bodyLeft"] + 8, geometry
+    assert geometry["boxRight"] <= geometry["bodyRight"] - 8, geometry
+    assert errors == []
+    page.close()
+
+
 def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser, serve):
     """A draft survives the version it was written against — the user opens the new
     one with unsent text — and the passage it was about may not have. The mark is what

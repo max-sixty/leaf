@@ -229,14 +229,27 @@ def _validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration) - {"description", "schema", "guidance"}
+            or set(declaration) - {"description", "schema", "guidance", "fragments"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional guidance"
+                "schema, with optional guidance and fragments"
+            )
+        fragments = declaration.get("fragments")
+        if fragments is not None and (
+            not isinstance(fragments, dict)
+            or set(fragments) != {"items", "key", "value"}
+            or any(
+                not isinstance(field, str) or not field for field in fragments.values()
+            )
+            or len(set(fragments.values())) != 3
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} fragments must name distinct "
+                "non-empty items, key, and value fields"
             )
         guidance_errors = sorted(
             GUIDANCE_READER.iter_errors(declaration.get("guidance", {})),

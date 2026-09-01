@@ -472,7 +472,13 @@ export function createAnchors(dependencies) {
       // duplicates refuse to guess. Where its old display text still stands, mark those
       // exact words. Where the value changed, outline the same datum whole instead of
       // silently following the old string to some other fact.
-      if (datum.length !== 1) return null;
+      if (datum.length > 1) return null;
+      if (!datum.length) {
+        const virtual = source?.lfDataDatum?.(anchor.datum);
+        if (!(virtual instanceof Element) || !containsAcross(source, virtual))
+          return null;
+        return { element: virtual };
+      }
       if (!anchor.quote) return { element: datum[0] };
       const segments = findQuote(text, anchor.quote, anchor, datum[0]);
       return segments.length ? { segments } : { element: datum[0] };
@@ -1101,6 +1107,27 @@ export function createAnchors(dependencies) {
   // of the region that holds it. No transient effect waits on that motion or survives it
   // as separate state.
   function scrollToThread(id) {
+    const thread = buildThreads().find((candidate) => candidate.root.id === id);
+    const anchor = thread?.root.anchor;
+    if (anchor?.datum) {
+      const source = sectionOf(anchor);
+      const exact = source
+        ? pageQueryAll(DATUM).some(
+            (datum) =>
+              containsAcross(source, datum) &&
+              datum.dataset.lfProjection === anchor.section &&
+              datum.dataset.lfDatum === anchor.datum,
+          )
+        : false;
+      const hydration = !exact && source?.lfRevealDatum?.(anchor.datum);
+      if (hydration?.then) {
+        hydration.then(() => {
+          paintAnchors();
+          scrollToThread(id);
+        });
+        return;
+      }
+    }
     let where = marksOf(id)[0] ?? placed.get(id);
     if (!where) return;
     const holder =

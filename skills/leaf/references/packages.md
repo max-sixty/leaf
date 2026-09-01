@@ -40,8 +40,9 @@ is the project package and `~/.config/leaf` is the user package. Inside a reposi
 dedicated to one package, use `.` as the package path.
 
 Leaf also ships optional packages that select by bare name. `command-hub` adds
-multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief and a
-data-backed unified call diff:
+multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief with a
+safe Markdown description and compact checks table, plus a data-backed unified call
+diff:
 
 ```bash
 leaf page init --package command-hub PAGE
@@ -337,12 +338,15 @@ complete snapshot using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
+leaf data set PAGE release-ci --file signed-build-state.json --capture-label "release candidate"
 leaf data capture PAGE release-notes --text-file CHANGELOG.md --lines 20:44
 leaf data clear PAGE release-ci
 ```
 
-`data set` validates before replacing the source atomically. A rejected value leaves
-the prior revision untouched. Source revisions and event sequences are independent:
+`data set` validates before replacing the source atomically. Add `--capture-label` when
+that structured value should also be retained as an immutable snapshot; `data capture`
+is the UTF-8 text-file convenience for the same lifecycle. A rejected value leaves the
+prior revision untouched. Source revisions and event sequences are independent:
 an old poll may contain new data, and a new event response may contain old data, so
 neither orders the other.
 
@@ -365,6 +369,38 @@ incoming schemas.
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every reader of the page, including fields a module does not
 paint. Do not put credentials or private host state in it.
+
+A contract whose values contain large independently useful payloads may declare a
+`fragments` coordinate: the top-level array field, each item's unique key field, and the
+payload field. `data.json` still keeps and validates the complete value. `/api/state`
+sends the array as a lightweight manifest with that payload field omitted; a widget uses
+`loadDataFragment(element, input, key)` to fetch one payload from the exact data revision
+and optional snapshot it already accepted. A stale revision is refused instead of
+combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
+thousands of files without transferring or rendering every patch first.
+
+```json
+{
+  "fragments": { "items": "files", "key": "key", "value": "patch" },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string" },
+            "patch": { "type": "string" }
+          },
+          "required": ["key", "patch"]
+        }
+      }
+    },
+    "required": ["files"]
+  }
+}
+```
 
 A module subscribes through its own input declaration:
 

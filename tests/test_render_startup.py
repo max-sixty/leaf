@@ -2828,6 +2828,59 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     page.close()
 
 
+def test_data_readiness_requires_successful_mounts_and_notifications(browser, serve):
+    """The data stamp proves that every asynchronous subscriber rendered the value.
+
+    A watcher may first mount after the value was accepted, or reject while restating a
+    later revision. Neither failure may be converted into a ready stamp.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const before = document.body.getAttribute('data-lf-data-revision');
+          const messages = [];
+
+          const stopMount = watchData(widget, 'rows', () =>
+            Promise.reject(new Error('mount projection failed'))
+          );
+          try { await notifyDataSubscribers(); }
+          catch (error) { messages.push(error.message); }
+          stopMount();
+          const afterMount = document.body.getAttribute('data-lf-data-revision');
+
+          let deliveries = 0;
+          const stopUpdate = watchData(widget, 'rows', () => {
+            deliveries += 1;
+            if (deliveries > 1)
+              return Promise.reject(new Error('update projection failed'));
+          });
+          const revision = runtime.data.revision + 1;
+          acceptData({...structuredClone(runtime.data), revision});
+          try { await notifyDataSubscribers(); }
+          catch (error) { messages.push(error.message); }
+          stopUpdate();
+          return {
+            before,
+            afterMount,
+            afterUpdate: document.body.getAttribute('data-lf-data-revision'),
+            messages,
+          };
+        }"""
+    )
+    assert result["afterMount"] == result["before"], result
+    assert result["afterUpdate"] == result["before"], result
+    assert result["messages"] == [
+        "mount projection failed",
+        "update projection failed",
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_data_notification_waits_for_a_version_activation(browser, serve):
     """A crossed data response may advance its revision during activation, but its
     subscribers cannot paint the old or half-upgraded document.

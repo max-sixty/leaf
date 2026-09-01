@@ -102,6 +102,15 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <strong>Keep every control row still</strong>
   </lf-task>
 </lf-command>
+<lf-diff id="stable-diff"><pre>
+diff --git a/feeders/mount.py b/feeders/mount.py
+--- a/feeders/mount.py
++++ b/feeders/mount.py
+@@ -1,2 +1,2 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
 """,
     head='<meta name="lf-review" content="sign-off">',
 )
@@ -139,6 +148,18 @@ CONTROL_ARCHETYPES = (
         "name": "command-view",
         "coverage": ".lf-command-facts > [role=button]",
         "target": '#stable-command .lf-command-facts > [data-lf-view="running"]',
+    },
+    {
+        # The diff's own header: a filter, a count, the soft-wrap switch, and the
+        # next-unreviewed press, standing in one row. The switch is what makes this a
+        # row at all — before it the next-unreviewed press had no control beside it and
+        # the sweep passed it over — and it is also the press with something to prove,
+        # because wrapping rewrites the height of every line under the row it is in.
+        # Pressed by its own words, which is where a reader aims and what a native label
+        # activation does either way.
+        "name": "diff-tools",
+        "coverage": ":is(.lf-diff-tools > button, .lf-diff-tools .lf-diff-wrap)",
+        "target": "#stable-diff .lf-diff-wrap-label",
     },
 )
 CONTROL_ROW_PRESS = (

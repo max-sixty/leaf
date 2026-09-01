@@ -70,6 +70,42 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
+    example = next(path for path in EXAMPLES if path.stem == "postmortem")
+    page, errors = open_page(browser, serve(example))
+    summary = page.locator("#pm-summary")
+    expect(summary).to_be_visible()
+    assert (
+        summary.evaluate("element => getComputedStyle(element).alignItems")
+        == "baseline"
+    )
+
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    code = summary.evaluate(
+        """element => {
+          const box = element.getBoundingClientRect();
+          const hints = [...document.querySelectorAll('.lf-target-hint')].map(node => {
+            const at = node.getBoundingClientRect();
+            return {
+              code: node.dataset.lfTarget,
+              distance: Math.hypot(
+                at.left + at.width / 2 - box.left,
+                at.top + at.height / 2 - box.top,
+              ),
+            };
+          });
+          hints.sort((a, b) => a.distance - b.distance);
+          return hints[0]?.distance < 30 ? hints[0].code : null;
+        }"""
+    )
+    assert code, "the summary had no semantic-selection hint"
+    page.keyboard.type(code)
+    expect(page.locator(".lf-live")).to_contain_text("Selected list: Detected")
+    assert errors == []
+    page.close()
+
+
 def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     """An example that ships a companion log opens mid-conversation.
 
@@ -640,20 +676,21 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     # The inner svg is mermaid's, carrying a generated id; the anchor belongs to the
     # widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     page.locator("#tree").click()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator("#tree.lf-mark-el.lf-pending").wait_for()
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
     page.locator("#p").click()
     expect(
-        page.locator(".lf-fab"), "a click on prose was read as a click on a picture"
+        page.locator(".lf-fab-input"),
+        "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
     assert errors == []
     page.close()
@@ -1038,7 +1075,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
 def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     """A copy has no panel and no session, which is what makes reading its own window
     honest — but it does have one piece of the live page's furniture left. A decided
-    change keeps the control that says so, because that record is what the margin was
+    change keeps the visible receipt that says so, because that record is what the margin was
     reserved for, so the rail is still held open in the file while the room read off the
     viewport knows nothing about it. The exported board stood 35px into that rail at a
     laptop's width and 47px at a narrow one.
@@ -1076,9 +1113,10 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     fit = page.evaluate(RAIL_FIT)
     rows = page.locator(".lf-sug-actions").count()
     assert rows == 1 and fit["rail"] != "0px", (
-        "the decided control and its rail must survive into the copy, or the fault this "
+        "the decided receipt and its rail must survive into the copy, or the fault this "
         f"is about cannot arise — rows {rows}, rail {fit['rail']}"
     )
+    expect(page.locator(".lf-sug-receipt")).to_have_text("Accepted")
     assert fit["past"] <= 1, (
         f"the copied board stands {fit['past']:.0f}px outside the page's own box, having "
         f"been given a room that did not know about the rail: {fit['widget']:.0f}px of "

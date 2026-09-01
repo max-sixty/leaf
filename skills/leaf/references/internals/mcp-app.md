@@ -58,7 +58,8 @@ markup and theme rules, supports page, element, and passage comments, and offers
 the ordinary browser route when one exists. `leaf_snapshot_apply_event` and
 `leaf_snapshot_refresh` are app-only. The append gate canonicalizes abbreviated
 text anchors before storing them, so fallback clients do not create weaker
-durable anchors.
+durable anchors. Served runtime anchors keep the browser reading that already
+resolved them; only the snapshot endpoint requests file-side capture.
 
 The resource is self-contained, runs no authored code, and declares no network
 domains. It does not implement package actions. The old single-choice

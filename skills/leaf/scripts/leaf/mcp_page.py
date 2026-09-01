@@ -15,10 +15,10 @@ from .event_endpoint import EventEndpoint
 from .files import revision_path
 from .hosting import server_at
 from .http import Handler
-from .registry.storage import layer_generation
+from .registry.storage import layer_metadata
 from .schema import ASSETS
-from .server import running_server
 from .served_state.service import PageStateService
+from .server import preview_metadata, running_server
 from .structure import parse_structure
 
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
@@ -31,7 +31,8 @@ class _PageSession:
     page_dir: Path
     capability: str
     endpoint: EventEndpoint
-    layer: str
+    layer_identity: dict
+    preview: dict | None
 
 
 class _RoutedPageHandler(Handler):
@@ -56,7 +57,9 @@ class _RoutedPageHandler(Handler):
         inside = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
         self.page_dir = session.page_dir
         self.event_endpoint = session.endpoint
-        self.layer = session.layer
+        self.layer = session.layer_identity["generation"]
+        self.layer_identity = session.layer_identity
+        self.preview = session.preview
         self.page_root = f"/p/{session.capability}"
         self.path = inside + (f"?{external.query}" if external.query else "")
         return True
@@ -129,11 +132,13 @@ class ProcessPageServer:
             session = self._by_page.get(page_dir)
             if session is None:
                 capability = secrets.token_urlsafe(24)
+                identity = layer_metadata(page_dir)
                 session = _PageSession(
                     page_dir=page_dir,
                     capability=capability,
                     endpoint=EventEndpoint(page_dir),
-                    layer=layer_generation(page_dir),
+                    layer_identity=identity,
+                    preview=preview_metadata(page_dir),
                 )
                 self._by_page[page_dir] = session
                 self._by_capability[capability] = session
@@ -144,9 +149,9 @@ class ProcessPageServer:
             session = self._by_capability.get(capability)
             if session is None:
                 return None
-            current_layer = layer_generation(session.page_dir)
-            if current_layer != session.layer:
-                session.layer = current_layer
+            current_identity = layer_metadata(session.page_dir)
+            if current_identity != session.layer_identity:
+                session.layer_identity = current_identity
                 session.endpoint = EventEndpoint(session.page_dir)
             return session
 
@@ -175,7 +180,11 @@ def resolve_page(page: str | Path) -> Path:
 def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
     """Return a model-sized summary and the app-private canonical page address."""
     page_dir = resolve_page(page)
-    state = PageStateService(page_dir, layer=layer_generation(page_dir)).page_state()
+    state = PageStateService(
+        page_dir,
+        layer_identity=layer_metadata(page_dir),
+        preview=preview_metadata(page_dir),
+    ).page_state()
     active = state.get("active")
     if active is None:
         raise ToolError(

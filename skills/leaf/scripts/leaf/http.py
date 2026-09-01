@@ -26,7 +26,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
-from .registry.storage import layer_generation
+from .registry.storage import layer_metadata
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
@@ -38,6 +38,7 @@ from .schema import (
 )
 from .served_state import reading as served_reading
 from .served_state.service import PageStateService
+from .server import preview_metadata
 from .service import PageTransaction
 from .structure import parse_structure
 
@@ -158,20 +159,12 @@ class Handler(BaseHTTPRequestHandler):
             if version <= self.preview_upto
         ]
 
-    def _page_state(
-        self,
-        events: list,
-        source_error: str | None = None,
-        view_revision: int | None = None,
-    ) -> dict:
-        """The page's own state from a caller's transaction-consistent log."""
-        return self._state_service()._full_state(
-            events, source_error, view_revision=view_revision
-        )
-
     def _state_service(self) -> PageStateService:
         return PageStateService(
-            self.page_dir, layer=self.layer, preview_source=self.preview_source
+            self.page_dir,
+            preview_source=self.preview_source,
+            layer_identity=self.layer_identity,
+            preview=self.preview,
         )
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -191,9 +184,7 @@ class Handler(BaseHTTPRequestHandler):
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
         """
-        return self._state_service().page_state(
-            view_revision, full_state=self._page_state
-        )
+        return self._state_service().page_state(view_revision)
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
@@ -606,6 +597,7 @@ def handler_for(
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
     machine, so there is no construction that should quietly go without one."""
+    identity = layer_metadata(page_dir)
     return type(
         "PageHandler",
         (Handler,),
@@ -617,6 +609,8 @@ def handler_for(
             "protocol_version": protocol_version,
             "cookie_attributes": cookie_attributes,
             "event_endpoint": EventEndpoint(page_dir),
-            "layer": layer_generation(page_dir),
+            "layer": identity["generation"],
+            "layer_identity": identity,
+            "preview": preview_metadata(page_dir),
         },
     )

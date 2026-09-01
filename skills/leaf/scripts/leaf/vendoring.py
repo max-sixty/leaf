@@ -27,7 +27,9 @@ from .layer import (
     checked_layer_inputs,
     compose_layer,
     input_paths,
+    layer_fingerprint,
     layer_inputs,
+    payload_provenance,
 )
 from .leases import init_lock_path, lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
@@ -35,7 +37,7 @@ from .projection import page_projection
 from .schema import DATA_FILE, LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
 from .service import PageTransaction, claim_path
 from .validation.compatibility import vocabulary_gaps
-from .work import widget_work_without_seats
+from .work import widget_work_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
@@ -216,7 +218,7 @@ def _refuse_data_contract_drift(
         )
 
 
-def _refuse_unseated_work(page_dir: Path, events: list[dict], incoming: dict) -> None:
+def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) -> None:
     try:
         revision = latest_revision(page_dir)
     except SystemExit:
@@ -225,7 +227,7 @@ def _refuse_unseated_work(page_dir: Path, events: list[dict], incoming: dict) ->
         return
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
     projection, parser, _spk = page_projection(html, events, incoming, revision)
-    unseated = widget_work_without_seats(
+    untargeted = widget_work_without_targets(
         html,
         parser,
         projection,
@@ -233,10 +235,10 @@ def _refuse_unseated_work(page_dir: Path, events: list[dict], incoming: dict) ->
         read_json(page_dir / "status.json") or {},
         incoming,
     )
-    if unseated:
+    if untargeted:
         sys.exit(
-            "the incoming layer would remove the local seat for active widget work on "
-            + ", ".join(repr(widget) for widget in unseated)
+            "the incoming layer would remove the local target for active widget work on "
+            + ", ".join(repr(widget) for widget in untargeted)
             + "; stamp a later version with --completes for that work before "
             "re-vendoring"
         )
@@ -247,7 +249,7 @@ def _validate_page_transition(
 ) -> None:
     _refuse_vocabulary_drift(page_dir, events, incoming)
     _refuse_data_contract_drift(page_dir, events, incoming)
-    _refuse_unseated_work(page_dir, events, incoming)
+    _refuse_untargeted_work(page_dir, events, incoming)
 
 
 def _stamp_layer(
@@ -257,8 +259,15 @@ def _stamp_layer(
     # match the last run. The browser carries this epoch on every write so an open
     # tab cannot post through a runtime whose server contract was re-vendored under it.
     generation = secrets.token_hex(16)
+    fingerprint = layer_fingerprint(composition)
+    producer = payload_provenance()
     incoming = composition.registry
-    incoming["$layer"] = {"generation": generation, "packages": list(selected)}
+    incoming["$layer"] = {
+        "generation": generation,
+        "fingerprint": fingerprint,
+        "packages": list(selected),
+        **({"producer": producer} if producer else {}),
+    }
     top_files = composition.top_files
     runtime = top_files["leaf.js"]
     top_files["leaf.js"] = runtime.replace(

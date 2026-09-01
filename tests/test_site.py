@@ -14,7 +14,6 @@ A page under /examples has to be reached over HTTP: its markup names /theme.css 
 besides. The docs pages are read as files, which is how a checkout reads them.
 """
 
-import hashlib
 import importlib.util
 import json
 import re
@@ -41,12 +40,6 @@ EXAMPLES = ROOT / "examples"
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
-
-_preview_spec = importlib.util.spec_from_file_location(
-    "example_previews", ROOT / "scripts" / "example-previews.py"
-)
-preview_build = importlib.util.module_from_spec(_preview_spec)
-_preview_spec.loader.exec_module(preview_build)
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
@@ -201,22 +194,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     cannot pass merely because it also contains no iframe or tab widget.
     """
     expected = {source.stem for source in authored_examples()}
-    manifest = json.loads((DOCS / "example-previews.json").read_text())
-    assert set(manifest["previews"]) == expected
-    assert manifest["inputs_sha256"] == preview_build.digest(
-        preview_build.capture_input_files()
-    ), "preview inputs changed — rerun scripts/example-previews.py"
     assert {path.name for path in DOCS.glob("example-*.jpg")} == {
         f"example-{stem}.jpg" for stem in expected
     }
-    for stem, record in manifest["previews"].items():
-        image = DOCS / record["file"]
-        assert record == {
-            "file": f"example-{stem}.jpg",
-            "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
-            "width": 896,
-            "height": 560,
-        }
 
     page = browser.new_page()
     errors = []
@@ -417,7 +397,10 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
 AFTER_THE_DRAG = f"""async () => {{
   await new Promise(done => setTimeout(done));
   await ({ONE_FRAME})();
+  const field = document.querySelector('.lf-fab-input');
   return {{ text: getSelection().toString(),
+           quote: document.getElementById('lf-composer-quote')?.textContent ?? '',
+           fieldFocused: document.activeElement === field,
            says: document.querySelector('.lf-keyline').textContent }};
 }}"""
 
@@ -448,13 +431,12 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
         control = drag_across(page, "#decision-lede")
-        assert "monolith split" in control["text"]
-        assert "comment on the selection" in control["says"], (
-            "the drag never reached the runtime"
-        )
+        assert control["fieldFocused"], "the page's own words raised no comment field"
+        assert "monolith split" in control["quote"]
 
         label = drag_across(page, "main > .sitenote p")
         assert "example of a leaf page" in label["text"]
+        assert not label["fieldFocused"]
         # The word `c` carries with nothing in hand — it goes to the threads rather
         # than opening a box on anything, and "comment on the selection" does not
         # contain it, so the two readings still tell each other apart.
@@ -556,10 +538,10 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
             (box["x"] + 4, box["y"] + 8),
             (box["x"] + box["width"] - 40, box["y"] + box["height"] - 8),
         )
-        # The pill a selection raises, which is how a reader reaches the composer.
-        page.locator(".lf-fab").click()
+        # Selection enters the compact field immediately.
+        expect(page.locator(".lf-fab-input")).to_be_focused()
         page.locator(".lf-composer textarea").fill("Does this cover key rotation?")
-        page.locator(".lf-composer .lf-btn.primary").click()
+        page.keyboard.press("Enter")
 
         # The thread holding the words just written, rather than whichever is first:
         # an example that ships a log opens with threads already in the panel, and

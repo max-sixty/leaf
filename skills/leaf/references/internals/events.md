@@ -24,7 +24,9 @@ action, typed detail, and revision are validated against the holder's
 `x-request` declaration and exact direct-child offers; when that declaration has
 `decision: true`, the ready lifecycle is a reader decision, acceptance hands it to the host,
 and a failed receipt reopens it), receipt (agent; exactly
-one terminal `succeeded` or `failed` outcome naming a prior request), note
+one terminal `succeeded` or `failed` outcome naming a prior request), pickup
+(page; a durable, record-only transport acknowledgment naming the reader event
+ids accepted by their next consumer; it is idempotent and makes no work claim), note
 (agent; one stamped checkpoint's public `version`, exact `revision`, and
 changelog, carrying `restated`: the element ids whose decisions that revision
 took back, and `settles`: the report or work targets the stamp answered), error (the page's own runtime reporting a

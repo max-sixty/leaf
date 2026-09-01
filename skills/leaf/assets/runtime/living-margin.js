@@ -14,7 +14,10 @@ const KINDS = {
   comment: { label: "Thread", symbol: "💬", priority: 1 },
   decision: { label: "Ask", symbol: "?", priority: 2 },
   outcome: { label: "Outcome", symbol: "✓", priority: 3 },
-  activity: { label: "Agent activity", symbol: "↻", priority: 4 },
+  sent: { label: "Sent", symbol: "✓", priority: 3 },
+  pickup: { label: "Picked up", symbol: "✓", priority: 3 },
+  waiting: { label: "Waiting for pickup", symbol: "○", priority: 3 },
+  activity: { label: "Active", symbol: "●", priority: 4 },
 };
 
 // Content modules contribute what their target offers; this projection decides where
@@ -23,7 +26,6 @@ const KINDS = {
 // reconnect while a live version replaces the authored document.
 const offeredItems = new Set();
 const offerListeners = new Set();
-const ACTION_COLLAPSE = new Set(["auto", "always"]);
 const ACTION_TONES = new Set(["neutral", "positive", "negative"]);
 const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options"]);
 
@@ -32,28 +34,28 @@ const changedOffers = () => {
 };
 
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
-// their verbs and events; the margin owns the behavior, anatomy, and collapse policy
-// that make the controls one family. The visible word remains in the DOM when it is
-// collapsed, so the same control can expand again without being rebuilt and its
-// accessible name never changes.
+// their verbs and events; the margin owns the behavior and anatomy that make the
+// controls one family. The visible word remains in the DOM as a transient label, so
+// every Button keeps one circular fitting and one stable accessible name. Native
+// `title` bubbles would repeat that label on a different timer and with a different
+// face, so this anatomy owns the only visual tooltip too.
 export function marginAction(
   control,
-  { glyph, label, behavior = "action", collapse = "auto", tone = "neutral" },
+  { glyph, label, behavior = "action", tone = "neutral" },
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin action needs an Element control");
   if (!String(glyph ?? "").trim()) throw new TypeError("A margin action needs a glyph");
   if (!String(label ?? "").trim()) throw new TypeError("A margin action needs a label");
-  if (!ACTION_COLLAPSE.has(collapse))
-    throw new TypeError(`Unknown margin-action collapse: ${collapse}`);
   if (!ACTION_TONES.has(tone))
     throw new TypeError(`Unknown margin-action tone: ${tone}`);
   if (!ACTION_BEHAVIORS.has(behavior))
     throw new TypeError(`Unknown margin-action behavior: ${behavior}`);
+  const labelText = String(label);
 
   control.classList.add("lf-margin-action");
+  control.removeAttribute("title");
   control.dataset.lfBehavior = behavior;
-  control.dataset.lfCollapse = collapse;
   control.dataset.lfTone = tone;
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
@@ -71,9 +73,11 @@ export function marginAction(
   spaceNode.setAttribute("aria-hidden", "true");
   spaceNode.textContent = " ";
   labelNode.className = "lf-margin-action-label";
-  labelNode.textContent = label;
+  labelNode.textContent =
+    behavior === "action" || labelText.endsWith("…") ? labelText : `${labelText}…`;
   control.replaceChildren(glyphNode, spaceNode, labelNode);
-  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  if (!control.hasAttribute("aria-label"))
+    control.setAttribute("aria-label", labelText);
   return control;
 }
 
@@ -180,6 +184,7 @@ function comesBefore(left, right) {
 export function createLivingMargin(dependencies) {
   const {
     anchorLabel,
+    acknowledgments,
     announce,
     approveBtn,
     blockAt,
@@ -189,7 +194,9 @@ export function createLivingMargin(dependencies) {
     comparisonChanges,
     compact,
     closestAcross,
+    currentRevision,
     designIsOn,
+    droppedAt,
     el,
     elementById,
     focused,
@@ -203,6 +210,7 @@ export function createLivingMargin(dependencies) {
     panelIsOpen,
     paintKeys,
     placedAt,
+    quietSince,
     renderMarginThread,
     scrollBehavior,
     scrollToElement,
@@ -214,6 +222,7 @@ export function createLivingMargin(dependencies) {
     toggleBtn,
     updateSequence,
     versionBtn,
+    waitingForPickupSince,
   } = dependencies;
 
   const nav = el("nav", "lf-ui lf-living-margin");
@@ -339,10 +348,33 @@ export function createLivingMargin(dependencies) {
     ...standingAfterOffers(entry),
   ];
   const directControls = (entry) => directOffers(entry).flatMap(controlsOf);
-  const controlShownByOwner = (control) =>
-    !control.hidden && getComputedStyle(control).visibility !== "hidden";
+  const controlsShownByOwner = (controls) => {
+    // The margin hides non-primary controls with `display: none`, so ask how this
+    // batch paints while exempt from that rule. Write every exemption before the first
+    // style read: alternating an attribute write and getComputedStyle would recalculate
+    // the whole page once per Button. Contributor-owned `display` and `visibility`
+    // still apply — including the retired half of a settled pair.
+    const wasPrimary = controls.map((control) =>
+      control.hasAttribute("data-lf-button-primary"),
+    );
+    for (const control of controls) control.setAttribute("data-lf-button-primary", "");
+    let shown;
+    try {
+      shown = controls.filter((control) => {
+        const style = getComputedStyle(control);
+        return (
+          !control.hidden && style.display !== "none" && style.visibility !== "hidden"
+        );
+      });
+    } finally {
+      controls.forEach((control, index) =>
+        control.toggleAttribute("data-lf-button-primary", wasPrimary[index]),
+      );
+    }
+    return shown;
+  };
   function choosePrimary(entry) {
-    const controls = directControls(entry).filter(controlShownByOwner);
+    const controls = controlsShownByOwner(directControls(entry));
     return controls[0] ?? null;
   }
   function syncControlRoles(entry) {
@@ -393,8 +425,8 @@ export function createLivingMargin(dependencies) {
     return choice ? (readingButtons.get(readingKey(entry, choice)) ?? null) : null;
   }
   const secondaryControls = (entry, primary) =>
-    directControls(entry).filter(
-      (control) => control !== primary && controlShownByOwner(control),
+    controlsShownByOwner(directControls(entry)).filter(
+      (control) => control !== primary,
     );
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
     entry.offers.filter(
@@ -418,7 +450,10 @@ export function createLivingMargin(dependencies) {
   function markerFace(entry) {
     const kinds = kindsIn(entry, { markerOnly: true });
     const choice = primaryReading(entry);
-    const face = KINDS[choice?.kind] ?? KINDS.action;
+    const face =
+      (choice?.items.length === 1 && choice.items[0].acknowledgmentFace) ||
+      KINDS[choice?.kind] ||
+      KINDS.action;
     const faceCount = choice?.items.length ?? 0;
     return {
       kinds,
@@ -517,8 +552,51 @@ export function createLivingMargin(dependencies) {
     group.items.push(item);
   }
 
+  function visibleAcknowledgments() {
+    const visible = [];
+    for (const projected of acknowledgments()) {
+      if (projected.revision > currentRevision()) continue;
+      if (projected.phase !== "active" || claimState().claimsHeld) {
+        visible.push(projected);
+        continue;
+      }
+      if (!projected.event) continue;
+      visible.push({
+        ...projected,
+        phase: projected.fallback_phase,
+        ts: projected.fallback_ts,
+        detail: null,
+      });
+    }
+    return visible;
+  }
+
+  function acknowledgmentFace(receipt) {
+    if (receipt.phase === "active") {
+      const turnClosed =
+        receipt.session && receipt.session === claimState().claimingSession
+          ? claimState().agentTurnClosed
+          : null;
+      const quiet = quietSince(receipt.ts) || droppedAt(receipt.ts, turnClosed);
+      return {
+        kind: "activity",
+        text: ["Active", receipt.detail, quiet ? "quiet" : null]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }
+    if (receipt.phase === "picked_up") return { kind: "pickup", text: "Picked up" };
+    if (waitingForPickupSince(receipt.ts))
+      return { kind: "waiting", text: "Waiting for pickup" };
+    return { kind: "sent", text: "Sent" };
+  }
+
   function collectEntries() {
     const groups = new Map();
+    const receiptByCoordinate = new Map();
+    for (const receipt of visibleAcknowledgments()) {
+      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
+    }
     for (const thread of threads()) {
       if (thread.resolved || !thread.root.anchor) continue;
       const id = thread.root.id;
@@ -549,6 +627,7 @@ export function createLivingMargin(dependencies) {
     }
 
     const projection = stateProjection();
+    const activityAlreadyShown = new Set();
     for (const [coordinate, entry] of projection.desired) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
@@ -556,11 +635,16 @@ export function createLivingMargin(dependencies) {
       const account = [itemWord(target), humanized(entry.e.action), itemSays(target)]
         .filter(Boolean)
         .join(" · ");
+      const receipt = receiptByCoordinate.get(coordinate);
+      const face = receipt ? acknowledgmentFace(receipt) : null;
+      if (face?.kind === "activity")
+        activityAlreadyShown.add(`widget:${receipt.target.id}`);
       add(groups, target, {
         kind: "outcome",
-        id: `outcome:${coordinate}`,
-        text: trimmed(account),
-        activate: () => revealTarget(target, `Outcome: ${account}`),
+        id: receipt ? `acknowledgment:${receipt.id}` : `outcome:${coordinate}`,
+        text: trimmed(face ? `${face.text} · ${account}` : account),
+        ...(face ? { acknowledgmentFace: KINDS[face.kind] } : {}),
+        activate: () => revealTarget(target, `${face?.text ?? "Outcome"}: ${account}`),
       });
     }
 
@@ -578,15 +662,30 @@ export function createLivingMargin(dependencies) {
     if (claimState().claimsHeld)
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
+        if (update.revision > currentRevision()) continue;
+        if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
+          continue;
         const target =
           update.target.kind === "thread"
             ? placedAt(update.target.id)
             : elementById(update.target.id);
-        const account = `${update.agent || "Agent"} · ${update.text || humanized(update.action)}`;
+        const turnClosed =
+          update.session && update.session === claimState().claimingSession
+            ? claimState().agentTurnClosed
+            : null;
+        const quiet = quietSince(update.ts) || droppedAt(update.ts, turnClosed);
+        const account = [
+          update.agent || "Agent",
+          update.text || humanized(update.action),
+          quiet ? "quiet" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,
           text: trimmed(account),
+          acknowledgmentFace: KINDS.activity,
           activate: () => revealTarget(target, account),
         });
       }
@@ -664,30 +763,6 @@ export function createLivingMargin(dependencies) {
       },
       shown: (target) =>
         Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
-      condense: (item, column, room) => {
-        if (!item.querySelector('[data-lf-collapse="auto"]')) return false;
-        const parts = [...item.children].filter((part) => part.checkVisibility());
-        if (!parts.length) return false;
-        const style = getComputedStyle(item);
-        const gap = parseFloat(style.columnGap || style.gap) || 0;
-        const natural =
-          parts.reduce((total, part) => {
-            const partStyle = getComputedStyle(part);
-            return (
-              total +
-              part.getBoundingClientRect().width +
-              (parseFloat(partStyle.marginLeft) || 0) +
-              (parseFloat(partStyle.marginRight) || 0)
-            );
-          }, 0) +
-          gap * (parts.length - 1) +
-          (parseFloat(style.paddingLeft) || 0) +
-          (parseFloat(style.paddingRight) || 0);
-        const available = compact.matches
-          ? column.width
-          : Math.max(0, room - item.getBoundingClientRect().left);
-        return natural > available + 0.5;
-      },
       // Compact mode has no page rail. Dock every contributed item even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
@@ -712,9 +787,11 @@ export function createLivingMargin(dependencies) {
 
   function markerName(entry, index, anchored) {
     const choice = primaryReading(entry);
-    const face = KINDS[choice?.kind] ?? KINDS.action;
+    const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}`;
+    const subject =
+      count === 1 && choice.items[0].acknowledgmentFace ? choice.text : entry.title;
     const main = document.querySelector("main");
     const position =
       entry.target && main?.scrollHeight
@@ -725,7 +802,7 @@ export function createLivingMargin(dependencies) {
               100,
           )
         : null;
-    return `${reading}, ${index + 1} of ${anchored}, ${entry.title}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
+    return `${reading}, ${index + 1} of ${anchored}, ${subject}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
   }
 
   function availableRows() {
@@ -909,6 +986,7 @@ export function createLivingMargin(dependencies) {
 
   function paintMarker(row, entry, index, anchored, primary) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
+    const choice = primaryReading(entry);
     row.lfEntry = entry;
     row.hidden = markerKinds.length === 0 || Boolean(primary);
     row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
@@ -916,10 +994,8 @@ export function createLivingMargin(dependencies) {
       glyph: face.symbol,
       label,
       behavior: "disclosure",
-      collapse: "always",
     });
     row.setAttribute("aria-label", markerName(entry, index, anchored));
-    row.title = `${face.label}${markerCount > 1 ? `s (${markerCount})` : ""}`;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     if (markerCount > 1) {
@@ -989,7 +1065,6 @@ export function createLivingMargin(dependencies) {
       if (value == null) node.removeAttribute(attribute);
       else node.setAttribute(attribute, value);
     }
-    node.title = control.title;
     node.onclick = () => {
       setOptionsOpen(entry, false, { returnFocus: true });
       control.click();
@@ -1021,10 +1096,6 @@ export function createLivingMargin(dependencies) {
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
-    node.title = choice.items
-      .map((item) => item.text)
-      .filter(Boolean)
-      .join(" · ");
     if (count > 1) {
       const badge = el("span", "lf-margin-count");
       badge.setAttribute("aria-hidden", "true");
@@ -1217,7 +1288,6 @@ export function createLivingMargin(dependencies) {
           glyph: "·",
           label: "Open page details",
           behavior: "disclosure",
-          collapse: "always",
         });
         marker.onclick = () => {
           const choice = primaryReading(marker.lfEntry);
@@ -1240,7 +1310,6 @@ export function createLivingMargin(dependencies) {
           glyph: "…",
           label: "More options",
           behavior: "options",
-          collapse: "always",
         });
         options = el("div", "lf-margin-options");
         options.id = `lf-margin-options-${++optionsOrdinal}`;
@@ -1657,6 +1726,19 @@ export function createLivingMargin(dependencies) {
       syncThreadRelation(reading, reading.lfChoice?.kind === "comment");
     paintKeys();
   });
+  // TODO(2026-08-31): Reconcile this provisional acknowledgment-to-Button adapter
+  // with the in-flight Target Button implementation before their combined changes
+  // land. The canonical acknowledgment projection and page-edge placement remain the
+  // contract; only this presentation seam should follow the final Button API.
+  //
+  // The row's acknowledgment face is read out of the state projection, so it follows the
+  // applied log on `lf-actions` rather than the receipt paint: every path that reconciles
+  // a complete state dispatches that once it has reconciled, and both of the paths that
+  // paint receipts sit inside one. A repaint driven from the paint instead ran inside the
+  // panel render the application performs *before* reconciliation, which is early enough
+  // to read a candidate the same read is about to reject — and it ran inside a dispatch,
+  // where the fault that candidate throws is reported as an uncaught page error rather
+  // than rejecting the read.
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
@@ -1676,6 +1758,18 @@ export function createLivingMargin(dependencies) {
   render();
 
   return {
+    // The unfolded cluster, for a gesture that needs to know whether the fold standing
+    // open is one it opened itself. The cluster and not a flag, because a fold open
+    // somewhere is not the fold this gesture put on: the caller asks whose target it
+    // belongs to (`lfTarget`) rather than whether any fold is open. The Page-map scope's
+    // own rung reads the reader's position directly (`keyboardRung`) and needs neither.
+    unfoldedButtons: () =>
+      expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
+    // Folding on the reader's behalf — a disarm putting back a fold its own raise opened
+    // — happens wherever the reader is standing rather than inside the cluster, so it
+    // takes no focus with it: the reader may have left that cluster, and a press already
+    // on its way would land on a Button they were not standing on.
+    foldButtonOptions: () => setOptionsOpen(null, false),
     activeInlineThread: () => {
       if (
         !pinnedKey ||

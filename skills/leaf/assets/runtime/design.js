@@ -292,9 +292,9 @@ export function createDesign(dependencies) {
 
   // The one way a design target becomes the composer's anchor: the element by id, and the
   // control's word where the press landed on one.
-  function openOnDesign({ el, part }, from) {
+  function openOnDesign({ el, part }) {
     showFab(null);
-    openComposer({ section: el.id, ...(part && { part }) }, "", from.left, from.top);
+    openComposer({ section: el.id, ...(part && { part }) }, "");
   }
 
   return {

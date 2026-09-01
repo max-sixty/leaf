@@ -37,16 +37,6 @@ for the rows. Ignore it. A comment can record recovery, but the drain owns the
 close. This applies by title, not by the `tend-outage` label: `ci-fix` diagnosis
 trackers have no rows and are closed by `ci-fix` itself.
 
-## The browser the suite needs is already here
-
-`.config/tend.yaml`'s `sandbox_setup:` installs the Playwright headless shell
-into this sandbox's own cache before the session starts, so `uv run pytest tests
---run-nightly` drives a real browser from here. Don't install it again, and
-don't read a browser test as unrunnable — if a launch does fail, that is a fact
-about the run worth reporting, not a step to work around. `playwright install
---with-deps` is the one that cannot work: it escalates, and the sandbox user has
-no sudo.
-
 ## A red `ci` on main is live
 
 Pull requests run the everyday suite before merge, while `wt merge` runs that
@@ -76,37 +66,6 @@ you have. Sort on what the failure is.
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
-- **Contention.** Concurrent suites starve each other, and the failures surface
-  as `Page.goto` timeouts and slow-read assertion failures scattered across
-  unrelated tests — a shape that reads as "the browser layer is broken" when it
-  means "the machine was busy". Confirm it from the run rather than from the
-  spread: unrelated tests failing on waits none of them owns, and every job on
-  the commit slow against its usual wall time. It is the rarest of the four.
-- **The network.** Tests marked `nightly` shell out to `bin/leaf`, which resolves
-  everything it needs — Playwright included — through the host's index. CI passes
-  `--run-nightly` deliberately (it holds a network). If only those tests fail
-  while the rest of the suite is green, suspect the index rather than the code.
-
-Reproducing at `-n0` keeps the evidence, but it classifies in one direction
-only: a failure that reproduces is real, while one that does not is still
-unclassified — `-n0` also drops the load some races need, so repeat it to
-measure a rate before falling through to contention. A re-run discards the
-evidence instead: the second attempt replaces the run's reported conclusion
-while both stay separately true, so a diagnosis written against attempt 1 does
-not describe attempt 2. If you re-run anyway, cite the attempt you read.
-
-`scripts/linux-suite.sh` exists to reproduce a Linux-only failure from a Mac.
-From CI you are already on Linux, so run the suite directly — the container adds
-nothing here.
-
-## Don't green a run by weakening what it proves
-
-`tests/CLAUDE.md` opens by saying most of its norms were learned from a test that
-passed while proving nothing, and every shortcut to a green run recreates one:
-an `xfail` or `skip` added to a failing test, an `expect(...)` relaxed to a bare
-`count()` or `is_hidden()`, a gesture swapped from real mouse input to
-`dispatchEvent`. Each removes the safety net while looking like a fix. If a fix
-reaches for one, the question to answer instead is what behaviour actually broke.
 
 ## Weekly: vendored browser dependencies
 

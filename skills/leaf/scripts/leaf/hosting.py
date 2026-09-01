@@ -14,7 +14,9 @@ from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
 from .host import host_identity
 from .http import handler_for
+from .layer import payload_provenance
 from .leases import lock_is_held, transition_lock
+from .registry.storage import layer_metadata
 from .server import (
     host_key,
     lifetime_note,
@@ -75,6 +77,35 @@ class LeafHTTPServer(ThreadingHTTPServer):
         it, so that is the side to weigh if this number moves again.
         """
         super().serve_forever(poll_interval)
+
+
+def _provenance_label(provenance: dict) -> str:
+    commit = provenance.get("commit")
+    if not commit:
+        return "unknown source"
+    return commit + ("+dirty" if provenance.get("dirty") else "")
+
+
+def startup_note(page_dir: Path) -> str:
+    """Identify the page, vendored bytes, and serving Leaf beside its lifetime."""
+    layer = layer_metadata(page_dir)
+    service = read_json(page_dir / "service.json") or {}
+    # An older live service has no trustworthy runtime identity. Naming this
+    # command's payload instead would make the exact stale-server case this note
+    # exists to expose look current merely because a newer client inspected it.
+    runtime = service.get("runtime") or {}
+    fingerprint = layer.get("fingerprint") or "unidentified"
+    return "\n".join(
+        (
+            lifetime_note(page_dir),
+            f"page: {page_dir}",
+            f"layer: {fingerprint} ({_provenance_label(layer.get('producer', {}))})",
+            (
+                f"leaf: {runtime.get('path', 'unknown payload')} "
+                f"({_provenance_label(runtime)})"
+            ),
+        )
+    )
 
 
 class DualStackHTTPServer(LeafHTTPServer):
@@ -161,7 +192,7 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> bool:
             "leaf server stop first, then re-run with --standing"
         )
     print(existing["url"], flush=True)
-    print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+    print(startup_note(page_dir), file=sys.stderr, flush=True)
     return True
 
 
@@ -177,7 +208,7 @@ def _take_server_lease(page_dir: Path):
         winner = running_server(page_dir)
         if winner:
             print(winner["url"], flush=True)
-            print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+            print(startup_note(page_dir), file=sys.stderr, flush=True)
             return None
         sys.exit(f"another server run is serving {page_dir}; re-run")
     return lease
@@ -206,7 +237,9 @@ def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
     return None
 
 
-def _service_record(access: dict, httpd, standing: bool, claimed: bool) -> dict:
+def _service_record(
+    access: dict, httpd, standing: bool, claimed: bool, runtime: dict
+) -> dict:
     """The durable desired state for a newly bound server."""
     lifetime = (
         "standing"
@@ -219,6 +252,7 @@ def _service_record(access: dict, httpd, standing: bool, claimed: bool) -> dict:
         "port": httpd.server_address[1],
         "enabled": True,
         "lifetime": lifetime,
+        "runtime": runtime,
     }
 
 
@@ -238,6 +272,7 @@ def cmd_serve(
     require_cross_process_locking()
     lease = None
     httpd = None
+    runtime = payload_provenance(include_path=True)
     with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
         service = read_json(page_dir / "service.json")
         claimed = _serve_claim(page_dir, page, service, standing, revive)
@@ -252,12 +287,12 @@ def cmd_serve(
         if lease is None:
             return
         httpd = _bind_server(page_dir, access, token, ports, lease)
-        service = _service_record(access, httpd, standing, claimed)
+        service = _service_record(access, httpd, standing, claimed, runtime)
         write_json(page_dir / "service.json", service)
         url = page_url(service["host"], service["port"], token)
 
     print(url, flush=True)
-    print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+    print(startup_note(page_dir), file=sys.stderr, flush=True)
     threading.Thread(
         target=stop_when_service_ends,
         args=(page_dir,),
@@ -326,7 +361,7 @@ def start_server(
     # URL and the note printed beside it are everything a server ever says — the
     # handler logs nothing (`log_message`) — so there is nothing left to write
     # into pipes this process closes on its way out.
-    return url, lifetime_note(page_dir)
+    return url, startup_note(page_dir)
 
 
 def cmd_stop(page_dir: Path) -> str:

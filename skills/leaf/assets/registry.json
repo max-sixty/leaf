@@ -72,7 +72,7 @@
     "contracts": {}
   },
   "$events": {
-    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it.",
+    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it.",
     "kinds": {
       "comment": {
         "record": {
@@ -304,6 +304,26 @@
           "additionalProperties": false
         }
       },
+      "pickup": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "page"},
+            "kind": {"const": "pickup"},
+            "seq": {"type": "integer", "minimum": 1},
+            "events": {
+              "type": "array",
+              "items": {"type": "string", "minLength": 1},
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "events"],
+          "additionalProperties": false
+        }
+      },
       "undo": {
         "record": {
           "type": "object",
@@ -423,7 +443,7 @@
     "x-wide": "The width model, for evidence set to its content rather than to the measure prose is read at: `box` (the widget lays its content out into whatever width it is given, a board's columns, so it stands at the one width the whole vocabulary shares) or `drawing` (the widget renders one thing drawn at a size of its own, a diagram's graph, so its box is the clip around it — the room the page has, with the drawing as near the column's axis as the claimed margins allow, and scrolling where even the room is short). A drawing declares no `x-says`: that box is laid out as a row holding what was drawn, so a word the layer writes into it would stand beside the drawing rather than over it, and the registry refuses the pair. Nothing is authored for it and no page asks: the theme grows the element out of the column into whichever margins are free. A margin holding something of the page's gives nothing where it holds it, and only there: an exhibit level with a note drops below it and then takes the whole width; one level with a suggestion's controls keeps its place and declines their side, a positioned row being nothing an exhibit can drop below; and one that nothing reaches keeps its place and grows both ways.",
     "x-withdrawn-as": "On a holder with retirable slots: the outcome an undecided instance stands as when a later version takes it back unanswered — a withdrawn suggestion leaves the page where a `reject` would — which is what lets that version drop the ids inside the slots the outcome retires. Hedged, because there the author asserts a state the user never gave: only whole, and never while a thread is anchored in it.",
     "x-word": "What x-word declares: this tag's own word for what it is comes from its module, which answers `lfWord()` on the element, rather than from the tag's name. Almost no widget declares it, and none needs to while one tag is one kind of thing: a name away from the page is then the tag with its prefix dropped. It is wrong where a tag holds several kinds. Every shape of lf-suggestion came out as \"suggestion\", so a row on the decisions tray named a deletion by the words it proposed to remove and read exactly like the insertion above it. The word is asked for wherever the page names an element away from itself — a tray row, a comment's anchor label — and an element that has not upgraded yet, or answers nothing, falls back to the tag.",
-    "x-work": "Where this widget can show a transient local line for `leaf status --on`: `content` appends it to a block prose widget; `conversation` places it at the start of the widget's declared x-conversation box and therefore inherits that box's own predicate. An optional `when` narrows the instances that have the seat under their replayed attributes. The declaration is permission for runtime chrome, not a consequence of x-content: prose may itself be a holder gesture or sit in a hidden panel."
+    "x-work": "Where this widget can admit `leaf status --on` without a pending reader move: `content` names a block prose seat; `conversation` names the widget's declared x-conversation box and therefore inherits that box's own predicate. An optional `when` narrows the instances that may admit work under their replayed attributes. Once admitted, a page-widget claim appears at the page edge through its Target Button even if a later layer changes x-work. The declaration is permission for runtime chrome, not a consequence of x-content: prose may itself be a holder gesture or sit in a hidden panel."
   },
   "$state": {
     "facet": "A stable HTML-name identifying one independently standing fact within this tag. Together with the owning widget instance and unit it is the fold coordinate. Verbs on the same facet share one unit and an identical record form (or are all recordless); facet names are semantic and local to the tag, not a closed vocabulary.",
@@ -441,7 +461,7 @@
   "$settlement": {
     "description": "The typed `settles` relation on a version note ends provisional agent facts. Each target is `{kind, id}` so independently allocated id namespaces cannot collide and adding a kind does not add another parallel note field. The relation is explicit and durable: chronology alone ends nothing, and a later note need not repeat a settlement.",
     "report": "The id is a report event. Stamping derives these targets from reported state the source absorbs or explicitly overrules.",
-    "work": "The id is a page-widget work subject. `version stamp --completes` accepts only standing work claimed before that revision and writes this target; it also licenses the revision to remove the subject's local seat.",
+    "work": "The id is a page-widget work subject. `version stamp --completes` accepts only standing work claimed before that revision and writes this target; it also licenses the revision to remove the subject's page target.",
     "why-restated-is-separate": "`restated` is not a settlement. It retracts a reader decision because authored words or state invalidated what the decision rested on, while `settles` completes provisional information supplied by the agent. Conflating them would make ending work look like taking back the reader's action."
   },
   "$awaits": {

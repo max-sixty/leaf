@@ -18,6 +18,11 @@ const answer = (target, id, result) => target.postMessage(
 const refuse = (target, id, message) => target.postMessage(
   {jsonrpc: "2.0", id, error: {code: -32000, message}}, "*"
 );
+window.releaseMessage = () => {
+  const held = window.heldMessage;
+  window.heldMessage = null;
+  if (held) answer(held.target, held.id, {});
+};
 const toolResult = (leaf) => ({
   content: [{type: "text", text: "Leaf result"}],
   structuredContent: {page: leaf.page, revision: leaf.revision},
@@ -58,6 +63,10 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (message.method === "ui/message") {
+    if (!Array.isArray(message.params.content)) {
+      refuse(event.source, message.id, "Message content must be an array");
+      return;
+    }
     answer(event.source, message.id, {});
     return;
   }
@@ -116,12 +125,11 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         )
 
         page.locator("#plan > p").click(click_count=3)
-        page.locator(".lf-fab").click()
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        page.locator(".lf-fab-input").click()
         page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
         with page.expect_response(lambda response: response.url.endswith("/api/event")):
-            page.locator(".lf-composer").get_by_role(
-                "button", name="Comment", exact=True
-            ).click()
+            page.keyboard.press("Enter")
 
         assert read_events(page_dir)[-1]["text"] == "Delivered through the MCP page."
         expect(page.locator(".lf-thread")).to_contain_text(
@@ -278,8 +286,8 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
             for call in page.evaluate("window.calls")
             if call["method"] == "ui/message"
         ][-1]
-        assert "active widget controls" in full_page["params"]["content"]["text"]
-        assert str(page_dir) in full_page["params"]["content"]["text"]
+        assert "active widget controls" in full_page["params"]["content"][0]["text"]
+        assert str(page_dir) in full_page["params"]["content"][0]["text"]
         assert "Asked Codex to open" in app.locator("#status").text_content()
 
         page.emulate_media(media="print")

@@ -16,7 +16,7 @@ from leaf.projection import folded_facet, markup_facet, page_projection
 from leaf.revisioning import activate_source
 from leaf.service import PageTransaction
 from leaf.validation.admission import read_text_arg
-from leaf.work import standing_work_claims, widget_work_without_seats
+from leaf.work import standing_work_claims, widget_work_without_targets
 
 
 def _stamp_activation(page_dir: Path, events: list):
@@ -71,7 +71,7 @@ def _completed_work(
             f"revision r{revision} is not later than the active widget work claim for "
             + ", ".join(repr(widget) for widget in not_later)
         )
-    unseated = widget_work_without_seats(
+    untargeted = widget_work_without_targets(
         checked.html,
         parser,
         projection,
@@ -80,10 +80,10 @@ def _completed_work(
         registry,
         completed,
     )
-    if unseated:
-        widgets = ", ".join(repr(widget) for widget in unseated)
+    if untargeted:
+        widgets = ", ".join(repr(widget) for widget in untargeted)
         sys.exit(
-            "refusing to stamp index.html: it would remove the local seat "
+            "refusing to stamp index.html: it would remove the local target "
             f"for active work on {widgets}; pass --completes for each widget "
             "this version completes"
         )

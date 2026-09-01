@@ -7,7 +7,6 @@ import { bindings } from "../keyboard/bindings.js";
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const HINT_INDENT = 10;
-const MIN_SEARCH = 3;
 
 export function createTargetSelection({
   selectResponseTarget,
@@ -181,8 +180,8 @@ export function createTargetSelection({
     selectionSearch.hidden = !on;
     if (on) {
       selectionInput.focus({ preventScroll: true });
-      selectionStatus.textContent = `Type ${MIN_SEARCH} or more characters`;
-      announce(`Search the page. Type ${MIN_SEARCH} or more characters.`);
+      selectionStatus.textContent = "";
+      announce("Search the page.");
     } else {
       selectionInput.value = "";
       matches = [];
@@ -212,32 +211,24 @@ export function createTargetSelection({
     return owner ? firstShown(rangeOf(segments), owner, cache) : null;
   }
 
-  function nearestMatch(found) {
-    const middle = covered() + (bottomCovered() - covered()) / 2;
-    let best = 0;
-    let distance = Infinity;
-    for (const [index, segments] of found.entries()) {
-      const rect = rangeOf(segments).getBoundingClientRect();
-      const next = Math.abs(rect.top - middle);
-      if (next < distance) {
-        best = index;
-        distance = next;
-      }
-    }
-    return best;
+  function startingMatch(found) {
+    const top = covered();
+    const next = found.findIndex(
+      (segments) => rangeOf(segments).getBoundingClientRect().bottom > top,
+    );
+    return next === -1 ? 0 : next;
   }
 
   function syncStatus() {
-    if ([...selectionInput.value.trim()].length < MIN_SEARCH)
-      selectionStatus.textContent = `Type ${MIN_SEARCH} or more characters`;
+    if (!selectionInput.value.trim()) selectionStatus.textContent = "";
     else if (!matches.length) selectionStatus.textContent = "No matches";
     else selectionStatus.textContent = `${active + 1} of ${matches.length}`;
   }
 
   function search() {
     const query = selectionInput.value.trim();
-    matches = [...query].length < MIN_SEARCH ? [] : findText(pageText(), query);
-    active = matches.length ? nearestMatch(matches) : -1;
+    matches = query ? findText(pageText(), query) : [];
+    active = matches.length ? startingMatch(matches) : -1;
     syncStatus();
     showMatch();
     paintHere();

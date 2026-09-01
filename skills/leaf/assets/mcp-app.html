@@ -544,10 +544,12 @@
             const url = snapshot.url ? ` Its current URL is ${snapshot.url}.` : "";
             await request("ui/message", {
               role: "user",
-              content: {
-                type: "text",
-                text: `Open the full Leaf browser page for ${snapshot.page}; I need its active widget controls.${url}`,
-              },
+              content: [
+                {
+                  type: "text",
+                  text: `Open the full Leaf browser page for ${snapshot.page}; I need its active widget controls.${url}`,
+                },
+              ],
             });
             showStatus("Asked Codex to open the full Leaf page.");
           } catch (error) {

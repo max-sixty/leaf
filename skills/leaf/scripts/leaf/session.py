@@ -32,7 +32,6 @@ def cmd_status(
     page_dir: Path,
     state: str,
     detail: str,
-    handoff: bool = False,
     on: str | None = None,
 ) -> None:
     with PageTransaction(page_dir) as page:
@@ -45,9 +44,11 @@ def cmd_status(
             if state != "working":
                 sys.exit("--on says what you are working on; use it with `working`")
             if not detail:
-                sys.exit("--on needs a detail; a work line with no words says nothing")
+                sys.exit(
+                    "--on needs a detail; an Active receipt with no words says nothing"
+                )
             work = work_subject(page_dir, page.events, on)
-        page.set_status(state, detail, handoff=handoff, work=work)
+        page.set_status(state, detail, work=work)
 
 
 class PageTick(NamedTuple):
@@ -68,7 +69,7 @@ class Watch:
 
     A tick yields while the page's log lock remains held. The caller decides how
     to deliver the batch before asking for the next tick, so claim transfer,
-    SessionEnd, event arrival, delivery, and the handoff status have one order.
+    SessionEnd, event arrival, delivery, and pickup recording have one order.
     A revival releases that transaction before waiting for the service
     transition, then rereads under a new transaction; no delivery snapshot
     crosses that unlocked interval.
@@ -248,23 +249,38 @@ def batch_jsonl(reading: PageTick) -> str:
     return "\n".join(lines)
 
 
-def mark_handoff(reading: PageTick) -> None:
-    """Claim a batch after its next consumer has accepted it."""
-    if reading.status["state"] != "working":
-        # Flip before the agent handles the batch: the handoff gap between this
-        # delivery and pickup must not show "waiting".
-        count = len(reading.batch)
-        reading.transaction.set_status(
-            "working",
-            f"picking up {count} update{'s' if count != 1 else ''}",
-            handoff=True,
-        )
+def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
+    """Durably record which reader moves reached their next consumer.
+
+    Pickup is transport evidence, not a claim that the agent has started work.
+    Naming event ids makes retries idempotent and lets one receipt follow the
+    exact move the reader made even when a page was already working elsewhere.
+    """
+    wanted = [event["id"] for event in events if event.get("author") == "user"]
+    picked = {
+        event_id
+        for event in page.events
+        if event["kind"] == "pickup"
+        for event_id in event["events"]
+    }
+    fresh = list(
+        dict.fromkeys(event_id for event_id in wanted if event_id not in picked)
+    )
+    if not fresh:
+        return None
+    return page.append_event(
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": fresh,
+        }
+    )
 
 
 def _deliver_batch(reading: PageTick) -> None:
-    """Write one page's complete batch and claim its direct handoff."""
+    """Write one page's complete batch and record its direct pickup."""
     print(batch_jsonl(reading), flush=True)
-    mark_handoff(reading)
+    record_pickup(reading.transaction, reading.batch)
 
 
 def read_watch_pass(

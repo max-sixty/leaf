@@ -50,6 +50,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
+from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -418,6 +419,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         events=(),
         layer_registry=None,
         layer_widgets=None,
+        preview=None,
         seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
@@ -529,6 +531,8 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                     "anchor": {"section": section, "quote": quote},
                 },
             )
+        if preview is not None:
+            files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
         httpd = hosting_model.LeafHTTPServer(
             ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )
@@ -1412,6 +1416,27 @@ def resized(page, width, height):
     layout still waits for its transition; a margin easing into place is the ordinary
     case.
 
+    That event is the page's fact and not the document's, and one reading waits a
+    further frame for the difference: the browser publishes the size of the document's
+    own scrolling area — what `documentElement.scrollWidth` answers with — during the
+    rendering update *after* the one that dispatched the event. So a read taken in the
+    task the event returns to comes back with the width the document scrolled to before
+    the window narrowed, while every box on it already measures the new one, which is a
+    failure that names the page's layout for something the page's layout has already
+    got right. Measured on the specimen page narrowed to 380px, over a fresh load for
+    each point so no read forces the layout the next one asks about: stale in the resize
+    handler, stale in a task behind it, stale in that update's animation frame and in
+    the next update's, and 380 first in a task behind that second frame.
+
+    So this waits the rendering turn behind the event, with the `ONE_FRAME` every other
+    frame wait in this module uses — the one `navigate` takes after the readiness stamp.
+    It resolves in that turn's animation-frame callback, so the caller's next read is a
+    round trip behind it, which is the task the measurement above finds settled. It
+    costs one frame per resize, and it is what
+    `test_a_specimen_holds_a_wide_exhibit_inside_the_column` was failing on — the
+    board's 596px, read off a document that had already narrowed to 380, five times in
+    a hundred and eighty runs here and once on the nightly run that found it.
+
     A window already the size asked for fires nothing, so waiting on it would hang out
     a whole timeout rather than return at once. The sweep that walks each example at
     both a desk's width and a phone's asks for the first of those on a page opened at
@@ -1427,10 +1452,19 @@ def resized(page, width, height):
     }""")
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
+    page.evaluate(ONE_FRAME)
 
 
-def hold_selection(page, start, end, steps=8):
+def hold_selection(page, start, end, steps=8, frame_the_press=False):
     """Drag a selection without releasing, pressing on a whole pixel.
+
+    `frame_the_press` lets the frame the press itself schedules land before the drag
+    begins, which is the ordering a loaded machine gives every drag and an idle one
+    gives almost none. Without it a surface repainted inside the press is read as
+    following the drag whenever the round trips outrun the frame, and as stale
+    whenever they do not — a coin toss written as an assertion. State it wherever the
+    read is of something the press repaints, so the drag is the only thing the read
+    can be about.
 
     A fractional start point loses the selection outright wherever it and its own
     floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
@@ -1446,6 +1480,8 @@ def hold_selection(page, start, end, steps=8):
     moves the selection a character."""
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
+    if frame_the_press:
+        page.evaluate(RENDERED)
     page.mouse.move(end[0], end[1], steps=steps)
 
 

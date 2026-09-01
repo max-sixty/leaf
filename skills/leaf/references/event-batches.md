@@ -59,8 +59,9 @@ batch directly.
   it in the next version, then resolve it. If the revision depends on the reader,
   open a separate exact-section thread on the same Decision with
   `leaf comment --section <decision-id>`. Reply to other comments in-thread and revise
-  the page when warranted. A comment with `"suggestion": true` proposes exact
-  replacement text; take it verbatim or reply with the reason for declining it.
+  the page when warranted; follow the closure rule in `conversation-threads.md`.
+  A comment with `"suggestion": true` proposes exact replacement text; take it
+  verbatim or reply with the reason for declining it.
 - **Layer comment:** an event with `"about": "layer"` changes the relevant Leaf
   layer, followed by re-vendoring, a valid source activation, and an in-thread reply.
 - **Page action:** the reader already sees the action applied. Carry its standing

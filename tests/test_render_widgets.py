@@ -47,6 +47,7 @@ from render_support import (
     _until,
     actions,
     compare_with,
+    composer_quote,
     leaf_page,
     live_url,
     open_page,
@@ -58,6 +59,7 @@ from render_support import (
     stamp_version_file,
     told,
     undo,
+    unfolded_button,
     wait_for_revision,
 )
 
@@ -491,16 +493,34 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert prepare.evaluate("node => node.matches(':hover')")
 
+    # The lens is the viewport's position, not a destination travelling toward it.
+    # Capture the first style turn after the scroll: a transition can finish at the
+    # right place while still trailing every intermediate reading.
+    page.evaluate(
+        """() => {
+          const rows = document.querySelector('.lf-toc-rows');
+          const lens = document.querySelector('.lf-toc-window');
+          window.lfTocLensFrame = null;
+          new MutationObserver((records, observer) => {
+            if (!records.some(record => record.attributeName === 'style')) return;
+            const rowBox = rows.getBoundingClientRect();
+            const start =
+              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start')) / 100;
+            window.lfTocLensFrame = {
+              actual: lens.getBoundingClientRect().top,
+              expected: rowBox.top + rowBox.height * start,
+            };
+            observer.disconnect();
+          }).observe(rows, {attributes: true, attributeFilter: ['style']});
+        }"""
+    )
     page.locator("#verify").evaluate(
         "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
     expect(verify).to_have_attribute("aria-current", "location")
-    page.wait_for_function(
-        "({ before, travel }) => "
-        "document.querySelector('.lf-toc-window').getBoundingClientRect().y "
-        "> before + travel",
-        arg={"before": lens_before["y"], "travel": nav_box["height"] * 0.08},
-    )
+    page.wait_for_function("() => window.lfTocLensFrame !== null")
+    lens_frame = page.evaluate("window.lfTocLensFrame")
+    assert lens_frame["actual"] == pytest.approx(lens_frame["expected"], abs=1)
     lens_after = lens.bounding_box()
     assert lens_after is not None
     assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08
@@ -1020,6 +1040,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
+    # The panel gives the room back on an eased margin, and the column re-wraps for the
+    # whole of it. Read on the way, this assertion passed on a layout that lasted a fifth
+    # of a second: the rows sat under their blocks in the narrow column the page was
+    # leaving, and the settled one dropped the in-card row back onto the sentence's last
+    # line. Only a loaded machine was slow enough to reach the settled layout first.
+    panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('.lf-sug-actions')]"
@@ -1041,7 +1067,7 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     for whoever is listening, so it stays clipped. A copy and paper have no row —
     both strip a control the page does not speak through, and a pending one says
     nothing yet, so it goes whole — and that left the two states saying opposite
-    amounts: a decided change keeps its "✓ Accepted" in the copy, a pending one kept
+    amounts: a decided change keeps its "Accepted" receipt in the copy, a pending one kept
     nothing at all, and the tints alone read as a change already made.
 
     The word also had to change to be worth showing. Pendingness was carried by the
@@ -1314,8 +1340,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     the same frame as the press, leaving a corner toast as the only evidence that
     anything had happened — and clearing a control is the one thing a press may not
     do to the line it was made on. Now the control the user pressed states the
-    outcome where it stood and stops offering; its pair keeps its room and gives up
-    only its ink, so nothing on the row is anywhere new."""
+    outcome where it stood and stops offering. Its pair leaves and a persistent receipt
+    takes the transient tooltip's place, so the result can be selected and quoted."""
     page, _errors = open_page(browser, serve(SUGGESTION_PAGE))
     row = page.locator("[data-lf-for='sug-refill']")
     accept = row.locator(".lf-sug-accept")
@@ -1328,10 +1354,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # paragraph it sits in carries the whole row with it legitimately. What must not
     # move is one control against the other.
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
-    before = [accept.evaluate(box), reject.evaluate(box)]
-    # innerText throughout: what these assert is the visible word, and innerText is the
-    # rendered text where textContent is the markup's.
-    expect(accept).to_have_text("✓ Accept", use_inner_text=True)
+    before = accept.evaluate(box)
+    # The verb is discovery chrome; at rest the Button is the canonical circle.
+    expect(accept).to_have_text("✓", use_inner_text=True)
 
     # A strike and two tints say which words are going and which are proposed, and say
     # it in no text at all: a reader listening got the sentence twice, the two readings
@@ -1342,17 +1367,20 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(accept).to_have_text("✓ Accepted", use_inner_text=True)
+    expect(accept).to_have_text("✓", use_inner_text=True)
+    receipt = row.locator(".lf-sug-receipt")
+    expect(receipt).to_have_text("Accepted", use_inner_text=True)
+    expect(receipt).to_be_visible()
+    assert receipt.get_attribute("data-lf-said") == ""
+    assert accept.get_attribute("data-lf-said") is None
     assert accept.get_attribute("aria-label").startswith(
         "Accepted the suggested change: Refill a feeder when"
     ), "the record still offers the press it has already taken"
     assert accept.get_attribute("aria-disabled") == "true"
-    assert [accept.evaluate(box), reject.evaluate(box)] == before, (
-        "the row rearranged as it was decided, on the one line a press must leave alone"
+    assert accept.evaluate(box) == before, (
+        "the primary Button moved away from the press as its receipt arrived"
     )
-    assert reject.evaluate("el => getComputedStyle(el).visibility") == "hidden", (
-        "the decision left both halves of the offer standing"
-    )
+    expect(reject).to_be_hidden()
     settled = page.locator("#sug-refill lf-new").evaluate(
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
     )
@@ -1380,11 +1408,67 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     page.close()
 
 
+def test_a_settled_receipt_keeps_a_visible_perch_when_the_change_vanishes(
+    browser, serve
+):
+    """A pure deletion leaves no suggestion box, but its recorded outcome is still
+    visible page text rather than a data-lf-said word hidden with a waiting row."""
+    page, errors = open_page(browser, serve(PROPOSED_PAGE))
+    page.locator("[data-lf-for='sug-delete'] .lf-sug-accept").click()
+
+    expect(page.locator("#sug-delete")).to_be_hidden()
+    receipt = page.locator("[data-lf-for='sug-delete'] .lf-sug-receipt")
+    expect(receipt).to_have_text("Accepted")
+    expect(receipt).to_be_visible()
+    assert receipt.get_attribute("data-lf-said") == ""
+    expect(
+        receipt.locator("xpath=ancestor::*[contains(@class, 'lf-margin-item')]")
+    ).not_to_have_class(re.compile(r"\blf-waiting\b"))
+    assert errors == []
+    page.close()
+
+
+def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
+    """The retired Accept control is `display: none`, so Reject becomes the one
+    canonical circle rather than leaving a receipt beside an unrelated `…` Button."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    row = page.locator("[data-lf-for='sug']")
+    reject = row.locator(".lf-sug-reject")
+    unfolded_button(reject).click()
+
+    expect(reject).to_be_visible()
+    expect(reject).to_have_attribute("data-lf-button-primary", "")
+    expect(row.locator(".lf-sug-accept")).to_be_hidden()
+    expect(row.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    assert errors == []
+    page.close()
+
+
+def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, serve):
+    """A `display: contents` suggestion still paints through its children; settling it
+    must not re-perch its receipt on the containing section and change the map target."""
+    styled = SHORT_SUGGESTION.replace(
+        "</head>", "<style>#sug { display: contents; }</style>\n</head>"
+    )
+    page, errors = open_page(browser, serve(styled))
+    item = page.locator("[data-lf-for='sug']").locator("xpath=..")
+    assert item.evaluate("row => row.lfEntry.target.id") == "sug"
+
+    item.locator(".lf-sug-accept").click()
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    assert item.evaluate("row => row.lfEntry.target.id") == "sug"
+    assert errors == []
+    page.close()
+
+
+# `folded` is the layer's own division of the pair rather than a convenience: accept
+# rests in the rail as the target's primary Button, and reject is one press behind `…`.
 @pytest.mark.parametrize(
-    "outcome,verb", [("accept", "Accepted"), ("reject", "Rejected")]
+    "outcome,verb,folded",
+    [("accept", "Accepted", False), ("reject", "Rejected", True)],
 )
 def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
-    browser, serve, outcome, verb
+    browser, serve, outcome, verb, folded
 ):
     """The line saying a block carries a comment goes in the block, and a block inside a
     widget is still a block — so `textContent` on a widget's own slot now returns the
@@ -1399,7 +1483,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Vacuous otherwise: the line has to be inside the slot the label is read from.
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
-    page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}").click()
+    control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
+    (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-toast")).to_have_text(
         f"{verb} “Retry three times.” — recorded"
     )
@@ -1546,8 +1631,8 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
         # Waited for, not read once: each is decided by its own round trip, so the
         # last of them is still in flight when the first has settled.
-        expect(page.locator(f"[data-lf-for='{widget}'] .lf-sug-accept")).to_have_text(
-            "✓ Accepted", use_inner_text=True
+        expect(page.locator(f"[data-lf-for='{widget}'] .lf-sug-receipt")).to_have_text(
+            "Accepted", use_inner_text=True
         )
     for widget in (
         "sug-refill",
@@ -1612,11 +1697,16 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         "the refused decision must never have been on the element at all"
     )
     # The row is the record of a decision, so a decision that was never taken must not
-    # be standing in it: both controls offering again, neither of them past tense.
+    # be standing in it: both controls offering again, neither of them past tense. The
+    # pair is one Button at rest and one behind `…` now, so the second is read where the
+    # reader would find it rather than in the rail it no longer stands in.
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
-    reject = page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
-    expect(accept).to_have_text("✓ Accept", use_inner_text=True)
+    reject = unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject"))
+    expect(accept).to_have_text("✓", use_inner_text=True)
     expect(reject).to_be_visible()
+    expect(reject).to_have_text("✗", use_inner_text=True)
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-receipt")).to_have_count(0)
+    assert reject.get_attribute("aria-disabled") == "false"
     assert accept.get_attribute("aria-disabled") == "false"
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
@@ -1705,7 +1795,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     row.locator(".lf-sug-accept").click()
     _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
     row.locator(".lf-sug-accept").click()
-    row.locator(".lf-sug-reject").click()
+    unfolded_button(row.locator(".lf-sug-reject")).click()
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1797,10 +1887,14 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     expect(second.locator("#sug-refill lf-new")).to_be_visible()
     # Nothing left to decide, and the row says which way it went — written by the
     # replay here rather than by a press, which is the only place that path is driven.
-    accepted = second.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
-    expect(accepted).to_have_text("✓ Accepted", use_inner_text=True)
+    row = second.locator("[data-lf-for='sug-refill']")
+    accepted = row.locator(".lf-sug-accept")
+    expect(accepted).to_have_text("✓", use_inner_text=True)
+    expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
     assert accepted.get_attribute("aria-disabled") == "true"
-    expect(second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_be_hidden()
+    # Its pair leaves, while the persistent receipt says the decision was taken.
+    rejected = second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
+    expect(rejected).to_be_hidden()
     expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
 
     # Now the race the controls make possible: a window cut off from the log still
@@ -1814,7 +1908,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # to decide rather than the network's.
     told(second)
     expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
-    third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
+    unfolded_button(third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
     cut.restore()
     # The reject went out over a live channel, so every tab has to read it back —
     # the cut-off one included, which is where it stops being its own local click.
@@ -2010,12 +2104,12 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    Three readings of where they are, and the page is left in each state in turn: what
-    they are reading, when they have pointed at nothing; what they have selected; and
-    where the walk itself last left off, once the walk is what last moved them. The
-    banner's button is no place — pressing it opens the tray and leaves the focus on
-    itself, so a walk measured from the focus after it would restart on every press, and
-    the ring is gone from the page by then, the reader being in the banner."""
+    Two readings of where they are are left in turn: what they are reading, and where
+    the walk itself last left off. The banner's button is no place — pressing it opens
+    the tray and leaves the focus on itself, so a walk measured from the focus after it
+    would restart on every press, and the ring is gone from the page by then, the reader
+    being in the banner. A selected passage now enters its comment field immediately;
+    while that field stands, letters are text rather than page-navigation keys."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
@@ -2038,24 +2132,6 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-decision", "1")
 
-    # A selection outranks the mark, because it is the reader saying where they are
-    # since the walk last moved them: from a task above the two the walk has just been
-    # through, forward is the first of them and back is the change before it. Measured
-    # after each landing, because the landing scrolled the page under the coordinates.
-    def drag_over_the_done_task():
-        page.locator("#t-mounts strong").scroll_into_view_if_needed()
-        box = page.locator("#t-mounts strong").bounding_box()
-        y = box["y"] + box["height"] / 2
-        select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-
-    drag_over_the_done_task()
-    page.keyboard.press("a")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-decision", "1"
-    )
-    drag_over_the_done_task()
-    page.keyboard.press("Shift+a")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-decision", "1")
     assert errors == []
     page.close()
 
@@ -2249,11 +2325,15 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     # words raises the button here. Opening the panel slides the document over, and a
     # drag run across that reads a box from the frame before and selects nothing — the
     # panel's own contents are fixed and stay where they are read.
-    assert "signed-cookie" in drag(page.locator("#intro"))
-    expect(page.locator(".lf-fab")).to_be_visible()
+    intro = page.locator("#intro")
+    box = intro.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert "signed-cookie" in composer_quote(page)["text"]
     # Put it down again, so what follows is a rise and not a leftover.
     page.locator("#h").click()
-    expect(page.locator(".lf-fab")).to_be_hidden()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     page.locator(".lf-threads-toggle").click()
     assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
@@ -2261,7 +2341,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     # step it queues queues nothing further.
     for _ in range(2):
         page.evaluate("() => new Promise((r) => setTimeout(r))")
-    expect(page.locator(".lf-fab")).to_be_hidden()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert errors == []
     page.close()
 

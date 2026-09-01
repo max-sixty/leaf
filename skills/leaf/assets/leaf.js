@@ -1897,6 +1897,10 @@ const {
   closeTray: () => showTray(null),
   el,
   elementById: (...args) => elementById(...args),
+  focusForNavigation: (control) => {
+    if (livingMargin) livingMargin.focusForNavigation(control);
+    else control.focus({ preventScroll: true });
+  },
   inChrome: (node) => inChrome(node),
   itemSays,
   itemWord,

@@ -1282,9 +1282,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * a place for document state: the receipt is visible and selectable, and survives a
  * standalone copy after its inert Button is stripped.
  *
- * The losing control leaves the row. Accept is the primary gesture and therefore stays
- * under the hand that pressed it; Reject is reached through `…`, so its proxy has
- * already folded away before the real control becomes the surviving first circle. */
+ * The losing control leaves the row. The contribution declares that this surviving
+ * control represents the outcome, so the margin does not add a second generated
+ * outcome Button; focus continuity moves from a retired proxy to this real control. */
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { display: none; }
 .lf-sug-actions[data-lf-outcome] .lf-margin-action-label { display: none; }

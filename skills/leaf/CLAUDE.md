@@ -1404,6 +1404,26 @@ disclosure Button. `…` appears only when the cluster has secondary controls,
 information beside a direct action, or temporary communication choices. A target
 with one unambiguous control therefore gets one Button, not a row of variants.
 
+An engaged contribution shows its complete peer set instead. Engagement is the
+owner's semantic interaction state, not DOM focus: an open editor, for example, keeps
+Save and Cancel exposed until either action ends the edit, even if focus moves within
+the document. An unsettled reader action engages the whole target in the same way,
+keeping its delivery lifecycle and every remaining peer visible until the handoff
+settles. An engaged set has no `…`; it cannot hide an action or status needed to
+understand, complete, or leave the interaction that is already under way.
+
+Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
+replaces `…` with every available peer, and Left/Right wrap through those visible
+Buttons. A pointer press on `…` makes the same replacement and lands on the first
+revealed Button. Escape folds that temporary expansion, restores `…`, and returns
+focus to it; moving focus or the pointer outside folds without taking focus. None of
+those routes folds peers required by an engaged contribution, and moving into a modal
+or thread surface the cluster opened does not count as leaving it. The cluster uses
+one temporary expansion state for both keyboard and pointer routes; focus does not
+create a parallel presentation. A category or address walk that lands on a Button does
+not unfold its peers: it is navigation rather than Tab arrival, so one Escape still
+lets go of the destination the walk put down.
+
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
@@ -1411,17 +1431,21 @@ action's standing outcome supplies the same retained target cluster throughout. 
 three phases and the standing outcome report a move already made, so the Button wears
 the flat `receipt` promise below; **Active** raises it back into a press. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
-the full conversation; an **Active** claim joins that cluster under `…`. A standalone
-page-widget claim gets an **Active** Button directly. When no page edge exists—inside
+the full conversation; an **Active** claim joins that engaged cluster as an exposed
+peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
 the full thread panel or a widget frozen into conversation chrome—the compact
 `.lf-receipt` remains the local fallback.
 
 Content modules contribute through `registerMarginItem`; they own their verbs and
-events, never placement or control styling. Every press in a contribution is built
-with `marginAction(control, {glyph, label, behavior, tone})`. That is the one RHS
-control type: it owns the circle, size, type, focus, state paint, and glyph/word
-anatomy shared by decisions, editing, communications, and information triggers. Its
-behavior states the promise before the press:
+events, never placement or control styling. An `engaged` reading keeps the owner's
+complete control set exposed. A contribution item that sets `represents` and names its
+`kind` is also the visible reading of that state, so the margin suppresses a generated
+reading of the same kind at that exact target rather than showing the fact twice.
+Every press in a contribution is built with
+`marginAction(control, {glyph, label, behavior, tone})`. That is the one RHS control
+type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
+by decisions, editing, communications, and information triggers. Its behavior states
+the promise before the press:
 
 - `action` has a uniformly heavier ring, carries an imperative verb, and performs its
   effect immediately;

@@ -1732,6 +1732,10 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     # reader would find it rather than in the rail it no longer stands in.
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     reject = unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject"))
+    # The unfolded proxy can replace `…` directly beneath a resting pointer. This
+    # assertion is about refusal restoring the glyph-only state, not its intentional
+    # transient hover label, so move the pointer away before reading it.
+    page.mouse.move(0, 0)
     expect(accept).to_have_text("✓", use_inner_text=True)
     expect(reject).to_be_visible()
     expect(reject).to_have_text("✗", use_inner_text=True)

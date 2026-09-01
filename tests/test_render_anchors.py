@@ -1,5 +1,6 @@
 """Selection, passage, syntax, and version-navigation tests."""
 
+import io
 import json
 import re
 
@@ -9,6 +10,7 @@ from leaf import anchor_capture as anchor_capture_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
+from PIL import Image
 from playwright.sync_api import expect
 from render_support import (
     ADDRESSED_PAGE,
@@ -3784,4 +3786,159 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     expect(row).not_to_have_class(marked)
     expect(row).not_to_contain_text("comment")
     assert not errors, errors
+    page.close()
+
+
+# The runtime's whole visible vocabulary for "somebody has said something about these
+# words". Each is painted through the highlight registry, which styles glyphs and no box,
+# so what it can draw is a wash behind the words and a line under them.
+TEXT_MARKS = ("lf-mark", "lf-react")
+
+# The strip is read under the glyphs rather than across them, because a line and a letter
+# are not told apart by colour: both are ink at the same ratio. Below the baseline the
+# only ink a passage has of its own is its descenders, which are stems — a couple of
+# columns each. A rule drawn there takes half the columns when it is dashed and all of
+# them when it is solid. So the floor sits far above what descenders reach and far below
+# what the thinner of the two lines draws, and the unmarked control below is what says
+# which side of it this page is on.
+LINE_COVERAGE = 0.3
+
+
+def _channel(value):
+    value /= 255
+    return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def _ratio(one, other):
+    seen = [
+        0.2126 * _channel(c[0]) + 0.7152 * _channel(c[1]) + 0.0722 * _channel(c[2])
+        for c in (one, other)
+    ]
+    return (max(seen) + 0.05) / (min(seen) + 0.05)
+
+
+def _line_under(page, box, paper):
+    """How much of the strip under a passage the layer draws at 3:1, and at what ratio.
+
+    Returns `(coverage, ratio)` for the row that covers most of the strip: the share of
+    columns standing at 3:1 or better against the page's own ground, and the weakest ratio
+    among them. A wash is read here too, which is the point — a wash the reader cannot
+    tell from the paper comes back as the coverage it actually has, nought, rather than as
+    an absence with no number attached.
+    """
+    assert page.evaluate("(b) => b.y >= 0 && b.y + b.height <= innerHeight", box), (
+        f"the strip is not wholly on screen ({box}), and a screenshot clip is the "
+        f"viewport's, so the scan would read a truncated image"
+    )
+    strip = Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
+    seen = (0.0, 0.0)
+    for y in range(strip.height):
+        row = [strip.getpixel((x, y)) for x in range(strip.width)]
+        band = [c for c in row if _ratio(c, paper) >= 3.0]
+        if band and len(band) / len(row) > seen[0]:
+            seen = (len(band) / len(row), min(_ratio(c, paper) for c in band))
+    return seen
+
+
+def _under_mark(page, name):
+    """The strip just under the words `name` paints, in viewport coordinates."""
+    box = page.evaluate(
+        """(name) => {
+          const [range] = [...(CSS.highlights.get(name) ?? [])];
+          if (!range) return null;
+          const b = range.getBoundingClientRect();
+          // From two pixels above the text box's foot to eight below it: the line is
+          // drawn from the baseline outward and text-underline-offset carries it past
+          // the rect, while the glyphs themselves are all above this.
+          return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
+                  width: Math.round(b.width), height: 10};
+        }""",
+        name,
+    )
+    assert box and box["width"] > 20, (
+        f"{name} painted no range on this page, so the reading has nothing to answer "
+        f"for: {box}"
+    )
+    return box
+
+
+@pytest.mark.parametrize("scheme", ("light", "dark"))
+def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
+    browser, serve, scheme
+):
+    """A mark on a passage is the reader's whole notice that the words carry something.
+
+    The wash cannot be that notice, and no alpha can make it one: --mark composites to
+    1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
+    any alpha at all — opaque it stands at 1.38:1. So the layer marks words the way it
+    marks elements, with a line: an element anchor wears a --mark-ink hairline at 9:1
+    (.lf-mark-el), and a passage wears the same ink as an underline.
+
+    A reaction had the element half of that pair (.lf-react-el, dashed) and not the text
+    half. On words it was --react alone, 1.08:1 over the light paper — a mark that is in
+    the log and not on the screen. Both names are read here.
+
+    Read off the drawn page rather than off the rules, because what a highlight pseudo is
+    allowed to carry is the browser's to decide and a declaration that stopped applying
+    would say nothing. Both schemes, because the two grounds are far apart and a hue that
+    clears one is no evidence about the other.
+
+    The unmarked paragraph is the control, and it is what makes the floor mean anything:
+    the same strip over words nobody has said anything about has to come back under it,
+    or the reading is answering about descenders and would pass with every line gone.
+    """
+    page, errors = open_page(
+        browser,
+        serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)),
+        color_scheme=scheme,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "ok",
+            "anchor": {"section": "p7", "quote": "Paragraph 7."},
+        },
+    )
+    told(page)
+    for name in TEXT_MARKS:
+        page.wait_for_function(
+            "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
+        )
+    paper = tuple(
+        page.evaluate(
+            "() => getComputedStyle(document.body).backgroundColor"
+            ".match(/\\d+/g).slice(0, 3).map(Number)"
+        )
+    )
+    # Same words, same type, same strip, nothing said about them. "Paragraph 5." carries
+    # the descenders both marked passages carry.
+    quiet = page.evaluate(
+        """() => {
+          const range = new Range();
+          const node = document.getElementById('p5').firstChild;
+          range.setStart(node, 0); range.setEnd(node, 12);
+          const b = range.getBoundingClientRect();
+          return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
+                  width: Math.round(b.width), height: 10};
+        }"""
+    )
+    control, _ = _line_under(page, quiet, paper)
+    assert control < LINE_COVERAGE / 2, (
+        f"unmarked words already fill {control:.0%} of the strip under them in the "
+        f"{scheme} scheme, so this reading cannot tell a line from the page's own ink"
+    )
+    seen = {
+        name: _line_under(page, _under_mark(page, name), paper) for name in TEXT_MARKS
+    }
+    for name, (covered, band) in seen.items():
+        assert covered >= LINE_COVERAGE and band >= 3.0, (
+            f"the {scheme} page draws no line under a {name} passage: {covered:.0%} of "
+            f"the strip at {band:.2f}:1 against its own ground {paper}, where the "
+            f"unmarked control is at {control:.0%}. A marked passage whose only signal "
+            f"is its wash is one the reader never learns is marked. All: {seen}"
+        )
+    assert errors == []
     page.close()

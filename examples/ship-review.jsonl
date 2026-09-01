@@ -7,3 +7,4 @@
 {"kind": "action", "author": "user", "revision": 1, "widget": "off-workaround-review", "action": "choose", "detail": {"options": ["off-workaround-approve"]}, "generated": [], "id": "b9e3a841", "ts": "2026-08-15T10:08:10-07:00"}
 {"kind": "pickup", "author": "page", "events": ["b9e3a841"], "id": "a4c29d10", "ts": "2026-08-15T10:08:11-07:00"}
 {"kind": "comment", "author": "claude", "agent": "Claude", "revision": 1, "text": "The vendor release is the only schedule we do not control. Should this task stay blocked until their fix is in our build, even if the workaround ships first?", "anchor": {"section": "off-t-vendor"}, "id": "64df0b27", "ts": "2026-08-15T10:12:08-07:00"}
+{"kind": "comment", "author": "user", "revision": 1, "token": "ok", "anchor": {"section": "off-t-workaround", "quote": "500 forced stalls all recovered"}, "id": "0f47b3ce", "ts": "2026-08-15T10:14:22-07:00"}

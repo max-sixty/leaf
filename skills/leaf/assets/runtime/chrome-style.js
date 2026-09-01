@@ -449,8 +449,11 @@ ${MARK_RULES}
      glyph in the margin is the control. */
   .lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
   /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
-     registry being script state no file can hold (BAKE). */
-  html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
+     registry being script state no file can hold (BAKE). It carries the line with it: the
+     wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
+     cannot hover the words to find out whether anything is there. */
+  html.lf-copy mark.lf-react { background: var(--react); color: inherit;
+    text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
   /* The glyphs of the reactions standing on a target — a pill per reaction, the pill
      being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
      contribution: the living margin joins it to the target's other RHS controls and

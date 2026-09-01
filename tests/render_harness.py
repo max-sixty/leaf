@@ -50,6 +50,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
+from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -418,6 +419,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         events=(),
         layer_registry=None,
         layer_widgets=None,
+        preview=None,
         seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
@@ -529,6 +531,8 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                     "anchor": {"section": section, "quote": quote},
                 },
             )
+        if preview is not None:
+            files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
         httpd = hosting_model.LeafHTTPServer(
             ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )

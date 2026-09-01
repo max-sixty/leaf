@@ -11,7 +11,10 @@ the example's companion log, applies current values and file captures from its d
 manifest, copies media, then sets the event cursor past seeded history. `--source`
 accepts any authored HTML file, while `--runtime` chooses the checkout that vendors
 it. Named `--slot` pages coexist; `--background` starts one and returns its URL.
-`--export` writes the prepared page as one standalone HTML file for handoff.
+A live preview shows that runtime's safe checkout provenance in a banner badge;
+pressing it copies the source, commit, layer identity, revision, event sequence, and
+a URL with its access token removed. `--export` writes the prepared page as one
+standalone HTML file for handoff and carries no preview badge.
 `examples/CLAUDE.md` owns those fixture rules.
 
 `corpus.py` generates the internal `examples/corpus.html` stress fixture and its

@@ -205,7 +205,11 @@ A vendored runtime and registry are one generation. The runtime contains the
 epoch after `page init`. `sameLayer` checks every successful state read and POST
 response. If the server speaks a newer layer, the tab reloads before it reads or
 posts again. Do not let one generation interpret another generation's registry
-or events.
+or events. The adjacent `$layer.fingerprint` identifies the composed bytes across
+vendoring epochs; it is diagnostic provenance, not a replacement for the fresh
+generation's write fence. Repository example previews may also expose their safe
+checkout provenance in a banner badge and copied diagnostic bundle. Ordinary pages
+do not.
 
 Startup order is load-bearing:
 

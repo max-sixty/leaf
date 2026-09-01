@@ -54,7 +54,7 @@ from leaf.served_state import page as served_page
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
     publish(page_dir)
-    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]["generation"]
     before = event_model.read_events(page_dir)
 
     status, body = fetch(
@@ -953,7 +953,7 @@ def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):
 def test_an_event_with_an_unknown_view_revision_is_not_appended(server, page_dir):
     publish(page_dir)
     before = event_model.read_events(page_dir)
-    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]["generation"]
     address = urllib.parse.urlsplit(server)
     connection = http.client.HTTPConnection(address.hostname, address.port)
     event = {
@@ -2645,7 +2645,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
     try:
         door.putrequest("POST", f"/api/event?t={TOKEN}")
-        door.putheader("Leaf-Layer", json.loads(served)["layer"])
+        door.putheader("Leaf-Layer", json.loads(served)["layer"]["generation"])
         door.putheader("Content-Length", "999999999999999999")
         door.putheader("Content-Type", "application/json")
         door.endheaders()
@@ -2700,6 +2700,46 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
+
+
+def test_server_start_names_the_page_layer_and_running_payload(page_dir):
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        identity = registry_storage.layer_metadata(page_dir)
+        assert f"page: {page_dir}" in started.output
+        assert f"layer: {identity['fingerprint']}" in started.output
+        assert f"leaf: {schema_model.PLUGIN_ROOT}" in started.output
+
+        state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
+        assert state.exit_code == 0, state.output
+        server = json.loads(state.output)["server"]
+        assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
+        assert server["url"] in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 41234,
+            "enabled": False,
+            "lifetime": "standing",
+        },
+    )
+
+    note = hosting_model.startup_note(page_dir)
+
+    assert "leaf: unknown payload (unknown source)" in note
+    assert str(schema_model.PLUGIN_ROOT) not in note
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(

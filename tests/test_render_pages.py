@@ -70,6 +70,42 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
+    example = next(path for path in EXAMPLES if path.stem == "postmortem")
+    page, errors = open_page(browser, serve(example))
+    summary = page.locator("#pm-summary")
+    expect(summary).to_be_visible()
+    assert (
+        summary.evaluate("element => getComputedStyle(element).alignItems")
+        == "baseline"
+    )
+
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    code = summary.evaluate(
+        """element => {
+          const box = element.getBoundingClientRect();
+          const hints = [...document.querySelectorAll('.lf-target-hint')].map(node => {
+            const at = node.getBoundingClientRect();
+            return {
+              code: node.dataset.lfTarget,
+              distance: Math.hypot(
+                at.left + at.width / 2 - box.left,
+                at.top + at.height / 2 - box.top,
+              ),
+            };
+          });
+          hints.sort((a, b) => a.distance - b.distance);
+          return hints[0]?.distance < 30 ? hints[0].code : null;
+        }"""
+    )
+    assert code, "the summary had no semantic-selection hint"
+    page.keyboard.type(code)
+    expect(page.locator(".lf-live")).to_contain_text("Selected list: Detected")
+    assert errors == []
+    page.close()
+
+
 def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     """An example that ships a companion log opens mid-conversation.
 

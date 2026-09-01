@@ -67,6 +67,58 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
+    preview = {
+        "kind": "example",
+        "example": "postmortem",
+        "checkout": "fb77",
+        "commit": "26499ea1abcd",
+        "dirty": True,
+        "started": "2026-08-31T12:00:00+00:00",
+    }
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    try:
+        page, errors = open_page(
+            browser,
+            serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
+            context=context,
+        )
+        badge = page.locator(".lf-preview")
+        expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
+        expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
+
+        badge.click()
+        expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-toast")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-toast")).to_be_visible()
+        diagnostics = page.evaluate("() => navigator.clipboard.readText()")
+        assert "example: postmortem" in diagnostics
+        assert "checkout: fb77" in diagnostics
+        assert "commit: 26499ea1abcd" in diagnostics
+        assert "dirty: true" in diagnostics
+        assert "layer generation:" in diagnostics
+        assert "layer fingerprint: sha256:" in diagnostics
+        assert "revision: 1" in diagnostics
+        assert "event sequence: 1" in diagnostics
+        assert "?t=" not in diagnostics
+        assert errors == []
+        page.close()
+
+        ordinary, ordinary_errors = open_page(
+            browser,
+            serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
+            context=context,
+        )
+        expect(ordinary.locator(".lf-preview")).to_have_count(0)
+        assert ordinary_errors == []
+        ordinary.close()
+    finally:
+        context.close()
+
+
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
     """A data renderer runs after the initial page dressing, but what it contributes
     is still part of the Leaf and should carry the same visible navigation contract."""

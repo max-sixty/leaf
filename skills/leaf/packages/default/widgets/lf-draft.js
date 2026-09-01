@@ -33,10 +33,10 @@
  *
  * Editing has two doors: double-click the text (the fast path), or the ✎ button (the
  * door keyboards and touch can use; it also makes the block *look* editable). The draft
- * contributes that disclosure to its target's shared Button cluster. Save and an options
- * Button replace it for the length of an edit, with Cancel under the latter and their width
- * reserved before presentation, so opening the editor changes what the one RHS item offers
- * without moving the document. Unsent
+ * contributes that disclosure to its target's shared Button cluster. Save and Cancel
+ * replace it for the length of an edit, with their width reserved before presentation,
+ * so opening the editor changes what the one RHS item offers without moving the
+ * document. Unsent
  * keystrokes ride the runtime's draft store
  * (saveDraft/clearDraft), the composer's discipline: written on input, cleared only by a
  * successful send or explicit Cancel, so reload, version switch, server death and the
@@ -218,9 +218,9 @@ customElements.define(
       this.#row.append(this.#save, this.#cancel);
       this.#offer();
       measure(this.#row, () => {
-        // The open cluster is Save + `…`; reserve that complete fitting while the
-        // detached measurement row contains its direct controls, before resting Edit
-        // replaces them. The options Button is the same width as Save, plus one gap.
+        // The engaged cluster is Save + Cancel; reserve that complete fitting while
+        // the detached measurement row contains its direct controls, before resting
+        // Edit replaces them. Both Buttons share one fitting, plus one gap.
         const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
         this.#buttonReserve = saveWidth * 2 + 4;
         this.#row.style.minWidth = `${saveWidth}px`;
@@ -274,6 +274,9 @@ customElements.define(
       this.#margin = registerMarginItem({
         target: () => this,
         controls: this.#row,
+        // Editing is the target's active interaction, not a temporary peek behind
+        // `…`: keep every peer action exposed until Save or Cancel ends that state.
+        engaged: () => Boolean(this.#ta),
         reserve: () => this.#buttonReserve,
         items: () => [
           {

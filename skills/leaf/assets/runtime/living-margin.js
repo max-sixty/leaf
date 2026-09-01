@@ -85,14 +85,17 @@ export function registerMarginItem({
   target,
   controls,
   items = () => [],
+  engaged = false,
   side = "before",
   claim = true,
   reserve = 0,
 }) {
   if (!new Set(["before", "after"]).has(side))
     throw new TypeError(`Unknown margin-item side: ${side}`);
+  if (typeof engaged !== "boolean" && typeof engaged !== "function")
+    throw new TypeError("A margin item's engaged state must be a boolean or function");
   if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
-  const offered = { target, controls, items, side, claim, reserve };
+  const offered = { target, controls, items, engaged, side, claim, reserve };
   offeredItems.add(offered);
   changedOffers();
   return {
@@ -102,8 +105,11 @@ export function registerMarginItem({
     },
     unregister() {
       if (!offeredItems.delete(offered)) return;
-      controls?.remove();
+      // Let the projection detach a focused contribution while its focus-settling
+      // guard is active. Removing it first can synchronously fire focusout, whose
+      // fold render moves that same node before Element.remove completes.
       changedOffers();
+      controls?.remove();
     },
   };
 }
@@ -340,6 +346,17 @@ export function createLivingMargin(dependencies) {
     const items = typeof offered.items === "function" ? offered.items() : offered.items;
     return items ?? [];
   };
+  const offerEngaged = (offered) =>
+    typeof offered.engaged === "function" ? offered.engaged() : offered.engaged;
+  const entryEngaged = (entry) => entry.offers.some(offerEngaged);
+  // A modal or contextual thread surface temporarily owns focus without ending the
+  // document interaction beneath it. Preserve that context so its commands remain
+  // true and its owning Button can receive focus when the surface closes.
+  const inRetainedContext = (node) =>
+    node instanceof Element &&
+    (Boolean(node.closest("dialog[open]")) ||
+      preview.contains(node) ||
+      (panelIsOpen() && threadPanel.contains(node)));
   const standingAfterOffers = (entry) =>
     entry.offers.filter(
       (offered) => offered.side === "after" && offerReadings(offered).length > 0,
@@ -707,12 +724,21 @@ export function createLivingMargin(dependencies) {
     }
 
     return [...groups.values()]
-      .map((group) => ({
-        ...group,
-        items: group.items.sort(
-          (left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority,
-        ),
-      }))
+      .map((group) => {
+        const represented = new Set(
+          group.items
+            .filter((item) => item.marker === false && item.represents)
+            .map((item) => item.kind),
+        );
+        return {
+          ...group,
+          items: group.items
+            .filter((item) => item.marker === false || !represented.has(item.kind))
+            .sort(
+              (left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority,
+            ),
+        };
+      })
       .sort((left, right) => comesBefore(left.target, right.target));
   }
 
@@ -1125,7 +1151,6 @@ export function createLivingMargin(dependencies) {
       else node.setAttribute(attribute, value);
     }
     node.onclick = () => {
-      setOptionsOpen(entry, false, { returnFocus: true });
       control.click();
     };
     return node;
@@ -1172,7 +1197,7 @@ export function createLivingMargin(dependencies) {
     return node;
   }
 
-  function syncOptionGroup(group, entry, primary) {
+  function syncOptionGroup(group, entry, primary, optionsOpen) {
     const nodes = [
       ...secondaryControls(entry, primary).map((control) =>
         optionControlNode(control, entry),
@@ -1192,8 +1217,11 @@ export function createLivingMargin(dependencies) {
         group.insertBefore(child, group.children[position] ?? null);
     });
     group.lfEntry = entry;
-    group.setAttribute("aria-label", `More options for ${entry.title}`);
-    group.hidden = expandedOptionsKey !== entry.key || wanted.length === 0;
+    group.setAttribute(
+      "aria-label",
+      `${entryEngaged(entry) ? "Actions" : "More options"} for ${entry.title}`,
+    );
+    group.hidden = !optionsOpen || wanted.length === 0;
   }
 
   function syncControls(host, marker, more, options, entry) {
@@ -1210,13 +1238,23 @@ export function createLivingMargin(dependencies) {
     });
     const hasOptions = optionsOffered(entry, primary);
     if (!hasOptions && expandedOptionsKey === entry.key) expandedOptionsKey = null;
-    const optionsOpen = hasOptions && expandedOptionsKey === entry.key;
+    const optionsOpen =
+      hasOptions && (expandedOptionsKey === entry.key || entryEngaged(entry));
     more.hidden = !hasOptions || optionsOpen;
     more.lfEntry = entry;
     more.setAttribute("aria-label", `More options for ${entry.title}`);
-    more.setAttribute("aria-expanded", String(expandedOptionsKey === entry.key));
-    host.toggleAttribute("data-lf-options-open", expandedOptionsKey === entry.key);
-    syncOptionGroup(options, entry, primary);
+    more.setAttribute("aria-expanded", String(optionsOpen));
+    host.toggleAttribute("data-lf-options-open", optionsOpen);
+    // Replacing a focused proxy fires focusout synchronously. The render already owns
+    // the resulting cluster state and transfers focus below, so do not let that event
+    // start a nested render against the same child list.
+    const wasSettlingOptionsFocus = settlingOptionsFocus;
+    settlingOptionsFocus = true;
+    try {
+      syncOptionGroup(options, entry, primary, optionsOpen);
+    } finally {
+      settlingOptionsFocus = wasSettlingOptionsFocus;
+    }
     const lostOptionFocus = focusedOption && !options.contains(document.activeElement);
     if (!hasOptions && (document.activeElement === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
@@ -1393,6 +1431,7 @@ export function createLivingMargin(dependencies) {
           const current = host.lfEntry;
           const primary = current && choosePrimary(current);
           if (!current || !optionsOffered(current, primary)) return;
+          if (entryEngaged(current)) return;
           setOptionsOpen(current, true, {
             focusOption: control === more ? "last" : null,
           });
@@ -1403,18 +1442,19 @@ export function createLivingMargin(dependencies) {
             settlingOptionsFocus ||
             !current ||
             expandedOptionsKey !== current.key ||
+            inRetainedContext(event.relatedTarget) ||
             host.contains(event.relatedTarget)
           )
             return;
           setOptionsOpen(current, false);
         });
-        // Contributed primaries remain the owner's real control, so they do not pass
-        // through the generated marker/proxy activation paths below. Close any unfolded
-        // choices at the cluster boundary before that owner handles its press.
+        // A direct primary belongs to its owner rather than the generated proxy path.
+        // Fold only a temporary expansion before that action; an engaged owner keeps
+        // its completion actions exposed until its own state actually ends.
         host.addEventListener(
           "click",
           (event) => {
-            if (!expandedOptionsKey) return;
+            if (!expandedOptionsKey || entryEngaged(host.lfEntry)) return;
             const primary = event.target.closest?.("[data-lf-button-primary]");
             if (primary && host.contains(primary)) setOptionsOpen(host.lfEntry, false);
           },
@@ -1831,7 +1871,12 @@ export function createLivingMargin(dependencies) {
     (event) => {
       if (!expandedOptionsKey) return;
       const host = hosts.get(expandedOptionsKey);
-      if (!host || event.composedPath().includes(host)) return;
+      if (
+        !host ||
+        event.composedPath().includes(host) ||
+        event.composedPath().some(inRetainedContext)
+      )
+        return;
       setOptionsOpen(host.lfEntry, false);
     },
     { capture: true },

@@ -299,6 +299,27 @@ def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
     page.close()
 
 
+def test_settling_a_secondary_button_leaves_one_focused_outcome(browser, serve):
+    """A contribution that shows its outcome does not grow a duplicate reading."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1440, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    more = item.locator(":scope > .lf-margin-more")
+    options = item.locator(":scope > .lf-margin-options")
+
+    more.click()
+    options.get_by_role("button", name=re.compile(r"Reject")).click()
+    round_trip(page)
+
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    expect(options).to_be_hidden()
+    expect(item.locator(".lf-margin-action:visible")).to_have_count(1)
+    expect(item.locator(".lf-sug-reject")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The page map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
@@ -381,7 +402,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(more).to_be_focused()
     more.click()
     expect(reject).to_be_visible()
-    expect(options.get_by_role("button", name=re.compile(r"Ask for"))).to_be_visible()
+    expect(options.get_by_role("button", name=re.compile(r"Ask for"))).to_have_count(0)
     expect(reject).to_be_focused()
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -475,6 +496,15 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     edit.click()
     save = draft_item.get_by_role("button", name="Save", exact=True)
     expect(save).to_be_visible()
+    expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    expect(draft_item.locator(":scope > .lf-margin-options")).to_be_visible()
+    cancel = draft_item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name="Cancel", exact=True
+    )
+    expect(cancel).to_be_visible()
+    expect(cancel.locator("xpath=..")).to_have_attribute(
+        "aria-label", re.compile(r"^Actions for ")
+    )
     assert abs(save.bounding_box()["x"] - rail_left) <= 1, (
         "the draft's Save Button no longer shares the action rail's left edge"
     )
@@ -486,10 +516,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "el => { const s = getComputedStyle(el); "
         "return [s.backgroundColor, s.borderColor, s.borderTopWidth]; }"
     ), "Save and Accept no longer share the canonical immediate-action ring"
-    draft_item.locator(":scope > .lf-margin-more").click()
-    draft_item.locator(":scope > .lf-margin-options").get_by_role(
-        "button", name="Cancel", exact=True
-    ).click()
+    cancel.click()
     expect(edit).to_be_visible()
 
     accept.focus()
@@ -618,7 +645,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
 
 
 def test_secondary_button_proxies_preserve_disabled_and_focus_contract(browser, serve):
-    """Unfolded Buttons close coherently and never outlive their owner's state."""
+    """Proxy presses preserve a reader's explicit fold until they leave or close it."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
@@ -673,6 +700,9 @@ def test_secondary_button_proxies_preserve_disabled_and_focus_contract(browser, 
     backup.focus()
     page.keyboard.press("Enter")
     assert page.evaluate("() => window.lfBackupClicks") == 1
+    expect(options).to_be_visible()
+    expect(backup).to_be_focused()
+    page.keyboard.press("Escape")
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
 
@@ -803,6 +833,10 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     resized(page, 1440, 900)
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(thread).to_have_attribute("aria-expanded", "false")
+    expect(options).to_be_hidden()
+    expect(more).to_be_visible()
+    more.click()
+    expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
@@ -1069,6 +1103,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.locator(":focus").get_attribute("aria-label") != held
 
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
+    expect(options).to_be_hidden()
+    more.click()
     expect(options).to_be_visible()
     outcome = options.get_by_role("button", name=re.compile(r"Outcome for"))
     expect(outcome).to_be_visible()

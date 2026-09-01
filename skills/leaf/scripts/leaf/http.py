@@ -36,8 +36,8 @@ from .schema import (
     SERVED_PATH,
 )
 from .served_state import reading as served_reading
-from .server import preview_metadata
 from .served_state.service import PageStateService
+from .server import preview_metadata
 from .service import PageTransaction
 from .structure import parse_structure
 

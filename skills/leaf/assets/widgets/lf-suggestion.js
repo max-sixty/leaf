@@ -177,6 +177,11 @@ customElements.define(
         items: () => [
           {
             id: `suggestion:${this.id}`,
+            // The contribution is already the decision while pending and its durable
+            // outcome after settlement. Tell the shared projection not to add a second
+            // generated Button that says the same thing at the same target.
+            kind: this.dataset.lfState ? "outcome" : "decision",
+            represents: true,
             text: this.dataset.lfState
               ? `${this.dataset.lfState === "accept" ? "Accepted" : "Rejected"} suggested change`
               : "Accept or reject suggested change",

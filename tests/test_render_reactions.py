@@ -492,7 +492,8 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    more.click()
+    item.locator(".lf-margin-options .lf-margin-action:visible").first.focus()
+    page.keyboard.press("Escape")
     expect(unfolded).to_have_count(0)
     select_paragraph(page, "#replace")
     # The bar standing is the selection's arrival: the anchor `r` reads is captured on

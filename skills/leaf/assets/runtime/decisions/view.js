@@ -14,6 +14,7 @@ export function createDecisionView({
   documentFocused,
   el,
   elementById,
+  focusForNavigation,
   inChrome,
   itemSays,
   itemWord,
@@ -410,7 +411,7 @@ export function createDecisionView({
       source.querySelector(DECISION_CONTROL) ??
       document.querySelector(`[${DECISION_ROW}="${source.id}"] ${DECISION_CONTROL}`);
     if (!control) lend(source);
-    (control ?? source).focus({ preventScroll: true });
+    focusForNavigation(control ?? source);
   }
 
   // Standing on one decision: what d and D do once they have decided which, and what a press on

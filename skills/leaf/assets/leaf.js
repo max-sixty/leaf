@@ -3391,6 +3391,7 @@ anchorRuntime = createAnchors({
   aimBox,
   aimIsOn,
   aimedItem,
+  announce,
   anchorLabel,
   anchorsReady: () => anchoringReady,
   bareReaction: (t) => conversationRuntime.bareReaction(t),

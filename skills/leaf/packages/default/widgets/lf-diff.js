@@ -7,10 +7,18 @@ import {
   failSoft,
   keys,
   langForPath,
+  layoutChanged,
   loadDataFragment,
+  offer,
+  paintKeys,
   projectData,
+  relabel,
+  scrollBehavior,
+  sendAction,
   settle,
   shadowStage,
+  standingState,
+  toast,
   watchData,
 } from "/runtime/widget-api.js";
 import { parsePatchFiles, preloadDiffHTML } from "/vendor/pierre-diffs.esm.js";
@@ -166,6 +174,36 @@ function summaryNode(file, open) {
   return details;
 }
 
+function reviewButton(entry, changed) {
+  const button = offer("button", "lf-diff-review");
+  button.addEventListener("click", (event) => {
+    // A review press is inside the native summary but is not a disclosure press.
+    event.preventDefault();
+    event.stopPropagation();
+    changed(entry, !entry.reviewed);
+  });
+  return button;
+}
+
+function reviewTools(host) {
+  const tools = offer("div", "lf-diff-tools");
+  const label = offer("label", "lf-diff-search-label");
+  const search = document.createElement("input");
+  search.type = "search";
+  search.className = "lf-diff-search";
+  search.placeholder = "Filter files";
+  search.setAttribute("aria-label", "Filter diff files");
+  search.addEventListener("input", () => host.filterFiles(search.value));
+  label.append(search);
+  const progress = document.createElement("span");
+  progress.className = "lf-diff-progress";
+  progress.dataset.lfGen = "1";
+  const next = offer("button", "lf-diff-next", "Next unreviewed");
+  next.addEventListener("click", () => settle(host.nextUnreviewed()));
+  tools.append(label, progress, next);
+  return { node: tools, search, progress, next };
+}
+
 function renameNode(file) {
   const row = document.createElement("div");
   row.className = "lf-diff-rename";
@@ -305,6 +343,30 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (this.stopWatching) return;
+      if (!this.reviewKeys) {
+        this.reviewKeys = keys(
+          this,
+          "In a diff review",
+          [
+            {
+              id: "diff.search",
+              keys: ["/"],
+              does: "Filter the files in this diff",
+              line: "filter files",
+              run: () => this.reviewTools?.search.focus(),
+            },
+            {
+              id: "diff.next-unreviewed",
+              keys: ["Alt+ArrowDown"],
+              does: "Open the next unreviewed matching file",
+              line: "next unreviewed file",
+              when: () => this.nextReviewEntry() !== null,
+              run: () => settle(this.nextUnreviewed()),
+            },
+          ],
+          () => Boolean(this.fileEntries?.length),
+        );
+      }
       const bound = this.hasAttribute("source");
       if (!bound) {
         if (this.classList.contains("lf-rendered")) return;
@@ -350,7 +412,9 @@ customElements.define(
       try {
         if (source === null) {
           this.manifestEntries = null;
+          this.fileEntries = null;
           this.sharedStyles = null;
+          this.reviewTools = null;
           this.replaceChildren();
           shadowStage(this, []);
           projectData(
@@ -383,16 +447,32 @@ customElements.define(
               : await renderFile(file, sharedStyles, open),
           );
         if (rendering !== this.rendering || !this.isConnected) return;
-        if (bound) for (const { node } of rendered) node.dataset.lfGen = "1";
+        const entries = rendered.map((renderedFile, index) => ({
+          ...renderedFile,
+          record: {
+            path: files[index].name,
+            ...(files[index].prevName ? { previousPath: files[index].prevName } : {}),
+          },
+          details: renderedFile.node.matches("details") ? renderedFile.node : null,
+          loaded: true,
+          reviewed: false,
+          filtered: false,
+        }));
+        if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
+        this.fileEntries = entries;
+        this.reviewTools = reviewTools(this);
+        for (const entry of entries) this.attachReview(entry);
+        this.refreshReviewedState();
         this.replaceChildren();
         shadowStage(this, [
           ...sharedStyles.values(),
-          ...rendered.map(({ node }) => node),
+          this.reviewTools.node,
+          ...entries.map(({ node }) => node),
         ]);
         if (bound)
           projectData(
             this,
-            rendered.flatMap(({ lines }) => lines),
+            entries.flatMap(({ lines }) => lines),
             lineKey,
             ({ node }) => node,
             { nested: true, labelOf: lineLabel },
@@ -400,6 +480,10 @@ customElements.define(
         this.classList.add("lf-rendered");
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
+        this.manifestEntries = null;
+        this.fileEntries = null;
+        this.sharedStyles = null;
+        this.reviewTools = null;
         this.classList.remove("lf-rendered");
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
@@ -439,6 +523,8 @@ customElements.define(
             node: renameNode({ prevName: record.previousPath, name: record.path }),
             lines: [],
             loaded: true,
+            reviewed: false,
+            filtered: false,
           });
           continue;
         }
@@ -458,6 +544,8 @@ customElements.define(
           loaded: false,
           failed: false,
           loading: null,
+          reviewed: false,
+          filtered: false,
         };
         details.addEventListener("toggle", () => {
           if (!details.open) return;
@@ -469,7 +557,11 @@ customElements.define(
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) node.dataset.lfGen = "1";
       this.manifestEntries = entries;
+      this.fileEntries = entries;
       this.sharedStyles = new Map();
+      this.reviewTools = reviewTools(this);
+      for (const entry of entries) this.attachReview(entry);
+      this.refreshReviewedState();
       this.replaceChildren();
       this.stageManifest();
       this.projectManifest();
@@ -480,10 +572,14 @@ customElements.define(
 
     stageManifest() {
       if (!this.manifestEntries) return;
-      shadowStage(this, [
-        ...this.sharedStyles.values(),
-        ...this.manifestEntries.map(({ node }) => node),
-      ]);
+      shadowStage(
+        this,
+        [
+          ...this.sharedStyles.values(),
+          this.reviewTools?.node,
+          ...this.manifestEntries.map(({ node }) => node),
+        ].filter(Boolean),
+      );
     }
 
     projectManifest() {
@@ -532,8 +628,8 @@ customElements.define(
       return entry.loading;
     }
 
-    manifestEntryForDatum(key) {
-      if (!this.manifestEntries) return null;
+    fileEntryForDatum(key) {
+      if (!this.fileEntries) return null;
       let coordinate;
       try {
         coordinate = JSON.parse(key);
@@ -542,7 +638,7 @@ customElements.define(
       }
       if (!Array.isArray(coordinate) || typeof coordinate[0] !== "string") return null;
       return (
-        this.manifestEntries.find(({ record }) => record.path === coordinate[0]) ?? null
+        this.fileEntries.find(({ record }) => record.path === coordinate[0]) ?? null
       );
     }
 
@@ -550,20 +646,189 @@ customElements.define(
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
     lfDataDatum(key) {
-      const entry = this.manifestEntryForDatum(key);
-      return entry && !entry.loaded ? entry.node : null;
+      const entry = this.fileEntryForDatum(key);
+      if (!entry) return null;
+      if (!entry.loaded || entry.filtered) return entry.node;
+      const exact = entry.lines.find((line) => lineKey(line) === key);
+      if (exact) return exact.node;
+      let coordinate;
+      try {
+        coordinate = JSON.parse(key);
+      } catch {
+        return null;
+      }
+      const [, side, at] = coordinate;
+      if (!Number.isInteger(at) || !["old", "new"].includes(side)) return null;
+      const context = entry.lines.find(
+        (line) =>
+          line.side === "both" && (side === "old" ? line.oldLine : line.newLine) === at,
+      );
+      if (context) return context.node;
+      if (side === "new") {
+        const priorContext = entry.lines.find(
+          (line) => line.side === "both" && line.oldLine === at,
+        );
+        if (priorContext) return priorContext.node;
+      }
+      // A non-removed call-tree item normally names the new side. Falling back to an
+      // old coordinate preserves travel for analyzers whose location still names the
+      // pre-change call site, without making callers understand diff coordinates.
+      if (side === "new")
+        return (
+          entry.lines.find((line) => line.side === "old" && line.oldLine === at)
+            ?.node ?? null
+        );
+      return null;
     }
 
     lfRevealDatum(key) {
-      const entry = this.manifestEntryForDatum(key);
-      if (!entry?.details || entry.loaded || entry.failed) return null;
+      const entry = this.fileEntryForDatum(key);
+      if (!entry) return null;
+      if (entry.filtered) this.clearFilter();
+      if (!entry.details || entry.loaded || entry.failed) return null;
       entry.details.open = true;
       return this.loadManifestEntry(entry);
     }
 
-    lfPrepareExport() {
-      return Promise.all(
+    async lfPrepareExport() {
+      this.clearFilter();
+      await Promise.all(
         (this.manifestEntries ?? []).map((entry) => this.loadManifestEntry(entry)),
+      );
+      this.reviewTools?.node.remove();
+      this.reviewTools = null;
+      for (const entry of this.fileEntries ?? []) {
+        if (!entry.reviewed) {
+          entry.review.remove();
+          continue;
+        }
+        const status = document.createElement("span");
+        status.className = "lf-diff-reviewed";
+        relabel(status, "✓ Reviewed", { says: true });
+        entry.review.replaceWith(status);
+        entry.review = status;
+      }
+    }
+
+    attachReview(entry) {
+      const row = entry.details?.firstElementChild ?? entry.node;
+      entry.review = reviewButton(entry, (target, reviewed) => {
+        this.setReviewed(target, reviewed);
+        sendAction(this, "review", {
+          file: target.record.path,
+          reviewed,
+        }).then((ok) => {
+          if (ok)
+            toast(
+              `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — recorded`,
+            );
+          else this.refreshReviewedState();
+        });
+      });
+      row.append(entry.review);
+      this.setReviewed(entry, false, { repaint: false });
+    }
+
+    setReviewed(entry, reviewed, { repaint = true } = {}) {
+      if (!entry) return;
+      entry.reviewed = reviewed;
+      entry.node.toggleAttribute("data-reviewed", reviewed);
+      entry.review.setAttribute("aria-pressed", String(reviewed));
+      entry.review.setAttribute(
+        "aria-label",
+        `Mark ${entry.record.path} ${reviewed ? "unreviewed" : "reviewed"}`,
+      );
+      relabel(entry.review, reviewed ? "✓ Reviewed" : "Mark reviewed", {
+        says: reviewed,
+      });
+      if (repaint) this.refreshReviewTools();
+    }
+
+    refreshReviewedState() {
+      if (!this.fileEntries) return;
+      for (const entry of this.fileEntries)
+        this.setReviewed(entry, false, { repaint: false });
+      for (const state of standingState()) {
+        if (state.widget !== this || state.action !== "review") continue;
+        this.setReviewed(
+          this.fileEntries.find(({ record }) => record.path === state.detail.file),
+          state.detail.reviewed,
+          { repaint: false },
+        );
+      }
+      this.refreshReviewTools();
+    }
+
+    filterFiles(query) {
+      const needle = query.trim().toLocaleLowerCase();
+      for (const entry of this.fileEntries ?? []) {
+        const paths = [entry.record.path, entry.record.previousPath ?? ""]
+          .join("\n")
+          .toLocaleLowerCase();
+        entry.filtered = Boolean(needle && !paths.includes(needle));
+        entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
+      }
+      this.refreshReviewTools();
+      layoutChanged(this);
+    }
+
+    clearFilter() {
+      if (this.reviewTools) this.reviewTools.search.value = "";
+      this.filterFiles("");
+    }
+
+    refreshReviewTools() {
+      if (!this.reviewTools || !this.fileEntries) return;
+      const shown = this.fileEntries.filter((entry) => !entry.filtered);
+      const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
+      const suffix =
+        shown.length === this.fileEntries.length ? "" : ` · ${shown.length} matching`;
+      this.reviewTools.progress.textContent = `${reviewed} of ${this.fileEntries.length} reviewed${suffix}`;
+      this.reviewTools.next.disabled = this.nextReviewEntry() === null;
+      paintKeys();
+    }
+
+    entryAroundFocus() {
+      const focused = this.shadowRoot?.activeElement;
+      return (
+        this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null
+      );
+    }
+
+    nextReviewEntry() {
+      const entries = (this.fileEntries ?? []).filter(
+        (entry) => !entry.filtered && !entry.reviewed,
+      );
+      if (!entries.length) return null;
+      const current = this.entryAroundFocus();
+      if (!current) return entries[0];
+      const after = entries.find((entry) =>
+        Boolean(
+          current.node.compareDocumentPosition(entry.node) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      );
+      return after ?? entries[0];
+    }
+
+    async nextUnreviewed() {
+      const entry = this.nextReviewEntry();
+      if (!entry) return;
+      if (entry.details) {
+        entry.details.open = true;
+        await this.loadManifestEntry(entry);
+      }
+      const target = entry.details?.firstElementChild ?? entry.review;
+      target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
+      target.focus({ preventScroll: true });
+      toast(`Next unreviewed file: ${entry.record.path}`);
+    }
+
+    applyAction(action, detail) {
+      if (action !== "review") return;
+      this.setReviewed(
+        this.fileEntries?.find(({ record }) => record.path === detail.file),
+        detail.reviewed,
       );
     }
   },

@@ -3640,7 +3640,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     # door's own docstring. A withdrawn reaction is gone from `build_threads`, so the
     # kind's thread walk had nothing to find and raised out of the door instead: a 500
     # the browser is told to retry, against a state that will never answer differently.
-    # The no-op costs a toast, which is what a final refusal is.
+    # The no-op costs a notice, which is what a final refusal is.
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),

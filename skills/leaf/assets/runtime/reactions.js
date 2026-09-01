@@ -69,7 +69,7 @@ export function createReactions({
   reactionVocabulary,
   saying,
   showFab,
-  showToast,
+  notice,
   standingConversation,
   standingItem,
   suggestHere,
@@ -371,14 +371,14 @@ export function createReactions({
             reactRaised = false;
             reactSurface = null;
             reactFrom = null;
-            showToast("That reaction target is no longer available");
+            notice("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
         } else {
           reactSurface = null;
           reactFrom = null;
-          showToast("Select something to react to");
+          notice("Select something to react to");
           return;
         }
       }

@@ -10,7 +10,7 @@ export function createVersionDiff({
   quoted,
   projectionFromView,
   sameLayer,
-  showToast,
+  notice,
   stateCoordinate,
   textBlockSelector,
   versionBtn,
@@ -284,7 +284,7 @@ export function createVersionDiff({
       (candidate) => candidate.version === base,
     )?.revision;
     if (baseRevision == null) {
-      showToast(`Couldn't load v${base}`);
+      notice(`Couldn't load v${base}`);
       return;
     }
     const documentRequest = baseDocument(base);
@@ -303,14 +303,14 @@ export function createVersionDiff({
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
     } catch {
-      showToast(`Couldn't load v${base}`);
+      notice(`Couldn't load v${base}`);
       return;
     }
     if (mine !== diffRequest) return;
     if (diffOn) setDiff(false); // the old base's marks, before the new base's land
     const n = applyDiff(doc, base, reading);
     setDiff(true, base);
-    showToast(
+    notice(
       n
         ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
         : `No text changes since v${base}`,

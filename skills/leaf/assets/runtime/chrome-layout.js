@@ -61,7 +61,6 @@ export function createChromeLayout({
   showTray,
   syncReactLayout,
   syncGeneral,
-  toastEl,
   toggleBtn,
   traysEdge,
 }) {
@@ -139,13 +138,9 @@ export function createChromeLayout({
     // the composer is and a lift that missed it stood the line on the strip's pills —
     // close enough that the pointer aiming at a reaction met the line's More instead.
     const footLift = panelCovers() ? panelFoot.offsetHeight : 0;
-    // The toast lives in the same corner as the panel's Send button. Beside a wide
-    // panel it steps left; over a covering sheet it stays inside the viewport and
-    // rises above the whole foot, including a textarea grown by an unsent draft.
-    toastEl.style.right = `calc(${panelBeside ? commentsEdge.width() + 18 : 18}px + var(--lf-safe-right))`;
-    toastEl.style.bottom = `calc(${footLift + 18}px + var(--lf-safe-bottom))`;
-    // The key line takes the toast's lift over a covering sheet, or the sheet's own
-    // foot stands on the words saying what Esc will do to it.
+    // The key line rises above the whole of that foot over a covering sheet, including a
+    // textarea grown by an unsent draft, or the foot stands on the words saying what Esc
+    // will do to it.
     keylineEl.style.bottom = `calc(${footLift + 14}px + var(--lf-safe-bottom))`;
     // Beside the page, the thread panel owns the right strip all the way to its foot. The
     // line starts at the window's left, so cap its room at that strip rather than letting a

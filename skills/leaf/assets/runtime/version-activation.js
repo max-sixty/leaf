@@ -38,6 +38,7 @@ export function createVersionActivation(
   versionRoots,
   {
     captureAuthoredFacets,
+    captureStanding,
     captureView,
     comparisonBase,
     designIsOn,
@@ -136,6 +137,7 @@ export function createVersionActivation(
 
   async function activateRevision(doc, revision) {
     const view = captureView();
+    const standing = captureStanding();
     const source = doc.querySelector("body > main");
     // Step 4 of the startup order, at the boundary that runs the same passes: this
     // version may introduce a tag the standing document never carried, and insertion is
@@ -175,7 +177,7 @@ export function createVersionActivation(
     captureAuthoredFacets(fresh);
     syncLayout();
     if (designIsOn()) paintLegend();
-    return { view, comparedFrom };
+    return { view, standing, comparedFrom };
   }
 
   function currentActivation() {

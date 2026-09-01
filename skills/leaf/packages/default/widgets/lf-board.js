@@ -27,7 +27,7 @@ import {
   quoted,
   says,
   sendAction,
-  toast,
+  notice,
   announce,
   keys,
   labelOf,
@@ -367,7 +367,7 @@ customElements.define(
     }
 
     // One completed move, drag or keyboard: an absolute placement, sent once. The
-    // toast's word follows the branch the reader can see — a card kept in its column
+    // notice's word follows the branch the reader can see — a card kept in its column
     // was reordered, not moved to where it already was. A refusal is restored by the
     // layer from the declared record plus its outbox, never from this gesture's DOM
     // snapshot: that snapshot may be another queued move the server also refused.
@@ -378,7 +378,7 @@ customElements.define(
         index: this.#cards(to).indexOf(card),
       }).then((ok) => {
         if (ok)
-          toast(
+          notice(
             `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(
               "label",
             )} — recorded`,

@@ -96,8 +96,8 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
         badge.click()
         expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
-        expect(page.locator(".lf-toast")).to_have_text("Copied preview diagnostics")
-        expect(page.locator(".lf-toast")).to_be_visible()
+        expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-notice")).to_be_visible()
         diagnostics = page.evaluate("() => navigator.clipboard.readText()")
         assert "example: postmortem" in diagnostics
         assert "checkout: fb77" in diagnostics
@@ -1252,7 +1252,7 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     """One pass, every widget alike: a decided-and-unhonored state wears
     data-lf-pending, driven by the registry's x-state rather than remembered per
     widget — choose had its mark, edit its tint, and move had nothing, which is
-    how a dragged card's fate stayed invisible once the toast faded. The mark
+    how a dragged card's fate stayed invisible once the notice faded. The mark
     clears the moment a version carries the decision, and the diff stays quiet
     about an honored move: the user's own drag is not news to them."""
     page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))

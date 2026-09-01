@@ -207,7 +207,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     LEAF_BROWSER_EXECUTABLE names. The default arm states the empty value rather
     than inheriting whatever the developer or the job exported, since a set variable
     would otherwise turn the channel this arm exists to cover into a second run of
-    the other one."""
+    the other one. Each arm's success line has to name the browser that drew the
+    page: a clean gate telling a Chromium host that Chrome drew it is the same false
+    claim on the way out that the failure messages stopped making."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -229,11 +231,11 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
-    assert "renders clean" in ok.stdout
+    assert "renders clean in Chrome" in ok.stdout
 
     named = gate(executable=headless_shell)
     assert named.returncode == 0, named.stderr
-    assert "renders clean" in named.stdout
+    assert f"renders clean in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.

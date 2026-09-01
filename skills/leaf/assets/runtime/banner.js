@@ -6,7 +6,7 @@ export function createBanner({
   el,
   presented,
   statusText,
-  toast,
+  notice,
 }) {
   // ---------- banner ----------
   const TONE = {
@@ -171,9 +171,9 @@ export function createBanner({
       previewButton.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(previewDiagnostics);
-          toast("Copied preview diagnostics");
+          notice("Copied preview diagnostics");
         } catch (_error) {
-          toast("Couldn't copy preview diagnostics");
+          notice("Couldn't copy preview diagnostics");
         }
       });
       statusText.before(previewButton);

@@ -253,7 +253,14 @@ latest immutable version and carries a runtime-only version marker. On a later
 state read, `versionDocument` fetches the next immutable file in the background.
 `activateVersion` replaces the authored head declarations, root attributes, and
 `body > main`; runs the same fence, clone, dressing, settlement, and authored-facet
-passes as startup; reconciles the log; and restores the semantic reading landmark.
+passes as startup; reconciles the log; and restores the semantic reading landmark
+and the reader's standing. That standing is written down by id before the swap —
+the nearest element carrying one, and the control within it by kind and position —
+and handed back after it: the same control where the revision kept it, its owner
+where the revision kept only that, and nothing where it kept neither. A chord armed
+before the swap is the runtime's and holds through it; its chips are read off the
+document standing afterwards. The gestures `midComposition` names — item hints, a
+reaction list, page search, a drag or grab — defer the activation instead.
 The chrome, browser document, module globals, panel, and address remain standing.
 
 That activation is one presentation boundary. Its async work runs in a
@@ -2507,16 +2514,18 @@ the saved view on a fresh navigation; the saved view outranks a leftover
 fragment on reload or back navigation. `landArrival` applies that ranking only
 after final page geometry is available.
 
-Focus and selection are not restored across documents. Restoring focus onto a
-control would change the next Space from page scroll to activation, and a
-selection may refer to words the new version replaced. The saved decision landmark
-preserves directional continuity without claiming the reader still stands
-there.
+Focus and selection are not restored across document travel. Restoring focus
+onto a control the reader never stood on would change the next Space from page
+scroll to activation, and a selection may refer to words the new version replaced.
+The saved decision landmark preserves directional continuity without claiming the
+reader still stands there. A live activation is the other case: the reader's own
+standing carries across it (see "Startup and presentation"), so the next press
+means what it meant before the swap.
 
 ## Chrome, conversations, and text input
 
-`.lf-chrome` is one fixed runtime root containing the banner, the tray panel,
-thread panel, composer, floating comment control, toast, live region, key line,
+`.lf-chrome` is one fixed runtime root containing the banner and its notice, the
+tray panel, thread panel, composer, floating comment control, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
@@ -2666,9 +2675,13 @@ An accepted anchored comment opens its inline thread. `--thread-card-floor` is h
 narrow the room right of its marker may get before that thread comes off the marker
 and covers the page in its bounded card; it does not substitute the Threads panel. The send focuses the reply box only when no later selection, edit, or
 typing gesture stands.
-News arriving without the reader's send gesture may show a toast and count but
-does not move focus or scroll the panel. `showToast` clears click behavior as it
-fades so invisible toast chrome cannot remain a pointer target.
+News arriving without the reader's send gesture may show a notice and count but
+does not move focus or scroll the panel. `notice` is the one visible surface for a
+moment's news — a recorded gesture, an arrived version, a refused send — and it
+stands in the banner's status slot in place of the status line, which returns when
+the notice fades; the live region hears the same words. It is text rather than a
+control: what a notice names, the banner's own buttons reach. There is no second
+surface for news, so nothing floats in a corner to become a stale pointer target.
 
 ## Durable drafts
 

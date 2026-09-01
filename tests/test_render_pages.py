@@ -534,7 +534,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page.close()
 
 
-def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serve):
+def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):
     """A failed candidate owns neither the agent name nor the reply count.
 
     The first read reaches panel and version rendering before malformed projection data
@@ -606,16 +606,16 @@ def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serv
     expect(version_menu).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
-    toast = page.locator(".lf-toast")
-    assert "show" not in toast.get_attribute("class").split()
+    notice_el = page.locator(".lf-notice")
+    assert "show" not in notice_el.get_attribute("class").split()
     page.wait_for_timeout(100)
     assert "Codex replied" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(toast).to_have_text("Codex replied — open Threads")
-    expect(toast).to_have_class(re.compile(r"\bshow\b"))
+    expect(notice_el).to_have_text("Codex replied — open Threads")
+    expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     assert errors == []
     page.close()
 

@@ -33,7 +33,7 @@ import {
   sendAction,
   shownParts,
   textNodesUnder,
-  toast,
+  notice,
 } from "/runtime/widget-api.js";
 
 // Each control's word in both states, written by #name from one table.
@@ -231,7 +231,7 @@ customElements.define(
       btn.setAttribute("aria-disabled", String(decided));
     }
 
-    // What the change is about, for the button's label and the toast: the
+    // What the change is about, for the button's label and the notice: the
     // proposal where there is one, since that is what accepting brings about —
     // a deletion has only the markup it would remove.
     #label() {
@@ -261,7 +261,7 @@ customElements.define(
       // decision beside the first — two lines in the log for one act.
       if (this.#deciding) return this.#deciding;
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
-      // reading, and `says` on what has left the reading answers nothing — the toast
+      // reading, and `says` on what has left the reading answers nothing — the notice
       // then named the widget's id instead of the words the user just judged.
       const label = this.#label();
       // Accepting the fix answers the thread it was written for, so the same
@@ -278,7 +278,7 @@ customElements.define(
         // still owed if another part of that state failed to render, but not if the
         // same event list also carried a later undo: authored state then stands.
         if (actionStands(accepted)) this.#settle(outcome);
-        toast(
+        notice(
           `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — recorded`,
         );
         return true;

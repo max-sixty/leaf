@@ -224,7 +224,10 @@ and `layer_widgets` for that: a project-package entry and its module, written as
 reads the same for as long as the default package carries the declaration and goes red
 the day it stops, with nothing about the reading having changed — which is how the two
 guards over `seat_with_agent` came to rest on `lf-options` and failed when its
-`x-conversation` came off.
+`x-conversation` came off. A tag can also leave the default package without leaving the
+product: `lf-diagram` and `lf-diff` moved into the `diagram` and `diff` packages, and
+`PAGE_PACKAGES` is what still puts their declarations in `page_dir`'s registry for the
+readings that borrow them.
 
 Re-vendor before trusting a result that depends on runtime, theme, registry, or
 widget changes. A page directory owns the layer copied into it by `page init`; it

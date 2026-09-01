@@ -238,7 +238,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
 """,
     )
-    url = serve(authored, packages=("pr-review",))
+    # pr-review's lf-call-diff points at an lf-diff, which travels in `diff`.
+    url = serve(authored, packages=("pr-review", "diff"))
     call_diff = """calldiff diff main → feature
 
   Limiter.bucket_key(self, request)  gateway/limits.py:38

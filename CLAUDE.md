@@ -74,8 +74,10 @@ itself, no generated file, no repaired state. Plugin updates may replace the
 directory wholesale, so what has to survive one belongs in the page directory
 or the state home.
 
-Files under `skills/leaf/assets/vendor/` and
-`skills/leaf/packages/default/vendor/` are committed payload outputs. Their
+Files under `skills/leaf/assets/vendor/` and any package's `vendor/` —
+`default/`, `diagram/`, `diff/` today — are committed payload outputs. A bundle
+lives in the package whose widget imports it, so a page that never draws a
+diagram or a diff never vendors their renderers. Their
 generators and source-version choices live under `scripts/`; follow
 `scripts/CLAUDE.md`, update or run the owning script, and do not patch a
 generated bundle directly.

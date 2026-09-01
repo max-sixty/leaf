@@ -7,7 +7,12 @@ from pathlib import Path
 
 from leaf.data import read_data
 from leaf.event_log import read_events
-from leaf.files import published_versions, version_name
+from leaf.files import (
+    published_versions,
+    version_name,
+    version_path,
+    version_revisions,
+)
 from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
 from leaf.render_gate.preview import preview_server
 from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
@@ -64,8 +69,8 @@ def inline_assets(html: str, page_dir: Path) -> str:
     return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
 
 
-def export_page(browser, url: str, page_dir: Path) -> str:
-    """The served version at `url`, copied as one self-contained document.
+def export_page(browser, url: str, page_dir: Path, name: str) -> str:
+    """The served document named by `name`, copied as one self-contained file.
 
     One implementation has two callers, as `render_version` does: `version export`
     supplies installed Chrome, while the suite drives this over the shipped
@@ -97,13 +102,13 @@ def export_page(browser, url: str, page_dir: Path) -> str:
             return inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(
-                f"{url.rsplit('/', 1)[-1]} never finished applying its live state in "
+                f"{name} never finished applying its live state in "
                 "the browser, so a copy would be half-drawn. `leaf version check "
                 "<page> --render` says what is wrong with it."
             )
         except PlaywrightError as error:
             sys.exit(
-                f"{url.rsplit('/', 1)[-1]} could not load its browser probe module "
+                f"{name} could not load its browser probe module "
                 f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
                 "trustworthy copy."
             )
@@ -131,7 +136,8 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
             "or, from a checkout,\n"
             "  bin/leaf version export <page> -o <file>"
         )
-    published = published_versions(page_dir, read_events(page_dir))
+    events = read_events(page_dir)
+    published = published_versions(page_dir, events)
     if not published:
         sys.exit(
             f"{page_dir} has no stamped version to export; "
@@ -144,8 +150,13 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
             + ", ".join(f"v{v}" for v in published)
         )
     name = version_name(version)
+    revision = version_revisions(events)[version]
+    source = version_path(page_dir, version).read_bytes()
 
-    with preview(page_dir, version) as url, sync_playwright() as p:
+    with (
+        preview(page_dir, source, revision, version=version) as url,
+        sync_playwright() as p,
+    ):
         try:
             browser = p.chromium.launch(channel="chrome")
         except PlaywrightError as e:
@@ -154,7 +165,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
                 "A copy is the drawn page, so there is nothing to write without one."
             )
         try:
-            html = export_page(browser, url, page_dir)
+            html = export_page(browser, url, page_dir, name)
         finally:
             browser.close()
 

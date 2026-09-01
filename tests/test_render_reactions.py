@@ -1136,7 +1136,7 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
     neither dead controls nor runtime roles on Mermaid's generated SVG."""
     url = serve(PART_DIAGRAM_PAGE)
     out = tmp_path / "diagram-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
@@ -1445,7 +1445,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         },
     )
     out = tmp_path / "copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")

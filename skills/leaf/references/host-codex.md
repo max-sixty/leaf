@@ -2,64 +2,59 @@
 
 Read this immediately before handing a page to Codex.
 
-## Experimental embedded MCP App
+## Embedded MCP App
 
-This path is merged for testing in installed Codex builds. Prefer it when it is
-available so the experiment receives real use, but preserve the full browser
-path and do not treat the merge as a commitment to keep or expand the embedded
-surface. Leaf will decide whether to remove it, keep it compact, or build on it
-after evaluating that use.
+Prefer the bundled model tool whose exposed name ends in `leaf_present`. Call it
+with the initialized page's absolute directory. Continue only when its result
+visibly attaches an app; a text result alone means this Codex build did not render
+the surface.
 
-Prefer the bundled Leaf MCP tool whose exposed name ends in
-`leaf_present` when it is available **and the tool result visibly attaches an
-app**. Call it with the page's absolute directory. The app labels and renders the
-active authored revision with the current event and delivery cursors; it does
-not claim to show the browser's log-projected widget state. It writes comments
-through Leaf's ordinary browser-event validator into `comments.jsonl`. It does
-not start a loopback server, create a watcher, or introduce another current-state
-store.
+The attached app frames the complete canonical Leaf page: the same projected
+document, package modules, comments, actions, versions, state stream, and event
+endpoint as the browser handoff. The MCP process supplies one ephemeral localhost
+origin, while each page receives a random capability path under it. That server is
+presentation plumbing only. It creates no `service.json`, owns no current state,
+and stops with the MCP session; the page directory and append-only log remain the
+authorities.
 
-The embedded surface is deliberately a compact review, not a second copy of the
-complete browser runtime. It renders the authored page and its local media,
-supports page, passage, and element comments on text the file-side passage
-reading can resolve, and can request fullscreen. Authored widget source is not
-quotable and widget controls are inert. Start the browser path below when the user needs a
-choice, drag, request, sign-off, or another package-owned interaction; also use
-it when Codex returns only the tool's text fallback instead of rendering the app.
-The app's **Full page** action asks Codex to start and open that browser path
-when no live page URL is already available.
+If the app shell appears but its page cannot load, use the model tool ending in
+`leaf_present_snapshot` for a comments-only authored view, or follow the browser
+fallback below when the user needs package controls. Do not call the app-only
+refresh or write tools from the model.
 
-After the app durably appends a comment, it sends the exact pending Leaf batch
-into model context and asks Codex for a follow-up turn. Only after the host
-accepts that turn does the app acknowledge the batch. The arriving turn sets the
-page `working`, follows `event-batches.md`, processes every event, then hands the
-page back to `waiting` or `idle`. Do not call the app-only write, refresh, or ack
-tools from the model; the embedded UI owns them.
+The app does not claim that a host's `ui/message` response delivered anything to
+Codex. Before finishing the handoff, set the page to `waiting` and run `leaf codex
+start <page>`. The detached adapter is the sole wake and acknowledgement carrier:
+it queues the persisted batch into a later turn of this task and advances the
+cursor only after Codex accepts that durable queue item. Then finish the turn by
+saying the Leaf page is attached; an embedded page has no durable URL to invent.
 
 ## Full browser fallback
 
-Run `leaf server start <page>` and retain its exact URL. After setting the page
-`waiting`, run `leaf codex start <page>`, then finish the turn normally with that
-URL. One detached adapter watches every page this task owns. It gives
-each complete batch a stable delivery id, queues it as a new user turn in this
-same task, and acknowledges only after Codex accepts the durable queue item.
+Use this path when `leaf_present` returns only text, when the host refuses the
+nested local page, or when the user asks to open Leaf separately. Run `leaf server
+start <page>` and retain its exact URL. After setting the page `waiting`, run `leaf
+codex start <page>`, then finish the turn normally with that URL.
 
-The loaded Desktop client starts that later turn and keeps ownership of
-execution and approvals. If the task has been unloaded, the item stays queued
-until Codex reopens it; the adapter never resumes the task or answers client
-requests on the user's behalf. The small queued message is a `leaf-delivery` XML
-element pointing to the exact persisted batch rather than copying an arbitrarily
-large batch into Codex's bounded text input. A later queued turn reads that
-payload, processes it directly, and leaves only `leaf wait` and `leaf ack` to the
-adapter. The turn still owns replies, revisions, and page status, including the
-handoff back to `waiting` or `idle`. Starting the command again for another page
-adds that page to the same task-wide watch.
+One detached adapter watches every page this task owns. It gives each complete
+batch a stable delivery id, queues it as a new user turn in this same task, and
+acknowledges only after Codex accepts the durable queue item. Starting the command
+again for another page adds that page to the same task-wide watch.
 
-If `leaf codex start` refuses to start, do not finish over a live page. Follow
-its diagnostic: an existing foreground `leaf wait` must be stopped before the
-adapter can take the task's single wait lease, and an unavailable Codex queue
-command cannot receive later turns.
+The loaded Desktop client starts that later turn and keeps ownership of execution
+and approvals. If the task has been unloaded, the item stays queued until Codex
+reopens it; the adapter never resumes the task or answers client requests on the
+user's behalf. The small queued message is a `leaf-delivery` XML element pointing
+to the exact persisted batch rather than copying an arbitrarily large batch into
+Codex's bounded text input. The later turn reads that payload and leaves only
+`leaf wait` and `leaf ack` to the adapter. It still owns replies, revisions, page
+status, and the handoff back to `waiting` or `idle`.
+
+If `leaf codex start` refuses to start, do not finish over a live page. Follow its
+diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
+can take the task's single wait lease, and an unavailable Codex queue command
+cannot receive later turns.
 
 An optional separate Codex watcher remains a fallback that requires the user's
-explicit authorization because it creates a visible task. Its route is in the
-main skill.
+explicit authorization because it creates a visible task. Its route is in the main
+skill.

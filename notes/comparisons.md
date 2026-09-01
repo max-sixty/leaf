@@ -670,22 +670,49 @@ finding the passage again, so leaf writes its own — unique-context confirmatio
 detachment rather than a fallback to ordinals — and a shared field name would
 advertise a matcher that isn't shared.
 
-The door worth watching is none of those, and it is not a format. `@json-render/mcp`
-serves a spec as an MCP App — the server returns a UI resource, the host renders it in a
-sandboxed iframe, and `callServerTool` carries the press back — so one catalog reaches
-Claude, ChatGPT, Cursor, VS Code, Goose and Postman without a hook written for any of them.
-That is leaf's reach problem solved by the host instead of by the notation. What it does
-not carry is the page: an MCP App is an iframe inside one chat message, in the host's
-window, so there are no versions, no directory, and no reader who closed the conversation
-and came back to it the next day. MCP Apps is already on this note's list of what a fuller
-one would reach, and this is the angle a fuller entry would have to take: not another way
-to describe a UI, but the one route by which a page could reach a host that has never
-heard of it. What would change the answer is named in the extension's own deferrals: app
-registrations must not outlive a session, a closed app's tool calls must error, and state
-persistence and external URLs are put off to future extensions — so an app there today is
-as mortal as the chat message holding it. External URLs or persistence landing, or a
-terminal host shipping an Apps surface, is the signal to stop watching and prototype; even
-then the route adds new hosts rather than retiring the two hooked ones.
+The door worth opening is none of those, and it is not a format. [MCP Apps][mcp-apps] —
+the official extension informed by the earlier community MCP-UI — lets a server return a
+`ui://` resource, the host render it in a sandboxed iframe, and `callServerTool` carry a
+press back. One server can therefore reach Claude, ChatGPT, VS Code and Goose without a
+hook written for each. That is leaf's reach problem solved by the host instead of by a new
+notation.
+
+A first probe against the extension's reference host found that the iframe's lifetime
+need not be the page's. An app-only `leaf_post_event` tool handed the same browser-shaped
+event to leaf's existing append boundary, which wrote the page's real log; after host
+teardown, reopening reconstructed the settled choice from that log. The stable extension
+has no iframe-registered tools: this is an app-only server tool, distinct from the
+app-provided tools in the [later draft][mcp-apps-draft]. Neither teardown binds the server
+tools or page directory behind the view. That makes a server tool the compact surface's
+natural return path. A direct app fetch also reached loopback through declared
+`connectDomains`, but leaf correctly denied cross-origin API reads, so the compact surface
+does not depend on CORS.
+
+The larger experiment overturned the premise that only the compact surface belongs here.
+The complete `ui://` app declared a loopback `frameDomains` origin and framed leaf's
+ordinary browser page: the same document, vendored runtime, open vocabulary, comment
+layer, versions, state stream and `/api/event` door. The reference host allowed the frame.
+The remaining boundary was authentication, not interface: the normal `SameSite=Strict`
+cookie is withheld in a third-party embed, while a secure partitioned cookie on the
+process-scoped MCP server admitted assets and event writes without weakening ordinary
+servers. The real page then measured 1060×332 inline and 1068×806 fullscreen with no
+horizontal overflow, zero Axe violations, five representative widgets, a working return
+control, and a keyboard choice appended to leaf's actual log. A second run authored a
+normal passage-anchored comment and traveled v2 → v1 → v2; the immutable URLs remained
+authorized and the same highlight resolved in both documents. MCP Apps can therefore
+carry the whole local Leaf interface; the compact single-choice ask is an optional
+below-the-fold optimization, not the supported-product boundary.
+
+What stays mortal is the presentation, its loopback address, and its place in the
+conversation. The browser must share the machine running the stdio server; a cloud host's
+`localhost` is somewhere else. `ui/message` was accepted by the reference host, but
+whether it starts a turn remains host policy; VS Code explicitly fills the chat input
+without sending it. The route adds local GUI hosts and a disposable inline home for the
+full page. It does not replace the page directory, durable browser deployment, wake
+mechanism, or the two existing host hooks.
+
+[mcp-apps]: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+[mcp-apps-draft]: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
 
 ## When leaf is the wrong choice
 

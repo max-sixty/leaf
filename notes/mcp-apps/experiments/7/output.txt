@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/maximilian/.codex/worktrees/a5c8/leaf
+configfile: pyproject.toml
+plugins: xdist-3.8.0, anyio-4.14.2
+collected 7 items
+
+tests/test_mcp_app.py .......                                            [100%]
+
+============================== 7 passed in 2.21s ===============================
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-7.Ft8ap0/page
+✓ index.html: parses, widgets validate, one module script + theme link, protected ids and decisions carried over, nothing overflows the 720px column

@@ -1,15 +1,19 @@
 """The MCP App bridge renders a page and returns durable feedback to its host."""
 
-from leaf.mcp_app import ack_delivery, app_html, app_snapshot, apply_event
+import shutil
+
+from interact_support import ROOT
+from leaf.event_log import append_event, read_events
+from leaf.mcp_app import app_html, app_snapshot, apply_event
+from leaf.mcp_page import ProcessPageServer
+from leaf.revisioning import activate_source
+from playwright.sync_api import expect
 
 HOST = """<!doctype html>
 <iframe id="app" style="width:100%;height:760px;border:0"></iframe>
 <script>
 window.calls = [];
 window.currentLeaf = null;
-window.failContextClear = false;
-window.holdNextMessage = false;
-window.heldMessage = null;
 window.hostCapabilities = {openLinks: {}, serverTools: {}};
 const answer = (target, id, result) => target.postMessage(
   {jsonrpc: "2.0", id, result}, "*"
@@ -52,34 +56,18 @@ window.addEventListener("message", (event) => {
   }
   if (message.method === "tools/call") {
     const name = message.params.name;
-    if (name === "leaf_apply_event") {
+    if (name === "leaf_snapshot_apply_event") {
       window.currentLeaf = {
         ...window.currentLeaf,
         eventSeq: window.currentLeaf.eventSeq + 1,
-        delivery: '{"page":"test"}\\n{"kind":"comment","seq":1}',
-        deliverySeq: window.currentLeaf.eventSeq + 1,
       };
-    }
-    if (name === "leaf_delivery_ack") {
-      window.currentLeaf = {...window.currentLeaf, delivery: null, deliverySeq: null};
     }
     answer(event.source, message.id, toolResult(window.currentLeaf));
     return;
   }
-  if (["ui/update-model-context", "ui/message"].includes(message.method)) {
-    if (message.method === "ui/update-model-context" &&
-        message.params.content?.length === 0 && window.failContextClear) {
-      refuse(event.source, message.id, "Context clear denied");
-      return;
-    }
-    if (message.method === "ui/message" &&
-        !Array.isArray(message.params.content)) {
+  if (message.method === "ui/message") {
+    if (!Array.isArray(message.params.content)) {
       refuse(event.source, message.id, "Message content must be an array");
-      return;
-    }
-    if (message.method === "ui/message" && window.holdNextMessage) {
-      window.holdNextMessage = false;
-      window.heldMessage = {target: event.source, id: message.id};
       return;
     }
     answer(event.source, message.id, {});
@@ -91,10 +79,169 @@ window.addEventListener("message", (event) => {
 """
 
 
-def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
+def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
+    append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 1,
+            "revision": 1,
+            "text": "published",
+        },
+    )
+    media = page_dir / "media"
+    media.mkdir(exist_ok=True)
+    for filename in ("051bee487bfb5d13.png", "a99a1b63048502d0.png"):
+        shutil.copy2(ROOT / "examples" / "media" / filename, media / filename)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace(
+            "</head>",
+            '<style title="before > after">#plan { background-image: '
+            "url(/media/051bee487bfb5d13.png); }</style></head>",
+        )
+        .replace("<h2>Plan</h2>", "<h2>Plan now</h2>")
+        .replace(
+            "The cutoff lives in ",
+            'Post to "/api/event" before the cutoff in ',
+        )
+        .replace(
+            "</section>",
+            '<lf-shot id="mcp-shot" alt="the page before > after" '
+            'before="/media/051bee487bfb5d13.png" '
+            'after="/media/a99a1b63048502d0.png"></lf-shot></section>',
+        ),
+        encoding="utf-8",
+    )
+    activated = activate_source(page_dir, read_events(page_dir))
+    assert activated.error is None and activated.revision == 2
+    append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "agent": "Codex",
+            "revision": 2,
+            "text": "The same comparison in a frozen message.",
+            "markup": (
+                '<lf-shot id="message-shot" alt="message before > after" '
+                'before="/media/051bee487bfb5d13.png" '
+                'after="/media/a99a1b63048502d0.png"></lf-shot>'
+            ),
+        },
+    )
+    pages = ProcessPageServer()
+    page = browser.new_page(viewport={"width": 1100, "height": 900})
+    errors = []
+    page.on(
+        "console",
+        lambda message: (
+            errors.append(message.text) if message.type == "error" else None
+        ),
+    )
+    try:
+        url = pages.open(page_dir)
+        root = url.removeprefix(pages.origin).rstrip("/")
+        page.goto(url)
+        page.wait_for_function(
+            "() => document.body.getAttribute('data-lf-presented') === '1'"
+        )
+
+        assert page.title() == "t"
+        assert page.locator(".lf-banner").is_visible()
+        page.wait_for_function(
+            """() => {
+              const images = [...document.querySelectorAll('#message-shot img')];
+              return images.length === 2 && images.every(image => image.naturalWidth > 0);
+            }"""
+        )
+        assert page.locator("#message-shot").get_attribute("before") == (
+            f"{root}/media/051bee487bfb5d13.png"
+        )
+        assert page.evaluate(
+            "() => performance.getEntriesByType('resource').map(r => r.name)"
+        )
+        assert all(
+            urlsplit.startswith(f"{pages.origin}{root}/")
+            for urlsplit in page.evaluate(
+                "() => performance.getEntriesByType('resource').map(r => r.name)"
+            )
+            if urlsplit.startswith(pages.origin)
+        )
+
+        assert 'Post to "/api/event"' in page.locator("#plan > p").inner_text()
+        assert root not in page.locator("#plan > p").inner_text()
+        page.locator("#plan > p").evaluate(
+            """paragraph => {
+              const text = paragraph.firstChild;
+              const range = document.createRange();
+              range.setStart(text, 0);
+              range.setEnd(text, 'Post to "/api/event"'.length);
+              const selected = window.getSelection();
+              selected.removeAllRanges();
+              selected.addRange(range);
+              paragraph.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            }"""
+        )
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        page.locator(".lf-fab-input").click()
+        page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
+        with page.expect_response(lambda response: response.url.endswith("/api/event")):
+            page.keyboard.press("Enter")
+
+        saved = read_events(page_dir)[-1]
+        assert saved["text"] == "Delivered through the MCP page."
+        assert saved["anchor"]["quote"] == 'Post to "/api/event"'
+        assert root not in saved["anchor"]["quote"]
+        expect(
+            page.locator(".lf-thread").filter(
+                has_text="Delivered through the MCP page."
+            )
+        ).to_have_count(1)
+
+        source.write_text(
+            source.read_text().replace(
+                "</section>",
+                '<p><img id="late" src="/media/051bee487bfb5d13.png" '
+                'alt="late revision"></p></section>',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        revised = activate_source(page_dir, read_events(page_dir))
+        assert revised.error is None and revised.revision == 3
+        page.locator("#late").wait_for()
+        page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
+        assert page.locator("#late").get_attribute("src") == (
+            f"{root}/media/051bee487bfb5d13.png"
+        )
+        assert all(
+            resource.startswith(f"{pages.origin}{root}/")
+            for resource in page.evaluate(
+                "() => performance.getEntriesByType('resource').map(r => r.name)"
+            )
+            if resource.startswith(pages.origin)
+        )
+
+        page.locator(".lf-version").click()
+        page.locator('.lf-version-row[data-lf-version="1"]').click()
+        page.wait_for_function(
+            "() => document.body.getAttribute('data-lf-presented') === '1'"
+        )
+        assert page.url.startswith(f"{pages.origin}{root}/versions/v1.html")
+        assert page.locator("#plan > h2").inner_text() == "Plan"
+        assert errors == []
+    finally:
+        page.close()
+        pages.close()
+
+
+def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_delivery(
     browser, page_dir
 ):
-    standing = apply_event(
+    apply_event(
         str(page_dir),
         {
             "kind": "comment",
@@ -104,7 +251,6 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         },
         1,
     )
-    ack_delivery(str(page_dir), standing.meta["leaf"]["deliverySeq"])
     _, private = app_snapshot(str(page_dir))
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     try:
@@ -126,25 +272,16 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
 
         app.locator("#comment-page").click()
         app.locator("#comment").fill("Explain the migration boundary.")
-        page.evaluate("window.holdNextMessage = true")
         app.locator("#send").click()
         page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
+            "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
         )
-        calls = page.evaluate("window.calls")
+        assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
         assert not [
             call
-            for call in calls
-            if call["method"] == "tools/call"
-            and call["params"]["name"] == "leaf_delivery_ack"
+            for call in page.evaluate("window.calls")
+            if call["method"] == "ui/message"
         ]
-        page.evaluate("window.releaseMessage()")
-        page.wait_for_function(
-            """() => window.calls.filter(call =>
-              call.method === 'tools/call' &&
-              call.params.name === 'leaf_delivery_ack'
-            ).length === 1"""
-        )
 
         app.evaluate(
             """() => {
@@ -205,10 +342,9 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         )
         assert app.locator("#comment").input_value() == "Keep this near the decision."
 
-        page.evaluate("window.failContextClear = true")
         app.locator("#send").click()
         page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 2"
+            "() => window.calls.filter(call => call.method === 'tools/call').length === 2"
         )
 
         calls = page.evaluate("window.calls")
@@ -216,7 +352,7 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
             call
             for call in calls
             if call["method"] == "tools/call"
-            and call["params"]["name"] == "leaf_apply_event"
+            and call["params"]["name"] == "leaf_snapshot_apply_event"
         ]
         assert "anchor" not in applies[0]["params"]["arguments"]["event"]
         anchor = applies[1]["params"]["arguments"]["event"]["anchor"]
@@ -224,30 +360,15 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         assert anchor["section"] == "plan"
         assert "prefix" not in anchor
         assert "suffix" not in anchor
-        assert (
-            len(
-                [
-                    call
-                    for call in calls
-                    if call["method"] == "tools/call"
-                    and call["params"]["name"] == "leaf_delivery_ack"
-                ]
-            )
-            == 2
-        )
-        context_updates = [
+        assert not [
             call for call in calls if call["method"] == "ui/update-model-context"
         ]
-        assert len(context_updates) == 4
-        assert context_updates[-1]["params"] == {"content": []}
-        messages = [call for call in calls if call["method"] == "ui/message"]
-        assert all(isinstance(call["params"]["content"], list) for call in messages)
-        assert "Feedback sent to Codex" in app.locator("#status").text_content()
+        assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
 
         assert app.locator("#browser").inner_text() == "Full page"
         app.locator("#browser").click()
         page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 3"
+            "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
         )
         full_page = [
             call

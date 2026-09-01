@@ -1,0 +1,50 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/maximilian/.codex/worktrees/a5c8/leaf
+configfile: pyproject.toml
+plugins: xdist-3.8.0, anyio-4.14.2
+collected 7 items
+
+tests/test_mcp_app.py .......                                            [100%]
+
+============================== 7 passed in 2.00s ===============================
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-app-experiment-1.zannj9/page
+✓ index.html: parses, widgets validate, one module script + theme link, protected ids and decisions carried over, nothing overflows the 720px column
+Cloning into '/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9'...
+Note: switching to '10195ad91851502134930e9b80ec2c04e277a720'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 10195ad9 docs: add Alpic Playground to supported clients (#729)
+🔧 Generating Zod schemas from spec.types.ts...
+
+✅ Written: /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/src/generated/schema.ts
+✅ Written: /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/src/generated/schema.test.ts
+✅ Written: /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/ext-apps-10195ad9/src/generated/schema.json
+
+🎉 Schema generation complete!
+(node:70106) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+src/generated/schema.json 54ms
+src/generated/schema.test.ts 38ms
+src/generated/schema.ts 26ms
+🔧 Syncing code snippets from example files...
+
+✅ No files needed modification
+
+🎉 Snippet sync complete!
+notes/mcp-apps/experiments/1/commands.sh: line 32: /Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/1/results/mcp-server.log: No such file or directory
+notes/mcp-apps/experiments/1/commands.sh: line 37: /Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/1/results/reference-host.log: No such file or directory

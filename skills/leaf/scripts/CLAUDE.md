@@ -24,6 +24,7 @@ The main owners are:
 - `acknowledgments` and `work`: growing delivery receipts, transient work
   claims, and widget work seats;
 - `decisions`: declaration-driven page and thread decision projections;
+- `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
 - `host`: local paths, process readings, host identity, and session lifetime;
@@ -32,8 +33,8 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, and the HTTP process;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
 - `codex`: detached Codex queue delivery and recovery;
-- `mcp_server` and `mcp_app`: the bundled MCP transport, app resource, private
-  page snapshot, and host handoff;
+- `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
+  snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;
 - `served_state/` and `http`: browser-facing projections and change readings,
   and HTTP transport;
@@ -67,8 +68,8 @@ Read the reference that owns the boundary before changing it:
   service lifetime;
 - `../references/internals/validation.md` for static checks, browser checks,
   parsed source, and file-side passages.
-- `../references/internals/mcp-app.md` for MCP tools, resource metadata, host
-  messages, and delivery acknowledgement.
+- `../references/internals/mcp-app.md` for MCP tools, resource metadata, the
+  process-scoped page server, snapshot fallback, and Codex return carrier.
 
 `../references/packages.md` owns the public package contract. The browser's
 parallel projection, passage, registry, and render rules live in `../CLAUDE.md`.

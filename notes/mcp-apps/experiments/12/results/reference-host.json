@@ -1,0 +1,73 @@
+{
+  "reference_host": {
+    "repo": "https://github.com/modelcontextprotocol/ext-apps",
+    "commit": "10195ad91851502134930e9b80ec2c04e277a720"
+  },
+  "model_visible_tools": [
+    "leaf_open_page"
+  ],
+  "initial": {
+    "viewport": {
+      "width": 414,
+      "height": 354
+    },
+    "document": {
+      "client_width": 414,
+      "client_height": 354,
+      "scroll_width": 414,
+      "scroll_height": 354
+    },
+    "content": {
+      "client_height": 270,
+      "scroll_height": 526
+    },
+    "question": "Where should a session live?",
+    "labels": [
+      "Stateless JWT",
+      "Redis, cookie fallback",
+      "Postgres table"
+    ],
+    "summary_lengths": [
+      471,
+      406,
+      303
+    ]
+  },
+  "document_horizontal_overflow": false,
+  "document_vertical_overflow": false,
+  "content_scrolls": true,
+  "axe": {
+    "violations": 0,
+    "snapshot": ""
+  },
+  "keyboard_choice": {
+    "widget": "session-options",
+    "action": "choose",
+    "detail": {
+      "options": [
+        "opt-redis"
+      ]
+    },
+    "seq": 1
+  },
+  "visible_status_box": {
+    "x": 134.015625,
+    "y": 487.5,
+    "width": 287.984375,
+    "height": 15
+  },
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://localhost:8080/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "screenshot": "/Users/maximilian/.codex/worktrees/a5c8/leaf/notes/mcp-apps/experiments/12/results/compact-ask-420x360.png"
+}

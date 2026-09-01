@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Leaf page</title>
+    <style>
+      /* LEAF_MCP_STYLE */
+    </style>
+  </head>
+  <body>
+    <main class="shell" id="app">
+      <header class="bar">
+        <div class="identity">
+          <span class="mark" aria-hidden="true"><!-- LEAF_MCP_ICON --></span>
+          <span class="product">Leaf</span>
+          <span class="page-title" id="page-title">Opening page…</span>
+        </div>
+        <div class="actions">
+          <button id="refresh" type="button">Refresh</button>
+          <button id="open-page" type="button" disabled>Open in browser</button>
+          <button id="display-mode" type="button" hidden>Full screen</button>
+        </div>
+      </header>
+      <section class="surface" id="surface">
+        <p class="loading" id="loading">Starting the Leaf page…</p>
+        <iframe
+          id="leaf-page"
+          title="Leaf page"
+          referrerpolicy="no-referrer"
+          hidden
+        ></iframe>
+      </section>
+      <footer class="foot">
+        <span id="sequence">Waiting for Leaf</span>
+        <span id="source-warning" hidden>Showing the last valid revision</span>
+        <span id="status" role="status" aria-live="polite"></span>
+      </footer>
+    </main>
+    <script>
+      /* LEAF_MCP_SCRIPT */
+    </script>
+  </body>
+</html>

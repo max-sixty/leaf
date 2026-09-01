@@ -1,6 +1,7 @@
 """HTTP transport and routes for one served page."""
 
 import json
+import re
 import secrets
 import select
 import time
@@ -60,7 +61,120 @@ ALIVE_S = 5.0
 PRESENCE_S = 2.0
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+_ROOTED_PAGE_ROUTE = re.compile(
+    rb'(?P<before>["\'`(])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")"
+)
+
+_ROOTED_PAGE_ATTRIBUTE = re.compile(
+    rb'(?P<before>=\s*["\'])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")",
+    re.IGNORECASE,
+)
+_HTML_START_TAG = re.compile(rb"<[A-Za-z](?:[^<>\"']|\"[^\"]*\"|'[^']*')*>", re.DOTALL)
+_STYLE_ATTRIBUTE = re.compile(
+    rb'(?P<before>\bstyle\s*=\s*)(?P<quote>["\'])(?P<value>.*?)(?P=quote)',
+    re.IGNORECASE | re.DOTALL,
+)
+_STYLE_ELEMENT = re.compile(
+    rb"(?P<open><style\b(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>)"
+    rb"(?P<value>.*?)(?P<close></style\s*>)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def scope_page_routes(body: bytes, page_root: str) -> bytes:
+    """Put Leaf's canonical root routes below one delivery capability path.
+
+    Package modules intentionally speak the same root-relative browser contract as
+    the kernel. The process-scoped MCP server multiplexes pages on one origin, so it
+    adapts those known routes at its HTTP boundary instead of making packages learn a
+    second addressing convention.
+    """
+    if not page_root:
+        return body
+    root = page_root.rstrip("/").encode()
+    return _ROOTED_PAGE_ROUTE.sub(
+        lambda match: match.group("before") + root + b"/" + match.group("path"),
+        body,
+    )
+
+
+def scope_document_routes(body: bytes, page_root: str) -> bytes:
+    """Scope only route-bearing HTML attributes in an authored document.
+
+    Authored prose is also the anchorable record. A route-looking phrase in that
+    prose must therefore remain byte-for-byte identical to the immutable revision,
+    while actual browser addresses still need the process page capability.
+    """
+    if not page_root:
+        return body
+    root = page_root.rstrip("/").encode()
+
+    def scope_routes(value: bytes) -> bytes:
+        return _ROOTED_PAGE_ROUTE.sub(
+            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            value,
+        )
+
+    def scope_start_tag(tag_match: re.Match) -> bytes:
+        tag = _ROOTED_PAGE_ATTRIBUTE.sub(
+            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            tag_match.group(),
+        )
+        return _STYLE_ATTRIBUTE.sub(
+            lambda match: (
+                match.group("before")
+                + match.group("quote")
+                + scope_routes(match.group("value"))
+                + match.group("quote")
+            ),
+            tag,
+        )
+
+    scoped = _HTML_START_TAG.sub(scope_start_tag, body)
+    return _STYLE_ELEMENT.sub(
+        lambda match: (
+            match.group("open")
+            + scope_routes(match.group("value"))
+            + match.group("close")
+        ),
+        scoped,
+    )
+
+
+def scope_page_urls(value, page_root: str):
+    """Scope the canonical version addresses in a multiplexed state response."""
+    if not page_root:
+        return value
+    if isinstance(value, list):
+        return [scope_page_urls(item, page_root) for item in value]
+    if not isinstance(value, dict):
+        return value
+    scoped = {}
+    for key, item in value.items():
+        if (
+            key == "url"
+            and isinstance(item, str)
+            and item.startswith(("/versions/", "/revisions/"))
+        ):
+            scoped[key] = page_root.rstrip("/") + item
+        elif key == "markup" and isinstance(item, str):
+            scoped[key] = scope_document_routes(item.encode(), page_root).decode()
+        else:
+            scoped[key] = scope_page_urls(item, page_root)
+    return scoped
+
+
+def runtime_document(
+    source: str,
+    revision: int,
+    version: int | None = None,
+) -> bytes:
     """Inject the exact immutable identity beside the canonical runtime script."""
     parsed = parse_structure(source)
     scripts = [
@@ -88,6 +202,9 @@ class Handler(BaseHTTPRequestHandler):
     # writer that spends it.
     set_cookie = False
     preview_source = None
+    # Empty on the ordinary one-page server. The MCP delivery server sets this to
+    # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+    page_root = ""
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -303,6 +420,12 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
+        if ctype.startswith("text/html"):
+            body = scope_document_routes(body, self.page_root)
+        elif ctype.startswith(
+            ("text/css", "text/javascript", "application/javascript")
+        ):
+            body = scope_page_routes(body, self.page_root)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -314,7 +437,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, obj, status: int = 200) -> None:
         self._send(
-            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
+            status,
+            "application/json",
+            json.dumps(
+                scope_page_urls(obj, self.page_root), ensure_ascii=False
+            ).encode(),
         )
 
     def do_GET(self):

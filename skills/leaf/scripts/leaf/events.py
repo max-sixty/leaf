@@ -39,7 +39,7 @@ def undo_error(event: dict, events: list, within: dict) -> str | None:
     downstream asks a second time whether an `undoes` points at something real.
     Two tabs racing to take back the same event are the one case this refuses
     that nothing is wrong with: the second is a no-op, and refusing it costs a
-    toast where accepting it would leave two withdrawals of one gesture in a log
+    notice where accepting it would leave two withdrawals of one gesture in a log
     whose every other line is something the reader did.
 
     A reaction is the one message a reader takes back rather than answers,

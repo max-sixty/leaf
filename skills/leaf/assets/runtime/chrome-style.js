@@ -669,6 +669,13 @@ ${MARK_RULES}
     .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .lf-status-text .lf-age { color: var(--muted); }
+    /* The line's momentary other words (notifications.js), in its place rather than beside
+       it: the row holds one sentence at a time, and a narrow window clips the notice the
+       way it clips the line. Ink rather than the line's ink-2, since it is news. */
+    .lf-notice { display: none; color: var(--ink); white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; min-width: 0; }
+    .lf-notice.show { display: block; }
+    .lf-banner-status:has(> .lf-notice.show) > .lf-status-text { display: none; }
     /* All leaves spends the shelf's slack; the remaining controls stay packed against
        the right edge. That decides who pays for a control changing size: it moves itself
        and the controls to its left, while everything to its right keeps its place. Three
@@ -1209,13 +1216,6 @@ ${MARK_RULES}
        carries (see msgNode) — so this is where they keep their own line breaks. */
     .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
       border-radius: 6px; white-space: pre-wrap; }
-    .lf-toast { position: fixed; bottom: calc(18px + var(--lf-safe-bottom));
-      right: calc(18px + var(--lf-safe-right)); z-index: 9200;
-      max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
-      overflow-wrap: anywhere; background: var(--ink); color: var(--paper); padding: 9px 14px;
-      border-radius: var(--r); opacity: 0; transition: opacity .25s, right .18s ease; pointer-events: none; }
-    .lf-toast.show { opacity: .95; }
-    .lf-toast.clickable { pointer-events: auto; cursor: pointer; }
     .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     .lf-help { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
       width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));

@@ -45,7 +45,7 @@ export function createProjection(runtime, dependencies) {
     settlementSlots,
     standOn,
     textNodesUnder,
-    toast,
+    notice,
   } = dependencies;
   const { registry } = runtime;
 
@@ -374,13 +374,13 @@ export function createProjection(runtime, dependencies) {
   }
   // Naming the gesture rather than walking to it: a standing mark is its own eraser — a
   // reaction's glyph in the margin, its pill on a strip — and a press there takes back
-  // exactly that event, which need not be the newest. Same door, same toast.
+  // exactly that event, which need not be the newest. Same door, same notice.
   async function withdraw(e) {
     runtime.undoing = true;
     paintKeys();
     try {
       if (await post({ kind: "undo", undoes: e.id }))
-        toast(`${undoWord(e)} — recorded`);
+        notice(`${undoWord(e)} — recorded`);
     } finally {
       runtime.undoing = false;
       paintKeys();

@@ -40,8 +40,7 @@ export function createStateApplication(dependencies) {
     renderVersions,
     runtime,
     sameLayer,
-    setPanel,
-    showToast,
+    notice,
     settleAcceptedDrafts,
     stateSignoff,
     updateFab,
@@ -168,7 +167,7 @@ export function createStateApplication(dependencies) {
       ),
     };
     let nextAgentMsgCount = null;
-    let replyToast = null;
+    let replyNotice = null;
     let restoreClaimState = () => {};
     const apply = async () => {
       runtime.events = nextEvents;
@@ -210,10 +209,7 @@ export function createStateApplication(dependencies) {
             ),
         );
         if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
-          replyToast = {
-            message: `${agentReplies.at(-1).agent || "Agent"} replied — open Threads`,
-            onClick: () => setPanel(true),
-          };
+          replyNotice = `${agentReplies.at(-1).agent || "Agent"} replied — open Threads`;
         nextAgentMsgCount = agentReplies.length;
       }
       // Last, because the panel has just rendered the log: a widget carried by a reply is
@@ -228,7 +224,7 @@ export function createStateApplication(dependencies) {
         finishActivation();
         paintAnchors();
         updateFab();
-        showToast(`Updated to ${runtime.currentLabel}`);
+        notice(`Updated to ${runtime.currentLabel}`);
       }
       // Only a complete application advances the read boundary. A render fault may
       // already have changed some local surfaces, but it has not made a state safe to use
@@ -308,7 +304,7 @@ export function createStateApplication(dependencies) {
       throw error;
     }
     if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
-    if (replyToast) showToast(replyToast.message, replyToast.onClick);
+    if (replyNotice) notice(replyNotice);
   }
 
   return { receiveState };

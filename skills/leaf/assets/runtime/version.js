@@ -17,14 +17,20 @@ import { designOn } from "./design.js";
 import { shownBox } from "./geometry.js";
 import { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { toast } from "./notifications.js";
-import { inChrome, textNodesUnder, wrote } from "./passages.js";
+import { notice } from "./notifications.js";
+import {
+  closestAcross,
+  containsAcross,
+  inChrome,
+  textNodesUnder,
+  wrote,
+} from "./passages.js";
 import { MARKED_IN_PAGE, dress, markDeclared } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { LIVE_ROOT, PAGE_SCOPE, versionUrl } from "./storage.js";
-import { quoted } from "./widget-elements.js";
+import { focusDestination, quoted } from "./widget-elements.js";
 import { settle, settling } from "./widget-upgrade.js";
 
 // The document roots may carry authored classes, data attributes, and inline custom
@@ -68,6 +74,7 @@ export function createVersion({
   domFacet,
   el,
   elementById,
+  focused,
   landedAt,
   midComposition,
   pageText,
@@ -278,7 +285,7 @@ export function createVersion({
           const was = document.activeElement;
           const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
           // A press at either end lands on the row it started from, and now that the walk
-          // states a comparison, landing is not free — it would re-fetch the base and toast
+          // states a comparison, landing is not free — it would re-fetch the base and say
           // its count again for a press that moved nothing.
           if (!row || row === was) return;
           // The comparison the row states: its own version as the base, or none at all where
@@ -794,7 +801,7 @@ export function createVersion({
     const mine = ++diffRequest;
     const baseRevision = stamped(base)?.revision;
     if (baseRevision == null) {
-      toast(`Couldn't load v${base}`);
+      notice(`Couldn't load v${base}`);
       return;
     }
     const documentRequest = authoredDocument(versionUrl(base));
@@ -813,14 +820,14 @@ export function createVersion({
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
     } catch {
-      toast(`Couldn't load v${base}`);
+      notice(`Couldn't load v${base}`);
       return;
     }
     if (mine !== diffRequest) return;
     if (diffOn) setDiff(false); // the old base's marks, before the new base's land
     const n = applyDiff(doc, base, reading);
     setDiff(true, base);
-    toast(
+    notice(
       n
         ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
         : `No text changes since v${base}`,
@@ -912,10 +919,12 @@ export function createVersion({
     stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
   }
 
-  // Resolves to the second half of the move — the reader's place, and the comparison the
-  // replacement dropped — run once the state that brought the revision is on the new main.
+  // Resolves to the second half of the move — the reader's place and standing, and the
+  // comparison the replacement dropped — run once the state that brought the revision is
+  // on the new main.
   async function activateRevision(doc, revision) {
     const view = captureView();
+    const standing = captureStanding();
     const source = doc.querySelector("body > main");
     const fresh = document.importNode(source, true);
     revisionDocuments.delete(revision.revision);
@@ -952,6 +961,7 @@ export function createVersion({
     if (designOn) paintLegend();
     return () => {
       restoreView(view);
+      restoreStanding(standing);
       if (comparedFrom !== null) showComparison(comparedFrom);
     };
   }
@@ -1102,6 +1112,56 @@ export function createVersion({
       // that had somewhere to land did nothing, silently, and left the reader at the top.
       moveScrollerBy(pageScroller, shownBox(section).top - view.sectionTop);
     } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
+  }
+
+  // Where the reader is standing in the authored page, written down so the swap can hand
+  // it back. The key line over a focused pick mark offers "1–2 toggle the nth"; those are
+  // presses the reader is about to make, and a replacement that dropped the focus onto
+  // body took the offer down with it — the digit then picked nothing, silently. Node
+  // identity does not survive the swap, so the place is stated the way the decision above
+  // is, by id: the nearest element carrying one, and within it the control by kind and
+  // position, since a grip or a pick mark is the runtime's and carries no id of its own.
+  // A control staged in a shadow tree is out of the place's own query and comes back as
+  // the place. The chrome stays through a swap and so does focus inside it, so a reader
+  // standing there has nothing to write down. The place is an authored element, read the
+  // way the anchor pass reads which section a passage is in: an injected row carries an
+  // id too, and is not a place a revision keeps.
+  function captureStanding() {
+    const held = focused();
+    if (!held || held === document.body || inChrome(held)) return null;
+    const main = document.querySelector("body > main");
+    const place = closestAcross(held, "[id]:not(.lf-ui)");
+    if (!place || !main || !containsAcross(main, place)) return null;
+    if (place === held) return { id: place.id };
+    // The first class is the one the control was built with; later ones are state the
+    // fresh control will not be wearing yet. Escaped, since an authored class need not
+    // be a bare identifier.
+    const kind = [held.localName, held.classList[0] && CSS.escape(held.classList[0])]
+      .filter(Boolean)
+      .join(".");
+    return {
+      id: place.id,
+      kind,
+      index: [...place.querySelectorAll(kind)].indexOf(held),
+    };
+  }
+  // The same control where the revision kept it; the place where it kept only that; and
+  // nothing where it kept neither — a reader whose item the revision removed is standing
+  // nowhere, and body, where the page's own keys are live, is the honest answer.
+  function restoreStanding(standing) {
+    if (!standing) return;
+    // Only where the swap left the reader standing nowhere. The activation settles its
+    // modules asynchronously after the swap, and a reader who moved into the chrome
+    // across that gap has taken a place of their own.
+    const held = focused();
+    if (held && held !== document.body) return;
+    const place = elementById(standing.id);
+    if (!place) return;
+    const control =
+      standing.kind === undefined
+        ? place
+        : (place.querySelectorAll(standing.kind)[standing.index] ?? place);
+    focusDestination(control);
   }
 
   function installArrival({ fragmentId, ready, scrollToElement, tabStore }) {

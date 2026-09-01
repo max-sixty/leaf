@@ -74,7 +74,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
     """The served document named by `name`, copied as one self-contained file.
 
     One implementation has two callers, as `render_version` does: `version export`
-    supplies installed Chrome, while the suite drives this over the shipped
+    supplies the host's browser, while the suite drives this over the shipped
     examples with its Chromium headless shell. That keeps the export behavior in
     one function without claiming that the two browser launch paths are identical.
 

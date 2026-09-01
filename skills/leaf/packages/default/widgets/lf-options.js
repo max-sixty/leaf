@@ -111,7 +111,7 @@ import {
   relabel,
   selectableOffer,
   sendAction,
-  toast,
+  notice,
   walkRows,
   worksInside,
   wrote,
@@ -208,7 +208,7 @@ customElements.define(
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
         sendAction(this, "choose", this.#addition.detailFor(next)).then((ok) => {
-          if (ok) toast(`${said} — recorded`);
+          if (ok) notice(`${said} — recorded`);
         });
       });
     }
@@ -265,7 +265,7 @@ customElements.define(
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         if (actionStands(accepted)) this.#answered(true);
-        toast("Marked answered — recorded");
+        notice("Marked answered — recorded");
         return true;
       });
       this.#sending(sent);

@@ -1,6 +1,7 @@
 /* The page's one DOM reading and quote resolver. */
 let publishedPassages;
 export const closestAcross = (...args) => publishedPassages.closestAcross(...args);
+export const containsAcross = (...args) => publishedPassages.containsAcross(...args);
 export const inChrome = (...args) => publishedPassages.inChrome(...args);
 export const inUi = (...args) => publishedPassages.inUi(...args);
 export const renderRetired = (...args) => publishedPassages.renderRetired(...args);
@@ -733,7 +734,7 @@ export function createPassages(dependencies) {
     // the only lead there is, and one that spent the cap exactly is not worth a term
     // the walk would take anyway.
     const lead = [];
-    for (let spent = 0; words.length > lead.length;) {
+    for (let spent = 0; words.length > lead.length; ) {
       const next = words[lead.length];
       if (lead.length && spent + next.length > LEAD_CAP) break;
       lead.push(next);

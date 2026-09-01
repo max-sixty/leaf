@@ -324,6 +324,7 @@ export function createLivingMargin(dependencies) {
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
   let settlingOptionsFocus = false;
+  let suppressingOptionsArrival = false;
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
@@ -909,7 +910,7 @@ export function createLivingMargin(dependencies) {
         !control.hidden &&
         control.checkVisibility(),
     );
-    action?.focus({ preventScroll: true });
+    if (action) focusForNavigation(action);
   }
 
   function setOptionsOpen(
@@ -945,12 +946,12 @@ export function createLivingMargin(dependencies) {
   }
 
   function focusForNavigation(control) {
-    const wasSettlingOptionsFocus = settlingOptionsFocus;
-    settlingOptionsFocus = true;
+    const wasSuppressingOptionsArrival = suppressingOptionsArrival;
+    suppressingOptionsArrival = true;
     try {
       control.focus({ preventScroll: true });
     } finally {
-      settlingOptionsFocus = wasSettlingOptionsFocus;
+      suppressingOptionsArrival = wasSuppressingOptionsArrival;
     }
   }
 
@@ -1458,6 +1459,7 @@ export function createLivingMargin(dependencies) {
           const control = event.target.closest?.(".lf-margin-action");
           if (
             settlingOptionsFocus ||
+            suppressingOptionsArrival ||
             !control ||
             !host.contains(control) ||
             !control.matches(":focus-visible")

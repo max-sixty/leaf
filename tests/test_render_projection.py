@@ -991,6 +991,16 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
+    # A walk out of an unfolded cluster folds the old destination while suppressing
+    # only the new destination's Tab-style arrival. The two halves share one native
+    # focus transition, whose focusout and focusin both fire inside focus().
+    walked_item.locator(":scope > .lf-margin-more").click()
+    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
+    page.keyboard.press("a")
+    expect(page.locator("#t-baffles-decision[data-lf-decision]")).to_have_count(1)
+    expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
+    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
+
     # A window tall enough to hold the whole page, so the root has no scroll range and the
     # browser will not focus body as a scrolling affordance.
     resized(page, 1200, 2400)
@@ -1001,6 +1011,17 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body"), (
         "letting go left the reader holding the control on a page that fits the window"
     )
+
+    # The direct Page-map address is navigation too: it lands on the target's primary
+    # Button without unfolding the peer controls into an extra Escape rung.
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press("2")
+    expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
+    expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
+    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
     page.close()
 

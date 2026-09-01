@@ -31,6 +31,7 @@ import {
   registerMarginItem,
   says,
   sendAction,
+  shownParts,
   textNodesUnder,
   toast,
 } from "/runtime/widget-api.js";
@@ -168,7 +169,10 @@ customElements.define(
         // passage, so that passage becomes the durable perch instead of making a word
         // marked data-lf-said disappear with a target that now paints no box.
         target: () =>
-          this.checkVisibility() || !this.dataset.lfState ? this : this.parentElement,
+          !this.dataset.lfState ||
+          shownParts(this).some((part) => part.checkVisibility())
+            ? this
+            : this.parentElement,
         controls: this.#row,
         items: () => [
           {

@@ -348,8 +348,18 @@ export function createLivingMargin(dependencies) {
     ...standingAfterOffers(entry),
   ];
   const directControls = (entry) => directOffers(entry).flatMap(controlsOf);
-  const controlShownByOwner = (control) =>
-    !control.hidden && getComputedStyle(control).visibility !== "hidden";
+  const controlShownByOwner = (control) => {
+    // The margin hides non-primary controls with `display: none`, so ask how this
+    // candidate paints while exempt from that rule. Its contributor's own `display`
+    // and `visibility` still apply — including the retired half of a settled pair.
+    const wasPrimary = control.hasAttribute("data-lf-button-primary");
+    control.setAttribute("data-lf-button-primary", "");
+    const style = getComputedStyle(control);
+    const shown =
+      !control.hidden && style.display !== "none" && style.visibility !== "hidden";
+    control.toggleAttribute("data-lf-button-primary", wasPrimary);
+    return shown;
+  };
   function choosePrimary(entry) {
     const controls = directControls(entry).filter(controlShownByOwner);
     return controls[0] ?? null;

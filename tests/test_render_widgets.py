@@ -1428,6 +1428,39 @@ def test_a_settled_receipt_keeps_a_visible_perch_when_the_change_vanishes(
     page.close()
 
 
+def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
+    """The retired Accept control is `display: none`, so Reject becomes the one
+    canonical circle rather than leaving a receipt beside an unrelated `…` Button."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    row = page.locator("[data-lf-for='sug']")
+    reject = row.locator(".lf-sug-reject")
+    unfolded_button(reject).click()
+
+    expect(reject).to_be_visible()
+    expect(reject).to_have_attribute("data-lf-button-primary", "")
+    expect(row.locator(".lf-sug-accept")).to_be_hidden()
+    expect(row.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    assert errors == []
+    page.close()
+
+
+def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, serve):
+    """A `display: contents` suggestion still paints through its children; settling it
+    must not re-perch its receipt on the containing section and change the map target."""
+    styled = SHORT_SUGGESTION.replace(
+        "</head>", "<style>#sug { display: contents; }</style>\n</head>"
+    )
+    page, errors = open_page(browser, serve(styled))
+    item = page.locator("[data-lf-for='sug']").locator("xpath=..")
+    assert item.evaluate("row => row.lfEntry.target.id") == "sug"
+
+    item.locator(".lf-sug-accept").click()
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    assert item.evaluate("row => row.lfEntry.target.id") == "sug"
+    assert errors == []
+    page.close()
+
+
 # `folded` is the layer's own division of the pair rather than a convenience: accept
 # rests in the rail as the target's primary Button, and reject is one press behind `…`.
 @pytest.mark.parametrize(

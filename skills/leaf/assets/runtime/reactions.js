@@ -91,20 +91,24 @@ export function createReactions({
   // changing the shape of every pill.
   function reactPill(name, entry, pressed, { margin = false, response = false } = {}) {
     const pill = offer("button", `${margin || response ? "" : "lf-pill "}lf-react`);
+    const meaning = `${name} — ${entry.means}`;
     pill.dataset.token = name;
-    pill.title = `${name} — ${entry.means}`;
-    pill.setAttribute("aria-label", name);
-    if (margin)
+    if (margin) {
+      pill.setAttribute("aria-label", meaning);
       marginAction(pill, {
         glyph: entry.glyph,
-        label: name,
+        label: meaning,
       });
-    else if (response) responseAction(pill, { glyph: entry.glyph, label: name });
-    else
-      pill.append(
-        el("span", "lf-react-glyph", entry.glyph),
-        el("span", "lf-react-word", name),
-      );
+    } else {
+      pill.title = meaning;
+      pill.setAttribute("aria-label", name);
+      if (response) responseAction(pill, { glyph: entry.glyph, label: name });
+      else
+        pill.append(
+          el("span", "lf-react-glyph", entry.glyph),
+          el("span", "lf-react-word", name),
+        );
+    }
     pill.onclick = () => pressed(name, pill);
     return pill;
   }

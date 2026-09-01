@@ -439,6 +439,13 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-action")
     )
+    ok = reactions.locator('.lf-react[data-token="ok"]')
+    expect(ok).to_have_attribute("aria-label", "ok — settled — no change asked")
+    expect(ok).not_to_have_attribute("title", re.compile(".+"))
+    ok.hover()
+    expect(ok.locator(".lf-margin-action-label")).to_have_text(
+        "ok — settled — no change asked"
+    )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -915,7 +922,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker.locator(".lf-margin-count")).to_have_count(0)
     expect(marker).to_have_attribute("aria-label", re.compile(r"Thread, \d+ of"))
     expect(marker).not_to_have_attribute("aria-label", re.compile("Outcome"))
-    expect(marker).to_have_attribute("title", "Thread")
+    expect(marker).not_to_have_attribute("title", re.compile(".+"))
     more = marker.locator("xpath=..").locator(":scope > .lf-margin-more")
     expect(more).to_be_visible()
     claim = marker.locator("xpath=..").evaluate(

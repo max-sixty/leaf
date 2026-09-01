@@ -232,27 +232,26 @@ export function chromeStyle({
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
-  /* The pluggable RHS action. Contributors choose glyph, label, tone, and collapse
-     policy through marginAction(); this declaration owns every visual and interactive
-     constant that makes unlike verbs read as one family. Width may follow the word,
-     but height, capsule, type, state, and focus never follow the contributor. */
+  /* The pluggable RHS action. Contributors choose glyph, label, tone, and behavior
+     through marginAction(); this declaration owns every visual and interactive
+     constant that makes unlike verbs read as one family. */
   .lf-margin-action {
-    box-sizing: border-box; min-width: 30px; min-height: 30px; padding: 2px 9px;
-    border: 1px solid var(--border-2); border-radius: 999px;
-    background: var(--card); color: var(--ink-2);
+    position: relative; box-sizing: border-box; width: 32px; min-width: 32px;
+    height: 32px; min-height: 32px; padding: 0;
+    border: 1px solid var(--border-2); border-radius: 50%;
+    background: var(--paper); color: var(--ink-2); flex: 0 0 auto;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-action[hidden] { display: none; }
-  /* A Button carries one of three promises. An action has a filled face and an
-     imperative word. A disclosure stays hollow. The ellipsis is the same hollow face
-     and unfolds secondary Buttons in the target cluster. All three keep one height,
-     radius, type, and focus treatment. */
+  /* A Button carries one of three promises. An action's uniformly heavier ring says
+     this press acts now. A disclosure opens context, and the ellipsis unfolds peer
+     Buttons in the target cluster. All three keep one circular fitting. */
   .lf-margin-action[data-lf-behavior="action"] {
-    border-color: color-mix(in srgb, var(--ink-2) 38%, var(--border-2));
-    background: var(--chip); color: var(--ink);
-    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+    border-width: 2px;
+    border-color: color-mix(in srgb, var(--ink-2) 55%, var(--border-2));
+    color: var(--ink);
   }
   .lf-margin-action[data-lf-behavior="disclosure"],
   .lf-margin-action[data-lf-behavior="options"] {
@@ -295,7 +294,23 @@ export function chromeStyle({
     border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
   }
   .lf-margin-action-glyph { line-height: 1; }
-  .lf-margin-action-space { white-space: pre; }
+  .lf-margin-action > .lf-margin-action-space { display: none; }
+  .lf-margin-action > .lf-margin-action-label {
+    position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
+    inset-inline-start: 50%; display: block; width: max-content; max-width: 180px;
+    padding: 4px 7px; border-radius: 4px;
+    background: var(--ink); color: var(--paper);
+    font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translate(-50%, -2px);
+    transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
+  }
+  .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])
+    > .lf-margin-action-label {
+    opacity: 1; visibility: visible; transform: translate(-50%, 0);
+    transition-delay: 90ms;
+  }
   .lf-margin-item > .lf-margin-contribution >
     .lf-margin-action:not([data-lf-button-primary]),
   .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
@@ -303,10 +318,6 @@ export function chromeStyle({
   }
   .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not(:has(> [data-lf-button-primary])) {
     display: none;
-  }
-  .lf-margin-item.lf-condensed > .lf-margin-contribution { min-width: 0 !important; }
-  .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
-    width: 30px; min-width: 30px !important; padding-inline: 0;
   }
   /* A gesture the log has not answered yet, in the platform's own word for it, which
      is why no tag is named here: any widget that says aria-busy is painted, and
@@ -1480,14 +1491,12 @@ ${MARK_RULES}
       .lf-btn, .lf-pill:is(button, [role="button"]), .lf-margin-action {
         min-height: 44px;
       }
+      .lf-margin-action { width: 44px; min-width: 44px; height: 44px; }
       .lf-response-control { --lf-response-height: 44px; }
       .lf-banner-actions > .lf-btn { min-height: 44px; }
       .lf-panel-head .lf-btn { min-width: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
       .lf-react { min-width: 44px; }
-      .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
-        width: 44px; min-width: 44px !important;
-      }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
       .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
         transform: translateY(-50%); }

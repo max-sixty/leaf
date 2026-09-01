@@ -221,9 +221,9 @@ customElements.define(
       measure(this.#row, () => {
         // The open cluster is Save + `…`; reserve that complete fitting while the
         // detached measurement row contains its direct controls, before resting Edit
-        // replaces them. Thirty-four pixels are the 30px options Button and its 4px gap.
+        // replaces them. The options Button is the same width as Save, plus one gap.
         const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
-        this.#buttonReserve = saveWidth + 34;
+        this.#buttonReserve = saveWidth * 2 + 4;
         this.#row.style.minWidth = `${saveWidth}px`;
         this.#row.replaceChildren(this.#pencil);
         this.#row.style.opacity = "";

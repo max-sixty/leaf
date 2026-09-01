@@ -42,7 +42,7 @@ export function updateMarginRow(row, options = {}) {
 
 export function unregisterMarginRow(row) {
   rows.delete(row);
-  row?.classList.remove("lf-condensed", "lf-docked", "lf-waiting");
+  row?.classList.remove("lf-docked", "lf-waiting");
   if (row) row.style.transform = "";
   if (!rows.size) {
     observer?.disconnect();
@@ -64,10 +64,9 @@ export function layoutMarginRows() {
       rows.delete(row);
       continue;
     }
-    row.classList.remove("lf-condensed", "lf-docked", "lf-waiting");
+    row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";
     options.place?.(row, columnRect);
-    if (options.condense?.(row, columnRect, room)) row.classList.add("lf-condensed");
   }
   if (!rows.size) {
     observer?.disconnect();

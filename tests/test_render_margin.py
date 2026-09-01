@@ -276,7 +276,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         expect(button).to_have_class(re.compile(r"lf-margin-action"))
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
-    ).to_be_visible()
+    ).to_be_hidden()
     expect(suggestion_item.locator(".lf-sug-accept")).to_have_attribute(
         "data-lf-behavior", "action"
     )
@@ -331,21 +331,39 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "aria-expanded", "false"
     )
     expect(draft_item.locator(".lf-draft-pencil .lf-margin-action-label")).to_have_text(
-        "Edit"
+        "Edit…"
     )
     expect(page.locator(".lf-margin-action-cue")).to_have_count(0)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
-    assert suggestion_item.locator(".lf-sug-accept").evaluate(
+    accept = suggestion.locator(".lf-sug-accept")
+    edit = draft_item.locator(".lf-draft-pencil")
+    assert accept.evaluate(
         "el => getComputedStyle(el).backgroundColor"
-    ) != draft_item.locator(".lf-draft-pencil").evaluate(
-        "el => getComputedStyle(el).backgroundColor"
-    ), "a committing action and a disclosure no longer have distinct faces"
-    assert draft_item.locator(".lf-draft-pencil").evaluate(
-        "el => getComputedStyle(el).backgroundColor"
-    ) == more.evaluate("el => getComputedStyle(el).backgroundColor"), (
-        "disclosure and overflow no longer share the hollow Button face"
+    ) == edit.evaluate("el => getComputedStyle(el).backgroundColor"), (
+        "actions and disclosures no longer share the same unfilled circle"
     )
+    assert edit.evaluate("el => getComputedStyle(el).backgroundColor") == more.evaluate(
+        "el => getComputedStyle(el).backgroundColor"
+    ), "disclosure and overflow no longer share the same circular face"
+    borders = [
+        control.evaluate(
+            "el => { const s = getComputedStyle(el); "
+            "return [s.borderTopWidth, s.borderRightWidth, "
+            "s.borderBottomWidth, s.borderLeftWidth]; }"
+        )
+        for control in (accept, edit, more)
+    ]
+    assert borders == [["2px"] * 4, ["1px"] * 4, ["1px"] * 4], (
+        "the whole ring no longer distinguishes immediate actions from context"
+    )
+
+    before_hover = edit.bounding_box()
+    edit.hover()
+    expect(edit.locator(".lf-margin-action-label")).to_be_visible()
+    assert edit.bounding_box() == before_hover, "the transient label moved its Button"
+    page.mouse.move(0, 0)
+    expect(edit.locator(".lf-margin-action-label")).to_be_hidden()
 
     draft_address = draft_item.evaluate(
         """item => {
@@ -368,14 +386,12 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     ).evaluate_all(
         "els => els.map(el => { const box = el.getBoundingClientRect(); "
         "const style = getComputedStyle(el); "
-        "return [Math.round(box.height), style.borderRadius]; })"
+        "return [Math.round(box.width), Math.round(box.height), style.borderRadius]; })"
     )
     assert len({tuple(shape) for shape in shapes}) == 1, (
         "actions, disclosures, and overflow no longer share one Button shape"
     )
 
-    accept = suggestion.locator(".lf-sug-accept")
-    edit = draft_item.locator(".lf-draft-pencil")
     rail_left = accept.evaluate(
         "el => el.closest('.lf-margin-item').getBoundingClientRect().left"
     )
@@ -388,11 +404,14 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     assert abs(save.bounding_box()["x"] - rail_left) <= 1, (
         "the draft's Save Button no longer shares the action rail's left edge"
     )
+    page.mouse.move(0, 0)
     assert save.evaluate(
-        "el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).borderColor]"
+        "el => { const s = getComputedStyle(el); "
+        "return [s.backgroundColor, s.borderColor, s.borderTopWidth]; }"
     ) == accept.evaluate(
-        "el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).borderColor]"
-    ), "Save and Accept no longer share the canonical filled action face"
+        "el => { const s = getComputedStyle(el); "
+        "return [s.backgroundColor, s.borderColor, s.borderTopWidth]; }"
+    ), "Save and Accept no longer share the canonical immediate-action ring"
     draft_item.locator(":scope > .lf-margin-more").click()
     draft_item.locator(":scope > .lf-margin-options").get_by_role(
         "button", name="Cancel", exact=True
@@ -437,12 +456,20 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "surface => surface.closest('.lf-margin-options') !== null"
     ), "r did not expand the target's canonical Button options"
 
-    # The action label uses available room; the options surface never widens the rail.
+    # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
-    expect(suggestion_item).not_to_have_class(re.compile(r"lf-condensed"))
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
     ).to_be_visible()
+    page.evaluate("() => document.activeElement.blur()")
+    expect(
+        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+    ).to_be_hidden()
+    accept.hover()
+    expect(
+        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+    ).to_be_visible()
+    page.mouse.move(0, 0)
     accept.focus()
     page.keyboard.press("r")
     expect(reactions.locator(".lf-react:visible")).to_have_count(6)
@@ -705,7 +732,8 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator(".lf-react-trigger").click()
+    page.locator("body").focus()
+    page.keyboard.press("r")
     item = page.locator(".lf-margin-item").filter(
         has=page.locator('.lf-margin-more[aria-expanded="true"]')
     )
@@ -778,6 +806,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             inDocument: controls.getRootNode() === document,
             itemCount: shell.shadowRoot.querySelectorAll('.lf-margin-item').length,
             commonAction: controls.matches('.lf-margin-action'),
+            width: getComputedStyle(controls).width,
             minHeight: getComputedStyle(controls).minHeight,
             radius: getComputedStyle(controls).borderRadius,
             visibleWord: controls.querySelector('.lf-margin-action-label')?.textContent,
@@ -797,8 +826,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "inDocument": True,
                 "itemCount": 0,
                 "commonAction": True,
-                "minHeight": "30px",
-                "radius": "999px",
+                "width": "32px",
+                "minHeight": "32px",
+                "radius": "50%",
                 "visibleWord": "first controls",
             },
             {
@@ -806,8 +836,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "inDocument": True,
                 "itemCount": 0,
                 "commonAction": True,
-                "minHeight": "30px",
-                "radius": "999px",
+                "width": "32px",
+                "minHeight": "32px",
+                "radius": "50%",
                 "visibleWord": "nested controls",
             },
             {
@@ -815,8 +846,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "inDocument": True,
                 "itemCount": 0,
                 "commonAction": True,
-                "minHeight": "30px",
-                "radius": "999px",
+                "width": "32px",
+                "minHeight": "32px",
+                "radius": "50%",
                 "visibleWord": "second controls",
             },
             {
@@ -824,8 +856,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "inDocument": True,
                 "itemCount": 0,
                 "commonAction": True,
-                "minHeight": "30px",
-                "radius": "999px",
+                "width": "32px",
+                "minHeight": "32px",
+                "radius": "50%",
                 "visibleWord": "slot a controls",
             },
             {
@@ -833,8 +866,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "inDocument": True,
                 "itemCount": 0,
                 "commonAction": True,
-                "minHeight": "30px",
-                "radius": "999px",
+                "width": "32px",
+                "minHeight": "32px",
+                "radius": "50%",
                 "visibleWord": "slot b controls",
             },
         ],
@@ -1346,7 +1380,7 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
             }"""
         )
 
-    assert strip_right() == 61
+    assert strip_right() == 59
 
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)

@@ -911,7 +911,6 @@ export function createAnchors(dependencies) {
           mark = marginAction(offer("button", "lf-react-mark"), {
             glyph: entry?.glyph ?? root.token,
             label: root.token,
-            collapse: "always",
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;

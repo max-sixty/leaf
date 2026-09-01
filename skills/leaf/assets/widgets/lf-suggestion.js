@@ -5,8 +5,8 @@
  * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
  * stands, the surviving slot remains and the retired slot folds away as trackable
  * motion. The pressed control stays where the gesture happened and changes to a past-
- * tense record while its pair gives up ink but not room. Each control therefore reserves
- * the width of both of its possible words from the table below before it is shown.
+ * tense record while its pair gives up ink but not room. The word changes in the
+ * Button's transient label, outside its fixed circular fitting.
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
  * through `registerMarginItem`; the living margin joins it to comment threads,
@@ -19,7 +19,6 @@ import {
   actionStands,
   alignText,
   FOLD_MS,
-  measure,
   marginAction,
   motion,
   offer,
@@ -29,15 +28,13 @@ import {
   relabel,
   renderRetired,
   registerMarginItem,
-  reserve,
   says,
   sendAction,
   textNodesUnder,
   toast,
 } from "/runtime/widget-api.js";
 
-// Each control's word in both states — what #name writes, and what the control
-// reserves room for, out of the one table so neither can outgrow the other.
+// Each control's word in both states, written by #name from one table.
 const WORDS = {
   accept: ["✓ Accept", "✓ Accepted"],
   reject: ["✗ Reject", "✗ Rejected"],
@@ -152,21 +149,6 @@ customElements.define(
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
       this.#row.append(this.#button("accept"), this.#button("reject"));
       this.#offer();
-      // Off the row's own box, so it waits for one: this change may be one an agent sent
-      // in a reply, and the panel holding it opens later. Measured before, both numbers
-      // came off a row of no width at all — each control floored at nothing, so the
-      // press moved the line it was made on, and the page's rail was stated as bare
-      // margin. Neither reads as a missing measurement; they read as small numbers.
-      measure(this.#row, () => {
-        // In the document now, so each control measures its decided word in the face it
-        // actually renders in and floors itself there — the line the press is made on
-        // holds still when the word changes (see the module header).
-        for (const btn of this.#row.querySelectorAll(
-          ":scope > [data-lf-offer='button']",
-        ))
-          reserve(btn, WORDS[verb(btn)]);
-        this.#margin?.update();
-      });
     }
 
     disconnectedCallback() {
@@ -211,7 +193,7 @@ customElements.define(
     }
 
     // Everything a control says, in the state it is in: the word it shows (from
-    // WORDS, the same table its reservation is measured from), and the name that has
+    // WORDS), and the name that has
     // to carry the change as well, since the visible word says only the outcome. The
     // change's own words come in rather than being read here, because settling
     // retires the slot they live in and a name asked for afterwards would answer the

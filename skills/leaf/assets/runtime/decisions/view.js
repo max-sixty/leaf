@@ -149,13 +149,31 @@ export function createDecisionView({
   // is the element's own word and the words are the element's own text, so the twelfth
   // widget gets a row that reads properly on the day it declares x-awaits.
   const decisionRowsById = new Map();
+  // What the tray says when it is holding nothing, in the voice the thread panel's own
+  // empty note uses: what is true, then what would fill it. A reader who opens Asks on a
+  // page that is waiting on nobody was getting a blank panel, which says the same thing
+  // as a tray that has failed to render — and the two are worth telling apart, since one
+  // of them is the page being finished with them.
+  //
+  // The other half of the sentence is not a gesture, as it is next door: a reader makes
+  // their own threads and does not make their own asks, so what it names is the agent.
+  const emptyNote = el(
+    "div",
+    "lf-empty",
+    "Nothing is waiting on you. A question the page needs an answer for appears " +
+      "here when the agent asks one.",
+  );
   function renderDecisions(decisions) {
     let anchor = null;
     if (!openTray("decisions")) {
       for (const [, row] of decisionRowsById) row.remove();
       decisionRowsById.clear();
+      emptyNote.remove();
       return;
     }
+    // Out of the way before the rows place themselves, so `firstElementChild` below is a
+    // row or nothing and the note cannot become the thing a row is inserted after.
+    emptyNote.remove();
     for (const decision of decisions) {
       let row = decisionRowsById.get(decision.id);
       if (!row) {
@@ -211,6 +229,7 @@ export function createDecisionView({
         decisionRowsById.delete(id);
         if (held) (next ?? decisionsBtn).focus();
       }
+    if (!decisions.length) decisionsList.append(emptyNote);
   }
 
   // The walk over what the page is waiting on the reader for. It wraps at both ends,

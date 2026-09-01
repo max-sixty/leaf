@@ -1686,6 +1686,53 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     page.close()
 
 
+def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
+    """A tray that has rendered nothing and a tray that has failed to render look alike.
+
+    The thread panel has said which of the two it is for as long as it has had an empty
+    state — "No threads yet", and then the gesture that would fill it. Asks answered the
+    same question with a blank panel, on the page a reader is most likely to open it from:
+    the one where they have just finished. The second half of the sentence names the agent
+    rather than a gesture, because a reader makes their own threads and does not make
+    their own asks.
+
+    Both states are read, because a note that stands whatever the tray holds is the same
+    fault wearing the other sign — and the tray is opened on a page that has an ask, so a
+    note that never renders at all could not pass either.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "One decision",
+                '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+                '<lf-options id="only" choose>'
+                '<lf-option id="first">First</lf-option>'
+                '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    note = page.locator(".lf-decisions-panel .lf-empty")
+    expect(note).to_have_count(0)
+
+    # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
+    # rather than the digit straight off the arrival, because where an arrival lands is
+    # not this test's subject and it should not go red when that moves.
+    page.keyboard.press("Enter")
+    page.keyboard.press("Tab")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(note).to_be_visible()
+    expect(note).to_contain_text("Nothing is waiting on you")
+    assert errors == []
+    page.close()
+
+
 def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     """A destination with no locations still shows that the command worked."""
     page, errors = open_page(

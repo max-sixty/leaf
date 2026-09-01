@@ -24,15 +24,18 @@ check that way; anything needing a browser belongs in `--render`.
 ## Browser validation
 
 `version check --render` adds the browser half, run once before a page's URL is first
-handed over: the exact current source loads in the machine's installed Chrome (Playwright
-`channel="chrome"` — the caller supplies playwright, which `bin/leaf` does
-on seeing `--render`) and the render invariants the static lint cannot reach run
+handed over: the exact current source loads in the host's browser (Playwright
+`channel="chrome"`, or the executable `LEAF_BROWSER_EXECUTABLE` names where the host
+has a Chromium rather than an installed Chrome — the caller supplies playwright, which
+`bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot reach run
 against it — no console or page errors, no fail-soft error box, every visible
 widget occupies real space, code that reads against the block it is set on, no
 sideways scroll, in both color schemes.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
-end-to-end render-check tests cover the installed Chrome launch used here.
+end-to-end render-check tests run both launches used here — the installed Chrome
+channel, and the headless shell handed over as a named executable. `version export`
+launches through the same helper, so the two move together.
 
 ## Passages
 

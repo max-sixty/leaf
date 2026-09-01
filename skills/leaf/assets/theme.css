@@ -1259,7 +1259,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
-/* A suggestion's contribution is an unpositioned group inside the shared target item.
+/* A suggestion's contribution is an unpositioned group inside the shared target cluster.
  * Its only theme rules are the semantics of the decision controls; placement, docking,
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
@@ -1278,9 +1278,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { visibility: hidden; }
 
-/* The living margin is a retained projection with one item per page target. Content
- * controls, the target's marker, and temporary communication controls are siblings in
- * that item. One packing pass keeps those items clear, docks the whole unit when the
+/* The living margin is a retained projection with one cluster per page target. Its
+ * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
+ * one host. One packing pass keeps the clusters clear, docks each whole unit when the
  * margin is too narrow, and tells wide exhibits which occupied bands they must yield. */
 .lf-living-margin { position: absolute; z-index: 2; pointer-events: none; }
 .lf-living-margin[hidden] { display: none; }
@@ -1289,8 +1289,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 .lf-margin-item.lf-waiting { display: none; }
-.lf-margin-item.lf-docked { position: static; max-width: 100%; margin: 2px 0 12px;
-    flex-wrap: wrap; white-space: normal; }
+/* display, because the item is inline-flex where it hangs and absolute position is what
+ * blockifies it there. Left inline-level once docked, the row joins whatever line box
+ * its perch sits on: a change inside a card perches on an inline element, so the ✓/✗
+ * landed on the last line of the sentence it decides, straddling the words instead of
+ * standing under them. A docked row is a line of its own wherever it comes to rest.
+ *
+ * fit-content keeps that line the width of the controls standing in it, the box the row
+ * had in the margin: a block-level row stretched to the column would take presses across
+ * the whole width of a line the reader is trying to select in (pointer-events above). */
+.lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
+    max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
+.lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
+    white-space: nowrap; }
+.lf-margin-options[hidden] { display: none; }
+.lf-margin-item.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
 /* Collapse is part of the exported page vocabulary as well as live chrome. A standing
  * reaction keeps its word in the DOM for its accessible name, while the static page
  * continues to paint the glyph-only receipt the reader saw. */
@@ -1300,18 +1313,19 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-margin-action[data-lf-collapse="auto"] > :is(.lf-margin-action-space,
     .lf-margin-action-label) { display: none; }
 .lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
-    margin-left: 4px; padding-left: 5px; border-left: 1px solid var(--rule);
     white-space: nowrap; }
 .lf-margin-reactions > .lf-react-trigger { display: none; }
 .lf-margin-reactions > .lf-react-palette { display: inline-flex; align-items: center;
     gap: 4px; flex-wrap: nowrap; }
 .lf-margin-reactions .lf-react[aria-busy="true"] { opacity: .55; }
-.lf-margin-marker { position: relative; width: 30px; padding: 3px;
-    gap: 1px; color: var(--muted); pointer-events: auto; }
+.lf-margin-marker { position: relative; width: 34px; padding: 3px 5px;
+    gap: 0; color: var(--muted); pointer-events: auto; }
+.lf-margin-reading-option { position: relative; }
+.lf-margin-more { width: 30px; padding-inline: 0; letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
-.lf-margin-marker:is(:hover, :focus-visible, [aria-pressed="true"]) {
+.lf-margin-marker:is(:hover, :focus-visible, [aria-expanded="true"]),
+.lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
-.lf-margin-facet { width: 10px; text-align: center; }
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
 .lf-margin-decision { color: var(--warn-ink); }
@@ -1334,7 +1348,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * runtime's old cramped veto asked, and the answer moves with the panel by design. */
 @media screen and (min-width: 900px) {
   body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
-    /* The 30px marker hangs 22px off the column and its complete host keeps the
+    /* The 34px marker hangs 22px off the column and its complete host keeps the
        shared focus-ring room at the outer edge. Claim all three, or opening a side
        panel leaves that last band past body's room and the layout hides the marker.
        Both this claim and the wider card claim below hold their condition in :where(),
@@ -1342,7 +1356,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
        which is what says the card wins where a thread needs it. Counted instead, this
        condition names one more compound than the card's, so it outranked the card and a
        page with a thread on it kept the narrow rail. */
-    --claim-map: calc(52px + var(--here-ring-room));
+    --claim-map: calc(56px + var(--here-ring-room));
   }
   main:has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);
@@ -1354,8 +1368,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      handoff rather than covering the source. */
   @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-living-margin:not([hidden])
-        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1366,8 +1379,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
   body:has(
-      :where(.lf-living-margin:not([hidden])
-        .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
+      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1379,7 +1391,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }
-  .lf-margin-marker { width: 44px; min-height: 44px; }
+  .lf-margin-marker, .lf-margin-more { width: 44px; min-height: 44px; }
 }
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }

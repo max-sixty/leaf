@@ -59,6 +59,7 @@ from render_support import (
     stamp_version_file,
     told,
     undo,
+    unfolded_button,
     wait_for_revision,
 )
 
@@ -349,7 +350,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
-    expect(toc).to_have_css("position", "fixed")
+    expect(toc).to_have_css("position", "static")
     expect(page.locator("aside.sidebar")).to_have_css("position", "sticky")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
@@ -439,8 +440,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert revealed_boxes == hidden_boxes
 
-    # The browser's root scrollport keeps a wheel over fixed page furniture in the
-    # document's native chain. The rail stays fixed while the page moves beneath it.
+    # The sticky sidebar keeps a wheel over the document in the native scroll chain. The
+    # rail stays put while the page moves beneath it.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     page.mouse.move(nav_box["x"] + nav_box["width"] / 2, nav_box["y"] + 300)
     page.mouse.wheel(0, 260)
@@ -483,22 +484,43 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
     after_navigation = nav.bounding_box()
+    sidebar_after_navigation = page.locator("aside.sidebar").bounding_box()
     assert after_navigation is not None
-    assert after_navigation["y"] == nav_box["y"], (
-        "following a link moved the contents rail"
+    assert sidebar_after_navigation is not None
+    assert abs(after_navigation["y"] - sidebar_after_navigation["y"]) <= 1
+    assert 64 <= after_navigation["y"] <= 68, (
+        "the contents rail did not dock with its sticky sidebar"
     )
     assert prepare.evaluate("node => node.matches(':hover')")
 
+    # The lens is the viewport's position, not a destination travelling toward it.
+    # Capture the first style turn after the scroll: a transition can finish at the
+    # right place while still trailing every intermediate reading.
+    page.evaluate(
+        """() => {
+          const rows = document.querySelector('.lf-toc-rows');
+          const lens = document.querySelector('.lf-toc-window');
+          window.lfTocLensFrame = null;
+          new MutationObserver((records, observer) => {
+            if (!records.some(record => record.attributeName === 'style')) return;
+            const rowBox = rows.getBoundingClientRect();
+            const start =
+              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start')) / 100;
+            window.lfTocLensFrame = {
+              actual: lens.getBoundingClientRect().top,
+              expected: rowBox.top + rowBox.height * start,
+            };
+            observer.disconnect();
+          }).observe(rows, {attributes: true, attributeFilter: ['style']});
+        }"""
+    )
     page.locator("#verify").evaluate(
         "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
     expect(verify).to_have_attribute("aria-current", "location")
-    page.wait_for_function(
-        "({ before, travel }) => "
-        "document.querySelector('.lf-toc-window').getBoundingClientRect().y "
-        "> before + travel",
-        arg={"before": lens_before["y"], "travel": nav_box["height"] * 0.08},
-    )
+    page.wait_for_function("() => window.lfTocLensFrame !== null")
+    lens_frame = page.evaluate("window.lfTocLensFrame")
+    assert lens_frame["actual"] == pytest.approx(lens_frame["expected"], abs=1)
     lens_after = lens.bounding_box()
     assert lens_after is not None
     assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08
@@ -1018,6 +1040,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
+    # The panel gives the room back on an eased margin, and the column re-wraps for the
+    # whole of it. Read on the way, this assertion passed on a layout that lasted a fifth
+    # of a second: the rows sat under their blocks in the narrow column the page was
+    # leaving, and the settled one dropped the in-card row back onto the sentence's last
+    # line. Only a loaded machine was slow enough to reach the settled layout first.
+    panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('.lf-sug-actions')]"
@@ -1378,11 +1406,14 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     page.close()
 
 
+# `folded` is the layer's own division of the pair rather than a convenience: accept
+# rests in the rail as the target's primary Button, and reject is one press behind `…`.
 @pytest.mark.parametrize(
-    "outcome,verb", [("accept", "Accepted"), ("reject", "Rejected")]
+    "outcome,verb,folded",
+    [("accept", "Accepted", False), ("reject", "Rejected", True)],
 )
 def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
-    browser, serve, outcome, verb
+    browser, serve, outcome, verb, folded
 ):
     """The line saying a block carries a comment goes in the block, and a block inside a
     widget is still a block — so `textContent` on a widget's own slot now returns the
@@ -1397,7 +1428,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Vacuous otherwise: the line has to be inside the slot the label is read from.
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
-    page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}").click()
+    control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
+    (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-toast")).to_have_text(
         f"{verb} “Retry three times.” — recorded"
     )
@@ -1610,11 +1642,15 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         "the refused decision must never have been on the element at all"
     )
     # The row is the record of a decision, so a decision that was never taken must not
-    # be standing in it: both controls offering again, neither of them past tense.
+    # be standing in it: both controls offering again, neither of them past tense. The
+    # pair is one Button at rest and one behind `…` now, so the second is read where the
+    # reader would find it rather than in the rail it no longer stands in.
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
-    reject = page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
+    reject = unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject"))
     expect(accept).to_have_text("✓ Accept", use_inner_text=True)
     expect(reject).to_be_visible()
+    expect(reject).to_have_text("✗ Reject", use_inner_text=True)
+    assert reject.get_attribute("aria-disabled") == "false"
     assert accept.get_attribute("aria-disabled") == "false"
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
@@ -1703,7 +1739,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     row.locator(".lf-sug-accept").click()
     _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
     row.locator(".lf-sug-accept").click()
-    row.locator(".lf-sug-reject").click()
+    unfolded_button(row.locator(".lf-sug-reject")).click()
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1798,7 +1834,15 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     accepted = second.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(accepted).to_have_text("✓ Accepted", use_inner_text=True)
     assert accepted.get_attribute("aria-disabled") == "true"
-    expect(second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_be_hidden()
+    # Its pair gives up its ink and keeps its room. Read as the computed word and not
+    # as visibility alone: every secondary contribution is folded out of the rail, so
+    # `to_be_hidden` is true of a control still offering the press, and the settlement
+    # is the one that says the decision was taken.
+    rejected = second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
+    expect(rejected).to_be_hidden()
+    assert rejected.evaluate("el => getComputedStyle(el).visibility") == "hidden", (
+        "the settled pair still offers its press behind the fold"
+    )
     expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
 
     # Now the race the controls make possible: a window cut off from the log still
@@ -1812,7 +1856,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # to decide rather than the network's.
     told(second)
     expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
-    third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
+    unfolded_button(third.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
     cut.restore()
     # The reject went out over a live channel, so every tab has to read it back —
     # the cut-off one included, which is where it stops being its own local click.

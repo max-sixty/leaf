@@ -4,6 +4,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from .anchor_capture import capture_anchor
 from .event_contracts import (
     action_contract_error,
     event_record_error,
@@ -17,8 +18,9 @@ from .event_log import (
     _attempt_payload,
 )
 from .events import undo_error
-from .files import list_revisions, version_revisions
+from .files import list_revisions, revision_path, version_revisions
 from .passages import active_enclosing
+from .projection import page_projection, retirement_outcomes, rewritten_bodies
 from .registry.contract import RegistryError
 from .registry.reactions import reaction_tokens
 from .registry.storage import load_registry
@@ -56,10 +58,13 @@ def _accepted_retry(
 class _TransactionValidation:
     """Ordered gates against the page state held by one append transaction."""
 
-    def __init__(self, page_dir: Path, event: dict, events: list):
+    def __init__(
+        self, page_dir: Path, event: dict, events: list, capture_anchors: bool = False
+    ):
         self.page_dir = page_dir
         self.event = event
         self.events = events
+        self.capture_anchors = capture_anchors
         self.vendored = None
 
     def registry_or_rejection(self) -> tuple[dict | None, EventAnswer | None]:
@@ -153,8 +158,19 @@ class _TransactionValidation:
 
     def anchored_comment_rejection(self) -> EventAnswer | None:
         anchor = self.event.get("anchor") or {}
+        # A passage anchor a runtime resolved against the rendered page is already
+        # answered: the page holds words no file reading can produce — a widget's
+        # label, a module's own rendering — and an earlier runtime may spell the same
+        # words in whitespace this reading collapses away. Reading it back off the
+        # file would refuse both. A transport that resolves nothing (the MCP surface,
+        # which renders the authored source with no runtime behind it) asks for the
+        # capture instead.
+        recapture = bool(self.capture_anchors and anchor) and not (
+            anchor.get("datum") or anchor.get("visual") or anchor.get("part")
+        )
         if self.event["kind"] != "comment" or not (
-            self.event.get("holds")
+            recapture
+            or self.event.get("holds")
             or self.event.get("response")
             or anchor.get("visual")
         ):
@@ -170,6 +186,30 @@ class _TransactionValidation:
         ):
             if error:
                 return event_rejection(self.event, error)
+        if not recapture:
+            return None
+        html = revision_path(self.page_dir, self.event["revision"]).read_text(
+            encoding="utf-8"
+        )
+        projection, _, _ = page_projection(
+            html, self.events, registry, self.event["revision"]
+        )
+        try:
+            capture_anchor(
+                html,
+                registry,
+                anchor.get("quote", ""),
+                anchor.get("section"),
+                retirement_outcomes(projection.actions, registry),
+                rewritten_bodies(projection.actions),
+                prefix=anchor.get("prefix") if "prefix" in anchor else None,
+                suffix=anchor.get("suffix") if "suffix" in anchor else None,
+            )
+        except ValueError as error:
+            return event_rejection(
+                self.event,
+                f"comment anchor is not in the current page reading: {error}",
+            )
         return None
 
     def parent_rejection(self) -> EventAnswer | None:
@@ -218,8 +258,11 @@ class EventEndpoint:
     publication view, not to event validation or storage.
     """
 
-    def __init__(self, page_dir: Path):
+    def __init__(self, page_dir: Path, capture_anchors: bool = False):
         self.page_dir = page_dir
+        # Set by a transport whose comment anchors reach the door unresolved, so the
+        # passage they name is captured against the page under the append lease.
+        self.capture_anchors = capture_anchors
         self._attempts: dict[str, AttemptExecution] = {}
         self._attempts_lock = threading.Lock()
 
@@ -312,7 +355,9 @@ class EventEndpoint:
                 return rejection
             if not accepted:
                 events = page.events
-                validation = _TransactionValidation(self.page_dir, event, events)
+                validation = _TransactionValidation(
+                    self.page_dir, event, events, self.capture_anchors
+                )
                 if rejection := validation.rejection():
                     return rejection
                 event["author"] = "page" if event["kind"] == "error" else "user"

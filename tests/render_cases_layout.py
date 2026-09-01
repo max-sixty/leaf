@@ -745,6 +745,34 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
       ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
 
 
+def unfolded_button(control):
+    """Press `…` and hand back the Button standing in for one folded contribution.
+
+    A target's cluster rests with one primary Button; every other contributed control
+    is folded away and appears, once `…` is pressed, as a peer Button of its own. That
+    peer is what a reader can aim at — the owner keeps the row's record and never comes
+    out from behind the fold — so a test whose subject is a secondary gesture presses
+    the stand-in and lets it forward the press to its owner.
+
+    Named for the fold rather than for any one control, because which contribution is
+    primary is the layer's choice and not a test's: handed a control the cluster is
+    already resting, this presses `…` for nothing and finds no stand-in, which is the
+    honest failure rather than a quiet press of the wrong Button.
+    """
+    item = control.locator(
+        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '),"
+        " ' lf-margin-item ')][1]"
+    )
+    more = item.locator(":scope > .lf-margin-more")
+    expect(more).to_be_visible()
+    more.click()
+    options = item.locator(":scope > .lf-margin-options")
+    expect(options).to_be_visible()
+    return options.get_by_role(
+        "button", name=control.get_attribute("aria-label"), exact=True
+    )
+
+
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
     page.evaluate(RENDERED)
@@ -832,7 +860,7 @@ FOCUS_IN_PAGE = """() => {
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting is not that: the runtime
 # paints .lf-mark-hover on a marked element under the cursor and .lf-margin-target on a
-# target whose page-map preview the pointer opened, so a reading taken with the pointer
+# target whose thread card a press opened, so a reading taken with the pointer
 # still on an item reports that paint as a change the press made. Neither is authored
 # state and both come off when the pointer leaves.
 PAGE_MARKUP = """() => [...document.body.children]

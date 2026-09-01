@@ -4,9 +4,16 @@ import { marginAction, registerMarginItem } from "./living-margin.js";
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin actions. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape.
-export function responseAction(control, { glyph, label, collapse = false }) {
+export function responseAction(
+  control,
+  { glyph, label, behavior = "action", collapse = false },
+) {
   control.classList.add("lf-response-control", "lf-response-action");
+  control.dataset.lfBehavior = behavior;
   control.toggleAttribute("data-lf-collapse", collapse);
+  if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
+    control.setAttribute("aria-expanded", "false");
+  if (behavior === "action") control.removeAttribute("aria-expanded");
   const glyphNode = document.createElement("span");
   glyphNode.className = "lf-response-action-glyph";
   glyphNode.setAttribute("aria-hidden", "true");
@@ -53,8 +60,10 @@ export function createReactions({
   fabBar,
   focused,
   hideComposer,
+  foldButtonOptions,
   itemWord,
   offer,
+  openButtonOptions,
   paintHere,
   post,
   reactionVocabulary,
@@ -65,6 +74,7 @@ export function createReactions({
   standingItem,
   suggestHere,
   undoable,
+  unfoldedButtons,
   visualPartLabel,
   withdraw,
 }) {
@@ -128,6 +138,7 @@ export function createReactions({
       responseAction(trigger, {
         glyph: "…",
         label: "Other responses",
+        behavior: "options",
         collapse: true,
       });
     trigger.setAttribute("aria-expanded", "false");
@@ -163,6 +174,7 @@ export function createReactions({
     const fabSuggest = responseAction(offer("button", "lf-fab-suggest"), {
       glyph: "✎",
       label: "Suggest",
+      behavior: "disclosure",
     });
     fabSuggest.onclick = () => {
       if (!fabAnchorAt()?.quote || designIsOn()) return;
@@ -183,6 +195,7 @@ export function createReactions({
     marginSuggest = marginAction(offer("button", "lf-fab-suggest"), {
       glyph: "✎",
       label: "Suggest",
+      behavior: "disclosure",
     });
     marginSuggest.onclick = () => {
       if (!fabAnchorAt()?.quote || designIsOn()) return;
@@ -192,6 +205,7 @@ export function createReactions({
     const marginComment = marginAction(offer("button", "lf-fab"), {
       glyph: "💬",
       label: "Comment",
+      behavior: "disclosure",
     });
     marginComment.onclick = () => {
       setReact(false);
@@ -259,6 +273,10 @@ export function createReactions({
   // Threads alone. Page-wide reactions remain an explicit surface inside that panel.
   let reactArmed = false;
   let reactRaised = false;
+  // Whether this raise is what unfolded the target's cluster, and so whether putting the
+  // choices away has a fold of its own to put back. A reader who pressed `…` themselves
+  // and then `r` opened that layer before the raise found it, and it is theirs to keep.
+  let marginUnfolded = false;
   let reactFrom = null;
   let reactSurface = null;
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
@@ -285,13 +303,28 @@ export function createReactions({
       // opened and leave that larger rail behind after the choices closed.
       claim: false,
     });
-    return true;
+    const standing = unfoldedButtons()?.lfTarget === target;
+    if (openButtonOptions(target)) {
+      marginUnfolded = !standing;
+      return true;
+    }
+    marginOffer.unregister();
+    marginOffer = null;
+    return false;
   }
 
   function lowerMarginSurface() {
     marginOffer?.unregister();
     marginOffer = null;
     delete fabBar.dataset.lfMarginRaised;
+    // A raise that unfolded the target's Buttons to stand these choices in puts that fold
+    // back, so cancelling leaves the cluster as the press found it rather than an empty
+    // fold the reader has to close themselves. Only that raise: this runs on every
+    // disarm, including one whose surface was a reply strip and which never raised the
+    // margin at all, and including one over a fold the reader had already opened for
+    // themselves — folding either takes away a layer the gesture never put on.
+    if (marginUnfolded) foldButtonOptions();
+    marginUnfolded = false;
   }
 
   function closeSurface(surface) {
@@ -299,9 +332,9 @@ export function createReactions({
     pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
   }
 
-  // A page picker lives in the shared margin item and therefore owns its geometry.
-  // Returning true keeps the floating Comment bar from trying to re-place the same
-  // gesture while the margin has it; message-local reaction strips need no such claim.
+  // A page picker lives in the target's shared Button options and therefore owns its
+  // geometry. Returning true keeps the floating Comment bar from trying to re-place the
+  // same gesture while the margin has it; message-local reaction strips need no claim.
   function syncReactLayout() {
     return reactArmed && reactSurface === marginSurface;
   }
@@ -401,6 +434,10 @@ export function createReactions({
     }
     paintHere();
   }
+
+  document.addEventListener("lf-button-options-closed", () => {
+    if (reactArmed && reactSurface === marginSurface) setReact(false);
+  });
 
   function responseChoices(surface) {
     if (!surface) return [];

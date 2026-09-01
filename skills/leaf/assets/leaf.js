@@ -255,6 +255,7 @@ import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
+  conversationInput,
   createConversationLanding,
   heldConversation,
   landIn,
@@ -923,7 +924,7 @@ panel.append(panelHead, findRow, threadsBox, panelFoot);
 // Pressing Tab or its ellipsis exchanges its field for the other responses in place.
 // One affordance, raised only where the reader has already pointed:
 // a selection, a visual's click, an aimed item, or a visual part.
-const fabBar = el("div", "lf-ui lf-fab-bar");
+const fabBar = el("div", "lf-ui lf-fab-bar lf-page-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 const fabInput = document.createElement("textarea");
@@ -935,6 +936,7 @@ fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(el("button", "lf-ui lf-fab"), {
   glyph: "💬",
   label: "Comment",
+  behavior: "disclosure",
 });
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
@@ -942,8 +944,8 @@ fabBar.append(fab);
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
-const aimBox = el("div", "lf-ui lf-aim");
-const composer = el("div", "lf-ui lf-composer");
+const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
+const composer = el("div", "lf-ui lf-composer lf-target-paint");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
 // around it: this is the only injected chrome carrying an id, and "which section is this
@@ -1005,7 +1007,7 @@ keylineMore.onclick = () => {
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
 // writer (paintInspect), beside the box it names.
-const inspectEl = el("div", "lf-ui lf-inspect");
+const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
 inspectEl.setAttribute("aria-hidden", "true");
 // Design mode's legend: a box for every item on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
@@ -1312,8 +1314,10 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   composerSend,
   designIsOn: () => designOn,
   draftContexts,
+  elementById: (...args) => elementById(...args),
   fab,
   fabAnchor: fabAnchorAt,
+  inChrome,
   landTyping,
   loadDraft,
   mayLandTyping,
@@ -1580,7 +1584,10 @@ const commentDestination = () => {
       ),
       go: focusFabComment,
     };
-  const said = standingConversation();
+  const inline = livingMargin?.activeInlineThread();
+  const inlineBox = inline && conversationInput(inline);
+  const said =
+    standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
@@ -1996,8 +2003,10 @@ const {
   fabBar,
   focused,
   hideComposer: () => hideComposer(),
+  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
   itemWord,
   offer,
+  openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,
   paintHere,
   post,
   reactionVocabulary: () => registry.$reactions?.tokens,
@@ -2008,6 +2017,7 @@ const {
   standingItem,
   suggestHere: () => selectionComposerRuntime.setSuggestionMode(true),
   undoable: (...args) => undoable(...args),
+  unfoldedButtons: () => livingMargin?.unfoldedButtons() ?? null,
   visualPartLabel: (...args) => visualPartLabel(...args),
   withdraw: (...args) => withdraw(...args),
 });
@@ -2084,6 +2094,28 @@ const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
   at: () => Boolean(keyline?.expanded),
   rows: [LESS_SHORTCUTS],
+};
+
+// A Thread card and the unfolded Button cluster that owns it are one page-map stack,
+// though the card itself is hoisted into the chrome. This registered rung precedes the
+// reaction and navigation modes just as the surface's old local listener did: Escape
+// closes the card first, then folds the cluster on a second press.
+const pageMapRung = (atFocus = true) => livingMargin?.keyboardRung({ atFocus }) ?? null;
+const PAGE_MAP = {
+  title: "In the page map",
+  when: () => Boolean(pageMapRung(false)),
+  at: () => Boolean(pageMapRung()),
+  rows: [
+    {
+      id: "margin.back",
+      keys: ["Escape"],
+      does: () => pageMapRung(false)?.does,
+      line: () => pageMapRung()?.says,
+      referenceWhen: () => Boolean(pageMapRung(false)),
+      when: () => Boolean(pageMapRung()),
+      run: () => pageMapRung()?.out(),
+    },
+  ],
 };
 
 // Below the element scopes: the page's own modes, then the page. The composer's rung is
@@ -2725,6 +2757,7 @@ const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
   HELP,
   SHORTCUT_SHELF,
+  PAGE_MAP,
   GO,
   REACT,
   SELECT,
@@ -3418,8 +3451,10 @@ livingMargin = createLivingMargin({
   comparisonChanges,
   compact: commentsEdge.over,
   closestAcross,
+  designIsOn: () => designOn,
   el,
   elementById,
+  focused,
   goToDecision,
   inChrome,
   itemSays,
@@ -3428,7 +3463,6 @@ livingMargin = createLivingMargin({
   offer,
   openDecisions,
   panelIsOpen: chromeLayout.panelIsOpen,
-  pageScroller,
   paintKeys,
   placedAt,
   renderMarginThread: conversationRuntime.renderMarginThread,
@@ -3437,6 +3471,7 @@ livingMargin = createLivingMargin({
   setPanel,
   showThread,
   stateProjection,
+  threadPanel: panel,
   threads: () => conversationRuntime.threadList,
   toggleBtn,
   updateSequence,
@@ -3467,6 +3502,7 @@ designRuntime = createDesign({
   ITEM,
   announce,
   banner,
+  closePageMapPreview: livingMargin.closePreview,
   closestAcross,
   containsAcross,
   cut,

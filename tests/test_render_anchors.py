@@ -436,11 +436,11 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.close()
 
 
-def test_a_comment_around_a_control_does_not_deaden_it(browser, serve):
-    """A user drags across copy that contains a suggestion row and then decides the
-    suggestion. Moving focus into the immediate comment field collapses the browser's
-    native selection, but the captured passage must remain durable and the nearby
-    controls must still work by pointer and keyboard."""
+def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
+    """A drag around a target opens the immediate field without deadening its Buttons.
+
+    Focus collapses the browser's native selection, so the captured passage must remain
+    durable while the pointer path through `…` and a direct keyboard action both work."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
@@ -454,7 +454,11 @@ def test_a_comment_around_a_control_does_not_deaden_it(browser, serve):
     assert "Refill" in pending_text(page)
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Reject")
+    ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
@@ -483,7 +487,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome"))
+        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -565,8 +569,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
 
-    # The option's address and the chord's digit keep one physical key geometry. The option
-    # keeps its local accent outline; the chord digit is an ordinary available binding.
+    # The option's address and the chord's digit keep one physical key face. Both are
+    # ordinary available bindings, so geometry and emphasis stay the same.
     faces = """() => {
         const read = el => { const s = getComputedStyle(el);
             return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
@@ -596,9 +600,28 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
           })"""
     )
     option_emphasis, chord_emphasis, legend_emphasis = emphasis
-    assert option_emphasis["border"] == option_emphasis["ink"]
-    assert option_emphasis["ground"] != option_emphasis["ink"]
-    assert chord_emphasis == legend_emphasis
+    assert option_emphasis == chord_emphasis == legend_emphasis
+
+    # Item selection uses letters rather than digits, but it names the same physical
+    # keys. Closing the address chord and opening selection must not reveal a fourth face.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.keyboard.press("s")
+    target = page.locator(".lf-target-hint").first
+    expect(target).to_be_visible()
+    target_key = target.evaluate(
+        """el => { const s = getComputedStyle(el);
+          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
+            "border-top-width", "border-top-style", "border-radius", "font-family",
+            "font-size", "line-height", "text-align"]
+            .map(p => [p, s.getPropertyValue(p)])); }"""
+    )
+    assert target_key == option_key
+    target_emphasis = target.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
+    )
+    assert target_emphasis == option_emphasis
     assert errors == []
     page.close()
 

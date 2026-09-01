@@ -2165,6 +2165,29 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     page.close()
 
 
+def test_the_g_chord_selects_a_numbered_tab(browser, serve):
+    """A tab can be selected from elsewhere on the page through its numbered address.
+
+    Arrow keys serve a reader already standing in the tab strip. The page-level route
+    names every tab in document order, then selects and focuses the requested one so its
+    local keyboard pattern is immediately available."""
+    page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    tabs = page.locator("#projects .lf-tab-btn")
+    expect(tabs).to_have_count(2)
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+
+    page.keyboard.press("g")
+    page.keyboard.press("t")
+    page.keyboard.press("2")
+
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(tabs.nth(1)).to_be_focused()
+    expect(page.locator("#tab-bath")).not_to_have_attribute("hidden", re.compile(".*"))
+    expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
+    assert errors == []
+    page.close()
+
+
 def test_numbered_addresses_stop_at_nine_and_choose_in_one_press(browser, serve):
     """A numbered list has nine immediate choices even when the page holds more.
 

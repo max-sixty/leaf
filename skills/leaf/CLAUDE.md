@@ -46,7 +46,8 @@ and tray panels;
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-and the one aggregated action, communication, and information item for each page target;
+the design-mode exclusion of its top-layer preview, and the one aggregated Button cluster
+for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
@@ -88,9 +89,11 @@ guards, deferred measurement, layout-change signalling, and control sizing;
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
 the declaration-derived names and layout queries the runtime supplies it, and keeps
-body's layout shell out of the containing-block chain for document-positioned chrome;
-`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
-document room left after the panel and trays;
+the root, body's layout shell, and the chrome's paint hosts out of the containing-block chain for
+document-positioned chrome. It also keeps page-attached paint below covering workspaces
+and paint for chrome targets above them;
+`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
+room left after the panel and trays, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -186,12 +189,14 @@ Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
 choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
-rendered chrome, and writes only chrome boxes. It hears the shell's inline size
-without deriving a posture from it: `layoutSizes` watches `document.body`'s
-content-box width so a float placed in the margin is re-placed while a panel's
-eased margin is still narrowing the page, and reads nothing else off that box. A
-`ResizeObserver` callback must not resize the box it observes, directly or
-through a class or attribute that changes that box.
+rendered chrome, and writes only chrome boxes. `layoutSizes` watches
+`document.body`'s content-box size without deriving a posture from it. A width
+change schedules `syncLayout` and page repaint in the following frame while a
+panel's eased margin narrows the page; a height-only content reflow calls
+`pageShifted` during observer delivery so page paint follows targets that moved.
+That direct path may write only unobserved paint hosts and state or queue work for
+a frame. A `ResizeObserver` callback must not resize the box it observes, directly
+or through a class or attribute that changes that box.
 
 ## Startup and presentation
 
@@ -1114,7 +1119,7 @@ thread. `paintAnchors` resolves its anchor like any comment's and records it in
 `reacted` rather than `marked`: a wash through the `lf-react` highlight on a
 passage, `lf-react-el` on an element's shown parts, and a glyph reconciled by
 `seatReactions`. Its `.lf-reacts` span is an unpositioned contribution to the
-target's living-margin item, beside that target's decisions and actions; the
+target's Button cluster; the
 pill inside is the reaction's own eraser, posting the ordinary `undo` through
 `withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for the
 page's words. `markAt` does not see it: a reaction takes no press to a card and
@@ -1136,9 +1141,11 @@ replacement-text mode.
 it. `selectResponseTarget` does both for a keyboard item hint, and the ⌥ press uses
 `focusTargetComment` on the same captured anchor. An already-open unsent draft re-anchors
 directly so its standing words survive. Submitted words still in flight remain owned by
-their original anchor, while a later target starts clean and keeps focus. `r` opens a
-target-margin reaction row on the selection or standing item, or the conversation-owned
-row on the latest agent message in the thread the reader is in.
+their original anchor, while a later target starts clean and keeps focus. For a page
+target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
+that target's existing Button options. Those temporary Buttons borrow the cluster's room
+and dock with it when necessary; they do not claim permanent rail width. A thread-local
+`r` opens the conversation-owned row on the latest agent message.
 With none of those targets, it shows “Select something to react to” and opens
 nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
 comment box. `REACT` claims the keyboard while a list is open. Arrow keys wrap through
@@ -1262,11 +1269,12 @@ status-like item may yield its own width so controls to its right remain fixed.
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
 container, `main` composes its left and right claims, and queries grant or withdraw
-margin postures. JavaScript may hear that shell's inline size as a signal to re-run
-`syncLayout` — `layoutSizes` watches `document.body`'s content-box width, because a
-panel's eased margin goes on narrowing the box a float stands in after `setPanel` has
-returned and one synchronous pass at the press reads only the wide box — but it derives
-no posture from it and mirrors no cramped state.
+margin postures. JavaScript may hear the shell's content-box size without deriving a
+posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
+repaint after a width change, because a panel's eased margin keeps narrowing the box a
+float stands in after `setPanel` returns. A height-only change sends `pageShifted`
+directly so a content reflow re-places document-attached paint without re-running
+chrome reservation.
 
 Which question a floor asks belongs to the posture it grants. A floor asking how much
 room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
@@ -1330,61 +1338,108 @@ chrome surface may lie above that reservation, but the reservation itself
 travels to print and export only when that medium contains the surface it
 serves.
 
-### Target margin items
+### Target Buttons
 
-The right margin has one projected item per page target. That item is the single
-place for controls the reader can use on the target, communications they can
+The right margin has one projected cluster per page target. Leaf calls its repeated
+fitting a Button: like a coat button, it is one consistent piece attached to the
+passage, not a synonym for every HTML `<button>` on the page. The cluster is the
+single place for controls the reader can use on the target, communications they can
 start about it, and standing information such as comment threads, decisions,
-outcomes, changes, or agent activity. It is a flex row: content controls precede
-the target's page-map marker, and temporary communication controls follow it. A
-target with no map reading may have controls without a marker.
+outcomes, changes, or agent activity.
+
+At rest a cluster shows at most one primary Button. A content contribution with an
+available primary action wins that place; its other controls move under the adjacent
+`…` Button. With no contributed control, standing information supplies a generated
+disclosure Button. `…` appears only when the cluster has secondary controls,
+information beside a direct action, or temporary communication choices. A target
+with one unambiguous control therefore gets one Button, not a row of variants.
 
 Content modules contribute through `registerMarginItem`; they own their verbs and
 events, never placement or control styling. Every press in a contribution is built
-with `marginAction(control, {glyph, label, tone, collapse})`. That is the one RHS
-control type: it owns the capsule, height, type, focus, state paint, and the glyph/word
-anatomy shared by decisions, editing, communications, and information triggers.
-Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
-complete target item fits and hides it only when the shared layout needs the room;
-`always` is for vocabulary whose glyph is sufficient in the row. Collapsing changes
-paint, not the DOM or accessible name.
+with `marginAction(control, {glyph, label, behavior, tone, collapse})`. That is the
+one RHS control type: it owns the capsule, height, radius, type, focus, state paint,
+and glyph/word anatomy shared by decisions, editing, communications, and information
+triggers. Its behavior states the promise before the press:
 
-The living margin groups contributions and state readings by exact target identity
-and owns one generated host plus its accessible group name. At wide widths it hoists
-that host into the main positioning context, preserving source and tab order when
-several targets share a top-level block. At compact widths it returns the host to flow
-immediately after the target's rendered text block (or the target itself). Adding
-another target action must not add another absolute row, control type, or rail
-measurement.
+- `action` is filled, carries an imperative verb, and performs its effect immediately;
+- `disclosure` is hollow, carries `aria-expanded` when it controls persistent context,
+  and opens or closes that context without settling it;
+- `options` is the hollow `…` Button and unfolds the cluster's secondary Buttons in
+  place.
+
+Shape and fill state carry that distinction without an added chevron. A lone
+non-thread informational Button reveals its target directly. Each additional
+non-thread reading gets its own peer Button under `…`; pressing one reveals that
+reading directly rather than collecting readings in a card. All threads at one target
+share one Thread Button and one conversation card. That card opens only on a press,
+never merely on focus or hover; when the document cannot leave it room beside the
+source, the same press opens the full Threads surface. The thread card is the only
+generated contextual pane, not a generic container for alternatives.
+
+The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
+over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
+on the next press; each rung is named on the key line before it runs.
+
+A gesture that unfolds a cluster for its own use puts that fold back, and only that one:
+putting the reaction choices away folds back the cluster the raise unfolded, so a disarm
+over a reply strip or over a fold the reader opened themselves takes away no layer the
+gesture put on. That put-down folds without claiming the focus — it runs from wherever
+the reader is standing, so taking the focus would throw them onto a cluster they may
+have left, and would send a press already on its way to a Button they were not standing
+on.
+
+Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
+complete target cluster fits and hides it only when the shared layout needs the room;
+`always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes
+paint, not behavior, the DOM, or the accessible name.
+
+The living margin groups contributions and state readings by exact target identity,
+chooses the primary, and owns the generated disclosure and `…` Buttons plus the
+cluster's accessible group name. At wide widths it hoists that host into the main
+positioning context, preserving source and tab order when several targets share a
+top-level block. At compact widths it returns the host to flow immediately after the
+target's rendered text block (or the target itself). Adding another target action must
+not add another absolute row, control type, or rail measurement.
 
 That ordered target collection is the Page map's complete location count and the source
-for the `g m` address list. A location's informational marker announces its position in
+for the `g m` address list. A location's disclosure Button announces its position in
 the complete collection. The numbered chord exposes the collection's first nine
 locations; later locations remain in the Page map and ordinary focus order rather than
-making a one-digit chord ambiguous. Addressing an item opens its marker when it has one;
-an action-only item receives focus on its first available action without performing it.
-In the compact posture, an informational item opens the Page map sheet at that location
-instead of reviving the hidden desktop preview; an action-only item keeps its direct
-focus arrival on the action docked into the page.
+making a one-digit chord ambiguous. Addressing an item opens its disclosure Button when
+it has one; an action-only item receives focus on its first available action without
+performing it. In the compact posture, an informational item opens the Page map sheet
+at that location instead of reviving the hidden desktop preview; an action-only item
+keeps its direct focus arrival on the action docked into the page.
+
+A thread card names the target without offering a second route to the panel the banner
+already opens. At wide widths it is the conversation itself, measured eight pixels
+beside the pressed Thread Button in the same turn it is shown or changes size. While
+that Button keeps focus, `c` enters the card's one reply box; several roots leave the
+destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+open panel waits for the body's strip motion before choosing the card posture. When the
+document cannot leave the card room beside its Button, the press opens the full Threads
+surface instead.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
 lifetime, so settling an action cannot shift the readable column. A temporary
 contribution registers with `claim: false`: it borrows available RHS room and
 docks the complete host when it cannot fit, without moving the column on first
-open or leaving blank room after close. Below the margin breakpoint the complete
-host docks into flow. Visibility and vertical placement read `shownParts` and
-`shownBox`, not the target's raw client rect: a project may set `display: contents`
-while its rendered descendants remain usable, and a collapsed target has no
-rendered part to offer.
+open or leaving blank room after close. A stable contribution whose future primary
+and `…` fitting is wider than its resting one declares that pixel width with
+`reserve`; the claim includes it before the control changes. Below the margin
+breakpoint the complete host docks into flow. Visibility and vertical placement
+read `shownParts` and `shownBox`, not the target's raw client rect: a project may
+set `display: contents` while its rendered descendants remain usable, and a
+collapsed target has no rendered part to offer.
 
-The `r` key extends this same item for a page selection or item. It puts Comment,
-Suggest where available, and the declared reaction buttons to the right of the
-existing marker; it does not open a palette below the target. The compact response
-bar's Tab state stays in that bar instead. Conversation reactions remain in their
-conversation-owned strip. The event still carries its durable authored anchor, while
-the temporary item resolves selected text to the first rendered block, matching the
-target where replay later seats its standing reaction.
+The `r` key unfolds this same cluster's secondary Button group for a page selection or
+item. Comment, Suggest where available, and the declared reaction Buttons appear there
+as peer choices; they do not widen the rail or open a separate palette below the target.
+The compact response bar's Tab state stays in that bar. Conversation reactions remain in
+their conversation-owned strip. The event still carries its durable authored anchor,
+while the temporary item resolves selected text to the first rendered block, matching
+the target where replay later seats its standing reaction.
 
 ### Presentation and state motion
 
@@ -1737,8 +1792,9 @@ reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
 
 Its destination is the anchor the 💬 carries, then the open thread the reader is
-in, then the item they are standing in, and, when none of those is in hand, the
-conversation itself. `commentDestination` decides it once and states the
+in or the single inline thread held by a pressed Page-map marker, then the item they are
+standing in, and, when none of those is in hand, the conversation itself.
+`commentDestination` decides it once and states the
 sentence, the key line and the press together, so the reference, the line and
 what happens cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader
@@ -2239,8 +2295,8 @@ region.
 Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
 `M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
 available, or opens the complete sheet where the compact layout has no rail or the map
-has no locations. `m`, `h`, and `f` name the page's numbered
-page-map item, hyperlink, and fold lists, and one digit names a member. `g g` and
+has no locations. `m`, `t`, `h`, and `f` name the page's numbered
+page-map item, tab, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2260,10 +2316,10 @@ A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
 Adding a direct destination or a numbered list adds one entry to its vocabulary.
 The page-level `g` row promises only the mode; destinations and ranges belong to
-the rows inside it. Completing an address runs that list's destination: a
-same-document hyperlink follows and leaves focus on its fragment target, an external
-hyperlink names the tab it opens, a fold opens and takes focus, and a page-map item opens
-its marker or focuses its first available action.
+the rows inside it. Completing an address runs that list's destination: a tab selects
+and takes focus, a same-document hyperlink follows and leaves focus on its fragment
+target, an external hyperlink names the browser tab it opens, a fold opens and takes
+focus, and a page-map item opens its marker or focuses its first available action.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
 line. Each row shows its complete chord. Each visible numbered member also shows its

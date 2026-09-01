@@ -388,8 +388,13 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
 
     search = page.get_by_role("searchbox", name="Search page text")
     expect(search).to_be_focused()
-    page.keyboard.type("button the key")
-    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
+    status = page.locator(".lf-target-search-status")
+    expect(status).to_be_empty()
+    page.keyboard.type("b")
+    expect(status).to_have_text(re.compile(r"\d+ of \d+"))
+    expect(page.locator(".lf-target-match")).not_to_have_count(0)
+    search.fill("button the key")
+    expect(status).to_have_text("1 of 1")
     expect(page.locator(".lf-target-match")).not_to_have_count(0)
     expect(page.locator(".lf-keyline")).to_contain_text("select match")
     page.keyboard.press("Tab")
@@ -402,6 +407,31 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert pending_text(page) == "button the key"
+    assert errors == []
+    page.close()
+
+
+def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, serve):
+    """Search begins at the top of the visible reading rather than whichever match is
+    nearest the viewport midpoint, so an opening title is the result that gets paint."""
+    html = leaf_page(
+        "search from reading edge",
+        """
+<h1 id="title">Unified title</h1>
+<div style="height: 260px" aria-hidden="true"></div>
+<p>Unified body.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("/")
+    page.keyboard.type("Unified")
+
+    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 2")
+    title = page.locator("#title").bounding_box()
+    match = page.locator(".lf-target-match").first.bounding_box()
+    assert title is not None and match is not None
+    assert title["x"] <= match["x"] < title["x"] + title["width"]
+    assert title["y"] <= match["y"] < title["y"] + title["height"]
     assert errors == []
     page.close()
 

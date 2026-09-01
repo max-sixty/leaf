@@ -2060,6 +2060,34 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert page.evaluate(sideways) == 0
 
+    # A left workspace and the page's own left margin are consecutive strips. The ToC
+    # stays in its sticky sidebar, so opening Asks moves both together instead of leaving
+    # a separately fixed map behind the sheet while main still reserves its width.
+    resized(page, 1700, 900)
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-panel")).to_be_visible()
+    page.wait_for_function(
+        "() => document.body.getAnimations().every(a => a.playState !== 'running')"
+    )
+    workspace = page.evaluate(
+        """() => {
+          const tray = document.querySelector('.lf-decisions-panel').getBoundingClientRect();
+          const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+          const toc = document.querySelector('lf-toc').getBoundingClientRect();
+          return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
+                  sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
+                  tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
+        }"""
+    )
+    assert workspace["sidebarPosition"] == "sticky"
+    assert workspace["tocPosition"] == "static"
+    assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
+    assert workspace["tocLeft"] >= workspace["trayRight"] - 1, (
+        f"the ToC remained behind the standing Asks tray: {workspace}"
+    )
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-panel")).to_be_hidden()
+
     # The rail claim is monotonic, so narrowing the same page carries its widest
     # right-margin row into the tighter layout. The sidebar and rail use the outer
     # gutters before taking width from the reading column, so the page narrowed to

@@ -11,8 +11,10 @@ export function createSelectionComposer(runtime, dependencies) {
     composerSend,
     designIsOn,
     draftContexts,
+    elementById,
     fab,
     fabAnchor,
+    inChrome,
     landTyping,
     loadDraft,
     mayLandTyping,
@@ -227,6 +229,8 @@ export function createSelectionComposer(runtime, dependencies) {
     if (previousCtx !== ctx && !leavesFlight) clearDraft(previousCtx);
     pendingAnchor = anchor || null;
     pendingAbout = about;
+    const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
+    composer.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
     composerInput.value = text || composerInput.value;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();

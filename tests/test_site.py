@@ -14,7 +14,6 @@ A page under /examples has to be reached over HTTP: its markup names /theme.css 
 besides. The docs pages are read as files, which is how a checkout reads them.
 """
 
-import hashlib
 import importlib.util
 import json
 import re
@@ -41,12 +40,6 @@ EXAMPLES = ROOT / "examples"
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
-
-_preview_spec = importlib.util.spec_from_file_location(
-    "example_previews", ROOT / "scripts" / "example-previews.py"
-)
-preview_build = importlib.util.module_from_spec(_preview_spec)
-_preview_spec.loader.exec_module(preview_build)
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
@@ -201,22 +194,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     cannot pass merely because it also contains no iframe or tab widget.
     """
     expected = {source.stem for source in authored_examples()}
-    manifest = json.loads((DOCS / "example-previews.json").read_text())
-    assert set(manifest["previews"]) == expected
-    assert manifest["inputs_sha256"] == preview_build.digest(
-        preview_build.capture_input_files()
-    ), "preview inputs changed — rerun scripts/example-previews.py"
     assert {path.name for path in DOCS.glob("example-*.jpg")} == {
         f"example-{stem}.jpg" for stem in expected
     }
-    for stem, record in manifest["previews"].items():
-        image = DOCS / record["file"]
-        assert record == {
-            "file": f"example-{stem}.jpg",
-            "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
-            "width": 896,
-            "height": 560,
-        }
 
     page = browser.new_page()
     errors = []

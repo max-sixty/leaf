@@ -557,12 +557,14 @@ export function createAnchors(dependencies) {
     if (!r) {
       aimBox.style.display = "none";
       aimBox.removeAttribute("data-for");
+      delete aimBox.dataset.lfPaintPlane;
       paintInspect(null);
       return;
     }
     const { left, top, right, bottom } = r;
     const at = documentPoint(left, top);
     aimBox.setAttribute("data-for", aimed.id);
+    aimBox.dataset.lfPaintPlane = inChrome(aimed) ? "chrome" : "page";
     // The item's own corner radius, so the ring hugs the corner the item draws.
     Object.assign(aimBox.style, {
       display: "block",
@@ -580,7 +582,11 @@ export function createAnchors(dependencies) {
   // that re-derive them.
   function paintInspect(target, corner) {
     inspectEl.classList.toggle("lf-shown", Boolean(target));
-    if (!target) return;
+    if (!target) {
+      delete inspectEl.dataset.lfPaintPlane;
+      return;
+    }
+    inspectEl.dataset.lfPaintPlane = inChrome(target.el) ? "chrome" : "page";
     const name = target.part
       ? `${target.part} · ${designName(target.el)}`
       : designName(target.el);

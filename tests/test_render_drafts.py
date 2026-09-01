@@ -56,6 +56,16 @@ def draft_controls(page, draft_id="draft-ops"):
     return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
 
 
+def cancel_draft(page, draft_id="draft-ops"):
+    """Cancel is the draft's alternative, reached through its one options Button."""
+    controls = draft_controls(page, draft_id)
+    item = controls.locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Cancel")
+    ).click()
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -270,6 +280,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     page.mouse.dblclick(*spot)
     editor = page.locator("#draft-ops textarea")
     expect(editor).to_be_focused()
+    pencil = draft_controls(page).locator(".lf-draft-pencil")
     assert page.screenshot(clip=band) == outside_before, (
         "opening the editor painted outside the box the draft already occupied"
     )
@@ -302,7 +313,8 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # reaches for it the instant the editor goes, so a style that hadn't caught up
     # would drop a keyboard user back at the top of the page.
     page.keyboard.press("Escape")
-    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_focused()
+    expect(pencil).to_be_focused()
+    expect(pencil).to_have_attribute("aria-expanded", "false")
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft came back from an edit a different shape than it went in"
     )
@@ -538,7 +550,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     assert second_draft.locator("textarea").count() == 0, (
         "the second tab opened an editor for a keystroke nobody made there"
     )
-    draft_controls(first).get_by_role("button", name="Cancel").click()
+    cancel_draft(first)
     second.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     second_draft.locator(".lf-draft-body").dblclick()
     expect(second_draft.locator("textarea")).to_have_value(edited)
@@ -825,7 +837,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
 
 def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
     """A sent comment preserves the panel's narrowing while its inline conversation
-    takes the reader; explicitly opening that thread then widens the panel."""
+    takes the reader; reopening the overview keeps that filter intact."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -852,12 +864,10 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
         f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
     )
     expect(inline.locator("textarea")).to_be_focused()
-    page.locator(".lf-margin-preview").get_by_role(
-        "button", name="Open this thread in Threads"
-    ).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_visible()
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -1505,7 +1515,7 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     expect(stale_draft.locator("textarea")).to_have_value(old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
 
-    draft_controls(stale).get_by_role("button", name="Cancel").click()
+    cancel_draft(stale)
     expect(current_draft.locator("textarea")).to_have_value(newer)
     assert current.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
     stale_draft.locator(".lf-draft-body").dblclick()

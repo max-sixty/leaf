@@ -42,7 +42,8 @@ export function createAddress({
   // ---------- the g chord: the page's destinations ----------
   // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
   // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a numbered list takes a
-  // following digit (`g h 3` is the third hyperlink and `g f 2` the second fold).
+  // following digit (`g t 2` selects the second tab, `g h 3` follows the third hyperlink,
+  // and `g f 2` opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
   // t/T and a/A, so those categories do not also carry numbered addresses.
   //
@@ -73,6 +74,10 @@ export function createAddress({
   // Above the table rather than beside the other readings below it, because an entry
   // holds the function itself and the array literal reads it as the module evaluates.
   const pageLinks = () => pageParts("a[href]");
+  // The tabs rather than their panels: the visible choice is what wears the address and
+  // what the reader stands on afterwards. `role=tab` is the platform vocabulary, so an
+  // authored tab pattern and lf-tabs take the same route without naming a widget family.
+  const pageTabs = () => pageParts('[role="tab"]');
   // The summaries rather than the boxes they head: a summary is what the reader stands on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
   // so a <details> whose author wrote no summary has nothing here to address. Every
@@ -194,6 +199,21 @@ export function createAddress({
       does: "Go to the nth page-map item",
       list: pageMapItems,
       go: openPageMapItem,
+    },
+    {
+      id: "navigation.tab",
+      key: "t",
+      word: "tabs",
+      does: "Select the nth tab",
+      list: pageTabs,
+      // A numbered tab is an activation and an arrival. Reveal first so a nested tab can
+      // open its owning panel, then focus the control and use its click path so the
+      // widget's pointer and keyboard selection remain one behavior.
+      go: (tab) => {
+        scrollToElement(tab, undefined, "nearest");
+        tab.focus({ preventScroll: true });
+        tab.click();
+      },
     },
     {
       id: "navigation.link",

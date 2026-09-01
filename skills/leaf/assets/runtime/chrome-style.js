@@ -85,6 +85,7 @@ export function chromeStyle({
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
   :root {
+    position: static;
     --lf-safe-top: env(safe-area-inset-top, 0px);
     --lf-safe-right: env(safe-area-inset-right, 0px);
     --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -244,6 +245,19 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-action[hidden] { display: none; }
+  /* A Button carries one of three promises. An action has a filled face and an
+     imperative word. A disclosure stays hollow. The ellipsis is the same hollow face
+     and unfolds secondary Buttons in the target cluster. All three keep one height,
+     radius, type, and focus treatment. */
+  .lf-margin-action[data-lf-behavior="action"] {
+    border-color: color-mix(in srgb, var(--ink-2) 38%, var(--border-2));
+    background: var(--chip); color: var(--ink);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  .lf-margin-action[data-lf-behavior="disclosure"],
+  .lf-margin-action[data-lf-behavior="options"] {
+    background: var(--paper); color: var(--muted); box-shadow: none;
+  }
   /* The look is the control's and the hand is the press's, which is one rule apart —
      the same split the pill above states, and for the same reason. A copy keeps the
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
@@ -277,17 +291,19 @@ export function chromeStyle({
   .lf-margin-action[data-lf-tone="negative"][aria-disabled="true"] {
     border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
   }
-  .lf-margin-action[data-lf-tone="primary"] {
-    border-color: var(--accent); background: var(--accent); color: var(--paper);
-  }
-  .lf-margin-action[data-lf-tone="primary"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-    filter: brightness(.92); background: var(--accent);
-  }
   .lf-margin-action.lf-react[aria-pressed="true"] {
     border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
   }
   .lf-margin-action-glyph { line-height: 1; }
   .lf-margin-action-space { white-space: pre; }
+  .lf-margin-item > .lf-margin-contribution >
+    .lf-margin-action:not([data-lf-button-primary]),
+  .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
+    display: none;
+  }
+  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not(:has(> [data-lf-button-primary])) {
+    display: none;
+  }
   .lf-margin-item.lf-condensed > .lf-margin-contribution { min-width: 0 !important; }
   .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
     width: 30px; min-width: 30px !important; padding-inline: 0;
@@ -328,9 +344,9 @@ export function chromeStyle({
   /* The address chip is worn on both sides of the scope — an option's own corner in the
      page, and the chord's chips in the chrome's address layer — so its box is stated
      here. KEY_BOX is that box; the chrome's own step keys read the same statement from
-     inside @scope. */
-  .lf-address { ${KEY_BOX} display: none; border-color: var(--accent);
-    background: var(--card); color: var(--accent); z-index: 1; }
+     inside @scope. An address is an available key, so KEY_BOX's neutral face is also
+     its complete colour statement; completed steps take the pressed face below. */
+  .lf-address { ${KEY_BOX} display: none; z-index: 1; }
   /* The general leaf text box, in one rule. The compact response field is excluded
      because it shares its complete control geometry with the response buttons below.
      field-sizing does the growing, so no script
@@ -567,6 +583,10 @@ ${MARK_RULES}
     /* What the layer inherits from the document, answered at the layer's root, because
        the document below is a page of prose and this is not it.
 
+       position, because document-attached floats resolve against the initial containing
+       block. Broad authored positioning must not turn their outer wrapper or the
+       legend's nested paint host into a containing block.
+
        cursor, because the page's own body may be armed for ⌥ aiming — a statement about
        the document, not about anything in here. Stated on this side so the document side
        needs no mention of this container's class, which would widen the shared vocabulary
@@ -577,8 +597,15 @@ ${MARK_RULES}
        *wears* the class from walking past it — the 💬 button once inherited straight
        into the page's serif at 17px that way — and this is the same answer for the
        text around the controls. */
+    :scope, .lf-legend { position: static; }
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
+    /* Page paint belongs under a covering workspace. Paint whose target is inside the
+       chrome belongs above that workspace, including when the same aim or composer moves
+       between the two. The target owner states the plane; document order keeps aim,
+       composer, and inspect in their ordinary order within it. */
+    :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
+    .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
       display: flex;
       align-items: center; gap: 10px;
@@ -1028,8 +1055,8 @@ ${MARK_RULES}
        the section the reader was in to the disclosure they are now inside. */
     .lf-system { color: var(--ok); margin: 8px 0; }
     /* The two floats that point at the page live in the document's coordinate space
-       (absolute, body their containing block), because what they point at does: a
-       composer that held its viewport spot while the page scrolled sat pinned over
+       (absolute against the initial containing block), because what they point at does:
+       a composer that held its viewport spot while the page scrolled sat pinned over
        whatever arrived under it, no longer beside the item it was about. Everything
        else here is the viewport's own chrome and stays fixed. Below the banner's
        9000, so a float scrolled to the top slides under the bar, not over it. */
@@ -1047,7 +1074,7 @@ ${MARK_RULES}
        pill that floats over the page's own content rather than standing in the empty
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
-    .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
+    .lf-fab-bar { position: absolute; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
     /* The field and the choices are two states of one anchored response control. This
@@ -1151,7 +1178,7 @@ ${MARK_RULES}
        floats above (place), so a scroll moves it with the page between the events
        that re-derive it; under the floats themselves, which are chrome the reader
        works rather than paint about the page. */
-    .lf-aim { position: absolute; z-index: 8920; display: none; pointer-events: none;
+    .lf-aim { position: absolute; display: none; pointer-events: none;
       border: 2px solid var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); }
     .lf-composer { display: none; }
@@ -1211,51 +1238,45 @@ ${MARK_RULES}
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
-    .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
-      position-area: inline-start center; position-try-fallbacks: flip-inline, flip-block;
+    .lf-margin-preview { position: fixed;
       z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
-    /* A compact preview follows its marker through native anchor positioning. The full
-       conversation instead has its fixed top measured from that marker: the card also
+    /* The conversation has its fixed position measured from its Button: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */
     .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
       position-try-fallbacks: none;
-      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) 8px auto auto;
-      width: min(var(--thread-card), calc(100vw - 24px));
+      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
+        var(--lf-thread-left, 8px);
+      width: min(var(--thread-card), calc(100vw - var(--lf-thread-left, 8px) - 8px));
       max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
       gap: 8px; }
-    .lf-margin-thread-action { flex: none; margin: 0; padding: 2px 7px;
-      border-color: var(--rule); background: transparent; color: var(--muted);
-      font-size: var(--t-6); }
-    .lf-margin-thread-action[hidden] { display: none; }
     .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
       line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
-    .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-    .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
-      border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
-    .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
     .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
     .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
     .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
     .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
     .lf-margin-thread .lf-say { align-items: flex-end; }
     .lf-margin-thread .lf-say textarea { min-width: 0; }
-    .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
+    .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-    .lf-margin-preview-action:is(:hover, :focus-visible),
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
-    .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
-      outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
-    .lf-margin-action-kind { font-size: var(--t-6); font-weight: 600; }
-    .lf-margin-action-text { color: var(--ink-2); overflow-wrap: anywhere; }
+    /* Inset, because a row here fills the list to its own edge and the list is a
+       scroller: there is nothing outside the row for a ring to be drawn in, and an
+       outset one is cut on both sides by the box it scrolls in. The layer's rule for
+       a box whose edge touches something that paints (CLAUDE.md, "Standing somewhere").
+       The ring's width is the inset, so the band lands just inside the row's own edge. */
+    .lf-page-map-action:focus-visible {
+      outline: var(--here-ring); --lf-here-ring: page-map-action;
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
@@ -1274,7 +1295,7 @@ ${MARK_RULES}
     }
     @media (forced-colors: active) {
       .lf-margin-preview, .lf-page-map-sheet { border: 1px solid CanvasText; box-shadow: none; }
-      .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+      .lf-page-map-action:focus-visible {
         outline: 2px solid Highlight; }
     }
     /* The key line: a contextual shortlist plus persistent rows, rendered from the
@@ -1388,7 +1409,7 @@ ${MARK_RULES}
       --lf-here-ring: target-search; outline-offset: 1px; }
     .lf-target-search-status { min-width: 58px; color: var(--muted);
       font-size: var(--t-6); text-align: right; white-space: nowrap; }
-    .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
+    .lf-legend-box { position: absolute; pointer-events: none;
       box-sizing: border-box;
       border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
     .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
@@ -1403,7 +1424,7 @@ ${MARK_RULES}
     .lf-banner.lf-designing { background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
     /* Document-anchored like the box it names (paintInspect adds the scroll), so the
        two move together between the events that re-derive them. */
-    .lf-inspect { position: absolute; z-index: 9060; pointer-events: none; display: none;
+    .lf-inspect { position: absolute; pointer-events: none; display: none;
       max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
       background: var(--accent); color: var(--paper); }

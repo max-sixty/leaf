@@ -14,6 +14,24 @@ from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import parse_structure
 
 
+def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
+    """Replace declared page-media references in one serialized payload."""
+    for src in sorted(refs):
+        file = page_dir / src.lstrip("/")
+        data = base64.b64encode(file.read_bytes()).decode()
+        uri = f"data:{MEDIA_TYPES[file.suffix]};base64,{data}"
+        text = text.replace(f'="{src}"', f'="{uri}"').replace(
+            f"url({src})", f"url({uri})"
+        )
+    return text
+
+
+def inline_css_assets(css: str, page_dir: Path) -> str:
+    """Make page-local CSS independent of Leaf's media endpoint."""
+    refs = set(re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", css))
+    return _inline_media(css, page_dir, refs)
+
+
 def inline_assets(html: str, page_dir: Path) -> str:
     """Fold the served assets into the markup. The theme's link becomes the stylesheet
     itself and each image becomes its own bytes, which is everything the document still
@@ -43,14 +61,7 @@ def inline_assets(html: str, page_dir: Path) -> str:
     css_refs = set(
         re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", parsed.css)
     )
-    for src in sorted(set(parsed.media_refs) | css_refs):
-        file = page_dir / src.lstrip("/")
-        data = base64.b64encode(file.read_bytes()).decode()
-        uri = f"data:{MEDIA_TYPES[file.suffix]};base64,{data}"
-        html = html.replace(f'="{src}"', f'="{uri}"').replace(
-            f"url({src})", f"url({uri})"
-        )
-    return html
+    return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
 
 
 def export_page(browser, url: str, page_dir: Path) -> str:

@@ -748,9 +748,9 @@ export function createAnchors(dependencies) {
       composerIsOpen() && composerAnchor()
         ? resolveAnchor(composerAnchor(), text)
         : null;
-    // Where the draft's passage is, recorded the way the threads' is, because placeComposer
-    // has to keep the box off it. An element a thread already outlines belongs
-    // in the record too — it is marked, just in the posted colour rather than the accent.
+    // Where the draft's passage is, recorded the way the threads' is. An element a thread
+    // already outlines belongs in the record too — it is marked, just in the posted colour
+    // rather than the accent.
     pendingMarks = draft
       ? draft.element
         ? (draft.marks ?? shownParts(draft.element))
@@ -760,8 +760,8 @@ export function createAnchors(dependencies) {
     if (draft?.element) {
       // Part by part, because a thread's outline is claimed the same way: the draft takes
       // whichever boxes are still free and leaves the rest in the posted colour. The record
-      // above is the parts too, so placeComposer stands the box off the passage the reader
-      // can see rather than off a wrapper whose rect sits at the top of the document.
+      // above records the same shown parts rather than a wrapper whose rect may sit at the
+      // top of the document.
       const taken = allMarks();
       for (const part of pendingMarks)
         if (!taken.includes(part)) {
@@ -771,7 +771,7 @@ export function createAnchors(dependencies) {
     }
     if (draft?.segments) pending.push(...pendingMarks);
 
-    const active = actionAnchor();
+    const active = composerIsOpen() ? null : actionAnchor();
     const action = active && !active.quote ? resolveAnchor(active, text) : null;
     actionOutline = action?.element ? (action.marks ?? shownParts(action.element)) : [];
     for (const part of actionOutline) part.classList.add("lf-action-target");
@@ -1304,7 +1304,6 @@ export function createAnchors(dependencies) {
     NOTE,
     isMarked: (id) => marked.has(id),
     placedAt: (id) => placed.get(id),
-    pendingMarkParts: () => [...pendingMarks],
     refreshAim,
     dockSeats,
     paintAnchors,

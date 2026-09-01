@@ -281,7 +281,11 @@ import {
   quietSince,
 } from "./runtime/presence.js";
 import { createPointer } from "./runtime/pointer.js";
-import { createReactions, paintReactionStanding } from "./runtime/reactions.js";
+import {
+  createReactions,
+  paintReactionStanding,
+  responseAction,
+} from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
@@ -915,18 +919,22 @@ const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
 
-// The floating Comment control names a selection before it has a stable target row.
-// Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
-// adds the registry-declared reaction buttons to its right. One affordance, raised only
-// where the reader has already pointed: a selection, a visual's click, an aimed item or
-// visual part, or `r`.
+// The floating field immediately accepts a comment on the target the reader named.
+// Pressing Tab or its ellipsis exchanges its field for the other responses in place.
+// One affordance, raised only where the reader has already pointed:
+// a selection, a visual's click, an aimed item, or a visual part.
 const fabBar = el("div", "lf-ui lf-fab-bar");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
-const fab = marginAction(el("button", "lf-ui lf-pill lf-fab"), {
+const fabInput = document.createElement("textarea");
+fabInput.className = "lf-ui lf-response-control lf-fab-input";
+fabInput.rows = 1;
+fabInput.autocomplete = "off";
+fabInput.placeholder = "Comment…";
+fabInput.setAttribute("aria-label", "Comment");
+const fab = responseAction(el("button", "lf-ui lf-fab"), {
   glyph: "💬",
   label: "Comment",
-  collapse: "always",
 });
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
@@ -949,17 +957,20 @@ const suggestRow = el("label", "lf-suggest-row");
 const suggestCheck = document.createElement("input");
 suggestCheck.type = "checkbox";
 suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
-const composerInput = document.createElement("textarea");
+// The page-anchored composer is the extended Comment control itself. The hidden
+// composer node keeps the draft's controls and quote description, while this textarea
+// stays in the response bar and never jumps to a second box.
+const composerInput = fabInput;
 // The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
 // in CLAUDE.md). So what the box is anchored to travels as the box's own description,
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a reader at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerRow = el("div", "lf-composer-row");
-const composerCancel = el("button", "lf-btn", "Cancel");
 const composerSend = el("button", "lf-btn primary", "Comment");
-composerRow.append(composerCancel, composerSend);
+composerRow.append(composerSend);
 composer.append(composerQuote, suggestRow, composerInput, composerRow);
+fabBar.prepend(composer);
 const toastEl = el("div", "lf-ui lf-toast");
 const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -1060,7 +1071,6 @@ chromeRoot.append(
   selectionSearch,
   aimBox,
   fabBar,
-  composer,
   toastEl,
   liveEl,
   helpEl,
@@ -1130,8 +1140,6 @@ chromeLayout = createChromeLayout({
   chromeRoot,
   closeReactions: () => setReact(false),
   commentsEdge,
-  composer,
-  composerIsOpen: () => composerOpen,
   containsAcross: (...args) => containsAcross(...args),
   currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
@@ -1145,7 +1153,6 @@ chromeLayout = createChromeLayout({
   },
   panelFoot,
   panelList: threadsBox,
-  placeComposer: (...args) => placeComposer(...args),
   readerStore,
   refreshFab: (...args) => refreshFab(...args),
   refreshHover: (...args) => refreshHover(...args),
@@ -1197,23 +1204,24 @@ const {
   beside,
   dismissFab,
   fabAnchorAt,
+  fabOptionsAvailable,
   fabTargetAt,
   fabReturnTo,
+  focusFabComment,
+  focusTargetComment,
   openOnItem,
-  openTargetComposer,
   placeClear,
-  placeComposer,
   refreshFab,
   selectResponseTarget,
   showFab,
+  showFabOptions,
   standDown,
   updateFab,
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
   anchorLabel: (...args) => anchorLabel(...args),
+  banner,
   blockAt: (...args) => blockAt(...args),
-  composer,
-  composerInput,
   composerIsOpen: () => composerOpen,
   closeVersionMenu,
   collapseKeyline: () => keyline?.less(),
@@ -1221,8 +1229,11 @@ const {
   designTarget,
   fab,
   fabBar,
+  fabInput,
   hideComposer: () => hideComposer(),
   hideReference: () => reference.show(false, false),
+  hasOtherResponses: (anchor) =>
+    reactionTokens().length > 0 || Boolean(anchor?.quote && !designOn),
   inChrome: (node) => inChrome(node),
   isReactArmed: () => isReactArmed(),
   keylineEl,
@@ -1240,7 +1251,6 @@ const {
   paintStanding: paintReactionStanding,
   panel,
   panelCovers,
-  pendingMarkParts,
   pointerAt,
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
@@ -1263,7 +1273,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   designPress,
   designTarget,
   inChrome: (node) => inChrome(node),
-  openTargetComposer,
+  focusTargetComment,
   openOnDesign,
   pointerAt,
   refreshAim,
@@ -1296,8 +1306,8 @@ function openOnDesign(...args) {
 
 selectionComposerRuntime = createSelectionComposer(runtime, {
   clearDraft,
+  closeReactions: () => setReact(false),
   composer,
-  composerCancel,
   composerInput,
   composerSend,
   designIsOn: () => designOn,
@@ -1310,7 +1320,6 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
   paintAnchors,
   paintHere,
-  placeComposer,
   post,
   saveDraft,
   sendDraft,
@@ -1569,7 +1578,7 @@ const commentDestination = () => {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
-      go: () => fab.click(),
+      go: focusFabComment,
     };
   const said = standingConversation();
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
@@ -1606,7 +1615,7 @@ const hasCapturedTarget = () => Boolean(fabAnchorAt());
 // raised the 💬 on something has said what they mean more recently than the focus they left
 // behind, which is the order decisionPosition reads its own answers in.
 function commentKey() {
-  updateFab(); // the selection may be newer than the mouseup that last placed the button
+  updateFab(); // the selection may be newer than the mouseup that last placed the bar
   commentDestination().go();
 }
 
@@ -1986,6 +1995,7 @@ const {
   fabReturnTo,
   fabBar,
   focused,
+  hideComposer: () => hideComposer(),
   itemWord,
   offer,
   paintHere,
@@ -1996,6 +2006,7 @@ const {
   showToast,
   standingConversation,
   standingItem,
+  suggestHere: () => selectionComposerRuntime.setSuggestionMode(true),
   undoable: (...args) => undoable(...args),
   visualPartLabel: (...args) => visualPartLabel(...args),
   withdraw: (...args) => withdraw(...args),
@@ -2083,10 +2094,19 @@ const COMPOSER = {
   at: () => composerOpen,
   rows: [
     {
+      id: "comment.options",
+      keys: ["Tab"],
+      does: "Show other responses",
+      line: "other responses",
+      when: fabOptionsAvailable,
+      run: showFabOptions,
+    },
+    {
       id: "composer.close",
       keys: ["Escape"],
       does: "Close the composer, keeping the draft",
       line: "close — draft kept",
+      promoteEscape: false,
       run: () => {
         hideComposer();
         showFab(null);
@@ -3107,9 +3127,6 @@ function isMarked(...args) {
 }
 function placedAt(...args) {
   return anchorRuntime.placedAt(...args);
-}
-function pendingMarkParts(...args) {
-  return anchorRuntime.pendingMarkParts(...args);
 }
 
 const passageRuntime = createPassages({

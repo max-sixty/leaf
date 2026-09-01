@@ -5,8 +5,8 @@ export let composerOpen = false;
 export function createSelectionComposer(runtime, dependencies) {
   const {
     clearDraft,
+    closeReactions,
     composer,
-    composerCancel,
     composerInput,
     composerSend,
     designIsOn,
@@ -19,7 +19,6 @@ export function createSelectionComposer(runtime, dependencies) {
     openInlineThread,
     paintAnchors,
     paintHere,
-    placeComposer,
     post,
     saveDraft,
     sendDraft,
@@ -81,42 +80,52 @@ export function createSelectionComposer(runtime, dependencies) {
     }
     return best;
   }
+  let inFlight = null;
+  let composerEpoch = 0;
   const syncComposer = wireInput(composerInput, {
     hint: () =>
       suggestCheck.checked
         ? "Replacement text"
         : pendingAbout
           ? "About the layer"
-          : "Your comment",
+          : "Comment…",
     sends: () => (suggestCheck.checked ? "suggest" : "comment"),
     sendBtn: composerSend,
+    sendKey: "Enter",
     save: saveComposerDraft,
     send: async (text, raw) => {
       const anchor = structuredClone(pendingAnchor);
       const ctx = composerCtx(anchor);
       const suggestion = suggestCheck.checked;
       const about = pendingAbout;
-      const sent = await sendDraft(
-        ctx,
-        () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
-        (attempt) => {
-          const event = {
-            kind: "comment",
-            revision: runtime.currentRevision,
-            anchor,
-            text,
-            attempt,
-          };
-          if (suggestion) event.suggestion = true;
-          if (about) event.about = about;
-          return post(event);
-        },
-      );
+      const flight = { ctx, raw, epoch: composerEpoch };
+      inFlight = flight;
+      let sent;
+      try {
+        sent = await sendDraft(
+          ctx,
+          () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
+          (attempt) => {
+            const event = {
+              kind: "comment",
+              revision: runtime.currentRevision,
+              anchor,
+              text,
+              attempt,
+            };
+            if (suggestion) event.suggestion = true;
+            if (about) event.about = about;
+            return post(event);
+          },
+        );
+      } finally {
+        if (inFlight === flight) inFlight = null;
+      }
       if (!sent) return;
       // A later edit is still the reader's standing gesture. The earlier comment may
       // render in another conversation view, but it may not close or move the composer
       // holding that edit.
-      if (loadDraft(ctx) !== null) return;
+      if (composerEpoch !== flight.epoch || loadDraft(ctx) !== null) return;
       let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       const shouldLand = mayLandTyping(reply, composerInput);
       // Opening an inline view closes the panel and moves focus. Decide from the standing
@@ -147,7 +156,8 @@ export function createSelectionComposer(runtime, dependencies) {
     syncComposer();
     paintHere(); // the line's send row says which of the two the box will do
   }
-  suggestCheck.onchange = () => {
+  function setSuggestionMode(suggest) {
+    suggestCheck.checked = Boolean(suggest);
     // Entering suggestion mode seeds the box with the passage to edit in place.
     if (suggestCheck.checked && !composerInput.value.trim() && pendingAnchor?.quote) {
       composerInput.value = seededQuote = pendingAnchor.quote;
@@ -155,7 +165,9 @@ export function createSelectionComposer(runtime, dependencies) {
     }
     syncSuggestMode();
     saveComposerDraft();
-  };
+    composerInput.focus({ preventScroll: true });
+  }
+  suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
 
   // Whether the composer is up, and the only thing that decides it. The stylesheet renders
   // this state; nothing reads it back, because the rendering has a third value the state
@@ -164,7 +176,10 @@ export function createSelectionComposer(runtime, dependencies) {
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
     composerOpen = open;
-    composer.style.display = open ? "block" : "none";
+    // The wrapper contributes no card or box. Its textarea is the extended Comment
+    // control inside the response bar; the other composer controls stay hidden there.
+    composer.style.display = open ? "contents" : "none";
+    composer.toggleAttribute("data-lf-open", open);
     // The reader's own selection is gone by now — focusing a textarea drops it — so this
     // mark is the only thing left pointing at the passage being quoted.
     paintAnchors();
@@ -185,9 +200,21 @@ export function createSelectionComposer(runtime, dependencies) {
     suggest = false,
     about = designIsOn() ? "layer" : null,
   ) {
+    closeReactions();
     if (composerInput.value === seededQuote) composerInput.value = "";
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
+    const previousCtx = composerCtx(pendingAnchor);
+    if (previousCtx !== ctx) composerEpoch += 1;
+    // Re-anchoring while this exact value is being sent is a new response gesture, not
+    // an edit of the submitted words on a different passage. Leave the sending draft at
+    // its original coordinate so a failed request can recover it, and start the new
+    // field clean. The eventual success settles that original generation in place.
+    const leavesFlight =
+      previousCtx !== ctx &&
+      inFlight?.ctx === previousCtx &&
+      composerInput.value === inFlight.raw;
+    if (leavesFlight) composerInput.value = "";
     // A draft already standing on this passage is what the box opens with — one left hidden
     // here, or one being typed in another tab — unless the caller brought words of its own
     // or the box is already carrying some.
@@ -197,18 +224,15 @@ export function createSelectionComposer(runtime, dependencies) {
     // on lets go of them as they arrive on the next one. A press that re-anchors an open
     // draft is where this lands, and a key left standing there would hand the same words
     // back on the old passage at the next load.
-    if (composerCtx(pendingAnchor) !== ctx) clearDraft(composerCtx(pendingAnchor));
+    if (previousCtx !== ctx && !leavesFlight) clearDraft(previousCtx);
     pendingAnchor = anchor || null;
     pendingAbout = about;
     composerInput.value = text || composerInput.value;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
-    // before placing: a hidden box has no height to fit, and the pass inside this call is
-    // both what decides whether the quote takes up some of that height and what records
-    // where the passage is that the box has to stay off.
     showComposer(true);
+    showFab(anchor);
     syncComposer();
-    placeComposer(left, top);
     composerInput.focus();
     watchComposer();
     // The store hears about the anchor now, not at the next keystroke: saving only on
@@ -254,22 +278,16 @@ export function createSelectionComposer(runtime, dependencies) {
     pendingAbout = null;
     syncSuggestMode(); // after the state it renders, which is now all of it
     hideComposer();
+    showFab(null, null, { returnFocus: "none" });
   }
 
-  // The button opens the composer where it stands, on the anchor it is carrying. Where it
-  // stands, and not where it was asked for: placement moves it — down past the controls it
-  // would cover, and off the viewport's edges — so the two are no longer the same point,
-  // and handing on the asked-for one put the composer straight back over the row the button
-  // had just stepped off.
+  // The response bar's Comment action returns to this same compact field on the anchor
+  // the bar is carrying. It remains a button only while the choices are visible.
   fab.onclick = () => {
     if (!fabAnchor()) return;
     const anchor = fabAnchor();
     const { left, top } = fab.getBoundingClientRect();
-    showFab(null, null, { returnFocus: "none" });
     openComposer(anchor, "", left, top);
   };
-  // Cancel discards. Escape and outside clicks only hide, keeping the draft either way.
-  composerCancel.onclick = closeComposer;
-
-  return { hideComposer, openComposer, pendingComposer };
+  return { hideComposer, openComposer, pendingComposer, setSuggestionMode };
 }

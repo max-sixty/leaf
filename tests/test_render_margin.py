@@ -757,12 +757,10 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
     page.locator("#mounts-p").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check the January failure mode.")
-    page.locator(".lf-composer").get_by_role(
-        "button", name="Comment", exact=True
-    ).click()
+    page.keyboard.press("Enter")
     round_trip(page)
 
     sent = events_model.read_events(serve.page_dir)[-1]

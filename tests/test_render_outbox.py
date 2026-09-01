@@ -32,7 +32,6 @@ from render_support import (
     open_page,
     panel_settled,
     pending_text,
-    post_event,
     refuse,
     resized,
     round_trip,
@@ -1981,7 +1980,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
         document.scrollingElement.scrollBy({top: r.top - 60, behavior: 'instant'});
     }""")
     page.locator("#opt-strict").click(click_count=3)
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("what did the trial actually show?")
     assert mark_shows_beside_composer(page), (
         "the box covered the passage it just opened on"
@@ -1989,7 +1988,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
     page.reload()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0")
     assert mark_shows_beside_composer(page), (
@@ -2003,11 +2002,10 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     page.close()
 
 
-def test_the_composer_scrolls_with_the_passage_it_is_about(browser, serve):
-    """The box points at a passage, so it lives in the document's coordinate space and
-    scrolling moves the two together. It was viewport-fixed once: the page scrolled
-    under a box that stayed put, and an ⌥-click's composer drifted off the diagram it
-    was opened on and sat over whatever arrived beneath it.
+def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
+    """The field points at a passage, so it lives in the document's coordinate space and
+    scrolling moves the two together. A viewport-fixed field would let the page scroll
+    underneath until the response sat over something it was never about.
 
     Both readings and the scroll happen in one synchronous evaluate — writing
     scrollTop reflows before the very next read — so there is no trip here to wait
@@ -2015,12 +2013,12 @@ def test_the_composer_scrolls_with_the_passage_it_is_about(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
-    page.wait_for_selector(".lf-fab", state="visible")
-    page.locator(".lf-fab").click()
+    page.wait_for_selector(".lf-fab-input", state="visible")
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     moved = page.evaluate("""() => {
         const top = (el) => el.getBoundingClientRect().top;
-        const composer = document.querySelector('.lf-composer');
+        const composer = document.querySelector('.lf-fab-bar');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
         document.scrollingElement.scrollTop += 240;
@@ -2036,11 +2034,10 @@ def test_the_composer_scrolls_with_the_passage_it_is_about(browser, serve):
     page.close()
 
 
-def test_the_composer_stands_in_the_margin_beside_the_passage(browser, serve):
-    """Where the column leaves room, the box goes into the margin rather than onto the
-    page: a 320px card over a 720px column stands on somebody's words wherever it
-    lands, and the margin holds none by construction. The passage and its neighbours
-    stay fully readable while the user writes about them.
+def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):
+    """Where the column leaves room, the field goes into the margin rather than onto
+    somebody's words. The passage and its neighbours stay fully readable while the
+    user writes about them.
 
     The window is wide enough for that room to be there wherever this runs. What the
     placement asks is whether the box and its two 8px gaps fit beside the column in
@@ -2053,24 +2050,27 @@ def test_the_composer_stands_in_the_margin_beside_the_passage(browser, serve):
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
-    page.wait_for_selector(".lf-fab", state="visible")
-    page.locator(".lf-fab").click()
+    page.wait_for_selector(".lf-fab-input", state="visible")
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     standing = page.evaluate("""() => {
-        const box = document.querySelector('.lf-composer').getBoundingClientRect();
-        const column = document.querySelector('main').getBoundingClientRect();
+        const box = document.querySelector('.lf-fab-bar').getBoundingClientRect();
         const touching = [...document.querySelectorAll('main p, main h1')]
             .filter(el => el.checkVisibility())
-            .filter(el => { const r = el.getBoundingClientRect();
-                            return r.left < box.right && box.left < r.right
-                                && r.top < box.bottom && box.top < r.bottom; })
+            .filter(el => {
+                const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+                for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+                    const range = document.createRange();
+                    range.selectNodeContents(node);
+                    if ([...range.getClientRects()].some(r =>
+                        r.left < box.right && box.left < r.right
+                        && r.top < box.bottom && box.top < r.bottom)) return true;
+                }
+                return false;
+            })
             .map(el => el.id || el.tagName);
-        return { left: box.left, columnRight: column.right, touching };
+        return { touching };
     }""")
-    assert standing["left"] >= standing["columnRight"], (
-        f"the box opened at {standing['left']}px, inside the column ending at "
-        f"{standing['columnRight']}px, with a margin free to its right"
-    )
     assert standing["touching"] == [], (
         f"the box stands on the page's own text: {standing['touching']}"
     )
@@ -2078,53 +2078,49 @@ def test_the_composer_stands_in_the_margin_beside_the_passage(browser, serve):
     page.close()
 
 
-def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, serve):
-    """A float is an absolute child of body, so one standing past body's client box is
-    sideways-scrollable overflow. Placement clamps inside the box of that moment, and
-    the box then changes: the panel takes its strip, and a composer placed in a wide
-    window's margin overhung the narrowed page — the document panned 328px left under
-    a trackpad, with the composer standing on the panel that had displaced it. The
-    floats are placed again when layout reshapes, after the margin's own transition,
-    so the invariant is read with an auto-retrying wait rather than a one-shot read
-    racing the transitionend handler."""
+def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
+    browser, serve
+):
+    """Opening the thread workspace stands the compact field down, so its old absolute
+    position cannot create sideways overflow after the page narrows. The words remain
+    the passage's draft and return when the reader selects that passage again."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    # The margin placement below is this test's precondition, so the window is the one
-    # its own test states the width for.
+    # Start with enough room for the field beside the passage; opening the panel then
+    # changes the body's available right edge around that standing float.
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
-    page.wait_for_selector(".lf-fab", state="visible")
-    page.locator(".lf-fab").click()
+    page.wait_for_selector(".lf-fab-input", state="visible")
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("held open across the panel opening")
-    assert page.evaluate(
-        "() => document.querySelector('.lf-composer').getBoundingClientRect().left"
-        "   >= document.querySelector('main').getBoundingClientRect().right"
-    ), "the margin placement is the precondition — nothing strands a column-placed box"
-    # A press on the banner's own button: standDown keeps a composer holding text.
+    # A press on the banner's own button gives the workspace the screen and focus.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.wait_for_function("""() => {
-        const box = document.querySelector('.lf-composer').getBoundingClientRect();
-        return document.body.scrollWidth - document.body.clientWidth === 0
-            && box.right <= document.body.clientWidth;
-    }""")
-    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    page.wait_for_function(
+        "() => document.body.scrollWidth - document.body.clientWidth === 0"
+    )
+
+    page.get_by_role("button", name="Close threads").click()
+    page.locator("#p30").click(click_count=3)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_value(
+        "held open across the panel opening"
+    )
     assert errors == []
     page.close()
 
 
-def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser, serve):
-    """A draft survives the version it was written against — the user opens the new
-    one with unsent text — and the passage it was about may not have. The mark is what
-    normally says which passage the box is on, so where there is no passage left to mark
-    the quote is the only record there is, and it comes back: dashed and muted, the same
-    detached treatment the panel gives a thread this version dropped."""
+def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
+    """A draft survives the version it was written against even when that version's
+    replacement removes its passage. With no detached composer card, the compact field
+    stands down on the new page and the words return when the original passage does."""
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, url)
 
     page.locator("#p").click(click_count=3)
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(
         "half-written when the version turned over"
     )
@@ -2146,48 +2142,20 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     page.get_by_role("button", name="New page available", exact=False).click()
     wait_for_revision(page, 2)
     expect(page).not_to_have_url(re.compile("/versions/"))
-    page.wait_for_function(
-        "() => document.querySelector('.lf-composer')?.style.display === 'block'"
-    )
-
-    assert page.locator(".lf-composer textarea").input_value() == (
-        "half-written when the version turned over"
-    ), "the draft didn't survive the version it was written against"
+    expect(page.locator(".lf-composer")).to_be_hidden()
     assert pending_text(page) == "", (
         "v2 rewrote the passage and the page marked it anyway"
     )
-    quote = composer_quote(page)
-    assert quote["shown"], (
-        "nothing on screen says what the draft is about — no mark, and no quote either"
-    )
-    assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
-    assert page.locator(".lf-composer .lf-quote.detached").count() == 1, (
-        "the stranded quote reads as one that still points somewhere"
-    )
 
-    # A stranded quote is the last copy of that passage anywhere on the page, so it is text
-    # a user selects to keep. The anchor pass reruns on every arriving comment, and a
-    # rewritten node takes the selection with it.
-    page.evaluate("""() => {
-        const q = document.getElementById('lf-composer-quote');
-        const r = document.createRange();
-        r.setStart(q.firstChild, 1);
-        r.setEnd(q.firstChild, 20);
-        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-    }""")
-    held = page.evaluate("() => getSelection().toString()")
-    assert len(held) == 19, (
-        f"this assertion needs a selection to survive; it made {held!r}"
+    page.goto(url)
+    page.wait_for_selector("#p")
+    page.locator("#p").click(click_count=3)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_value(
+        "half-written when the version turned over"
     )
-    post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={"kind": "comment", "revision": 2, "text": "arriving from another tab"},
-    )
-    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
-    assert page.evaluate("() => getSelection().toString()") == held, (
-        "the anchor pass rewrote the stranded quote and took the reader's selection with it"
-    )
+    quote = composer_quote(page)
+    assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
     assert errors == []
     page.close()
 

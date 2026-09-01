@@ -44,6 +44,7 @@ from render_support import (
     _publish,
     _traffic,
     compare_with,
+    composer_quote,
     data_projection_page,
     leaf_page,
     live_url,
@@ -1516,10 +1517,10 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         (words["x"] + 2, y),
         (words["x"] + words["width"] - 2, y),
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Still anchored?")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
 
     expect(page.locator(".lf-thread")).to_have_count(3)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
@@ -2400,10 +2401,10 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
 
     api = page.locator('[data-lf-datum="api"]')
     api.click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Which readiness check is this?")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
 
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -2576,17 +2577,10 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
     assert bounds is not None
     select(page, (bounds["left"] + 1, bounds["y"]), (bounds["right"] - 1, bounds["y"]))
-    selected = page.evaluate(
-        """() => ({
-          text: getSelection().toString(),
-          anchor: getSelection().anchorNode?.parentElement?.outerHTML,
-        })"""
-    )
-    assert selected["text"], selected
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert composer_quote(page)["text"].strip("“”") == "Original instructions."
     page.locator(".lf-composer textarea").fill("Keep this exact source.")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
     assert comment["anchor"]["section"] == "skill-source"

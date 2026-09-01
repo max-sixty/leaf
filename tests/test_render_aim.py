@@ -75,6 +75,26 @@ AIM_PRESS_CASES = (
 )
 
 
+def open_compact_comment(page, text=None):
+    """Read the in-place comment field after an aimed press."""
+    bar = page.locator(".lf-fab-bar")
+    field = page.locator(".lf-fab-input")
+    composer = page.locator(".lf-composer")
+    expect(bar).to_be_visible()
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(composer).to_have_css("display", "contents")
+    if text is None:
+        return field
+    else:
+        page.keyboard.type(text)
+        expect(field).to_have_value(text)
+        expect(field).to_be_focused()
+        expect(bar).to_be_visible()
+        expect(composer).to_have_css("display", "contents")
+    return field
+
+
 def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     """The sidenote authors copy carries the identity its advertised aim needs.
 
@@ -102,10 +122,23 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     note.click()
     page.keyboard.up("Alt")
 
-    # The chord already names Comment, so the press opens the composer on the whole note.
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    # The chord already names Comment, so the durable composer is the focused field
+    # beside the note. It grows in place and Enter submits it.
+    field = open_compact_comment(page, "why here")
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
+    one_line = field.bounding_box()["height"]
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("because every active session must end before support continues")
+    assert field.bounding_box()["height"] > one_line
+    expect(page.locator(".lf-composer")).to_have_css("display", "contents")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["text"] == (
+        "why here\nbecause every active session must end before support continues"
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -147,12 +180,11 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
 
     target.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    open_compact_comment(page)
     placed = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
-          const box = document.querySelector('.lf-composer').getBoundingClientRect();
+              const box = document.querySelector('.lf-fab-input').getBoundingClientRect();
           const overlaps = target.left < box.right && box.left < target.right
               && target.top < box.bottom && box.top < target.bottom;
           return { left: box.left, right: box.right, overlaps, width: innerWidth };
@@ -198,9 +230,8 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
-    # The press opens Comment on the item the aim held.
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    # The press focuses Comment on the item the aim held.
+    open_compact_comment(page)
     assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
     page.close()
@@ -232,8 +263,7 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
         }"""
     )
 
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    open_compact_comment(page)
     assert page.evaluate(DRAFT_MARK) == "p2"
     assert errors == []
     page.close()
@@ -336,9 +366,8 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
-            # The chord promised Comment, so the press opens the composer directly.
-            expect(bar).to_be_hidden()
-            expect(composer).to_be_visible()
+            # The chord promised Comment, so the press focuses its compact field.
+            open_compact_comment(page)
             mark = page.evaluate(DRAFT_MARK)
             # A box a standing thread already outlines keeps the posted colour and takes
             # no pending class of its own: the draft claims whichever boxes are still
@@ -448,9 +477,8 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_item(browser, serve):
     )
     page.mouse.click(edge["x"], edge["y"])
     page.keyboard.up("Alt")
-    # The press opens Comment on what it took.
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    # The press focuses Comment on what it took.
+    open_compact_comment(page)
     assert page.evaluate(DRAFT_MARK) == promised, (
         f"the outline promised {promised} on the seam and the press commented on "
         f"{page.evaluate(DRAFT_MARK)}"
@@ -472,9 +500,8 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()  # the press was the aim's
     composer = page.locator(".lf-composer")
-    expect(composer).to_be_visible()
+    open_compact_comment(page)
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
@@ -502,9 +529,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     composer = page.locator(".lf-composer")
-    expect(composer).to_be_visible()
+    open_compact_comment(page)
     composer.locator("textarea").fill("carried words")
 
     card = page.locator("#card-notes")
@@ -518,8 +544,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     card.click()
     page.keyboard.up("Alt")
     # The second explicit comment gesture moves the open draft onto the card.
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(composer).to_be_visible()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(composer.locator("textarea")).to_be_focused()
     expect(composer.locator("textarea")).to_have_value("carried words")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
         None,
@@ -618,7 +644,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     composer_input.click()
     expect(composer_input).to_be_focused()
     composer_input.fill("the ring reads too heavy")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     events = events_model.read_events(serve.page_dir)
     posted = [e for e in events if e["kind"] == "comment"]
@@ -803,7 +829,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
     expect(page.locator(".lf-panel")).to_be_hidden()
     page.locator(".lf-composer textarea").fill("reads dim against the wash")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     posted = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
@@ -899,9 +925,10 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
         (box["x"] + 2, box["y"] + box["height"] / 2),
         (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
     )
-    fab = page.locator(".lf-fab")
-    expect(fab).to_be_visible()
-    fab.click()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    page.keyboard.press("Enter")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "layer · heading · t · “Rollout”"
@@ -1058,17 +1085,15 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
 
     unlisted = diagram.locator('g[id*="flowchart-U-"]')
     unlisted.click()
-    page.locator(".lf-fab").click()
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     start = diagram.locator('g[id*="flowchart-S-"]')
     start.click()
-    page.locator(".lf-fab").click()
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("name the retry path here")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
 
     posted = [
@@ -1109,12 +1134,11 @@ def test_a_linked_flowchart_node_opens_its_comment_without_following_the_link(
     expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
 
     handler.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    open_compact_comment(page)
     expect(handler).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("keep this linked step visible")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
 
     posted = [
@@ -1141,7 +1165,7 @@ def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
         "layer · Handle request · lf-diagram · flow"
     )
     page.locator(".lf-composer textarea").fill("the link needs a stronger affordance")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     posted = [
         event
@@ -1201,29 +1225,28 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
 
     def aim(target, **press):
         target.click(modifiers=["Alt"], **press)
-        expect(page.locator(".lf-fab-bar")).to_be_hidden()
-        expect(page.locator(".lf-composer")).to_be_visible()
+        open_compact_comment(page)
 
     state = page.locator('#life g[id*="state-Queued-"]')
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     page.locator(".lf-composer textarea").fill("how long does it sit here")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
 
     # A box inside the composite state, declared in its own right.
     aim(page.locator('#life g[id*="state-Build-"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Build")
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     aim(page.locator('#life g[id*="Working"]'), position={"x": 6, "y": 6})
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Working")
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     entity = page.locator('#shape g[id*="entity-RUNNER-"]')
     aim(entity)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     # A node's label is the words the box shows. The source's own string is what
     # Mermaid renders from — markdown, entities and all — so it is not what a thread
@@ -1232,11 +1255,11 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "§ diagram · Bold and plain"
     )
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     aim(entity)
     page.locator(".lf-composer textarea").fill("one runner or many")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
 
     posted = [

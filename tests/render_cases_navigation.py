@@ -195,7 +195,7 @@ def mark_shows_beside_composer(page):
     is the only thing naming the passage the box is about, so a box covering all of it is a
     box about nothing — which no state may reach."""
     return page.evaluate("""() => {
-        const box = document.querySelector('.lf-composer').getBoundingClientRect();
+        const box = document.querySelector('.lf-fab-bar').getBoundingClientRect();
         const rects = [...(CSS.highlights.get('lf-pending') ?? [])]
             .flatMap(r => [...r.getClientRects()])
             .concat([...document.querySelectorAll('.lf-mark-el.lf-pending')]
@@ -769,11 +769,9 @@ def compose(page, passage, text=None):
     key is built from is the same in both tabs."""
     page.locator(passage).scroll_into_view_if_needed()
     page.locator(passage).click(click_count=3)
-    page.wait_for_selector(".lf-fab", state="visible")
-    page.locator(".lf-fab").click()
-    expect(page.locator(".lf-composer textarea")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     if text is not None:
-        page.locator(".lf-composer textarea").fill(text)
+        page.locator(".lf-fab-input").fill(text)
 
 
 # The two presses this asks about, on one page: a draft's ✎ (a thing to do) and a pick

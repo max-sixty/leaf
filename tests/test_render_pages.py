@@ -640,20 +640,21 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     # The inner svg is mermaid's, carrying a generated id; the anchor belongs to the
     # widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     page.locator("#tree").click()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator("#tree.lf-mark-el.lf-pending").wait_for()
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
     page.locator("#p").click()
     expect(
-        page.locator(".lf-fab"), "a click on prose was read as a click on a picture"
+        page.locator(".lf-fab-input"),
+        "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
     assert errors == []
     page.close()

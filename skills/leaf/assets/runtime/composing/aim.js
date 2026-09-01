@@ -1,5 +1,5 @@
 export function createAim({
-  openTargetComposer,
+  focusTargetComment,
   aimTargetAt,
   designIsOn,
   designPress,
@@ -149,7 +149,7 @@ export function createAim({
     ev.stopPropagation();
     if (ev.type !== "click") return;
     if (claimedPress.aim)
-      openTargetComposer(claimedPress.aim, {
+      focusTargetComment(claimedPress.aim, {
         left: ev.clientX + 6,
         top: ev.clientY - 40,
       });

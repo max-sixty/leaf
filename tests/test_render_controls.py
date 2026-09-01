@@ -491,7 +491,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
             heading_box["y"] + heading_box["height"] / 2,
         ),
     )
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     last.focus()
     before_news = last.evaluate("el => el.getBoundingClientRect().left")

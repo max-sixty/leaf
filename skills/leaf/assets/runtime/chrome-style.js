@@ -243,6 +243,7 @@ export function chromeStyle({
     font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
+  .lf-margin-action[hidden] { display: none; }
   /* The look is the control's and the hand is the press's, which is one rule apart —
      the same split the pill above states, and for the same reason. A copy keeps the
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
@@ -330,7 +331,9 @@ export function chromeStyle({
      inside @scope. */
   .lf-address { ${KEY_BOX} display: none; border-color: var(--accent);
     background: var(--card); color: var(--accent); z-index: 1; }
-  /* The leaf text box, in one rule. field-sizing does the growing, so no script
+  /* The general leaf text box, in one rule. The compact response field is excluded
+     because it shares its complete control geometry with the response buttons below.
+     field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
      box that overflows, however briefly, flashes a scrollbar. Past max-height the
@@ -338,8 +341,14 @@ export function chromeStyle({
      of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
      Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
      class itself. */
-  .lf-ui textarea, textarea.lf-ui { padding: 8px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); color: inherit; resize: none; field-sizing: content; max-height: 50vh; overflow-y: auto; }
-  .lf-ui textarea:is(:focus, .lf-focus), textarea.lf-ui:is(:focus, .lf-focus) { outline: none; border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .lf-ui textarea:not(.lf-fab-input),
+  textarea.lf-ui:not(.lf-fab-input) { padding: 8px 10px; border: 1px solid var(--border-2);
+    border-radius: 6px; background: var(--card); color: inherit; resize: none;
+    field-sizing: content; max-height: 50vh; overflow-y: auto; }
+  .lf-ui textarea:not(.lf-fab-input):is(:focus, .lf-focus),
+  textarea.lf-ui:not(.lf-fab-input):is(:focus, .lf-focus) { outline: none;
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 ${MARK_RULES}
   body.lf-over-mark { cursor: pointer; }
   /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
@@ -1041,10 +1050,42 @@ ${MARK_RULES}
     .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
-    /* The comment glyph and ellipsis are the bar's two stable presses. Both carry the
-       shadow the floating surface earns. The ellipsis gives its place to the reaction
-       buttons without moving Comment. */
-    .lf-fab-bar > .lf-pill { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    /* The field and the choices are two states of one anchored response control. This
+       primitive owns their height, vertical padding, type, border, and elevation; Tab
+       changes only the contents of the bar. */
+    .lf-response-control { --lf-response-height: 32px;
+      box-sizing: border-box; min-height: var(--lf-response-height);
+      border: 1px solid var(--border-2); border-radius: 999px; background: var(--card);
+      color: var(--ink-2); font: 400 var(--t-6)/1.4 var(--sans);
+      padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
+      box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+      outline: none;
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
+        0 2px 6px rgba(0,0,0,.14); }
+    textarea.lf-fab-input { width: 216px; min-width: 0;
+      max-height: min(132px, 30vh); border-radius: 999px;
+      padding-inline: 12px;
+      resize: none;
+      field-sizing: content; overflow-y: auto; }
+    textarea.lf-fab-input::placeholder { color: var(--muted); opacity: 1; }
+    .lf-response-action { min-width: 30px; padding-inline: 9px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0;
+      white-space: nowrap; cursor: pointer; }
+    .lf-response-action[hidden] { display: none; }
+    .lf-response-action:hover {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+      background: var(--card); }
+    .lf-response-action-glyph { line-height: 1; }
+    .lf-response-action-space { white-space: pre; }
+    .lf-response-action[data-lf-collapse] > :is(.lf-response-action-space,
+      .lf-response-action-label) { display: none; }
+    .lf-fab-bar:not(.lf-react-open) > :is(.lf-fab, .lf-fab-suggest,
+      .lf-react-palette) { display: none !important; }
+    .lf-fab-bar.lf-react-open { max-width: calc(100vw - 16px); flex-wrap: wrap; }
+    .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
+    .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
     /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;
        a standing token remains visible in a closed message or page strip as the reader's
        receipt and eraser. */
@@ -1065,6 +1106,7 @@ ${MARK_RULES}
     .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
       justify-content: center; }
     .lf-react > .lf-react-word { display: none; }
+    .lf-fab-bar.lf-react-open .lf-react-word { display: inline; }
     .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
     .lf-react[aria-pressed="true"] { border-color: var(--mark-ink); color: var(--mark-ink);
       background: var(--mark); }
@@ -1084,6 +1126,8 @@ ${MARK_RULES}
     .lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
     .lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
       border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
+    .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
+      background: var(--card); }
     .lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
     /* A thread whose root is a mark: the glyph and its word where the comment's words
        would stand, in the chrome's face. */
@@ -1110,20 +1154,13 @@ ${MARK_RULES}
     .lf-aim { position: absolute; z-index: 8920; display: none; pointer-events: none;
       border: 2px solid var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); }
-    .lf-composer { position: absolute; z-index: 8950; display: none; width: 320px; background: var(--card);
-      border: 1px solid var(--border-2); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 10px; }
-    /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
-       on the hidden one this would out-specify .lf-unseen's own overflow. */
-    .lf-composer .lf-quote:not(.lf-unseen) { max-height: 4.2em; overflow-y: auto; }
-    .lf-suggest-row { display: none; align-items: center; gap: 6px; margin: 0 0 6px; color: var(--muted); font-size: var(--t-6); cursor: pointer; }
-    .lf-suggest-row input { margin: 0; accent-color: var(--accent); }
+    .lf-composer { display: none; }
+    .lf-fab-bar .lf-composer > :not(.lf-fab-input) { display: none !important; }
     .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
     /* A suggestion renders verbatim — its characters are what the next version
        carries (see msgNode) — so this is where they keep their own line breaks. */
     .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
       border-radius: 6px; white-space: pre-wrap; }
-    .lf-composer textarea { width: 100%; min-height: 56px; }
-    .lf-composer-row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
     .lf-toast { position: fixed; bottom: calc(18px + var(--lf-safe-bottom));
       right: calc(18px + var(--lf-safe-right)); z-index: 9200;
       max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
@@ -1415,6 +1452,7 @@ ${MARK_RULES}
       .lf-btn, .lf-pill:is(button, [role="button"]), .lf-margin-action {
         min-height: 44px;
       }
+      .lf-response-control { --lf-response-height: 44px; }
       .lf-banner-actions > .lf-btn { min-height: 44px; }
       .lf-panel-head .lf-btn { min-width: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }

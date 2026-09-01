@@ -411,7 +411,9 @@ this.stopWatching = watchData(this, "builds", (snapshot) => {
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{contract, updated, value}`. A selected capture additionally carries
+clone of `{contract, revision, updated, value}`. `revision` is the data revision that
+wrote that source value, so a renderer can distinguish two writes even when their wall
+clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when Leaf asks subscribers to restate its
 view. Return the cleanup function from the element's disconnect path. The callback must
@@ -429,7 +431,9 @@ that owns a nested layout passes `{nested: true}` and returns its existing desce
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the stable key remains opaque to
 the runtime. If a `watchData` callback renders asynchronously, return that promise so
-Leaf does not publish the source revision as ready before the projection is complete.
+Leaf does not publish the source revision as ready before the projection settles. A
+rejection is reported as that subscriber's page error; it does not make later state
+reads repeat the same page-wide failure.
 
 ## Seeing it
 

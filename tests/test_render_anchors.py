@@ -3586,6 +3586,81 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     page.close()
 
 
+def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
+    browser, serve, monkeypatch
+):
+    """A source write is an identity, not its second-resolution wall clock.
+
+    Replacing a manifest inside the same second must discard its prior file keys before
+    fragments use the new data revision. A transient fragment refusal remains local to
+    that disclosure and closing and reopening it retries the exact current file.
+    """
+    authored = leaf_page(
+        "changing fragmented diff",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    monkeypatch.setattr(data_model, "now_iso", lambda: "2026-09-01T06:00:00-07:00")
+
+    def manifest(path, old, new):
+        return {
+            "files": [
+                {
+                    "key": path,
+                    "path": path,
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": f"""diff --git a/{path} b/{path}
+--- a/{path}
++++ b/{path}
+@@ -1 +1 @@
+-return {old!r}
++return {new!r}
+""",
+                }
+            ]
+        }
+
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", manifest("first.py", "old", "first")
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("lf-diff summary")).to_contain_text("first.py")
+
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", manifest("second.py", "old", "second")
+    )
+    told(page)
+    summary = page.locator("lf-diff summary")
+    expect(summary).to_contain_text("second.py")
+    expect(summary).not_to_contain_text("first.py")
+
+    refused = []
+
+    def refuse_once(route):
+        if not refused:
+            refused.append(True)
+            route.fulfill(status=200, json={"revision": -1})
+        else:
+            route.continue_()
+
+    page.route("**/api/data*", refuse_once)
+    summary.click()
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "data fragment response does not match its request"
+    )
+    summary.click()
+    summary.click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    ).to_have_count(1)
+    assert len(refused) == 1
+    assert errors == []
+    page.close()
+
+
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     """Every question the runtime asks by id goes through one lookup, and a widget that
     stages its authored children carries their ids into its shadow tree with them. While

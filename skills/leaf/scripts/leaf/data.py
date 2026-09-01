@@ -101,7 +101,15 @@ def read_data_store(page_dir: Path) -> dict:
             not isinstance(source_store, dict)
             or "contract" not in source_store
             or not set(source_store)
-            <= {"contract", "updated", "value", "label", "lines", "snapshots"}
+            <= {
+                "contract",
+                "revision",
+                "updated",
+                "value",
+                "label",
+                "lines",
+                "snapshots",
+            }
             or not isinstance(source_store["contract"], str)
             or re.fullmatch(DATA_CONTRACT_NAME, source_store["contract"]) is None
         ):
@@ -109,16 +117,27 @@ def read_data_store(page_dir: Path) -> dict:
                 f"{path}: source {source!r} must contain a contract and only current "
                 "value or snapshot fields"
             )
-        has_current = "updated" in source_store or "value" in source_store
-        if has_current and not {"updated", "value"} <= set(source_store):
+        has_current = bool({"revision", "updated", "value"} & set(source_store))
+        if has_current and not {"revision", "updated", "value"} <= set(source_store):
             raise DataError(
-                f"{path}: source {source!r} current value needs both updated and value"
+                f"{path}: source {source!r} current value needs revision, updated, "
+                "and value"
             )
         if not has_current and ({"label", "lines"} & set(source_store)):
             raise DataError(
                 f"{path}: source {source!r} capture metadata needs a current value"
             )
         if has_current:
+            source_revision = source_store["revision"]
+            if (
+                isinstance(source_revision, bool)
+                or not isinstance(source_revision, int)
+                or not 1 <= source_revision <= revision
+            ):
+                raise DataError(
+                    f"{path}: source {source!r} revision must be a positive integer "
+                    f"no greater than data revision {revision}"
+                )
             _validate_stored_snapshot(path, source, source_store)
         snapshots = source_store.get("snapshots", {})
         if not isinstance(snapshots, dict):
@@ -299,11 +318,19 @@ def _write_source(
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
         revision = stored["revision"] + 1
-        current = {"updated": now_iso(), "value": value, **(capture or {})}
+        current = {
+            "revision": revision,
+            "updated": now_iso(),
+            "value": value,
+            **(capture or {}),
+        }
         source_store = {"contract": contract, **current}
         snapshots = (standing or {}).get("snapshots", {})
         if capture is not None:
-            snapshots = {**snapshots, str(revision): current}
+            captured = {
+                key: value for key, value in current.items() if key != "revision"
+            }
+            snapshots = {**snapshots, str(revision): captured}
         if snapshots:
             source_store["snapshots"] = snapshots
         sources = {**stored["sources"], source: source_store}

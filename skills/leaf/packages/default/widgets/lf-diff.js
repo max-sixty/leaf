@@ -317,7 +317,7 @@ customElements.define(
       this.stopWatching = watchData(this, "document", (snapshot) => {
         const source = snapshot?.value ?? null;
         const stamp = snapshot
-          ? `${snapshot.snapshot ?? "current"}:${snapshot.updated}`
+          ? `${snapshot.snapshot ? "snapshot" : "current"}:${snapshot.revision}`
           : null;
         if (this.boundStamp === stamp) return this.boundRendering ?? Promise.resolve();
         this.boundStamp = stamp;
@@ -456,7 +456,6 @@ customElements.define(
           details,
           lines: [],
           loaded: false,
-          failed: false,
           loading: null,
         };
         details.addEventListener("toggle", () => {
@@ -495,7 +494,7 @@ customElements.define(
     }
 
     async loadManifestEntry(entry) {
-      if (entry.loaded || entry.failed) return;
+      if (entry.loaded) return;
       if (entry.loading) return entry.loading;
       const rendering = this.rendering;
       entry.loading = (async () => {
@@ -521,7 +520,6 @@ customElements.define(
           this.projectManifest();
         } catch (error) {
           if (rendering !== this.rendering || !this.isConnected) return;
-          entry.failed = true;
           fragmentError(entry.details, error);
         } finally {
           entry.loading = null;

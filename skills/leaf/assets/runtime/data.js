@@ -26,17 +26,35 @@ export function acceptData(candidate) {
 // boundary as the next data notification instead of letting the notification stamp the
 // revision while the mount is still painting it.
 const initialRenders = [];
+let reportDataError = (text) => console.error(`leaf: ${text}`);
+
+export function configureDataReporting(report) {
+  if (typeof report !== "function")
+    throw new TypeError("data error reporter must be a function");
+  reportDataError = report;
+}
+
+async function settleDataRenders(renderings) {
+  const settled = await Promise.allSettled(renderings);
+  for (const result of settled)
+    if (result.status === "rejected")
+      reportDataError(
+        `data subscriber failed: ${result.reason?.message ?? result.reason}`,
+      );
+}
 
 export async function notifyDataSubscribers() {
   const revision = runtime.data.revision;
   const mounting = initialRenders.splice(0);
-  await Promise.all(mounting);
+  await settleDataRenders(mounting);
   const pending = [];
   document.dispatchEvent(new CustomEvent("lf-data", { detail: { pending } }));
-  await Promise.all(pending);
-  // The revision becomes a readiness fact only after every subscriber has rendered it.
-  // Render checks and export compare this stamp with the server snapshot, so a data-only
-  // page cannot be read between acceptance and an asynchronous projection.
+  await settleDataRenders(pending);
+  // The revision becomes a readiness fact only after every subscriber has settled. A
+  // rejected package render is reported at its own boundary rather than turning every
+  // later state read into the same page-wide failure. Render checks and export compare
+  // this stamp with the server snapshot, so a data-only page cannot be read while an
+  // asynchronous projection is still pending.
   if (revision >= 0 && runtime.data.revision === revision)
     document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataRevision, String(revision));
 }
@@ -100,18 +118,19 @@ export function watchData(element, input, callback) {
       return deliver(
         structuredClone({
           contract: sourceStore.contract,
+          revision: Number(selected),
           snapshot: selected,
           ...snapshot,
         }),
         event,
       );
-      return;
     }
     if (!Object.hasOwn(sourceStore, "value")) {
       return deliver(null, event);
     }
     const snapshot = {
       contract: sourceStore.contract,
+      revision: sourceStore.revision,
       updated: sourceStore.updated,
       value: sourceStore.value,
     };
@@ -122,8 +141,14 @@ export function watchData(element, input, callback) {
   // Establish the subscription only after its first delivery succeeds. A package that
   // throws while mounting must not leave a listener behind to fail every later poll.
   const initial = update();
-  if (initial?.then) initialRenders.push(initial);
   document.addEventListener("lf-data", update);
+  if (initial?.then)
+    initialRenders.push(
+      Promise.resolve(initial).catch((error) => {
+        document.removeEventListener("lf-data", update);
+        throw error;
+      }),
+    );
   return () => document.removeEventListener("lf-data", update);
 }
 

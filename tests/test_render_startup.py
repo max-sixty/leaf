@@ -2806,6 +2806,11 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         """async () => {
           const {watchData} = await import('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
+          let currentRevision = null;
+          const stopCurrent = watchData(widget, 'rows', snapshot => {
+            currentRevision = snapshot?.revision ?? null;
+          });
+          stopCurrent();
           widget.removeAttribute('source');
           let unbound = 'not-called';
           const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
@@ -2832,10 +2837,11 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
             message = error.message;
           }
           document.dispatchEvent(new Event('lf-data'));
-          return {unbound, absent, captured, failedCalls, message};
+          return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )
     assert result == {
+        "currentRevision": 1,
         "unbound": None,
         "absent": None,
         "captured": [None, None],
@@ -2877,6 +2883,7 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
               ...structuredClone(runtime.data.sources),
               deployments: {
                 ...structuredClone(runtime.data.sources.deployments),
+                revision,
                 value: [{key: 'api', value}],
               },
             },
@@ -2907,11 +2914,12 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     page.close()
 
 
-def test_data_readiness_requires_successful_mounts_and_notifications(browser, serve):
-    """The data stamp proves that every asynchronous subscriber rendered the value.
+def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
+    """The data stamp proves that every asynchronous subscriber has settled.
 
-    A watcher may first mount after the value was accepted, or reject while restating a
-    later revision. Neither failure may be converted into a ready stamp.
+    A rejected mount removes its listener and a later rejected update is reported at
+    that subscriber's boundary. Neither turns every subsequent poll into the same
+    page-wide read failure or prevents the accepted revision becoming ready.
     """
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
@@ -2921,13 +2929,10 @@ def test_data_readiness_requires_successful_mounts_and_notifications(browser, se
           const {runtime} = await import('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           const before = document.body.getAttribute('data-lf-data-revision');
-          const messages = [];
-
           const stopMount = watchData(widget, 'rows', () =>
             Promise.reject(new Error('mount projection failed'))
           );
-          try { await notifyDataSubscribers(); }
-          catch (error) { messages.push(error.message); }
+          await notifyDataSubscribers();
           stopMount();
           const afterMount = document.body.getAttribute('data-lf-data-revision');
 
@@ -2939,24 +2944,20 @@ def test_data_readiness_requires_successful_mounts_and_notifications(browser, se
           });
           const revision = runtime.data.revision + 1;
           acceptData({...structuredClone(runtime.data), revision});
-          try { await notifyDataSubscribers(); }
-          catch (error) { messages.push(error.message); }
+          await notifyDataSubscribers();
           stopUpdate();
           return {
             before,
             afterMount,
             afterUpdate: document.body.getAttribute('data-lf-data-revision'),
-            messages,
+            revision,
           };
         }"""
     )
     assert result["afterMount"] == result["before"], result
-    assert result["afterUpdate"] == result["before"], result
-    assert result["messages"] == [
-        "mount projection failed",
-        "update projection failed",
-    ]
-    assert errors == []
+    assert result["afterUpdate"] == str(result["revision"]), result
+    assert any("data subscriber failed: mount projection failed" in e for e in errors)
+    assert any("data subscriber failed: update projection failed" in e for e in errors)
     page.close()
 
 

@@ -51,7 +51,8 @@ A page directory holds:
                          inlining; inlining was never available
     comments.jsonl       append-only event log; an event's seq is its line number (1-based)
     data.json            explicit authority for page-bound sources: each record keeps
-                         its contract identity, may have a replaceable current value,
+                         its contract identity, may have a replaceable current value
+                         with the data revision that wrote it,
                          and may retain immutable captures selected by document
                          versions or frozen threads. Initialized as the empty revision
                          0 store. Agent page state names this file and its revision but

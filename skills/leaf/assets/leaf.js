@@ -193,7 +193,11 @@ import {
 import { createSelectionSurface } from "./runtime/composing/surface.js";
 import { createTargetSelection } from "./runtime/composing/targets.js";
 import { agentName, runtime } from "./runtime/context.js";
-import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
+import {
+  acceptData,
+  configureDataReporting,
+  notifyDataSubscribers,
+} from "./runtime/data.js";
 import { createDeferredModals } from "./runtime/deferred-modals.js";
 import { createLayerClient } from "./runtime/layer-client.js";
 import {
@@ -369,6 +373,7 @@ const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
 });
+configureDataReporting(reportPageError);
 const { pointerAt } = createPointer();
 
 createMeasurements({ shownBox });

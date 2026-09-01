@@ -794,6 +794,9 @@ def compose(page, passage, text=None):
     key is built from is the same in both tabs."""
     page.locator(passage).scroll_into_view_if_needed()
     page.locator(passage).click(click_count=3)
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     if text is not None:
         page.locator(".lf-fab-input").fill(text)

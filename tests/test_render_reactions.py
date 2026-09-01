@@ -138,6 +138,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     assert tokens == ["ok", "no", "lost", "cut", "more", "this"], tokens
     expect(bar.locator(".lf-fab-input")).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).not_to_be_focused()
+    page.keyboard.press("c")
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
         "placeholder", re.compile(r"^Comment… .*⏎$")
     )
@@ -255,6 +257,8 @@ def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).not_to_be_focused()
+    page.keyboard.press("c")
     field_reading = bar.locator(".lf-fab-input").evaluate(
         """el => { const box = el.getBoundingClientRect(); const bar = el.closest('.lf-fab-bar');
           const style = getComputedStyle(el);

@@ -218,7 +218,8 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "passed"
     )
     assert card.evaluate("el => el.__reviewIdentity") is True
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     resized(page, 390, 900)
     assert page.evaluate(
@@ -344,7 +345,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "gateway/limits.py:40"
     )
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)

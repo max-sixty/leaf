@@ -77,7 +77,7 @@ def test_page_round_trip(browser, serve):
     page.evaluate("window.__leafJourneyDocument = 'held'")
 
     # Select the passage from the keyboard's path: a real Range, then the keyup
-    # the runtime watches for keyboard selections. The immediate field takes focus.
+    # the runtime watches for keyboard selections. Comment explicitly enters its field.
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.getElementById('intro'));
@@ -88,6 +88,8 @@ def test_page_round_trip(browser, serve):
     page.wait_for_selector(
         ".lf-fab-input", state="visible"
     )  # the selection raised the button
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
@@ -916,13 +918,10 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
 
 
 def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, serve):
-    """The same reading of a later gesture, for the other gesture a reader can have
-    standing. A comment's send ends by handing typing to the thread it became, and a
-    round trip is how long that step takes to arrive; focusing a box collapses whatever
-    the page had selected. So a reader who picked out their next passage while the send
-    was in the wire had it taken back — silently, because nothing re-decides the 💬
-    until they gesture again, and the words in front of them simply stop being
-    something to comment on.
+    """A comment's send must not take a newer passage selection with its focus handoff.
+
+    The newer selection remains native and keeps its response field available while the
+    earlier send becomes a thread behind it.
 
     Held rather than raced: the window is one request's flight, and a machine quick
     enough closes it before the next gesture. A loaded CI runner is not, and it said so
@@ -941,8 +940,8 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     # The reader picks out their next passage while the first send is still in the wire.
     page.locator("#p2").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -957,7 +956,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     assert pending_text(page) == "A short second passage.", (
         "the send's landing lost the passage the reader had picked out"
     )
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "A short second passage."
     assert errors == []
@@ -976,12 +975,13 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     original = "These words belong to the first passage."
 
     page.locator("#p1").click(click_count=3)
-    expect(field).to_be_focused()
+    expect(field).to_be_visible()
+    expect(field).not_to_be_focused()
     field.fill(original)
 
     page.locator("#p2").click(click_count=3)
-    expect(field).to_be_focused()
     expect(field).to_have_value("")
+    expect(field).not_to_be_focused()
     assert (
         page.evaluate(
             """() => Object.keys(localStorage)
@@ -991,8 +991,8 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     )
 
     page.locator("#p1").click(click_count=3)
-    expect(field).to_be_focused()
     expect(field).to_have_value(original)
+    expect(field).not_to_be_focused()
     assert errors == []
     page.close()
 

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from .browser import browser_hint, launch_browser
+from .browser import browser_hint, launch_browser, launched_name
 from .preview import preview_server
 from .version import render_version
 
@@ -65,8 +65,8 @@ def render_check(
             print(f"  - {f}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: renders clean in Chrome, light and dark — no console errors, "
-        "every widget takes space, no words on top of other words, code that reads "
+        f"✓ index.html: renders clean in {launched_name()}, light and dark — no "
+        "console errors, every widget takes space, no words on top of other words, code that reads "
         "against the block it is on, boxes showing the inset they draw, nothing past the "
         "column, no sideways scroll"
     )

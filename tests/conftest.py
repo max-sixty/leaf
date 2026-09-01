@@ -211,7 +211,9 @@ def headless_shell():
     (tests/CLAUDE.md, "Run the narrowest useful surface"). Both sit under one
     registry root at one build number, so the shell's path follows from Chromium's;
     where a developer installed the full build instead, that is the browser to hand
-    over and the same tests hold on it.
+    over and the same tests hold on it. The `chromium-<build>` directory is found by
+    name rather than by depth, because macOS nests the executable inside an app
+    bundle and Linux does not.
 
     Asked in a subprocess because the answer is a path and the question is not free
     here: a second `sync_playwright()` inside this process raises where the
@@ -231,7 +233,8 @@ def headless_shell():
         check=True,
     )
     chromium = Path(read.stdout.strip())
-    root, build = chromium.parents[2], chromium.parents[1].name.rsplit("-", 1)[1]
+    versioned = next(p for p in chromium.parents if p.name.startswith("chromium-"))
+    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
     shell = root / f"chromium_headless_shell-{build}"
     for candidate in (*sorted(shell.glob("*/chrome-headless-shell*")), chromium):
         if candidate.is_file():

@@ -294,12 +294,15 @@ def version() -> None:
 
 @version.command(short_help="Check the mutable page source.")
 @click.argument("dir", metavar="PAGE")
-@click.option("--render", is_flag=True, help="also check the rendered page in Chrome")
+@click.option(
+    "--render", is_flag=True, help="also check the rendered page in the host's browser"
+)
 def check(dir: str, render: bool) -> None:
     """Check PAGE/index.html.
 
-    Runs deterministic markup checks. --render also checks the drawn page in
-    the installed Chrome.
+    Runs deterministic markup checks. --render also checks the drawn page in the
+    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE names, else the
+    installed Chrome.
     """
     sys.exit(cmd_check(resolve_dir(dir), render))
 
@@ -342,7 +345,7 @@ def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
 def export(dir: str, out: Path, version: int) -> None:
     """Export a stamped version to one HTML file.
 
-    Renders the version in Chrome, then writes a standalone copy.
+    Renders the version in the host's browser, then writes a standalone copy.
     """
     sys.exit(cmd_export(resolve_dir(dir), out, version))
 

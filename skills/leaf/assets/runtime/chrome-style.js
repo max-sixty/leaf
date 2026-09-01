@@ -585,7 +585,24 @@ ${MARK_RULES}
      same two markers, and takes the control out of the document rather than hiding it,
      which paper cannot do (BAKE). The runtime's own layer hides as one thing, in the
      @scope block below. */
-  @media print { [data-lf-offer]:not([data-lf-said]) { display: none !important; } }
+  @media print {
+    [data-lf-offer]:not([data-lf-said]) { display: none !important; }
+    [data-lf-offer][data-lf-said] {
+      background: none !important; border: 0 !important; border-radius: 0 !important;
+      box-shadow: none !important; padding-inline: 0 !important;
+      cursor: default !important; text-decoration: none !important;
+      list-style: none !important;
+    }
+    [data-lf-offer][data-lf-said]::-webkit-details-marker { display: none !important; }
+    /* And the ones that stay give up the promise of a press. Twenty of the corpus's 236
+       injected controls survive that first rule, every one of them because it speaks —
+       and each was arriving on paper still dressed as a control: a chip background and a
+       999px radius, a pointer cursor, a summary's marker, a link's underline. The words
+       are what data-lf-said keeps; the shape was never part of the bargain, and on a
+       sheet where nothing can be pressed it is a promise the page cannot answer.
+       Colour is left alone, because a chip that is red for a reason is saying something
+       too and that is the same declaration's business. */
+  }
   /* Keyframe names are document-global even beside an @scope block. The stable salt
      makes this runtime-private in the one CSS namespace scoping cannot protect. */
   @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }

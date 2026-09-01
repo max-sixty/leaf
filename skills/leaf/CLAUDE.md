@@ -2690,7 +2690,15 @@ inside it.
 
 Print asks a stricter question than export because nothing on paper is
 interactive. `data-lf-offer` identifies injected controls to remove, while
-`data-lf-said` preserves a decision word the page speaks through a control.
+`data-lf-said` preserves a decision word the page speaks through a control. What
+`data-lf-said` keeps is the word and not the shape: a control that survives paper
+gives up its ground, corner, border, underline, marker and pointer hand, because
+nothing on a sheet can answer the press they promise. Colour stays, being part of
+what the control says.
+
+Paper opens what a page puts behind a gesture, for the same reason: a settled
+group's cards, an inactive tab's panel, and a shut `<details>` all print open. A
+page that means a disclosure to stay shut on paper says so in its own stylesheet.
 `paperWords` compares the screen and print readings across the whole page.
 `coveredWords` runs again in print. A wrong offer/said declaration is fixed
 where the label is created, not by naming its widget in print CSS.

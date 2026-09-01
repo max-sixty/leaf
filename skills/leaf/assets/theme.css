@@ -1443,6 +1443,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }
+  /* A shut disclosure on paper is a summary and a stub: the words are in the document,
+     nothing on the sheet says they are there, and there is no press to open them with.
+     Six of them printed that way on the corpus, one of them holding 3270px of an exact
+     source. The layer already takes this line for the other two ways a page puts
+     content behind a gesture — a settled group's cards and an inactive tab both print
+     open (packages/default) — and <details> was the one that was missed.
+
+     `::details-content` is what the browser hides the body with, so it is what says
+     otherwise; the marker goes because paper has nothing to turn. A page that means a
+     disclosure to stay shut on paper says so in its own stylesheet, at a weight this
+     does not contest. */
+  details:not([open])::details-content { content-visibility: visible; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
 }
 /* A page carrying a target item reserves the widest stable width the shared layout has
  * measured, rather than hanging durable apparatus in accidental leftover space. The

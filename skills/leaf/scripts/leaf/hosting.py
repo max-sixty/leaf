@@ -176,7 +176,22 @@ def _serve_claim(
     return claimed
 
 
-def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> bool:
+def _announce_server(page_dir: Path, url: str, detached: bool) -> None:
+    """Print a server's URL and lifetime in the order its caller consumes them."""
+    note = startup_note(page_dir)
+    if detached:
+        # The parent reads the URL as the successful-start handshake and then
+        # closes these private pipes. Finish the note before that handshake.
+        print(note, file=sys.stderr, flush=True)
+        print(url, flush=True)
+        return
+    print(url, flush=True)
+    print(note, file=sys.stderr, flush=True)
+
+
+def _reuse_server(
+    page_dir: Path, host: str | None, standing: bool, detached: bool
+) -> bool:
     """Report a compatible running server, or say a fresh bind is needed."""
     existing = running_server(page_dir)
     if not existing:
@@ -191,12 +206,11 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> bool:
             f"already serving as a session server at {existing['url']}; "
             "leaf server stop first, then re-run with --standing"
         )
-    print(existing["url"], flush=True)
-    print(startup_note(page_dir), file=sys.stderr, flush=True)
+    _announce_server(page_dir, existing["url"], detached)
     return True
 
 
-def _take_server_lease(page_dir: Path):
+def _take_server_lease(page_dir: Path, detached: bool):
     """Take the process lease, or report the concurrent server that won it."""
     lease = open(  # noqa: SIM115 - held until the server process exits
         page_dir / "server.lock", "a+b"
@@ -207,8 +221,7 @@ def _take_server_lease(page_dir: Path):
         lease.close()
         winner = running_server(page_dir)
         if winner:
-            print(winner["url"], flush=True)
-            print(startup_note(page_dir), file=sys.stderr, flush=True)
+            _announce_server(page_dir, winner["url"], detached)
             return None
         sys.exit(f"another server run is serving {page_dir}; re-run")
     return lease
@@ -261,6 +274,8 @@ def cmd_serve(
     host: str | None = None,
     standing: bool = False,
     revive: bool = False,
+    *,
+    detached: bool = False,
 ) -> None:
     """Serve one initialized page under its durable service contract.
 
@@ -276,14 +291,14 @@ def cmd_serve(
     with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
         service = read_json(page_dir / "service.json")
         claimed = _serve_claim(page_dir, page, service, standing, revive)
-        if _reuse_server(page_dir, host, standing):
+        if _reuse_server(page_dir, host, standing, detached):
             return
 
         access = page_access(page_dir, host)
         token = host_key()
         base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
         ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-        lease = _take_server_lease(page_dir)
+        lease = _take_server_lease(page_dir, detached)
         if lease is None:
             return
         httpd = _bind_server(page_dir, access, token, ports, lease)
@@ -291,11 +306,7 @@ def cmd_serve(
         write_json(page_dir / "service.json", service)
         url = page_url(service["host"], service["port"], token)
 
-    # The detached parent reads the URL as the successful-start handshake and
-    # then closes these private pipes. Finish the note first, so that handshake
-    # also means this child has no output left to lose.
-    print(startup_note(page_dir), file=sys.stderr, flush=True)
-    print(url, flush=True)
+    _announce_server(page_dir, url, detached)
     threading.Thread(
         target=stop_when_service_ends,
         args=(page_dir,),
@@ -350,9 +361,9 @@ def start_server(
         start_new_session=True,
     )
     # The child's own handshake, rather than a deadline over a file that may or
-    # may not appear inside it: the service prints the URL after it holds the
-    # record and the port and finishes its startup note, and otherwise exits
-    # having named its own reason — a stale bind, a taken port, a flag the
+    # may not appear inside it: a detached serve prints the URL after it holds
+    # the record and the port and finishes its startup note. Otherwise it exits
+    # having named its own reason — a stale bind, a taken port, or a flag the
     # running server contradicts.
     url = child.stdout.readline().strip()
     if not url:

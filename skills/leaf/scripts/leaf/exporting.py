@@ -69,8 +69,8 @@ def inline_assets(html: str, page_dir: Path) -> str:
     return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
 
 
-def export_page(browser, url: str, page_dir: Path) -> str:
-    """The served version at `url`, copied as one self-contained document.
+def export_page(browser, url: str, page_dir: Path, name: str) -> str:
+    """The served document named by `name`, copied as one self-contained file.
 
     One implementation has two callers, as `render_version` does: `version export`
     supplies installed Chrome, while the suite drives this over the shipped
@@ -102,13 +102,13 @@ def export_page(browser, url: str, page_dir: Path) -> str:
             return inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(
-                f"{url.rsplit('/', 1)[-1]} never finished applying its live state in "
+                f"{name} never finished applying its live state in "
                 "the browser, so a copy would be half-drawn. `leaf version check "
                 "<page> --render` says what is wrong with it."
             )
         except PlaywrightError as error:
             sys.exit(
-                f"{url.rsplit('/', 1)[-1]} could not load its browser probe module "
+                f"{name} could not load its browser probe module "
                 f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
                 "trustworthy copy."
             )
@@ -165,7 +165,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
                 "A copy is the drawn page, so there is nothing to write without one."
             )
         try:
-            html = export_page(browser, url, page_dir)
+            html = export_page(browser, url, page_dir, name)
         finally:
             browser.close()
 

@@ -1100,7 +1100,7 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     page.close()
 
     out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
     copy.goto(out.as_uri(), wait_until="load")
     assert copy.locator(".lf-sug-actions").count() == 0, (

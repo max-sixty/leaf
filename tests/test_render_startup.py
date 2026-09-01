@@ -2572,7 +2572,7 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
 
     monkeypatch.setattr(http_model.Handler, "page_state", delayed_page_state)
     out = tmp_path / "data-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page()
     errors = watched(page)
@@ -2678,7 +2678,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
 
     out = tmp_path / "source-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page()
     copy_errors = watched(copy)
     copy.goto(out.as_uri(), wait_until="load")

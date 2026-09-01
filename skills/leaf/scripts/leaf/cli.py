@@ -415,7 +415,7 @@ def run(dir: str, host: str | None, standing: bool) -> None:
 @click.option("--revive", is_flag=True, hidden=True)
 def _serve(dir: str, host: str | None, standing: bool, revive: bool) -> None:
     """Private child process spawned by server start and Watch revival."""
-    cmd_serve(resolve_dir(dir), host, standing, revive)
+    cmd_serve(resolve_dir(dir), host, standing, revive, detached=True)
 
 
 @server.command(short_help="Stop a page's server.")

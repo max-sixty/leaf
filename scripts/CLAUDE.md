@@ -7,8 +7,9 @@ runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lo
 ## Examples and previews
 
 `preview.py [example]` freshly vendors and serves one shipped example. It copies
-the example's companion log, applies current values and file captures from its data
-manifest, copies media, then sets the event cursor past seeded history. `--source`
+media, applies current values and file captures from its data manifest, stamps every
+authored version oldest first, copies the example's companion log in after the first
+of them, then sets the event cursor past seeded history. `--source`
 accepts any authored HTML file, while `--runtime` chooses the checkout that vendors
 it. Named `--slot` pages coexist; `--background` starts one and returns its URL.
 A live preview shows that runtime's safe checkout provenance in a banner badge;

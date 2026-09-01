@@ -24,6 +24,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from example_data import example_versions
 from interact_support import COMMAND_HUB_PACKAGE
 from playwright.sync_api import expect
 
@@ -94,7 +95,9 @@ def hosted(site):
 
 
 def example_url(hosted, name):
-    return f"{hosted}/examples/{name}/versions/v1.html"
+    """The route a reader lands on: the example's newest published version."""
+    newest = site_build.newest_version(EXAMPLES / f"{name}.html")
+    return f"{hosted}/examples/{name}/versions/{newest}"
 
 
 def opened(page, errors, url):
@@ -155,11 +158,16 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in authored_examples():
-        version = site / "examples" / source.stem / "versions" / "v1.html"
-        assert version.read_text() == site_build.eager_example(source.read_text()), (
-            f"{source.name} changed beyond the static showcase's root marker"
-        )
-        assert "versions/v1.html" in (version.parent.parent / "index.html").read_text()
+        # Every authored version is published, so the chooser on the static page has
+        # somewhere to travel; the index forwards to the newest of them.
+        for number, authored in enumerate(example_versions(source), start=1):
+            version = site / "examples" / source.stem / "versions" / f"v{number}.html"
+            assert version.read_text() == site_build.eager_example(
+                authored.read_text()
+            ), f"{authored.name} changed beyond the static showcase's root marker"
+        newest = site_build.newest_version(source)
+        index = site / "examples" / source.stem / "index.html"
+        assert f"versions/{newest}" in index.read_text()
 
 
 def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
@@ -396,7 +404,13 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
             label = page.locator("main > .sitenote")
             expect(label).to_contain_text("An example of a leaf page.")
             expect(label).to_contain_text("nothing you do here leaves your own browser")
-            published = site / "examples" / source.stem / "versions" / "v1.html"
+            published = (
+                site
+                / "examples"
+                / source.stem
+                / "versions"
+                / site_build.newest_version(source)
+            )
             targets = label.locator("a").evaluate_all(
                 "links => links.map(a => a.getAttribute('href'))"
             )

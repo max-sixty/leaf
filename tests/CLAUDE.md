@@ -309,9 +309,13 @@ The browser fixture `serve` is the normal owner of a specimen. It runs `page ini
 once per worker for the ordinary layer, clones that initialized page for each test,
 writes the document as v1, copies the example media that document names, adds
 the publishing note and any requested comments, then serves the directory with the
-real HTTP handler and page key. Handed an example's path rather than its markup it
-also lays in the external data and event log the example ships, and sets the cursor
-past the log. Use `serve(example, seed_log=False)` when only the shipped conversation
+real HTTP handler and page key at that version's immutable URL. Handed an example's
+path rather than its markup it also lays in the external data and event log the
+example ships, and sets the cursor past the log. Markup is one version; an example
+is every version it ships (`example_versions`), stamped oldest first with the seed
+between the first note and any later one, and the URL is the newest — so a revised
+example arrives with a chooser, a base to compare against, and a thread opened
+before the revision. Use `serve(example, seed_log=False)` when only the shipped conversation
 would be noise; the external data still belongs to the example. A page is what its
 markup and standing log make together, and a thread — or a widget a message carries —
 exists nowhere else. Reach its page directory through `serve.page_dir`

@@ -830,6 +830,9 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.locator("body").focus()
+    # Twice: the layer's skip link is the document's first stop, and the mark is the
+    # first thing the page itself offers.
+    page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
@@ -2786,10 +2789,11 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
 
 
 def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
-    """Pressing a row does what `d` does — one function does both, so the tray can
+    """Pressing a row does what `a` does — one function does both, so the tray can
     never drift into a second way of arriving at a decision. It scrolls there, rings the
-    ask, and puts the focus on the control that answers it, which is what lets the
-    reader answer in the page beside the words arguing for it rather than in the list.
+    ask, and stands the reader on it, which is what lets them answer in the page beside
+    the words arguing for it rather than in the list; the controls that answer it are
+    the next Tab stops.
 
     The ring lands in two places for one reason: the decision on the page and its row on the
     tray are two surfaces showing where the reader is standing, painted from the one
@@ -2814,8 +2818,10 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     page.locator("button.lf-decisions-row[data-lf-at='t-bath-decision']").click()
     expect(page.locator(".lf-decisions-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
-    expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
+    expect(page.locator("#t-bath-decision")).to_be_focused()
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-decision", "1")
+    page.keyboard.press("Tab")
+    expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
     # The covering tray has gone, so its projected rows go with it. The page carries the
     # one standing mark rather than leaving a second, hidden authority in the closed tray.
     marked = page.evaluate(

@@ -291,8 +291,6 @@ class Handler(BaseHTTPRequestHandler):
             "/",
         }:
             self.send_header("Leaf-Layer", self.layer)
-            if fingerprint := self.layer_identity.get("fingerprint"):
-                self.send_header("Leaf-Layer-Fingerprint", fingerprint)
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",

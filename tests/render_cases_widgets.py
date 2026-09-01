@@ -471,6 +471,105 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 """,
 )
 
+# A patch with the two things the shipped review has and a one-hunk fixture cannot: more
+# than one hunk in a file, and a line far longer than the box it renders in. Every hunk is
+# the same six lines — one leading context, the change, three trailing — so the `@@` counts
+# are the same arithmetic each time and the line a walk should land on is the number in
+# the header beside it. The long line is a real one: 46 files of Rust and Markdown put the
+# worst overhang at 2,563px, and this is a comment sentence of about that width.
+_LONG = (
+    "The comparison base is the merge-base with the default branch, or with its "
+    "upstream when the branch was pushed from a fork, so a review reads the same "
+    "way whichever remote it came from and nothing here depends on the checkout."
+)
+
+
+def _hunk(start, was, now):
+    """One hunk: context, the change, three more context. Old and new both count five."""
+    return (
+        f"@@ -{start},5 +{start},5 @@\n"
+        f" def line_{start}():\n"
+        f"-    return {was}\n"
+        f"+    return {now}\n"
+        f"     # first tail\n"
+        f"     # second tail\n"
+        f"     # third tail\n"
+    )
+
+
+MULTI_HUNK_PATCH = (
+    "diff --git a/app/handlers.py b/app/handlers.py\n"
+    "--- a/app/handlers.py\n"
+    "+++ b/app/handlers.py\n"
+    + _hunk(1, '"old first"', '"new first"')
+    + _hunk(40, '"old second"', '"new second"')
+    + _hunk(80, '"old third"', f'"{_LONG}"')
+    + "diff --git a/app/routes.py b/app/routes.py\n"
+    "--- a/app/routes.py\n"
+    "+++ b/app/routes.py\n" + _hunk(200, '"old route"', '"new route"')
+)
+
+
+def _filler(name, count):
+    return "".join(
+        f"<p id='{name}-{n}'>The handler change, described at length, paragraph {n}.</p>"
+        for n in range(count)
+    )
+
+
+# Bound to a feed rather than written inline, because that is the form a review arrives in
+# and the only one whose lines are commentable data: `projectData` keys each row by file,
+# side and source line, which is the coordinate a remark on a line is recorded at.
+# Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
+# be scrolled to — a page whose whole diff fits on screen proves nothing about a header
+# staying put while its rows go past, and one whose diff ends at the document's foot
+# cannot be scrolled far enough to find out.
+LONG_LINE_DIFF_PAGE = leaf_page(
+    "patch",
+    "<h1 id='t'>Review</h1>"
+    + _filler("lead", 30)
+    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + _filler("tail", 30),
+)
+
+# Which of a diff's source lines are cut off by the box they sit in. A row is one line of
+# the patch however many line boxes it takes, so scrollWidth past clientWidth is text the
+# reader cannot see without scrolling the file's own box sideways — and on paper, text
+# that is simply gone. `worst` and `widest` are for the failure to say which line and by
+# how much, since "some row overflows" sends its reader back to the browser.
+DIFF_CLIPPING = """() => {
+    const diff = document.querySelector('lf-diff');
+    const rows = [...diff.shadowRoot.querySelectorAll('[data-content] [data-line]')];
+    const cut = rows.filter((row) => row.scrollWidth > row.clientWidth);
+    return { rows: rows.length, cut: cut.length,
+             worst: rows.reduce((most, row) =>
+                 Math.max(most, row.scrollWidth - row.clientWidth), 0),
+             widest: cut.length
+               ? cut.reduce((a, b) =>
+                   a.scrollWidth - a.clientWidth > b.scrollWidth - b.clientWidth ? a : b
+                 ).textContent.slice(0, 70)
+               : null };
+}"""
+
+# Where the file the reader is in says its name, against the bar it has to clear, and
+# where the keyboard just landed. One pass, because every number here means something only
+# against the others. With nothing focused it answers for the first file, so the same
+# reading covers a page nobody has pressed a key on yet.
+DIFF_LANDING = """() => {
+    const diff = document.querySelector('lf-diff');
+    const at = diff.shadowRoot.activeElement;
+    const file =
+      (at && at.closest('details')) || diff.shadowRoot.querySelector('details');
+    const head = file && file.querySelector('summary');
+    const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+    return { stop: at && at.localName, line: at && at.dataset.line,
+             path: head && head.querySelector('.lf-diff-path').textContent,
+             top: at && Math.round(at.getBoundingClientRect().top),
+             headTop: head && Math.round(head.getBoundingClientRect().top),
+             headBottom: head && Math.round(head.getBoundingClientRect().bottom),
+             bannerBottom: Math.round(banner.bottom) };
+}"""
+
 # main's content box, body's, the page's own box, and where each named element stands in
 # them. Read together in one pass because the whole subject is their relation: a width
 # means nothing here except against the column it is or isn't wider than.

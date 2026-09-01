@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
@@ -27,9 +28,13 @@ from render_support import (
     DECISION_WITH_CONTEXT_PAGE,
     DECISIONS_IN_ORDER,
     DECISIONS_PAGE,
+    DIFF_CLIPPING,
+    DIFF_LANDING,
     HOLD_MOTION,
+    LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
     MESSAGE_ROOM_PAGE,
+    MULTI_HUNK_PATCH,
     PROPOSED_PAGE,
     REBUILT_INLINE_PAGE,
     RENDERED,
@@ -55,6 +60,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sent_events,
     stamp_version_file,
     told,
     undo,
@@ -3519,5 +3525,213 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     drawn = page.evaluate(CHART_MARKS, "msg-chart")
     assert drawn["room"] > 100, drawn
     assert [s["shapes"] for s in drawn["series"]] == [2], drawn
+    assert errors == []
+    page.close()
+
+
+def _bound_diff(browser, serve):
+    """The review the three diff tests below read, with its feed in place before the page
+    loads. Bound rather than written inline because that is the form a review arrives in,
+    and the only one whose rows are commentable data — `projectData` keys each by file,
+    side and source line, which is the coordinate a remark on a line is recorded at."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page, errors = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    return page, errors
+
+
+def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_switch_says(
+    browser, serve
+):
+    """A diff line is `white-space: pre` inside a box that scrolls sideways, so the only
+    way to read the end of a long one is a scrollbar at the foot of the whole file. On the
+    shipped review that bar sits about 24,000px below the line being read, which is not an
+    answer at all; on paper there is no bar and the text is simply gone — 40 of that
+    patch's 2,348 rows came out cut, the worst by 744px.
+
+    Three claims, and the middle one is why the other two are in the same test. The switch
+    wraps and unwraps: pressed off again the rows are cut again, so it is the switch doing
+    it rather than the page having settled differently. And paper wraps with the switch
+    off, because the sheet cannot be left holding an answer nobody can press.
+
+    The unwrapped reading is the population as well as the anchor: a clean wrapped result
+    means nothing unless the same reading, on the same rows, can see a cut line."""
+    page, errors = _bound_diff(browser, serve)
+    switch = page.locator("lf-diff .lf-diff-wrap")
+
+    cut = page.evaluate(DIFF_CLIPPING)
+    assert cut["rows"] > 20, f"nothing to read: {cut}"
+    assert cut["cut"] > 0 and cut["worst"] > 300, (
+        f"no line runs past its box, so a wrapped result would prove nothing: {cut}"
+    )
+
+    switch.click()
+    wrapped = page.evaluate(DIFF_CLIPPING)
+    assert wrapped["rows"] == cut["rows"], (wrapped, cut)
+    assert wrapped["cut"] == 0, f"wrapped and still cut off: {wrapped}"
+
+    switch.click()
+    assert page.evaluate(DIFF_CLIPPING)["cut"] == cut["cut"], (
+        "unwrapping left the lines inside their box, so the switch was not what wrapped "
+        "them"
+    )
+
+    page.emulate_media(media="print")
+    printed = page.evaluate(DIFF_CLIPPING)
+    page.emulate_media(media="screen")
+    assert printed["rows"] == cut["rows"], (printed, cut)
+    assert printed["cut"] == 0, (
+        f"the switch is off and paper cannot press it, so this text is gone: {printed}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_that_name(
+    browser, serve
+):
+    """Two halves of one question — which file am I reading, and where did that press put
+    me. The shipped review is 46 files and 32,000px: opening one and reading down it left
+    nothing on screen saying whose lines these were, because the file's header stood in
+    flow and scrolled away with its own first rows.
+
+    Pinned, the header stands exactly where the banner ends, which is the slot the thread
+    panel's run headings take over their own list. A press then has to land past it:
+    `scrollIntoView` reads the document's scroll-padding, which reserves the banner, and
+    the header's own height is added to that as the rows' scroll-margin — measured,
+    because a long path wraps and no stylesheet can work that number out.
+
+    Reduced motion so the landing read is the product's and not the frame a smooth scroll
+    happened to be on. The walk starts from the tools row, which belongs to no file, so
+    the first `]` is the first hunk and the second is the step this test is about."""
+    page, errors = _bound_diff(browser, serve)
+    page.emulate_media(reduced_motion="reduce")
+
+    in_flow = page.evaluate(DIFF_LANDING)
+    assert in_flow["headTop"] > in_flow["bannerBottom"], (
+        f"the header already meets the banner before anything scrolled: {in_flow}"
+    )
+    page.evaluate(
+        """() => {
+            const file = document.querySelector('lf-diff').shadowRoot
+                .querySelector('details');
+            file.scrollIntoView({ block: 'start' });
+            window.scrollBy(0, 200);
+        }"""
+    )
+    pinned = page.evaluate(DIFF_LANDING)
+    assert pinned["headTop"] == pinned["bannerBottom"], (
+        f"the file's name is not against the banner: {pinned}"
+    )
+    assert pinned["bannerBottom"] == in_flow["bannerBottom"], (
+        "the banner moved, so the header meeting it says nothing"
+    )
+
+    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.keyboard.press("]")
+    first = page.evaluate(DIFF_LANDING)
+    assert first["line"] == "1", f"the first hunk of the first file: {first}"
+
+    page.keyboard.press("]")
+    landed = page.evaluate(DIFF_LANDING)
+    assert landed["line"] == "40", (
+        f"the next hunk starts at new line 40, which its @@ header says: {landed}"
+    )
+    assert landed["path"] == "app/handlers.py", landed
+    assert landed["top"] >= landed["headBottom"], (
+        f"the row it landed on is behind the file's own pinned header: {landed}"
+    )
+    assert landed["headTop"] == landed["bannerBottom"], (
+        f"the header is not pinned where the landing was measured against: {landed}"
+    )
+    assert errors == []
+    page.close()
+
+
+# A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
+# wrapped it is on a line box of its own — the two states the test below is about.
+_DIFF_TAIL = "whichever remote it came from"
+# The line is one row split across syntax spans inside a shadow root, so the range is built
+# over its text nodes rather than dragged: a pointer drag cannot reach words that are off
+# the box in the state this starts in.
+_SELECT_IN_ROW = """(row, phrase) => {
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    const nodes = [], starts = [];
+    let flat = '';
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      starts.push(flat.length); nodes.push(node); flat += node.data;
+    }
+    const start = flat.indexOf(phrase);
+    if (start < 0) return null;
+    const at = (offset) => {
+      const index = starts.findLastIndex((value) => value <= offset);
+      return [nodes[index], offset - starts[index]];
+    };
+    const range = document.createRange();
+    range.setStart(...at(start));
+    range.setEnd(...at(start + phrase.length));
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    // The row is a block, so it has one client rectangle however many line boxes are in
+    // it. Its height is what says how many, and its overhang says whether the words
+    // selected were on screen at all.
+    return { text: selection.toString(),
+             height: Math.round(row.getBoundingClientRect().height),
+             cut: row.scrollWidth > row.clientWidth };
+}"""
+
+
+def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
+    browser, serve
+):
+    """Wrapping is a decision about line boxes; a comment's coordinate is a decision about
+    lines of the patch. A wrapped line is still one line to the anchor, so the same words
+    selected in the same row record the same coordinate either way — file, side, and
+    source line — or turning the switch on would quietly move where a remark lands.
+
+    The same row and the same phrase both times, with wrap the only difference, and the
+    row's own box is read to prove that difference was real: one line tall and running
+    past its box unwrapped, several lines tall and whole wrapped. Two identical anchors
+    off a line that never wrapped would be asserting nothing at all."""
+    page, errors = _bound_diff(browser, serve)
+    row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",81]\']')
+
+    flat = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
+    assert flat["text"] == _DIFF_TAIL, flat
+    assert flat["cut"], f"the words selected are inside the box already: {flat}"
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("Unwrapped, this line runs off the box.")
+    page.keyboard.press("Enter")
+    round_trip(page)
+
+    page.locator("lf-diff .lf-diff-wrap").click()
+    folded = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
+    assert folded["text"] == _DIFF_TAIL, folded
+    assert folded["height"] > flat["height"] and not folded["cut"], (
+        f"the line did not wrap, so both anchors describe one geometry: {folded}"
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("Wrapped, the same words are on screen.")
+    page.keyboard.press("Enter")
+    round_trip(page)
+
+    anchors = [
+        event["anchor"] for event in sent_events(serve.page_dir) if event.get("anchor")
+    ]
+    assert len(anchors) == 2, anchors
+    assert (
+        anchors[0]
+        == anchors[1]
+        == {
+            "section": "patch",
+            "datum": '["app/handlers.py","new",81]',
+            "quote": _DIFF_TAIL,
+        }
+    ), anchors
     assert errors == []
     page.close()

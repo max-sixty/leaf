@@ -170,7 +170,6 @@ def runtime_document(
     source: str,
     revision: int,
     version: int | None = None,
-    page_root: str = "",
 ) -> bytes:
     """Inject the exact immutable identity beside the canonical runtime script."""
     parsed = parse_structure(source)
@@ -188,9 +187,7 @@ def runtime_document(
         if version is not None
         else ""
     )
-    return scope_document_routes(
-        (source[:offset] + markers + source[offset:]).encode(), page_root
-    )
+    return (source[:offset] + markers + source[offset:]).encode()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -403,7 +400,11 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if ctype.startswith(("text/css", "text/javascript", "application/javascript")):
+        if ctype.startswith("text/html"):
+            body = scope_document_routes(body, self.page_root)
+        elif ctype.startswith(
+            ("text/css", "text/javascript", "application/javascript")
+        ):
             body = scope_page_routes(body, self.page_root)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
@@ -512,7 +513,7 @@ class Handler(BaseHTTPRequestHandler):
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
         try:
-            projected = runtime_document(source, revision, version, self.page_root)
+            projected = runtime_document(source, revision, version)
         except ValueError as error:
             self._json({"error": str(error)}, 500)
             return
@@ -533,7 +534,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(
                 200,
                 "text/html; charset=utf-8",
-                runtime_document(source, mapping[version], version, self.page_root),
+                runtime_document(source, mapping[version], version),
             )
             return True
         if path.startswith("/revisions/"):

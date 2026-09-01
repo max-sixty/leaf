@@ -175,6 +175,30 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             "Delivered through the MCP page."
         )
 
+        source.write_text(
+            source.read_text().replace(
+                "</section>",
+                '<p><img id="late" src="/media/051bee487bfb5d13.png" '
+                'alt="late revision"></p></section>',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        revised = activate_source(page_dir, read_events(page_dir))
+        assert revised.error is None and revised.revision == 3
+        page.locator("#late").wait_for()
+        page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
+        assert page.locator("#late").get_attribute("src") == (
+            f"{root}/media/051bee487bfb5d13.png"
+        )
+        assert all(
+            resource.startswith(f"{pages.origin}{root}/")
+            for resource in page.evaluate(
+                "() => performance.getEntriesByType('resource').map(r => r.name)"
+            )
+            if resource.startswith(pages.origin)
+        )
+
         page.locator(".lf-version").click()
         page.locator('.lf-version-row[data-lf-version="1"]').click()
         page.wait_for_function(

@@ -2530,7 +2530,7 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
             "capture",
             str(page_dir),
             "leaf-skill",
-            "--text-file",
+            "--file",
             str(text_file),
             "--lines",
             "2:3",
@@ -2552,6 +2552,25 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
         }
     }
 
+    wrong_shape = runner.invoke(
+        cli_model.cli,
+        [
+            "data",
+            "capture",
+            str(page_dir),
+            "leaf-skill",
+            "--file",
+            str(text_file),
+            "--format",
+            "unified-diff",
+            "--lines",
+            "1:1",
+        ],
+    )
+    assert wrong_shape.exit_code != 0
+    assert "lines can only select part of a text capture" in wrong_shape.output
+    assert data_model.read_data(page_dir) == stored
+
     index = page_dir / "index.html"
     index.write_text(
         index.read_text().replace(
@@ -2566,6 +2585,12 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
     assert any(consumer.get("snapshot") == "1" for consumer in consumers)
     text_file.write_text("unreferenced")
     data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+    assert (
+        data_model.read_data(page_dir)["sources"]["leaf-skill"]["snapshots"]["2"][
+            "label"
+        ]
+        == "SKILL.md"
+    )
     data_model.cmd_data_set(page_dir, "leaf-skill", "new current value")
     data_model.cmd_data_clear(page_dir, "leaf-skill")
 
@@ -2579,6 +2604,223 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
         },
     }
     assert check(page_dir).exit_code == 0
+
+
+def test_unified_diff_capture_builds_one_lazy_fragment_per_file(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "review-patch",
+        {"type": "object"},
+        contract="unified-diff",
+        snapshot=True,
+    )
+    patch = tmp_path / "review.patch"
+    patch.write_text(
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+ def run():
+-    return 1
++    return 2
+diff --git a/old.py b/new.py
+similarity index 78%
+rename from old.py
+rename to new.py
+--- a/old.py
++++ b/new.py
+@@ -1 +1 @@
+-OLD = True
++NEW = True
+diff --git a/docs/old.md b/docs/new.md
+similarity index 100%
+rename from docs/old.md
+rename to docs/new.md
+diff --git "a/caf\\303\\251 notes.py" "b/caf\\303\\251 notes.py"
+--- "a/caf\\303\\251 notes.py"
++++ "b/caf\\303\\251 notes.py"
+@@ -1 +1 @@
+-OLD = True
++NEW = True
+diff --git a/src/second file.py b/src/second file.py
+--- a/src/second file.py\t
++++ b/src/second file.py\t
+@@ -1 +1 @@
+-OLD = True
++NEW = True
+"""
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "data",
+            "capture",
+            str(page_dir),
+            "review-patch",
+            "--file",
+            str(patch),
+            "--format",
+            "unified-diff",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    source = data_model.read_data(page_dir)["sources"]["review-patch"]
+    assert source["label"] == "review.patch"
+    assert source["snapshots"]["1"]["label"] == "review.patch"
+    assert source["snapshots"]["1"]["value"] == source["value"]
+    assert [
+        {key: value for key, value in file.items() if key != "patch"}
+        for file in source["value"]["files"]
+    ] == [
+        {
+            "key": "app.py",
+            "path": "app.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+        },
+        {
+            "key": "new.py",
+            "path": "new.py",
+            "previousPath": "old.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+        },
+        {
+            "key": "docs/new.md",
+            "path": "docs/new.md",
+            "previousPath": "docs/old.md",
+            "kind": "rename",
+            "additions": 0,
+            "deletions": 0,
+        },
+        {
+            "key": "café notes.py",
+            "path": "café notes.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+        },
+        {
+            "key": "src/second file.py",
+            "path": "src/second file.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+        },
+    ]
+    assert all(
+        file["patch"].startswith("diff --git ") for file in source["value"]["files"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("patch_text", "message"),
+    [
+        (
+            """diff --git a/logo.png b/logo.png
+index 1234567..89abcde 100644
+Binary files a/logo.png and b/logo.png differ
+""",
+            "unsupported hunkless diff",
+        ),
+        (
+            """diff --git a/run.sh b/run.sh
+old mode 100644
+new mode 100755
+""",
+            "unsupported hunkless diff",
+        ),
+        (
+            """diff --git a/source.py b/copied.py
+similarity index 100%
+copy from source.py
+copy to copied.py
+""",
+            "unsupported copy diff",
+        ),
+        (
+            """diff --git a/empty.txt b/empty.txt
+new file mode 100644
+index 0000000..e69de29
+""",
+            "unsupported hunkless diff",
+        ),
+        (
+            """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+--- a/old.py
++++ b/new.py
+-before
++after
+""",
+            "unsupported hunkless diff",
+        ),
+        (
+            """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
++lost
+""",
+            "hunk line counts",
+        ),
+        (
+            """diff --git a/app.py b/app.py
+@@ -1 +1 @@
+--- bogus-old
++++ bogus-new
+""",
+            "no ---/+++ file-header pair before its first hunk",
+        ),
+        (
+            """diff --git a/app.py b/app.py
+--- a/other.py
++++ b/other.py
+@@ -1 +1 @@
+-before
++after
+""",
+            "---/+++ paths disagree",
+        ),
+    ],
+)
+def test_unified_diff_capture_rejects_evidence_the_widget_cannot_render(
+    page_dir, tmp_path, patch_text, message
+):
+    declare_data_input(
+        page_dir,
+        "review-patch",
+        {"type": "object"},
+        contract="unified-diff",
+    )
+    patch = tmp_path / "unsupported.patch"
+    patch.write_text(patch_text)
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "data",
+            "capture",
+            str(page_dir),
+            "review-patch",
+            "--file",
+            str(patch),
+            "--format",
+            "unified-diff",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert message in result.output
+    assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
 
 
 def test_a_document_cannot_select_a_missing_data_snapshot(page_dir):

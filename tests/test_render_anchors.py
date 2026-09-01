@@ -3342,17 +3342,21 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     added.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     page.locator(".lf-composer textarea").fill("Review the whole added line.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
+    search = page.locator("#patch .lf-diff-search")
+    search.fill("nothing-matches")
+    expect(added).to_be_hidden()
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
     whole_line.click()
+    expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
@@ -3394,9 +3398,9 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "endsAtTokenStart": True,
     }, selected
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     page.locator(".lf-composer textarea").fill("Review this expression.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
         "app.py · new line 2 · “request.token.id”"

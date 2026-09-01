@@ -742,6 +742,42 @@ def live_url(version_url):
     return version_url.split("/versions/", 1)[0] + f"/?t={TOKEN}"
 
 
+# A live page a reader is mid-press on when the next revision lands: hyperlinks for the
+# address chord to count, and a decision whose pick mark the key line offers digits over.
+# The second revision adds a paragraph above everything and takes the middle link away,
+# so a restored place has moved and an address has gone; the third adds another.
+LIVE_KEYS_V1 = leaf_page(
+    "Live keys first",
+    """
+<h1 id="lk-title">Live keys</h1>
+<p id="lk-lead">See <a id="lk-link-one" href="#lk-title">the title</a>, <a id="lk-link-two" href="#lk-lead">this lead</a>, and the decision below it.</p>
+<lf-decision id="lk-decision"><h2>Which one?</h2>
+<lf-options id="lk-options" choose>
+  <lf-option id="lk-one">One</lf-option>
+  <lf-option id="lk-two">Two</lf-option>
+</lf-options></lf-decision>
+<p id="lk-para">A closing paragraph with <a id="lk-link-three" href="#lk-para">a link to itself</a>.</p>
+""",
+)
+LIVE_KEYS_V2 = (
+    LIVE_KEYS_V1.replace(
+        "<title>Live keys first</title>", "<title>Live keys second</title>"
+    )
+    .replace(
+        '<h1 id="lk-title">Live keys</h1>',
+        '<p id="lk-new">A finding the second revision put above everything else.</p>\n'
+        '<h1 id="lk-title">Live keys</h1>',
+    )
+    .replace(', <a id="lk-link-two" href="#lk-lead">this lead</a>,', ",")
+)
+LIVE_KEYS_V3 = LIVE_KEYS_V2.replace(
+    "<title>Live keys second</title>", "<title>Live keys third</title>"
+).replace(
+    '<p id="lk-new">',
+    '<p id="lk-newer">A finding the third revision put above that.</p>\n<p id="lk-new">',
+)
+
+
 # A section that generates no box of its own, holding blocks that carry no id. The
 # reading position's landmark is whichever id stands nearest the block the reader was
 # on, so the wrapper is it — which is what a suggestion around whole sections is, and

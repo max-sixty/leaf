@@ -5,7 +5,7 @@ import {
   offer,
   saveDraft,
   sendDraft,
-  toast,
+  notice,
   watchDraft,
   wrote,
 } from "/runtime/widget-api.js";
@@ -123,7 +123,7 @@ export class OptionAddition {
     if (this.#adding) return;
     const raw = this.#input.value;
     const text = raw.trim();
-    if (!text) return toast("Nothing to add — the field is empty");
+    if (!text) return notice("Nothing to add — the field is empty");
     this.#adding = true;
     this.#sync();
     try {
@@ -142,7 +142,7 @@ export class OptionAddition {
           return this.#commit(detail, attempt);
         },
       );
-      if (accepted) toast(`Added “${text}” — recorded`);
+      if (accepted) notice(`Added “${text}” — recorded`);
     } finally {
       this.#adding = false;
       this.#sync();

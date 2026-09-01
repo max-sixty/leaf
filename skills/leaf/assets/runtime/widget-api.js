@@ -13,7 +13,7 @@ export { marginAction, registerMarginItem } from "./living-margin.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { scrollerFor } from "./navigation.js";
 export { pageScroller } from "./scrolling.js";
-export { announce, toast } from "./notifications.js";
+export { announce, notice } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
 export { alignText } from "./text-alignment.js";

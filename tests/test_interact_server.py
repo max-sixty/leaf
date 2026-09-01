@@ -1997,7 +1997,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
     reader's having written in the box the page put under the question, which is
     refusing them the answer they were asked for. It would also refuse it silently:
     `lf-options` paints a pick before this door sees it, so the option would flip,
-    nothing would be logged, no toast would fire, and the next poll would put it
+    nothing would be logged, no notice would fire, and the next poll would put it
     back."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["x-state"]["choose"]["requires"] = {
@@ -2609,7 +2609,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
 ):
     """`final` is the only word that ends a retry, so a refusal that leaves it out is
     not a refusal the browser can act on: the outbox reads it as an incomplete answer
-    and re-posts the same attempt every poll for the life of the tab, with one toast as
+    and re-posts the same attempt every poll for the life of the tab, with one notice as
     the reader's whole explanation. Every one of these is deterministic, so the loop
     never ends.
 

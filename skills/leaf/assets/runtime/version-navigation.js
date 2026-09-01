@@ -188,7 +188,7 @@ export function createVersionNavigation({
           const was = document.activeElement;
           const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
           // A press at either end lands on the row it started from, and now that the walk
-          // states a comparison, landing is not free — it would re-fetch the base and toast
+          // states a comparison, landing is not free — it would re-fetch the base and say
           // its count again for a press that moved nothing.
           if (!row || row === was) return;
           // The comparison the row states: its own version as the base, or none at all where

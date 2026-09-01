@@ -902,9 +902,9 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     page.locator(".lf-composer textarea").fill("a comment on the capped passage")
     page.keyboard.press("Enter")
     page.wait_for_function("""() => document.querySelectorAll('.lf-thread').length === 1
-        || document.querySelector('.lf-toast').classList.contains('show')""")
+        || document.querySelector('.lf-notice').classList.contains('show')""")
     assert page.locator(".lf-thread").count() == 1, (
-        f"the comment never posted — the page says {page.locator('.lf-toast').text_content()!r}"
+        f"the comment never posted — the page says {page.locator('.lf-notice').text_content()!r}"
     )
     assert errors == []
     page.close()

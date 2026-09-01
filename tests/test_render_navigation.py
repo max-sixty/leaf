@@ -2520,7 +2520,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # A send key on an empty box is answered, not swallowed — silence reads as a
     # send that happened.
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-toast")).to_contain_text("Nothing to send")
+    expect(page.locator(".lf-notice")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(line).to_contain_text("close threads")

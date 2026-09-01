@@ -438,10 +438,6 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
 
     What the reader left standing is the arrangement the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
-    One thing was caught the day this was written: a panel left open moved the toast
-    across the page's foot, because its resting corner is the panel's and the
-    stylesheet transitions it there. Invisible, the toast being transparent until it
-    speaks — and exactly the shape of the visible one.
     """
     url = serve(CHANGE_SHAPES_PAGE)
     page, errors = open_page(browser, url)

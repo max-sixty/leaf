@@ -85,7 +85,7 @@ import {
   registerMarginItem,
   sendAction,
   sendDraft,
-  toast,
+  notice,
   keys,
   saveDraft,
   loadDraft,
@@ -425,11 +425,11 @@ customElements.define(
 
     async #restore(text, label) {
       if (this.#sending) {
-        toast("Wait for the current edit to finish sending");
+        notice("Wait for the current edit to finish sending");
         return;
       }
       if (this.#ta) {
-        toast("Save or cancel the open edit before restoring history");
+        notice("Save or cancel the open edit before restoring history");
         return;
       }
       if (text === this.#body.textContent) return;
@@ -439,13 +439,13 @@ customElements.define(
       const ok = await sendAction(this, "edit", { text });
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      if (ok) toast(`Restored ${label.toLowerCase()} — recorded`);
+      if (ok) notice(`Restored ${label.toLowerCase()} — recorded`);
     }
 
     #open(seed, at) {
       if (this.#ta) return;
       if (this.#sending) {
-        toast("Wait for the current edit to finish sending");
+        notice("Wait for the current edit to finish sending");
         return;
       }
       const ta = offer("textarea", "lf-draft-edit");
@@ -526,7 +526,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       if (ok) {
-        toast(`Edited “${this.id}” — recorded`);
+        notice(`Edited “${this.id}” — recorded`);
       } else {
         const standing = loadEdit(this.id);
         // Null means the same shared generation was settled by the other tab while

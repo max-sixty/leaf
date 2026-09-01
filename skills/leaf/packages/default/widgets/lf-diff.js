@@ -18,7 +18,7 @@ import {
   settle,
   shadowStage,
   standingState,
-  toast,
+  notice,
   watchData,
 } from "/runtime/widget-api.js";
 import { parsePatchFiles, preloadDiffHTML } from "/vendor/pierre-diffs.esm.js";
@@ -719,7 +719,7 @@ customElements.define(
           reviewed,
         }).then((ok) => {
           if (ok)
-            toast(
+            notice(
               `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — recorded`,
             );
           else this.refreshReviewedState();
@@ -823,7 +823,7 @@ customElements.define(
       const target = entry.details?.firstElementChild ?? entry.review;
       target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
       target.focus({ preventScroll: true });
-      toast(`Next unreviewed file: ${entry.record.path}`);
+      notice(`Next unreviewed file: ${entry.record.path}`);
     }
 
     applyAction(action, detail) {

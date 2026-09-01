@@ -9,7 +9,12 @@ export function createViewContinuity(dependencies) {
   const {
     TEXT_BLOCK,
     banner,
+    closestAcross,
+    containsAcross,
     cut,
+    elementById,
+    focusDestination,
+    focused,
     inChrome,
     landedAt,
     pageScroller,
@@ -130,6 +135,56 @@ export function createViewContinuity(dependencies) {
     } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
   }
 
+  // Where the reader is standing in the authored page, written down so the swap can hand
+  // it back. The key line over a focused pick mark offers "1–2 toggle the nth"; those are
+  // presses the reader is about to make, and a replacement that dropped the focus onto
+  // body took the offer down with it — the digit then picked nothing, silently. Node
+  // identity does not survive the swap, so the place is stated the way the decision above
+  // is, by id: the nearest element carrying one, and within it the control by kind and
+  // position, since a grip or a pick mark is the runtime's and carries no id of its own.
+  // A control staged in a shadow tree is out of the place's own query and comes back as
+  // the place. The chrome stays through a swap and so does focus inside it, so a reader
+  // standing there has nothing to write down. The place is an authored element, read the
+  // way the anchor pass reads which section a passage is in: an injected row carries an
+  // id too, and is not a place a revision keeps.
+  function captureStanding() {
+    const held = focused();
+    if (!held || held === document.body || inChrome(held)) return null;
+    const main = document.querySelector("body > main");
+    const place = closestAcross(held, "[id]:not(.lf-ui)");
+    if (!place || !main || !containsAcross(main, place)) return null;
+    if (place === held) return { id: place.id };
+    // The first class is the one the control was built with; later ones are state the
+    // fresh control will not be wearing yet. Escaped, since an authored class need not
+    // be a bare identifier.
+    const kind = [held.localName, held.classList[0] && CSS.escape(held.classList[0])]
+      .filter(Boolean)
+      .join(".");
+    return {
+      id: place.id,
+      kind,
+      index: [...place.querySelectorAll(kind)].indexOf(held),
+    };
+  }
+  // The same control where the revision kept it; the place where it kept only that; and
+  // nothing where it kept neither — a reader whose item the revision removed is standing
+  // nowhere, and body, where the page's own keys are live, is the honest answer.
+  function restoreStanding(standing) {
+    if (!standing) return;
+    // Only where the swap left the reader standing nowhere. The activation settles its
+    // modules asynchronously after the swap, and a reader who moved into the chrome
+    // across that gap has taken a place of their own.
+    const held = focused();
+    if (held && held !== document.body) return;
+    const place = elementById(standing.id);
+    if (!place) return;
+    const control =
+      standing.kind === undefined
+        ? place
+        : (place.querySelectorAll(standing.kind)[standing.index] ?? place);
+    focusDestination(control);
+  }
+
   function installArrival({ fragmentId, ready, scrollToElement, tabStore }) {
     // Ordinary reload and history travel belong to the browser. The root is its document
     // scrollport, so native restoration is both more complete and less surprising than a
@@ -169,5 +224,12 @@ export function createViewContinuity(dependencies) {
     return { landArrival, savedView };
   }
 
-  return { blocksOnScreen, captureView, installArrival, restoreView };
+  return {
+    blocksOnScreen,
+    captureStanding,
+    captureView,
+    installArrival,
+    restoreStanding,
+    restoreView,
+  };
 }

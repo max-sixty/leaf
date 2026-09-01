@@ -435,9 +435,9 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     page.close()
 
     assert state["scripts"] == 0, "a copy with no server behind it keeps no script"
-    assert (
-        state["chrome"] == 0
-    ), "the runtime's layer came along — a comment box that swallows what you type"
+    assert state["chrome"] == 0, (
+        "the runtime's layer came along — a comment box that swallows what you type"
+    )
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
     assert state["column"] != "none", "the theme didn't inline; the copy opens unstyled"

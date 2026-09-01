@@ -469,21 +469,21 @@ main, main * {
         )
         frames = page.evaluate("() => window.__lfPresentation.frames")
         assert held, "the positive control did not hold the first state response"
-        assert (
-            frames and all(frame["height"] > 0 for frame in frames)
-        ), f"the authored state was never laid out, so the paint gate tested nothing: {frames}"
-        assert not [
-            frame for frame in frames if frame["stale"]
-        ], f"authored state was visibly painted before replay: {frames}"
-        assert not [
-            frame for frame in frames if frame["interactive"]
-        ], f"authored state accepted a pointer before replay: {frames}"
+        assert frames and all(frame["height"] > 0 for frame in frames), (
+            f"the authored state was never laid out, so the paint gate tested nothing: {frames}"
+        )
+        assert not [frame for frame in frames if frame["stale"]], (
+            f"authored state was visibly painted before replay: {frames}"
+        )
+        assert not [frame for frame in frames if frame["interactive"]], (
+            f"authored state accepted a pointer before replay: {frames}"
+        )
         assert not page.locator("#stale-control").evaluate(
             "element => { element.focus(); return document.activeElement === element; }"
         ), "authored state accepted keyboard focus before replay"
-        assert not page.locator(
-            "#stale-dialog"
-        ).is_visible(), "authored top-layer content painted before replay"
+        assert not page.locator("#stale-dialog").is_visible(), (
+            "authored top-layer content painted before replay"
+        )
         assert not page.locator("#stale-dialog button").evaluate(
             "element => { element.focus(); return document.activeElement === element; }"
         ), "authored top-layer content accepted focus before replay"
@@ -564,14 +564,14 @@ main, main * {
             "document.querySelector('#shadowed').shadowRoot"
             ".querySelector('#shadow-stale-popover').hidePopover()"
         )
-        assert all(
-            "Applying current decisions" in frame["note"] for frame in frames
-        ), f"the boundary replaced the page with no useful visible state: {frames}"
+        assert all("Applying current decisions" in frame["note"] for frame in frames), (
+            f"the boundary replaced the page with no useful visible state: {frames}"
+        )
         painted = [i for i, frame in enumerate(frames) if frame["waitingPainted"]]
         assert painted, f"the waiting explanation was never painted: {frames}"
-        assert painted == list(
-            range(painted[0], len(frames))
-        ), f"the waiting explanation disappeared while replay was still held: {frames}"
+        assert painted == list(range(painted[0], len(frames))), (
+            f"the waiting explanation disappeared while replay was still held: {frames}"
+        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
@@ -814,9 +814,9 @@ def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
         "() => getComputedStyle(document.body, '::after').content"
     )
     waiting_pixels = pixels(waiting.screenshot())
-    assert (
-        waiting_pixels in held_frames
-    ), "the stable-content compositor detector missed a waiting surface held on screen"
+    assert waiting_pixels in held_frames, (
+        "the stable-content compositor detector missed a waiting surface held on screen"
+    )
     held.pop(0).continue_()
     waiting.wait_for_function(BOTH_STAMPS)
     waiting.close()
@@ -905,9 +905,9 @@ def test_a_slow_first_replay_releases_when_state_is_ready(
         ), "the waiting explanation did not paint beyond its threshold"
         after = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
         changed = ImageChops.difference(before, after)
-        assert (
-            changed.getbbox() is not None
-        ), "the computed waiting state changed without painting any pixels"
+        assert changed.getbbox() is not None, (
+            "the computed waiting state changed without painting any pixels"
+        )
         assert (
             sum(pixel != (0, 0, 0) for pixel in changed.get_flattened_data()) > 100
         ), "the waiting surface did not paint enough pixels to be a useful explanation"
@@ -1020,9 +1020,9 @@ def test_a_malformed_first_state_never_presents_unapplied_authored_state(
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
-        assert (
-            not page.locator("#sug lf-old").is_visible()
-        ), "state processing failed before replay, but authored state was presented"
+        assert not page.locator("#sug lf-old").is_visible(), (
+            "state processing failed before replay, but authored state was presented"
+        )
         expect(page.locator(".lf-signoff")).to_be_disabled()
     finally:
         page.close()
@@ -2366,9 +2366,9 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     # never again agrees with a dot that never moved either, and the two states a reader
     # is choosing between — this page wants me, that one is busy — are exactly the pair
     # that would collapse.
-    assert (
-        awaits != working
-    ), f"a page awaiting its reader wears the same tab as one that is working ({awaits})"
+    assert awaits != working, (
+        f"a page awaiting its reader wears the same tab as one that is working ({awaits})"
+    )
 
     # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
     # in the tab, which is the whole of what the reader can see of it from a tab strip.
@@ -2473,9 +2473,9 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
     expect(page.locator('[data-lf-datum="api"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
-    assert (
-        page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    ), "the comment followed its old display text onto the other datum"
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0, (
+        "the comment followed its old display text onto the other datum"
+    )
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile(r"\bdetached\b")
@@ -2529,9 +2529,9 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     assert rows.evaluate_all(
         "els => els.map(el => [el.dataset.lfDatum, el.textContent])"
     ) == [["api", "Ready"], ["worker", "Ready"]]
-    assert (
-        page.locator("script").count() == 0
-    ), "the snapshot still claims it can refresh"
+    assert page.locator("script").count() == 0, (
+        "the snapshot still claims it can refresh"
+    )
     assert errors == []
     page.close()
 
@@ -2868,9 +2868,9 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
     )
     page.wait_for_function("() => window.__lfSawDataRevisionTwo === true")
     page.wait_for_timeout(100)
-    assert not page.evaluate(
-        "() => window.__lfDataDuringActivation"
-    ), "a source subscriber painted while version activation still owned the document"
+    assert not page.evaluate("() => window.__lfDataDuringActivation"), (
+        "a source subscriber painted while version activation still owned the document"
+    )
 
     page.evaluate("() => window.__lfReleaseTransition()")
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")

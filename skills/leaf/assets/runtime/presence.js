@@ -20,8 +20,7 @@ const PICKUP_RECEIPT_GRACE_MS = 2 * 60 * 1000;
 const TURN_RENEWAL_GRACE_MS = 2 * 60 * 1000;
 export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
   Boolean(ts) && serverNow() - new Date(ts).getTime() > grace;
-export const waitingForPickupSince = (ts) =>
-  quietSince(ts, PICKUP_RECEIPT_GRACE_MS);
+export const waitingForPickupSince = (ts) => quietSince(ts, PICKUP_RECEIPT_GRACE_MS);
 
 export function createPresence() {
   // ---------- presence ----------

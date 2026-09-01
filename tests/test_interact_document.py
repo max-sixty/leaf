@@ -2616,7 +2616,7 @@ def test_unified_diff_capture_builds_one_lazy_fragment_per_file(page_dir, tmp_pa
     )
     patch = tmp_path / "review.patch"
     patch.write_text(
-        r"""diff --git a/app.py b/app.py
+        """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1,2 +1,2 @@
@@ -2636,9 +2636,15 @@ diff --git a/docs/old.md b/docs/new.md
 similarity index 100%
 rename from docs/old.md
 rename to docs/new.md
-diff --git "a/caf\303\251 notes.py" "b/caf\303\251 notes.py"
---- "a/caf\303\251 notes.py"
-+++ "b/caf\303\251 notes.py"
+diff --git "a/caf\\303\\251 notes.py" "b/caf\\303\\251 notes.py"
+--- "a/caf\\303\\251 notes.py"
++++ "b/caf\\303\\251 notes.py"
+@@ -1 +1 @@
+-OLD = True
++NEW = True
+diff --git a/src/second file.py b/src/second file.py
+--- a/src/second file.py\t
++++ b/src/second file.py\t
 @@ -1 +1 @@
 -OLD = True
 +NEW = True
@@ -2694,6 +2700,13 @@ diff --git "a/caf\303\251 notes.py" "b/caf\303\251 notes.py"
         {
             "key": "café notes.py",
             "path": "café notes.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+        },
+        {
+            "key": "src/second file.py",
+            "path": "src/second file.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,

@@ -790,9 +790,10 @@ customElements.define(
 
     entryAroundFocus() {
       const focused = this.shadowRoot?.activeElement;
-      return (
-        this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null
-      );
+      const focusedEntry =
+        this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null;
+      if (focusedEntry) return focusedEntry;
+      return this.fileEntries?.includes(this.reviewCursor) ? this.reviewCursor : null;
     }
 
     nextReviewEntry() {
@@ -814,6 +815,7 @@ customElements.define(
     async nextUnreviewed() {
       const entry = this.nextReviewEntry();
       if (!entry) return;
+      this.reviewCursor = entry;
       if (entry.details) {
         entry.details.open = true;
         await this.loadManifestEntry(entry);

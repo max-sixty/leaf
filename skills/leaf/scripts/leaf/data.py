@@ -88,14 +88,37 @@ def _diff_header_path(side: str, path: str) -> str:
     )
 
 
-def _diff_header_paths(section: str) -> tuple[str, str]:
+def _diff_header_paths(
+    section: str,
+    marked_old: str | None = None,
+    marked_new: str | None = None,
+) -> tuple[str, str]:
     header = section.split("\n", 1)[0]
     match = re.fullmatch(
         rf"diff --git (?P<old>{_GIT_PATH_TOKEN}) (?P<new>{_GIT_PATH_TOKEN})",
         header,
     )
     if match is None:
-        raise DataError(f"invalid Git diff header: {header}")
+        # Git leaves ordinary spaces unquoted in `diff --git` and terminates the
+        # unambiguous ---/+++ paths with a tab instead. Reconstruct the header from
+        # that already-parsed pair rather than guessing where one path ends.
+        if marked_old is None or marked_new is None:
+            raise DataError(f"invalid Git diff header: {header}")
+        old = None if marked_old == "/dev/null" else _diff_display_path(marked_old)
+        new = None if marked_new == "/dev/null" else _diff_display_path(marked_new)
+        old = old or new
+        new = new or old
+        if (
+            old is None
+            or new is None
+            or header
+            != (
+                f"diff --git {_diff_header_path('a', old)} "
+                f"{_diff_header_path('b', new)}"
+            )
+        ):
+            raise DataError(f"invalid Git diff header: {header}")
+        return old, new
     old = _decode_git_path(match.group("old"))
     new = _decode_git_path(match.group("new"))
     if not old.startswith("a/") or not new.startswith("b/"):
@@ -219,7 +242,6 @@ def unified_diff_manifest(source: str) -> dict:
     files = []
     paths = set()
     for section in sections:
-        header_old, header_new = _diff_header_paths(section)
         if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
             raise DataError(
                 "unsupported copy diff; omit copy metadata and provide textual @@ "
@@ -233,6 +255,7 @@ def unified_diff_manifest(source: str) -> dict:
             kind = "rename"
         else:
             old_header, new_header = _diff_marked_paths(section)
+            header_old, header_new = _diff_header_paths(section, old_header, new_header)
             if old_header is None or new_header is None:
                 if re.search(r"^@@", section, re.MULTILINE):
                     raise DataError(

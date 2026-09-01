@@ -474,15 +474,6 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
             for path in ("src/first.py", "src/second file.py", "tests/third.py")
         ]
     }
-    manifest["files"][1][
-        "patch"
-    ] = """diff --git "a/src/second file.py" "b/src/second file.py"
---- "a/src/second file.py"
-+++ "b/src/second file.py"
-@@ -1 +1 @@
--return "old"
-+return "new"
-"""
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     page, errors = open_page(browser, url)
     diff = page.locator("#patch")
@@ -525,6 +516,13 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(reviews.nth(0)).to_have_text("✓ Reviewed")
     expect(progress).to_have_text("1 of 3 reviewed")
 
+    next_unreviewed = diff.locator(".lf-diff-next")
+    next_unreviewed.click()
+    expect(summaries.nth(1)).to_be_focused()
+    next_unreviewed.click()
+    expect(summaries.nth(2)).to_be_focused()
+    expect(diff.locator("[data-line]")).to_have_count(4)
+
     summaries.nth(0).focus()
     page.keyboard.press("/")
     search = diff.locator(".lf-diff-search")
@@ -539,7 +537,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     page.keyboard.press("Alt+ArrowDown")
     expect(summaries.nth(1)).to_be_focused()
     expect(diff.locator("details").nth(1)).to_have_attribute("open", "")
-    expect(diff.locator("[data-line]")).to_have_count(2)
+    expect(diff.locator("[data-line]")).to_have_count(4)
     reviews.nth(1).click()
     round_trip(page)
     expect(progress).to_have_text("2 of 3 reviewed · 1 matching")

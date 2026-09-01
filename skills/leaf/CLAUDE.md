@@ -1376,7 +1376,8 @@ with one unambiguous control therefore gets one Button, not a row of variants.
 Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
 replaces `…` with every available peer, and Left/Right wrap through those visible
 Buttons. A pointer press on `…` makes the same replacement and lands on the first
-revealed Button. Folding restores `…` and returns focus to it. The cluster uses this
+revealed Button. Escape folds the cluster, restores `…`, and returns focus to it;
+moving focus or the pointer outside folds without taking focus. The cluster uses this
 one expansion state for both routes; focus does not create a parallel presentation.
 
 An unsettled reader action reuses that same Button rather than growing a status row

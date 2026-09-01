@@ -317,7 +317,7 @@ export function createLivingMargin(dependencies) {
   let pinnedKey = null;
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
-  let restoringOptionsFocus = false;
+  let settlingOptionsFocus = false;
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
@@ -881,27 +881,26 @@ export function createLivingMargin(dependencies) {
     if (previousKey === nextKey) return;
     if (previewEntry) closePreview(false);
     expandedOptionsKey = nextKey;
-    render();
+    settlingOptionsFocus = true;
+    try {
+      render();
+      if (returnFocus && previousKey) {
+        const more = moreButtons.get(previousKey);
+        if (more?.isConnected && !more.hidden)
+          more.focus({ preventScroll: true });
+      } else if (focusOption && nextKey) {
+        const choices = clusterButtons(optionGroups.get(nextKey));
+        const fallback = clusterButtons(hosts.get(nextKey));
+        const next =
+          (focusOption === "last" ? choices.at(-1) : choices[0]) ??
+          (focusOption === "last" ? fallback.at(-1) : fallback[0]);
+        next?.focus({ preventScroll: true });
+      }
+    } finally {
+      settlingOptionsFocus = false;
+    }
     if (previousGroup?.querySelector(".lf-margin-reactions"))
       document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
-    if (returnFocus && previousKey) {
-      const more = moreButtons.get(previousKey);
-      if (more?.isConnected && !more.hidden) {
-        restoringOptionsFocus = true;
-        try {
-          more.focus({ preventScroll: true });
-        } finally {
-          restoringOptionsFocus = false;
-        }
-      }
-    } else if (focusOption && nextKey) {
-      const choices = clusterButtons(optionGroups.get(nextKey));
-      const fallback = clusterButtons(hosts.get(nextKey));
-      const next =
-        (focusOption === "last" ? choices.at(-1) : choices[0]) ??
-        (focusOption === "last" ? fallback.at(-1) : fallback[0]);
-      next?.focus({ preventScroll: true });
-    }
   }
 
   function openButtonOptions(target) {
@@ -1386,7 +1385,7 @@ export function createLivingMargin(dependencies) {
         host.addEventListener("focusin", (event) => {
           const control = event.target.closest?.(".lf-margin-action");
           if (
-            restoringOptionsFocus ||
+            settlingOptionsFocus ||
             !control ||
             !host.contains(control) ||
             !control.matches(":focus-visible")
@@ -1398,6 +1397,17 @@ export function createLivingMargin(dependencies) {
           setOptionsOpen(current, true, {
             focusOption: control === more ? "last" : null,
           });
+        });
+        host.addEventListener("focusout", (event) => {
+          const current = host.lfEntry;
+          if (
+            settlingOptionsFocus ||
+            !current ||
+            expandedOptionsKey !== current.key ||
+            host.contains(event.relatedTarget)
+          )
+            return;
+          setOptionsOpen(current, false);
         });
         // Contributed primaries remain the owner's real control, so they do not pass
         // through the generated marker/proxy activation paths below. Close any unfolded
@@ -1817,6 +1827,16 @@ export function createLivingMargin(dependencies) {
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!expandedOptionsKey) return;
+      const host = hosts.get(expandedOptionsKey);
+      if (!host || event.composedPath().includes(host)) return;
+      setOptionsOpen(host.lfEntry, false);
+    },
+    { capture: true },
+  );
   offerListeners.add(render);
   document.addEventListener(
     "scroll",

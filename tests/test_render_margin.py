@@ -261,7 +261,20 @@ def test_tab_into_a_button_cluster_replaces_ellipsis_with_all_buttons(browser, s
     expect(
         item.locator(":scope > .lf-margin-options .lf-margin-action:visible").last
     ).to_be_focused()
-    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    more = item.locator(":scope > .lf-margin-more")
+    options = item.locator(":scope > .lf-margin-options")
+    expect(more).to_be_hidden()
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#after-buttons")).to_be_focused()
+    expect(more).to_be_visible()
+    expect(options).to_be_hidden()
+
+    more.click()
+    expect(options).to_be_visible()
+    page.locator("#insert").click()
+    expect(more).to_be_visible()
+    expect(options).to_be_hidden()
     assert errors == []
     page.close()
 

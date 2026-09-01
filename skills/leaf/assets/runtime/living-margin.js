@@ -494,7 +494,16 @@ export function createLivingMargin(dependencies) {
     )
       return;
     const marker = previewButton.getBoundingClientRect();
-    const besideLeft = Math.max(8, marker.right + 8);
+    // The stylesheet gives the card the room left to the right of this edge, so a marker
+    // standing near the window's own edge would leave a conversation too narrow to read
+    // or answer in. --thread-card-floor is where that room stops being a margin: past it
+    // the card comes off its marker and covers the page instead, which is the posture a
+    // bounded thread card is already allowed. An accepted comment opens its thread at
+    // every width, so this is the only place the width can be refused.
+    const floor = parseFloat(
+      getComputedStyle(preview).getPropertyValue("--thread-card-floor"),
+    );
+    const besideLeft = Math.max(8, Math.min(marker.right + 8, innerWidth - 8 - floor));
     preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
     const card = preview.getBoundingClientRect();
     const bannerBottom =

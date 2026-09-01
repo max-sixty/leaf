@@ -1178,6 +1178,100 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
     page.close()
 
 
+# What the card came out as, beside the two facts that decide how wide it was allowed to
+# be: the posture the cascade granted, and the floor the theme declares. The floor is read
+# from the root, where the theme states it, so the test cannot disagree with the layout
+# about which number it is. Where the card stands is asked of the column rather than of
+# the marker: the card is placed once, in the turn it opens, and a claim landing after
+# that moves the marker without moving the card — a race of its own, and not this
+# number's.
+THREAD_CARD_GEOMETRY = """() => {
+  const main = document.querySelector('main').getBoundingClientRect();
+  const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+  const reply = document.querySelector('.lf-margin-thread textarea')
+    .getBoundingClientRect();
+  return {
+    mainRight: main.right,
+    cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+    replyWidth: reply.width, innerWidth: window.innerWidth,
+    beside: getComputedStyle(document.querySelector('main'))
+      .getPropertyValue('--lf-thread-beside').trim(),
+    floor: parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--thread-card-floor')),
+  };
+}"""
+
+
+def send_anchored_comment(page, text):
+    """The gesture the contract's sentence is about: a comment accepted on a passage."""
+    page.locator("#mounts-p").click(click_count=3)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill(text)
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+
+
+def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, serve):
+    """An accepted comment opens a conversation the reader can answer, at any width.
+
+    The card is placed off its marker and takes whatever room the window leaves to the
+    right of that edge. On a page whose left strip is already spoken for, that room runs
+    out while the marker is still on screen, and nothing was asking how much was left:
+    the shipped pr-walkthrough gave a 72px thread and a 22px reply box at 1200, the quote
+    wrapping one word to a line and the placeholder one character. The theme's
+    --thread-card-floor is where the margin stops being a margin — under it the card comes
+    off its marker and covers the page, which is the posture an accepted comment's thread
+    is already allowed (skills/leaf/CLAUDE.md, "Chrome, conversations, and text input").
+    It does not hand the reader to the Threads panel instead, so a card is what both
+    halves of this test read.
+
+    The second half is the other edge of the same number: where the cascade did grant the
+    conversation margin, the floor must change nothing, or a fix for the narrow page would
+    have taken the margin posture away from the wide one.
+
+    Both halves open on a page that already carries a comment, so the conversation margin
+    is claimed and the column has stopped moving before the gesture. Sent into a page
+    claiming that strip for the first time, the card is placed against a marker the claim
+    then slides, and what the read catches is that race rather than this floor.
+    """
+    sidebar_page = DECISION_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_DECISION]))
+    resized(page, 1200, 900)
+    send_anchored_comment(page, "Check the January failure mode.")
+
+    narrow = page.evaluate(THREAD_CARD_GEOMETRY)
+    assert narrow["beside"] == "0", narrow
+    assert narrow["cardWidth"] >= narrow["floor"] - 0.5, narrow
+    assert narrow["replyWidth"] >= 160, narrow
+    assert narrow["cardLeft"] >= 0, narrow
+    assert narrow["cardRight"] <= narrow["innerWidth"] + 0.5, narrow
+    # No margin was reserved at this width, so the room came out of the page.
+    assert narrow["cardLeft"] < narrow["mainRight"], narrow
+
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    send_anchored_comment(page, "Check the January failure mode.")
+
+    wide = page.evaluate(THREAD_CARD_GEOMETRY)
+    assert wide["beside"] == "1", wide
+    # Beside the column at the card's own width: the floor took nothing away here.
+    assert wide["cardLeft"] >= wide["mainRight"], wide
+    assert wide["cardWidth"] >= 459, wide
+
+    assert errors == []
+    page.close()
+
+
 def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, serve):
     """Several roots need no repeated category label or local panel handoff."""
     second_comment = {

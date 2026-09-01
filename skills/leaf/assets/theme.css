@@ -61,6 +61,15 @@
   /* A page thread uses a wider reading card than an authored sidenote. The margin
      includes the marker and the gutter between it and the 460px conversation. */
   --thread-card: 460px;
+  /* The narrowest that card is still a conversation. The card's width is whatever room
+     is left to the right of the marker it is measured from, and a page whose margin is
+     narrower than this has no margin to draw a thread in: the card comes off the marker
+     and stands over the page rather than shrinking to a column a word wide. 320px is
+     what the margin's other card already stands at, so the floor is the narrowest
+     reading surface this layer ships rather than a second opinion about one. The rule
+     that spends it is beside .lf-margin-preview, and placeThreadPreview reads it to
+     decide where the card can still be placed beside its source. */
+  --thread-card-floor: 320px;
   --thread-margin: 520px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader

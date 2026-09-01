@@ -2580,9 +2580,9 @@ outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`; `openComposer`'s 
 option decides focus independently. Outside clicks and Escape hide without discarding
 words. A successful send or an explicit draft close discards the local record.
 
-An accepted anchored comment opens its inline thread. When the reserved margin is too
-narrow, that thread may cover the page in its bounded card; it does not substitute the
-Threads panel. The send focuses the reply box only when no later selection, edit, or
+An accepted anchored comment opens its inline thread. `--thread-card-floor` is how
+narrow the room right of its marker may get before that thread comes off the marker
+and covers the page in its bounded card; it does not substitute the Threads panel. The send focuses the reply box only when no later selection, edit, or
 typing gesture stands.
 News arriving without the reader's send gesture may show a toast and count but
 does not move focus or scroll the panel. `showToast` clears click behavior as it

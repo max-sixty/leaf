@@ -1321,8 +1321,9 @@ them and cover the page under their respective media query otherwise; Leaves
 always covers because its rows leave this page.
 The shell's inline size already reflects the margins a beside panel or tray takes.
 `--strip-l`, `--strip-r`, and `--lf-room` are CSS-owned readings resolved on `main`;
-`--lf-claim-right` is the project-layer extension claim. A script-free copy therefore
-answers the same layout from its own viewport without exporting session geometry.
+`--lf-shell-inset-left` carries the left workspace offset to viewport-fixed page
+furniture; `--lf-claim-right` is the project-layer extension claim. A script-free copy
+therefore answers the same layout from its own viewport without exporting session geometry.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a
@@ -2447,9 +2448,12 @@ claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` an
 `data-lf-gen`: it is an account of the conversation, not authored words, so selection
 and diff readings skip it. Reconcile widget state first and paint receipts afterward,
 because a module may rebuild the subtree that seats it. Keep surviving nodes
-across state applications so an unchanged phase is not re-announced. Its live
-state span changes only with semantic phase or detail; the separate age clock
-may repaint on a heartbeat without entering the live region.
+across state applications, and in their place, so an unchanged phase is not
+re-announced: a node taken out of the document and put back replays every
+animation it wears and re-announces its live region. A phase change is a change
+of words and of the Active ink, with no motion. Its live state span changes only
+with semantic phase or detail; the separate age clock may repaint on a heartbeat
+without entering the live region.
 
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still

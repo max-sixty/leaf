@@ -554,11 +554,14 @@ $ leaf ack ./review 3</code></pre>
         <h2>Served where you are</h2>
         <p>
           A page is served on the address its session arrived on: over SSH, the one your
-          client just reached the machine on; otherwise <code>127.0.0.1</code>. The URL
-          leaf prints opens as-is either way, with no port to forward and nothing to
-          configure. It carries a key — the machine's, shared by every page it serves —
-          and the browser keeps that key in a cookie from the first request, so the open
-          port is still a page nobody without a link can read or comment on.
+          client just reached the machine on; otherwise <code>127.0.0.1</code>. An SSH
+          serve opens as-is, with no port to forward and nothing to configure; a
+          <code>127.0.0.1</code> serve says beside the URL that it opens only from a
+          browser on the serving machine, so an agent running somewhere you aren't asks
+          for a name you reach rather than handing you a dead link. The URL carries a
+          key — the machine's, shared by every page it serves — and the browser keeps
+          that key in a cookie from the first request, so the open port is still a page
+          nobody without a link can read or comment on.
         </p>
         <p>
           When a jump host or NAT leaves that address unroutable from your browser, say

@@ -2102,14 +2102,15 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert page.evaluate(sideways) == 0
 
-    # A left workspace and the page's own left margin are consecutive strips. The ToC
-    # stays in its sticky sidebar, so opening Asks moves both together instead of leaving
-    # a separately fixed map behind the sheet while main still reserves its width.
+    # A left workspace and the page's own left margin are consecutive strips. The fixed
+    # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
     resized(page, 1700, 900)
     page.locator(".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     page.wait_for_function(
-        "() => document.body.getAnimations().every(a => a.playState !== 'running')"
+        """() => document.body.getAnimations().length === 0
+          && document.querySelector('.lf-decisions-panel').getAnimations().length === 0
+          && document.querySelector('lf-toc').getAnimations().length === 0"""
     )
     workspace = page.evaluate(
         """() => {
@@ -2117,16 +2118,17 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc').getBoundingClientRect();
           return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
+                  tocTop: toc.top, tocBottom: toc.bottom,
                   sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
         }"""
     )
     assert workspace["sidebarPosition"] == "sticky"
-    assert workspace["tocPosition"] == "static"
+    assert workspace["tocPosition"] == "fixed"
     assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
-    assert workspace["tocLeft"] >= workspace["trayRight"] - 1, (
-        f"the ToC remained behind the standing Asks tray: {workspace}"
-    )
+    assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
+    assert 64 <= workspace["tocTop"] <= 68
+    assert abs(workspace["tocBottom"] - 876) <= 1
     page.locator(".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_hidden()
 

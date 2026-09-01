@@ -205,6 +205,7 @@ export function createSelectionComposer(runtime, dependencies) {
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
     const previousCtx = composerCtx(pendingAnchor);
+    let carriedDraft = false;
     if (previousCtx !== ctx) {
       composerEpoch += 1;
       const previousText = composerInput.value;
@@ -217,6 +218,7 @@ export function createSelectionComposer(runtime, dependencies) {
       if (carry && previousText && !leavesFlight) {
         clearDraft(previousCtx);
         text ||= previousText;
+        carriedDraft = true;
       } else {
         const held = text ? null : loadDraft(ctx);
         if (held) ({ text, suggest, about } = JSON.parse(held));
@@ -234,9 +236,9 @@ export function createSelectionComposer(runtime, dependencies) {
     syncComposer();
     composerInput.focus();
     watchComposer();
-    // The store hears about the anchor now, not at the next keystroke: a newly opened
-    // per-passage field is durable even before the reader adds its first character.
-    saveComposerDraft();
+    // Programmatic carrying fires no input event, so persist that one move explicitly.
+    // An automatically opened empty field has no draft to save; its first edit does.
+    if (carriedDraft) saveComposerDraft();
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a

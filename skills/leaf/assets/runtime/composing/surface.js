@@ -289,7 +289,7 @@ export function createSelectionSurface({
   }
   // Keyboard selection names the target and immediately lands in its Comment field.
   function selectResponseTarget({ anchor }) {
-    openComment(anchor, "");
+    openComment(anchor, "", { carry: true });
   }
   // Alt-click already names Comment, so the field takes focus in the same transaction.
   function focusTargetComment({ anchor }) {

@@ -982,6 +982,13 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     page.locator("#p2").click(click_count=3)
     expect(field).to_be_focused()
     expect(field).to_have_value("")
+    assert (
+        page.evaluate(
+            """() => Object.keys(localStorage)
+          .filter(key => key.startsWith('lf-draft:composer:')).length"""
+        )
+        == 1
+    )
 
     page.locator("#p1").click(click_count=3)
     expect(field).to_be_focused()

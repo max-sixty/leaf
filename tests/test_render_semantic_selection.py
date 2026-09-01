@@ -74,18 +74,14 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
     expect(shown.nth(1)).to_contain_text("other responses")
 
-    # Text entry owns letters. Tab deliberately yields the focused composer to the
-    # existing reaction palette; Escape from that palette restores the same draft.
+    # Text entry owns letters. Tab replaces the field with the same-position Comment
+    # action; Escape from that response row restores the same draft.
     page.keyboard.press("s")
     expect(field).to_have_value("s")
     field.fill("")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-margin-reactions")).to_have_class(
-        re.compile(r"\blf-react-open\b")
-    )
-    expect(
-        page.locator('.lf-margin-reactions .lf-react[data-token="ok"]')
-    ).to_be_focused()
+    expect(page.locator(".lf-fab-bar")).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(page.locator(".lf-fab-bar > .lf-fab")).to_be_focused()
     expect(field).to_be_hidden()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
@@ -93,6 +89,38 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     assert pending_text(page) == ""
     page.keyboard.press("Escape")
     expect(field).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
+    """Keyboard and pointer Comment gestures make the same explicit re-anchoring."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    field = page.locator(".lf-fab-input")
+    draft = "Carry these deliberate words."
+
+    page.locator("h1").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    field.fill(draft)
+    page.evaluate("document.activeElement.blur()")
+
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(3)
+    prose_code = page.evaluate(
+        """() => {
+          const top = document.querySelector('#prose').getBoundingClientRect().top;
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
+                          - Math.abs(b.getBoundingClientRect().top - top))[0]
+            .dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(prose_code)
+
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    assert page.evaluate(DRAFT_MARK) == "prose"
     assert errors == []
     page.close()
 
@@ -146,8 +174,10 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     expect(page.locator(".lf-fab-bar .lf-react")).to_have_count(0)
     page.keyboard.press("Tab")
 
-    responses = page.locator(".lf-margin-reactions")
+    responses = page.locator(".lf-fab-bar")
     expect(responses).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(responses.locator(":scope > .lf-fab")).to_be_focused()
+    page.keyboard.press("ArrowRight")
     expect(responses.locator(".lf-fab-suggest")).to_be_focused()
     expect(responses.locator(".lf-react")).to_have_count(0)
     assert errors == []

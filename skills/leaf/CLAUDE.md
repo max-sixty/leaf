@@ -1139,9 +1139,10 @@ replacement-text mode.
 
 `showFab` places the bar; `openComposer` binds its field to the durable draft and focuses
 it. `selectResponseTarget` does both for a keyboard item hint, and the ⌥ press uses
-`focusTargetComment` on the same captured anchor. An already-open unsent draft re-anchors
-directly so its standing words survive. Submitted words still in flight remain owned by
-their original anchor, while a later target starts clean and keeps focus. For a page
+`focusTargetComment` on the same captured anchor. Automatic passage selection opens that
+passage's own durable draft; these explicit Comment gestures carry unsent words onto the
+new anchor. Submitted words still in flight remain owned by their original anchor, while
+a later target starts clean and keeps focus. For a page
 target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
 that target's existing Button options. Those temporary Buttons borrow the cluster's room
 and dock with it when necessary; they do not claim permanent rail width. A thread-local

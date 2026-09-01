@@ -758,7 +758,9 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     the nth", and the swap that replaced main dropped that focus onto body, taking the
     offer down with it — the digit then picked nothing, silently. The place is written
     down by id before the swap and handed back after it, so the fresh mark holds the
-    focus and the digit picks, acknowledged in the banner."""
+    focus and the digit picks, acknowledged in the banner. One revision arrives as a
+    draft and the next as a stamped version, since both replace the page under the
+    reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
     chips = page.locator(".lf-chord-address")
@@ -779,9 +781,13 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark.focus()
     expect(mark).to_be_focused()
     assert "toggle the nth" in key_line(page)
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_V3)
+    # A stamped version this time, which is the other way a page moves under a reader;
+    # the notice names it in the banner and no toast stands in the corner.
+    stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
     told(page)
     expect(page).to_have_title("Live keys third")
+    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text("Updated to v2")
+    assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
     assert "toggle the nth" in key_line(page), "the swap took the reader's keys down"

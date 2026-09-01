@@ -74,13 +74,14 @@ _ROOTED_PAGE_ATTRIBUTE = re.compile(
     rb")",
     re.IGNORECASE,
 )
-_HTML_START_TAG = re.compile(rb"<[A-Za-z][^<>]*>", re.DOTALL)
+_HTML_START_TAG = re.compile(rb"<[A-Za-z](?:[^<>\"']|\"[^\"]*\"|'[^']*')*>", re.DOTALL)
 _STYLE_ATTRIBUTE = re.compile(
     rb'(?P<before>\bstyle\s*=\s*)(?P<quote>["\'])(?P<value>.*?)(?P=quote)',
     re.IGNORECASE | re.DOTALL,
 )
 _STYLE_ELEMENT = re.compile(
-    rb"(?P<open><style\b[^>]*>)(?P<value>.*?)(?P<close></style\s*>)",
+    rb"(?P<open><style\b(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>)"
+    rb"(?P<value>.*?)(?P<close></style\s*>)",
     re.IGNORECASE | re.DOTALL,
 )
 

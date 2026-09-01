@@ -99,7 +99,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         source.read_text()
         .replace(
             "</head>",
-            "<style>#plan { background-image: "
+            '<style title="before > after">#plan { background-image: '
             "url(/media/051bee487bfb5d13.png); }</style></head>",
         )
         .replace("<h2>Plan</h2>", "<h2>Plan now</h2>")
@@ -109,7 +109,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         )
         .replace(
             "</section>",
-            '<lf-shot id="mcp-shot" alt="the page before and after" '
+            '<lf-shot id="mcp-shot" alt="the page before > after" '
             'before="/media/051bee487bfb5d13.png" '
             'after="/media/a99a1b63048502d0.png"></lf-shot></section>',
         ),

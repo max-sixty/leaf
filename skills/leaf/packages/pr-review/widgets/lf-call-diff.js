@@ -186,14 +186,11 @@ function renderLine(record, prior, owner) {
   setText(body, record.body);
   setText(location, record.location);
   location.hidden = !record.location;
-  // Two rows have the element and no journey to offer, and an `href` on either is a way
-  // in that leads nowhere. The header names no location at all, and its hidden anchor
-  // answered the scroll sweep's question — "is there a way into this box?" — for a box
-  // whose words run off the side, so a copy shipped it with no keyboard route at all.
-  // A group's own row is the disclosure, and a link inside a <summary> is two gestures
-  // on one box: the press folds and the anchor travels. The calls beneath it keep the
-  // link, which is where following the root's own location leads anyway.
-  if (record.location && !line.matches("summary")) {
+  // The header row names no location, so its anchor is hidden — and an `href` on a
+  // hidden anchor is a way in that leads nowhere. It answered the scroll sweep's
+  // question, "is there a way into this box?", for a box whose words run off the side,
+  // so a copy shipped it with no keyboard route at all.
+  if (record.location && !owner.preparingExport) {
     location.href = `#${owner.getAttribute("diff")}`;
     location.onclick = async (event) => {
       event.preventDefault();
@@ -235,6 +232,18 @@ customElements.define(
     disconnectedCallback() {
       this.stopWatching?.();
       this.stopWatching = null;
+    }
+
+    // In a copy the anchor can only reach the patch, never the line it names — and on a
+    // group's root row, which is the disclosure's own `<summary>`, it is a focusable
+    // descendant of a disclosure as well. So the copy keeps each location as text.
+    // The toggle needs nothing here: `offer` marked it, and the bake takes a marked
+    // press away on its own. Nor do the counts, which stay, because an account of the
+    // tree is something a reader still wants on paper.
+    lfPrepareExport() {
+      this.preparingExport = true;
+      for (const location of this.querySelectorAll(".lf-call-location"))
+        location.removeAttribute("href");
     }
 
     show(snapshot) {

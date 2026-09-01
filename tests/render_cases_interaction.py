@@ -882,7 +882,7 @@ def backdate_note(page_dir, version, hours):
 # log holding one event apiece leaves the whole of it standing at once. Selection and
 # completion share one option-group unit but occupy distinct facets, so both stand;
 # accept and reject share the settlement facet, so two suggestions let both competing
-# verbs stand. The floor below derives the list from the registry, so a twelfth widget's
+# verbs stand. The floor below derives the list from the registry, so a newly declared
 # verb fails here rather than passing unexercised.
 STANDING_PAGE = leaf_page(
     "standing state",
@@ -917,6 +917,15 @@ STANDING_PAGE = leaf_page(
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
+<lf-diff id="ab-patch"><pre>
+diff --git a/ab/bracket.py b/ab/bracket.py
+--- a/ab/bracket.py
++++ b/ab/bracket.py
+@@ -1,2 +1,2 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
 """,
 )
 
@@ -938,6 +947,7 @@ STANDING_ACTIONS = [
     ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
     ("ab-sug-410", "accept", {}),
     ("ab-sug-logs", "reject", {}),
+    ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(
     "relative widget",

@@ -373,7 +373,7 @@ def test_a_recordless_receipt_admits_work_and_settles_on_the_next_revision(page_
     explicit --completes note answers that separate work lifecycle.
     """
     work_page = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', count=1
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
     )
     (page_dir / "versions" / "v1.html").write_text(work_page)
     publish(page_dir)

@@ -1709,12 +1709,20 @@ export function createLivingMargin(dependencies) {
       syncThreadRelation(reading, reading.lfChoice?.kind === "comment");
     paintKeys();
   });
-  document.addEventListener("lf-actions", render);
   // TODO(2026-08-31): Reconcile this provisional acknowledgment-to-Button adapter
   // with the in-flight Target Button implementation before their combined changes
   // land. The canonical acknowledgment projection and page-edge placement remain the
   // contract; only this presentation seam should follow the final Button API.
-  document.addEventListener("lf-acknowledgments", render);
+  //
+  // The row's acknowledgment face is read out of the state projection, so it follows the
+  // applied log on `lf-actions` rather than the receipt paint: every path that reconciles
+  // a complete state dispatches that once it has reconciled, and both of the paths that
+  // paint receipts sit inside one. A repaint driven from the paint instead ran inside the
+  // panel render the application performs *before* reconciliation, which is early enough
+  // to read a candidate the same read is about to reject — and it ran inside a dispatch,
+  // where the fault that candidate throws is reported as an uncaught page error rather
+  // than rejecting the read.
+  document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
   offerListeners.add(render);

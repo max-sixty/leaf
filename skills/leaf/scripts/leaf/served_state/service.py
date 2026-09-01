@@ -1,6 +1,5 @@
 """Transport-neutral reads of one page's browser projection."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 from .. import presence as presence_model
@@ -60,20 +59,17 @@ class PageStateService:
     def page_state(
         self,
         view_revision: int | None = None,
-        *,
-        full_state: Callable[..., dict] | None = None,
     ) -> dict:
-        project = full_state or self._full_state
         with PageTransaction(self.page_dir) as page:
             if self.preview_source is None:
                 activation = activate_source(self.page_dir, page.events)
                 reading = served_reading.page_reading(self.page_dir)
-                state = project(
+                state = self._full_state(
                     page.events, activation.error, view_revision=view_revision
                 )
             else:
                 reading = served_reading.page_reading(self.page_dir)
-                state = project(page.events, view_revision=view_revision)
+                state = self._full_state(page.events, view_revision=view_revision)
         state["others"] = presence_model.other_leaves(self.page_dir)
         state["reading"] = (
             reading

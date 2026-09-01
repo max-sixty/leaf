@@ -1082,12 +1082,12 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
 
     own_state_read = threading.Event()
     scanned = threading.Event()
-    original = http_model.Handler._page_state
+    original = served_page.full_state
 
-    def own_state(handler, events, source_error=None, view_revision=None):
+    def own_state(*args, **kwargs):
         assert leases_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
-        return original(handler, events, source_error, view_revision)
+        return original(*args, **kwargs)
 
     def neighbours(directory):
         assert directory == page_dir
@@ -1095,7 +1095,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         scanned.set()
         return []
 
-    monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
+    monkeypatch.setattr(served_page, "full_state", own_state)
     monkeypatch.setattr(presence_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 

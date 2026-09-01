@@ -732,15 +732,13 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    page.locator("body").focus()
-    page.keyboard.press("r")
-    item = page.locator(".lf-margin-item").filter(
-        has=page.locator('.lf-margin-more[aria-expanded="true"]')
-    )
-    expect(item).to_have_count(1)
-    assert abs(item.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
+    bar.locator(".lf-react-trigger").click()
+    # The choices are the bar's own, raised on the selection where the reader is
+    # pointing: an anchored response opens in place rather than docking a row of
+    # options into the margin. What the margin holds for this block is the receipt.
+    expect(bar).to_have_class(re.compile(r"\blf-react-open\b"))
 
-    item.locator('.lf-margin-options .lf-react[data-token="ok"]').click()
+    bar.locator('.lf-react[data-token="ok"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]

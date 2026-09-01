@@ -990,10 +990,9 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
     margin: 0 calc(-1 * var(--note)) 12px 0; }
   }
 }
-.facts { display: grid; grid-template-columns: max-content 1fr;
+.facts { display: grid; grid-template-columns: max-content 1fr; align-items: baseline;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
-.facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5);
-            padding-top: 1px; }
+.facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
 .facts dd { margin: 0; }
 /* A column of quantities lines up on its last digit — the comparison a table of
    numbers is there for, and one tabular figures alone don't make. Said per cell,

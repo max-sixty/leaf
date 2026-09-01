@@ -70,7 +70,7 @@ export function createStateApplication(dependencies) {
     // Every state this page reads passes here — the poll's, and the one an accepted
     // event response carries — so the generation is checked once for both rather than
     // at each door it arrives through.
-    if (!sameLayer(state.layer)) return;
+    if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
       throw new TypeError("state must say when it was taken");
     // Ahead of the sequence checks below, which drop a response as state: a reading

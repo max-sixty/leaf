@@ -27,7 +27,9 @@ from .layer import (
     checked_layer_inputs,
     compose_layer,
     input_paths,
+    layer_fingerprint,
     layer_inputs,
+    payload_provenance,
 )
 from .leases import init_lock_path, lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
@@ -257,8 +259,15 @@ def _stamp_layer(
     # match the last run. The browser carries this epoch on every write so an open
     # tab cannot post through a runtime whose server contract was re-vendored under it.
     generation = secrets.token_hex(16)
+    fingerprint = layer_fingerprint(composition)
+    producer = payload_provenance()
     incoming = composition.registry
-    incoming["$layer"] = {"generation": generation, "packages": list(selected)}
+    incoming["$layer"] = {
+        "generation": generation,
+        "fingerprint": fingerprint,
+        "packages": list(selected),
+        **({"producer": producer} if producer else {}),
+    }
     top_files = composition.top_files
     runtime = top_files["leaf.js"]
     top_files["leaf.js"] = runtime.replace(

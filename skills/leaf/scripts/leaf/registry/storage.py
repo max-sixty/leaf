@@ -1,5 +1,6 @@
 """Vendored registry storage and page lookup."""
 
+import re
 import sys
 from pathlib import Path
 
@@ -33,16 +34,60 @@ def load_registry(page_dir: Path):
     return read_registry(page_dir / "registry.json")
 
 
-def layer_generation(page_dir: Path) -> str:
-    """The epoch shared by this page's vendored runtime and server contract."""
-    registry = read_registry_entries(page_dir / "registry.json")
-    generation = (registry or {}).get("$layer", {}).get("generation")
+def layer_metadata(page_dir: Path) -> dict:
+    """The identity recorded by this page's complete vendored layer."""
+    path = page_dir / "registry.json"
+    registry = read_registry_entries(path)
+    layer = (registry or {}).get("$layer", {})
+    generation = layer.get("generation")
     if not isinstance(generation, str) or not generation:
         raise RegistryError(
-            f"{page_dir / 'registry.json'}: vendored registry lacks $layer.generation; "
-            "run `leaf page init`"
+            f"{path}: vendored registry lacks $layer.generation; run `leaf page init`"
         )
-    return generation
+    packages = layer.get("packages", [])
+    if (
+        not isinstance(packages, list)
+        or not all(isinstance(value, str) and value for value in packages)
+        or len(set(packages)) != len(packages)
+    ):
+        raise RegistryError(
+            f"{path}: $layer.packages must be a unique list of non-empty strings"
+        )
+    fingerprint = layer.get("fingerprint")
+    if fingerprint is not None and not (
+        isinstance(fingerprint, str)
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint)
+    ):
+        raise RegistryError(f"{path}: $layer.fingerprint must be a SHA-256 identity")
+    producer = layer.get("producer")
+    if producer is not None and not isinstance(producer, dict):
+        raise RegistryError(f"{path}: $layer.producer must be an object")
+    if producer is not None:
+        commit = producer.get("commit")
+        dirty = producer.get("dirty")
+        if commit is not None and not (
+            isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit)
+        ):
+            raise RegistryError(
+                f"{path}: $layer.producer.commit must be a Git object name"
+            )
+        if dirty is not None and not isinstance(dirty, bool):
+            raise RegistryError(f"{path}: $layer.producer.dirty must be true or false")
+        producer = {
+            **({"commit": commit} if commit is not None else {}),
+            **({"dirty": dirty} if dirty is not None else {}),
+        }
+    return {
+        "generation": generation,
+        "fingerprint": fingerprint,
+        "packages": packages,
+        **({"producer": producer} if producer else {}),
+    }
+
+
+def layer_generation(page_dir: Path) -> str:
+    """The epoch shared by this page's vendored runtime and server contract."""
+    return layer_metadata(page_dir)["generation"]
 
 
 def require_registry(page_dir: Path) -> dict:

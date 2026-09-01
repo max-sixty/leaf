@@ -3711,7 +3711,15 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     assert service_model.page_claim(page_dir)["id"] == "starter"
     service = files_model.read_json(page_dir / "service.json")
     assert service["lifetime"] == "session"
-    assert set(service) == {"host", "bind", "port", "enabled", "lifetime"}
+    assert set(service) == {
+        "host",
+        "bind",
+        "port",
+        "enabled",
+        "lifetime",
+        "runtime",
+    }
+    assert service["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
     assert urllib.request.urlopen(state).status == 200
 

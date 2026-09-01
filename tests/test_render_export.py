@@ -94,10 +94,13 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         assert runtime_marker not in pages[0].joinpath("leaf.js").read_text()
         assert runtime_marker in pages[1].joinpath("leaf.js").read_text()
 
-        for url in urls:
+        for url, runtime in zip(urls, runtimes, strict=True):
             page = browser.new_page(viewport={"width": 1200, "height": 900})
             errors = watched(page)
             page.goto(url, wait_until="load")
+            expect(page.locator(".lf-preview")).to_contain_text(
+                f"Preview · {runtime.name}"
+            )
             expect(
                 page.get_by_role("heading", name="Shared runtime comparison")
             ).to_be_visible()

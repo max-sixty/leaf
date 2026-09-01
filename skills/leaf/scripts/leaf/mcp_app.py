@@ -49,7 +49,7 @@ def resolve_page(page: str) -> Path:
 
 
 def state_service(page_dir: Path) -> PageStateService:
-    return PageStateService(page_dir, layer=layer_generation(page_dir))
+    return PageStateService(page_dir)
 
 
 def pending_delivery(page_dir: Path) -> tuple[str | None, int | None]:
@@ -144,7 +144,7 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
     endpoint = _ENDPOINTS.setdefault(
         (page_dir, layer), EventEndpoint(page_dir, capture_anchors=True)
     )
-    service = PageStateService(page_dir, layer=layer)
+    service = PageStateService(page_dir)
     status, answer = endpoint.accept(
         candidate, lambda: service.page_state(view_revision)
     )

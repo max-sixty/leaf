@@ -2928,6 +2928,7 @@ const { loadIcon, renderStatus, toneFor } = createBanner({
   el,
   presented,
   statusText,
+  toast,
 });
 
 const { activateRevision, currentActivation, revisionDocument, trackActivation } =

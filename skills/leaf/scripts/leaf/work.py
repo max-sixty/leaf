@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from .acknowledgments import page_action_unsettled
 from .decisions import asking, quoted_in, replayed_attrs
 from .events import build_threads, note_settlements
 from .files import latest_revision, revision_path
@@ -79,7 +80,7 @@ def widget_work_seat(
     return work["seat"]
 
 
-def widget_work_without_seats(
+def widget_work_without_targets(
     html: str,
     parser,
     projection: "StateProjection",
@@ -88,7 +89,7 @@ def widget_work_without_seats(
     registry: dict,
     ignored=(),
 ) -> list[str]:
-    """Standing widget work the given document and vocabulary cannot show locally."""
+    """Standing widget work with no live page target for its Target Button."""
     ignored = set(ignored)
     decided = retirement_outcomes(projection.actions, registry)
     passages = page_passages(
@@ -107,7 +108,6 @@ def widget_work_without_seats(
             and widget not in passages.retired
             and widget not in passages.gone
             and not quoted_in(rec, registry)
-            and widget_work_seat(rec, projection, registry)
         ):
             missing.append(widget)
     return sorted(missing)
@@ -170,10 +170,26 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             sys.exit(f"{target} is not visible under the page's standing outcomes")
         if quoted_in(widget, registry):
             sys.exit(f"{target} is quoted exhibit content, not a live page widget")
-        if not widget_work_seat(widget, widget_projection, registry):
+        has_receipt = any(
+            event["widget"] == target
+            and page_action_unsettled(
+                coordinate,
+                event,
+                spec,
+                parser,
+                spk,
+                registry,
+                events,
+            )
+            for coordinate, (event, spec) in widget_projection.actions.items()
+        )
+        if (
+            not widget_work_seat(widget, widget_projection, registry)
+            and not has_receipt
+        ):
             sys.exit(
                 f"{target} has no local work seat; its widget declaration "
-                "does not provide one in this state"
+                "does not provide one in this state and it has no unsettled action receipt"
             )
         return {
             "subject": {"kind": "widget", "id": target},

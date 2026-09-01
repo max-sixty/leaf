@@ -1060,22 +1060,28 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
-/* What the agent says it is doing about one local subject (`leaf status --on`).
-   Thread panels, inline conversations, and prose widgets are seats for the same
-   transient claim, so its rule is global rather than duplicated between runtime and
-   page styles. Provisional news wears the report channel's amber dashed edge rather
-   than message ink. The detail wraps; the age and the explicit silence word do not.
+/* Where a subject has no page edge of its own, one receipt grows beneath the reader
+   move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
+   that subject. This is the panel-local and frozen-conversation fallback; page targets
+   present the same projection through their existing margin Button. The state wraps;
+   the age and the explicit silence word do not.
    The shadow markers carry the same rule into any declared tree an authored subject
    is staged into; they remain ordinary comments in the document stylesheet. */
 /* lf-shadow:start */
-.lf-work-line { display: flex; gap: 6px; align-items: flex-end; clear: both;
+.lf-receipt { display: flex; gap: 6px; align-items: flex-end; clear: both;
   width: 100%; box-sizing: border-box; grid-column: 1 / -1;
-  margin: var(--sp-2) 0 0; padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
-  border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
-.lf-work-line span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.lf-work-line .lf-work-quiet { flex: none; color: var(--warn-ink);
+  margin: var(--sp-2) 0 0; padding: 3px 8px; font-size: var(--t-6); color: var(--muted);
+  border: 1px solid var(--border-2); border-radius: 6px;
+  background: color-mix(in srgb, var(--field) 72%, transparent); }
+.lf-receipt-state { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lf-receipt.is-active .lf-receipt-state { color: var(--accent); }
+.lf-receipt .lf-receipt-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
-.lf-work-line time { color: var(--muted-2); white-space: nowrap; }
+.lf-receipt time { color: var(--muted-2); white-space: nowrap; }
+.lf-receipt-change { animation: lf-receipt-change 360ms ease-out; }
+@keyframes lf-receipt-change {
+  from { background: color-mix(in srgb, var(--accent) 16%, var(--field)); }
+}
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
  * for what escaped such a box and why the mark is read from the composed page rather
  * than declared here beside each overflow), so no rule in this file or a package's
@@ -1458,6 +1464,7 @@ html.lf-versioning::view-transition-new(root) {
  * of a box's style — the render gate's included — was told the value the
  * property was leaving rather than the one on screen. */
 @media (prefers-reduced-motion: reduce) {
+  .lf-receipt-change { animation: none; }
   *, *::before, *::after {
     animation-duration: .01ms !important;
     transition: none !important;

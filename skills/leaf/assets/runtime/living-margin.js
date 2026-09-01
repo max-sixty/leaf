@@ -14,7 +14,10 @@ const KINDS = {
   comment: { label: "Thread", symbol: "💬", priority: 1 },
   decision: { label: "Ask", symbol: "?", priority: 2 },
   outcome: { label: "Outcome", symbol: "✓", priority: 3 },
-  activity: { label: "Agent activity", symbol: "↻", priority: 4 },
+  sent: { label: "Sent", symbol: "✓", priority: 3 },
+  pickup: { label: "Picked up", symbol: "✓", priority: 3 },
+  waiting: { label: "Waiting for pickup", symbol: "○", priority: 3 },
+  activity: { label: "Active", symbol: "●", priority: 4 },
 };
 
 // Content modules contribute what their target offers; this projection decides where
@@ -180,6 +183,7 @@ function comesBefore(left, right) {
 export function createLivingMargin(dependencies) {
   const {
     anchorLabel,
+    acknowledgments,
     announce,
     approveBtn,
     blockAt,
@@ -189,7 +193,9 @@ export function createLivingMargin(dependencies) {
     comparisonChanges,
     compact,
     closestAcross,
+    currentRevision,
     designIsOn,
+    droppedAt,
     el,
     elementById,
     focused,
@@ -203,6 +209,7 @@ export function createLivingMargin(dependencies) {
     panelIsOpen,
     paintKeys,
     placedAt,
+    quietSince,
     renderMarginThread,
     scrollBehavior,
     scrollToElement,
@@ -214,6 +221,7 @@ export function createLivingMargin(dependencies) {
     toggleBtn,
     updateSequence,
     versionBtn,
+    waitingForPickupSince,
   } = dependencies;
 
   const nav = el("nav", "lf-ui lf-living-margin");
@@ -418,7 +426,10 @@ export function createLivingMargin(dependencies) {
   function markerFace(entry) {
     const kinds = kindsIn(entry, { markerOnly: true });
     const choice = primaryReading(entry);
-    const face = KINDS[choice?.kind] ?? KINDS.action;
+    const face =
+      (choice?.items.length === 1 && choice.items[0].acknowledgmentFace) ||
+      KINDS[choice?.kind] ||
+      KINDS.action;
     const faceCount = choice?.items.length ?? 0;
     return {
       kinds,
@@ -517,8 +528,51 @@ export function createLivingMargin(dependencies) {
     group.items.push(item);
   }
 
+  function visibleAcknowledgments() {
+    const visible = [];
+    for (const projected of acknowledgments()) {
+      if (projected.revision > currentRevision()) continue;
+      if (projected.phase !== "active" || claimState().claimsHeld) {
+        visible.push(projected);
+        continue;
+      }
+      if (!projected.event) continue;
+      visible.push({
+        ...projected,
+        phase: projected.fallback_phase,
+        ts: projected.fallback_ts,
+        detail: null,
+      });
+    }
+    return visible;
+  }
+
+  function acknowledgmentFace(receipt) {
+    if (receipt.phase === "active") {
+      const turnClosed =
+        receipt.session && receipt.session === claimState().claimingSession
+          ? claimState().agentTurnClosed
+          : null;
+      const quiet = quietSince(receipt.ts) || droppedAt(receipt.ts, turnClosed);
+      return {
+        kind: "activity",
+        text: ["Active", receipt.detail, quiet ? "quiet" : null]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }
+    if (receipt.phase === "picked_up") return { kind: "pickup", text: "Picked up" };
+    if (waitingForPickupSince(receipt.ts))
+      return { kind: "waiting", text: "Waiting for pickup" };
+    return { kind: "sent", text: "Sent" };
+  }
+
   function collectEntries() {
     const groups = new Map();
+    const receiptByCoordinate = new Map();
+    for (const receipt of visibleAcknowledgments()) {
+      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
+    }
     for (const thread of threads()) {
       if (thread.resolved || !thread.root.anchor) continue;
       const id = thread.root.id;
@@ -549,6 +603,7 @@ export function createLivingMargin(dependencies) {
     }
 
     const projection = stateProjection();
+    const activityAlreadyShown = new Set();
     for (const [coordinate, entry] of projection.desired) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
@@ -556,11 +611,16 @@ export function createLivingMargin(dependencies) {
       const account = [itemWord(target), humanized(entry.e.action), itemSays(target)]
         .filter(Boolean)
         .join(" · ");
+      const receipt = receiptByCoordinate.get(coordinate);
+      const face = receipt ? acknowledgmentFace(receipt) : null;
+      if (face?.kind === "activity")
+        activityAlreadyShown.add(`widget:${receipt.target.id}`);
       add(groups, target, {
         kind: "outcome",
-        id: `outcome:${coordinate}`,
-        text: trimmed(account),
-        activate: () => revealTarget(target, `Outcome: ${account}`),
+        id: receipt ? `acknowledgment:${receipt.id}` : `outcome:${coordinate}`,
+        text: trimmed(face ? `${face.text} · ${account}` : account),
+        ...(face ? { acknowledgmentFace: KINDS[face.kind] } : {}),
+        activate: () => revealTarget(target, `${face?.text ?? "Outcome"}: ${account}`),
       });
     }
 
@@ -578,15 +638,30 @@ export function createLivingMargin(dependencies) {
     if (claimState().claimsHeld)
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
+        if (update.revision > currentRevision()) continue;
+        if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
+          continue;
         const target =
           update.target.kind === "thread"
             ? placedAt(update.target.id)
             : elementById(update.target.id);
-        const account = `${update.agent || "Agent"} · ${update.text || humanized(update.action)}`;
+        const turnClosed =
+          update.session && update.session === claimState().claimingSession
+            ? claimState().agentTurnClosed
+            : null;
+        const quiet = quietSince(update.ts) || droppedAt(update.ts, turnClosed);
+        const account = [
+          update.agent || "Agent",
+          update.text || humanized(update.action),
+          quiet ? "quiet" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,
           text: trimmed(account),
+          acknowledgmentFace: KINDS.activity,
           activate: () => revealTarget(target, account),
         });
       }
@@ -712,9 +787,11 @@ export function createLivingMargin(dependencies) {
 
   function markerName(entry, index, anchored) {
     const choice = primaryReading(entry);
-    const face = KINDS[choice?.kind] ?? KINDS.action;
+    const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}`;
+    const subject =
+      count === 1 && choice.items[0].acknowledgmentFace ? choice.text : entry.title;
     const main = document.querySelector("main");
     const position =
       entry.target && main?.scrollHeight
@@ -725,7 +802,7 @@ export function createLivingMargin(dependencies) {
               100,
           )
         : null;
-    return `${reading}, ${index + 1} of ${anchored}, ${entry.title}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
+    return `${reading}, ${index + 1} of ${anchored}, ${subject}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
   }
 
   function availableRows() {
@@ -909,6 +986,7 @@ export function createLivingMargin(dependencies) {
 
   function paintMarker(row, entry, index, anchored, primary) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
+    const choice = primaryReading(entry);
     row.lfEntry = entry;
     row.hidden = markerKinds.length === 0 || Boolean(primary);
     row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
@@ -919,7 +997,10 @@ export function createLivingMargin(dependencies) {
       collapse: "always",
     });
     row.setAttribute("aria-label", markerName(entry, index, anchored));
-    row.title = `${face.label}${markerCount > 1 ? `s (${markerCount})` : ""}`;
+    row.title =
+      markerCount === 1 && choice.items[0].acknowledgmentFace
+        ? choice.text
+        : `${face.label}${markerCount > 1 ? `s (${markerCount})` : ""}`;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     if (markerCount > 1) {
@@ -1658,6 +1739,11 @@ export function createLivingMargin(dependencies) {
     paintKeys();
   });
   document.addEventListener("lf-actions", render);
+  // TODO(2026-08-31): Reconcile this provisional acknowledgment-to-Button adapter
+  // with the in-flight Target Button implementation before their combined changes
+  // land. The canonical acknowledgment projection and page-edge placement remain the
+  // contract; only this presentation seam should follow the final Button API.
+  document.addEventListener("lf-acknowledgments", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
   offerListeners.add(render);

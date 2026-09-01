@@ -8,7 +8,7 @@ from ..events import (
     seat_root,
     spoken_turns,
 )
-from ..projection import StateProjection, frozen_thread_reading
+from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..requests import request_lifecycles_for, request_phases
 from .wire import _browser_projection
 
@@ -55,7 +55,7 @@ def _thread_awaits_reader(
 
 def _browser_conversation(
     events: list, registry: dict, threads: dict
-) -> tuple[dict, StateProjection]:
+) -> tuple[dict, FrozenThreadReading]:
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
     requests = request_lifecycles_for(
@@ -103,5 +103,5 @@ def _browser_conversation(
             "threads": rendered_threads,
             "done": [event for event in events if event["kind"] == "done"],
         },
-        reading.projection,
+        reading,
     )

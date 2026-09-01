@@ -129,7 +129,7 @@ surfaces;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
-`runtime/conversation/work-lines.js` owns live claim seats; and
+`runtime/conversation/acknowledgments.js` owns growing acknowledgment receipts and live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore
 statements; `runtime/projection/data.js` owns keyed runtime-data DOM
@@ -161,12 +161,12 @@ Each mutable fact has one writer:
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
-| local agent work | the typed, log-projected claims in `status.work` | `paintWorkLines` paints every subject seat without becoming another store |
+| reader acknowledgment and local agent work | the canonical acknowledgment projection plus typed claims in `status.work` | `paintAcknowledgments` paints conversation-local fallbacks; the living margin maps page subjects onto their existing Target Button without becoming another store |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintWorkLines` call preserve it through reconciliation, provisional work, and resolution folds |
+| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
@@ -706,7 +706,7 @@ The extension keys describe general behavior:
 | `x-decision` | the complete reading and arrival region around one nested decision source |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a decision |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
-| `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
+| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target Button |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -1347,6 +1347,16 @@ available primary action wins that place; its other controls move under the adja
 disclosure Button. `…` appears only when the cluster has secondary controls,
 information beside a direct action, or temporary communication choices. A target
 with one unambiguous control therefore gets one Button, not a row of variants.
+
+An unsettled reader action reuses that same Button rather than growing a status row
+inside authored content. Its information face advances from **Sent** or **Waiting for
+pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
+action's standing outcome supplies the same retained target cluster throughout. A
+thread's existing Thread Button remains the page-edge route to the exact receipt in
+the full conversation; an **Active** claim joins that cluster under `…`. A standalone
+page-widget claim gets an **Active** Button directly. When no page edge exists—inside
+the full thread panel or a widget frozen into conversation chrome—the compact
+`.lf-receipt` remains the local fallback.
 
 Content modules contribute through `registerMarginItem`; they own their verbs and
 events, never placement or control styling. Every press in a contribution is built
@@ -2380,16 +2390,18 @@ help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
 
-`.lf-work-line` is transient runtime chrome that may also stand inside a page
-widget. `paintWorkLines` is its one writer. A thread subject paints in the panel
-and every inline conversation seat; a page-widget subject paints only in the
-content or conversation seat its active `x-work` declaration names. A content
-seat is block prose, but block prose alone grants no seat. The line wears `lf-ui`
-and `data-lf-gen`:
-it is an account of the widget, not authored words of the widget, so selection
-and diff readings skip it. Reconcile widget state first and paint work afterward,
+`.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.
+`paintAcknowledgments` is its one writer. An unsettled reader message paints after
+that exact message in the full thread panel, and an event-backed widget frozen into
+conversation chrome paints beneath its owner. Inline page conversations and page
+widgets use their target's existing margin cluster instead; an explicit page-widget
+claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` and
+`data-lf-gen`: it is an account of the conversation, not authored words, so selection
+and diff readings skip it. Reconcile widget state first and paint receipts afterward,
 because a module may rebuild the subtree that seats it. Keep surviving nodes
-across state applications so an unchanged claim is not re-announced.
+across state applications so an unchanged phase is not re-announced. Its live
+state span changes only with semantic phase or detail; the separate age clock
+may repaint on a heartbeat without entering the live region.
 
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still
@@ -2402,7 +2414,7 @@ Tests pin the thread's box rather than a particular scroll offset.
 card under the pointer while the pointer is in the list, then the card containing
 focus, then the topmost visible card. It records later visible cards before the
 mutation and refreshes their baselines after each correction, so a live successor can
-take over if the first leaves or becomes hidden. The held `paintWorkLines` call covers
+take over if the first leaves or becomes hidden. The held `paintAcknowledgments` call covers
 claim-only mutations too. The list follows changes in the card's content position,
 keeping reflow out from under the pointer without fighting an intentional scroll.
 Browser scroll anchoring is disabled only for the life of a hold so those two

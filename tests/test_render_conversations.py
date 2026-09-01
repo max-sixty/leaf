@@ -241,9 +241,7 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-work-line')).to_have_count(
-        1
-    )
+    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-receipt')).to_have_count(1)
     after = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=1), (
         f"the work claim moved the later card from {before:.1f}px to {after:.1f}px"
@@ -1294,7 +1292,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     the motion starts, and a hold that reads it again mid-fold pins a card above the
     fold while everything past it — the successor the reader was aiming at among it —
     goes on moving. The arrival here is another thread's reply, which is one of several:
-    the two-second heartbeat repaints the work lines under the same hold, and so does a
+    the two-second heartbeat repaints the receipts under the same hold, and so does a
     narrowing.
     """
     page, errors = open_page(
@@ -1422,9 +1420,10 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
         "}",
         [source, successor],
     )
-    assert setup == {"sourceAbove": True, "successorVisible": True}, (
-        f"the fold is not above every visible fallback: {setup}"
-    )
+    assert setup == {
+        "sourceAbove": True,
+        "successorVisible": True,
+    }, f"the fold is not above every visible fallback: {setup}"
     resolved_box = resolved_card.bounding_box()
     page.mouse.move(
         resolved_box["x"] + resolved_box["width"] / 2,

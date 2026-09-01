@@ -280,6 +280,7 @@ import {
   createPresence,
   observeServerNow,
   quietSince,
+  waitingForPickupSince,
 } from "./runtime/presence.js";
 import { createPointer } from "./runtime/pointer.js";
 import { createReactions, paintReactionStanding } from "./runtime/reactions.js";
@@ -1116,7 +1117,7 @@ commentsEdge.over.addEventListener("change", () => {
 // distinction for a Threads panel restored or opened during startup; its General
 // composer stays usable while the log-derived list says what it is waiting for.
 
-// The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
+// The threads the panel last reconciled. A receipt repaints on the heartbeat's clock and
 // not only on the log's, because its age is half of what it says and a claim nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
 // makes that cheap: buildThreads walks the log and the page, and a second walk every two
@@ -3051,8 +3052,8 @@ function awaitsReader(...args) {
 function setChildren(...args) {
   return conversationRuntime.setChildren(...args);
 }
-function paintWorkLines(...args) {
-  return conversationRuntime.paintWorkLines(...args);
+function paintAcknowledgments(...args) {
+  return conversationRuntime.paintAcknowledgments(...args);
 }
 function widen(...args) {
   return conversationRuntime.widen(...args);
@@ -3211,7 +3212,7 @@ const runtimeProjection = createProjection(runtime, {
   pageShifted,
   paintAnchors,
   paintKeys,
-  paintWorkLines,
+  paintAcknowledgments,
   post,
   projectedParent,
   quoteFrom,
@@ -3329,6 +3330,7 @@ conversationRuntime = createConversation({
   post,
   PRESS,
   quietSince,
+  waitingForPickupSince,
   reachScrollers,
   reachedForWords,
   reactDone: () => setReact(false),
@@ -3426,6 +3428,7 @@ const { ITEM, NOTE } = anchorRuntime;
 
 livingMargin = createLivingMargin({
   anchorLabel,
+  acknowledgments: () => runtime.browser?.acknowledgments ?? [],
   announce,
   approveBtn,
   blockAt,
@@ -3435,7 +3438,9 @@ livingMargin = createLivingMargin({
   comparisonChanges,
   compact: commentsEdge.over,
   closestAcross,
+  currentRevision: () => runtime.currentRevision,
   designIsOn: () => designOn,
+  droppedAt,
   el,
   elementById,
   focused,
@@ -3449,6 +3454,7 @@ livingMargin = createLivingMargin({
   panelIsOpen: chromeLayout.panelIsOpen,
   paintKeys,
   placedAt,
+  quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
   scrollBehavior,
   scrollToElement,
@@ -3460,6 +3466,7 @@ livingMargin = createLivingMargin({
   toggleBtn,
   updateSequence,
   versionBtn,
+  waitingForPickupSince,
 });
 
 viewRuntime = createViewContinuity({
@@ -3527,7 +3534,7 @@ stateApplication = createStateApplication({
   observeServerNow,
   paintAnchors,
   paintApproval,
-  paintWorkLines,
+  paintAcknowledgments,
   panelIsOpen,
   presented,
   reconcileState,

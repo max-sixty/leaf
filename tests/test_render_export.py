@@ -271,7 +271,7 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
 
 
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
-    """A local work line is live runtime chrome even though its seat is in the page.
+    """A local receipt is live runtime chrome even though its seat is in the page.
     A standalone copy has no agent behind it, so preserving the rendered sentence
     would turn a provisional claim into a frozen lie."""
     work_page = leaf_page(
@@ -303,7 +303,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    expect(page.locator(".lf-work-line")).to_have_count(0)
+    expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
     assert errors == []
     page.close()

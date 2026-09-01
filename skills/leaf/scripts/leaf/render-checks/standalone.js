@@ -82,7 +82,7 @@ export function coveredWords({
 // is named here: this marks the medium, and the widgets answer for themselves.
 export function bake() {
   document.documentElement.classList.add("lf-copy");
-  // A work line is runtime chrome even where its declared seat is in the page rather
+  // A receipt is runtime chrome even where its seat is in the page rather
   // than under .lf-chrome. Remove it from the document and every open shadow root
   // before those roots are serialized below: a file has no agent behind the claim,
   // so preserving the rendered sentence would turn provisional news into a lie.
@@ -91,7 +91,7 @@ export function bake() {
     for (const element of root.querySelectorAll("*"))
       if (element.shadowRoot) roots.push(element.shadowRoot);
   for (const root of roots)
-    root.querySelectorAll(".lf-work-line").forEach((el) => el.remove());
+    root.querySelectorAll(".lf-receipt").forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule

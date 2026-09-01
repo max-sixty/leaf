@@ -26,7 +26,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
-from .registry.storage import layer_generation
+from .registry.storage import layer_metadata
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
@@ -39,6 +39,7 @@ from .schema import (
 from .served_state import browser as served_browser
 from .served_state import page as served_page
 from .served_state import reading as served_reading
+from .server import preview_metadata
 from .service import PageTransaction
 from .structure import parse_structure
 
@@ -59,8 +60,29 @@ ALIVE_S = 5.0
 # seconds is the staleness the poll gave every fact, so it is the staleness these keep.
 PRESENCE_S = 2.0
 
+# These events add conversation or version context without changing the authored
+# decision state in ``main``.  The server has the transaction-consistent log in hand
+# while it writes the document, so it can let that already-current HTML paint without
+# making the browser wait for a projection merely to prove that nothing replaces it.
+# This is deliberately a whitelist: a new event kind keeps the full presentation gate
+# until its effect has been classified here.
+PROGRESSIVE_EVENT_KINDS = frozenset(
+    {"comment", "reply", "edit", "resolve", "unresolve", "note"}
+)
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+
+def authored_document_is_current(events: list[dict]) -> bool:
+    """Whether replay cannot replace any authored decision in the served document."""
+    return all(event.get("kind") in PROGRESSIVE_EVENT_KINDS for event in events)
+
+
+def runtime_document(
+    source: str,
+    revision: int,
+    version: int | None = None,
+    *,
+    authored_current: bool = False,
+) -> bytes:
     """Inject the exact immutable identity beside the canonical runtime script."""
     parsed = parse_structure(source)
     scripts = [
@@ -72,10 +94,18 @@ def runtime_document(source: str, revision: int, version: int | None = None) -> 
         raise ValueError("document has no canonical script")
     line, column = scripts[0]["position"]
     offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
-    markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
-        f'<meta name="lf-version" data-lf-runtime content="{version}">'
-        if version is not None
-        else ""
+    markers = (
+        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+        + (
+            f'<meta name="lf-version" data-lf-runtime content="{version}">'
+            if version is not None
+            else ""
+        )
+        + (
+            '<meta name="lf-authored-current" data-lf-runtime>'
+            if authored_current
+            else ""
+        )
     )
     return (source[:offset] + markers + source[offset:]).encode()
 
@@ -120,6 +150,8 @@ class Handler(BaseHTTPRequestHandler):
             self.page_dir,
             events,
             layer=self.layer,
+            layer_identity=self.layer_identity,
+            preview=self.preview,
             source_error=source_error,
             view_revision=view_revision,
             active_override=active_override,
@@ -346,6 +378,8 @@ class Handler(BaseHTTPRequestHandler):
             "/",
         }:
             self.send_header("Leaf-Layer", self.layer)
+            if fingerprint := self.layer_identity.get("fingerprint"):
+                self.send_header("Leaf-Layer-Fingerprint", fingerprint)
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",
@@ -458,7 +492,12 @@ class Handler(BaseHTTPRequestHandler):
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
         try:
-            projected = runtime_document(source, revision, version)
+            projected = runtime_document(
+                source,
+                revision,
+                version,
+                authored_current=authored_document_is_current(events),
+            )
         except ValueError as error:
             self._json({"error": str(error)}, 500)
             return
@@ -479,7 +518,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(
                 200,
                 "text/html; charset=utf-8",
-                runtime_document(source, mapping[version], version),
+                runtime_document(
+                    source,
+                    mapping[version],
+                    version,
+                    authored_current=authored_document_is_current(events),
+                ),
             )
             return True
         if path.startswith("/revisions/"):
@@ -598,6 +642,7 @@ def handler_for(
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
     machine, so there is no construction that should quietly go without one."""
+    identity = layer_metadata(page_dir)
     return type(
         "PageHandler",
         (Handler,),
@@ -608,6 +653,8 @@ def handler_for(
             "preview_source": preview_source,
             "protocol_version": protocol_version,
             "event_endpoint": EventEndpoint(page_dir),
-            "layer": layer_generation(page_dir),
+            "layer": identity["generation"],
+            "layer_identity": identity,
+            "preview": preview_metadata(page_dir),
         },
     )

@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from example_data import data_operations
@@ -112,6 +113,23 @@ def seed_log(source: Path, page: Path) -> None:
     )
 
 
+def mark_preview(name: str, page: Path) -> None:
+    """Identify this checkout without exposing its absolute path to the browser."""
+    layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
+    producer = layer.get("producer", {})
+    metadata = {
+        "kind": "example",
+        "example": name,
+        "checkout": ROOT.parent.name,
+        "started": datetime.now(timezone.utc).isoformat(),
+        **({"commit": producer["commit"]} if "commit" in producer else {}),
+        **({"dirty": producer["dirty"]} if "dirty" in producer else {}),
+    }
+    (page / "preview.json").write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def prepare(source: Path, page: Path) -> None:
     """Build one example page from the checkout's current layer and fixtures."""
     selection_args = [arg for package in PACKAGES for arg in ("--package", package)]
@@ -161,6 +179,7 @@ def main() -> None:
         leaf("server", "stop", str(PAGE), check=False)
         shutil.rmtree(PAGE)
     prepare(source, PAGE)
+    mark_preview(name, PAGE)
     leaf("server", "run", str(PAGE))
 
 

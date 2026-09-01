@@ -11,7 +11,7 @@ from pathlib import Path
 from .files import json_bytes, read_json
 from .host import state_home
 from .leases import lock_is_held
-from .schema import ORPHAN_GRACE_SECS
+from .schema import ORPHAN_GRACE_SECS, PREVIEW_FILE
 from .service import PageTransaction, claim_is_active, page_claim
 
 
@@ -25,6 +25,35 @@ def running_server(page_dir: Path):
     return {
         **service,
         "url": page_url(service["host"], service["port"], host_key()),
+    }
+
+
+def preview_metadata(page_dir: Path) -> dict | None:
+    """Read the safe identity a developer preview may show in browser chrome."""
+    path = page_dir / PREVIEW_FILE
+    preview = read_json(path)
+    if preview is None:
+        return None
+    if not isinstance(preview, dict) or preview.get("kind") != "example":
+        sys.exit(f"{path}: preview metadata must describe an example")
+    for field in ("example", "checkout", "started"):
+        if not isinstance(preview.get(field), str) or not preview[field]:
+            sys.exit(f"{path}: preview {field} must be a non-empty string")
+    commit = preview.get("commit")
+    if commit is not None and not (
+        isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit)
+    ):
+        sys.exit(f"{path}: preview commit must be a Git object name")
+    dirty = preview.get("dirty")
+    if dirty is not None and not isinstance(dirty, bool):
+        sys.exit(f"{path}: preview dirty must be true or false")
+    return {
+        "kind": "example",
+        "example": preview["example"],
+        "checkout": preview["checkout"],
+        "started": preview["started"],
+        **({"commit": commit} if commit is not None else {}),
+        **({"dirty": dirty} if dirty is not None else {}),
     }
 
 

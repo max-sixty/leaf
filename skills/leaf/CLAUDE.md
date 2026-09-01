@@ -205,7 +205,11 @@ A vendored runtime and registry are one generation. The runtime contains the
 epoch after `page init`. `sameLayer` checks every successful state read and POST
 response. If the server speaks a newer layer, the tab reloads before it reads or
 posts again. Do not let one generation interpret another generation's registry
-or events.
+or events. The adjacent `$layer.fingerprint` identifies the composed bytes across
+vendoring epochs; it is diagnostic provenance, not a replacement for the fresh
+generation's write fence. Repository example previews may also expose their safe
+checkout provenance in a banner badge and copied diagnostic bundle. Ordinary pages
+do not.
 
 Startup order is load-bearing:
 
@@ -226,6 +230,15 @@ runs after upgrade because record-bearing widgets may arrange the authored state
 in `connectedCallback`, but it must run before replay changes that state.
 The state read overlaps those upgrades, but its answer stays buffered until both
 captures have established the authored initial condition.
+
+Serving can lift the paint portion of that boundary without changing this order.
+The root and stamped-version responses already hold a transaction-consistent log;
+when every event in it is conversation or version context (`comment`, `reply`,
+`edit`, `resolve`, `unresolve`, or `note`), they inject the runtime-only
+`lf-authored-current` marker. Those kinds cannot replace a decision in the authored
+`main`, so the document is useful before projection proves the same negative. The
+classification is a whitelist: actions, reports, requests, receipts, undo, terminal
+events, and unknown future kinds receive no marker. They keep the full paint hold.
 
 The served page root is a stable live document. Its first response projects the
 latest immutable version and carries a runtime-only version marker. On a later
@@ -263,12 +276,16 @@ projection can commit while finite reconciliation animations are still settling.
 Any consumer that reads final boxes waits for upgraded, applied, presented, and
 no finite animation reported by `moving`.
 
-The presentation gate hides the authored `main` and makes it inert until the first
-state read has either applied or established that the server is unavailable. The
+The presentation gate always makes authored `main` inert until the first state read
+has either applied or established that the server is unavailable. It also hides
+`main` when the response has no `lf-authored-current` marker. The marker lifts only
+that paint hold: authored prose appears immediately, while controls, selection, and
+transitions remain disabled until `presentPage` crosses the normal boundary. The
 static showcase's build sets `data-lf-eager`, which lifts the gate whole, leaving its
 immutable authored document as ordinary readable HTML while its illustrative session,
 widgets, and controls progressively arrive. Fixed recovery chrome remains usable while
-a live page waits.
+a live page with potentially stale decisions waits; a marked page whose root module
+fails instead degrades to its readable, inert authored HTML.
 `showModal()` calls from authored main are temporarily represented as measurable
 non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
 reconciled branch remains visible. This prevents a modal's top-layer inertness from

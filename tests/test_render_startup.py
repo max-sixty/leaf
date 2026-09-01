@@ -66,6 +66,58 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
+    preview = {
+        "kind": "example",
+        "example": "postmortem",
+        "checkout": "fb77",
+        "commit": "26499ea1abcd",
+        "dirty": True,
+        "started": "2026-08-31T12:00:00+00:00",
+    }
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    try:
+        page, errors = open_page(
+            browser,
+            serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
+            context=context,
+        )
+        badge = page.locator(".lf-preview")
+        expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
+        expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
+
+        badge.click()
+        expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-toast")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-toast")).to_be_visible()
+        diagnostics = page.evaluate("() => navigator.clipboard.readText()")
+        assert "example: postmortem" in diagnostics
+        assert "checkout: fb77" in diagnostics
+        assert "commit: 26499ea1abcd" in diagnostics
+        assert "dirty: true" in diagnostics
+        assert "layer generation:" in diagnostics
+        assert "layer fingerprint: sha256:" in diagnostics
+        assert "revision: 1" in diagnostics
+        assert "event sequence: 1" in diagnostics
+        assert "?t=" not in diagnostics
+        assert errors == []
+        page.close()
+
+        ordinary, ordinary_errors = open_page(
+            browser,
+            serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
+            context=context,
+        )
+        expect(ordinary.locator(".lf-preview")).to_have_count(0)
+        assert ordinary_errors == []
+        ordinary.close()
+    finally:
+        context.close()
+
+
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
     """A data renderer runs after the initial page dressing, but what it contributes
     is still part of the Leaf and should carry the same visible navigation contract."""
@@ -438,6 +490,9 @@ main, main * {
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(url, wait_until="load")
+        expect(
+            page.locator('meta[name="lf-authored-current"][data-lf-runtime]')
+        ).to_have_count(0)
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         page.wait_for_function(
             "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
@@ -790,6 +845,17 @@ def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
     """
 
     url = serve(SHORT_SUGGESTION)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
     held = []
     waiting = browser.new_page(viewport={"width": 1200, "height": 900})
     waiting.route("**/api/state*", lambda route: held.append(route))
@@ -868,8 +934,20 @@ def test_a_slow_first_replay_releases_when_state_is_ready(
     page = context.new_page()
     errors = watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
+    url = serve(SHORT_SUGGESTION)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
     try:
-        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         page.evaluate(
             """async () => {
@@ -1045,8 +1123,20 @@ def test_a_root_module_failure_leaves_visible_recovery(browser, serve):
             body="throw new Error('root module failed')",
         ),
     )
+    url = serve(SHORT_SUGGESTION)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug",
+            "action": "accept",
+            "detail": {},
+        },
+    )
     try:
-        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+        page.goto(url, wait_until="load")
         assert failures and "root module failed" in str(failures[0])
         page.wait_for_function(
             "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
@@ -1060,6 +1150,42 @@ def test_a_root_module_failure_leaves_visible_recovery(browser, serve):
                 "element => getComputedStyle(element).opacity"
             )
             == "0"
+        )
+    finally:
+        page.close()
+
+
+def test_a_current_authored_page_stays_readable_when_the_root_module_fails(
+    browser, serve
+):
+    """A broken enhancement must not blank HTML the server knows is current."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    failures = []
+    page.on("pageerror", lambda error: failures.append(error))
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="throw new Error('root module failed')",
+        ),
+    )
+    try:
+        page.goto(serve(SHORT_SUGGESTION, comments=1), wait_until="load")
+        assert failures and "root module failed" in str(failures[0])
+        expect(
+            page.locator('meta[name="lf-authored-current"][data-lf-runtime]')
+        ).to_have_count(1)
+        expect(page.locator("main")).to_be_visible()
+        assert (
+            page.locator("main").evaluate(
+                "element => getComputedStyle(element).pointerEvents"
+            )
+            == "none"
+        )
+        assert (
+            page.evaluate("() => getComputedStyle(document.body, '::after').content")
+            == "none"
         )
     finally:
         page.close()
@@ -1421,11 +1547,13 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
 def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     """The chrome and initial state read do not wait behind widget startup.
 
-    That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, general Threads accepts a
-    send but holds it until the layer identity arrives, and an anchored comment waits until
-    upgrades have made the page's final words. The explicit gate proves each assertion runs
-    on the intended side of the fetch rather than racing a timer.
+    That interval is real state, not a missing-registry fallback: because the standing
+    log contains only conversation, the server lets the already-current authored page
+    paint immediately. It remains inert while the state answer waits unapplied for
+    upgrades to capture authored state. General Threads accepts a send but holds it until
+    the layer identity arrives, and an anchored comment waits until upgrades have made the
+    page's final words. The explicit gate proves each assertion runs on the intended side
+    of the fetch rather than racing a timer.
     """
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
@@ -1468,10 +1596,20 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         "data-lf-applied", re.compile(".")
     )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    page.wait_for_function(
-        "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
+    expect(
+        page.locator('meta[name="lf-authored-current"][data-lf-runtime]')
+    ).to_have_count(1)
+    expect(page.locator("body > main")).to_be_visible()
+    assert (
+        page.locator("body > main").evaluate(
+            "element => getComputedStyle(element).pointerEvents"
+        )
+        == "none"
     )
-    expect(page.locator("body > main")).to_be_hidden()
+    assert (
+        page.evaluate("() => getComputedStyle(document.body, '::after').content")
+        == "none"
+    )
     expect(page.locator(".lf-banner")).to_be_visible()
     expect(page.get_by_role("button", name=re.compile("^Threads"))).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)

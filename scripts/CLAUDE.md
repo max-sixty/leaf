@@ -8,8 +8,11 @@ runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lo
 
 `preview.py [example]` freshly vendors and serves one shipped example. It copies
 the example's companion log, applies current values and file captures from its data
-manifest, copies media, then sets the event cursor past seeded history. `--export`
-writes that prepared page as one standalone HTML file for handoff.
+manifest, copies media, then sets the event cursor past seeded history. A live preview
+writes safe checkout provenance and shows it as a compact banner badge; pressing the
+badge copies the example, commit, layer identity, revision, event sequence, and a URL
+with its access token removed. `--export` writes the prepared page as one standalone
+HTML file for handoff and carries no preview badge.
 `examples/CLAUDE.md` owns those fixture rules.
 
 `corpus.py` generates the internal `examples/corpus.html` stress fixture and its

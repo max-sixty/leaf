@@ -70,6 +70,42 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
+    example = next(path for path in EXAMPLES if path.stem == "postmortem")
+    page, errors = open_page(browser, serve(example))
+    summary = page.locator("#pm-summary")
+    expect(summary).to_be_visible()
+    assert (
+        summary.evaluate("element => getComputedStyle(element).alignItems")
+        == "baseline"
+    )
+
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    code = summary.evaluate(
+        """element => {
+          const box = element.getBoundingClientRect();
+          const hints = [...document.querySelectorAll('.lf-target-hint')].map(node => {
+            const at = node.getBoundingClientRect();
+            return {
+              code: node.dataset.lfTarget,
+              distance: Math.hypot(
+                at.left + at.width / 2 - box.left,
+                at.top + at.height / 2 - box.top,
+              ),
+            };
+          });
+          hints.sort((a, b) => a.distance - b.distance);
+          return hints[0]?.distance < 30 ? hints[0].code : null;
+        }"""
+    )
+    assert code, "the summary had no semantic-selection hint"
+    page.keyboard.type(code)
+    expect(page.locator(".lf-live")).to_contain_text("Selected list: Detected")
+    assert errors == []
+    page.close()
+
+
 def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     """An example that ships a companion log opens mid-conversation.
 
@@ -256,40 +292,43 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # red their handover with no edit that clears it. Here the panel is open,
         # which is the one state in which such a widget has a box to be wrong about.
         #
-        # The product's own readings, not test-side copies, and the population is
-        # asserted first: a widget with no controls in it would make both come back
-        # clean for having been handed nothing.
-        offers = page.evaluate(
-            """(ids) => ids.flatMap((id) => {
-                 const el = document.getElementById(id);
-                 return el ? [...el.querySelectorAll('[data-lf-offer]')] : [];
-               }).length""",
-            sorted(carried_ids),
-        )
-        assert offers, (
-            f"{example.stem}: no widget a message carries built a control, so the two "
-            "readings below were handed nothing of the panel's to look at"
-        )
-        for finding, probe, arg in (
-            (
-                "draws a box of no size",
-                "tinyBoxes",
-                page_registry(page),
-            ),
-            (
-                "has a control clipped out of its box",
-                "clippedControls",
-                None,
-            ),
-        ):
-            found = (
-                render_checks_model.evaluate_probe(page, probe, arg)
-                if arg
-                else render_checks_model.evaluate_probe(page, probe)
+        # The product's own readings, not test-side copies. When this log carries a
+        # widget, its population is asserted first: a widget with no controls in it
+        # would make both come back clean for having been handed nothing. The aggregate
+        # assertion below keeps this branch non-vacuous while allowing an ordinary
+        # conversation-only example alongside the one that carries message markup.
+        if carried_ids:
+            offers = page.evaluate(
+                """(ids) => ids.flatMap((id) => {
+                     const el = document.getElementById(id);
+                     return el ? [...el.querySelectorAll('[data-lf-offer]')] : [];
+                   }).length""",
+                sorted(carried_ids),
             )
-            assert found == [], (
-                f"{example.stem}: with the panel open, something {finding}: {found}"
+            assert offers, (
+                f"{example.stem}: no widget a message carries built a control, so the "
+                "two readings below were handed nothing of the panel's to look at"
             )
+            for finding, probe, arg in (
+                (
+                    "draws a box of no size",
+                    "tinyBoxes",
+                    page_registry(page),
+                ),
+                (
+                    "has a control clipped out of its box",
+                    "clippedControls",
+                    None,
+                ),
+            ):
+                found = (
+                    render_checks_model.evaluate_probe(page, probe, arg)
+                    if arg
+                    else render_checks_model.evaluate_probe(page, probe)
+                )
+                assert found == [], (
+                    f"{example.stem}: with the panel open, something {finding}: {found}"
+                )
 
         # And the third thing a log carries: what the reader did to one of those
         # widgets. A decision on a widget a message carries is folded from thread

@@ -638,6 +638,13 @@ ${MARK_RULES}
     .lf-dot.listening { background: var(--ok); }
     .lf-dot.away { background: var(--warn); }
     .lf-dot.offline { background: var(--danger); }
+    .lf-preview { flex: none; max-width: min(36vw, 240px); padding: 2px 7px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      border: 1px solid var(--border-2); border-radius: 999px;
+      background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6);
+      cursor: pointer; }
+    .lf-preview:hover { border-color: var(--accent); color: var(--ink); }
+    .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .lf-status-text .lf-age { color: var(--muted); }
     /* All leaves spends the shelf's slack; the remaining controls stay packed against

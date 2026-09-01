@@ -278,6 +278,7 @@ def test_server_round_trip(server, page_dir):
     marker = (
         b'<meta name="lf-revision" data-lf-runtime content="2">'
         b'<meta name="lf-version" data-lf-runtime content="1">'
+        b'<meta name="lf-authored-current" data-lf-runtime>'
     )
     assert marker in body
     assert (
@@ -504,10 +505,26 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
     marker = (
         '<meta name="lf-revision" data-lf-runtime content="1">'
         '<meta name="lf-version" data-lf-runtime content="1">'
+        '<meta name="lf-authored-current" data-lf-runtime>'
     )
     assert body == source.replace(script, marker + script)
     # The old splice corrupted this tag while leaving the page renderable.
     assert '<link rel="stylesheet" href="/theme.css">' in body
+
+
+def test_only_context_events_can_mark_the_authored_document_current():
+    """Unknown or state-bearing events retain the replay-before-paint boundary."""
+    contextual = [
+        {"kind": kind}
+        for kind in ("note", "comment", "reply", "edit", "resolve", "unresolve")
+    ]
+    assert http_model.authored_document_is_current(contextual)
+    assert not http_model.authored_document_is_current(
+        [*contextual, {"kind": "action"}]
+    )
+    assert not http_model.authored_document_is_current(
+        [*contextual, {"kind": "future-state"}]
+    )
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -2649,6 +2666,46 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
+
+
+def test_server_start_names_the_page_layer_and_running_payload(page_dir):
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        identity = registry_storage.layer_metadata(page_dir)
+        assert f"page: {page_dir}" in started.output
+        assert f"layer: {identity['fingerprint']}" in started.output
+        assert f"leaf: {schema_model.PLUGIN_ROOT}" in started.output
+
+        state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
+        assert state.exit_code == 0, state.output
+        server = json.loads(state.output)["server"]
+        assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
+        assert server["url"] in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 41234,
+            "enabled": False,
+            "lifetime": "standing",
+        },
+    )
+
+    note = hosting_model.startup_note(page_dir)
+
+    assert "leaf: unknown payload (unknown source)" in note
+    assert str(schema_model.PLUGIN_ROOT) not in note
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(

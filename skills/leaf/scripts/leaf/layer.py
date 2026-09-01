@@ -1,6 +1,9 @@
-"""Layer input resolution and composition."""
+"""Layer input resolution, composition, and content identity."""
 
+import hashlib
+import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -18,6 +21,7 @@ from .schema import (
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PACKAGE_FILES,
+    PLUGIN_ROOT,
     VENDORED_FILES,
 )
 from .styles import css_syntax_errors
@@ -220,6 +224,62 @@ class LayerComposition(NamedTuple):
     registry: dict
     top_files: dict[str, bytes]
     directory_files: dict[str, dict[str, bytes]]
+
+
+def layer_fingerprint(composition: LayerComposition) -> str:
+    """Identify the complete composed layer independently of its vendoring epoch."""
+    files = {
+        **composition.top_files,
+        "registry.json": json.dumps(
+            composition.registry,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode(),
+        **{
+            f"{directory}/{name}": data
+            for directory, entries in composition.directory_files.items()
+            for name, data in entries.items()
+        },
+    }
+    digest = hashlib.sha256()
+    for name in sorted(files):
+        encoded = name.encode()
+        data = files[name]
+        digest.update(len(encoded).to_bytes(4, "big"))
+        digest.update(encoded)
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def payload_provenance(*, include_path: bool = False) -> dict:
+    """Describe the Leaf payload that is running this command, when Git can."""
+    provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
+    try:
+        commit = subprocess.run(
+            ["git", "-C", str(PLUGIN_ROOT), "rev-parse", "--short=12", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return provenance
+    if commit.returncode != 0:
+        return provenance
+    provenance["commit"] = commit.stdout.strip()
+    try:
+        dirty = subprocess.run(
+            ["git", "-C", str(PLUGIN_ROOT), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return provenance
+    if dirty.returncode == 0:
+        provenance["dirty"] = bool(dirty.stdout)
+    return provenance
 
 
 def compose_layer(roots: list[Path]) -> LayerComposition:

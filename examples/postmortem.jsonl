@@ -1,0 +1,2 @@
+{"kind": "comment", "author": "user", "revision": 1, "text": "Keep the distinction between trigger and cause this explicit in the customer-facing version too; it is the clearest part of the account.", "anchor": {"section": "pm-happened"}, "id": "a840d5c1", "ts": "2026-08-31T11:08:00-07:00"}
+{"kind": "reply", "author": "claude", "agent": "Claude", "parent": "a840d5c1", "revision": 1, "text": "Agreed. I will keep that sentence intact when the incident record is condensed for the customer update.", "id": "6f3bc219", "ts": "2026-08-31T11:11:00-07:00"}

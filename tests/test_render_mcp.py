@@ -117,6 +117,21 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
     )
     activated = activate_source(page_dir, read_events(page_dir))
     assert activated.error is None and activated.revision == 2
+    append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "agent": "Codex",
+            "revision": 2,
+            "text": "The same comparison in a frozen message.",
+            "markup": (
+                '<lf-shot id="message-shot" alt="message before > after" '
+                'before="/media/051bee487bfb5d13.png" '
+                'after="/media/a99a1b63048502d0.png"></lf-shot>'
+            ),
+        },
+    )
     pages = ProcessPageServer()
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     errors = []
@@ -136,6 +151,15 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
 
         assert page.title() == "t"
         assert page.locator(".lf-banner").is_visible()
+        page.wait_for_function(
+            """() => {
+              const images = [...document.querySelectorAll('#message-shot img')];
+              return images.length === 2 && images.every(image => image.naturalWidth > 0);
+            }"""
+        )
+        assert page.locator("#message-shot").get_attribute("before") == (
+            f"{root}/media/051bee487bfb5d13.png"
+        )
         assert page.evaluate(
             "() => performance.getEntriesByType('resource').map(r => r.name)"
         )
@@ -171,9 +195,11 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         assert saved["text"] == "Delivered through the MCP page."
         assert saved["anchor"]["quote"] == 'Post to "/api/event"'
         assert root not in saved["anchor"]["quote"]
-        expect(page.locator(".lf-thread")).to_contain_text(
-            "Delivered through the MCP page."
-        )
+        expect(
+            page.locator(".lf-thread").filter(
+                has_text="Delivered through the MCP page."
+            )
+        ).to_have_count(1)
 
         source.write_text(
             source.read_text().replace(

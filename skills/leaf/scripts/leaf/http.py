@@ -162,6 +162,8 @@ def scope_page_urls(value, page_root: str):
             and item.startswith(("/versions/", "/revisions/"))
         ):
             scoped[key] = page_root.rstrip("/") + item
+        elif key == "markup" and isinstance(item, str):
+            scoped[key] = scope_document_routes(item.encode(), page_root).decode()
         else:
             scoped[key] = scope_page_urls(item, page_root)
     return scoped

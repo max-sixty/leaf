@@ -37,12 +37,13 @@ no `service.json`, and drops every path when it exits. There is no wildcard CSP,
 query token, cookie, or durable host key in the tool result.
 
 The canonical page contract speaks root-relative Leaf routes. At this multiplexing
-boundary, `runtime_document`, textual served assets, and version URLs in state
-responses scope only the known
-`api`, `runtime`, `widgets`, `vendor`, `media`, registry, theme, icon, and runtime
-paths below the capability. This keeps arbitrary package modules on the ordinary
-`/runtime/widget-api.js` contract while ensuring every subsequent request proves
-the same page capability. Unknown or unscoped paths receive 404. The nested frame
+boundary, every HTML response and validated frozen `markup` value in state passes
+through document route scoping, textual served assets scope their known routes, and
+version URLs in state receive the page prefix. Together these adapt `api`, `runtime`,
+`widgets`, `vendor`, `media`, registry, theme, icon, and runtime paths below the
+capability. This keeps arbitrary package modules on the ordinary
+`/runtime/widget-api.js` contract while ensuring every subsequent request proves the
+same page capability. Unknown or unscoped paths receive 404. The nested frame
 therefore runs the same authored document, package modules, comments, actions,
 versions, state stream, and `EventEndpoint` as an ordinary Leaf tab.
 

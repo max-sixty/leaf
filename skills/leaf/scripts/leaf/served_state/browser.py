@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from ..acknowledgments import canonical_acknowledgments
 from ..events import build_threads
 from ..files import list_revisions, revision_path
 from ..passages import enclosing_of
@@ -34,9 +35,10 @@ def browser_state(
     )
     active_within = enclosing_of(active_spk)
     threads = build_threads(events, active_within)
-    conversation, conversation_projection = _browser_conversation(
+    conversation, conversation_reading = _browser_conversation(
         events, registry, threads
     )
+    conversation_projection = conversation_reading.projection
 
     views = {}
     for revision in sorted(view_revisions):
@@ -98,6 +100,16 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         "views": views,
         "conversation": conversation,
+        "acknowledgments": canonical_acknowledgments(
+            events,
+            claims,
+            threads,
+            active_projection,
+            active_parser,
+            active_spk,
+            conversation_reading,
+            registry,
+        ),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]

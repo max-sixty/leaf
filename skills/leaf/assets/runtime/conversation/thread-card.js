@@ -39,7 +39,7 @@ export function createThreadCards(dependencies) {
     if (existing && existingResolved === Boolean(t.resolved)) {
       const compose = existing.querySelector(":scope > .lf-compose");
       const tail =
-        existing.querySelector(":scope > .lf-work-line") ??
+        existing.querySelector(":scope > .lf-receipt") ??
         compose ??
         existing.querySelector(":scope > .lf-thread-actions");
       for (const m of turns(t)) {

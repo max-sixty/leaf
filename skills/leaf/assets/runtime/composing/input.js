@@ -1,7 +1,7 @@
-// One helper wires every composer: the general box, each per-thread reply, and the
-// selection composer. They persist a draft on each keystroke, send on ⌘/Ctrl+Enter, and
-// can't be double-sent by an impatient second click. Growing with their content is the
-// stylesheet's job (field-sizing), not this file's.
+// One helper wires every durable text surface: the general box, each per-thread reply,
+// and the compact anchored composer. They persist a draft on each keystroke, send on the
+// binding their caller supplies, and can't be double-sent by an impatient second click.
+// Growing with their content is the stylesheet's job (field-sizing), not this file's.
 // wire() returns a sync() the caller runs after setting .value programmatically, so the
 // send button agrees with what's in the box.
 export function createInput({ focused, keys, showToast, spell }) {
@@ -9,7 +9,6 @@ export function createInput({ focused, keys, showToast, spell }) {
   // tooltip and the row a box declares all read one string, where the constant they used to
   // share sat beside a listener that bound the chord independently.
   const SEND = "Mod+Enter";
-  const SEND_KEYS = spell(SEND);
   // Focus-derived hints join the runtime's one standing paint. Only the input losing the
   // standing and the one gaining it can change for that reason.
   const inputPaints = new WeakMap();
@@ -36,6 +35,7 @@ export function createInput({ focused, keys, showToast, spell }) {
       altBtn = null,
       altSend = null,
       busy = () => false,
+      sendKey = SEND,
     },
   ) {
     // The hint goes in the placeholder, where it's visible exactly while the box is
@@ -45,10 +45,11 @@ export function createInput({ focused, keys, showToast, spell }) {
     // Both hint and address may be functions because their labels can change while the
     // box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
+    const sendKeys = spell(sendKey);
     const paint = () => {
       // Read the shared logical focus so this hint agrees with the key line and rings.
       const standing = focused() === ta;
-      const suffix = standing ? SEND_KEYS : address?.();
+      const suffix = standing ? sendKeys : address?.();
       const placeholder = suffix ? `${label()} · ${suffix}` : label();
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
     };
@@ -57,7 +58,7 @@ export function createInput({ focused, keys, showToast, spell }) {
       if (focused() === ta) paintInputs();
       else paint();
     };
-    sendBtn.title = `Send (${SEND_KEYS})`;
+    sendBtn.title = `Send (${sendKeys})`;
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
     // Keep a disabled send reachable so the reader can discover why it will not send;
@@ -104,7 +105,7 @@ export function createInput({ focused, keys, showToast, spell }) {
     keys(ta, "In a text box", [
       {
         id: "text.send",
-        keys: [SEND],
+        keys: [sendKey],
         does: "Send what you have typed",
         line: sends,
         run: () => sendBtn.click(),

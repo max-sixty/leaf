@@ -49,7 +49,7 @@ def resolve_page(page: str) -> Path:
 
 
 def state_service(page_dir: Path) -> PageStateService:
-    return PageStateService(page_dir, layer=layer_generation(page_dir))
+    return PageStateService(page_dir)
 
 
 def pending_delivery(page_dir: Path) -> tuple[str | None, int | None]:
@@ -138,8 +138,13 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
             isError=True,
         )
     layer = layer_generation(page_dir)
-    endpoint = _ENDPOINTS.setdefault((page_dir, layer), EventEndpoint(page_dir))
-    service = PageStateService(page_dir, layer=layer)
+    # The app renders the authored source with no runtime behind it, so a selection
+    # here names a passage nothing has resolved yet. The door captures it against the
+    # page under the same lease that appends it.
+    endpoint = _ENDPOINTS.setdefault(
+        (page_dir, layer), EventEndpoint(page_dir, capture_anchors=True)
+    )
+    service = PageStateService(page_dir)
     status, answer = endpoint.accept(
         candidate, lambda: service.page_state(view_revision)
     )

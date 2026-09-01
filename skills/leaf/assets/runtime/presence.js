@@ -16,8 +16,11 @@ export const ago = (ts) => {
 };
 
 const WORKING_GRACE_MS = 15 * 60 * 1000;
+const PICKUP_RECEIPT_GRACE_MS = 2 * 60 * 1000;
+const TURN_RENEWAL_GRACE_MS = 2 * 60 * 1000;
 export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
   Boolean(ts) && serverNow() - new Date(ts).getTime() > grace;
+export const waitingForPickupSince = (ts) => quietSince(ts, PICKUP_RECEIPT_GRACE_MS);
 
 export function createPresence() {
   // ---------- presence ----------
@@ -42,7 +45,6 @@ export function createPresence() {
   // the poll declares it instead (`unattended`), and it is judged ahead of the rest because
   // it is not a state the evidence below could reach — there is no claim to weigh, no
   // lifetime to look for, and nothing coming that would change the answer.
-  const HANDOFF_GRACE_MS = 2 * 60 * 1000;
   // How long a claim of work may go unrefreshed before the page stops taking its word for
   // it. Exported, because the banner is not the only thing that judges one: a page running
   // a fleet says the same sentence per row, and a second threshold spelled in a widget
@@ -57,7 +59,6 @@ export function createPresence() {
   // the turn in the same second, and the delegate's first note is a minute or so behind
   // that. Shorter than the grace by an order of magnitude, because it is measured from
   // an observed event rather than from the absence of one.
-  const PICKUP_GRACE_MS = 2 * 60 * 1000;
   // The second question the page asks of a claim, beside how long it has gone
   // unrenewed: did the turn behind it end with nothing picking it up. This one has an
   // answer the moment it becomes true, because the Stop hook watches the ending rather
@@ -70,7 +71,7 @@ export function createPresence() {
   const droppedAt = (ts, turnClosed) =>
     Boolean(turnClosed) &&
     Date.parse(ts) <= Date.parse(turnClosed) &&
-    quietSince(turnClosed, PICKUP_GRACE_MS);
+    quietSince(turnClosed, TURN_RENEWAL_GRACE_MS);
   // Which claim each kind reads out, and so whose detail it may speak. The question
   // sits here rather than at each seat, for the reason `kind` does: two seats answering
   // it separately is two answers to what the page may say it is waiting for. A kind
@@ -94,14 +95,9 @@ export function createPresence() {
   // seat.
   function presented(state) {
     const { status, listening, session_alive, unattended, turn_closed } = state;
-    // How long the claim has gone unrefreshed. The rope is short for the status
-    // `leaf wait` writes as it prints a batch, because the agent writes its own
-    // `leaf status` after acknowledgement — that mark outliving minutes is a dropped
-    // pickup, not a long turn.
-    const aged = quietSince(
-      status.ts,
-      status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
-    );
+    // How long the agent's own work claim has gone unrefreshed. Delivery pickup is
+    // projected per interaction and never changes this page-wide status.
+    const aged = quietSince(status.ts);
     // The same silence reached by evidence instead of by a clock. A claim is written by
     // a model's turn, and when that turn ends nothing runs — so the page could only ever
     // find an abandoned claim by waiting out the grace, saying "Claude is working" over

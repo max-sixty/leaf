@@ -8,6 +8,7 @@ from leaf import conversation as conversation_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from playwright.sync_api import expect
+from render_cases_navigation import pending_text
 from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
@@ -136,26 +137,36 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
         "() => [...document.querySelectorAll('.lf-fab-bar .lf-react')].map(p => p.dataset.token)"
     )
     assert tokens == ["ok", "no", "lost", "cut", "more", "this"], tokens
-    assert bar.locator(
-        ":scope > .lf-fab, :scope > .lf-react-trigger"
-    ).all_inner_texts() == ["💬", "…"]
-    expect(bar.locator(".lf-fab")).to_have_attribute("aria-label", "Comment")
+    expect(bar.locator(".lf-fab-input")).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_have_attribute(
+        "placeholder", re.compile(r"^Comment… .*⏎$")
+    )
+    expect(bar.locator(".lf-fab-input")).to_have_attribute("autocomplete", "off")
+    expect(bar.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile(r"^Comment")
+    )
+    expect(
+        bar.locator(":scope > .lf-react-trigger .lf-response-action-glyph")
+    ).to_have_text("…")
     expect(bar.locator(".lf-react-trigger")).to_have_attribute(
-        "aria-label", "Show reactions"
+        "aria-label", "Show other responses"
     )
     expect(bar.locator(".lf-react-trigger")).to_have_class(
-        re.compile(r"lf-margin-action")
+        re.compile(r"lf-response-action")
     )
     expect(bar.locator(".lf-react-trigger")).to_have_attribute(
         "data-lf-behavior", "options"
     )
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
-    bar.locator(".lf-react-trigger").click()
-    surface = page.locator(".lf-margin-reactions")
+    expect(bar.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Tab")
+    surface = bar
+    expect(bar).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_be_hidden()
     expect(surface).to_have_class(re.compile("lf-react-open"))
     expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
-    expect(surface.locator('.lf-react[data-token="ok"]')).to_be_focused()
+    expect(surface.locator(".lf-fab")).to_be_focused()
 
     surface.locator('.lf-react[data-token="cut"]').click()
     round_trip(page)
@@ -210,15 +221,10 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
     bar.locator(".lf-react-trigger").click()
-    surface = page.locator(".lf-margin-reactions")
+    surface = bar
     expect(receipt_item).to_have_count(1)
     expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
-    expect(receipt_item.locator(":scope > .lf-margin-more")).to_have_attribute(
-        "aria-expanded", "true"
-    )
-    expect(
-        receipt_item.locator(".lf-margin-options .lf-margin-reactions")
-    ).to_have_count(1)
+    expect(receipt_item.locator(":scope > .lf-margin-reactions")).to_have_count(0)
     expect(surface.locator('.lf-react[data-token="cut"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -236,28 +242,121 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.close()
 
 
-def test_r_opens_the_targets_button_options_and_needs_a_target(browser, serve):
-    """`r` opens Comment and reactions in the target's shared Button options.
+def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
+    browser, serve
+):
+    """Tab yields the compact field to one visually and semantically stable choice bar.
 
-    Digits remain optional accelerators in declaration order. With no selection,
-    focused item, or agent reply, the key names the missing target and does not borrow
-    the page-wide strip by opening Threads.
+    Comment is the first stop, then Tab and arrows wrap through every visible response.
+    Digits remain optional accelerators in declaration order. Once the surface has been
+    dismissed, `r` with no target names what is missing without opening Threads.
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    page.keyboard.press("r")
+    field_reading = bar.locator(".lf-fab-input").evaluate(
+        """el => { const box = el.getBoundingClientRect(); const bar = el.closest('.lf-fab-bar');
+          const style = getComputedStyle(el);
+          return {
+            center: Math.round(box.y + box.height / 2), parent: bar.parentElement.className,
+            label: bar.getAttribute('aria-label'), fontFamily: style.fontFamily,
+            fontSize: style.fontSize, fontWeight: style.fontWeight,
+            height: Math.round(box.height), borderRadius: style.borderRadius,
+            borderTopWidth: style.borderTopWidth, borderTopStyle: style.borderTopStyle,
+            backgroundColor: style.backgroundColor, paddingTop: style.paddingTop,
+            paddingBottom: style.paddingBottom, borderColor: style.borderTopColor,
+            outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth,
+            boxShadow: style.boxShadow}; }"""
+    )
+    trigger_shape = bar.locator(":scope > .lf-react-trigger").evaluate(
+        """el => { const box = el.getBoundingClientRect(); const style = getComputedStyle(el);
+              return [Math.round(box.height), style.borderRadius, style.fontFamily,
+                      style.fontSize, style.fontWeight, style.borderTopWidth,
+                      style.borderTopStyle]; }"""
+    )
+    page.keyboard.press("Tab")
     line = key_line(page)
     assert "1–6" in line and "react" in line, line
-    surface = page.locator(".lf-margin-reactions")
+    surface = bar
     expect(surface).to_have_class(re.compile("lf-react-open"))
     expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
-    expect(bar).to_be_hidden()
+    expect(bar).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
     expect(surface.locator(".lf-fab")).to_be_visible()
-    assert surface.evaluate("el => el.closest('.lf-margin-options') !== null"), (
-        "reactions opened outside the target's Button options"
+    choices = surface.locator(
+        ":scope > .lf-response-action:visible, :scope > .lf-react-palette > .lf-react:visible"
+    )
+    expect(choices).to_have_count(8)
+    assert (
+        choices.evaluate_all(
+            """els => els.map(el => { const box = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+              return [Math.round(box.height), style.borderRadius, style.fontFamily,
+                      style.fontSize, style.fontWeight, style.borderTopWidth,
+                      style.borderTopStyle]; })"""
+        )
+        == [trigger_shape] * 8
+    )
+    stable = surface.evaluate(
+        """el => { const controls = [...el.querySelectorAll('.lf-response-action')]
+            .filter(control => control.checkVisibility());
+          return {parent: el.parentElement.className, label: el.getAttribute('aria-label'),
+            centers: [...new Set(controls.map(control => { const box = control.getBoundingClientRect();
+              return Math.round(box.y + box.height / 2); }))],
+            heights: [...new Set(controls.map(control => Math.round(control.getBoundingClientRect().height)))],
+            radii: [...new Set(controls.map(control => getComputedStyle(control).borderRadius))],
+            backgrounds: [...new Set(controls.map(control => getComputedStyle(control).backgroundColor))],
+            weights: [...new Set(controls.map(control => getComputedStyle(control).fontWeight))],
+            families: [...new Set(controls.map(control => getComputedStyle(control).fontFamily))],
+            sizes: [...new Set(controls.map(control => getComputedStyle(control).fontSize))],
+            paddingTops: [...new Set(controls.map(control => getComputedStyle(control).paddingTop))],
+            paddingBottoms: [...new Set(controls.map(control => getComputedStyle(control).paddingBottom))]}; }"""
+    )
+    assert stable == {
+        "parent": field_reading["parent"],
+        "label": field_reading["label"],
+        "centers": [field_reading["center"]],
+        "heights": [field_reading["height"]],
+        "radii": [field_reading["borderRadius"]],
+        "backgrounds": [field_reading["backgroundColor"]],
+        "weights": [field_reading["fontWeight"]],
+        "families": [field_reading["fontFamily"]],
+        "sizes": [field_reading["fontSize"]],
+        "paddingTops": [field_reading["paddingTop"]],
+        "paddingBottoms": [field_reading["paddingBottom"]],
+    }, (field_reading, stable)
+    focused_reading = surface.locator(".lf-fab").evaluate(
+        """el => { const style = getComputedStyle(el); return {
+          borderColor: style.borderTopColor, outlineStyle: style.outlineStyle,
+          outlineWidth: style.outlineWidth, boxShadow: style.boxShadow}; }"""
+    )
+    assert focused_reading == {
+        key: field_reading[key]
+        for key in ("borderColor", "outlineStyle", "outlineWidth", "boxShadow")
+    }, (field_reading, focused_reading)
+    expect(surface.locator(".lf-fab")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(surface.locator(".lf-fab-suggest")).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(surface.locator(".lf-fab")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(surface.locator('[aria-label="this"]')).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(surface.locator(".lf-fab")).to_be_focused()
+    for label in ["Suggest", "ok", "no", "lost", "cut", "more", "this", "Comment"]:
+        page.keyboard.press("ArrowRight")
+        expect(surface.locator(f'[aria-label="{label}"]')).to_be_focused()
+    assert (
+        surface.locator(".lf-fab, .lf-react:visible").evaluate_all(
+            """els => new Set(els.map(el => {
+              const box = el.getBoundingClientRect();
+              return Math.round(box.y + box.height / 2);
+            })).size"""
+        )
+        == 1
     )
     expect(surface.locator(".lf-address")).to_have_count(0)
     page.keyboard.press("4")
@@ -319,9 +418,10 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_be_focused()
     bar.locator(".lf-react-trigger").click()
-    page.locator('.lf-margin-reactions .lf-react[data-token="this"]').click()
+    bar.locator('.lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "this" and sent["anchor"] == {"section": "prose"}
@@ -378,6 +478,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.evaluate("() => document.body.focus()")
     page.keyboard.type(hint_code(page, "#sug-refill", 10))
     expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.evaluate("() => document.body.focus()")
     page.keyboard.press("r")
     expect(page.locator(".lf-margin-reactions")).to_be_visible()
     expect(unfolded).to_have_count(1)
@@ -393,6 +494,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     # The bar standing is the selection's arrival: the anchor `r` reads is captured on
     # the frame that raises it, and a press before then has no reaction target at all.
     expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.evaluate("() => document.body.focus()")
     page.keyboard.press("r")
     surface = page.locator(".lf-margin-reactions")
     expect(surface).to_have_class(re.compile("lf-react-open"))
@@ -419,6 +521,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
     def raise_choices_on_refill():
         page.keyboard.type(hint_code(page, "#sug-refill", 10))
         expect(page.locator(".lf-fab-bar")).to_be_visible()
+        page.evaluate("() => document.body.focus()")
         page.keyboard.press("r")
         expect(page.locator(".lf-margin-reactions")).to_be_visible()
         expect(refill).to_have_attribute("data-lf-options-open", "")
@@ -445,10 +548,8 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 
 
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
-def test_the_reaction_list_opens_from_a_docked_button_on_a_narrow_screen(
-    browser, serve, opener
-):
-    """With no RHS, the Button docks in flow and its options stay within the viewport."""
+def test_the_in_place_response_bar_stays_inside_a_narrow_screen(browser, serve, opener):
+    """Changing the compact bar's contents does not create a second margin surface."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     resized(page, 390, 900)
     select_paragraph(page, "#how-cap")
@@ -457,19 +558,22 @@ def test_the_reaction_list_opens_from_a_docked_button_on_a_narrow_screen(
     if opener == "click":
         bar.locator(".lf-react-trigger").click()
     else:
-        page.keyboard.press("r")
-    item = page.locator(".lf-margin-item").filter(
-        has=page.locator('.lf-margin-more[aria-expanded="true"]')
+        page.keyboard.press("Tab")
+    expect(bar).to_have_class(re.compile("lf-react-open"))
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    bounds = bar.bounding_box()
+    banner = page.locator(".lf-banner").bounding_box()
+    assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
+    assert banner and bounds["y"] >= banner["y"] + banner["height"] + 6, (
+        banner,
+        bounds,
     )
-    expect(item).to_have_class(re.compile("lf-docked"))
-    palette = item.locator(".lf-margin-options .lf-react-palette").bounding_box()
-    assert 8 <= palette["x"] and palette["x"] + palette["width"] <= 382, palette
-    expect(item.locator(".lf-margin-options .lf-react:visible")).to_have_count(6)
-
+    page.keyboard.press("Escape")
+    expect(bar.locator(".lf-react-trigger")).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_be_focused()
     resized(page, 1280, 900)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
-    expect(bar).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -484,9 +588,12 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     start.click()
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
-    page.keyboard.press("r")
+    page.keyboard.press("Tab")
+    surface = page.locator(".lf-fab-bar")
+    expect(surface.locator(".lf-fab-suggest")).to_be_hidden()
+    expect(surface.locator(".lf-fab")).to_be_focused()
     page.keyboard.press("ArrowLeft")
-    reaction = page.locator('.lf-margin-reactions .lf-react[data-token="this"]')
+    reaction = page.locator('.lf-fab-bar .lf-react[data-token="this"]')
     expect(reaction).to_be_focused()
     page.evaluate("() => window.lfTestReactionClicked = false")
     reaction.evaluate(
@@ -550,7 +657,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     page.mouse.click(box["x"] + 4, box["y"] + box["height"] / 2)
     assert errors == []
     expect(bar).to_be_visible()
-    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     first = bar.bounding_box()
 
     page.mouse.click(
@@ -579,8 +686,8 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     )
 
     page.locator('#flow g[id*="flowchart-U-"]').click()
-    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-action-target\b"))
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     whole = bar.bounding_box()
     assert (
         abs(whole["x"] - after_reactivation["x"]) > 1
@@ -588,12 +695,12 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     ), (after_reactivation, whole)
 
     start.click()
-    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
-    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.locator("h1").click()
     expect(bar).to_be_hidden()
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert errors == []
     page.close()
 
@@ -612,10 +719,8 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     start = page.locator('#flow g[id*="flowchart-S-"]')
 
     page.locator("#caption").click()
-    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-action-target\b"))
-    expect(page.locator("#frame")).not_to_have_class(
-        re.compile(r"\blf-action-target\b")
-    )
+    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#frame")).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert page.locator(".lf-visual-action").evaluate_all(
         "controls => controls.map(control => control.lfAnchor)"
     ) == [
@@ -624,7 +729,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     ]
 
     start.click()
-    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile("Start request")
     )
@@ -706,7 +811,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     whole_control.focus()
     expect(page.locator("#flow")).to_be_in_viewport()
     page.keyboard.press("Enter")
-    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => getSelection().toString().trim()") == ""
     whole_bar = page.locator(".lf-fab-bar").bounding_box()
     keyline = page.locator(".lf-keyline").bounding_box()
@@ -722,20 +827,18 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     control.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => getSelection().toString().trim()") == ""
-    assert page.evaluate(
-        "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
-    )
-    # The captured target spends the short line's two contextual slots on its actions;
-    # Escape still clears it below and remains in the complete reference.
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    # The captured target spends the short line's two contextual slots on immediate
+    # comment entry and the route to its other responses.
     line = key_line(page)
-    assert "comment on the diagram" in line and "react" in line
+    assert "comment" in line and "other responses" in line
     assert "unselect" not in line
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(control).to_be_focused()
     assert errors == []
     page.close()
@@ -891,9 +994,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
-    assert page.evaluate(
-        "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
-    )
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     before_target = start.bounding_box()
     before_bar = bar.bounding_box()
     moved = diagram.evaluate(
@@ -924,7 +1025,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
 
     diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
     expect(bar).to_be_hidden()
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
     page.close()
@@ -947,8 +1048,8 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
     )
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    assert "Start request" in page.evaluate("() => getSelection().toString()")
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    assert "Start request" in pending_text(page)
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile("Start request")
     )
@@ -961,17 +1062,19 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
         (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
         steps=12,
     )
-    # The compatibility click restores the preserved range in its queued completion.
-    page.wait_for_function("() => getSelection().toString().includes('Start request')")
-    repeated = page.evaluate("() => getSelection().toString()")
-    assert "Start request" in repeated
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    # Focusing the composer collapses the native range, but the durable pending paint
+    # still names the repeated passage captured by the compatibility click.
+    page.wait_for_function(
+        "() => [...(CSS.highlights.get('lf-pending') ?? [])].some(r => r.toString().includes('Start request'))"
+    )
+    assert "Start request" in pending_text(page)
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     # A plain click is not a drag. It can still choose the visual under the retained
     # passage, and that explicit target clears the native selection.
     start.click()
     assert page.evaluate("() => getSelection().toString()") == ""
-    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     assert errors == []
     page.close()
 
@@ -983,12 +1086,8 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
-    assert page.evaluate(
-        "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
-    )
-
-    expect(page.locator(".lf-fab-bar .lf-fab")).to_be_focused()
-    page.keyboard.press("r")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
@@ -1006,10 +1105,11 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     start = page.locator('#flow g[id*="flowchart-S-"]')
     control.focus()
     page.keyboard.press("Enter")
-    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         """() => {
+          document.activeElement.blur();
           const text = document.querySelector('h1').firstChild;
           const range = document.createRange();
           range.selectNodeContents(text);
@@ -1019,9 +1119,11 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
         }"""
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
-    page.evaluate("() => getSelection().removeAllRanges()")
+    page.evaluate(
+        "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
+    )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     assert errors == []
     page.close()

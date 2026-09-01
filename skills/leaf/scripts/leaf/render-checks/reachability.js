@@ -249,10 +249,10 @@ export function unreachableWords() {
     const chrome = el.closest(".lf-ui");
     if (!chrome || !widget(chrome)) continue;
     if (speaks(el) || el.closest(CONTROL)) continue;
-    // A local work line is runtime chrome about its owning widget, not authored
+    // A local receipt is runtime chrome about its owning widget, not authored
     // words of that widget. Its subject is the anchor; the provisional sentence
     // deliberately is not another passage the reader can thread.
-    if (el.closest(".lf-work-line")) continue;
+    if (el.closest(".lf-receipt")) continue;
     // .lf-quiet is words for a reader listening, clipped to nothing: not on
     // screen, so there is nothing here the eye can see and the pointer can't
     // reach — the failure this check exists for. [hidden] is the other half of

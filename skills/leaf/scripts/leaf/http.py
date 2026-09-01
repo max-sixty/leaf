@@ -25,7 +25,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
-from .registry.storage import layer_generation
+from .registry.storage import layer_metadata
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
@@ -37,6 +37,7 @@ from .schema import (
 )
 from .served_state import reading as served_reading
 from .served_state.service import PageStateService
+from .server import preview_metadata
 from .service import PageTransaction
 from .structure import parse_structure
 
@@ -113,7 +114,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
-            self.page_dir, layer=self.layer, preview_source=self.preview_source
+            self.page_dir,
+            preview_source=self.preview_source,
+            layer_identity=self.layer_identity,
+            preview=self.preview,
         )
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -538,6 +542,7 @@ def handler_for(
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
     machine, so there is no construction that should quietly go without one."""
+    identity = layer_metadata(page_dir)
     return type(
         "PageHandler",
         (Handler,),
@@ -548,6 +553,8 @@ def handler_for(
             "preview_source": preview_source,
             "protocol_version": protocol_version,
             "event_endpoint": EventEndpoint(page_dir),
-            "layer": layer_generation(page_dir),
+            "layer": identity["generation"],
+            "layer_identity": identity,
+            "preview": preview_metadata(page_dir),
         },
     )

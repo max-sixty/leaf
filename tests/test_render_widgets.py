@@ -47,6 +47,7 @@ from render_support import (
     _until,
     actions,
     compare_with,
+    composer_quote,
     leaf_page,
     live_url,
     open_page,
@@ -2051,12 +2052,12 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    Three readings of where they are, and the page is left in each state in turn: what
-    they are reading, when they have pointed at nothing; what they have selected; and
-    where the walk itself last left off, once the walk is what last moved them. The
-    banner's button is no place — pressing it opens the tray and leaves the focus on
-    itself, so a walk measured from the focus after it would restart on every press, and
-    the ring is gone from the page by then, the reader being in the banner."""
+    Two readings of where they are are left in turn: what they are reading, and where
+    the walk itself last left off. The banner's button is no place — pressing it opens
+    the tray and leaves the focus on itself, so a walk measured from the focus after it
+    would restart on every press, and the ring is gone from the page by then, the reader
+    being in the banner. A selected passage now enters its comment field immediately;
+    while that field stands, letters are text rather than page-navigation keys."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
@@ -2079,24 +2080,6 @@ def test_the_decision_walk_starts_from_where_the_reader_is(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-decision", "1")
 
-    # A selection outranks the mark, because it is the reader saying where they are
-    # since the walk last moved them: from a task above the two the walk has just been
-    # through, forward is the first of them and back is the change before it. Measured
-    # after each landing, because the landing scrolled the page under the coordinates.
-    def drag_over_the_done_task():
-        page.locator("#t-mounts strong").scroll_into_view_if_needed()
-        box = page.locator("#t-mounts strong").bounding_box()
-        y = box["y"] + box["height"] / 2
-        select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-
-    drag_over_the_done_task()
-    page.keyboard.press("a")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-decision", "1"
-    )
-    drag_over_the_done_task()
-    page.keyboard.press("Shift+a")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-decision", "1")
     assert errors == []
     page.close()
 
@@ -2290,11 +2273,15 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     # words raises the button here. Opening the panel slides the document over, and a
     # drag run across that reads a box from the frame before and selects nothing — the
     # panel's own contents are fixed and stay where they are read.
-    assert "signed-cookie" in drag(page.locator("#intro"))
-    expect(page.locator(".lf-fab")).to_be_visible()
+    intro = page.locator("#intro")
+    box = intro.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert "signed-cookie" in composer_quote(page)["text"]
     # Put it down again, so what follows is a rise and not a leftover.
     page.locator("#h").click()
-    expect(page.locator(".lf-fab")).to_be_hidden()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     page.locator(".lf-threads-toggle").click()
     assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
@@ -2302,7 +2289,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     # step it queues queues nothing further.
     for _ in range(2):
         page.evaluate("() => new Promise((r) => setTimeout(r))")
-    expect(page.locator(".lf-fab")).to_be_hidden()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert errors == []
     page.close()
 

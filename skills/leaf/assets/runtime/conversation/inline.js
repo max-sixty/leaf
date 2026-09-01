@@ -97,10 +97,19 @@ export function createInlineConversations({
         wireReply(t, input, send);
       }
     }
-    const work = thread.querySelector(":scope > .lf-work-line");
+    const receipts = [...thread.querySelectorAll(":scope > .lf-receipt")];
+    const after = new Map(
+      receipts.map((receipt) => [receipt.dataset.receiptId, receipt]),
+    );
+    const placed = new Set();
+    const messageRows = messages.flatMap((message) => {
+      const receipt = after.get(message.dataset.event);
+      if (receipt) placed.add(receipt);
+      return receipt ? [message, receipt] : [message];
+    });
     setChildren(thread, [
-      ...messages,
-      ...(work ? [work] : []),
+      ...messageRows,
+      ...receipts.filter((receipt) => !placed.has(receipt)),
       ...(tail ? [tail] : []),
     ]);
     return thread;
@@ -121,9 +130,9 @@ export function createInlineConversations({
       const first = host.lfFirstMessage;
       const hold = registry[owner.localName]?.["x-conversation"]?.hold;
       const pending = hold || loadDraft("say:" + owner.id) !== null ? first : null;
-      const work = host.querySelector(":scope > .lf-work-line");
+      const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
       setChildren(host, [
-        ...(work ? [work] : []),
+        ...receipts,
         ...owned.map((thread) => conversationThreadNode(host, thread)),
         ...(pending ? [pending] : []),
       ]);

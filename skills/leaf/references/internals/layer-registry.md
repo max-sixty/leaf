@@ -21,12 +21,19 @@ the old process's contract.
 The registry is shared by the JS runtime, the POST and re-vendor action gates,
 `leaf version check` and thread-markup validation, the passage reader
 `leaf comment` anchors through, and the selective queries the agent runs. Each
-successful init embeds a fresh `$layer.generation` in both leaf.js and the
-registry. State reports it and event requests carry it; the server repeats it on
-contract responses, so an old or half-loaded tab reloads before a replacement
-server can interpret or append its event. `registry.json` is the source of truth
-for the current custom vocabulary and its explanations; this contract does not
-mirror that inventory.
+successful init records two deliberately different identities under `$layer`:
+
+- `generation` is a fresh epoch embedded in both leaf.js and the registry. State
+  reports it and event requests carry it; the server repeats it on contract
+  responses, so an old or half-loaded tab reloads before a replacement server can
+  interpret or append its event.
+- `fingerprint` is the SHA-256 identity of the complete composed layer before that
+  epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
+  guidance bytes have the same fingerprint across repeated vendoring. `producer`
+  records the Git commit and dirty bit when the payload came from a checkout.
+
+`registry.json` remains the source of truth for the current custom vocabulary and
+its explanations; this contract does not mirror that inventory.
 
 Within a registry-validated action detail, a string or list of strings may point
 at existing ids inside the sending widget. A state verb that creates authored

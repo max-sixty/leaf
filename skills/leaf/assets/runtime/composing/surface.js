@@ -4,9 +4,8 @@ import { documentPoint } from "../geometry.js";
 export function createSelectionSurface({
   anchoringIsReady,
   anchorLabel,
+  banner,
   blockAt,
-  composer,
-  composerInput,
   composerIsOpen,
   closeVersionMenu,
   collapseKeyline,
@@ -14,8 +13,10 @@ export function createSelectionSurface({
   designTarget,
   fab,
   fabBar,
+  fabInput,
   hideComposer,
   hideReference,
+  hasOtherResponses,
   inChrome,
   isReactArmed,
   keylineEl,
@@ -33,7 +34,6 @@ export function createSelectionSurface({
   panel,
   panelCovers,
   paintStanding,
-  pendingMarkParts,
   pointerAt,
   reactionsOn,
   referenceIsOpen,
@@ -57,13 +57,14 @@ export function createSelectionSurface({
   const rightEdge = () =>
     (panelCovers()
       ? innerWidth - panel.offsetWidth
-      : document.body.getBoundingClientRect().right) - 8;
+      : Math.min(innerWidth, document.body.getBoundingClientRect().right)) - 8;
   // The floats live in the document — they scroll with the passage they stand beside —
   // while every caller reasons in viewport terms: rects, the pointer, the banner's own
-  // band. Named, because four sites had the number written out and it is neither of the
-  // two it stands near — the banner is 42px and the scroller's scroll-padding-top 54px,
-  // this being the slack over the first that says what the reader can actually see.
+  // band. The fixed floor covers the ordinary one-line banner; its live box takes over
+  // when compact chrome wraps to a second line.
   const BANNER_CLEAR = 48;
+  const topEdge = () =>
+    Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
   // So the one writer of their position is where the coordinates change space: clamp in
   // the viewport and above any key line it would cross, then store in the document.
   function place(node, left, top) {
@@ -74,91 +75,10 @@ export function createSelectionSurface({
     const bottom = overlapsKeyline ? keyline.top - 8 : innerHeight - 8;
     const at = documentPoint(
       x,
-      Math.max(BANNER_CLEAR, Math.min(top, bottom - node.offsetHeight)),
+      Math.max(topEdge(), Math.min(top, bottom - node.offsetHeight)),
     );
     node.style.left = at.left + "px";
     node.style.top = at.top + "px";
-  }
-  // The composer's first choice of a place is the column's margin, beside the passage, so
-  // the mark and the box stand side by side — where the box opened instead at the gesture
-  // (the fab, the ⌥-click's pointer), it stood on the page's own text next to the
-  // passage, which is the one thing a 320px card over a 720px column can't avoid doing
-  // there. placeClear steps it down past any control the page hangs out in that same
-  // margin (a suggestion's Accept/Reject row).
-  //
-  // A sidenote is out there too and the box covers one whole while it stands, which is
-  // where this stops short of stepping clear. What the walk steps past is controls,
-  // because a control the box hides is a press the reader was reaching for; a note is
-  // prose they are not mid-gesture on, and the box goes when they are done with it. The
-  // walk could be taught the note as easily — the cost is where it would then put the box
-  // on a page carrying a run of them, which is far enough down the margin to be about a
-  // different paragraph.
-  //
-  // Where the margin is too narrow for the box — a laptop window, the panel open — it
-  // has one thing left to stay clear of: its own mark. That mark is the only thing
-  // naming the passage the box is about, so a box standing on all of it is a box about
-  // nothing. Not "no overlap" — the box has always covered the tail of a long passage
-  // and that reads fine — but every rect hidden is the case to move for, and it is a
-  // case that happens: a restored draft reappears near the top of the viewport, and the
-  // reading position puts the passage it was made on back in the same place.
-  // Below the passage where the viewport has room, above it otherwise; place()'s own
-  // clamp has the last word, so a passage too tall for either side simply keeps the
-  // better spot.
-  function placeComposer(left, top) {
-    place(composer, left, top);
-    const marks = pendingMarkParts();
-    const rects = marks.flatMap((where) =>
-      where instanceof Range
-        ? [...where.getClientRects()]
-        : [where.getBoundingClientRect()],
-    );
-    const box = composer.getBoundingClientRect();
-    const column = document.querySelector("main")?.getBoundingClientRect();
-    if (rects.length && column && column.right + 8 + box.width <= rightEdge())
-      return placeClear(
-        composer,
-        column.right + 8,
-        Math.min(...rects.map((r) => r.top)),
-      );
-    // Vertically only: the document never scrolls sideways and body's margin keeps it clear
-    // of the panel, so off-screen means scrolled past, and a mark scrolled past is not one
-    // this box is standing on.
-    const onScreen = (r) => r.bottom > BANNER_CLEAR && r.top < innerHeight;
-    const behindBox = (r) =>
-      r.left >= box.left &&
-      r.right <= box.right &&
-      r.top >= box.top &&
-      r.bottom <= box.bottom;
-    // A passage and a thing want different rules here, because
-    // they are read differently. Covering the tail of a quote is fine — the user has read
-    // it, and the mark still names where it starts. A card, a column, a metric is judged as
-    // one object, so a box standing anywhere on it is a box between them and the thing they
-    // are writing about. An aimed Comment makes that plain: its target is the whole object,
-    // so the composer must clear the object rather than cover the point beside which its
-    // action bar stood.
-    const whole = marks.some((where) => where instanceof Element);
-    const touching = (r) =>
-      r.left < box.right &&
-      box.left < r.right &&
-      r.top < box.bottom &&
-      box.top < r.bottom;
-    const clear = whole
-      ? !rects.some((r) => onScreen(r) && touching(r))
-      : rects.some((r) => onScreen(r) && !behindBox(r));
-    if (!rects.length || clear) return;
-    const below = Math.max(...rects.map((r) => r.bottom)) + 8;
-    const above = Math.min(...rects.map((r) => r.top)) - box.height - 8;
-    if (below + box.height <= innerHeight - 8) return place(composer, left, below);
-    if (above >= BANNER_CLEAR) return place(composer, left, above);
-    // Neither end has room, which a tall thing reaches easily: a board column is most of the
-    // viewport before the box's own height is counted, and place()'s clamp would haul the box
-    // back over it — the very thing this is here to stop. So go beside instead, even where
-    // the margin is narrower than the box wants; the side is chosen rather than clamped,
-    // because the clamp keeps a box on screen by sliding it left, back over the thing it
-    // is avoiding.
-    const rightOf = Math.max(...rects.map((r) => r.right)) + 8;
-    const leftOf = Math.min(...rects.map((r) => r.left)) - box.width - 8;
-    place(composer, rightOf + box.width <= rightEdge() ? rightOf : leftOf, top);
   }
   // Controls the page is standing on its own account, as against the ones in the runtime's
   // layer: a reply's widget is markup frozen in the log, and the layer's own buttons are
@@ -176,18 +96,14 @@ export function createSelectionSurface({
         !inChrome(control) && !control.matches(".lf-visual-actions, .lf-visual-action"),
     );
 
-  // The 💬 button carries the anchor it would open a composer on, so raising it and acting
-  // on it can't come to different conclusions about what the reader picked. Visibility is
+  // The response bar carries the anchor its field will submit on, so targeting and typing
+  // cannot come to different conclusions about what the reader picked. Visibility is
   // derived from that anchor and never read back off the stylesheet.
   const beside = (rect) => [rect.right + 6, rect.top - 6];
-  // A float has one more thing to stay clear of, and it is the same kind of thing the
-  // composer's mark is: a control standing on the page. The floats float and they don't.
-  // A selection runs to the column's right edge on any line it fills, so `beside` puts
-  // the button in the margin — which is where a suggestion hangs the row deciding the
-  // change that selection just covered. The user's own gesture then hid the Accept
-  // they were reaching for, and the press that would have dismissed the button was the
-  // press it was covering. The composer's margin placement stands in the same column of
-  // rows, so it takes the same walk.
+  // A float has one more thing to stay clear of: a control standing on the page. The
+  // response bar floats and those controls do not. A selection runs to the column's
+  // right edge on any line it fills, so `beside` puts the field in the margin — which is
+  // also where a suggestion can hang the row deciding the change that selection covered.
   //
   // Down, and past each in turn, because the margin runs down the page: clearing one row
   // can land on the next, and walking a sorted list is the step the rows themselves take to
@@ -225,9 +141,23 @@ export function createSelectionSurface({
     if (anchor?.quote) {
       const selection = pageSelection();
       const current = selection ? selectionAnchor(selection) : null;
-      return current && sameAnchor(anchor, current)
-        ? pageRange(selection).getBoundingClientRect()
-        : null;
+      if (current && sameAnchor(anchor, current))
+        return pageRange(selection).getBoundingClientRect();
+      // Entering the compact field deliberately collapses the browser selection after
+      // its durable passage has been captured. Resolve that passage again so layout can
+      // keep the field beside it; an ordinary selection collapse still returns null and
+      // lets updateFab dismiss the response surface.
+      // The reactions palette temporarily owns focus and may itself be re-seated during
+      // a responsive layout change. The open composer is the durable proof that this
+      // captured passage still belongs to the response transaction; native selection is
+      // no longer available once the textarea took focus.
+      if (!composerIsOpen() && !fabHoldsCapturedPassage()) return null;
+      const found = resolveAnchor(anchor, pageText());
+      if (!found?.segments?.length) return null;
+      const range = document.createRange();
+      range.setStart(found.segments[0].node, found.segments[0].start);
+      range.setEnd(found.segments.at(-1).node, found.segments.at(-1).end);
+      return range.getBoundingClientRect();
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
     if (!found?.element) return null;
@@ -249,8 +179,11 @@ export function createSelectionSurface({
       box.right > target.left &&
       box.top < target.bottom &&
       box.bottom > target.top
-    )
-      placeClear(fabBar, target.right - box.width, target.top - box.height - 6);
+    ) {
+      const above = target.top - box.height - 6;
+      const top = above >= topEdge() ? above : target.bottom + 6;
+      placeClear(fabBar, target.right - box.width, top);
+    }
     return true;
   }
   function showFab(
@@ -259,23 +192,31 @@ export function createSelectionSurface({
     { returnFocus = "target", origin = null, place = true } = {},
   ) {
     const previous = fabAnchor;
+    const previousOrigin = fabOrigin;
     const leavingBar = !anchor && fabBar.contains(document.activeElement);
     const returnTarget =
       leavingBar && previous && !previous.quote
-        ? fabOrigin?.isConnected
-          ? fabOrigin
-          : visualActionAnchor(previous)
+        ? previousOrigin?.isConnected
+          ? previousOrigin
+          : previousOrigin
+            ? visualActionAnchor(previous)
+            : null
         : null;
+    if (!anchor && composerIsOpen()) hideComposer();
     fabAnchor = anchor;
     fabFloating = !fabAnchor || place;
     fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
-    // Comment's own display is stated beside the bar's, being what the passage sweeps
-    // read to know a passage raised the button.
+    fabInput.style.display = fabAnchor && composerIsOpen() ? "block" : "none";
+    const responses = fabBar.querySelector(":scope > .lf-react-trigger");
+    if (responses) responses.hidden = !fabAnchor || !hasOtherResponses(fabAnchor);
+    // Comment returns from the bar's choice state to this same field. At rest the input
+    // itself is the comment affordance.
     fab.style.display = fabAnchor ? "block" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
       fabBar.setAttribute("aria-label", label ? `Respond to ${label}` : "Respond");
+      fabInput.setAttribute("aria-label", label ? `Comment on ${label}` : "Comment");
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintStanding(fabBar, reactionsOn(fabAnchor));
@@ -286,29 +227,38 @@ export function createSelectionSurface({
       if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
         fabAnchor = null;
         fabOrigin = null;
+        if (composerIsOpen()) hideComposer();
         fabBar.style.display = "none";
+        fabInput.style.display = "none";
         fab.style.display = "none";
       }
     }
     if (!sameAnchor(previous, fabAnchor)) paintAnchors();
     paintHere(); // the c row names this anchor, so the line is one more rendering of it
-    if (!fabAnchor && leavingBar && returnFocus !== "none") {
-      if (returnFocus === "target" && returnTarget?.isConnected)
+    if (!fabAnchor && returnFocus !== "none") {
+      if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
         returnTarget.focus({ preventScroll: true });
-      else leavePageControl();
+      else if (
+        leavingBar ||
+        (returnFocus === "page" && document.activeElement === previousOrigin)
+      )
+        leavePageControl();
     }
   }
   let dismissedSelectionKeyup = false;
   function dismissFab() {
     dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor?.quote);
     pageSelection()?.removeAllRanges();
+    if (composerIsOpen()) hideComposer();
     showFab(null);
   }
   function refreshFab() {
     // A target row holds its anchor without floating the bar; layout cannot reject that
     // semantic place merely because the target's rendered box has scrolled away.
     if (!fabAnchor || !fabFloating) return;
-    if (fabAnchor.quote) updateFab();
+    if (fabAnchor.quote && (composerIsOpen() || fabHoldsCapturedPassage())) {
+      if (!placeFab()) showFab(null, null, { returnFocus: "page" });
+    } else if (fabAnchor.quote) updateFab();
     else if (!placeFab()) showFab(null, null, { returnFocus: "page" });
   }
   // The durable anchor names the authored coordinate an event can replay, while the
@@ -334,25 +284,35 @@ export function createSelectionSurface({
       : null;
   // The one way an item under a gesture becomes the composer's anchor, so no two routes
   // can come to write different anchors for the same press.
-  function openOnItem(item, from) {
-    showFab(null, null, { returnFocus: "none" });
-    openComposer({ section: item.id }, "", from.left, from.top);
+  function openOnItem(item) {
+    openComment({ section: item.id }, "", { carry: true });
   }
-  // Keyboard selection chooses a semantic target before the reader has chosen what to
-  // do with it, so it raises the shared response actions. The anchor alone decides which
-  // element supplies the mark and geometry.
+  // Keyboard selection names the target and immediately lands in its Comment field.
   function selectResponseTarget({ anchor }) {
-    showFab(anchor);
+    openComment(anchor, "", { carry: true });
   }
-  // Alt-click already names the action as well as the target. It opens the composer in
-  // the same transaction instead of asking the reader to choose Comment a second time.
-  // Target capture still happened before this door, so comments and reactions keep one
-  // durable anchor model and the claimed press still reaches nothing underneath it.
-  function openTargetComposer({ anchor }, from) {
-    showFab(null, null, { returnFocus: "none" });
-    openComposer(anchor, "", from.left, from.top);
+  // Alt-click already names Comment, so the field takes focus in the same transaction.
+  function focusTargetComment({ anchor }) {
+    openComment(anchor, "", { carry: true });
   }
-  // The button follows the selection. What counts as one is measured on the quote it would
+  // Focusing text entry collapses a native page selection. Hold that browser-authored
+  // selectionchange out of updateFab: the durable anchor is already captured, and letting
+  // the collapse re-read it as no selection dismisses the field the reader just entered.
+  function focusFabComment() {
+    if (!fabAnchor) return;
+    clearTimeout(selectionUpdate);
+    selectionUpdate = null;
+    fabInputTakingFocus = true;
+    if (composerIsOpen()) fabInput.focus({ preventScroll: true });
+    else openComment(structuredClone(fabAnchor), "");
+  }
+  const fabOptionsAvailable = () =>
+    Boolean(fabBar.querySelector(":scope > .lf-react-trigger:not([hidden])"));
+  function showFabOptions() {
+    fabBar.querySelector(":scope > .lf-react-trigger")?.click();
+  }
+  fabInput.addEventListener("input", () => requestAnimationFrame(() => placeFab()));
+  // The response field follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
   // the one the reader sees while storing the one the document holds lets a two-character
   // quote through behind a rendered three-character selection — a quote short enough to match
@@ -367,23 +327,23 @@ export function createSelectionSurface({
       return;
     }
     if (found) {
-      showFab(found.anchor, null, { origin });
+      openComment(found.anchor, "");
+      if (origin) showFab(found.anchor, null, { origin });
       return;
     }
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
     if (anchor?.quote.length >= MIN_QUOTE) {
-      const picked = pageRange(sel).getBoundingClientRect();
-      showFab(anchor, picked);
-    } else if (fabAnchor?.quote) showFab(null);
+      openComment(anchor, "");
+    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) showFab(null);
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
   // exists so a mouseup inside the runtime's layer — a click in the panel, the composer —
-  // can't re-decide the button out from under an open draft. A drag that ends on a widget's
+  // can't re-decide the response surface out from under an open draft. A drag that ends on a widget's
   // control is the opposite case: the user was selecting that control's label, and a
   // tab's name runs to within a few pixels of the strip button's padding, so the mouseup
   // lands on chrome while the selection is the page's. The snap runs in the same queued
-  // step that raises the button, so the button lands beside the selection as snapped and
+  // step that raises the field, so the bar lands beside the selection as snapped and
   // the capture reads the one the reader is looking at — and only for the primary
   // button, because a right button's release precedes its context menu, and growing the
   // selection there rewrites what Copy was aimed at.
@@ -402,6 +362,26 @@ export function createSelectionSurface({
   let selectionPressPoint = null;
   let actionPress = false;
   let targetActivation = false;
+  let fabInputTakingFocus = false;
+  function openComment(...args) {
+    // Chromium may collapse the native page Selection before dispatching the textarea's
+    // focus event. Mark the handoff first so that intermediate selectionchange cannot
+    // dismiss the durable anchor the composer is opening on.
+    fabInputTakingFocus = true;
+    return openComposer(...args);
+  }
+  function fabHoldsCapturedPassage() {
+    return fabInputTakingFocus || fabBar.contains(document.activeElement);
+  }
+  fabInput.addEventListener("focus", () => {
+    clearTimeout(selectionUpdate);
+    selectionUpdate = null;
+    fabInputTakingFocus = true;
+  });
+  fabInput.addEventListener("blur", () => {
+    fabInputTakingFocus = false;
+  });
+  let primaryPointerPressed = false;
   // Whether the page's own words stood selected when the key line was last painted for
   // this press. The bar waits for the release; the Escape rung cannot, because from the
   // first glyph a drag takes, Escape clears the selection rather than letting go of the
@@ -423,6 +403,7 @@ export function createSelectionSurface({
     (ev) => {
       // Capture the old range before the browser's pointerdown default can collapse it.
       // This is needed when the reader drags across exactly the passage already selected.
+      primaryPointerPressed = ev.isPrimary && ev.button === 0;
       pointerSelecting = ev.isPrimary && ev.button === 0 && pageWords(ev.target);
       selectionChangedDuringPress = false;
       selectionDragged = false;
@@ -448,8 +429,25 @@ export function createSelectionSurface({
         ev.clientY - selectionPressPoint.y,
       ) > 3;
   });
-  const finishPointerSelection = () => {
-    if (pointerSelecting) scheduleSelectionUpdate();
+  const finishPointerSelection = (ev) => {
+    // A mouse pointer is followed by the compatibility mouseup below, which performs the
+    // sentence snap before opening the field. Opening from pointerup first would focus the
+    // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
+    // Touch/pen and cancellation owe us no compatibility mouse event, so they keep this
+    // direct route.
+    if (
+      primaryPointerPressed &&
+      ev.type === "pointerup" &&
+      ev.pointerType === "mouse"
+    ) {
+      // Keep selectionchange in the in-progress branch until compatibility mouseup.
+      setTimeout(() => {
+        actionPress = false;
+      });
+      return;
+    }
+    if (primaryPointerPressed) scheduleSelectionUpdate();
+    primaryPointerPressed = false;
     pointerSelecting = false;
     setTimeout(() => {
       actionPress = false;
@@ -461,7 +459,7 @@ export function createSelectionSurface({
   // During a pointer drag, the completed gesture below remains the one that snaps and
   // places the passage; presses on the action surface must not retract their own target.
   document.addEventListener("selectionchange", () => {
-    if (pointerSelecting) {
+    if (primaryPointerPressed) {
       selectionChangedDuringPress = true;
       rememberPointerSelection();
       const stands = Boolean(pageSelection());
@@ -471,10 +469,18 @@ export function createSelectionSurface({
       }
       return;
     }
-    if (actionPress || targetActivation || takesLetters(document.activeElement)) return;
+    if (
+      actionPress ||
+      targetActivation ||
+      fabHoldsCapturedPassage() ||
+      takesLetters(document.activeElement)
+    )
+      return;
     scheduleSelectionUpdate();
   });
   document.addEventListener("mouseup", (ev) => {
+    primaryPointerPressed = false;
+    pointerSelecting = false;
     if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
     clearTimeout(selectionUpdate);
@@ -484,7 +490,7 @@ export function createSelectionSurface({
       updateFab();
     });
   });
-  // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same button. Typing in
+  // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same response bar. Typing in
   // a box never does, whatever is selected elsewhere.
   document.addEventListener("keyup", (ev) => {
     if (dismissedSelectionKeyup) {
@@ -513,13 +519,10 @@ export function createSelectionSurface({
       fabAnchor?.section === visual.id &&
       fabAnchor?.visual === visual.part?.part;
     if (!sameVisual && !target.closest?.(".lf-react-surface, .lf-composer")) {
+      if (composerIsOpen()) hideComposer();
       showFab(null, null, { returnFocus: "page" });
       // The armed react press goes with the bar it was armed on.
       setReact(false);
-      // Keep a composer that holds unsent text open so a stray click can't drop it;
-      // Cancel discards explicitly, and the draft is persisted regardless. Asked only of a
-      // composer that is up, so an ordinary press in the page repaints nothing.
-      if (composerIsOpen() && !composerInput.value) hideComposer();
     }
     if (referenceIsOpen() && !target.closest?.(".lf-help")) hideReference();
     if (!target.closest?.(".lf-help, .lf-keyline")) collapseKeyline();
@@ -531,14 +534,14 @@ export function createSelectionSurface({
   document.addEventListener("mousedown", (ev) => standDown(ev.target));
 
   // What a click on the page means, decided once. A mark under the pointer opens its thread;
-  // otherwise a diagram or image is a find handed to updateFab, which raises the same 💬
-  // button on an element anchor — the id the visual lives under. A newly dragged passage
+  // otherwise a diagram or image is a find handed to updateFab, which raises the same compact
+  // field on an element anchor — the id the visual lives under. A newly dragged passage
   // outranks the compatibility click at its endpoint; an older retained selection does not.
   //
   // Once, because the hit-test reads layout and opening the panel rewrites it. Two handlers
   // each asking `markAt` looked independent and were not: the first one's setPanel() reflowed
   // the document out from under the second, which then missed the very mark it had just
-  // opened and raised the comment button on top of it — leaving an element anchor set, which
+  // opened and raised the comment field on top of it — leaving an element anchor set, which
   // midComposition() reads, so the page quietly stopped following new versions. The rule this
   // file already carries covers it: a guard that reads state another function wrote is a sign
   // the two are one function.
@@ -549,10 +552,6 @@ export function createSelectionSurface({
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
     updateFab({ anchor }, { origin: from });
-    if (from)
-      fabBar
-        .querySelector("button, [data-lf-offer][tabindex]")
-        ?.focus({ preventScroll: true });
     setTimeout(() => {
       targetActivation = false;
     });
@@ -566,7 +565,7 @@ export function createSelectionSurface({
     if (designIsOn()) {
       if (pageSelection()) return;
       const target = designTarget(ev.target);
-      if (target) openOnDesign(target, { left: ev.clientX + 6, top: ev.clientY - 40 });
+      if (target) openOnDesign(target);
       return;
     }
     // The record rather than this event's own coordinates, for the reason the record is
@@ -626,15 +625,17 @@ export function createSelectionSurface({
     beside,
     dismissFab,
     fabAnchorAt,
+    fabOptionsAvailable,
     fabTargetAt,
     fabReturnTo,
+    focusFabComment,
     openOnItem,
-    openTargetComposer,
+    focusTargetComment,
     placeClear,
-    placeComposer,
     refreshFab,
     selectResponseTarget,
     showFab,
+    showFabOptions,
     standDown,
     updateFab,
   };

@@ -18,7 +18,7 @@ from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .server import running_server
 from .service import PageTransaction, restore_page_claim, take_page_claim
-from .session import Watch, acknowledge, batch_jsonl, read_watch_pass
+from .session import Watch, acknowledge, batch_jsonl, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
@@ -162,7 +162,7 @@ def finish_intent(identity: dict, intent: dict) -> None:
     try:
         with PageTransaction(page_dir) as page:
             delivered = {
-                event["seq"]: event["id"]
+                event["seq"]: event
                 for event in page.events
                 if intent["first_seq"] <= event["seq"] <= intent["last_seq"]
             }
@@ -174,17 +174,10 @@ def finish_intent(identity: dict, intent: dict) -> None:
                 )
             )
             if all(
-                delivered.get(seq) == event_id for seq, event_id in expected.items()
+                delivered.get(seq, {}).get("id") == event_id
+                for seq, event_id in expected.items()
             ):
-                if page.owned_by(identity):
-                    count = len(intent["event_ids"])
-                    status = page.status
-                    if status["state"] != "working":
-                        page.set_status(
-                            "working",
-                            f"picking up {count} update{'s' if count != 1 else ''}",
-                            handoff=True,
-                        )
+                record_pickup(page, [delivered[seq] for seq in expected])
                 acknowledge(page, intent["last_seq"])
     except FileNotFoundError:
         pass

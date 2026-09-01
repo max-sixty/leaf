@@ -129,7 +129,7 @@ surfaces;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
-`runtime/conversation/work-lines.js` owns live claim seats; and
+`runtime/conversation/acknowledgments.js` owns growing acknowledgment receipts and live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore
 statements; `runtime/projection/data.js` owns keyed runtime-data DOM
@@ -161,12 +161,12 @@ Each mutable fact has one writer:
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
-| local agent work | the typed, log-projected claims in `status.work` | `paintWorkLines` paints every subject seat without becoming another store |
+| reader acknowledgment and local agent work | the canonical acknowledgment projection plus typed claims in `status.work` | `paintAcknowledgments` paints conversation-local fallbacks; the living margin maps page subjects onto their existing Target Button without becoming another store |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintWorkLines` call preserve it through reconciliation, provisional work, and resolution folds |
+| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
@@ -205,7 +205,11 @@ A vendored runtime and registry are one generation. The runtime contains the
 epoch after `page init`. `sameLayer` checks every successful state read and POST
 response. If the server speaks a newer layer, the tab reloads before it reads or
 posts again. Do not let one generation interpret another generation's registry
-or events.
+or events. The adjacent `$layer.fingerprint` identifies the composed bytes across
+vendoring epochs; it is diagnostic provenance, not a replacement for the fresh
+generation's write fence. Repository example previews may also expose their safe
+checkout provenance in a banner badge and copied diagnostic bundle. Ordinary pages
+do not.
 
 Startup order is load-bearing:
 
@@ -702,7 +706,7 @@ The extension keys describe general behavior:
 | `x-decision` | the complete reading and arrival region around one nested decision source |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a decision |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
-| `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
+| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target Button |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -1034,9 +1038,9 @@ element outlines, and the open composer's pending mark. It clears and paints
 through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
-The anchor runtime exposes only the questions those features ask — `isMarked`,
-`placedAt`, and a snapshot from `pendingMarkParts` — so the pass-owned maps and
-arrays cannot acquire a second writer through the entrypoint.
+The anchor runtime exposes only the questions other features ask — `isMarked` and
+`placedAt` — so the pass-owned maps and arrays cannot acquire a second writer through
+the entrypoint.
 
 The same pass answers a second question and records it apart. `placed` is where
 each thread's passage lands in this version; `marked` is what was drawn for it.
@@ -1127,22 +1131,33 @@ has no hover. Export keeps the glyph with its press taken off and writes the was
 into the words as a `<mark>` (BAKE), the highlight registry being script state
 no file can hold.
 
-The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the `.lf-fab`
-comment glyph followed by one reaction ellipsis.
-For a page target, the ellipsis unfolds Comment and the layer's token Buttons in that
-target's existing Button cluster. Those temporary Buttons borrow the cluster's room
-and dock with it when necessary; they do not claim permanent rail width or raise a
-separate palette.
-`showFab` shows and places the compact bar; `selectResponseTarget` raises it for a
-keyboard item hint. The ⌥ press has already chosen Comment, so `openTargetComposer`
-opens the composer directly on the same captured anchor. `r` opens the same choices on the selection,
-the standing item, or the latest agent message in the thread the reader is in.
+The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
+compact `.lf-fab-input` followed by one response ellipsis. Naming a target opens and
+focuses that field immediately; it grows in place and never transfers text into a
+second composer card. Enter sends and Shift-Enter inserts a newline. Tab changes the
+same bar into Comment, Suggest when the anchor is a quote, and the layer's reaction
+tokens. `.lf-response-control` keeps the field and every choice on one baseline with
+one type, border, and elevation; the bar keeps its DOM owner and accessible name while
+its contents change. Comment restores the field and Suggest restores it in
+replacement-text mode.
+
+`showFab` places the bar; `openComposer` binds its field to the durable draft and focuses
+it. `selectResponseTarget` does both for a keyboard item hint, and the ⌥ press uses
+`focusTargetComment` on the same captured anchor. Automatic passage selection opens that
+passage's own durable draft; these explicit Comment gestures carry unsent words onto the
+new anchor. Submitted words still in flight remain owned by their original anchor, while
+a later target starts clean and keeps focus. For a page
+target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
+that target's existing Button options. Those temporary Buttons borrow the cluster's room
+and dock with it when necessary; they do not claim permanent rail width. A thread-local
+`r` opens the conversation-owned row on the latest agent message.
 With none of those targets, it shows “Select something to react to” and opens
 nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
-comment box. `REACT` claims the keyboard while a list is open: arrows move among
-tokens, Enter or Space presses the focused one, digits remain optional accelerators
-in declaration order, and a stray key closes the list before keeping its ordinary
-meaning.
+comment box. `REACT` claims the keyboard while a list is open. Arrow keys wrap through
+every choice in the row, including Comment and Suggest when the target offers them;
+Tab and Shift-Tab follow that same order.
+Enter or Space presses the focused choice, digits remain optional reaction accelerators
+in declaration order, and a stray key closes the list before keeping its ordinary meaning.
 
 `conversation/model.js` reads the log by `isReaction`, `spoken`, `turns`, and
 `bareReaction`, the names `events.py` reads it by, and answers `reactionsOn` and
@@ -1344,6 +1359,16 @@ disclosure Button. `…` appears only when the cluster has secondary controls,
 information beside a direct action, or temporary communication choices. A target
 with one unambiguous control therefore gets one Button, not a row of variants.
 
+An unsettled reader action reuses that same Button rather than growing a status row
+inside authored content. Its information face advances from **Sent** or **Waiting for
+pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
+action's standing outcome supplies the same retained target cluster throughout. A
+thread's existing Thread Button remains the page-edge route to the exact receipt in
+the full conversation; an **Active** claim joins that cluster under `…`. A standalone
+page-widget claim gets an **Active** Button directly. When no page edge exists—inside
+the full thread panel or a widget frozen into conversation chrome—the compact
+`.lf-receipt` remains the local fallback.
+
 Content modules contribute through `registerMarginItem`; they own their verbs and
 events, never placement or control styling. Every press in a contribution is built
 with `marginAction(control, {glyph, label, behavior, tone, collapse})`. That is the
@@ -1423,12 +1448,13 @@ read `shownParts` and `shownBox`, not the target's raw client rect: a project ma
 set `display: contents` while its rendered descendants remain usable, and a
 collapsed target has no rendered part to offer.
 
-The reaction key unfolds this same cluster's secondary Button group for a page
-selection or item. Comment and the declared reaction Buttons appear there as peer
-choices; they do not widen the rail or open a separate palette below the target.
-Conversation reactions remain in their conversation-owned strip. The event still carries its durable authored
-anchor, while the temporary item resolves selected text to the first rendered block,
-matching the target where replay later seats its standing reaction.
+The `r` key unfolds this same cluster's secondary Button group for a page selection or
+item. Comment, Suggest where available, and the declared reaction Buttons appear there
+as peer choices; they do not widen the rail or open a separate palette below the target.
+The compact response bar's Tab state stays in that bar. Conversation reactions remain in
+their conversation-owned strip. The event still carries its durable authored anchor,
+while the temporary item resolves selected text to the first rendered block, matching
+the target where replay later seats its standing reaction.
 
 ### Presentation and state motion
 
@@ -1687,9 +1713,12 @@ so its ordinary Escape rung remains the route back.
 `s` names the visible items and declared visual parts that Alt-click can aim at. Both
 routes read `aimTargetAt`, and the target kind changes only the anchor: a whole item
 names its authored id, while a visual part adds its declared token. Their next surface
-follows the gesture's stated intent. `s` selects the target and raises its Comment and
-reaction bar; Alt-click promises Comment and opens the composer directly. The same
-anchor resolves either surface against the target's geometry.
+follows the gesture's stated intent. Both `s` and Alt-click select the target, open the
+compact Comment field, and focus its cursor in the same transaction. Tab exchanges that
+field for choices in the same bar and focuses Comment first. Tab, Shift-Tab, and the
+arrow keys then wrap through every choice. Comment and Escape restore the field; Escape
+from the field hides the draft. The same anchor resolves both states against the
+target's geometry.
 
 The short, viewport-local hints form a prefix-free tree over one alphabet. Most targets
 cost one letter; only the tail branches when the viewport holds more targets than the
@@ -2376,16 +2405,18 @@ help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
 
-`.lf-work-line` is transient runtime chrome that may also stand inside a page
-widget. `paintWorkLines` is its one writer. A thread subject paints in the panel
-and every inline conversation seat; a page-widget subject paints only in the
-content or conversation seat its active `x-work` declaration names. A content
-seat is block prose, but block prose alone grants no seat. The line wears `lf-ui`
-and `data-lf-gen`:
-it is an account of the widget, not authored words of the widget, so selection
-and diff readings skip it. Reconcile widget state first and paint work afterward,
+`.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.
+`paintAcknowledgments` is its one writer. An unsettled reader message paints after
+that exact message in the full thread panel, and an event-backed widget frozen into
+conversation chrome paints beneath its owner. Inline page conversations and page
+widgets use their target's existing margin cluster instead; an explicit page-widget
+claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` and
+`data-lf-gen`: it is an account of the conversation, not authored words, so selection
+and diff readings skip it. Reconcile widget state first and paint receipts afterward,
 because a module may rebuild the subtree that seats it. Keep surviving nodes
-across state applications so an unchanged claim is not re-announced.
+across state applications so an unchanged phase is not re-announced. Its live
+state span changes only with semantic phase or detail; the separate age clock
+may repaint on a heartbeat without entering the live region.
 
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still
@@ -2398,7 +2429,7 @@ Tests pin the thread's box rather than a particular scroll offset.
 card under the pointer while the pointer is in the list, then the card containing
 focus, then the topmost visible card. It records later visible cards before the
 mutation and refreshes their baselines after each correction, so a live successor can
-take over if the first leaves or becomes hidden. The held `paintWorkLines` call covers
+take over if the first leaves or becomes hidden. The held `paintAcknowledgments` call covers
 claim-only mutations too. The list follows changes in the card's content position,
 keeping reflow out from under the pointer without fighting an intentional scroll.
 Browser scroll anchoring is disabled only for the life of a hold so those two
@@ -2497,16 +2528,19 @@ reveal authored disclosures and tabs. `paintAnchors` marks a link detached when
 this version no longer has the id and refuses its press. A thread outlives its
 version, but a fragment target may not.
 
-`wireInput` gives runtime textareas the same input contract: persist each edit,
-send with `Mod+Enter`, keep the send button and placeholder current, and prevent
-parallel sends of one local surface. The stylesheet owns textarea growth through
-`field-sizing: content`. Script does not measure or set textarea height.
+`wireInput` gives runtime textareas one configurable input contract: persist each edit,
+keep the send button and placeholder current, and prevent parallel sends of one local
+surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer passes
+`Enter`, leaving Shift-Enter to the textarea's native newline. The stylesheet owns
+textarea growth through `field-sizing: content`. Script does not measure or set textarea
+height.
 
-The selection composer keeps its passage painted after focus moves into the
-textarea. It quotes the passage in the box only when the current version can no
-longer paint it. `showComposer` states the whole visible and focus outcome from
-`composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks and Escape hide
-without discarding words; Cancel explicitly discards.
+The selection composer keeps its passage painted after focus moves into the textarea.
+Its `.lf-composer` wrapper contributes state and draft machinery through
+`display: contents`; only `.lf-fab-input` draws. `showComposer` states the whole visible
+and focus outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks
+and Escape hide without discarding words. A successful send or an explicit draft close
+discards the local record.
 
 An accepted anchored comment opens its inline thread. When the reserved margin is too
 narrow, that thread may cover the page in its bounded card; it does not substitute the

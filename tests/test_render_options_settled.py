@@ -115,11 +115,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     box = title.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    assert page.evaluate("() => getSelection().toString()").strip() == (
-        "Settled: Lax cookie"
-    )
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
     expect(page.locator("#opt-strict")).to_be_hidden()
-    page.locator(".lf-fab").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
     page.keyboard.press("Escape")
@@ -138,10 +136,10 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     box = lede.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("which copy is this on?")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     assert sorted(
         page.evaluate(

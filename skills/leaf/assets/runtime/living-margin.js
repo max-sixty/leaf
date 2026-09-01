@@ -348,20 +348,33 @@ export function createLivingMargin(dependencies) {
     ...standingAfterOffers(entry),
   ];
   const directControls = (entry) => directOffers(entry).flatMap(controlsOf);
-  const controlShownByOwner = (control) => {
+  const controlsShownByOwner = (controls) => {
     // The margin hides non-primary controls with `display: none`, so ask how this
-    // candidate paints while exempt from that rule. Its contributor's own `display`
-    // and `visibility` still apply — including the retired half of a settled pair.
-    const wasPrimary = control.hasAttribute("data-lf-button-primary");
-    control.setAttribute("data-lf-button-primary", "");
-    const style = getComputedStyle(control);
-    const shown =
-      !control.hidden && style.display !== "none" && style.visibility !== "hidden";
-    control.toggleAttribute("data-lf-button-primary", wasPrimary);
+    // batch paints while exempt from that rule. Write every exemption before the first
+    // style read: alternating an attribute write and getComputedStyle would recalculate
+    // the whole page once per Button. Contributor-owned `display` and `visibility`
+    // still apply — including the retired half of a settled pair.
+    const wasPrimary = controls.map((control) =>
+      control.hasAttribute("data-lf-button-primary"),
+    );
+    for (const control of controls) control.setAttribute("data-lf-button-primary", "");
+    let shown;
+    try {
+      shown = controls.filter((control) => {
+        const style = getComputedStyle(control);
+        return (
+          !control.hidden && style.display !== "none" && style.visibility !== "hidden"
+        );
+      });
+    } finally {
+      controls.forEach((control, index) =>
+        control.toggleAttribute("data-lf-button-primary", wasPrimary[index]),
+      );
+    }
     return shown;
   };
   function choosePrimary(entry) {
-    const controls = directControls(entry).filter(controlShownByOwner);
+    const controls = controlsShownByOwner(directControls(entry));
     return controls[0] ?? null;
   }
   function syncControlRoles(entry) {
@@ -412,8 +425,8 @@ export function createLivingMargin(dependencies) {
     return choice ? (readingButtons.get(readingKey(entry, choice)) ?? null) : null;
   }
   const secondaryControls = (entry, primary) =>
-    directControls(entry).filter(
-      (control) => control !== primary && controlShownByOwner(control),
+    controlsShownByOwner(directControls(entry)).filter(
+      (control) => control !== primary,
     );
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
     entry.offers.filter(

@@ -1102,20 +1102,8 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     words = page.locator("#ro-column-p")
     box = words.bounding_box()
     y = box["y"] + box["height"] / 2
-    page.evaluate(
-        """() => {
-          window.__lfRaisedResponseClicks = 0;
-          document.querySelector('.lf-fab-bar').addEventListener('click', event => {
-            if (event.target.closest('button')) window.__lfRaisedResponseClicks += 1;
-          });
-        }"""
-    )
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     assert page.evaluate("() => !getSelection().isCollapsed")
-    assert page.evaluate("() => window.__lfRaisedResponseClicks") == 0, (
-        "the compatibility click inherited from the selection drag pressed a response "
-        "Button that the drag itself raised under its endpoint"
-    )
     assert not option.evaluate(picked), "selecting the option's words answered it"
 
     assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (

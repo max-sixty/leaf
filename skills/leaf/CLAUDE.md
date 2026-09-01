@@ -2442,9 +2442,12 @@ claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` an
 `data-lf-gen`: it is an account of the conversation, not authored words, so selection
 and diff readings skip it. Reconcile widget state first and paint receipts afterward,
 because a module may rebuild the subtree that seats it. Keep surviving nodes
-across state applications so an unchanged phase is not re-announced. Its live
-state span changes only with semantic phase or detail; the separate age clock
-may repaint on a heartbeat without entering the live region.
+across state applications, and in their place, so an unchanged phase is not
+re-announced: a node taken out of the document and put back replays every
+animation it wears and re-announces its live region. A phase change is a change
+of words and of the Active ink, with no motion. Its live state span changes only
+with semantic phase or detail; the separate age clock may repaint on a heartbeat
+without entering the live region.
 
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still

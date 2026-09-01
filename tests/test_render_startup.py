@@ -59,6 +59,7 @@ from render_support import (
     select,
     sent_events,
     stamp_page,
+    ticked,
     told,
     undo,
     wait_for_revision,
@@ -2259,6 +2260,54 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page.keyboard.press("c")
     receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
     expect(receipt).to_contain_text("○ Waiting for pickup")
+    assert errors == []
+    page.close()
+
+
+def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
+    """A phase change is a change of words and paint, with no motion, and the line
+    keeps its node and its place through the heartbeats that follow it.
+
+    An event-backed line sits in the slot right after its message, which is the slot
+    every repaint asks to put it in. Inserting a node before itself is a move that
+    changes nothing, and the platform still takes the node out of the document and puts
+    it back: whatever animation it wore restarted, and its live region was re-announced,
+    once every two seconds for as long as the panel stood open. The "Picked up" line
+    flashed at that cadence for the rest of the page's life."""
+    url = serve(LONG_PAGE)
+    d = serve.page_dir
+    comment = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Did this reach anyone?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.keyboard.press("c")
+    receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
+    expect(receipt).to_contain_text("✓ Sent")
+    receipt.evaluate(
+        """node => {
+          node.dataset.identityProbe = 'kept';
+          window.__receiptMoves = 0;
+          new MutationObserver((records) => {
+            for (const record of records)
+              if ([...record.removedNodes].includes(node)) window.__receiptMoves += 1;
+          }).observe(node.parentElement, { childList: true });
+        }"""
+    )
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, [comment])
+    told(page)
+    expect(receipt).to_contain_text("✓ Picked up")
+    ticked(page)
+    ticked(page)
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+    assert page.evaluate("() => window.__receiptMoves") == 0
+    assert receipt.evaluate("node => node.getAnimations({ subtree: true }).length") == 0
     assert errors == []
     page.close()
 

@@ -1129,7 +1129,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     # And the option's own words still answer it, which is what the card is for.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.locator("#ro-column > strong").click()
+    page.locator("#ro-column-p").click()
     expect(page.locator("#ro-column > .lf-pick")).to_have_text("selected")
     round_trip(page)
     assert [

@@ -381,7 +381,7 @@ function demoBrowser() {
 // this version of the runtime happens to read — a field left out is a banner seat that
 // goes blank the day it starts reading one.
 const state = () => ({
-  layer: LAYER,
+  layer: REGISTRY.$layer,
   // The versions this page has, which here is the one being read: the site publishes a
   // single version of each example. A second would want the list handed to this file
   // rather than guessed from a path, since a reader on v1 has to be offered v2.

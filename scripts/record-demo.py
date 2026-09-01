@@ -273,16 +273,20 @@ def record(
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    page.locator(".lf-fab").click()
-    page.locator(".lf-composer textarea").fill("Can the backfill stay online?")
+    # The selection raises the response bar with its field already open and focused,
+    # so the demo types into it directly and sends with Enter. The Comment button the
+    # bar used to show is now one Tab away, and the composer around the field draws
+    # nothing of its own.
+    field = page.locator(".lf-fab-input")
+    field.fill("Can the backfill stay online?")
     page.wait_for_function(
-        """() => document.querySelector('.lf-composer').style.display === 'block'
+        """() => document.querySelector('.lf-composer').style.display === 'contents'
             && (CSS.highlights.get('lf-pending')?.size ?? 0) > 0
             && document.getElementById('lf-composer-quote').classList.contains('lf-unseen')"""
     )
     shot(2300)
 
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    field.press("Enter")
     page.wait_for_selector(".lf-margin-thread")
     shot(1500)
     page.locator(".lf-threads-toggle").click()

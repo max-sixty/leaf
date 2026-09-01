@@ -1225,8 +1225,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                             left: 0; width: 1px;
                             height: var(--lf-toc-window-size, 12%);
                             min-height: 14px; border-radius: 2px;
-                            background: var(--ink-2);
-                            transition: top .12s linear, height .12s linear; }
+                            background: var(--ink-2); }
     lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
                                       position: relative; z-index: 2; display: block;
                                       flex: var(--lf-toc-span, 1) 1 0px;
@@ -1291,7 +1290,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  lf-toc .lf-toc-window, lf-toc a { transition: none; }
+  lf-toc a { transition: none; }
   @container style(--lf-sidebar-posture: margin) {
     lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
       animation: none; pointer-events: auto;

@@ -54,7 +54,7 @@ from leaf.served_state import page as served_page
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
     publish(page_dir)
-    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]["generation"]
     before = event_model.read_events(page_dir)
 
     status, body = fetch(
@@ -102,6 +102,57 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
     assert b"known: ['node:A', 'node:B']" in body
+
+
+def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
+    """The browser resolves its own anchor against the rendered page before it posts,
+    and the page holds words this side cannot produce — a widget's label, whatever a
+    module wrote — while an earlier runtime spells the same words in whitespace this
+    side collapses away. So the door does not read a served page's anchor back off
+    the file: a re-capture there refused a quote whose only sin was a line break, and
+    every comment made on a tab's own name.
+
+    The MCP surface is the transport that does ask for the capture, because nothing
+    has resolved its selection (`capture_anchors`, held by test_interact_mcp)."""
+    publish(page_dir)
+    passage = "The cutoff lives in"
+    for name, quote in {
+        "as the file holds it": passage,
+        "wrapped where a line ended": passage.replace(" lives", "\nlives"),
+        "spaced out by a rendering": passage.replace(" ", "   "),
+    }.items():
+        sent = {
+            "kind": "comment",
+            "revision": 1,
+            "text": name,
+            "anchor": {"section": "plan", "quote": quote},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+        assert status == 200, body
+
+    kept = [
+        event["anchor"]["quote"]
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert kept == [
+        passage,
+        passage.replace(" lives", "\nlives"),
+        passage.replace(" ", "   "),
+    ], "the door rewrote an anchor the browser had already settled"
+
+    # The refusal a re-capture here would bring back: a quote only the rendering holds.
+    # The file reading places a widget's body in its source and turns it down outright
+    # (test_interact_mcp holds that refusal on the MCP path), while the spellings above
+    # all collapse to text the file does hold, so none of them reaches it.
+    source_quote = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "a passage only the rendering holds",
+        "anchor": {"section": "flow", "quote": "graph LR A --> B"},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(source_quote).encode())
+    assert status == 200, body
 
 
 def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
@@ -902,7 +953,7 @@ def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):
 def test_an_event_with_an_unknown_view_revision_is_not_appended(server, page_dir):
     publish(page_dir)
     before = event_model.read_events(page_dir)
-    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]["generation"]
     address = urllib.parse.urlsplit(server)
     connection = http.client.HTTPConnection(address.hostname, address.port)
     event = {
@@ -1031,12 +1082,12 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
 
     own_state_read = threading.Event()
     scanned = threading.Event()
-    original = http_model.Handler._page_state
+    original = served_page.full_state
 
-    def own_state(handler, events, source_error=None, view_revision=None):
+    def own_state(*args, **kwargs):
         assert leases_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
-        return original(handler, events, source_error, view_revision)
+        return original(*args, **kwargs)
 
     def neighbours(directory):
         assert directory == page_dir
@@ -1044,7 +1095,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         scanned.set()
         return []
 
-    monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
+    monkeypatch.setattr(served_page, "full_state", own_state)
     monkeypatch.setattr(presence_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
@@ -2594,7 +2645,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
     try:
         door.putrequest("POST", f"/api/event?t={TOKEN}")
-        door.putheader("Leaf-Layer", json.loads(served)["layer"])
+        door.putheader("Leaf-Layer", json.loads(served)["layer"]["generation"])
         door.putheader("Content-Length", "999999999999999999")
         door.putheader("Content-Type", "application/json")
         door.endheaders()
@@ -2649,6 +2700,46 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
+
+
+def test_server_start_names_the_page_layer_and_running_payload(page_dir):
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        identity = registry_storage.layer_metadata(page_dir)
+        assert f"page: {page_dir}" in started.output
+        assert f"layer: {identity['fingerprint']}" in started.output
+        assert f"leaf: {schema_model.PLUGIN_ROOT}" in started.output
+
+        state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
+        assert state.exit_code == 0, state.output
+        server = json.loads(state.output)["server"]
+        assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
+        assert server["url"] in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 41234,
+            "enabled": False,
+            "lifetime": "standing",
+        },
+    )
+
+    note = hosting_model.startup_note(page_dir)
+
+    assert "leaf: unknown payload (unknown source)" in note
+    assert str(schema_model.PLUGIN_ROOT) not in note
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(

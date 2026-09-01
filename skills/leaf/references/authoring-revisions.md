@@ -46,10 +46,13 @@ not carry a gesture withdrawn by an `undo` event.
 
 ## Keep the current page current
 
-Each active revision presents what is live now. Move a concluded section intact to a
-`Settled` section at the foot, inside a `<details>` whose summary names the
-question and what closed it. Preserve its ids and words. Mark a concluded
-`lf-options` group `settled` when it retires inside a section that remains live.
+Each active revision presents what is live now. Remove a concluded run or
+superseded section instead of adding the next one beside it. Keep older material
+only when the current work still needs its context; move only the needed
+passages to a `Past work` section at the foot, inside a collapsed `<details>`
+whose summary names what it contains. Preserve the ids and words of passages
+that survive. Mark a concluded `lf-options` group `settled` when it retires
+inside a section that remains live.
 
 Relocation is not revision: moving unchanged content needs neither a suggestion
 nor `restated`. Keep a decision live while it is being applied, and settle it

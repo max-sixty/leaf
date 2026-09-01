@@ -26,7 +26,7 @@ from .projection import (
     retirement_outcomes,
 )
 from .registry.reactions import described
-from .registry.storage import require_registry
+from .registry.storage import layer_metadata, require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
 from .revisioning import activate_source
 from .schema import DATA_FILE
@@ -113,6 +113,7 @@ def _base_state(
 ) -> dict:
     return {
         "page": str(page_dir),
+        "layer": layer_metadata(page_dir),
         "title": "",
         "active": active,
         "versions": versions,

@@ -1,5 +1,35 @@
 import { marginAction, registerMarginItem } from "./living-margin.js";
 
+// The anchored response bar has one control grammar of its own. Its buttons share the
+// field's type, border, height, and floating elevation without claiming to be target-
+// margin actions. The repeated anatomy lets Comment, Suggest, and package reactions
+// change vocabulary without each inventing a button shape.
+export function responseAction(
+  control,
+  { glyph, label, behavior = "action", collapse = false },
+) {
+  control.classList.add("lf-response-control", "lf-response-action");
+  control.dataset.lfBehavior = behavior;
+  control.toggleAttribute("data-lf-collapse", collapse);
+  if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
+    control.setAttribute("aria-expanded", "false");
+  if (behavior === "action") control.removeAttribute("aria-expanded");
+  const glyphNode = document.createElement("span");
+  glyphNode.className = "lf-response-action-glyph";
+  glyphNode.setAttribute("aria-hidden", "true");
+  glyphNode.textContent = glyph;
+  const spaceNode = document.createElement("span");
+  spaceNode.className = "lf-response-action-space";
+  spaceNode.setAttribute("aria-hidden", "true");
+  spaceNode.textContent = " ";
+  const labelNode = document.createElement("span");
+  labelNode.className = "lf-response-action-label";
+  labelNode.textContent = label;
+  control.replaceChildren(glyphNode, spaceNode, labelNode);
+  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  return control;
+}
+
 // Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
 // carrying the event a second press takes back. The reaction rides the pill rather than
 // a map beside it, so a reconcile that keeps the node keeps the fact with it.
@@ -29,6 +59,8 @@ export function createReactions({
   fabReturnTo,
   fabBar,
   focused,
+  hideComposer,
+  foldButtonOptions,
   itemWord,
   offer,
   openButtonOptions,
@@ -40,7 +72,9 @@ export function createReactions({
   showToast,
   standingConversation,
   standingItem,
+  suggestHere,
   undoable,
+  unfoldedButtons,
   visualPartLabel,
   withdraw,
 }) {
@@ -55,21 +89,26 @@ export function createReactions({
   // while the token stands on its target, so a closed surface keeps the reader's marks
   // without offering the whole vocabulary. Digits remain keyboard accelerators without
   // changing the shape of every pill.
-  function reactPill(name, entry, pressed, { margin = false } = {}) {
-    const pill = offer("button", `${margin ? "" : "lf-pill "}lf-react`);
+  function reactPill(name, entry, pressed, { margin = false, response = false } = {}) {
+    const pill = offer("button", `${margin || response ? "" : "lf-pill "}lf-react`);
+    const meaning = `${name} — ${entry.means}`;
     pill.dataset.token = name;
-    pill.title = `${name} — ${entry.means}`;
-    pill.setAttribute("aria-label", name);
-    if (margin)
+    if (margin) {
+      pill.setAttribute("aria-label", meaning);
       marginAction(pill, {
         glyph: entry.glyph,
-        label: name,
+        label: meaning,
       });
-    else
-      pill.append(
-        el("span", "lf-react-glyph", entry.glyph),
-        el("span", "lf-react-word", name),
-      );
+    } else {
+      pill.title = meaning;
+      pill.setAttribute("aria-label", name);
+      if (response) responseAction(pill, { glyph: entry.glyph, label: name });
+      else
+        pill.append(
+          el("span", "lf-react-glyph", entry.glyph),
+          el("span", "lf-react-word", name),
+        );
+    }
     pill.onclick = () => pressed(name, pill);
     return pill;
   }
@@ -78,37 +117,56 @@ export function createReactions({
   let surfaceOrdinal = 0;
   let marginSurface = null;
   let marginOffer = null;
+  let marginSuggest = null;
   function buildReactSurface(
     surface,
     pressed,
-    { label, target, marginActions = false },
+    {
+      label,
+      target,
+      marginActions = false,
+      responseActions = false,
+      forceTrigger = false,
+      triggerLabel = null,
+    },
   ) {
-    if (!reactionTokens().length) return surface;
+    if (!reactionTokens().length && !forceTrigger) return surface;
     surface.classList.add("lf-react-surface");
-    const buttonTrigger = surface === fabBar;
-    const trigger = offer("button", "lf-pill lf-react-trigger", "…");
-    if (buttonTrigger)
-      marginAction(trigger, {
+    const floatingResponses = surface === fabBar;
+    const trigger = offer(
+      "button",
+      floatingResponses ? "lf-react-trigger" : "lf-pill lf-react-trigger",
+      floatingResponses ? "" : "…",
+    );
+    if (floatingResponses)
+      responseAction(trigger, {
         glyph: "…",
-        label: "More options",
+        label: "Other responses",
         behavior: "options",
-        collapse: "always",
+        collapse: true,
       });
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", "Show reactions");
-    trigger.title = "Show reactions";
+    const showLabel = triggerLabel ?? "Show reactions";
+    trigger.setAttribute("aria-label", showLabel);
+    trigger.title = showLabel;
     const palette = el("span", "lf-react-palette");
     palette.id = `lf-reactions-${++surfaceOrdinal}`;
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", label);
     trigger.setAttribute("aria-controls", palette.id);
     for (const [name, entry] of reactionTokens())
-      palette.append(reactPill(name, entry, pressed, { margin: marginActions }));
+      palette.append(
+        reactPill(name, entry, pressed, {
+          margin: marginActions,
+          response: responseActions,
+        }),
+      );
     surface.append(trigger, palette);
     surfaces.set(surface, { palette, target, trigger });
     trigger.onclick = () => {
       if (surface === fabBar)
-        setReact(!(reactArmed && reactSurface === marginSurface), {
+        setReact(!(reactArmed && reactSurface === fabBar), {
+          surface: fabBar,
           focusPicker: true,
         });
       else setReact(!(reactArmed && reactSurface === surface), { surface });
@@ -117,17 +175,52 @@ export function createReactions({
   }
 
   function buildReactBar() {
+    const fabSuggest = responseAction(offer("button", "lf-fab-suggest"), {
+      glyph: "✎",
+      label: "Suggest",
+      behavior: "disclosure",
+    });
+    fabSuggest.onclick = () => {
+      if (!fabAnchorAt()?.quote || designIsOn()) return;
+      setReact(false);
+      suggestHere();
+    };
+    fabBar.append(fabSuggest);
     buildReactSurface(fabBar, reactHere, {
       label: "Reactions for this selection or item",
       target: () => anchorWord(fabAnchorAt()),
+      responseActions: true,
+      forceTrigger: true,
+      triggerLabel: "Show other responses",
     });
     marginSurface = el("div", "lf-margin-reactions");
     marginSurface.setAttribute("role", "group");
-    marginSurface.setAttribute("aria-label", "Comment or react");
+    marginSurface.setAttribute("aria-label", "Other responses");
+    marginSuggest = marginAction(offer("button", "lf-fab-suggest"), {
+      glyph: "✎",
+      label: "Suggest",
+      behavior: "disclosure",
+    });
+    marginSuggest.onclick = () => {
+      if (!fabAnchorAt()?.quote || designIsOn()) return;
+      setReact(false);
+      suggestHere();
+    };
+    const marginComment = marginAction(offer("button", "lf-fab"), {
+      glyph: "💬",
+      label: "Comment",
+      behavior: "disclosure",
+    });
+    marginComment.onclick = () => {
+      setReact(false);
+      fabBar.querySelector(":scope > .lf-fab")?.click();
+    };
+    marginSurface.append(marginComment, marginSuggest);
     buildReactSurface(marginSurface, reactHere, {
       label: "Reactions for this selection or item",
       target: () => anchorWord(fabAnchorAt()),
       marginActions: true,
+      forceTrigger: true,
     });
   }
 
@@ -145,7 +238,7 @@ export function createReactions({
     if (!anchor) return;
     if (pill.lfReaction) {
       await withdraw(pill.lfReaction);
-      seatCommentInBar(true);
+      hideComposer();
       showFab(null);
       setReact(false);
       if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
@@ -160,7 +253,7 @@ export function createReactions({
     if (designIsOn()) event.about = "layer";
     const sent = await sendReaction(event, pill, anchorWord(anchor));
     if (!sent) return;
-    seatCommentInBar(true);
+    hideComposer();
     showFab(null);
     setReact(false);
     if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
@@ -184,6 +277,10 @@ export function createReactions({
   // Threads alone. Page-wide reactions remain an explicit surface inside that panel.
   let reactArmed = false;
   let reactRaised = false;
+  // Whether this raise is what unfolded the target's cluster, and so whether putting the
+  // choices away has a fold of its own to put back. A reader who pressed `…` themselves
+  // and then `r` opened that layer before the raise found it, and it is theirs to keep.
+  let marginUnfolded = false;
   let reactFrom = null;
   let reactSurface = null;
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
@@ -193,15 +290,7 @@ export function createReactions({
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
     if (!marginSurface || !target) return false;
-    const comment = fabBar.querySelector(":scope > .lf-fab");
-    if (comment) {
-      marginAction(comment, {
-        glyph: "💬",
-        label: "Comment",
-        behavior: "disclosure",
-      });
-      marginSurface.prepend(comment);
-    }
+    marginSuggest.hidden = !anchor.quote || designIsOn();
     fabBar.dataset.lfMarginRaised = "1";
     paintReactionStanding(
       marginSurface,
@@ -218,7 +307,11 @@ export function createReactions({
       // opened and leave that larger rail behind after the choices closed.
       claim: false,
     });
-    if (openButtonOptions(target)) return true;
+    const standing = unfoldedButtons()?.lfTarget === target;
+    if (openButtonOptions(target)) {
+      marginUnfolded = !standing;
+      return true;
+    }
     marginOffer.unregister();
     marginOffer = null;
     return false;
@@ -227,21 +320,15 @@ export function createReactions({
   function lowerMarginSurface() {
     marginOffer?.unregister();
     marginOffer = null;
-    seatCommentInBar(false);
     delete fabBar.dataset.lfMarginRaised;
-  }
-
-  function seatCommentInBar(takeFocus) {
-    const comment = marginSurface?.querySelector(":scope > .lf-fab");
-    if (!comment) return;
-    fabBar.prepend(comment);
-    marginAction(comment, {
-      glyph: "💬",
-      label: "Comment",
-      behavior: "disclosure",
-      collapse: "always",
-    });
-    if (takeFocus) comment.focus({ preventScroll: true });
+    // A raise that unfolded the target's Buttons to stand these choices in puts that fold
+    // back, so cancelling leaves the cluster as the press found it rather than an empty
+    // fold the reader has to close themselves. Only that raise: this runs on every
+    // disarm, including one whose surface was a reply strip and which never raised the
+    // margin at all, and including one over a fold the reader had already opened for
+    // themselves — folding either takes away a layer the gesture never put on.
+    if (marginUnfolded) foldButtonOptions();
+    marginUnfolded = false;
   }
 
   function closeSurface(surface) {
@@ -301,19 +388,33 @@ export function createReactions({
         return;
       }
       reactArmed = true;
+      if (reactSurface === fabBar) {
+        const suggest = fabBar.querySelector(":scope > .lf-fab-suggest");
+        if (suggest) suggest.hidden = !fabAnchorAt()?.quote || designIsOn();
+      }
       reactSurface.classList.add("lf-react-open");
+      if (reactSurface === fabBar) showFab(fabAnchorAt());
       pickerFor(reactSurface).trigger.setAttribute("aria-expanded", "true");
+      const firstChoice =
+        reactSurface === fabBar
+          ? responseChoices(fabBar)[0]
+          : reactSurface === marginSurface && !marginSuggest.hidden
+            ? marginSuggest
+            : pickerFor(reactSurface).palette.querySelector(".lf-react");
       if (focusPicker || (surface && reactFrom === pickerFor(reactSurface).trigger))
-        pickerFor(reactSurface).palette.querySelector(".lf-react")?.focus({
+        firstChoice?.focus({
           preventScroll: true,
         });
       else if (reactFrom === pickerFor(fabBar)?.trigger)
-        pickerFor(reactSurface).palette.querySelector(".lf-react")?.focus({
+        firstChoice?.focus({
           preventScroll: true,
         });
-      announce(`React — ${saying(REACT.rows)}`);
+      announce(
+        `${reactSurface === fabBar || reactSurface === marginSurface ? "Other responses" : "React"} — ${saying(REACT.rows)}`,
+      );
     } else {
       const from = reactFrom;
+      const closingFabChoices = reactSurface === fabBar;
       const trigger = pickerFor(reactSurface)?.trigger;
       const active = focused();
       reactArmed = false;
@@ -323,7 +424,9 @@ export function createReactions({
       reactRaised = false;
       lowerMarginSurface();
       if (fabAnchorAt()) showFab(fabAnchorAt());
-      if (active?.closest?.(".lf-react-palette")) {
+      if (closingFabChoices && fabAnchorAt()) {
+        fabBar.querySelector(".lf-fab-input")?.focus({ preventScroll: true });
+      } else if (active?.closest?.(".lf-react-palette")) {
         const destination =
           from?.isConnected && from.checkVisibility?.()
             ? from
@@ -340,20 +443,28 @@ export function createReactions({
     if (reactArmed && reactSurface === marginSurface) setReact(false);
   });
 
-  function stepReaction(binding) {
-    const pills = [
-      ...(pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react") ?? []),
-    ];
-    if (!pills.length) return;
-    const at = pills.indexOf(focused());
-    const backward = binding === "ArrowLeft" || binding === "ArrowUp";
+  function responseChoices(surface) {
+    if (!surface) return [];
+    return [
+      ...surface.querySelectorAll(
+        ":scope > .lf-response-action, :scope > .lf-margin-action, :scope > .lf-react-palette > .lf-react",
+      ),
+    ].filter((choice) => choice.checkVisibility());
+  }
+
+  function stepResponse(binding) {
+    const choices = responseChoices(reactSurface);
+    if (!choices.length) return;
+    const at = choices.indexOf(focused());
+    const backward =
+      binding === "ArrowLeft" || binding === "ArrowUp" || binding === "Shift+Tab";
     const next =
       at < 0
         ? backward
-          ? pills.length - 1
+          ? choices.length - 1
           : 0
-        : (at + (backward ? -1 : 1) + pills.length) % pills.length;
-    pills[next].focus({ preventScroll: true });
+        : (at + (backward ? -1 : 1) + choices.length) % choices.length;
+    choices[next].focus({ preventScroll: true });
   }
 
   const reactTargetWord = () =>
@@ -362,7 +473,7 @@ export function createReactions({
       : (pickerFor(reactSurface)?.target ?? "the target");
 
   const REACT = {
-    title: "With r armed",
+    title: "With response choices open",
     at: () => reactArmed,
     claims: EVERYTHING,
     rows: [
@@ -392,25 +503,30 @@ export function createReactions({
       {
         id: "reaction.move",
         runFromReference: false,
-        keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-        does: "Move through reactions",
+        keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+        does: "Move through responses",
         line: "move",
         repeat: true,
-        run: stepReaction,
+        run: stepResponse,
       },
       {
-        id: "reaction.activate",
+        id: "response.activate",
         runFromReference: false,
         keys: PRESS,
-        does: "Use the focused reaction",
+        does: "Use the focused response",
         line: "choose",
-        when: () => Boolean(focused()?.closest?.(".lf-react-palette .lf-react")),
+        when: () =>
+          Boolean(
+            focused()?.matches?.(".lf-react-palette .lf-react") ||
+            focused()?.matches?.(".lf-margin-reactions > .lf-margin-action") ||
+            focused()?.matches?.(".lf-fab-bar > .lf-response-action"),
+          ),
         run: () => focused()?.click(),
       },
       {
         id: "reaction.cancel",
         keys: ["Escape"],
-        does: "Put the reaction down",
+        does: "Close response choices",
         line: "cancel",
         run: () => setReact(false),
       },

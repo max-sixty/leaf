@@ -39,6 +39,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from example_data import data_operations
@@ -236,6 +237,23 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
     seed_log(source, page)
 
 
+def mark_preview(source: Path, page: Path, runtime: Path) -> None:
+    """Identify the live runtime without exposing its absolute path to the browser."""
+    layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
+    producer = layer.get("producer", {})
+    metadata = {
+        "kind": "example",
+        "example": source.stem,
+        "checkout": runtime.name,
+        "started": datetime.now(timezone.utc).isoformat(),
+        **({"commit": producer["commit"]} if "commit" in producer else {}),
+        **({"dirty": producer["dirty"]} if "dirty" in producer else {}),
+    }
+    (page / "preview.json").write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> None:
     parser, args = arguments()
     runtime, launcher = checkout(parser, args.runtime)
@@ -259,6 +277,7 @@ def main() -> None:
         leaf(launcher, runtime, "server", "stop", str(page), check=False)
         shutil.rmtree(page)
     prepare(source, page, launcher, runtime)
+    mark_preview(source, page, runtime)
     command = "start" if args.background else "run"
     leaf(launcher, runtime, "server", command, str(page))
 

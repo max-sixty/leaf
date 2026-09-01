@@ -83,6 +83,7 @@ from render_support import (
     told,
     trial_family,
     undo,
+    unfolded_button,
     wait_for_revision,
 )
 
@@ -2160,13 +2161,13 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
         getSelection().addRange(r);
         document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }""")
-    page.wait_for_selector(".lf-fab", state="visible")
-    page.locator(".lf-fab").click()
+    page.wait_for_selector(".lf-fab-input", state="visible")
+    page.locator(".lf-fab-input").click()
     page.wait_for_selector(".lf-composer", state="visible")
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "Refill a feeder when its camera shows it half-empty."
     page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-conversation-body")).to_have_text(
@@ -2182,7 +2183,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
         == "Refill a feeder when its camera shows it half-empty."
     )
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
@@ -2568,7 +2569,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
         f"the attached thread's outline hangs on a box of no size: {box}"
     )
 
-    page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject").click()
+    unfolded_button(page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     assert errors == []
@@ -4059,9 +4060,9 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
           document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         }"""
     )
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Keep this branch evidence visible.")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,

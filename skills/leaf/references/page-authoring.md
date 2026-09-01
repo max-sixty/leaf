@@ -97,13 +97,14 @@ not write today — the namespace is reserved, not the list of names in it.
 A code block, table, figure, or aside that a reader will point at as a whole also
 needs a tight id, either on itself or on its immediate semantic container.
 
-When broad context gives way to focused work, branch the live page with one
-`lf-tabs`. Keep the shared title and lede before it, and move earlier context
-intact into another `lf-tab` so its ids retain their comments and decisions. Put
-the current workstream first: ordering makes it the default for a reader with no
-saved panel or reading position. A saved panel or restored position takes
-precedence. Threads, asks, versions, and sign-off still cover the whole page, so
-none of that runtime chrome belongs inside a tab.
+Use one `lf-tabs` when several workstreams are live at once. Keep the shared
+title and lede before it, and put the current workstream first: ordering makes it
+the default for a reader with no saved panel or reading position. Remove earlier
+runs when the current work no longer depends on them. If their context is still
+needed, keep only that context in a collapsed `<details>` inside the relevant
+tab. A saved panel or restored position takes precedence. Threads, asks,
+versions, and sign-off still cover the whole page, so none of that runtime chrome
+belongs inside a tab.
 
 ## Reading cost
 

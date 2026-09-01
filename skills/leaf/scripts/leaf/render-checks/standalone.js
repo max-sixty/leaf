@@ -82,7 +82,7 @@ export function coveredWords({
 // is named here: this marks the medium, and the widgets answer for themselves.
 export function bake() {
   document.documentElement.classList.add("lf-copy");
-  // A work line is runtime chrome even where its declared seat is in the page rather
+  // A receipt is runtime chrome even where its seat is in the page rather
   // than under .lf-chrome. Remove it from the document and every open shadow root
   // before those roots are serialized below: a file has no agent behind the claim,
   // so preserving the rendered sentence would turn provisional news into a lie.
@@ -91,7 +91,7 @@ export function bake() {
     for (const element of root.querySelectorAll("*"))
       if (element.shadowRoot) roots.push(element.shadowRoot);
   for (const root of roots)
-    root.querySelectorAll(".lf-work-line").forEach((el) => el.remove());
+    root.querySelectorAll(".lf-receipt").forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule
@@ -111,7 +111,7 @@ export function bake() {
   //
   // It keeps what it still has, which is why `--rail` is not on this list and must
   // not be added to it. The rail is the width of the margin a suggestion's controls
-  // stand in, and a decided change keeps that control — the record of what was
+  // stand in, and a decided change keeps that row's receipt — the record of what was
   // decided is the whole reason the margin was reserved. Cleared, the copy reads its
   // room off the viewport, knows nothing of the row still sitting in the margin, and
   // spends the surplus on the free side: the exported board stood 35px outside the
@@ -174,10 +174,10 @@ export function bake() {
   // out or the next one's. The author's roles are untouched, being on the author's
   // elements: a board's columns stay a list of cards to a screen reader.
   //
-  // The box a press hung in goes with it. A suggestion's control row is nothing but its
-  // two controls, and left standing it still claims the rail the page reserves for it
-  // (--rail) — a margin held open for controls that are no longer there. Asked of what
-  // each removal empties rather than of an empty box, since a widget's own empty box is
+  // The box a press hung in goes with it when that is all it held. A pending suggestion's
+  // row is nothing but its two controls; a decided one also holds the visible receipt
+  // the copy must keep. Asked of what each removal empties rather than of an empty box,
+  // since a widget's own empty box is
   // a real thing: that row hangs off an anchor span which takes no space and says
   // nothing, and `anchor(top)` is measured from it.
   // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
@@ -224,8 +224,8 @@ export function bake() {
   // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
   // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
   // to take away. Matched on the bare attribute this loop removed the box outright, with
-  // whatever the copy keeps still inside it: the "✓ Accepted" a decided change speaks
-  // through went out with the row it stood in, and the rail the copy holds open for that
+  // whatever the copy keeps still inside it: the "Accepted" receipt a decided change
+  // speaks through went out with the row it stood in, and the rail the copy holds open for that
   // record had nothing left to show. What empties a box is the walk below, which is the
   // reading that was already right.
   const browserControl =
@@ -290,6 +290,15 @@ export function bake() {
   // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy
   // that kept nothing in it. Decided records and standing reaction marks remain as
   // children and therefore retain both their shared item and its rail.
+  //
+  // The fold `…` unfolds is a container of the same kind, and it stands in every item
+  // whether or not anything is folded into it. Emptied of its stand-in Buttons, it is a
+  // child the item still has, so an item holding nothing else is no longer `:empty` and
+  // kept the rail open on the strength of a shell. Take the emptied fold first, then ask
+  // the item.
+  document
+    .querySelectorAll(".lf-margin-options:empty")
+    .forEach((fold) => fold.remove());
   document.querySelectorAll(".lf-margin-item:empty").forEach((item) => item.remove());
   // What the runtime painted, as against what a widget built, goes the same way. An
   // element-anchored comment's mark is a class the kept stylesheet answers with a

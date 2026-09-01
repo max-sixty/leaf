@@ -20,6 +20,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -44,6 +45,7 @@ from render_support import (
     _publish,
     _traffic,
     compare_with,
+    composer_quote,
     data_projection_page,
     leaf_page,
     live_url,
@@ -64,6 +66,58 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
+    preview = {
+        "kind": "example",
+        "example": "postmortem",
+        "checkout": "fb77",
+        "commit": "26499ea1abcd",
+        "dirty": True,
+        "started": "2026-08-31T12:00:00+00:00",
+    }
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    try:
+        page, errors = open_page(
+            browser,
+            serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
+            context=context,
+        )
+        badge = page.locator(".lf-preview")
+        expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
+        expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
+
+        badge.click()
+        expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-toast")).to_have_text("Copied preview diagnostics")
+        expect(page.locator(".lf-toast")).to_be_visible()
+        diagnostics = page.evaluate("() => navigator.clipboard.readText()")
+        assert "example: postmortem" in diagnostics
+        assert "checkout: fb77" in diagnostics
+        assert "commit: 26499ea1abcd" in diagnostics
+        assert "dirty: true" in diagnostics
+        assert "layer generation:" in diagnostics
+        assert "layer fingerprint: sha256:" in diagnostics
+        assert "revision: 1" in diagnostics
+        assert "event sequence: 1" in diagnostics
+        assert "?t=" not in diagnostics
+        assert errors == []
+        page.close()
+
+        ordinary, ordinary_errors = open_page(
+            browser,
+            serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
+            context=context,
+        )
+        expect(ordinary.locator(".lf-preview")).to_have_count(0)
+        assert ordinary_errors == []
+        ordinary.close()
+    finally:
+        context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -1516,10 +1570,10 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         (words["x"] + 2, y),
         (words["x"] + words["width"] - 2, y),
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Still anchored?")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
 
     expect(page.locator(".lf-thread")).to_have_count(3)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
@@ -1859,7 +1913,6 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         detail="",
         *,
         agent="Claude",
-        handoff=False,
         quiet_for=0,
         turn_ended=None,
         session_pid=None,
@@ -1874,8 +1927,6 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "detail": detail,
             "ts": ts.isoformat(timespec="seconds"),
         }
-        if handoff:
-            status["handoff"] = True
         if claimed:
             record_claim(
                 d,
@@ -1974,14 +2025,6 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         "Claude isn't watching right now. 1 update waiting. It picks them up next turn."
     )
 
-    # The failure the whole mechanism exists for: `leaf wait` printed, set this
-    # status, and Claude never came back. The handoff mark is what dates it.
-    declare("working", "picking up 1 update", handoff=True, quiet_for=20 * 60)
-    expect(text).to_have_text(
-        "Claude last checked in 20m ago. 1 update waiting. Nudge it in the terminal."
-    )
-    expect(dot).to_have_class(re.compile(r"\baway\b"))
-
     # With nobody listening the same ending carries the remedy, because the reader's
     # next word has nowhere to land until a session picks the page up again.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
@@ -2068,7 +2111,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; a work line says which of the reader's
+    """The banner says what the agent is doing; a receipt says which of the reader's
     questions it is doing it about. Both are one claim written by one command
     (`leaf status … --on`), which is what makes a delegate's check-in keep the page's
     line true as well as its own thread's.
@@ -2088,8 +2131,21 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
-    work_line = page.locator(".lf-work-line")
-    expect(work_line).to_have_count(0)
+    receipts = page.locator(".lf-receipt")
+    held_receipt = page.locator(f'.lf-thread[data-id="{held}"] .lf-receipt')
+    other_receipt = page.locator(f'.lf-thread[data-id="{other}"] .lf-receipt')
+    expect(receipts).to_have_count(2)
+    expect(held_receipt).to_contain_text("✓ Sent")
+    held_receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+
+    # Durable transport acceptance advances the exact same row in place. It does
+    # not claim that work has started and does not disturb another reader move.
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, [comments[0]])
+    told(page)
+    expect(held_receipt).to_contain_text("✓ Picked up")
+    expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
+    expect(other_receipt).to_contain_text("✓ Sent")
 
     def status(*args):
         assert (
@@ -2100,26 +2156,26 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     status("working", "reading the reconnect traces", "--on", held)
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
-    expect(work_line).to_have_count(1)
-    expect(work_line).to_have_text(
-        re.compile(r"^Claude is on this — reading the reconnect traces\s*just now$")
+    expect(receipts).to_have_count(2)
+    expect(held_receipt).to_have_text(
+        re.compile(r"^● Active — reading the reconnect traces\s*just now$")
     )
-    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-work-line')).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{other}"] .lf-work-line')).to_have_count(
-        0
-    )
+    expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
+    expect(held_receipt).to_have_count(1)
+    expect(other_receipt).to_have_count(1)
+    expect(other_receipt).to_contain_text("✓ Sent")
     # Under the words that asked and above the box that answers, so it reads in the
     # thread's own order: what you said, what has been said back, what is being done.
     assert page.evaluate(
         f"""() => {{
         const thread = document.querySelector('.lf-thread[data-id="{held}"]');
         const kids = [...thread.children];
-        return kids.findIndex((el) => el.matches('.lf-work-line'))
+        return kids.findIndex((el) => el.matches('.lf-receipt'))
                 > kids.findLastIndex((el) => el.matches('.lf-msg.user'))
-            && kids.findIndex((el) => el.matches('.lf-work-line'))
+            && kids.findIndex((el) => el.matches('.lf-receipt'))
                 < kids.findIndex((el) => el.matches('.lf-compose'));
     }}"""
-    ), "the work line is not between the thread's last message and its reply box"
+    ), "the receipt is not between the thread's last message and its reply box"
 
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.
@@ -2127,8 +2183,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
-    expect(work_line).to_have_count(1)
-    expect(work_line).to_contain_text("reading the reconnect traces")
+    expect(held_receipt).to_have_count(1)
+    expect(held_receipt).to_contain_text("reading the reconnect traces")
 
     # The answer is what ends it.
     events_model.append_event(
@@ -2145,19 +2201,22 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.claude')).to_have_count(
         1
     )
-    expect(work_line).to_have_count(0)
+    expect(held_receipt).to_have_count(0)
+    expect(receipts).to_have_count(1)
 
     # And a claim the agent renews after answering stands again: its line is on the thread
     # a second time, which is a fact about now rather than about what was said.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    expect(work_line).to_have_count(1)
+    expect(held_receipt).to_have_count(1)
+    expect(receipts).to_have_count(2)
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    expect(work_line).to_have_count(0)
+    expect(held_receipt).to_have_count(0)
+    expect(receipts).to_have_count(1)
 
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
@@ -2166,13 +2225,40 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
-    expect(work_line).to_have_count(1)
+    expect(held_receipt).to_have_count(1)
+    expect(receipts).to_have_count(2)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(work_line).to_have_count(0)
+    expect(held_receipt).to_have_count(0)
+    expect(receipts).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
+    """Silence changes the wording, not the durable phase or the interaction seat."""
+    url = serve(LONG_PAGE)
+    d = serve.page_dir
+    old = (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
+        timespec="seconds"
+    )
+    comment = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Did this reach anyone?",
+            "ts": old,
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.keyboard.press("c")
+    receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
+    expect(receipt).to_contain_text("○ Waiting for pickup")
     assert errors == []
     page.close()
 
@@ -2197,7 +2283,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
-    work_line = page.locator(".lf-work-line")
+    work_line = page.locator(".lf-receipt")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
@@ -2400,10 +2486,10 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
 
     api = page.locator('[data-lf-datum="api"]')
     api.click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Which readiness check is this?")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
 
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -2576,17 +2662,10 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
     assert bounds is not None
     select(page, (bounds["left"] + 1, bounds["y"]), (bounds["right"] - 1, bounds["y"]))
-    selected = page.evaluate(
-        """() => ({
-          text: getSelection().toString(),
-          anchor: getSelection().anchorNode?.parentElement?.outerHTML,
-        })"""
-    )
-    assert selected["text"], selected
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert composer_quote(page)["text"].strip("“”") == "Original instructions."
     page.locator(".lf-composer textarea").fill("Keep this exact source.")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
     assert comment["anchor"]["section"] == "skill-source"

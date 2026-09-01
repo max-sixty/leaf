@@ -232,27 +232,26 @@ export function chromeStyle({
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
-  /* The pluggable RHS action. Contributors choose glyph, label, tone, and collapse
-     policy through marginAction(); this declaration owns every visual and interactive
-     constant that makes unlike verbs read as one family. Width may follow the word,
-     but height, capsule, type, state, and focus never follow the contributor. */
+  /* The pluggable RHS action. Contributors choose glyph, label, tone, and behavior
+     through marginAction(); this declaration owns every visual and interactive
+     constant that makes unlike verbs read as one family. */
   .lf-margin-action {
-    box-sizing: border-box; min-width: 30px; min-height: 30px; padding: 2px 9px;
-    border: 1px solid var(--border-2); border-radius: 999px;
-    background: var(--card); color: var(--ink-2);
+    position: relative; box-sizing: border-box; width: 32px; min-width: 32px;
+    height: 32px; min-height: 32px; padding: 0;
+    border: 1px solid var(--border-2); border-radius: 50%;
+    background: var(--paper); color: var(--ink-2); flex: 0 0 auto;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-action[hidden] { display: none; }
-  /* A Button carries one of three promises. An action has a filled face and an
-     imperative word. A disclosure stays hollow. The ellipsis is the same hollow face
-     and unfolds secondary Buttons in the target cluster. All three keep one height,
-     radius, type, and focus treatment. */
+  /* A Button carries one of three promises. An action's uniformly heavier ring says
+     this press acts now. A disclosure opens context, and the ellipsis unfolds peer
+     Buttons in the target cluster. All three keep one circular fitting. */
   .lf-margin-action[data-lf-behavior="action"] {
-    border-color: color-mix(in srgb, var(--ink-2) 38%, var(--border-2));
-    background: var(--chip); color: var(--ink);
-    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+    border-width: 2px;
+    border-color: color-mix(in srgb, var(--ink-2) 55%, var(--border-2));
+    color: var(--ink);
   }
   .lf-margin-action[data-lf-behavior="disclosure"],
   .lf-margin-action[data-lf-behavior="options"] {
@@ -268,9 +267,8 @@ export function chromeStyle({
      The lift under the pointer is the same promise in the other property, and the tones
      below are that lift wearing a colour, so all of them are spelled the same way. The
      hand is the only half a gate can see — the copy's offering reading takes the cursor and
-     nothing else — and aria-disabled is no guard in a file either: BAKE strips it with
-     the rest of the aria state, so a decided suggestion's record, which survives on
-     data-lf-said, would light its accept tint under a pointer that can decide nothing. */
+     nothing else. A decided suggestion puts its durable word in a sibling receipt;
+     BAKE strips the inert Button and leaves that page text behind. */
   .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
   .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);
@@ -295,7 +293,23 @@ export function chromeStyle({
     border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
   }
   .lf-margin-action-glyph { line-height: 1; }
-  .lf-margin-action-space { white-space: pre; }
+  .lf-margin-action > .lf-margin-action-space { display: none; }
+  .lf-margin-action > .lf-margin-action-label {
+    position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
+    inset-inline-start: 50%; display: block; width: max-content; max-width: 180px;
+    padding: 4px 7px; border-radius: 4px;
+    background: var(--ink); color: var(--paper);
+    font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translate(-50%, -2px);
+    transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
+  }
+  .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])
+    > .lf-margin-action-label {
+    opacity: 1; visibility: visible; transform: translate(-50%, 0);
+    transition-delay: 90ms;
+  }
   .lf-margin-item > .lf-margin-contribution >
     .lf-margin-action:not([data-lf-button-primary]),
   .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
@@ -303,10 +317,6 @@ export function chromeStyle({
   }
   .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not(:has(> [data-lf-button-primary])) {
     display: none;
-  }
-  .lf-margin-item.lf-condensed > .lf-margin-contribution { min-width: 0 !important; }
-  .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
-    width: 30px; min-width: 30px !important; padding-inline: 0;
   }
   /* A gesture the log has not answered yet, in the platform's own word for it, which
      is why no tag is named here: any widget that says aria-busy is painted, and
@@ -347,7 +357,9 @@ export function chromeStyle({
      inside @scope. An address is an available key, so KEY_BOX's neutral face is also
      its complete colour statement; completed steps take the pressed face below. */
   .lf-address { ${KEY_BOX} display: none; z-index: 1; }
-  /* The leaf text box, in one rule. field-sizing does the growing, so no script
+  /* The general leaf text box, in one rule. The compact response field is excluded
+     because it shares its complete control geometry with the response buttons below.
+     field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
      box that overflows, however briefly, flashes a scrollbar. Past max-height the
@@ -355,8 +367,14 @@ export function chromeStyle({
      of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
      Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
      class itself. */
-  .lf-ui textarea, textarea.lf-ui { padding: 8px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); color: inherit; resize: none; field-sizing: content; max-height: 50vh; overflow-y: auto; }
-  .lf-ui textarea:is(:focus, .lf-focus), textarea.lf-ui:is(:focus, .lf-focus) { outline: none; border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .lf-ui textarea:where(:not(.lf-fab-input)),
+  textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid var(--border-2);
+    border-radius: 6px; background: var(--card); color: inherit; resize: none;
+    field-sizing: content; max-height: 50vh; overflow-y: auto; }
+  .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
+  textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: none;
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 ${MARK_RULES}
   body.lf-over-mark { cursor: pointer; }
   /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
@@ -593,9 +611,9 @@ ${MARK_RULES}
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
     /* Page paint belongs under a covering workspace. Paint whose target is inside the
-       chrome belongs above that workspace, including when the same aim or composer moves
+       chrome belongs above that workspace, including when the same aim or response bar moves
        between the two. The target owner states the plane; document order keeps aim,
-       composer, and inspect in their ordinary order within it. */
+       response bar, and inspect in their ordinary order within it. */
     :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
     .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
@@ -638,6 +656,13 @@ ${MARK_RULES}
     .lf-dot.listening { background: var(--ok); }
     .lf-dot.away { background: var(--warn); }
     .lf-dot.offline { background: var(--danger); }
+    .lf-preview { flex: none; max-width: min(36vw, 240px); padding: 2px 7px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      border: 1px solid var(--border-2); border-radius: 999px;
+      background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6);
+      cursor: pointer; }
+    .lf-preview:hover { border-color: var(--accent); color: var(--ink); }
+    .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .lf-status-text .lf-age { color: var(--muted); }
     /* All leaves spends the shelf's slack; the remaining controls stay packed against
@@ -1069,10 +1094,42 @@ ${MARK_RULES}
     .lf-fab-bar { position: absolute; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
-    /* The comment glyph and ellipsis are the bar's two stable presses. Both carry the
-       shadow the floating surface earns. The ellipsis gives its place to the reaction
-       buttons without moving Comment. */
-    .lf-fab-bar > .lf-pill { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    /* The field and the choices are two states of one anchored response control. This
+       primitive owns their height, vertical padding, type, border, and elevation; Tab
+       changes only the contents of the bar. */
+    .lf-response-control { --lf-response-height: 32px;
+      box-sizing: border-box; min-height: var(--lf-response-height);
+      border: 1px solid var(--border-2); border-radius: 999px; background: var(--card);
+      color: var(--ink-2); font: 400 var(--t-6)/1.4 var(--sans);
+      padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
+      box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+      outline: none;
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
+        0 2px 6px rgba(0,0,0,.14); }
+    textarea.lf-fab-input { width: 216px; min-width: 0;
+      max-height: min(132px, 30vh); border-radius: 999px;
+      padding-inline: 12px;
+      resize: none;
+      field-sizing: content; overflow-y: auto; }
+    textarea.lf-fab-input::placeholder { color: var(--muted); opacity: 1; }
+    .lf-response-action { min-width: 30px; padding-inline: 9px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0;
+      white-space: nowrap; cursor: pointer; }
+    .lf-response-action[hidden] { display: none; }
+    .lf-response-action:hover {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+      background: var(--card); }
+    .lf-response-action-glyph { line-height: 1; }
+    .lf-response-action-space { white-space: pre; }
+    .lf-response-action[data-lf-collapse] > :is(.lf-response-action-space,
+      .lf-response-action-label) { display: none; }
+    .lf-fab-bar:not(.lf-react-open) > :is(.lf-fab, .lf-fab-suggest,
+      .lf-react-palette) { display: none !important; }
+    .lf-fab-bar.lf-react-open { max-width: calc(100vw - 16px); flex-wrap: wrap; }
+    .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
+    .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
     /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;
        a standing token remains visible in a closed message or page strip as the reader's
        receipt and eraser. */
@@ -1093,6 +1150,7 @@ ${MARK_RULES}
     .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
       justify-content: center; }
     .lf-react > .lf-react-word { display: none; }
+    .lf-fab-bar.lf-react-open .lf-react-word { display: inline; }
     .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
     .lf-react[aria-pressed="true"] { border-color: var(--mark-ink); color: var(--mark-ink);
       background: var(--mark); }
@@ -1112,6 +1170,8 @@ ${MARK_RULES}
     .lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
     .lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
       border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
+    .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
+      background: var(--card); }
     .lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
     /* A thread whose root is a mark: the glyph and its word where the comment's words
        would stand, in the chrome's face. */
@@ -1138,20 +1198,13 @@ ${MARK_RULES}
     .lf-aim { position: absolute; display: none; pointer-events: none;
       border: 2px solid var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); }
-    .lf-composer { position: absolute; display: none; width: 320px; background: var(--card);
-      border: 1px solid var(--border-2); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 10px; }
-    /* A stranded quote is the whole passage, and the box is 320px wide. Only while showing:
-       on the hidden one this would out-specify .lf-unseen's own overflow. */
-    .lf-composer .lf-quote:not(.lf-unseen) { max-height: 4.2em; overflow-y: auto; }
-    .lf-suggest-row { display: none; align-items: center; gap: 6px; margin: 0 0 6px; color: var(--muted); font-size: var(--t-6); cursor: pointer; }
-    .lf-suggest-row input { margin: 0; accent-color: var(--accent); }
+    .lf-composer { display: none; }
+    .lf-fab-bar .lf-composer > :not(.lf-fab-input) { display: none !important; }
     .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
     /* A suggestion renders verbatim — its characters are what the next version
        carries (see msgNode) — so this is where they keep their own line breaks. */
     .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
       border-radius: 6px; white-space: pre-wrap; }
-    .lf-composer textarea { width: 100%; min-height: 56px; }
-    .lf-composer-row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
     .lf-toast { position: fixed; bottom: calc(18px + var(--lf-safe-bottom));
       right: calc(18px + var(--lf-safe-right)); z-index: 9200;
       max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
@@ -1233,8 +1286,14 @@ ${MARK_RULES}
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+    /* Inset, because a row here fills the list to its own edge and the list is a
+       scroller: there is nothing outside the row for a ring to be drawn in, and an
+       outset one is cut on both sides by the box it scrolls in. The layer's rule for
+       a box whose edge touches something that paints (CLAUDE.md, "Standing somewhere").
+       The ring's width is the inset, so the band lands just inside the row's own edge. */
     .lf-page-map-action:focus-visible {
-      outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
+      outline: var(--here-ring); --lf-here-ring: page-map-action;
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
@@ -1431,13 +1490,12 @@ ${MARK_RULES}
       .lf-btn, .lf-pill:is(button, [role="button"]), .lf-margin-action {
         min-height: 44px;
       }
+      .lf-margin-action { width: 44px; min-width: 44px; height: 44px; }
+      .lf-response-control { --lf-response-height: 44px; }
       .lf-banner-actions > .lf-btn { min-height: 44px; }
       .lf-panel-head .lf-btn { min-width: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
       .lf-react { min-width: 44px; }
-      .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
-        width: 44px; min-width: 44px !important;
-      }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
       .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
         transform: translateY(-50%); }

@@ -10,6 +10,8 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
@@ -1352,6 +1354,78 @@ def test_a_pick_states_the_whole_set(browser, serve):
     page.close()
 
 
+def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
+    browser, serve
+):
+    """A widget needs no x-work declaration to acknowledge the reader's move.
+
+    The owner's existing page-edge Button keeps its DOM identity while durable
+    transport acceptance advances Sent to Picked up and a real claim makes it Active.
+    Once authored markup records the choice, the Button returns to Outcome.
+    """
+    url = serve(DECISION_PAGE)
+    page, errors = open_page(browser, live_url(url))
+    d = serve.page_dir
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    action = next(
+        event
+        for event in reversed(sent_events(d))
+        if event.get("widget") == "jobs" and event.get("action") == "choose"
+    )
+    logged_action = next(
+        event for event in events_model.read_events(d) if event["id"] == action["id"]
+    )
+    receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("✓")
+    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
+    expect(page.locator("#jobs > .lf-receipt")).to_have_count(0)
+    receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, [logged_action])
+    session_model.cmd_ack(d, logged_action["seq"])
+    told(page)
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+
+    active = CliRunner().invoke(
+        cli_model.cli,
+        ["status", str(d), "working", "checking the mounts", "--on", "jobs"],
+    )
+    assert active.exit_code == 0, active.output
+    told(page)
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+
+    # The receipt admitted this claim without an x-work declaration. Its page-edge
+    # Target Button is still a local seat, so an unrelated revision cannot wedge the
+    # authoring loop merely because the widget has no content or conversation seat.
+    unrelated = DECISION_PAGE.replace(
+        '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
+    )
+    stamp_page(d, unrelated, "Checked the surrounding plan")
+    wait_for_revision(page, 2)
+    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+
+    honored = DECISION_PAGE.replace(
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+    )
+    stamp_page(d, honored, "Honor the mounts choice", completes=("jobs",))
+    wait_for_revision(page, 3)
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Outcome, "))
+    assert errors == []
+    page.close()
+
+
 def test_a_send_waits_for_the_send_before_it(browser, serve):
     """The log's order is the order the user acted in, and two requests in flight are
     not: the server answers each on a thread of its own, so a pick made a moment after
@@ -1465,7 +1539,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its generated line without
+    A board card declares a local work seat and receives its page-edge Button without
     inventing a comment thread. An options group deliberately has no such seat: adding
     an option changes decision state, and any discussion starts as a separate thread
     once that option exists. Unrelated versions leave the board claim standing, while
@@ -1500,32 +1574,35 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     assert unsupported.exit_code != 0
     assert "no local work seat" in unsupported.output
 
-    card_line = page.locator("#card-migration > .lf-work-line")
-    expect(card_line).to_have_text(
-        re.compile(r"^Claude is on this — checking the shard\s*just now$")
+    card_button = page.locator(
+        '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
-    expect(card_line).to_be_visible()
-    card_words, card_age = card_line.locator(
-        ":scope > span, :scope > time"
-    ).evaluate_all("els => els.map(el => el.getBoundingClientRect().bottom)")
-    assert abs(card_words - card_age) <= 1, (
-        "the age splits a wrapped card sentence instead of following its last line"
+    expect(card_button).to_have_attribute("data-lf-kinds", "activity")
+    expect(card_button.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(card_button).to_have_attribute(
+        "aria-label", re.compile("checking the shard")
     )
+    card_button.click()
+    expect(page.locator(".lf-live")).to_contain_text("checking the shard")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    expect(page.locator(".lf-panel .lf-work-line")).to_have_count(0)
-    expect(card_line).to_have_class(re.compile(r"\blf-ui\b"))
-    assert card_line.get_attribute("data-lf-gen") == "1"
+    expect(page.locator(".lf-panel .lf-receipt")).to_have_count(0)
+    expect(page.locator("#card-migration > .lf-receipt")).to_have_count(0)
+    expect(card_button).to_have_class(re.compile(r"\blf-margin-action\b"))
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")
     wait_for_revision(page, 2)
-    expect(card_line).to_have_count(1)
+    expect(card_button).to_have_count(1)
 
     # A new claim belongs to v2 and does not appear in a pinned v1 page.
     claim("card-migration", "checking the fallback")
-    expect(card_line).to_contain_text("checking the fallback")
+    expect(card_button).to_have_attribute(
+        "aria-label", re.compile("checking the fallback")
+    )
     pinned, pinned_errors = open_page(browser, url, pin=True)
-    expect(pinned.locator("#card-migration > .lf-work-line")).to_have_count(0)
+    expect(
+        pinned.locator('[data-lf-margin-for="card-migration"] > .lf-margin-marker')
+    ).to_have_count(0)
     assert pinned_errors == []
     pinned.close()
 
@@ -1536,14 +1613,14 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         completes=("card-migration",),
     )
     wait_for_revision(page, 3)
-    expect(page.locator(".lf-work-line")).to_have_count(0)
+    expect(page.locator(".lf-receipt")).to_have_count(0)
     assert errors == []
     page.close()
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
     """A customization may deliberately give a container member a content seat.
-    The runtime's generated line is still apparatus rather than that member's own
+    The runtime's generated Button is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
     option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
@@ -1568,13 +1645,13 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     assert result.exit_code == 0, result.output
     told(page)
 
-    work_line = page.locator("#job-mounts > .lf-work-line")
-    expect(work_line).to_be_visible()
-    work_line.click()
+    work_button = page.locator('[data-lf-margin-for="job-mounts"] > .lf-margin-marker')
+    expect(work_button).to_have_attribute("data-lf-kinds", "activity")
+    work_button.click()
 
     # A press that does nothing states no fact to wait on, so the control is the same
     # gesture where it is supposed to work: pick the neighbouring option and let its
-    # send settle. One outbox in gesture order means a pick the work line had taken
+    # send settle. One outbox in gesture order means a pick the receipt had taken
     # would already stand ahead of this one, so the whole log can be read once.
     page.locator("#job-heater").click()
     round_trip(page)
@@ -1612,14 +1689,14 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    work_line = page.locator("#shadow-card > .lf-work-line")
-    expect(work_line).to_have_count(1)
+    work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
+    expect(work_button).to_have_attribute("data-lf-kinds", "activity")
 
     page.evaluate(
         """() => document.getElementById('patch').shadowRoot.append(
             document.getElementById('shadow-card'))"""
     )
-    expect(work_line).to_have_count(1)
+    expect(work_button).to_have_count(1)
 
     settled = stamp_page(
         d,
@@ -1629,12 +1706,12 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     )
     assert settled["version"] == 2
     told(page)
-    expect(work_line).to_have_count(0)
+    expect(work_button).to_have_count(0)
     assert errors == []
     page.close()
 
 
-def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
+def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, serve):
     """The same declaration-backed seat may be staged into an x-shadow widget;
     crossing that supported boundary must not turn the shared local line back into an
     unstyled block."""
@@ -1659,15 +1736,16 @@ def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
     )
     assert result.exit_code == 0, result.output
     told(page)
-    work_line = page.locator("#shadow-card > .lf-work-line")
-    expect(work_line).to_have_css("display", "flex")
+    work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
+    expect(work_button).to_have_css("display", "flex")
 
     page.evaluate(
         """() => document.getElementById('patch').shadowRoot.append(
             document.getElementById('shadow-card'))"""
     )
-    expect(work_line).to_have_css("display", "flex")
-    expect(work_line).to_have_css("border-left-style", "dashed")
+    expect(work_button).to_have_css("display", "flex")
+    expect(work_button).to_have_css("border-radius", "50%")
+    expect(work_button).to_have_css("min-height", "32px")
     assert errors == []
     page.close()
 
@@ -1900,7 +1978,13 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     can fail."""
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
     assert errors == []
+    page.evaluate(
+        """() => document.addEventListener('lf-margin-layout', () => {
+          window.lfMarginLayoutWidth = innerWidth;
+        })"""
+    )
     resized(page, 380, 900)
+    page.wait_for_function("() => window.lfMarginLayoutWidth === 380")
     wide = page.evaluate(
         "() => [document.documentElement.scrollWidth,"
         " document.documentElement.clientWidth,"
@@ -2004,6 +2088,14 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
+    receipt = page.locator(
+        f'#rp-live > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+    )
+    expect(receipt).to_contain_text("✓ Sent")
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, actions)
+    told(page)
+    expect(receipt).to_contain_text("✓ Picked up")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
     page.close()
 

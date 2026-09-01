@@ -31,7 +31,7 @@ export function createProjection(runtime, dependencies) {
     pageShifted,
     paintAnchors,
     paintKeys,
-    paintWorkLines,
+    paintAcknowledgments,
     post,
     projectedParent,
     quoteFrom,
@@ -751,7 +751,7 @@ export function createProjection(runtime, dependencies) {
     const authoredOnly = runtime.lastEventSeq < 0 && eventSeq === 0;
     if (!complete && !authoredOnly) return false;
     reconcileState();
-    paintWorkLines();
+    paintAcknowledgments();
     return true;
   }
 

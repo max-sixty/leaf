@@ -1,4 +1,12 @@
-export function createBanner({ agentName, ago, dot, el, presented, statusText }) {
+export function createBanner({
+  agentName,
+  ago,
+  dot,
+  el,
+  presented,
+  statusText,
+  toast,
+}) {
   // ---------- banner ----------
   const TONE = {
     working: "working",
@@ -107,6 +115,49 @@ export function createBanner({ agentName, ago, dot, el, presented, statusText })
     statusText.title = statusText.textContent;
     paintTab();
   };
+  let previewButton = null;
+  let previewDiagnostics = "";
+  function renderPreview(state) {
+    const preview = state.preview;
+    if (!preview) return;
+    const commit = preview.commit
+      ? `@${preview.commit}${preview.dirty ? "+" : ""}`
+      : "";
+    const label = `Preview · ${preview.checkout}${commit}`;
+    const safeUrl = new URL(location.href);
+    safeUrl.searchParams.delete("t");
+    previewDiagnostics = [
+      "Leaf preview",
+      `example: ${preview.example}`,
+      `checkout: ${preview.checkout}`,
+      ...(preview.commit ? [`commit: ${preview.commit}`] : []),
+      ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
+      `started: ${preview.started}`,
+      `layer generation: ${state.layer.generation}`,
+      ...(state.layer.fingerprint
+        ? [`layer fingerprint: ${state.layer.fingerprint}`]
+        : []),
+      ...(state.active ? [`revision: ${state.active.revision}`] : []),
+      `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
+      `url: ${safeUrl}`,
+    ].join("\n");
+    if (!previewButton) {
+      previewButton = el("button", "lf-preview", label);
+      previewButton.type = "button";
+      previewButton.setAttribute("aria-label", "Copy preview diagnostics");
+      previewButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(previewDiagnostics);
+          toast("Copied preview diagnostics");
+        } catch (_error) {
+          toast("Couldn't copy preview diagnostics");
+        }
+      });
+      statusText.before(previewButton);
+    }
+    previewButton.textContent = label;
+    previewButton.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
+  }
   function renderStatus(state) {
     if (state instanceof Error) {
       showStatus("offline", "Page couldn't apply current state — reload");
@@ -119,6 +170,7 @@ export function createBanner({ agentName, ago, dot, el, presented, statusText })
       );
       return;
     }
+    renderPreview(state);
     const { status, pending } = state;
     const { kind, quiet, dropped, detail } = presented(state);
     // What the user's words do meanwhile. The log takes them with nobody on the other

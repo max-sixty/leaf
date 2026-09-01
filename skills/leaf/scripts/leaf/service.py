@@ -152,7 +152,6 @@ class PageTransaction:
         state: str,
         detail: str,
         *,
-        handoff: bool = False,
         work: dict | None = None,
     ) -> None:
         """Write the page claim and any typed local claim it renews.
@@ -164,14 +163,12 @@ class PageTransaction:
         what keeps `working` believed across a turn boundary the session itself
         cannot write across.
 
-        Standing work carries across every other status write, so a handoff's
-        "picking up 2 updates" does not silently drop what a helper is holding.
+        Standing work carries across every other status write, so a page-wide
+        status update does not silently drop what a helper is holding.
         A new claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
         status = {"state": state, "detail": detail, "ts": now_iso()}
-        if handoff:
-            status["handoff"] = True
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             identity = message_identity()

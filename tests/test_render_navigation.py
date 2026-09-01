@@ -51,6 +51,7 @@ from render_support import (
     stamp_version_file,
     standing_mark,
     told,
+    wait_for_pending_mark,
     wait_for_revision,
     wait_hovered,
     wait_standing,
@@ -413,9 +414,9 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.locator("#p").click(
         click_count=3
     )  # a real selection, spanning the inline tags
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
 
     passage = " ".join(page.locator("#p").inner_text().split())
@@ -467,7 +468,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         "a poll landing while the composer is open disturbed the passage"
     )
 
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
     assert pending_text(page) == "", "the highlight outlived its composer"
 
     # A passage with the runtime's own chrome inside it paints around the chrome, the way
@@ -482,17 +483,17 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
-    page.locator(".lf-fab").click()
-    page.wait_for_function("() => CSS.highlights.get('lf-pending')")
+    page.locator(".lf-fab-input").click()
+    wait_for_pending_mark(page)
     assert chrome not in pending_text(page), (
         f"the highlight painted the widget's own {chrome!r} control along with the passage"
     )
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     # A diagram has no text to quote, so its anchor is the element and its mark is an
     # outline. That one the anchor pass really does take down, so it has to be redrawn.
     page.locator("#fig svg").click()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.locator("#fig.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], (
         "the outline is on the figure and the composer names its section as well"
@@ -509,7 +510,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
 
     # Both classes have to go, asserted apart: leaving .lf-mark-el behind repaints the
     # figure in the posted mark's own ink, pointer cursor and all, over no thread to open.
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
     assert page.locator("#fig.lf-pending").count() == 0, (
         "the outline outlived its composer"
     )
@@ -523,15 +524,15 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     cap = page.locator("#fig figcaption").bounding_box()
     y = cap["y"] + cap["height"] / 2
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
-    page.locator(".lf-fab").click()
-    page.wait_for_function("() => CSS.highlights.get('lf-pending')")
+    page.locator(".lf-fab-input").click()
+    wait_for_pending_mark(page)
     assert "specimen" in pending_text(page), (
         "the click's visual find outranked the selection the drag made"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
         "the figure got the element outline over a live selection"
     )
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
     assert errors == []
     page.close()
 
@@ -1024,22 +1025,22 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     assert "comment" not in page.evaluate("() => getSelection().toString()"), (
         "the hidden line came along in the user's own selection"
     )
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     assert "comment" not in composer_quote(page)["text"], (
         "the hidden line came along in the quote the comment would store"
     )
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     # The gesture's own comment reaches the line once the send's round trip lands.
     box = page.locator("#p2").bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.locator(".lf-composer textarea").fill("Too short.")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
     c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
         "id"
@@ -1994,7 +1995,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(help_el.locator(".lf-help-meta")).to_have_text(
         "Available on a focused thread"
     )
-    search.fill("put the reaction down")
+    search.fill("close response choices")
     cancel_reaction = help_el.locator(
         '.lf-help-command[data-lf-command="reaction.cancel"]'
     )
@@ -2002,7 +2003,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
-    expect(help_el.locator(".lf-help-meta")).to_have_text("Available with r armed")
+    expect(help_el.locator(".lf-help-meta")).to_have_text(
+        "Available with response choices open"
+    )
 
     page.keyboard.press("Escape")
     page.keyboard.press("?")
@@ -3838,11 +3841,18 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     expect(control).to_be_focused()
     expect(page.locator("#frame-question-decision[data-lf-decision]")).to_have_count(1)
 
+    # The press has its own frame and the drag comes after it, so the line's only route
+    # to the word is the selection the drag makes: the reader is taking words out of a
+    # label, and from the first glyph Escape clears that selection rather than letting
+    # go of the control. Framed the other way round the press's frame painted the line
+    # after the drag had already run, and the word arrived whether or not anything
+    # followed the selection.
     hold_selection(
         page,
         (bounds["x"] + 2, middle[1]),
         (bounds["x"] + bounds["width"] - 2, middle[1]),
         steps=10,
+        frame_the_press=True,
     )
     assert "after state" in page.evaluate("() => getSelection().toString()")
     assert "unselect" in key_line(page)
@@ -3872,62 +3882,32 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.close()
 
 
-def test_a_label_press_keeps_the_shortcut_hint_on_the_focused_box(browser, serve):
-    """Immediate focus readers share the label transaction with the painted ones."""
+def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
+    browser, serve
+):
+    """A selected passage offers Suggest without reopening the retired composer card."""
     page, errors = open_page(browser, serve(INLINE_PAGE))
     page.locator("#p").click(click_count=3)
-    page.locator(".lf-fab").click()
-    box = page.locator(".lf-composer textarea")
-    label = page.locator(".lf-composer .lf-suggest-row")
+    box = page.locator(".lf-fab-input")
     expect(box).to_be_focused()
-    expect(label).to_be_visible()
-    expect(box).to_have_attribute("placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$"))
-    hint = box.get_attribute("placeholder")
-    assert hint is not None
+    expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
 
-    bounds = label.bounding_box()
-    assert bounds is not None
-    page.mouse.move(
-        bounds["x"] + bounds["width"] - 2, bounds["y"] + bounds["height"] / 2
-    )
-    page.mouse.down()
-    page.evaluate(RENDERED)
-    assert box.get_attribute("placeholder") == hint
-    page.keyboard.type("x")
-    expect(box).to_have_value("x")
-    page.mouse.up()
-    expect(label.locator("input")).to_be_checked()
-    expect(box).to_have_attribute("placeholder", "Replacement text")
+    page.keyboard.press("Tab")
+    choices = page.locator(".lf-fab-bar")
+    suggest = choices.locator(".lf-fab-suggest")
+    expect(choices).to_be_visible()
+    expect(choices.locator(".lf-fab")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(suggest).to_be_focused()
 
-    box.focus()
-    expect(box).to_have_attribute("placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$"))
-    replacement_hint = box.get_attribute("placeholder")
-    assert replacement_hint is not None
-    text_bounds = label.evaluate(
-        """label => {
-          const node = [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          const box = range.getBoundingClientRect();
-          return {x: box.x, y: box.y, width: box.width, height: box.height};
-        }"""
-    )
-    hold_selection(
-        page,
-        (text_bounds["x"] + 2, text_bounds["y"] + text_bounds["height"] / 2),
-        (
-            text_bounds["x"] + text_bounds["width"] - 2,
-            text_bounds["y"] + text_bounds["height"] / 2,
-        ),
-        steps=10,
-    )
-    assert "Suggest replacement text" in page.evaluate(
-        "() => getSelection().toString()"
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+    expect(box).to_have_value(
+        re.compile("A paragraph carrying bold text and emphasis inside it")
     )
     page.evaluate(RENDERED)
-    assert box.get_attribute("placeholder") == replacement_hint
-    page.mouse.up()
-    expect(box).to_have_attribute("placeholder", "Replacement text")
+    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
     assert errors == []
     page.close()
 
@@ -3958,18 +3938,10 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.close()
 
 
-def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
-    """A key's word is the meaning it has now, not one wide enough to cover every
-    meaning it could have. c opens a box on the selection, on the item a click raised the
-    💬 on, or on whatever the reader is standing in — and with none of those in hand goes
-    to the threads — yet every one of them read "comment": true of the key and silent
-    about the press, so a reader with a paragraph selected and one with nothing selected
-    were told the same thing about two different destinations. Both surfaces read the row
-    where they paint it, so both say where this press goes; o is the same defect and says
-    show or hide rather than both.
-
-    Three of the four here, this page holding nothing to stand on;
-    test_c_comments_on_what_the_reader_is_standing_in owns the fourth."""
+def test_the_key_line_names_the_immediate_comment_and_its_other_responses(
+    browser, serve
+):
+    """Targeting enters Comment immediately; the key line names send and the Tab exit."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     line = page.locator(".lf-keyline")
     help_el = page.locator(".lf-help")
@@ -3981,11 +3953,8 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     expect(help_el).to_contain_text("Go to the threads")
     page.keyboard.press("Escape")
 
-    # A selection under the hand moves the word, on the gesture that raises the button
-    # — the anchor the line names and the one the press takes are the same one. Dragged
-    # rather than select_text()'d, which sets the selection through the injected script
-    # and fires neither mouseup nor keyup: the button would never rise, and the press
-    # under test would be answered by a state no gesture produced.
+    # A real selection enters its field during the gesture. Once there, letters and `?`
+    # belong to the comment rather than falling through to page shortcuts.
     box = page.locator("#prose").bounding_box()
     select(
         page,
@@ -3993,34 +3962,28 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
         (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
         steps=12,
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
-    expect(line).to_contain_text("comment on the selection")
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    expect(help_el).to_contain_text("Comment on the selection")
-    page.keyboard.press("Escape")
-    # And the press does what the word said: a composer carrying that passage, which
-    # is what makes the suggestion row (a replacement for quoted words) offered at all.
-    page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer .lf-suggest-row")).to_be_visible()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(line).to_contain_text("comment")
+    expect(line).to_contain_text("other responses")
+    page.keyboard.type("?")
+    expect(field).to_have_value("?")
     page.keyboard.press("Escape")
 
-    # A visual has no words to quote, so the press lands on the element — and the word
-    # is the item's own, the way the panel names one.
+    # A visual follows the same contract, but its accessible field name identifies the
+    # item rather than a quoted passage.
     page.locator("#fig svg").click()
-    expect(line).to_contain_text("comment on the figure")
-    page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("figure"))
+    expect(line).to_contain_text("other responses")
     page.keyboard.press("Escape")
 
     assert errors == []
     page.close()
 
 
-def test_page_shortcuts_activate_the_visible_controls_through_click(browser, serve):
-    """A shortcut runs the control, including listeners it does not own."""
+def test_typing_in_the_immediate_comment_wins_over_page_shortcuts(browser, serve):
+    """Once targeting focuses Comment, a shortcut letter is ordinary comment text."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
 
     box = page.locator("#prose").bounding_box()
@@ -4030,17 +3993,10 @@ def test_page_shortcuts_activate_the_visible_controls_through_click(browser, ser
         (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
         steps=12,
     )
-    fab = page.locator(".lf-fab")
-    expect(fab).to_be_visible()
-    fab.evaluate(
-        """control => control.addEventListener('click', () => {
-          control.dataset.shortcutClicks =
-            String(Number(control.dataset.shortcutClicks || 0) + 1);
-        })"""
-    )
+    fab = page.locator(".lf-fab-input")
+    expect(fab).to_be_focused()
     page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(fab).to_have_attribute("data-shortcut-clicks", "1")
+    expect(fab).to_have_value("c")
     page.keyboard.press("Escape")
     page.evaluate("() => document.body.focus()")
 
@@ -4075,8 +4031,8 @@ def test_page_shortcuts_activate_the_visible_controls_through_click(browser, ser
     page.close()
 
 
-def test_submit_shortcuts_activate_the_visible_controls_through_click(browser, serve):
-    """Mod+Enter sends and saves through the button that promises the action."""
+def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
+    """Anchored Enter sends; the other durable editors retain Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -4089,17 +4045,18 @@ def test_submit_shortcuts_activate_the_visible_controls_through_click(browser, s
         (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
         steps=12,
     )
-    page.keyboard.press("c")
     composer = page.locator(".lf-composer")
-    send = composer.get_by_role("button", name="Comment", exact=True)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    send = composer.locator(".lf-composer-row .primary")
     send.evaluate(
         """control => control.addEventListener('click', () => {
           document.body.dataset.composerShortcutClicks =
             String(Number(document.body.dataset.composerShortcutClicks || 0) + 1);
         })"""
     )
-    composer.locator("textarea").fill("Send through the visible control.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    field.fill("Send through the compact control.")
+    page.keyboard.press("Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
 
@@ -4470,6 +4427,8 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     line = page.locator(".lf-keyline")
 
     def drop():
+        if page.locator(".lf-composer[data-lf-open]").count():
+            page.keyboard.press("Escape")
         page.evaluate("() => document.activeElement?.blur()")
 
     # Standing nowhere in the page: no box is named, so the press is the room the boxes

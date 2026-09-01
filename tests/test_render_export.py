@@ -94,10 +94,13 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         assert runtime_marker not in pages[0].joinpath("leaf.js").read_text()
         assert runtime_marker in pages[1].joinpath("leaf.js").read_text()
 
-        for url in urls:
+        for url, runtime in zip(urls, runtimes, strict=True):
             page = browser.new_page(viewport={"width": 1200, "height": 900})
             errors = watched(page)
             page.goto(url, wait_until="load")
+            expect(page.locator(".lf-preview")).to_contain_text(
+                f"Preview · {runtime.name}"
+            )
             expect(
                 page.get_by_role("heading", name="Shared runtime comparison")
             ).to_be_visible()
@@ -268,7 +271,7 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
 
 
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
-    """A local work line is live runtime chrome even though its seat is in the page.
+    """A local receipt is live runtime chrome even though its seat is in the page.
     A standalone copy has no agent behind it, so preserving the rendered sentence
     would turn a provisional claim into a frozen lie."""
     work_page = leaf_page(
@@ -300,7 +303,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    expect(page.locator(".lf-work-line")).to_have_count(0)
+    expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
     assert errors == []
     page.close()

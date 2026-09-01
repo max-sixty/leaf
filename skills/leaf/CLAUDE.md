@@ -1324,8 +1324,9 @@ them and cover the page under their respective media query otherwise; Leaves
 always covers because its rows leave this page.
 The shell's inline size already reflects the margins a beside panel or tray takes.
 `--strip-l`, `--strip-r`, and `--lf-room` are CSS-owned readings resolved on `main`;
-`--lf-claim-right` is the project-layer extension claim. A script-free copy therefore
-answers the same layout from its own viewport without exporting session geometry.
+`--lf-shell-inset-left` carries the left workspace offset to viewport-fixed page
+furniture; `--lf-claim-right` is the project-layer extension claim. A script-free copy
+therefore answers the same layout from its own viewport without exporting session geometry.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a

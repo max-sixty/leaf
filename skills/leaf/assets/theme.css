@@ -300,6 +300,7 @@
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
+       --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
  /* The document arrives with authored initial state while the log may already hold
  * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only

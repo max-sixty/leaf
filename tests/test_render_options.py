@@ -1403,11 +1403,23 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
+    # The receipt admitted this claim without an x-work declaration. Its page-edge
+    # Target Button is still a local seat, so an unrelated revision cannot wedge the
+    # authoring loop merely because the widget has no content or conversation seat.
+    unrelated = DECISION_PAGE.replace(
+        '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
+    )
+    stamp_page(d, unrelated, "Checked the surrounding plan")
+    wait_for_revision(page, 2)
+    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+
     honored = DECISION_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
     )
     stamp_page(d, honored, "Honor the mounts choice", completes=("jobs",))
-    wait_for_revision(page, 2)
+    wait_for_revision(page, 3)
     expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Outcome, "))
     assert errors == []

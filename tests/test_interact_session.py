@@ -205,7 +205,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     the CLI boundary and stored with the distinction intact. Widget work ends only
     when a later published version explicitly says it completes that widget work: an
     unrelated version cannot silently cancel a local claim, while a version cannot
-    remove the claim's only seat without naming the work it completed."""
+    remove the claim's page target without naming the work it completed."""
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -280,9 +280,9 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert renewed_claim["id"] != claim["id"]
     assert renewed_claim["disposition"] == "effective"
 
-    # Replacing the prose widget with a data widget would keep the anchor id but remove
-    # the local chrome seat. Publication refuses that silent loss until this version
-    # names the work it answers.
+    # Replacing the prose widget with a data widget removes its x-work seat, but the
+    # page-edge Target Button remains attached to the same live subject. The claim
+    # therefore survives this unrelated version too.
     without_seat = re.sub(
         r'<lf-board id="rollout">.*?</lf-board>',
         '<div id="rollout"><div id="rollout-now">'
@@ -293,29 +293,44 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         flags=re.DOTALL,
     )
     (page_dir / "versions" / "v4.html").write_text(without_seat)
-    dropped = stamp(page_dir, 4, "Removed")
+    changed = stamp(page_dir, 4, "Changed presentation")
+    assert changed.exit_code == 0, changed.output
+
+    # Removing the subject itself would remove the Target Button. Publication still
+    # refuses that silent loss until the version names the work it answers.
+    without_target = re.sub(
+        r'<lf-diagram id="rollout-card">.*?</lf-diagram>',
+        "",
+        without_seat,
+        count=1,
+        flags=re.DOTALL,
+    )
+    (page_dir / "versions" / "v5.html").write_text(without_target)
+    dropped = stamp(page_dir, 5, "Removed")
     assert dropped.exit_code == 1
     assert (
-        "would remove the local seat for active work on 'rollout-card'"
+        "would remove the local target for active work on 'rollout-card'"
         in dropped.output
     )
 
-    finished = stamp(page_dir, 4, "Removed", completes=("rollout-card",))
+    finished = stamp(page_dir, 5, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
 
     # Naming no active widget claim is an unearned settlement, not inert metadata.
-    (page_dir / "versions" / "v5.html").write_text(
-        without_seat.replace("<title>t</title>", "<title>t · v5</title>")
+    (page_dir / "versions" / "v6.html").write_text(
+        without_target.replace("<title>t</title>", "<title>t · v6</title>")
     )
-    unearned = stamp(page_dir, 5, "Again", completes=("rollout-card",))
+    unearned = stamp(page_dir, 6, "Again", completes=("rollout-card",))
     assert unearned.exit_code == 1
     assert "no active widget work claim" in unearned.output
 
 
-def test_revendoring_cannot_remove_an_active_widget_work_seat(page_dir):
-    """A layer transition changes the same declaration the status door trusted.
-    Re-vendoring must not leave the page-wide claim standing while silently removing
-    its local half; the active claim is settled by a version note, not by new assets."""
+def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(page_dir):
+    """x-work admits an initial claim; it is not the claim's only later seat.
+
+    Re-vendoring can remove that declaration while the live widget remains, because
+    the page-edge Target Button continues to present the already-admitted work.
+    """
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -328,8 +343,6 @@ def test_revendoring_cannot_remove_an_active_widget_work_seat(page_dir):
         page_dir, "working", "checking the rollout", "--on", "rollout-card"
     )
     assert claimed.exit_code == 0, claimed.output
-    before = (page_dir / "registry.json").read_bytes()
-
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-card"
     ]
@@ -340,10 +353,63 @@ def test_revendoring_cannot_remove_an_active_widget_work_seat(page_dir):
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code == 1
-    assert "incoming layer would remove the local seat" in result.output
-    assert "'rollout-card'" in result.output
-    assert (page_dir / "registry.json").read_bytes() == before
+    assert result.exit_code == 0, result.output
+    registry = json.loads((page_dir / "registry.json").read_text())
+    assert "x-work" not in registry["lf-card"]
+    claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert claim["target"] == {"kind": "widget", "id": "rollout-card"}
+    assert claim["disposition"] == "effective"
+
+
+def test_a_recordless_receipt_admits_work_and_settles_on_the_next_revision(page_dir):
+    """A completion verb with no authored record lives for one revision only.
+
+    Its receipt can admit an explicit claim without x-work. The next revision settles
+    the move, while the claim itself remains at the widget's Target Button until an
+    explicit --completes note answers that separate work lifecycle.
+    """
+    work_page = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', count=1
+    )
+    (page_dir / "versions" / "v1.html").write_text(work_page)
+    publish(page_dir)
+    answer = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    acknowledgments = page_state(page_dir)["browser"]["acknowledgments"]
+    assert any(receipt["event"] == answer["id"] for receipt in acknowledgments)
+
+    claimed = _status(
+        page_dir, "working", "checking the completed choice", "--on", "plan-choice"
+    )
+    assert claimed.exit_code == 0, claimed.output
+    (page_dir / "versions" / "v2.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v2</title>")
+    )
+    advanced = stamp(page_dir, 2, "Checked the surrounding plan")
+    assert advanced.exit_code == 0, advanced.output
+
+    acknowledgments = page_state(page_dir)["browser"]["acknowledgments"]
+    assert not any(receipt["event"] == answer["id"] for receipt in acknowledgments)
+    claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert claim["target"] == {"kind": "widget", "id": "plan-choice"}
+    assert claim["disposition"] == "effective"
 
 
 @pytest.mark.parametrize("target", ["effort", "flag-first"])
@@ -487,6 +553,11 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     assert status["state"] == "waiting"
     pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert [e["events"] for e in pickups] == [["c1", shown[1]["id"]], ["c2"]]
+    stored = [
+        json.loads(line)
+        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+    ]
+    assert all("seq" not in event for event in stored if event["kind"] == "pickup")
     session_model.cmd_status(page_dir, "working", "revising the plan")
     assert (
         files_model.read_json(page_dir / "status.json")["detail"] == "revising the plan"

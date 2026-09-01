@@ -702,7 +702,7 @@ The extension keys describe general behavior:
 | `x-decision` | the complete reading and arrival region around one nested decision source |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a decision |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
-| `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
+| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target Button |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 

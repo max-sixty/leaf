@@ -80,7 +80,7 @@ def widget_work_seat(
     return work["seat"]
 
 
-def widget_work_without_seats(
+def widget_work_without_targets(
     html: str,
     parser,
     projection: "StateProjection",
@@ -89,7 +89,7 @@ def widget_work_without_seats(
     registry: dict,
     ignored=(),
 ) -> list[str]:
-    """Standing widget work the given document and vocabulary cannot show locally."""
+    """Standing widget work with no live page target for its Target Button."""
     ignored = set(ignored)
     decided = retirement_outcomes(projection.actions, registry)
     passages = page_passages(
@@ -108,7 +108,6 @@ def widget_work_without_seats(
             and widget not in passages.retired
             and widget not in passages.gone
             and not quoted_in(rec, registry)
-            and widget_work_seat(rec, projection, registry)
         ):
             missing.append(widget)
     return sorted(missing)
@@ -173,7 +172,15 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             sys.exit(f"{target} is quoted exhibit content, not a live page widget")
         has_receipt = any(
             event["widget"] == target
-            and page_action_unsettled(coordinate, event, spec, parser, spk, registry)
+            and page_action_unsettled(
+                coordinate,
+                event,
+                spec,
+                parser,
+                spk,
+                registry,
+                widget_revision,
+            )
             for coordinate, (event, spec) in widget_projection.actions.items()
         )
         if (

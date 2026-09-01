@@ -272,7 +272,6 @@ def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
         {
             "kind": "pickup",
             "author": "page",
-            "seq": page.events[-1]["seq"] + 1 if page.events else 1,
             "events": fresh,
         }
     )

@@ -37,8 +37,10 @@ leaf version stamp <page> --text "…" --completes <widget-id>
 Repeat `--completes` when the version completes more than one active widget
 claim. Stamping accepts only widget ids with standing work. `status --on`
 refuses a widget with neither an unsettled action receipt nor an active `x-work`
-seat; use the page-wide detail for work with no safe local claim seat. The **Active**
-Button is the banner's own claim at a second seat, and one status command writes both.
+seat; use the page-wide detail when neither admits a safe local claim. Once admitted,
+the page-edge Target Button carries the claim even if a later layer changes `x-work`.
+The **Active** Button is the banner's own claim at a second seat, and one status
+command writes both.
 
 Reader moves acknowledge themselves before an explicit work claim exists. The
 same Target Button beside an action or widget subject progresses through:

@@ -22,7 +22,8 @@ Append is **Sent**; a `pickup` naming that move is **Picked up**; a later explic
 `status … --on` claim on the same subject is **Active**. Sent becomes **Waiting for
 pickup** after the short pickup grace, without inventing a new log state. A reply,
 resolution, or authored state that honors the move settles the acknowledgment. The
-append-only log remains the authority for every durable phase.
+next active revision settles a page action whose verb has no authored record form.
+The append-only log remains the authority for every durable phase.
 
 So a claim of work has to be renewed, and the command that makes one renews it.
 `--on` names the comment thread the work is about, so one check-in moves both

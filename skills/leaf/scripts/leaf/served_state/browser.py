@@ -109,6 +109,7 @@ def browser_state(
             active_spk,
             conversation_reading,
             registry,
+            active_revision,
         ),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {

@@ -11,6 +11,7 @@ def page_action_unsettled(
     parser,
     spk: dict,
     registry: dict,
+    active_revision: int,
 ) -> bool:
     """Whether authored markup still owes one standing page action an answer."""
     _widget, unit, _facet = coordinate
@@ -18,7 +19,9 @@ def page_action_unsettled(
         return False
     authored = markup_facet(unit, spec, parser.by_id, spk, registry)
     folded = folded_facet(source, spec)
-    return authored is NO_RECORD or authored != folded
+    if authored is NO_RECORD:
+        return source["revision"] == active_revision
+    return authored != folded
 
 
 def canonical_acknowledgments(
@@ -30,6 +33,7 @@ def canonical_acknowledgments(
     spk: dict,
     conversation,
     registry: dict,
+    active_revision: int,
 ) -> list[dict]:
     """The unsettled reader moves and the strongest evidence held for each.
 
@@ -94,11 +98,13 @@ def canonical_acknowledgments(
         )
 
     # A page action stays unsettled only while the authored document still lags
-    # its standing record. Verbs without a record stay until their widget is
-    # retired by a later document.
+    # its standing record. A recordless verb has no markup form to compare, so
+    # activating the next revision is the document's answer to that move.
     for coordinate, (source, spec) in projection.actions.items():
         widget, unit, facet = coordinate
-        if not page_action_unsettled(coordinate, source, spec, parser, spk, registry):
+        if not page_action_unsettled(
+            coordinate, source, spec, parser, spk, registry, active_revision
+        ):
             continue
         acknowledgments.append(
             receipt(

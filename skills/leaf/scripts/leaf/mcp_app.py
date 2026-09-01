@@ -138,7 +138,12 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
             isError=True,
         )
     layer = layer_generation(page_dir)
-    endpoint = _ENDPOINTS.setdefault((page_dir, layer), EventEndpoint(page_dir))
+    # The app renders the authored source with no runtime behind it, so a selection
+    # here names a passage nothing has resolved yet. The door captures it against the
+    # page under the same lease that appends it.
+    endpoint = _ENDPOINTS.setdefault(
+        (page_dir, layer), EventEndpoint(page_dir, capture_anchors=True)
+    )
     service = PageStateService(page_dir, layer=layer)
     status, answer = endpoint.accept(
         candidate, lambda: service.page_state(view_revision)

@@ -47,6 +47,8 @@ markup and theme rules, disables page controls, and supports comments only. Do
 not point an iframe at Leaf's dynamic loopback URL or grant a wildcard CSP to
 recover the full runtime. Package-owned actions stay in the browser until the
 runtime has a transport-independent bundle rather than a second implementation.
-Passage comments are revalidated under the append transaction against Leaf's
-file-side current passage reading; widget source and any anchor that would
-detach are refused before append.
+A selection here is resolved by nothing, so this transport asks the door to
+capture it: passage comments are read under the append transaction against Leaf's
+file-side current passage reading, and widget source or any anchor that would
+detach is refused before append. The served runtime's own anchors keep their
+browser reading and are not re-read this way.

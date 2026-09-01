@@ -58,10 +58,13 @@ def _accepted_retry(
 class _TransactionValidation:
     """Ordered gates against the page state held by one append transaction."""
 
-    def __init__(self, page_dir: Path, event: dict, events: list):
+    def __init__(
+        self, page_dir: Path, event: dict, events: list, capture_anchors: bool = False
+    ):
         self.page_dir = page_dir
         self.event = event
         self.events = events
+        self.capture_anchors = capture_anchors
         self.vendored = None
 
     def registry_or_rejection(self) -> tuple[dict | None, EventAnswer | None]:
@@ -155,7 +158,22 @@ class _TransactionValidation:
 
     def anchored_comment_rejection(self) -> EventAnswer | None:
         anchor = self.event.get("anchor") or {}
-        if self.event["kind"] != "comment" or not anchor:
+        # A passage anchor a runtime resolved against the rendered page is already
+        # answered: the page holds words no file reading can produce — a widget's
+        # label, a module's own rendering — and an earlier runtime may spell the same
+        # words in whitespace this reading collapses away. Reading it back off the
+        # file would refuse both. A transport that resolves nothing (the MCP surface,
+        # which renders the authored source with no runtime behind it) asks for the
+        # capture instead.
+        recapture = bool(self.capture_anchors and anchor) and not (
+            anchor.get("datum") or anchor.get("visual") or anchor.get("part")
+        )
+        if self.event["kind"] != "comment" or not (
+            recapture
+            or self.event.get("holds")
+            or self.event.get("response")
+            or anchor.get("visual")
+        ):
             return None
         registry, rejection = self.registry_or_rejection()
         if rejection:
@@ -168,7 +186,7 @@ class _TransactionValidation:
         ):
             if error:
                 return event_rejection(self.event, error)
-        if anchor.get("datum") or anchor.get("visual") or anchor.get("part"):
+        if not recapture:
             return None
         html = revision_path(self.page_dir, self.event["revision"]).read_text(
             encoding="utf-8"
@@ -177,7 +195,7 @@ class _TransactionValidation:
             html, self.events, registry, self.event["revision"]
         )
         try:
-            canonical = capture_anchor(
+            capture_anchor(
                 html,
                 registry,
                 anchor.get("quote", ""),
@@ -192,12 +210,6 @@ class _TransactionValidation:
                 self.event,
                 f"comment anchor is not in the current page reading: {error}",
             )
-        for field in ("quote",):
-            if field in anchor and anchor[field] != canonical.get(field):
-                return event_rejection(
-                    self.event,
-                    f"comment anchor {field} does not match the current page reading",
-                )
         return None
 
     def parent_rejection(self) -> EventAnswer | None:
@@ -246,8 +258,11 @@ class EventEndpoint:
     publication view, not to event validation or storage.
     """
 
-    def __init__(self, page_dir: Path):
+    def __init__(self, page_dir: Path, capture_anchors: bool = False):
         self.page_dir = page_dir
+        # Set by a transport whose comment anchors reach the door unresolved, so the
+        # passage they name is captured against the page under the append lease.
+        self.capture_anchors = capture_anchors
         self._attempts: dict[str, AttemptExecution] = {}
         self._attempts_lock = threading.Lock()
 
@@ -340,7 +355,9 @@ class EventEndpoint:
                 return rejection
             if not accepted:
                 events = page.events
-                validation = _TransactionValidation(self.page_dir, event, events)
+                validation = _TransactionValidation(
+                    self.page_dir, event, events, self.capture_anchors
+                )
                 if rejection := validation.rejection():
                     return rejection
                 event["author"] = "page" if event["kind"] == "error" else "user"

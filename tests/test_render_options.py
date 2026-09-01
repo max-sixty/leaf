@@ -1119,7 +1119,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
         "failure reads off the list instead of costing"
     )
     page.mouse.up()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not option.evaluate(picked), "selecting the option's evidence answered it"
 
     assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (

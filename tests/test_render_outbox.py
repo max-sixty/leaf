@@ -2175,7 +2175,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
 
     page.get_by_role("button", name="Close threads").click()
     page.locator("#p30").click(click_count=3)
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_value(
         "held open across the panel opening"
     )
@@ -2221,10 +2221,11 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     page.goto(url)
     page.wait_for_selector("#p")
     page.locator("#p").click(click_count=3)
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_value(
         "half-written when the version turned over"
     )
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     quote = composer_quote(page)
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
     assert errors == []

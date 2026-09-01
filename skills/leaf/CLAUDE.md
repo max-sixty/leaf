@@ -1146,21 +1146,23 @@ into the words as a `<mark>` (BAKE), the highlight registry being script state
 no file can hold.
 
 The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
-compact `.lf-fab-input` followed by one response ellipsis. Naming a target opens and
-focuses that field immediately; it grows in place and never transfers text into a
-second composer card. Enter sends and Shift-Enter inserts a newline. Tab changes the
-same bar into Comment, Suggest when the anchor is a quote, and the layer's reaction
-tokens. `.lf-response-control` keeps the field and every choice on one baseline with
-one type, border, and elevation; the bar keeps its DOM owner and accessible name while
-its contents change. Comment restores the field and Suggest restores it in
-replacement-text mode.
+compact `.lf-fab-input` followed by one response ellipsis. An explicit item target opens
+and focuses that field immediately. Selecting a passage opens the field without taking
+focus or collapsing the browser selection; the reader can still copy the selection or use
+its native context menu, then enter the field with Comment. The field grows in place and
+never transfers text into a second composer card. Enter sends and Shift-Enter inserts a
+newline. Tab changes the same bar into Comment, Suggest when the anchor is a quote, and
+the layer's reaction tokens. `.lf-response-control` keeps the field and every choice on
+one baseline with one type, border, and elevation; the bar keeps its DOM owner and
+accessible name while its contents change. Comment restores the field and Suggest
+restores it in replacement-text mode.
 
-`showFab` places the bar; `openComposer` binds its field to the durable draft and focuses
-it. `selectResponseTarget` does both for a keyboard item hint, and the ⌥ press uses
-`focusTargetComment` on the same captured anchor. Automatic passage selection opens that
-passage's own durable draft; these explicit Comment gestures carry unsent words onto the
-new anchor. Submitted words still in flight remain owned by their original anchor, while
-a later target starts clean and keeps focus. For a page
+`showFab` places the bar; `openComposer` binds its field to the durable draft and takes the
+focus decision. `selectResponseTarget` focuses it for a keyboard item hint, and the ⌥ press
+uses `focusTargetComment` on the same captured anchor. Automatic passage selection opens
+that passage's own durable draft without moving focus; explicit Comment gestures carry
+unsent words onto the new anchor. Submitted words still in flight remain owned by their
+original anchor, while a later target starts clean and keeps focus. For a page
 target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
 that target's existing Button options. Those temporary Buttons borrow the cluster's room
 and dock with it when necessary; they do not claim permanent rail width. A thread-local
@@ -1916,6 +1918,10 @@ it owns the press, and stops. A `native` row runs and stops the scope walk but
 leaves that default intact. A focused widget may shadow a page key without either
 scope naming the other.
 
+Leaf must not block standard platform or browser shortcuts. A handler prevents a default
+only after a Leaf command owns the complete modified press; secondary clicks and the
+native context menu remain the browser's too.
+
 `claims` lists platform keys a scope consumes even when no registered row answers
 them. A text entry scope uses `takesLetters` and claims character keys plus the keys
 that edit that specific control: Enter, deletion, caret movement, Home/End, and page
@@ -2555,7 +2561,8 @@ surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer pas
 textarea growth through `field-sizing: content`. Script does not measure or set textarea
 height.
 
-The selection composer keeps its passage painted after focus moves into the textarea.
+The selection composer keeps its passage painted after an explicit Comment gesture moves
+focus into the textarea. Automatic passage selection leaves the native selection in place.
 Its `.lf-composer` wrapper contributes state and draft machinery through
 `display: contents`; only `.lf-fab-input` draws. `showComposer` states the whole visible
 and focus outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks

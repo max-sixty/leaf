@@ -2662,7 +2662,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
     assert bounds is not None
     select(page, (bounds["left"] + 1, bounds["y"]), (bounds["right"] - 1, bounds["y"]))
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert composer_quote(page)["text"].strip("“”") == "Original instructions."
     page.locator(".lf-composer textarea").fill("Keep this exact source.")
     page.keyboard.press("Enter")

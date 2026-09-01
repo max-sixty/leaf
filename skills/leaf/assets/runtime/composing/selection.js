@@ -183,8 +183,9 @@ export function createSelectionComposer(runtime, dependencies) {
     // control inside the response bar; the other composer controls stay hidden there.
     composer.style.display = open ? "contents" : "none";
     composer.toggleAttribute("data-lf-open", open);
-    // The reader's own selection is gone by now — focusing a textarea drops it — so this
-    // mark is the only thing left pointing at the passage being quoted.
+    // An explicit Comment gesture focuses the textarea and drops the native selection, so
+    // this mark then becomes the durable pointer to the quoted passage. Automatic passage
+    // selection leaves both readings standing until the reader enters the field.
     paintAnchors();
     paintHere();
   }
@@ -198,7 +199,12 @@ export function createSelectionComposer(runtime, dependencies) {
   function openComposer(
     anchor,
     text,
-    { suggest = false, about = designIsOn() ? "layer" : null, carry = false } = {},
+    {
+      suggest = false,
+      about = designIsOn() ? "layer" : null,
+      carry = false,
+      focus = true,
+    } = {},
   ) {
     closeReactions();
     if (composerInput.value === seededQuote) composerInput.value = "";
@@ -234,7 +240,7 @@ export function createSelectionComposer(runtime, dependencies) {
     showComposer(true);
     showFab(anchor);
     syncComposer();
-    composerInput.focus();
+    if (focus) composerInput.focus();
     watchComposer();
     // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.

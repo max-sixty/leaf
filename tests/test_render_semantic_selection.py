@@ -170,6 +170,8 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose = page.locator("#prose")
     prose.select_text()
     field = page.locator(".lf-fab-input")
+    expect(field).not_to_be_focused()
+    page.keyboard.press("c")
     expect(field).to_be_focused()
     expect(page.locator(".lf-fab-bar .lf-react")).to_have_count(0)
     page.keyboard.press("Tab")
@@ -466,8 +468,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
 
     page.keyboard.press("Enter")
     expect(page.locator(".lf-target-search")).to_be_hidden()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate("() => getSelection().toString()") == "button the key"
     assert pending_text(page) == "button the key"
     assert errors == []
     page.close()
@@ -608,7 +611,8 @@ def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
 
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    assert page.evaluate("() => getSelection().toString()") == "distant phrase"
     assert pending_text(page) == "distant phrase"
     assert errors == []
     page.close()
@@ -642,7 +646,8 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     assert mark["y"] > 42 and mark["y"] + mark["height"] < keyline_top
 
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    assert page.evaluate("() => getSelection().toString()") == "copper needle"
     assert pending_text(page) == "copper needle"
     assert errors == []
     page.close()
@@ -809,7 +814,8 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     expect(page.locator(".lf-target-match")).not_to_have_count(0)
 
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    assert page.evaluate("() => getSelection().toString()") == "phrase only appears"
     assert pending_text(page) == "phrase only appears"
     assert errors == []
     page.close()

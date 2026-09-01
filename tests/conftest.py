@@ -221,8 +221,10 @@ def headless_shell():
         [
             sys.executable,
             "-c",
-            "from playwright.sync_api import sync_playwright\n"
-            "with sync_playwright() as p: print(p.chromium.executable_path)",
+            (
+                "from playwright.sync_api import sync_playwright\n"
+                "with sync_playwright() as p: print(p.chromium.executable_path)"
+            ),
         ],
         capture_output=True,
         text=True,

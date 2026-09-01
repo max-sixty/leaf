@@ -1648,9 +1648,14 @@ override it without specificity contests.
 
 The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private
 class names do not escape that root. The global vocabulary is deliberately
-small: shared `.lf-ui`, `.lf-btn`, `.lf-pill`, `.lf-address`, and the markers the
-runtime paints on page elements. Adding a global selector widens the widget
-contract and must be covered by the render suite.
+small: shared `.lf-ui`, `.lf-btn`, `.lf-pill`, `.lf-address`, `.lf-skip`, and the
+markers the runtime paints on page elements. Adding a global selector widens the
+widget contract and must be covered by the render suite.
+
+`--aim-floor` is the smallest box the layer offers a reader to aim at, on either
+axis, and the one thing a coarse pointer changes about it. The query is asked
+once, in theme.css; every rule that states the floor reads the token, so a
+control joins both answers by joining one of them.
 
 A shared class owns only the look shared on both sides of the scope line.
 Placement remains with each surface. For example, an address chip may share
@@ -2430,7 +2435,15 @@ there.
 `.lf-chrome` is one fixed runtime root containing the banner, the tray panel,
 thread panel, composer, floating comment control, toast, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
-separate scroll regions. Opening or closing one calls its state setter, updates
+separate scroll regions.
+
+One control stands outside it, and it has to: the skip link is the layer's route
+in from the top of the document, and tab order is document order while the
+chrome is last. It is prepended to the body, rests in `.lf-quiet`, and carries
+the offer marker, so paper and a copy drop it with every other injected control.
+It takes no register row — a control is a route to a capability rather than a
+capability of its own, and this one's design is to be found by the first Tab
+rather than advertised. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
 
 `.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.

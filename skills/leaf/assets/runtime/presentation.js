@@ -33,6 +33,33 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 });
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 
+// Put the reader on an element, lending it a tab stop where it has none and taking that
+// stop back the moment they leave. The lending is why this lives here rather than beside
+// either caller: `tabindex` is not in PAGE_PAINT_ATTRIBUTES above and must not become a
+// thing the runtime leaves behind on an author's element, so the borrow and its return
+// are one statement in one place. An element that already declares a stop keeps its own.
+//
+// Two callers want it and they want it for the same reason. A `g` address lands on a
+// fold, a heading or a fragment target, none of which the page had any reason to make
+// focusable. The reference hands a reader back to the block they were reading when they
+// were standing nowhere in particular. Both are "the reader is now here", and both need
+// the browser's sequential focus navigation starting point to move with them, which is
+// what `focus()` does and what nothing else does.
+export function standAt(destination) {
+  destination.focus({ preventScroll: true });
+  if (destination.matches(":focus")) return;
+  if (destination.hasAttribute("tabindex")) return;
+  destination.tabIndex = -1;
+  destination.focus({ preventScroll: true });
+  if (!destination.matches(":focus")) {
+    destination.removeAttribute("tabindex");
+    return;
+  }
+  destination.addEventListener("blur", () => destination.removeAttribute("tabindex"), {
+    once: true,
+  });
+}
+
 // A word for a reader listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),

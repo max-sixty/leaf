@@ -1,6 +1,6 @@
 import { labelOf, spell } from "./bindings.js";
 import { keySequence, progressStates } from "./presentation.js";
-import { isExternalPageLink } from "../presentation.js";
+import { isExternalPageLink, standAt } from "../presentation.js";
 
 export function createAddress({
   EVERYTHING,
@@ -112,22 +112,6 @@ export function createAddress({
       return null;
     }
   }
-  function focusDestination(destination) {
-    destination.focus({ preventScroll: true });
-    if (destination.matches(":focus")) return;
-    if (destination.hasAttribute("tabindex")) return;
-    destination.tabIndex = -1;
-    destination.focus({ preventScroll: true });
-    if (!destination.matches(":focus")) {
-      destination.removeAttribute("tabindex");
-      return;
-    }
-    destination.addEventListener(
-      "blur",
-      () => destination.removeAttribute("tabindex"),
-      { once: true },
-    );
-  }
   function followLink(link) {
     const section = fragmentSection(link);
     let activation = null;
@@ -138,7 +122,7 @@ export function createAddress({
     link.click();
     if (!activation || activation.defaultPrevented) return;
     const destination = section && resolveAnchor({ section })?.element;
-    if (destination) return focusDestination(destination);
+    if (destination) return standAt(destination);
     if (isExternalPageLink(link) && link.target === "_blank") {
       const name = link.getAttribute("aria-label")?.trim() || itemSays(link) || "Link";
       announce(`Opened ${name} in a new tab`);

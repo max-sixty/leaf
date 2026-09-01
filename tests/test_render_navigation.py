@@ -15,9 +15,11 @@ from render_support import (
     CROWDED_PAGE,
     DECISIONS_PAGE,
     DISCLOSED_PAGE,
+    EXAMPLES,
     FOOTED_PAGE,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
+    LONG_PAGE,
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
@@ -39,6 +41,7 @@ from render_support import (
     mark_point,
     open_page,
     opened_tab,
+    page_at_rest,
     painted,
     panel_comment,
     panel_settled,
@@ -4942,3 +4945,102 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         assert errors == []
     finally:
         page.close()
+
+
+# Where the reader is standing, in the terms the next Tab is decided by: the document
+# position of the focused element, and whether it is the first stop in the document.
+STANDING = """() => {
+  const at = document.activeElement;
+  const first = document.querySelector('.lf-skip');
+  return {
+    name: at?.className || at?.tagName || 'nothing',
+    isFirstStop: at === first,
+    top: at ? at.getBoundingClientRect().top : null,
+    inChrome: Boolean(at?.closest?.('.lf-chrome')),
+  };
+}"""
+
+
+def test_the_reference_hands_the_reader_back_to_the_page_they_were_reading(
+    browser, serve
+):
+    """Closing a mode gives back the press that opened it, and the reader's place with it.
+
+    A reader working from the page stands on `body`: `letGo` puts them there so Space and
+    PageDown reach the document's own scroll box. `?` from there recorded `body` as the
+    door and closing handed focus back to it — and focusing `body` resets the browser's
+    sequential focus navigation starting point, so the next Tab began at the top of the
+    document. A reader who opened the reference four screens down to look a key up was
+    charged the whole page to get back to where they had been.
+
+    The reading is the next Tab rather than the focused element, because that is the fact
+    that was wrong: the restore itself looked fine both before and after, focus being on
+    nothing either way. The skip link is the document's first stop, so landing on it is
+    exactly the failure written down.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    reading = page.evaluate(
+        "() => document.getElementById('p40').getBoundingClientRect().top"
+    )
+    # Twice: the first press unfolds the shelf, the second opens the reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert not standing["isFirstStop"], (
+        f"after the reference closed, the reader's next Tab went to the first stop in "
+        f"the document ({standing}) rather than on from the words they were reading at "
+        f"{reading:.0f}px"
+    )
+    # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
+    # PAGE_PAINT_ATTRIBUTES, so a stop left standing would be runtime paint the replay
+    # signature has no vocabulary for.
+    assert (
+        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_reader_at_the_top_of_the_document_is_one_press_from_the_chrome(
+    browser, serve
+):
+    """The runtime's layer follows `main`, so reaching it by Tab meant reaching it last.
+
+    Document order is right for reading — the page is what the reader came for — and it
+    is the whole tab order too, so on a page of any length the banner, the panel and the
+    key line stood behind every link, fold and control the author wrote. A keyboard reader
+    arriving at the top of the document had no way to the layer that is not the page.
+
+    The press is what is asserted rather than the link's presence: a skip link that is in
+    the DOM and does not land anybody is the failure this is about, one step later.
+
+    On the corpus, because a page of plain paragraphs would put the chrome one Tab away
+    on its own and this would pass with the link taken out.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    page, errors = open_page(browser, serve(example))
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert standing["isFirstStop"], (
+        f"the first Tab from the top of the document landed on {standing['name']}, so "
+        f"the layer is still behind the whole page"
+    )
+    assert standing["top"] >= 0, (
+        f"the skip link takes focus and is not on screen: {standing}"
+    )
+    page.keyboard.press("Enter")
+    landed = page.evaluate(STANDING)
+    assert landed["inChrome"], (
+        f"the skip link's press left the reader on {landed['name']}, outside the layer "
+        f"it names"
+    )
+    assert errors == []
+    page.close()

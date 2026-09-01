@@ -242,6 +242,20 @@ export function chromeStyle({
      ordinary pointer press reaches the same click handler as Enter. */
   .lf-mark-note { opacity: 0; }
   .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
+  /* The skip link (leaf.js says why it stands where it does). It rests in .lf-quiet, the
+     shared clip every word the layer keeps for a listener wears, which is also what the
+     reachability and covered-words readings look past — so the one control standing
+     outside the chrome costs those gates no exception. On focus it takes the same face
+     the two controls below take, in the same place, because a reader who has just pressed
+     Tab from the top of the document is the only one who ever sees it. Outside the scope
+     block because it stands outside the container, which is the whole point of it. */
+  .lf-skip:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
+    top: calc(var(--lf-banner-h) + 6px); left: 8px;
+    width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
+    overflow: visible; clip-path: none;
+    outline: var(--here-ring); --lf-here-ring: skip; outline-offset: 2px;
+    border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }

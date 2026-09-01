@@ -9,6 +9,7 @@ import {
   word,
 } from "./bindings.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
+import { standAt } from "../presentation.js";
 
 export function createReference({
   byCommand,
@@ -26,6 +27,7 @@ export function createReference({
   pageSelection,
   paintHere,
   pruneScopedElements,
+  readingBlock,
   reachScrollers,
   readerIn,
   scopeRefs,
@@ -122,7 +124,23 @@ export function createReference({
   // version row or a held card and the row's keys, which it had just listed, reached nothing
   // afterwards. A mode over the page keeps this one key (`allButTheReference`), and a kept key
   // that costs the reader their place is not much of an exemption.
+  //
+  // A reader working from the page is standing on `body` by design — `letGo` puts them
+  // there so Space and PageDown reach the document's own scroll box — so `?` from the page
+  // recorded `body` and closing handed focus back to it. That is worse than handing back
+  // nothing: focusing `body` resets the browser's sequential focus navigation starting
+  // point, so the reader's next Tab began at the top of the document rather than beside
+  // the words they had been reading.
   let helpFrom = null;
+  // Where they were reading when they had no control, which is the other half of the same
+  // question and needs a different answer, because standing on a page block is not the
+  // same as standing nowhere: `standingItem` would read that block as the item the reader
+  // is in, and `c` would offer to comment on it rather than to open the comments. So the
+  // block is focused and then let go of. Focus is what moves the sequential starting
+  // point; blur leaves it where it was moved to (tests/CLAUDE.md says why the pair part
+  // this way). The reader ends where `letGo` would have put them and their next Tab
+  // carries on from the words in front of them.
+  let helpPlace = null;
   // The layers the reference was opened over. A modal dialog clears every auto popover on
   // its way into the top layer — the platform's rule, not Leaf's — so the overlay that
   // exists to say what the versions menu's keys are was also what took the menu away, and
@@ -162,11 +180,14 @@ export function createReference({
     // in hand when `?` opens the reference, while an ordinary open lands directly in search.
     // The dialog itself remains a focus stop, so either route keeps the page suspended.
     const preserveSelection = open && Boolean(pageSelection());
-    const restore =
-      !open && restoreFocus && helpEl.contains(focused()) ? helpFrom : null;
+    const handBack = !open && restoreFocus && helpEl.contains(focused());
+    const restore = handBack ? helpFrom : null;
+    const place = handBack ? helpPlace : null;
     const closing = !open && helpEl.open;
     if (open && !helpOpen) {
-      helpFrom = focused();
+      const here = focused();
+      helpFrom = here && here !== document.body ? here : null;
+      helpPlace = helpFrom ? null : readingBlock();
       helpLayers = [...document.querySelectorAll(":popover-open")];
       commandsAtOpen = availableCommands();
     }
@@ -462,11 +483,14 @@ export function createReference({
     // out here would be putting focus back for the click to take again.
     paintHere();
     if (!open && restore) {
-      if (restore.isConnected) restore.focus({ preventScroll: true });
+      if (restore.isConnected) standAt(restore);
       else
         requestAnimationFrame(() => {
-          if (restore.isConnected) restore.focus({ preventScroll: true });
+          if (restore.isConnected) standAt(restore);
         });
+    } else if (!open && place?.isConnected) {
+      standAt(place);
+      place.blur();
     }
   }
 

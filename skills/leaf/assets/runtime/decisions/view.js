@@ -9,7 +9,7 @@ export function createDecisionView({
   decisionsOffered,
   decisionsPanel,
   banner,
-  blocksOnScreen,
+  readingBlock,
   closeTray,
   documentFocused,
   el,
@@ -351,7 +351,6 @@ export function createDecisionView({
     for (const marked of wearing)
       marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
   }
-  const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
   // this key started at the top of the page — select a paragraph and press `d` and you were

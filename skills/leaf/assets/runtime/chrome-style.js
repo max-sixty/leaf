@@ -14,6 +14,15 @@ const KEY_BOX = `box-sizing: border-box;
     color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
     line-height: 1.478; text-align: center; white-space: nowrap;`;
 
+/* Everything in the layer a reader aims at, once, for the two rules that state how small
+   it may be: the resting floor near the top of the scope block and the coarse-pointer
+   floor near its foot. One list because the two floors answer one question and a control
+   that reached only one of them would be comfortable with a finger and not with a mouse,
+   or the other way about — which is how most of these came to be under both. */
+const AIMS = `.lf-btn, .lf-pill:is(button, [role="button"]), .lf-thread-action,
+    .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-help-command,
+    .lf-quote, .lf-margin-action`;
+
 export function chromeStyle({
   COVERING,
   MARK_RULES,
@@ -617,6 +626,26 @@ ${MARK_RULES}
     :scope, .lf-legend { position: static; }
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
+    /* The floor under every aim the layer offers, stated once for all of them rather
+       than left to whatever each control's type and padding happened to add up to.
+       Measured before it existed: a thread's Reopen and the panel's reaction pills stood
+       at 20 and 22 pixels, a version's Δ and a command in the reference at about seven —
+       all of them presses a reader has to land on with a mouse, and none of them a
+       control anybody chose the size of.
+
+       --aim-floor is the length, and it is the only thing a coarse pointer changes about
+       any of this (theme.css asks that query once). So there is no second rule at the
+       foot of this file repeating the list at the other number, and a control cannot
+       reach one floor without reaching the other.
+
+       A floor and not a size: every one of these is free to be bigger, and most are. It
+       is written as a minimum on both axes because a target is a box and a control that
+       is tall and two pixels wide is as hard to hit as a short one. Buttons centre their
+       own label, so nothing here has to say where the words go.
+
+       .lf-pill is halved on how it is spelled, because the class dresses a standing chip
+       as well as a press and a chip is not something to aim at. */
+    :is(${AIMS}) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
     /* Page paint belongs under a covering workspace. Paint whose target is inside the
        chrome belongs above that workspace, including when the same aim or response bar moves
        between the two. The target owner states the plane; document order keeps aim,
@@ -1071,6 +1100,13 @@ ${MARK_RULES}
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-thread-action:hover { color: var(--ok); }
+    /* Reopen stands in the same row as Resolve and answers the same question from the
+       other side, so it wears the same band when the keyboard reaches it. It was left on
+       the platform's own ring, which is a real mark and the wrong one here: the pair
+       looked like two kinds of control, and a walk down the resolved disclosure changed
+       shape halfway. */
+    .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+      --lf-here-ring: thread-action; outline-offset: 2px; }
     .lf-resolved-by { color: var(--muted); }
     .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
     .lf-details { margin-top: 16px; color: var(--muted); background: none; border: none; padding: 0; }
@@ -1494,15 +1530,14 @@ ${MARK_RULES}
        changing sides when a covering sheet meets a phone, and its line remains on the seam
        rather than following the middle of the hit box. */
     @media (pointer: coarse) {
-      .lf-btn, .lf-pill:is(button, [role="button"]), .lf-margin-action {
-        min-height: 44px;
-      }
-      .lf-margin-action { width: 44px; min-width: 44px; height: 44px; }
+      /* What is left here is what a finger changes besides the floor. The floor itself
+         moved out: this block used to name three controls at 44px and the resting layer
+         named none at all, so Reopen, the page preview, a version's Δ, a command in the
+         reference, a quote and the panel's pills were small under both pointers. They
+         are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
+      .lf-margin-action { width: 44px; height: 44px; }
       .lf-response-control { --lf-response-height: 44px; }
-      .lf-banner-actions > .lf-btn { min-height: 44px; }
-      .lf-panel-head .lf-btn { min-width: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
-      .lf-react { min-width: 44px; }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
       .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
         transform: translateY(-50%); }

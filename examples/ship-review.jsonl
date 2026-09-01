@@ -8,3 +8,6 @@
 {"kind": "pickup", "author": "page", "events": ["b9e3a841"], "id": "a4c29d10", "ts": "2026-08-15T10:08:11-07:00"}
 {"kind": "comment", "author": "claude", "agent": "Claude", "revision": 1, "text": "The vendor release is the only schedule we do not control. Should this task stay blocked until their fix is in our build, even if the workaround ships first?", "anchor": {"section": "off-t-vendor"}, "id": "64df0b27", "ts": "2026-08-15T10:12:08-07:00"}
 {"kind": "comment", "author": "user", "revision": 1, "token": "ok", "anchor": {"section": "off-t-workaround", "quote": "500 forced stalls all recovered"}, "id": "0f47b3ce", "ts": "2026-08-15T10:14:22-07:00"}
+{"kind": "comment", "author": "user", "revision": 1, "text": "Does the support playbook cover the background-app case, or only the spinner?", "anchor": {"section": "off-t-support"}, "id": "5a81c093", "ts": "2026-08-15T10:16:04-07:00"}
+{"kind": "reply", "author": "claude", "agent": "Claude", "parent": "5a81c093", "revision": 1, "text": "Both — it opens on the spinner and ends with the background-app recovery, which is the step support was missing.", "id": "e0c7b512", "ts": "2026-08-15T10:18:37-07:00"}
+{"kind": "resolve", "author": "user", "parent": "5a81c093", "id": "b2f60d47", "ts": "2026-08-15T10:19:02-07:00"}

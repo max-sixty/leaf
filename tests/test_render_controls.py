@@ -3843,6 +3843,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
+        # And the resolved threads, for the same reason and with the same shape: a
+        # closed thread's Reopen is behind this disclosure, so a walk that leaves it
+        # shut reaches every control in the panel except the one on the far side of an
+        # answered conversation.
+        resolved = page.locator(".lf-details > summary")
+        if resolved.count() and resolved.is_visible():
+            resolved.click()
         page_at_rest(page)
 
         for scope, keys, corpus in RING_WALKS:
@@ -4150,3 +4157,169 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
     )
     assert dark_errors == []
     dark.close()
+
+
+# Every box the layer promises a press on, wherever it stands. Not a list of class names:
+# what makes something a target is that the runtime built it (data-lf-offer) or that it
+# stands in the runtime's own layer, and that the page under the pointer says a press
+# lands there. A twelfth control joins by being one, which is how the six this first
+# reported were found.
+#
+# The reading takes the element's box together with any absolutely positioned pseudo it
+# hangs, because an aim need not be the thing the reader sees: a mark six pixels wide set
+# in a line of prose cannot grow without opening the line, so it carries a box of its own.
+#
+# Inline boxes are out, and that is the target-size exception rather than an excuse: a
+# link inside a sentence is sized by the words around it, and nothing can be done about
+# that which does not damage the sentence.
+AIM_BOXES = """(floor) => {
+  const found = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll(
+    '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
+    ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
+    ' .lf-chrome .lf-pill, .lf-chrome .lf-quote'
+  )) {
+    if (seen.has(el)) continue;
+    seen.add(el);
+    const style = getComputedStyle(el);
+    if (!['pointer', 'grab'].includes(style.cursor)) continue;
+    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+    if (style.display === 'inline') continue;
+    // The option mark is the one control held out, and it is a handover rather than an
+    // exemption: its box is being rewritten alongside the group's pressable rule, and
+    // this line goes with that change. It stands at 11x11 today.
+    if (el.classList.contains('lf-pick')) continue;
+    const box = el.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    let [w, h] = [box.width, box.height];
+    for (const pseudo of ['::before', '::after']) {
+      const at = getComputedStyle(el, pseudo);
+      if (at.content === 'none' || at.position !== 'absolute') continue;
+      w = Math.max(w, parseFloat(at.width) || 0);
+      h = Math.max(h, parseFloat(at.height) || 0);
+    }
+    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0];
+    if (Math.min(w, h) < floor - 0.5)
+      found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
+  }
+  return found;
+}"""
+
+# What the sweep has to have stood in front of before its answer means anything. Each is
+# on a surface the walk has to open, and each was under the floor.
+AIM_SURFACES = (
+    ".lf-thread-action",
+    ".lf-preview",
+    ".lf-pill",
+    ".lf-version-diff",
+    ".lf-help-command",
+    ".lf-quote",
+    ".lf-gloss-mark",
+    ".lf-tab-btn",
+    ".lf-grip",
+)
+
+
+def _each_aim_surface(page, page_dir):
+    """Stand each surface up in turn, yielding at every stop.
+
+    In turn rather than all at once, because they do not coexist: the reference is modal
+    and takes the version menu down as it opens, so a sweep that waited for the last of
+    them would meet a page that had put two of the controls away again.
+    """
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    comment = next(
+        e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
+    )
+    # A resolved thread, which is the only state that has a Reopen to aim at.
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator(".lf-details summary")).to_have_count(1)
+    page.locator(".lf-details summary").click()
+    expect(page.locator(".lf-reopen")).to_have_count(1)
+    yield
+
+    page.locator(".lf-version").click()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    yield
+    page.keyboard.press("Escape")
+
+    # Twice: the first press unfolds the shelf, the second opens the reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help-command").first).to_be_visible()
+    yield
+
+
+@pytest.mark.parametrize("touch", (False, True))
+def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
+    browser, serve, touch
+):
+    """A press the reader cannot land on is a capability the page does not have.
+
+    Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
+    reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
+    version's Δ, a command in the reference, a quote and a gloss mark at around twelve by
+    seven. Three controls reached the coarse-pointer block and the rest reached neither
+    floor, so the same presses were small under a finger too.
+
+    The sweep names no control. What makes a box an aim is that the runtime built it or
+    stands in the runtime's own layer, and that the page under the pointer says a press
+    lands there — so the next control the layer grows is held to this without anybody
+    adding it to a list. Both pointers are asked, from the one token that states the
+    floor, because a control comfortable under one and not the other is the fault this is
+    about rather than a lesser version of it.
+
+    The surfaces have to be opened for any of it to mean anything: seven of the nine
+    controls at issue exist only inside a panel, a menu, a resolved disclosure or the
+    reference, and a sweep of the page at rest would report a clean layer while every one
+    of them was still six pixels tall. AIM_SURFACES is that assertion.
+    """
+    context = (
+        browser.new_context(viewport={"width": 1200, "height": 900}, has_touch=True)
+        if touch
+        else None
+    )
+    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    # A preview record, because the badge it puts in the banner is one of the aims and
+    # exists on no page that was not served by the preview script.
+    served = serve(
+        example,
+        comments=2,
+        preview={
+            "kind": "example",
+            "example": "corpus",
+            "checkout": "fb77",
+            "started": "2026-08-31T12:00:00+00:00",
+        },
+    )
+    # A second version, published the way a page gets one and read from, so the versions
+    # menu has an earlier version to compare against and its Δ exists to be aimed at.
+    _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
+    page, errors = open_page(
+        browser, served.replace("/v1.html", "/v2.html"), context=context
+    )
+    floor = 44 if touch else 24
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch, (
+        "the fixture did not reach the pointer medium this run is about, so the floor "
+        "below is the other one's"
+    )
+    small, stood = [], set()
+    for _ in _each_aim_surface(page, serve.page_dir):
+        small += page.evaluate(AIM_BOXES, floor)
+        stood |= {s for s in AIM_SURFACES if page.locator(s).count()}
+    assert not (missed := set(AIM_SURFACES) - stood), (
+        f"the walk never stood {', '.join(sorted(missed))} up, so a clean answer would "
+        f"be about a layer with those controls missing rather than about their size"
+    )
+    assert not small, (
+        f"{len(set(small))} of the layer's controls are under the {floor}px floor a "
+        f"{'coarse' if touch else 'fine'} pointer asks for:\n  "
+        + "\n  ".join(sorted(set(small)))
+    )
+    assert errors == []
+    page.close()
+    if context:
+        context.close()

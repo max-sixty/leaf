@@ -30,6 +30,18 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   display: inline-block; margin-left: 1px; border-radius: 3px;
   color: var(--accent); font-size: .72em; line-height: 1;
   vertical-align: super; cursor: help;
+  position: relative;
+}
+/* The glyph is six pixels wide and stands in a line of prose, so its box cannot be the
+ * thing a reader aims at: growing it to a usable size would open the line it is set in,
+ * which is the one thing a mark this small must not do. The aim is a box of its own,
+ * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
+ * it belongs to, which costs nothing, because hovering that same phrase already reveals
+ * the same explanation. */
+.lf-gloss-mark::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: var(--aim-floor); height: var(--aim-floor);
+  transform: translate(-50%, -50%);
 }
 .lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
@@ -834,6 +846,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-address {
  * a button is worth showing only where something will answer it. */
 lf-options[settled] > .lf-settled {
               display: none; width: 100%; align-items: baseline;
+              min-height: var(--aim-floor);
               gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 7px 12px;
               font-weight: 600; text-align: left;
               background: var(--field); cursor: pointer;
@@ -1019,6 +1032,7 @@ lf-card > strong { display: block; margin: 0 0 2px; }
    sets a line of its own, and this glyph wants none. */
 lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           padding: 8px 10px; cursor: grab;
+          min-height: var(--aim-floor); min-width: var(--aim-floor);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
@@ -1056,8 +1070,17 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 .lf-tabstrip { display: none; flex-wrap: wrap; gap: 2px;
                border-bottom: 1px solid var(--border-2); }
 .lf-tabstrip .lf-tab-btn { padding: 5px 7px 7px;
+               min-height: var(--aim-floor); min-width: var(--aim-floor);
+               display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
 .lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
+/* A tab is a span the module gives a role and a tab stop to, so the only mark it wore
+ * for the keyboard was the platform's own — beside a strip whose every other control
+ * wears the layer's band, which reads as the walk leaving the page. Inset, because the
+ * button's foot is on the strip's rule and an outset band would be drawn over it. */
+.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
+               outline: var(--here-ring); --lf-here-ring: tab-btn;
+               outline-offset: calc(-1 * var(--here-ring-w)); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
 .lf-tabstrip .lf-tab-btn > [data-lf-said] {

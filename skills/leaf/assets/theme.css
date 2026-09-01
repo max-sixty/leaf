@@ -42,6 +42,13 @@
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
+  /* The smallest box the layer offers a reader to aim at, on either axis. One token
+     rather than a number in each rule, and one token rather than two floors and a media
+     query in each of them: what changes between a mouse and a finger is this length and
+     nothing else, so the query belongs here where it is asked once. A control that has
+     to be a fixed size under a finger — a margin action, the key line's More — still
+     says so where it is written; this is the floor, not the size. */
+  --aim-floor: 24px;
   /* A fast first presentation never paints the waiting explanation. */
   --lf-presentation-delay: 300ms;
   /* --rail has no authored value: the shared margin measures its widest target item
@@ -188,6 +195,10 @@
   --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
   --series-4: #6c489a; --series-5: #8c2d2a;
 }
+/* The other half of --aim-floor, and the whole of what a coarse pointer changes about how
+   small a control may be. Every rule that states the floor reads the token, so a control
+   joins both answers by joining one of them. */
+@media (pointer: coarse) { :root { --aim-floor: 44px; } }
 /* Which here ring this is, said by the rule that draws it. An outline carries no word
    for which of the layer's rules put it there — so a reader that had to know worked it
    back from the selectors, matching the layer's own rules against the document by hand.

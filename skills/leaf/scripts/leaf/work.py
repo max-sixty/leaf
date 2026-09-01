@@ -179,7 +179,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
                 parser,
                 spk,
                 registry,
-                widget_revision,
+                events,
             )
             for coordinate, (event, spec) in widget_projection.actions.items()
         )

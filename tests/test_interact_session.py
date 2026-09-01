@@ -365,18 +365,27 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
     assert claim["disposition"] == "effective"
 
 
-def test_a_recordless_receipt_admits_work_and_settles_on_the_next_revision(page_dir):
-    """A completion verb with no authored record lives for one revision only.
+def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_dir):
+    """A completion move can arrive from a live revision after another is active.
 
-    Its receipt can admit an explicit claim without x-work. The next revision settles
-    the move, while the claim itself remains at the widget's Target Button until an
-    explicit --completes note answers that separate work lifecycle.
+    A version note older than the move cannot answer it. Its receipt can still admit
+    an explicit claim without x-work; only the next note settles the move, while the
+    claim itself remains at the widget's Target Button until an explicit --completes
+    note answers that separate work lifecycle.
     """
     work_page = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
     )
     (page_dir / "versions" / "v1.html").write_text(work_page)
     publish(page_dir)
+    (page_dir / "versions" / "v2.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v2</title>")
+    )
+    advanced = stamp(page_dir, 2, "Checked the surrounding plan")
+    assert advanced.exit_code == 0, advanced.output
+
+    # The reader still has r1 open after r2 became active. That move is new work,
+    # not something the earlier r2 note could already have answered.
     answer = events_model.append_event(
         page_dir,
         {
@@ -395,11 +404,11 @@ def test_a_recordless_receipt_admits_work_and_settles_on_the_next_revision(page_
         page_dir, "working", "checking the completed choice", "--on", "plan-choice"
     )
     assert claimed.exit_code == 0, claimed.output
-    (page_dir / "versions" / "v2.html").write_text(
-        work_page.replace("<title>t</title>", "<title>t · v2</title>")
+    (page_dir / "versions" / "v3.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
-    advanced = stamp(page_dir, 2, "Checked the surrounding plan")
-    assert advanced.exit_code == 0, advanced.output
+    answered = stamp(page_dir, 3, "Answered the completed choice")
+    assert answered.exit_code == 0, answered.output
 
     acknowledgments = page_state(page_dir)["browser"]["acknowledgments"]
     assert not any(receipt["event"] == answer["id"] for receipt in acknowledgments)

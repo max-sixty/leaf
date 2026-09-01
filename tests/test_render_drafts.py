@@ -57,12 +57,11 @@ def draft_controls(page, draft_id="draft-ops"):
 
 
 def cancel_draft(page, draft_id="draft-ops"):
-    """Cancel is the draft's alternative, reached through its one options Button."""
+    """Cancel stands beside Save throughout an engaged draft edit."""
     controls = draft_controls(page, draft_id)
     item = controls.locator("xpath=..")
-    item.locator(":scope > .lf-margin-more").click()
     item.locator(":scope > .lf-margin-options").get_by_role(
-        "button", name=re.compile(r"Cancel")
+        "button", name="Cancel", exact=True
     ).click()
 
 

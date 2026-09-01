@@ -448,7 +448,7 @@ AFTER_THE_DRAG = f"""async () => {{
   const field = document.querySelector('.lf-fab-input');
   return {{ text: getSelection().toString(),
            quote: document.getElementById('lf-composer-quote')?.textContent ?? '',
-           fieldFocused: document.activeElement === field,
+           fieldOffered: Boolean(field?.checkVisibility()),
            says: document.querySelector('.lf-keyline').textContent }};
 }}"""
 
@@ -479,12 +479,12 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
         control = drag_across(page, "#decision-lede")
-        assert control["fieldFocused"], "the page's own words raised no comment field"
+        assert control["fieldOffered"], "the page's own words raised no comment field"
         assert "monolith split" in control["quote"]
 
         label = drag_across(page, "main > .sitenote p")
         assert "example of a leaf page" in label["text"]
-        assert not label["fieldFocused"]
+        assert not label["fieldOffered"]
         # The word `c` carries with nothing in hand — it goes to the threads rather
         # than opening a box on anything, and "comment on the selection" does not
         # contain it, so the two readings still tell each other apart.
@@ -586,8 +586,9 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
             (box["x"] + 4, box["y"] + 8),
             (box["x"] + box["width"] - 40, box["y"] + box["height"] - 8),
         )
-        # Selection enters the compact field immediately.
-        expect(page.locator(".lf-fab-input")).to_be_focused()
+        # Selection offers the compact field without entering it, so the browser's
+        # own selection is still there for a native copy.
+        expect(page.locator(".lf-fab-input")).to_be_visible()
         page.locator(".lf-composer textarea").fill("Does this cover key rotation?")
         page.keyboard.press("Enter")
 

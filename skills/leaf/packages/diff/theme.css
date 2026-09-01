@@ -66,9 +66,15 @@ lf-diff:not(.lf-rendered) > pre {
                                                          font-weight: 650; }
 .lf-diff-filtered { display: none !important; }
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
-.lf-diff-review:is(:focus-visible, .lf-focus-visible),
 .lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+                                                        --lf-here-ring: diff-tools;
                                                         outline-offset: 1px; }
+/* The review press rides the file's own summary row, inside the box that clips it, so
+   it takes the inset the summary below takes and not the toolbar's outward gap: drawn
+   outward its lower run fell past the bottom the details clips at. */
+.lf-diff-review:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+                                            --lf-here-ring: diff-review;
+                                            outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
@@ -93,6 +99,12 @@ lf-diff:not(.lf-rendered) > pre {
   --diffs-bg-separator: var(--code-chrome);
   --diffs-fg: var(--code-ink);
   --diffs-fg-number: var(--code-muted);
+  /* A changed row's number is drawn in that row's own base by default, which is the
+     ink the fill beside it is mixed from: green on green at 4.03:1 in the light
+     palette. The tinted-surface inks are the layer's answer to exactly that question
+     and keep the number the same statement, legibly. */
+  --diffs-fg-number-addition-override: var(--ok-ink);
+  --diffs-fg-number-deletion-override: var(--danger-ink);
   --diffs-addition-base: var(--ok);
   --diffs-deletion-base: var(--danger);
   --diffs-bg-addition: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));

@@ -228,8 +228,8 @@ catalog.</p>
         You sent me the meter readings, the thermostat log, and the survey the installer
         left behind. This is what they say together. A chart has no words to select, so
         click one and the comment lands on the whole picture — say which number you want
-        and I will put it in the next version. The last section asks which measure to
-        pay for first.
+        and I will put it in the next version. After the survey of where it leaves, I
+        ask which measure to book first.
       </p>
 
       <section id="heat-years-section">
@@ -316,39 +316,6 @@ chimney with no cap, 120
         </lf-chart>
       </section>
 
-      <section id="heat-weather">
-        <h2>Against the weather</h2>
-        <p id="heat-weather-note">
-          Every week sits at its own average outside temperature, so a colder winter
-          cannot be mistaken for a leakier house. The two runs are the same house six
-          weeks apart: the second sits about
-          <lf-num
-            id="heat-weather-gap"
-            source="heat-weather-gap"
-            at="2026-02-01T12:00:00Z"
-            via="uv run analyse-heat --weather-normalise"
-            >40 kWh a week</lf-num
-          >
-          below the first at the same temperature, which is the draught-proofing showing
-          up.
-        </p>
-        <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
-          <pre>
-outside average, before, after
-2.1, 604,
-3.0, 588,
-3.4, 561,
-4.2, 538,
-5.0, 512,
-6.1, 470,
-2.6, , 542
-3.8, , 498
-5.2, , 470
-6.4, , 449
-</pre>
-        </lf-chart>
-      </section>
-
       <lf-decision id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
         <p id="heat-first-note">
@@ -387,6 +354,39 @@ outside average, before, after
           </lf-option>
         </lf-options>
       </lf-decision>
+
+      <section id="heat-weather">
+        <h2>Against the weather</h2>
+        <p id="heat-weather-note">
+          Every week sits at its own average outside temperature, so a colder winter
+          cannot be mistaken for a leakier house. The two runs are the same house six
+          weeks apart: the second sits about
+          <lf-num
+            id="heat-weather-gap"
+            source="heat-weather-gap"
+            at="2026-02-01T12:00:00Z"
+            via="uv run analyse-heat --weather-normalise"
+            >40 kWh a week</lf-num
+          >
+          below the first at the same temperature, which is the draught-proofing showing
+          up.
+        </p>
+        <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
+          <pre>
+outside average, before, after
+2.1, 604,
+3.0, 588,
+3.4, 561,
+4.2, 538,
+5.0, 512,
+6.1, 470,
+2.6, , 542
+3.8, , 498
+5.2, , 470
+6.4, , 449
+</pre>
+        </lf-chart>
+      </section>
 </lf-tab>
 
 <lf-tab id="corpus-live-progress" label="Live">

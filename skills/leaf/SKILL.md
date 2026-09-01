@@ -93,8 +93,9 @@ guidance <page>` lists the available audiences, and `leaf page guidance <page>
 <audience>` prints one guide. Read the assigned audience before acting in that
 role. List the page's audiences and read `author` guidance when it is available.
 
-Every decision has a control beside its evidence. A page that needs approval declares
-sign-off; an informative page does not. Save freely as the subject changes and
+A decision sits where the page has just made it answerable, with its control beside
+the evidence it turns on and the rest of the page after it. A page that needs
+approval declares sign-off; an informative page does not. Save freely as the subject changes and
 stamp meaningful checkpoints. Use status detail for progress between revisions.
 Keep the waiter alive while work continues so comments can affect the next step.
 

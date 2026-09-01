@@ -3661,6 +3661,76 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
     page.close()
 
 
+def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
+    """Thread travel attempts a failing unopened file once rather than recursing.
+
+    Automatic reveal marks the failed entry as terminal for navigation. Closing and
+    reopening its disclosure is the reader's explicit request to try the file again.
+    """
+    authored = leaf_page(
+        "failed fragmented diff",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "second.py",
+                    "path": "second.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/second.py b/second.py
+--- a/second.py
++++ b/second.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+                }
+            ]
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the unavailable line.",
+            "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
+        },
+    )
+    requests = []
+
+    def refuse(route):
+        requests.append(True)
+        route.fulfill(status=200, json={"revision": -1})
+
+    page, errors = open_page(browser, url)
+    page.route("**/api/data*", refuse)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    page.locator(".lf-threads > .lf-thread .lf-quote").click()
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "data fragment response does not match its request"
+    )
+    page.wait_for_timeout(250)
+    assert len(requests) == 1, "thread hydration retried without another reader gesture"
+
+    summary = page.locator("lf-diff summary")
+    summary.click()
+    with page.expect_request(lambda request: "/api/data" in request.url):
+        summary.click()
+    assert len(requests) == 2
+    assert errors == []
+    page.close()
+
+
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     """Every question the runtime asks by id goes through one lookup, and a widget that
     stages its authored children carries their ids into its shadow tree with them. While

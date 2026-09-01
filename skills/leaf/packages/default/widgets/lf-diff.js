@@ -456,10 +456,13 @@ customElements.define(
           details,
           lines: [],
           loaded: false,
+          failed: false,
           loading: null,
         };
         details.addEventListener("toggle", () => {
-          if (details.open) settle(this.loadManifestEntry(entry));
+          if (!details.open) return;
+          entry.failed = false;
+          settle(this.loadManifestEntry(entry));
         });
         entries.push(entry);
       }
@@ -520,6 +523,7 @@ customElements.define(
           this.projectManifest();
         } catch (error) {
           if (rendering !== this.rendering || !this.isConnected) return;
+          entry.failed = true;
           fragmentError(entry.details, error);
         } finally {
           entry.loading = null;

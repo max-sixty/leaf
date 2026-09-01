@@ -1750,12 +1750,18 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,
     # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
-    # last, which is worn by nothing and is here for the other half of the sentence. lf-copy is the medium `version export` marks on the root, and the runtime
-    # names it under a negation to withhold the live page's scroller from a file that has
-    # no panel to scroll beside; a rule that dresses no element can leak onto none, and
-    # what the pin is for is the day one of these stops being either kind.
+    # first two, which document level names only to hold a rule off them and which are here
+    # for the other half of the sentence. lf-copy is the medium `version export` marks on
+    # the root, and the runtime names it under a negation to withhold the live page's
+    # scroller from a file that has no panel to scroll beside; a rule that dresses no
+    # element can leak onto none, and what the pin is for is the day one of these stops
+    # being either kind.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
+        # The compact response field, named the same way: the general text box's rule
+        # excludes it at document level because the field takes its whole geometry from
+        # the response controls it shares a baseline with, inside the chrome's own scope.
+        "lf-fab-input",
         "lf-ui",
         # A native label can pass through an intermediate focus target. These project
         # the held control's focus until activation settles.

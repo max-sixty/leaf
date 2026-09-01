@@ -120,7 +120,6 @@ export function createAcknowledgments(dependencies) {
     }
     for (const line of pageQueryAll(".lf-receipt"))
       if (!wanted.has(line)) line.remove();
-    document.dispatchEvent(new CustomEvent("lf-acknowledgments"));
   }
 
   return { paintAcknowledgments };

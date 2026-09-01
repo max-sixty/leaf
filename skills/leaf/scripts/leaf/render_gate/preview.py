@@ -23,7 +23,14 @@ def preview_server(
     server_type=None,
     transition_held: bool = False,
 ):
-    """Serve one exact document without changing the page's durable state."""
+    """Serve one exact document without changing the page's durable state.
+
+    Its own key, not the machine's: this server is loopback-only and lives for the
+    length of a `with`, so it neither needs nor should mint the access every page
+    here is read with. It sets that key under the one cookie name, which would sign
+    a reader out of every page on 127.0.0.1 — except that both callers drive
+    Playwright, whose browser brings its own jar.
+    """
     handler_factory = handler_for if handler_factory is None else handler_factory
     server_type = LeafHTTPServer if server_type is None else server_type
     transition = (

@@ -14,7 +14,6 @@ from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
@@ -46,6 +45,7 @@ from render_support import (
     ROSTER_PAGE,
     SCROLL_SETTLE_MS,
     SCROLL_SETTLED,
+    SHIPPED_PACKAGES,
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
     STANDING_ACTIONS,
@@ -2017,13 +2017,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
         .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
-    registry = validation_model.incoming_registry(
-        [
-            schema_model.ASSETS,
-            schema_model.DEFAULT_PACKAGE,
-            COMMAND_HUB_PACKAGE,
-        ]
-    )
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     declared = {
         (tag, verb)
         for tag, entry in registry.items()

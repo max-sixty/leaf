@@ -231,7 +231,15 @@ def headless_shell():
         check=True,
     )
     chromium = Path(read.stdout.strip())
-    root, build = chromium.parents[2], chromium.parents[1].name.rsplit("-", 1)[1]
+    # The build directory sits two levels up on Linux (`chromium-N/chrome-linux/chrome`)
+    # and five on macOS, where the executable is inside an .app bundle; find it by
+    # name rather than by depth.
+    build_dir = next(
+        (parent for parent in chromium.parents if parent.name.startswith("chromium-")),
+        None,
+    )
+    assert build_dir is not None, f"no chromium-<build> directory above {chromium}"
+    root, build = build_dir.parent, build_dir.name.rsplit("-", 1)[1]
     shell = root / f"chromium_headless_shell-{build}"
     for candidate in (*sorted(shell.glob("*/chrome-headless-shell*")), chromium):
         if candidate.is_file():

@@ -61,6 +61,13 @@ def pages_under(directory):
     return pages
 
 
+def example_title(stem: str) -> str:
+    """The h1 an example's own source carries, so a retitled example cannot strand a
+    test on its old words."""
+    source = (EXAMPLES / f"{stem}.html").read_text(encoding="utf-8")
+    return re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
+
+
 def authored_examples():
     """The public examples, with the one generated browser-stress fixture removed."""
     pages = pages_under(EXAMPLES)
@@ -259,7 +266,8 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
     try:
         for source in examples:
             opened(page, errors, example_url(hosted, source.stem))
-            expect(page.locator(".lf-banner .lf-version")).to_have_text("v1 ▾")
+            newest = len(example_versions(source))
+            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
             expect(page.locator(".lf-status-text")).to_contain_text(
                 "Nobody is behind this page"
             )
@@ -291,7 +299,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(example_url(hosted, "pr-walkthrough"), wait_until="commit")
-        expect(page.locator("h1")).to_have_text("Per-token rate limits")
+        expect(page.locator("h1")).to_have_text(example_title("pr-walkthrough"))
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"

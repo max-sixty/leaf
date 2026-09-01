@@ -109,7 +109,11 @@ function updateDisclosureControl(owner) {
 
 function buildToolbar(owner) {
   const toolbar = make("div", "lf-call-tools");
+  // The counts this widget writes are an account of the tree, not words the page holds,
+  // so `data-lf-gen` keeps them out of a passage — the marker `lf-diff` gives its own
+  // injected stat. Not `.lf-ui`, whose chrome face would race `.lf-call-summary`'s own.
   const summary = make("p", "lf-call-summary");
+  summary.dataset.lfGen = "1";
   // `offer`, not a bare button: the disclosure control is chrome this widget injected
   // and a handler is all it ever was, so the markers it writes are what tells the
   // exported copy to take the press away rather than draw a hand over a dead one.
@@ -368,7 +372,7 @@ customElements.define(
         let count = rootNode.querySelector(".lf-call-group-count");
         if (!count) {
           count = make("span", "lf-call-group-count");
-          count.dataset.lfUi = "";
+          count.dataset.lfGen = "1";
           rootNode.append(count);
         }
         setText(count, groupLabel(groupRecords));

@@ -280,6 +280,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-summary")).to_have_text(
         "1 changed root · 1 added · 0 removed · 2 items"
     )
+    # The counts are this widget's account of the tree, not words the page holds:
+    # data-lf-gen is what keeps a drag across them from quoting text no markup has.
+    expect(widget.locator(".lf-call-summary")).to_have_attribute("data-lf-gen", "1")
+    expect(widget.locator(".lf-call-group-count")).to_have_attribute("data-lf-gen", "1")
     group = widget.locator(":scope > .lf-call-group")
     expect(group).to_have_count(1)
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(

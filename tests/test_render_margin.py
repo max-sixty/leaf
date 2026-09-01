@@ -1913,9 +1913,11 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     toggle = page.locator(".lf-page-map-toggle")
     expect(toggle).to_be_visible()
     expect(toggle).to_have_text(re.compile(r"Map \(\d+\)"))
+    # The row keeps one order at every width and folds what it cannot fit into its menu;
+    # the index stays on the row itself, one press away, rather than behind the door.
     assert toggle.evaluate(
-        "button => button.previousElementSibling.matches('.lf-signoff, .lf-threads-toggle')"
-    ), "the small-screen map is not beside the primary feedback controls"
+        "button => button.parentElement.matches('.lf-banner-actions')"
+    ), "the small-screen map was folded behind the banner's door"
     text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
         """buttons => buttons.map(button => {
           const box = button.getBoundingClientRect();

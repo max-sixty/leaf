@@ -8,15 +8,23 @@ import {
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
 
+// `indication` marks a reading that reports rather than offers: a receipt for a move
+// already made, or the outcome that answered it. The reader has nothing to press there,
+// so the Button showing it wears the flat `receipt` promise below.
 const KINDS = {
   action: { label: "Action", symbol: "·", priority: -1 },
   change: { label: "Change", symbol: "Δ", priority: 0 },
   comment: { label: "Thread", symbol: "💬", priority: 1 },
   decision: { label: "Ask", symbol: "?", priority: 2 },
-  outcome: { label: "Outcome", symbol: "✓", priority: 3 },
-  sent: { label: "Sent", symbol: "✓", priority: 3 },
-  pickup: { label: "Picked up", symbol: "✓", priority: 3 },
-  waiting: { label: "Waiting for pickup", symbol: "○", priority: 3 },
+  outcome: { label: "Outcome", symbol: "✓", priority: 3, indication: true },
+  sent: { label: "Sent", symbol: "✓", priority: 3, indication: true },
+  pickup: { label: "Picked up", symbol: "✓", priority: 3, indication: true },
+  waiting: {
+    label: "Waiting for pickup",
+    symbol: "○",
+    priority: 3,
+    indication: true,
+  },
   activity: { label: "Active", symbol: "●", priority: 4 },
 };
 
@@ -27,7 +35,7 @@ const KINDS = {
 const offeredItems = new Set();
 const offerListeners = new Set();
 const ACTION_TONES = new Set(["neutral", "positive", "negative"]);
-const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options"]);
+const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options", "receipt"]);
 
 const changedOffers = () => {
   for (const listener of offerListeners) listener();
@@ -39,6 +47,12 @@ const changedOffers = () => {
 // every Button keeps one circular fitting and one stable accessible name. Native
 // `title` bubbles would repeat that label on a different timer and with a different
 // face, so this anatomy owns the only visual tooltip too.
+//
+// `receipt` is the one promise that is not a press. It keeps its glyph and its place in
+// the cluster and gives up everything that offers a gesture: the raised circle in the
+// stylesheet, the tab stop, and the button role. `role="status"` stands in for that role
+// and the phase is the accessible name, so a reader walking the page map still lands
+// here and hears what the Button reports.
 export function marginAction(
   control,
   { glyph, label, behavior = "action", tone = "neutral" },
@@ -57,9 +71,17 @@ export function marginAction(
   control.removeAttribute("title");
   control.dataset.lfBehavior = behavior;
   control.dataset.lfTone = tone;
-  if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
+  const opens = behavior === "disclosure" || behavior === "options";
+  if (opens && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
-  if (behavior === "action") control.removeAttribute("aria-expanded");
+  if (!opens) control.removeAttribute("aria-expanded");
+  if (behavior === "receipt") {
+    control.setAttribute("role", "status");
+    control.tabIndex = -1;
+  } else if (control.getAttribute("role") === "status") {
+    control.removeAttribute("role");
+    control.removeAttribute("tabindex");
+  }
   let glyphNode = control.querySelector(":scope > .lf-margin-action-glyph");
   let spaceNode = control.querySelector(":scope > .lf-margin-action-space");
   let labelNode = control.querySelector(":scope > .lf-margin-action-label");
@@ -73,8 +95,9 @@ export function marginAction(
   spaceNode.setAttribute("aria-hidden", "true");
   spaceNode.textContent = " ";
   labelNode.className = "lf-margin-action-label";
+  // The ellipsis says a press opens something. Only the two behaviors that do wear it.
   labelNode.textContent =
-    behavior === "action" || labelText.endsWith("…") ? labelText : `${labelText}…`;
+    opens && !labelText.endsWith("…") ? `${labelText}…` : labelText;
   control.replaceChildren(glyphNode, spaceNode, labelNode);
   if (!control.hasAttribute("aria-label"))
     control.setAttribute("aria-label", labelText);
@@ -892,7 +915,7 @@ export function createLivingMargin(dependencies) {
     const next = candidates.find((row) => row.tabIndex === 0) ?? candidates[0];
     if (!visible.length && next.lfEntry?.target)
       scrollToElement(next.lfEntry.target, "instant", "nearest");
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
     next.focus({ preventScroll: true });
     return true;
   }
@@ -920,11 +943,22 @@ export function createLivingMargin(dependencies) {
     });
   }
 
+  // The rail holds one tab stop. That stop is the way in from the page, not the reading
+  // position: the walk, the numbered addresses, and the pointer all reach a marker
+  // without it. A receipt is an indication rather than a press, so it never takes the
+  // stop, and the stop passes to the nearest marker that acts. A rail with nothing but
+  // receipts leaves the tab order altogether, and `M` and `m` are the way in.
+  function holdTabStop(next) {
+    const acts = (row) => row.dataset.lfBehavior !== "receipt";
+    const stop = next && !acts(next) ? availableRows().find(acts) : next;
+    for (const row of rows.values()) row.tabIndex = row === stop ? 0 : -1;
+  }
+
   function syncRoving() {
     const available = availableRows();
     const visible = visibleRows();
     if (!available.length) {
-      for (const row of rows.values()) row.tabIndex = -1;
+      holdTabStop(null);
       return;
     }
     const focused = available.find((row) => row === document.activeElement);
@@ -944,7 +978,7 @@ export function createLivingMargin(dependencies) {
         };
         return distance(row) < distance(best) ? row : best;
       });
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
   }
 
   function scheduleRoving() {
@@ -964,7 +998,7 @@ export function createLivingMargin(dependencies) {
         : edge === "last"
           ? visible.at(-1)
           : clampedRow(visible, document.activeElement, direction);
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
     next.focus({ preventScroll: true });
   }
 
@@ -1002,8 +1036,10 @@ export function createLivingMargin(dependencies) {
     marginAction(row, {
       glyph: face.symbol,
       label,
-      behavior: "disclosure",
+      behavior: face.indication ? "receipt" : "disclosure",
     });
+    // Where this marker stands in the walk places it for a reader listening, and reads
+    // as progress if it were painted. The name carries it; the visible word does not.
     row.setAttribute("aria-label", markerName(entry, index, anchored));
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");

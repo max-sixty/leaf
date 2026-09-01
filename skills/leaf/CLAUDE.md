@@ -1386,7 +1386,9 @@ with one unambiguous control therefore gets one Button, not a row of variants.
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
-action's standing outcome supplies the same retained target cluster throughout. A
+action's standing outcome supplies the same retained target cluster throughout. Those
+three phases and the standing outcome report a move already made, so the Button wears
+the flat `receipt` promise below; **Active** raises it back into a press. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
 the full conversation; an **Active** claim joins that cluster under `…`. A standalone
 page-widget claim gets an **Active** Button directly. When no page edge exists—inside
@@ -1405,9 +1407,15 @@ behavior states the promise before the press:
 - `disclosure` has the ordinary ring, carries `aria-expanded` when it controls
   persistent context, and opens or closes that context without settling it;
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
-  place.
+  place;
+- `receipt` reports a move already made and offers no press. It keeps its glyph, its
+  muted ink, and its seat in the cluster, and gives up the ring, the fill, the hover
+  lift, the pointer, and the tab stop. It stands in the accessibility tree as a `status`
+  with the phase as its accessible name, so the Page map's walk and its numbered
+  addresses still land there and a reader listening hears the phase.
 
-Ring weight carries that distinction without changing shape or adding a chevron. A lone
+Ring weight carries that distinction without changing shape or adding a chevron; a
+receipt has no ring at all. A lone
 non-thread informational Button reveals its target directly. Each additional
 non-thread reading gets its own peer Button under `…`; pressing one reveals that
 reading directly rather than collecting readings in a card. All threads at one target
@@ -1428,11 +1436,16 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Every Button rests as a circle. Its label appears as transient chrome on hover or
-keyboard focus without changing the cluster's geometry; an open disclosure keeps its
-label visible. Labels for `disclosure` and `options` end in an ellipsis, while immediate
-action labels do not. The complete word remains in the DOM and the accessible name
-never changes.
+Every Button rests as a circle, whether or not it draws one. Its label appears as
+transient chrome on hover or keyboard focus without changing the cluster's geometry; an
+open disclosure keeps its label visible. Labels for `disclosure` and `options` end in an
+ellipsis, because those two open something; an action's and a receipt's do not. The
+complete word remains in the DOM and the accessible name never changes.
+
+A marker's accessible name also carries where it stands in the walk: which location of
+how many, and how far down the page. That is how a reader listening places it, and it
+belongs to the name alone. Painted beside the phase, the same words read as progress
+rather than position.
 
 The living margin groups contributions and state readings by exact target identity,
 chooses the primary, and owns the generated disclosure and `…` Buttons plus the
@@ -1443,10 +1456,10 @@ target's rendered text block (or the target itself). Adding another target actio
 not add another absolute row, control type, or rail measurement.
 
 That ordered target collection is the Page map's complete location count and the source
-for the `g m` address list. A location's disclosure Button announces its position in
+for the `g m` address list. A location's marker announces its position in
 the complete collection. The numbered chord exposes the collection's first nine
 locations; later locations remain in the Page map and ordinary focus order rather than
-making a one-digit chord ambiguous. Addressing an item opens its disclosure Button when
+making a one-digit chord ambiguous. Addressing an item goes to its marker when
 it has one; an action-only item receives focus on its first available action without
 performing it. In the compact posture, an informational item opens the Page map sheet
 at that location instead of reviving the hidden desktop preview; an action-only item

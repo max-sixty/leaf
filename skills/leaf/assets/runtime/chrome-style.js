@@ -249,9 +249,10 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-action[hidden] { display: none; }
-  /* A Button carries one of three promises. An action's uniformly heavier ring says
+  /* A Button carries one of four promises. An action's uniformly heavier ring says
      this press acts now. A disclosure opens context, and the ellipsis unfolds peer
-     Buttons in the target cluster. All three keep one circular fitting. */
+     Buttons in the target cluster. A receipt reports a move already made and offers no
+     press at all. All four keep one circular fitting and one place in the cluster. */
   .lf-margin-action[data-lf-behavior="action"] {
     border-width: 2px;
     border-color: color-mix(in srgb, var(--ink-2) 55%, var(--border-2));
@@ -260,6 +261,14 @@ export function chromeStyle({
   .lf-margin-action[data-lf-behavior="disclosure"],
   .lf-margin-action[data-lf-behavior="options"] {
     background: var(--paper); color: var(--muted); box-shadow: none;
+  }
+  /* Sewn flat: the coat button keeps its glyph and its seat and gives up the raised
+     circle, so it reads as the account it is. The fill and the ring go, and the fitting
+     stays, so the box remains the cluster's and a phase advancing to Active raises the
+     same Button where it stands instead of moving it. */
+  .lf-margin-action[data-lf-behavior="receipt"] {
+    border-color: transparent; background: none; color: var(--muted);
+    box-shadow: none;
   }
   /* The look is the control's and the hand is the press's, which is one rule apart —
      the same split the pill above states, and for the same reason. A copy keeps the
@@ -272,9 +281,16 @@ export function chromeStyle({
      below are that lift wearing a colour, so all of them are spelled the same way. The
      hand is the only half a gate can see — the copy's offering reading takes the cursor and
      nothing else. A decided suggestion puts its durable word in a sibling receipt;
-     BAKE strips the inert Button and leaves that page text behind. */
-  .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
-  .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+     BAKE strips the inert Button and leaves that page text behind.
+
+     A receipt is a third case: the platform's element, kept for the cluster's one
+     anatomy and for the walk to land on, with nothing to press. It is excluded from the
+     hand and the lift here rather than overruled by a later rule, so where a Button gets
+     its promise is stated once. */
+  .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]) {
+    cursor: pointer;
+  }
+  .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);
   }
   .lf-margin-action:is(:focus-visible, .lf-focus-visible) {

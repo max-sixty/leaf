@@ -6,11 +6,13 @@
  * activation captures the reading landmark before it replaces the authored main. Those
  * are local calls here rather than callbacks across a seam nothing else could stand at.
  *
- * The surface is the three key rows, the chooser's nodes (control, menu, newest-version
- * chip), the two calls state application drives — `renderVersions` paints the chooser
- * from a state, `prepareActivation` fetches the revision a state names ahead of the
- * commit that installs it — the arrival landing, and `blocksOnScreen`, the reading the
- * decision walk starts from.
+ * The surface is the three key rows; the chooser's nodes (control, menu, newest-version
+ * chip) and the labels the banner reserves width for (`versionLabels`); the two calls
+ * state application drives — `renderVersions` paints the chooser from a state,
+ * `prepareActivation` fetches the revision a state names ahead of the commit that
+ * installs it; the arrival landing; the menu readings the composing surface and the
+ * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
+ * `comparisonChanges`); and `blocksOnScreen`, the reading the decision walk starts from.
  */
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";
@@ -968,11 +970,13 @@ export function createVersion({
 
   // The move a state asks of the live root, fetched ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
-  // to load, which is reported and leaves the chip as the way to try again; `stale` where
-  // the document came from a re-vendored layer, so the page is reloading and the state
-  // belongs to the layer it is leaving. Whether the move happens now is asked at the
-  // commit: `midComposition` or an open menu defers it, unless the chip was pressed
-  // (goActive) — the one override, spent by the install it forced.
+  // to load, which is reported; the commit's own render then lights the chip as the way
+  // to try again, and nothing here paints ahead of that commit, so a refused candidate
+  // has nothing of this move to roll back. `stale` where the document came from a
+  // re-vendored layer, so the page is reloading and the state belongs to the layer it is
+  // leaving. Whether the move happens now is asked at the commit: `midComposition` or an
+  // open menu defers it, unless the chip was pressed (goActive) — the one override, spent
+  // by the install it forced.
   async function prepareActivation(state) {
     const target = state.active;
     if (
@@ -981,8 +985,6 @@ export function createVersion({
       target.revision <= runtime.currentRevision
     )
       return null;
-    latestChip.textContent = arriving(target.label);
-    showNews(latestChip, true);
     let doc;
     try {
       doc = await revisionDocument(target);
@@ -1213,7 +1215,6 @@ export function createVersion({
     closeVersionMenu,
     comparisonBase,
     comparisonChanges,
-    goActive,
     installArrival,
     latestChip,
     prepareActivation,

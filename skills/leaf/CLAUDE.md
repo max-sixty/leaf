@@ -2287,9 +2287,11 @@ one page is one gesture: the walk through the menu states a comparison per row,
 an activation drops the standing comparison and puts it back, the chooser's word
 says whether one is standing, and the activation captures the reading landmark
 before it replaces the authored main. Split into modules, those four facts travel
-as callbacks passed back and forth; kept together they are ordinary local calls,
-and the surface the rest of the runtime sees is the three key rows, the chooser's
-nodes, the live-activation calls state application drives, and `blocksOnScreen`.
+as callbacks passed back and forth; kept together they are ordinary local calls.
+The surface the rest of the runtime sees is the three key rows; the chooser's nodes
+and the labels the banner reserves for; `renderVersions` and `prepareActivation`,
+which state application drives; the arrival landing; the menu and comparison
+readings the composing surface and the margin take; and `blocksOnScreen`.
 
 The live root follows the newest version without navigating. It begins fetching
 as soon as a state read announces the version, but `midComposition` or an open

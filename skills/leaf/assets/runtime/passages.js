@@ -734,7 +734,7 @@ export function createPassages(dependencies) {
     // the only lead there is, and one that spent the cap exactly is not worth a term
     // the walk would take anyway.
     const lead = [];
-    for (let spent = 0; words.length > lead.length; ) {
+    for (let spent = 0; words.length > lead.length;) {
       const next = words[lead.length];
       if (lead.length && spent + next.length > LEAD_CAP) break;
       lead.push(next);

@@ -763,7 +763,6 @@ const {
   closeVersionMenu,
   comparisonBase,
   comparisonChanges,
-  goActive,
   installArrival,
   latestChip,
   prepareActivation,

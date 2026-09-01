@@ -650,8 +650,13 @@ connected before the first state and one constructed by a later thread reconcile
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
 event list did not grow and the heartbeat's re-application of the state the page
-already holds. This lets a module refresh elapsed time and retry a render
-deferred by live input without owning a timer or a second event cursor.
+already holds. The outbox fires it too, for the reconciliation it performs on an
+answer of its own — a refused action, or a read event — which withdraws or
+settles a winner without applying a state. Every pass that reconciles is
+therefore heard through this one event, which is what keeps a surface reading the
+projection rather than the DOM current with a withdrawal. It also lets a module
+refresh elapsed time and retry a render deferred by live input without owning a
+timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchUpdates` when their element disconnects.
 

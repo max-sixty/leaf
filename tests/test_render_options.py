@@ -39,13 +39,13 @@ from render_support import (
     _until,
     compare_with,
     flip_point,
+    hold_selection,
     key_line,
     leaf_page,
     live_url,
     open_page,
     resized,
     round_trip,
-    select,
     sent_events,
     stamp_page,
     stamp_version_file,
@@ -1100,19 +1100,36 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     )
 
     words = page.locator("#ro-column-p")
-    box = words.bounding_box()
-    y = box["y"] + box["height"] / 2
-    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    assert page.evaluate("() => !getSelection().isCollapsed")
-    assert not option.evaluate(picked), "selecting the option's words answered it"
+    start, end = words.evaluate("""el => {
+        const text = el.firstChild;
+        const point = (offset, edge) => {
+            const range = document.createRange();
+            range.setStart(text, offset);
+            range.setEnd(text, offset + 1);
+            const box = range.getBoundingClientRect();
+            return [edge === 'start' ? box.left + 1 : box.right - 1,
+                    box.top + box.height / 2];
+        };
+        const first = text.data.indexOf('failure');
+        const last = text.data.indexOf('costing') + 'costing'.length - 1;
+        return [point(first, 'start'), point(last, 'end')];
+    }""")
+    hold_selection(page, start, end)
+    assert page.evaluate("() => getSelection().toString()") == (
+        "failure reads off the list instead of costing"
+    )
+    page.mouse.up()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert not option.evaluate(picked), "selecting the option's evidence answered it"
 
     assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
         "the reader working the evidence sent Claude a decision they never made"
     )
 
     # And the option's own words still answer it, which is what the card is for.
-    page.evaluate("() => getSelection().removeAllRanges()")
-    page.locator("#ro-column-p").click()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#ro-column > strong").click()
     expect(page.locator("#ro-column > .lf-pick")).to_have_text("selected")
     round_trip(page)
     assert [

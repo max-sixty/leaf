@@ -78,6 +78,14 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
+@cli.command(short_help="Run Leaf's bundled MCP Apps server.")
+def mcp() -> None:
+    """Serve Leaf tools and its interactive review resource over stdio."""
+    from leaf.mcp_server import run_mcp_server
+
+    run_mcp_server()
+
+
 @cli.group(short_help="Deliver page updates to later turns of this Codex task.")
 def codex() -> None:
     """Run Leaf's detached Codex delivery carrier."""

@@ -39,6 +39,7 @@ from render_support import (
     stamp_page,
     told,
     undo,
+    unfolded_button,
     wait_for_revision,
     watched,
 )
@@ -1897,7 +1898,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
         one.evaluate("() => document.querySelectorAll('[data-lf-pending]').length") == 0
     )
 
-    two.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    unfolded_button(two.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).click()
     round_trip(two)
     expect(one.locator("#sug-refill lf-new")).to_be_hidden()
     assert [

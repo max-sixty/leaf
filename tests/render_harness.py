@@ -1416,6 +1416,27 @@ def resized(page, width, height):
     layout still waits for its transition; a margin easing into place is the ordinary
     case.
 
+    That event is the page's fact and not the document's, and one reading waits a
+    further frame for the difference: the browser publishes the size of the document's
+    own scrolling area — what `documentElement.scrollWidth` answers with — during the
+    rendering update *after* the one that dispatched the event. So a read taken in the
+    task the event returns to comes back with the width the document scrolled to before
+    the window narrowed, while every box on it already measures the new one, which is a
+    failure that names the page's layout for something the page's layout has already
+    got right. Measured on the specimen page narrowed to 380px, over a fresh load for
+    each point so no read forces the layout the next one asks about: stale in the resize
+    handler, stale in a task behind it, stale in that update's animation frame and in
+    the next update's, and 380 first in a task behind that second frame.
+
+    So this waits the rendering turn behind the event, with the `ONE_FRAME` every other
+    frame wait in this module uses — the one `navigate` takes after the readiness stamp.
+    It resolves in that turn's animation-frame callback, so the caller's next read is a
+    round trip behind it, which is the task the measurement above finds settled. It
+    costs one frame per resize, and it is what
+    `test_a_specimen_holds_a_wide_exhibit_inside_the_column` was failing on — the
+    board's 596px, read off a document that had already narrowed to 380, five times in
+    a hundred and eighty runs here and once on the nightly run that found it.
+
     A window already the size asked for fires nothing, so waiting on it would hang out
     a whole timeout rather than return at once. The sweep that walks each example at
     both a desk's width and a phone's asks for the first of those on a page opened at
@@ -1431,6 +1452,7 @@ def resized(page, width, height):
     }""")
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
+    page.evaluate(ONE_FRAME)
 
 
 def hold_selection(page, start, end, steps=8):

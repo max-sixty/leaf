@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Leaf review</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --app-paper: var(--color-background-primary, light-dark(#fbfaf7, #191918));
+        --app-ink: var(--color-text-primary, light-dark(#1f2420, #f0f1ec));
+        --app-muted: var(--color-text-secondary, light-dark(#667068, #aeb5af));
+        --app-line: var(--color-border-secondary, light-dark(#d8ddd8, #424843));
+        --app-accent: var(--color-text-info, light-dark(#176b45, #7bd6a5));
+        font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+        background: var(--app-paper);
+        color: var(--app-ink);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-width: 0;
+      }
+      button,
+      textarea {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      .app {
+        min-height: 220px;
+        background: var(--app-paper);
+        color: var(--app-ink);
+      }
+      .bar {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--app-line);
+        background: color-mix(in srgb, var(--app-paper) 94%, transparent);
+        backdrop-filter: blur(14px);
+      }
+      .mark {
+        display: grid;
+        width: 27px;
+        height: 27px;
+        flex: none;
+        place-items: center;
+        border-radius: 8px;
+        background: var(--app-accent);
+        color: var(--app-paper);
+        font:
+          700 16px/1 Georgia,
+          serif;
+      }
+      .identity {
+        min-width: 0;
+        flex: 1;
+      }
+      .title-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+      }
+      .identity b,
+      .identity > small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .identity b {
+        font-size: 13px;
+      }
+      .identity small {
+        margin-top: 1px;
+        color: var(--app-muted);
+        font-size: 11px;
+      }
+      .stage {
+        flex: none;
+        border: 1px solid var(--app-line);
+        border-radius: 999px;
+        padding: 1px 5px;
+        color: var(--app-muted);
+        font: 600 9px/1.4 var(--font-sans, system-ui);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .actions {
+        display: flex;
+        gap: 6px;
+      }
+      .btn {
+        min-height: 30px;
+        border: 1px solid var(--app-line);
+        border-radius: 8px;
+        padding: 4px 9px;
+        background: transparent;
+        color: inherit;
+        font-size: 12px;
+      }
+      .btn:hover {
+        border-color: var(--app-accent);
+      }
+      .btn.primary {
+        border-color: var(--app-accent);
+        background: var(--app-accent);
+        color: var(--app-paper);
+      }
+      .btn:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+      #page-host {
+        display: block;
+        min-height: 170px;
+      }
+      .empty {
+        padding: 36px 18px;
+        color: var(--app-muted);
+        text-align: center;
+      }
+      .composer {
+        position: sticky;
+        z-index: 3;
+        bottom: 0;
+        display: none;
+        gap: 8px;
+        padding: 10px 12px;
+        border-top: 1px solid var(--app-line);
+        background: var(--app-paper);
+      }
+      .composer.open {
+        display: grid;
+      }
+      .quote {
+        color: var(--app-muted);
+        font: 11px/1.35 var(--font-sans, system-ui);
+      }
+      textarea {
+        width: 100%;
+        min-height: 66px;
+        resize: vertical;
+        border: 1px solid var(--app-line);
+        border-radius: 9px;
+        padding: 9px 10px;
+        background: color-mix(in srgb, var(--app-paper) 94%, var(--app-ink));
+        color: inherit;
+      }
+      textarea:focus {
+        outline: 2px solid var(--app-accent);
+        outline-offset: 1px;
+      }
+      .composer-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .status {
+        display: none;
+        margin: 10px 12px 0;
+        border: 1px solid var(--app-line);
+        border-radius: 9px;
+        padding: 9px 10px;
+        color: var(--app-muted);
+        font-size: 12px;
+      }
+      .status.show {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .status.error {
+        border-color: #b94c45;
+        color: light-dark(#8a2924, #ffaaa3);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 520px) {
+        .bar {
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .actions {
+          gap: 4px;
+        }
+        .btn {
+          padding-inline: 6px;
+        }
+        .identity {
+          order: 2;
+          flex-basis: 100%;
+          padding-left: 37px;
+        }
+        .identity b {
+          display: none;
+        }
+      }
+      @media print {
+        .bar,
+        .status,
+        .composer {
+          display: none !important;
+        }
+        #page-host {
+          min-height: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="bar">
+        <span class="mark" aria-hidden="true">L</span>
+        <span class="identity">
+          <span class="title-line">
+            <b id="title">Leaf review</b>
+            <span
+              class="stage"
+              title="Merged for installed testing; Leaf will decide whether to keep or expand this transport."
+              >Experimental</span
+            >
+          </span>
+          <small id="meta">Connecting to the host…</small>
+        </span>
+        <span class="actions">
+          <button class="btn" id="comment-page" type="button">Comment</button>
+          <button
+            class="btn"
+            id="browser"
+            type="button"
+            title="Open the full Leaf runtime for active controls"
+          >
+            Full page
+          </button>
+          <button class="btn" id="refresh" type="button">Refresh</button>
+          <button class="btn" id="fullscreen" type="button" hidden>Fullscreen</button>
+        </span>
+      </header>
+      <div class="status" id="status" role="status" aria-live="polite">
+        <span id="status-text"></span>
+        <button class="btn primary" id="handoff" type="button" hidden>
+          Send to Codex
+        </button>
+      </div>
+      <div id="page-host"><p class="empty">Waiting for the Leaf page…</p></div>
+      <form class="composer" id="composer">
+        <div class="quote" id="quote"></div>
+        <textarea id="comment" placeholder="Comment on this page" required></textarea>
+        <div class="composer-actions">
+          <button class="btn" id="cancel" type="button">Cancel</button>
+          <button class="btn primary" id="send" type="submit">Send comment</button>
+        </div>
+      </form>
+    </div>
+    <script>
+      (() => {
+        const PROTOCOL_VERSION = "2026-01-26";
+        const pending = new Map();
+        let nextId = 0;
+        let hostContext = {};
+        let hostCapabilities = {};
+        let snapshot = null;
+        let selection = null;
+        let busy = false;
+        const $ = (id) => document.getElementById(id);
+        const pageHost = $("page-host");
+        const shadow = pageHost.attachShadow({ mode: "open" });
+
+        function request(method, params = {}) {
+          const id = ++nextId;
+          window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+          return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+        }
+
+        function notify(method, params = {}) {
+          window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+        }
+
+        function errorText(error) {
+          return error?.message || error?.data?.message || String(error);
+        }
+
+        function attemptId() {
+          if (crypto.randomUUID) return crypto.randomUUID();
+          const bytes = crypto.getRandomValues(new Uint8Array(16));
+          return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+            "",
+          );
+        }
+
+        function themeCss(base, dark) {
+          const chosen =
+            hostContext.theme === "dark"
+              ? `${base}\n${dark}`
+              : hostContext.theme === "light"
+                ? base
+                : `${base}\n@media (prefers-color-scheme: dark) {${dark}}`;
+          return chosen.replaceAll(":root", ":host");
+        }
+
+        function pageCss(leaf) {
+          return `${themeCss(leaf.theme, leaf.darkTheme)}
+            ${(leaf.authoredCss || "").replaceAll(":root", ":host")}
+            :host { display: block; color-scheme: light dark; }
+            main { box-sizing: border-box; min-height: 160px; padding-block: 24px 70px; }
+            [data-lf-gen], .lf-ui { display: none !important; }
+            button, input, select, textarea { pointer-events: none; }
+          `;
+        }
+
+        function sizeComment() {
+          const field = $("comment");
+          field.style.height = "auto";
+          field.style.height = `${Math.min(Math.max(field.scrollHeight, 66), 240)}px`;
+        }
+
+        function showStatus(text, { error = false, handoff = false } = {}) {
+          $("status-text").textContent = text;
+          $("status").classList.toggle("show", Boolean(text));
+          $("status").classList.toggle("error", error);
+          $("handoff").hidden = !handoff;
+        }
+
+        function applyHostContext(update) {
+          const previousTheme = hostContext.theme;
+          hostContext = { ...hostContext, ...update };
+          if (hostContext.theme)
+            document.documentElement.style.colorScheme = hostContext.theme;
+          const variables = hostContext.styles?.variables || {};
+          for (const [name, value] of Object.entries(variables)) {
+            if (value) document.documentElement.style.setProperty(name, value);
+          }
+          const modes = hostContext.availableDisplayModes || [];
+          $("fullscreen").hidden =
+            !modes.includes("fullscreen") || hostContext.displayMode === "fullscreen";
+          if (snapshot && hostContext.theme !== previousTheme) {
+            const style = shadow.querySelector("style[data-leaf-theme]");
+            if (style) style.textContent = pageCss(snapshot);
+          }
+        }
+
+        function cleanDocument(html) {
+          const parsed = new DOMParser().parseFromString(html, "text/html");
+          const source = parsed.querySelector("main");
+          const fragment = document.createElement("template");
+          fragment.innerHTML = source ? source.innerHTML : "";
+          fragment.content
+            .querySelectorAll("script,link,iframe,object,embed")
+            .forEach((node) => node.remove());
+          const safeAttribute = (node, attr) => {
+            if (attr.name.toLowerCase().startsWith("on"))
+              node.removeAttribute(attr.name);
+            if (
+              ["href", "src", "xlink:href"].includes(attr.name.toLowerCase()) &&
+              /^\s*javascript:/i.test(attr.value)
+            ) {
+              node.removeAttribute(attr.name);
+            }
+          };
+          fragment.content.querySelectorAll("*").forEach((node) => {
+            for (const attr of [...node.attributes]) safeAttribute(node, attr);
+            if (node.matches("button,input,select,textarea")) node.disabled = true;
+          });
+          const main = document.createElement("main");
+          if (source) {
+            for (const attr of [...source.attributes])
+              main.setAttribute(attr.name, attr.value);
+            for (const attr of [...main.attributes]) safeAttribute(main, attr);
+          }
+          main.append(fragment.content);
+          return main;
+        }
+
+        function renderPage(leaf) {
+          snapshot = leaf;
+          $("title").textContent = leaf.title || "Leaf review";
+          $("meta").textContent =
+            `Authored snapshot · comments only · r${leaf.revision} · event ${leaf.eventSeq}`;
+          const style = document.createElement("style");
+          style.dataset.leafTheme = "";
+          style.textContent = pageCss(leaf);
+          shadow.replaceChildren(style, cleanDocument(leaf.document));
+          if (!hostCapabilities.serverTools) {
+            showStatus(
+              "This host shows Leaf read-only. Use Full page to leave feedback.",
+            );
+          } else if (leaf.delivery) {
+            showStatus(
+              `Reader feedback through event ${leaf.deliverySeq} is waiting for Codex.`,
+              { handoff: true },
+            );
+          } else {
+            showStatus("");
+          }
+          selection = null;
+          $("composer").classList.remove("open");
+        }
+
+        function acceptToolResult(result) {
+          const leaf = result?._meta?.leaf;
+          if (leaf) renderPage(leaf);
+          if (result?.isError) {
+            const text =
+              result.content?.find((item) => item.type === "text")?.text ||
+              "Leaf tool call failed.";
+            throw new Error(text);
+          }
+          return result;
+        }
+
+        async function callTool(name, args) {
+          if (!hostCapabilities.serverTools) {
+            throw new Error("This host cannot call Leaf tools; use Full page instead.");
+          }
+          return acceptToolResult(
+            await request("tools/call", { name, arguments: args }),
+          );
+        }
+
+        function captureSelection() {
+          const selected = shadow.getSelection?.() || getSelection();
+          const text =
+            selected && !selected.isCollapsed
+              ? selected.toString().replace(/\s+/g, " ").trim()
+              : "";
+          if (!text) return null;
+          const range = selected.getRangeAt(0);
+          const common = range.commonAncestorContainer;
+          const holder =
+            common.nodeType === Node.ELEMENT_NODE ? common : common.parentElement;
+          const section = holder?.closest?.("[id]")?.id;
+          return {
+            quote: text,
+            ...(section && { section }),
+          };
+        }
+
+        pageHost.addEventListener("mouseup", () => {
+          const next = captureSelection();
+          if (!next) return;
+          selection = next;
+          $("quote").textContent =
+            `On “${next.quote.length > 150 ? `${next.quote.slice(0, 147)}…` : next.quote}”`;
+          $("comment").placeholder = "Comment on this passage";
+          $("composer").classList.add("open");
+          sizeComment();
+          $("comment").focus();
+        });
+
+        pageHost.addEventListener("dblclick", (event) => {
+          const target = event.composedPath().find((node) => node?.id);
+          if (!target) return;
+          selection = { section: target.id };
+          $("quote").textContent = `On § ${target.id}`;
+          $("comment").placeholder = "Comment on this item";
+          $("composer").classList.add("open");
+          sizeComment();
+          $("comment").focus();
+        });
+
+        $("cancel").addEventListener("click", () => {
+          selection = null;
+          $("comment").value = "";
+          sizeComment();
+          $("composer").classList.remove("open");
+        });
+
+        $("comment").addEventListener("input", sizeComment);
+
+        $("comment-page").addEventListener("click", () => {
+          selection = null;
+          $("quote").textContent = "On this page";
+          $("comment").placeholder = "Comment on this page";
+          $("composer").classList.add("open");
+          sizeComment();
+          $("comment").focus();
+        });
+
+        async function handoff() {
+          if (!snapshot?.delivery || busy) return;
+          busy = true;
+          $("handoff").disabled = true;
+          showStatus("Sending the durable feedback to Codex…");
+          let contextAccepted = false;
+          try {
+            try {
+              await request("ui/update-model-context", {
+                content: [{ type: "text", text: snapshot.delivery }],
+                structuredContent: {
+                  page: snapshot.page,
+                  throughSeq: snapshot.deliverySeq,
+                },
+              });
+              contextAccepted = true;
+            } catch (_) {}
+            const intro = `Leaf reader feedback is ready for ${snapshot.page} through event ${snapshot.deliverySeq}. Process every event and continue the review.`;
+            await request("ui/message", {
+              role: "user",
+              content: {
+                type: "text",
+                text: contextAccepted ? intro : `${intro}\n\n${snapshot.delivery}`,
+              },
+            });
+            let contextClearFailed = false;
+            if (contextAccepted) {
+              try {
+                await request("ui/update-model-context", { content: [] });
+              } catch (_) {
+                contextClearFailed = true;
+              }
+            }
+            await callTool("leaf_delivery_ack", {
+              page: snapshot.page,
+              seq: snapshot.deliverySeq,
+            });
+            showStatus(
+              contextClearFailed
+                ? "Feedback sent to Codex; the host kept its temporary context."
+                : "Feedback sent to Codex.",
+            );
+          } catch (error) {
+            showStatus(
+              `Feedback is saved, but the handoff failed: ${errorText(error)}`,
+              { error: true, handoff: true },
+            );
+          } finally {
+            busy = false;
+            $("handoff").disabled = false;
+          }
+        }
+
+        $("handoff").addEventListener("click", handoff);
+
+        $("composer").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (!snapshot || busy) return;
+          const text = $("comment").value.trim();
+          if (!text) return;
+          busy = true;
+          $("send").disabled = true;
+          try {
+            const leafEvent = {
+              kind: "comment",
+              revision: snapshot.revision,
+              text,
+              attempt: attemptId(),
+              ...(selection && { anchor: selection }),
+            };
+            await callTool("leaf_apply_event", {
+              page: snapshot.page,
+              view_revision: snapshot.revision,
+              event: leafEvent,
+            });
+            $("comment").value = "";
+            sizeComment();
+            $("composer").classList.remove("open");
+            selection = null;
+            busy = false;
+            await handoff();
+          } catch (error) {
+            showStatus(errorText(error), { error: true });
+          } finally {
+            busy = false;
+            $("send").disabled = false;
+          }
+        });
+
+        $("refresh").addEventListener("click", async () => {
+          if (!snapshot || busy) return;
+          busy = true;
+          $("refresh").disabled = true;
+          try {
+            await callTool("leaf_refresh", { page: snapshot.page });
+          } catch (error) {
+            showStatus(errorText(error), { error: true });
+          } finally {
+            busy = false;
+            $("refresh").disabled = false;
+          }
+        });
+
+        $("browser").addEventListener("click", async () => {
+          if (!snapshot) return;
+          try {
+            if (snapshot.url && hostCapabilities.openLinks) {
+              await request("ui/open-link", { url: snapshot.url });
+              return;
+            }
+            const url = snapshot.url ? ` Its current URL is ${snapshot.url}.` : "";
+            await request("ui/message", {
+              role: "user",
+              content: {
+                type: "text",
+                text: `Open the full Leaf browser page for ${snapshot.page}; I need its active widget controls.${url}`,
+              },
+            });
+            showStatus("Asked Codex to open the full Leaf page.");
+          } catch (error) {
+            showStatus(errorText(error), { error: true });
+          }
+        });
+
+        $("fullscreen").addEventListener("click", async () => {
+          try {
+            const result = await request("ui/request-display-mode", {
+              mode: "fullscreen",
+            });
+            applyHostContext({ displayMode: result.mode });
+          } catch (error) {
+            showStatus(errorText(error), { error: true });
+          }
+        });
+
+        window.addEventListener(
+          "message",
+          (event) => {
+            if (event.source !== window.parent) return;
+            const message = event.data;
+            if (!message || message.jsonrpc !== "2.0") return;
+            if (message.id !== undefined && pending.has(message.id)) {
+              const call = pending.get(message.id);
+              pending.delete(message.id);
+              if (message.error) call.reject(message.error);
+              else call.resolve(message.result);
+              return;
+            }
+            if (message.method === "ui/notifications/tool-result") {
+              try {
+                acceptToolResult(message.params);
+              } catch (error) {
+                showStatus(errorText(error), { error: true });
+              }
+            }
+            if (message.method === "ui/notifications/host-context-changed") {
+              applyHostContext(message.params || {});
+            }
+            if (message.method === "ui/resource-teardown" && message.id !== undefined) {
+              window.parent.postMessage(
+                { jsonrpc: "2.0", id: message.id, result: {} },
+                "*",
+              );
+            }
+          },
+          { passive: true },
+        );
+
+        new ResizeObserver(() => {
+          notify("ui/notifications/size-changed", {
+            width: Math.ceil(document.documentElement.scrollWidth),
+            height: Math.ceil(document.documentElement.scrollHeight),
+          });
+        }).observe(document.body);
+
+        request("ui/initialize", {
+          appInfo: { name: "leaf-review", version: "1" },
+          appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+          protocolVersion: PROTOCOL_VERSION,
+        })
+          .then((result) => {
+            hostCapabilities = result.hostCapabilities || {};
+            applyHostContext(result.hostContext || {});
+            if (result.hostContext?.locale)
+              document.documentElement.lang = result.hostContext.locale;
+            if (!hostCapabilities.serverTools) {
+              $("comment-page").disabled = true;
+              $("refresh").disabled = true;
+              showStatus(
+                "This host shows Leaf read-only. Use Full page to leave feedback.",
+              );
+            }
+            notify("ui/notifications/initialized", {});
+          })
+          .catch((error) =>
+            showStatus(
+              `This host did not initialize the Leaf app: ${errorText(error)}`,
+              { error: true },
+            ),
+          );
+      })();
+    </script>
+  </body>
+</html>

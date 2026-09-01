@@ -837,7 +837,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
 
 def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
     """A sent comment preserves the panel's narrowing while its inline conversation
-    takes the reader; explicitly opening that thread then widens the panel."""
+    takes the reader; reopening the overview keeps that filter intact."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -864,12 +864,10 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
         f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
     )
     expect(inline.locator("textarea")).to_be_focused()
-    page.locator(".lf-margin-preview").get_by_role(
-        "button", name="Open this thread in Threads"
-    ).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_visible()
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
     assert errors == []
     page.close()
 

@@ -192,6 +192,7 @@ export function createLivingMargin(dependencies) {
     designIsOn,
     el,
     elementById,
+    focused,
     goToDecision,
     inChrome,
     itemSays,
@@ -268,13 +269,11 @@ export function createLivingMargin(dependencies) {
   preview.setAttribute("popover", "auto");
   preview.setAttribute("role", "dialog");
   const previewHead = el("div", "lf-margin-preview-head");
-  const previewThreadAction = el("button", "lf-btn lf-margin-thread-action", "Threads");
-  previewThreadAction.type = "button";
   const previewTitle = el("strong", "lf-margin-preview-title");
   const previewClose = el("button", "lf-btn lf-margin-preview-close", "×");
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Close thread");
-  previewHead.append(previewThreadAction, previewTitle, previewClose);
+  previewHead.append(previewTitle, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
   chromeRoot.append(preview);
@@ -312,6 +311,7 @@ export function createLivingMargin(dependencies) {
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
+  let previewRequest = 0;
   // The cascade owns available room: panels and trays change the body's named
   // container, while an authored sidebar claims the page's left strip. Read the
   // posture it resolved instead of asking the viewport a different question.
@@ -451,27 +451,32 @@ export function createLivingMargin(dependencies) {
       render();
     });
   }
+  function placeThreadPreview() {
+    if (
+      !preview.matches(":popover-open") ||
+      !preview.hasAttribute("data-lf-thread") ||
+      !previewButton?.isConnected
+    )
+      return;
+    const marker = previewButton.getBoundingClientRect();
+    const besideLeft = Math.max(8, marker.right + 8);
+    preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
+    const card = preview.getBoundingClientRect();
+    const bannerBottom =
+      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
+    const firstTop = bannerBottom + 8;
+    const lastTop = innerHeight - card.height - 8;
+    const besideTop = (marker.top + marker.bottom - card.height) / 2;
+    preview.style.setProperty(
+      "--lf-thread-top",
+      `${Math.max(firstTop, Math.min(besideTop, lastTop))}px`,
+    );
+  }
   function scheduleThreadPreviewPosition() {
     if (previewPositionFrame) return;
     previewPositionFrame = requestAnimationFrame(() => {
       previewPositionFrame = 0;
-      if (
-        !preview.matches(":popover-open") ||
-        !preview.hasAttribute("data-lf-thread") ||
-        !previewButton?.isConnected
-      )
-        return;
-      const marker = previewButton.getBoundingClientRect();
-      const cardHeight = preview.getBoundingClientRect().height;
-      const bannerBottom =
-        document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-      const firstTop = bannerBottom + 8;
-      const lastTop = innerHeight - cardHeight - 8;
-      const besideTop = (marker.top + marker.bottom - cardHeight) / 2;
-      preview.style.setProperty(
-        "--lf-thread-top",
-        `${Math.max(firstTop, Math.min(besideTop, lastTop))}px`,
-      );
+      placeThreadPreview();
     });
   }
   // A viewport posture change can replace the focused full conversation with its
@@ -1245,26 +1250,6 @@ export function createLivingMargin(dependencies) {
         more.onclick = () => {
           setOptionsOpen(more.lfEntry, expandedOptionsKey !== more.lfEntry.key);
         };
-        host.addEventListener("keydown", (event) => {
-          if (event.key !== "Escape") return;
-          // A Thread card is the deeper layer in an unfolded Button cluster. Close
-          // it first and leave its owning Button visible; a second Escape can then
-          // fold the secondary Buttons back into `…`.
-          if (
-            preview.matches(":popover-open") &&
-            previewButton &&
-            host.contains(previewButton)
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-            closePreview(true);
-            return;
-          }
-          if (expandedOptionsKey !== host.lfEntry?.key) return;
-          event.preventDefault();
-          event.stopPropagation();
-          setOptionsOpen(host.lfEntry, false, { returnFocus: true });
-        });
         // Contributed primaries remain the owner's real control, so they do not pass
         // through the generated marker/proxy activation paths below. Close any unfolded
         // choices at the cluster boundary before that owner handles its press.
@@ -1362,17 +1347,8 @@ export function createLivingMargin(dependencies) {
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
     const title = trimmed(targetHeading || entry.title, 72);
     preview.setAttribute("data-lf-thread", "");
-    scheduleThreadPreviewPosition();
     preview.setAttribute("aria-label", `Thread for ${title}`);
     previewTitle.textContent = title;
-    previewThreadAction.hidden = false;
-    previewThreadAction.setAttribute(
-      "aria-label",
-      threadItems.length === 1
-        ? "Open this thread in Threads"
-        : "Open threads for this passage",
-    );
-    previewThreadAction.onclick = () => openThreads(threadItems, entry);
     const nodes = threadItems.map(previewItemNode);
     const keep = new Set(nodes);
     for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
@@ -1392,6 +1368,7 @@ export function createLivingMargin(dependencies) {
           previewClose);
       destination.focus({ preventScroll: true });
     }
+    placeThreadPreview();
   }
 
   function previewItemNode(item) {
@@ -1451,7 +1428,7 @@ export function createLivingMargin(dependencies) {
         previewShowing = false;
       }
     }
-    scheduleThreadPreviewPosition();
+    placeThreadPreview();
     highlight(entry.target);
     for (const row of rows.values())
       syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
@@ -1491,6 +1468,34 @@ export function createLivingMargin(dependencies) {
     paintKeys();
   }
 
+  // The card and its owning Button cluster are one page-map stack even though the card
+  // is hoisted into the chrome. Expose the current rung to the one keyboard register so
+  // it can stand ahead of reaction and navigation modes, preserving the local surface's
+  // old order without another keydown listener. One press closes only the deepest rung.
+  function keyboardRung({ atFocus = true } = {}) {
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    if (
+      preview.matches(":popover-open") &&
+      (!atFocus ||
+        preview.contains(active) ||
+        (previewButton && host?.contains(previewButton)))
+    )
+      return {
+        does: "Close the thread card",
+        says: "close thread",
+        out: () => closePreview(true),
+      };
+    const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
+    if (optionsHost?.lfEntry?.key === expandedOptionsKey)
+      return {
+        does: "Fold the secondary page actions",
+        says: "close options",
+        out: () => setOptionsOpen(optionsHost.lfEntry, false, { returnFocus: true }),
+      };
+    return null;
+  }
+
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
@@ -1504,17 +1509,29 @@ export function createLivingMargin(dependencies) {
   }
 
   function openThreadChoice(entry, button) {
-    if (panelIsOpen()) setPanel(false);
-    if (expandedOptionsKey && expandedOptionsKey !== entry.key)
-      setOptionsOpen(entry, false);
-    const choice = threadReading(entry);
-    if (!choice) return;
-    if (!threadBeside()) {
-      setOptionsOpen(entry, false);
-      openThreads(choice.items, entry);
+    const open = () => {
+      if (expandedOptionsKey && expandedOptionsKey !== entry.key)
+        setOptionsOpen(entry, false);
+      const choice = threadReading(entry);
+      if (!choice) return;
+      if (!threadBeside()) {
+        setOptionsOpen(entry, false);
+        openThreads(choice.items, entry);
+        return;
+      }
+      togglePinned(entry, button);
+    };
+    if (panelIsOpen()) {
+      const request = ++previewRequest;
+      setPanel(false);
+      const movements = document.body.getAnimations();
+      Promise.allSettled(movements.map((movement) => movement.finished)).then(() => {
+        if (request === previewRequest && button.isConnected) open();
+      });
       return;
     }
-    togglePinned(entry, button);
+    previewRequest += 1;
+    open();
   }
 
   function openThreads(threadItems, entry) {
@@ -1624,12 +1641,6 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
-  preview.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    closePreview(true);
-  });
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed") return;
     if (!previewEntry) return;
@@ -1658,12 +1669,42 @@ export function createLivingMargin(dependencies) {
     },
     { capture: true, passive: true },
   );
-  window.addEventListener("resize", schedulePostureRender);
+  window.addEventListener("resize", () => {
+    placeThreadPreview();
+    schedulePostureRender();
+  });
   render();
 
   return {
+    // The unfolded cluster, for a gesture that needs to know whether the fold standing
+    // open is one it opened itself. The cluster and not a flag, because a fold open
+    // somewhere is not the fold this gesture put on: the caller asks whose target it
+    // belongs to (`lfTarget`) rather than whether any fold is open. The Page-map scope's
+    // own rung reads the reader's position directly (`keyboardRung`) and needs neither.
+    unfoldedButtons: () =>
+      expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null,
+    // Folding on the reader's behalf — a disarm putting back a fold its own raise opened
+    // — happens wherever the reader is standing rather than inside the cluster, so it
+    // takes no focus with it: the reader may have left that cluster, and a press already
+    // on its way would land on a Button they were not standing on.
+    foldButtonOptions: () => setOptionsOpen(null, false),
+    activeInlineThread: () => {
+      if (
+        !pinnedKey ||
+        previewEntry?.key !== pinnedKey ||
+        document.activeElement !== previewButton ||
+        !preview.matches(":popover-open") ||
+        !preview.hasAttribute("data-lf-thread")
+      )
+        return null;
+      const conversations = previewList.querySelectorAll(
+        ".lf-margin-thread .lf-conversation-thread",
+      );
+      return conversations.length === 1 ? conversations[0] : null;
+    },
     closePreview: () => closePreview(false),
     enterPageMap,
+    keyboardRung,
     marginTargetAt,
     openButtonOptions,
     openInlineThread,

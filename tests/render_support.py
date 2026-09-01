@@ -166,6 +166,7 @@ from render_cases_layout import (
     solid_png,
     standing_ring,
     token_colour,
+    unfolded_button,
 )
 from render_cases_navigation import (
     _CARD,
@@ -651,6 +652,7 @@ __all__ = (
     "told",
     "trial_family",
     "undo",
+    "unfolded_button",
     "wait_for_revision",
     "wait_hovered",
     "wait_standing",

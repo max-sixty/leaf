@@ -255,6 +255,7 @@ import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
+  conversationInput,
   createConversationLanding,
   heldConversation,
   landIn,
@@ -1574,7 +1575,10 @@ const commentDestination = () => {
       ),
       go: () => fab.click(),
     };
-  const said = standingConversation();
+  const inline = livingMargin?.activeInlineThread();
+  const inlineBox = inline && conversationInput(inline);
+  const said =
+    standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
@@ -1989,6 +1993,7 @@ const {
   fabReturnTo,
   fabBar,
   focused,
+  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
   itemWord,
   offer,
   openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,
@@ -2001,6 +2006,7 @@ const {
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
+  unfoldedButtons: () => livingMargin?.unfoldedButtons() ?? null,
   visualPartLabel: (...args) => visualPartLabel(...args),
   withdraw: (...args) => withdraw(...args),
 });
@@ -2077,6 +2083,28 @@ const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
   at: () => Boolean(keyline?.expanded),
   rows: [LESS_SHORTCUTS],
+};
+
+// A Thread card and the unfolded Button cluster that owns it are one page-map stack,
+// though the card itself is hoisted into the chrome. This registered rung precedes the
+// reaction and navigation modes just as the surface's old local listener did: Escape
+// closes the card first, then folds the cluster on a second press.
+const pageMapRung = (atFocus = true) => livingMargin?.keyboardRung({ atFocus }) ?? null;
+const PAGE_MAP = {
+  title: "In the page map",
+  when: () => Boolean(pageMapRung(false)),
+  at: () => Boolean(pageMapRung()),
+  rows: [
+    {
+      id: "margin.back",
+      keys: ["Escape"],
+      does: () => pageMapRung(false)?.does,
+      line: () => pageMapRung()?.says,
+      referenceWhen: () => Boolean(pageMapRung(false)),
+      when: () => Boolean(pageMapRung()),
+      run: () => pageMapRung()?.out(),
+    },
+  ],
 };
 
 // Below the element scopes: the page's own modes, then the page. The composer's rung is
@@ -2709,6 +2737,7 @@ const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
   HELP,
   SHORTCUT_SHELF,
+  PAGE_MAP,
   GO,
   REACT,
   SELECT,
@@ -3409,6 +3438,7 @@ livingMargin = createLivingMargin({
   designIsOn: () => designOn,
   el,
   elementById,
+  focused,
   goToDecision,
   inChrome,
   itemSays,

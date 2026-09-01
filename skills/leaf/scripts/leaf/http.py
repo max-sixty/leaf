@@ -13,7 +13,6 @@ from . import presence as presence_model
 from .event_endpoint import EventEndpoint, event_rejection
 from .event_log import read_events
 from .files import (
-    active_descriptor,
     latest_revision,
     list_revisions,
     list_versions,
@@ -36,10 +35,9 @@ from .schema import (
     NO_KEY,
     SERVED_PATH,
 )
-from .served_state import browser as served_browser
-from .served_state import page as served_page
 from .served_state import reading as served_reading
 from .server import preview_metadata
+from .served_state.service import PageStateService
 from .service import PageTransaction
 from .structure import parse_structure
 
@@ -139,23 +137,17 @@ class Handler(BaseHTTPRequestHandler):
         view_revision: int | None = None,
     ) -> dict:
         """The page's own state from a caller's transaction-consistent log."""
-        active_override = None
-        source_overrides = None
-        if self.preview_source is not None:
-            active_override = self.preview_source["active"]
-            source_overrides = {
-                active_override["revision"]: self.preview_source["data"].decode("utf-8")
-            }
-        return served_page.full_state(
+        return self._state_service()._full_state(
+            events, source_error, view_revision=view_revision
+        )
+
+    def _state_service(self) -> PageStateService:
+        return PageStateService(
             self.page_dir,
-            events,
             layer=self.layer,
+            preview_source=self.preview_source,
             layer_identity=self.layer_identity,
             preview=self.preview,
-            source_error=source_error,
-            view_revision=view_revision,
-            active_override=active_override,
-            source_overrides=source_overrides,
         )
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -175,63 +167,13 @@ class Handler(BaseHTTPRequestHandler):
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
         """
-        with PageTransaction(self.page_dir) as page:
-            if self.preview_source is None:
-                activation = activate_source(self.page_dir, page.events)
-                reading = served_reading.page_reading(self.page_dir)
-                state = self._page_state(
-                    page.events, activation.error, view_revision=view_revision
-                )
-            else:
-                reading = served_reading.page_reading(self.page_dir)
-                state = self._page_state(page.events, view_revision=view_revision)
-        # Every URL in `others` carries the machine key (`host_key`), so the list
-        # reaches neighbouring pages without creating another authorization path.
-        # Scan neighbours after releasing this page's lease: they are independent
-        # snapshots, and one slow neighbour must not block this page's writers.
-        state["others"] = presence_model.other_leaves(self.page_dir)
-        state["reading"] = (
-            reading
-            + "."
-            + presence_model.presence_fingerprint(
-                state["listening"], state["session_alive"], state["others"]
-            )
+        return self._state_service().page_state(
+            view_revision, full_state=self._page_state
         )
-        return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
-        with PageTransaction(self.page_dir) as page:
-            if self.preview_source is None:
-                activate_source(self.page_dir, page.events)
-                try:
-                    active = active_descriptor(self.page_dir, page.events)
-                except SystemExit as error:
-                    raise ValueError(str(error)) from error
-                source_overrides = None
-            else:
-                active = self.preview_source["active"]
-                source_overrides = {
-                    active["revision"]: self.preview_source["data"].decode("utf-8")
-                }
-            latest_seq = page.events[-1]["seq"] if page.events else 0
-            if through_seq > latest_seq:
-                raise ValueError(
-                    f"view sequence {through_seq} is newer than log sequence {latest_seq}"
-                )
-            events = [event for event in page.events if event["seq"] <= through_seq]
-            projected = served_browser.project_browser_state(
-                self.page_dir,
-                events,
-                view_revision,
-                active,
-                presence_model.presence(self.page_dir, events)["claims"],
-                source_overrides,
-                include_active_view=False,
-            )
-        if projected is None:
-            raise ValueError("page registry cannot be projected")
-        return projected
+        return self._state_service().page_browser_view(view_revision, through_seq)
 
     def requested_view_revision(self, *, header: bool = False) -> int | None:
         raw = (

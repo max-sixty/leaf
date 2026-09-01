@@ -4,9 +4,9 @@
  * grammar and projects each row as commentable evidence. */
 import {
   announce,
+  navigateToDatum,
   offer,
   projectData,
-  scrollBehavior,
   watchData,
 } from "/runtime/widget-api.js";
 
@@ -126,7 +126,8 @@ function buildToolbar(owner) {
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
-  toolbar.append(summary, button);
+  toolbar.append(summary);
+  if (!owner.preparingExport) toolbar.append(button);
   return toolbar;
 }
 
@@ -154,52 +155,21 @@ function groupLabel(records) {
     .join(" · ");
 }
 
-function matchingLine(diff, record) {
+function lineKey(record) {
   const matched = record.location.match(/^(.*):(\d+)(?:-\d+)?$/);
-  if (!matched || !diff?.shadowRoot) return null;
+  if (!matched) return null;
   const [, path, rawLine] = matched;
-  const line = Number(rawLine);
-  const sides = record.status === "removed" ? ["old", "both"] : ["new", "both", "old"];
-  const candidates = [];
-  for (const element of diff.shadowRoot.querySelectorAll("[data-lf-datum]")) {
-    let coordinate;
-    try {
-      coordinate = JSON.parse(element.dataset.lfDatum);
-    } catch {
-      continue;
-    }
-    if (!Array.isArray(coordinate) || coordinate[0] !== path) continue;
-    const [, side, first, second] = coordinate;
-    const atLine = side === "both" ? first === line || second === line : first === line;
-    if (atLine) candidates.push({ element, rank: sides.indexOf(side) });
-  }
-  candidates.sort((left, right) => left.rank - right.rank);
-  return candidates.find(({ rank }) => rank >= 0)?.element ?? null;
+  const side = record.status === "removed" ? "old" : "new";
+  return JSON.stringify([path, side, Number(rawLine)]);
 }
 
 async function travelToLine(owner, record) {
-  const diff = document.getElementById(owner.getAttribute("diff"));
-  if (!diff) return false;
-  let target = matchingLine(diff, record);
-  if (!target) {
-    const matched = record.location.match(/^(.*):(\d+)(?:-\d+)?$/);
-    if (matched) {
-      const [, path, rawLine] = matched;
-      const side = record.status === "removed" ? "old" : "new";
-      await diff.lfRevealDatum?.(JSON.stringify([path, side, Number(rawLine)]));
-      target = matchingLine(diff, record);
-    }
-  }
-  if (!target) return false;
-  const disclosure = target.closest("details");
-  if (disclosure) disclosure.open = true;
-  disclosure?.querySelector("summary")?.focus({ preventScroll: true });
-  target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
-  const url = new URL(window.location.href);
-  url.hash = diff.id;
-  history.pushState(null, "", url);
-  announce(`Opened ${record.location} in the exact patch`);
-  return true;
+  const key = lineKey(record);
+  if (!key) return false;
+  return navigateToDatum(owner, "diff", key, {
+    success: `Opened ${record.location} in the exact patch`,
+    missing: `${record.location} is not present in the exact patch`,
+  });
 }
 
 function renderLine(record, prior, owner) {
@@ -217,27 +187,17 @@ function renderLine(record, prior, owner) {
   setText(body, record.body);
   setText(location, record.location);
   location.hidden = !record.location;
-  // Two rows have the element and no journey to offer, and an `href` on either is a way
-  // in that leads nowhere. The header names no location at all, and its hidden anchor
-  // answered the scroll sweep's question — "is there a way into this box?" — for a box
-  // whose words run off the side, so a copy shipped it with no keyboard route at all.
-  // A group's own row is the disclosure, and a link inside a <summary> is two gestures
-  // on one box: the press folds and the anchor travels. The calls beneath it keep the
-  // link, which is where following the root's own location leads anyway.
-  if (record.location && !line.matches("summary")) {
+  // The header row has the element and no journey to offer, and an `href` on it is a way
+  // in that leads nowhere: it names no location at all, and its hidden anchor answered
+  // the scroll sweep's question — "is there a way into this box?" — for a box whose
+  // words run off the side, so a copy shipped it with no keyboard route at all. An
+  // export drops the link for the same reason paper has nothing to press.
+  if (record.location && !owner.preparingExport) {
     location.href = `#${owner.getAttribute("diff")}`;
     location.onclick = async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (await travelToLine(owner, record)) return;
-      const url = new URL(window.location.href);
-      url.hash = owner.getAttribute("diff");
-      history.pushState(null, "", url);
-      document.getElementById(owner.getAttribute("diff"))?.scrollIntoView({
-        behavior: scrollBehavior(),
-        block: "start",
-      });
-      announce(`${record.location} is not present in the exact patch`);
+      await travelToLine(owner, record);
     };
   } else {
     location.removeAttribute("href");
@@ -274,6 +234,14 @@ customElements.define(
     disconnectedCallback() {
       this.stopWatching?.();
       this.stopWatching = null;
+    }
+
+    lfPrepareExport() {
+      this.preparingExport = true;
+      this.querySelector(":scope > .lf-call-tools .lf-call-toggle")?.remove();
+      for (const count of this.querySelectorAll(".lf-call-group-count")) count.remove();
+      for (const location of this.querySelectorAll(".lf-call-location"))
+        location.removeAttribute("href");
     }
 
     show(snapshot) {
@@ -370,13 +338,15 @@ customElements.define(
         const groupRecords = records.filter((record) => record.groupKey === key);
         const root = groupRecords.find((record) => record.root);
         const rootNode = nodesByKey.get(root.key);
-        let count = rootNode.querySelector(".lf-call-group-count");
-        if (!count) {
-          count = make("span", "lf-call-group-count");
-          count.dataset.lfGen = "1";
-          rootNode.append(count);
+        if (!this.preparingExport) {
+          let count = rootNode.querySelector(".lf-call-group-count");
+          if (!count) {
+            count = make("span", "lf-call-group-count");
+            count.dataset.lfGen = "1";
+            rootNode.append(count);
+          }
+          setText(count, groupLabel(groupRecords));
         }
-        setText(count, groupLabel(groupRecords));
         reconcileChildren(
           parts.body,
           groupRecords

@@ -420,9 +420,10 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
                 data_model.cmd_data_capture(
                     d,
                     operation["source"],
-                    operation["text_file"],
+                    operation["input_file"],
                     operation["lines"],
                     operation["label"],
+                    operation["format"],
                 )
         activated = revisioning_model.activate_source(d, [])
         assert activated.error is None
@@ -1701,9 +1702,10 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                 data_model.cmd_data_capture(
                     d,
                     operation["source"],
-                    operation["text_file"],
+                    operation["input_file"],
                     operation["lines"],
                     operation["label"],
+                    operation["format"],
                 )
         # Published, because the door is only open on a page a reader could be
         # holding — which is the state every one of these seeds is written for.

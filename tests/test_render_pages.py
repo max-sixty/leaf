@@ -2156,10 +2156,38 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     resized(page, 1400, 900)
 
-    page.evaluate(
-        "document.scrollingElement.style.scrollBehavior = 'auto'; document.scrollingElement.scrollTo(0, 900)"
+    # Halfway through the stretch where the box stands on its own offset: past the
+    # scroll that lifts it off where it was authored, and short of the one where main's
+    # own end starts carrying it back up. Both edges are the page's, so they are read
+    # off it — a named scroll fell past the far one when the release page grew shorter.
+    parked = page.evaluate(
+        """() => {
+          const scroller = document.scrollingElement;
+          scroller.style.scrollBehavior = 'auto';
+          const sidebar = document.querySelector('aside.sidebar');
+          const main = sidebar.parentElement;
+          const box = sidebar.getBoundingClientRect();
+          const style = getComputedStyle(sidebar);
+          const offset = parseFloat(style.top);
+          const stands = scroller.scrollTop + box.top - offset;
+          const carried = scroller.scrollTop + main.getBoundingClientRect().bottom
+            - parseFloat(getComputedStyle(main).paddingBottom)
+            - parseFloat(style.marginBottom) - box.height - offset;
+          const at = Math.round((stands + carried) / 2);
+          scroller.scrollTo(0, at);
+          return { at, stands, carried };
+        }"""
     )
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 800")
+    # The stretch has to exist before a point halfway along it says anything. A page
+    # too short to lift the box off where it was authored parks the scroll behind
+    # `stands`, and the ring assertion below would then report a position rather than
+    # the page that made it meaningless.
+    assert parked["carried"] > parked["stands"], (
+        f"the page is too short for the sidebar to stand on its own offset: {parked}"
+    )
+    page.wait_for_function(
+        "at => document.scrollingElement.scrollTop >= at - 1", arg=parked["at"]
+    )
     stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
     assert 64 <= stuck <= 68, (
         f"the sidebar stuck at {stuck:.0f}px, not below the banner"

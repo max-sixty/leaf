@@ -1,6 +1,5 @@
 """The bundled MCP server exposes Leaf without becoming another state authority."""
 
-import asyncio
 import json
 import os
 import shutil
@@ -8,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from interact_support import run_async
 from leaf import event_log as events_model
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
 from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
@@ -151,7 +151,7 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
             result = await session.call_tool("leaf_present", {"page": str(page_dir)})
             return initialized, tools, resources, resource, result
 
-    initialized, tools, resources, resource, result = asyncio.run(exchange())
+    initialized, tools, resources, resource, result = run_async(exchange)
     by_name = {tool.name: tool for tool in tools.tools}
 
     assert initialized.protocol_version == "2025-11-25"
@@ -230,7 +230,7 @@ def test_stdio_snapshot_write_boundary_accepts_only_comments(page_dir):
             )
             return rejected, accepted
 
-    rejected, accepted = asyncio.run(exchange())
+    rejected, accepted = run_async(exchange)
 
     assert all(result.is_error is True for result in rejected)
     assert all(
@@ -265,7 +265,7 @@ def test_stdio_presentation_tools_explain_a_stale_page_layer(page_dir):
                 for name in ("leaf_present", "leaf_present_snapshot")
             ]
 
-    results = asyncio.run(exchange())
+    results = run_async(exchange)
 
     for result in results:
         assert result.is_error is True
@@ -330,7 +330,7 @@ def test_stdio_presentation_tools_explain_every_page_precondition(page_dir, tmp_
                 for name, (path, _) in cases.items()
             }
 
-    results = asyncio.run(exchange())
+    results = run_async(exchange)
 
     for name, (path, expected) in cases.items():
         details = []

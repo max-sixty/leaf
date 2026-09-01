@@ -7,7 +7,6 @@ export function createNavigation({
   BANNER_CLEAR,
   reducedMotion,
   scrollBehavior,
-  beside,
   inChrome,
   inPanel,
   openOnItem,
@@ -18,7 +17,6 @@ export function createNavigation({
   scrollToElement,
   scrollToThread,
   setPanel,
-  shownBox,
   shownRect,
   threadsBox,
 }) {
@@ -48,8 +46,8 @@ export function createNavigation({
     //
     // What the page shows of it, which is the reading the aim's own paint takes
     // (`refreshAim`) — this being its keyboard twin, the two decide "is this in front of the
-    // reader" the same way or they are not twins. `shownBox` alone is the box the item would
-    // have, unclipped: an item scrolled out of a board's sideways scroller still reports one
+    // reader" the same way or they are not twins. An unclipped box alone is the box the item
+    // would have: an item scrolled out of a board's sideways scroller still reports one
     // inside the window, so a gate reading that called it showing and opened the box on
     // something off screen, which the unconditional travel it replaced never did. Any part
     // showing is enough, which is also what keeps a box taller than the window from jumping
@@ -68,8 +66,7 @@ export function createNavigation({
     // that box against a passage they have not moved.
     const seen = shownRect(item, new Map());
     if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
-    const [left, top] = beside(shownBox(item));
-    openOnItem(item, { left, top });
+    openOnItem(item);
   }
   // t/T walk the open threads: panel focus and the page highlight move as a pair — they are
   // two views of the same thread. Clamped at the ends, not wrapped; never empty, because the

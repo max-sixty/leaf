@@ -924,7 +924,7 @@ panel.append(panelHead, findRow, threadsBox, panelFoot);
 // Pressing Tab or its ellipsis exchanges its field for the other responses in place.
 // One affordance, raised only where the reader has already pointed:
 // a selection, a visual's click, an aimed item, or a visual part.
-const fabBar = el("div", "lf-ui lf-fab-bar lf-page-paint");
+const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 const fabInput = document.createElement("textarea");
@@ -945,7 +945,7 @@ fabBar.append(fab);
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
 const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
-const composer = el("div", "lf-ui lf-composer lf-target-paint");
+const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
 // around it: this is the only injected chrome carrying an id, and "which section is this
@@ -1317,6 +1317,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   elementById: (...args) => elementById(...args),
   fab,
   fabAnchor: fabAnchorAt,
+  fabBar,
   inChrome,
   landTyping,
   loadDraft,
@@ -1336,15 +1337,8 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   wireInput,
 });
 
-function openComposer(
-  anchor,
-  text,
-  left,
-  top,
-  suggest = false,
-  about = designOn ? "layer" : null,
-) {
-  return selectionComposerRuntime.openComposer(anchor, text, left, top, suggest, about);
+function openComposer(anchor, text, options = {}) {
+  return selectionComposerRuntime.openComposer(anchor, text, options);
 }
 const hideComposer = () => selectionComposerRuntime.hideComposer();
 
@@ -1886,7 +1880,6 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
     BANNER_CLEAR,
     reducedMotion,
     scrollBehavior,
-    beside,
     inChrome: (node) => inChrome(node),
     inPanel,
     openOnItem,
@@ -1897,7 +1890,6 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
     scrollToElement,
     scrollToThread,
     setPanel,
-    shownBox,
     shownRect,
     threadsBox,
   });
@@ -3691,14 +3683,10 @@ async function startPage() {
   if (savedView && savedView.revision < runtime.currentRevision)
     showToast(`Updated to ${runtime.currentLabel}`);
   if (savedComposer)
-    openComposer(
-      savedComposer.anchor,
-      savedComposer.text,
-      (innerWidth - 320) / 2,
-      64,
-      Boolean(savedComposer.suggest),
-      savedComposer.about ?? null,
-    );
+    openComposer(savedComposer.anchor, savedComposer.text, {
+      suggest: Boolean(savedComposer.suggest),
+      about: savedComposer.about ?? null,
+    });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

@@ -14,6 +14,7 @@ export function createSelectionComposer(runtime, dependencies) {
     elementById,
     fab,
     fabAnchor,
+    fabBar,
     inChrome,
     landTyping,
     loadDraft,
@@ -190,47 +191,41 @@ export function createSelectionComposer(runtime, dependencies) {
 
   // The quote suggestion mode auto-seeded, so reopening on a new anchor can tell
   // machine seed from user text: the seed belongs to its old anchor and is dropped;
-  // anything the user typed or edited rides forward — never lose user text.
+  // user text stays with its passage unless an explicit Comment gesture carries it.
   let seededQuote = "";
   // `about` defaults to the mode standing at the open — a composer opened in design mode
   // is about the layer — and a restored draft passes the word it was saved with.
   function openComposer(
     anchor,
     text,
-    left,
-    top,
-    suggest = false,
-    about = designIsOn() ? "layer" : null,
+    { suggest = false, about = designIsOn() ? "layer" : null, carry = false } = {},
   ) {
     closeReactions();
     if (composerInput.value === seededQuote) composerInput.value = "";
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
     const previousCtx = composerCtx(pendingAnchor);
-    if (previousCtx !== ctx) composerEpoch += 1;
-    // Re-anchoring while this exact value is being sent is a new response gesture, not
-    // an edit of the submitted words on a different passage. Leave the sending draft at
-    // its original coordinate so a failed request can recover it, and start the new
-    // field clean. The eventual success settles that original generation in place.
-    const leavesFlight =
-      previousCtx !== ctx &&
-      inFlight?.ctx === previousCtx &&
-      composerInput.value === inFlight.raw;
-    if (leavesFlight) composerInput.value = "";
-    // A draft already standing on this passage is what the box opens with — one left hidden
-    // here, or one being typed in another tab — unless the caller brought words of its own
-    // or the box is already carrying some.
-    const held = text || composerInput.value ? null : loadDraft(ctx);
-    if (held) ({ text, suggest, about } = JSON.parse(held));
-    // The draft moves with the box, and one draft is one record: the passage the words were
-    // on lets go of them as they arrive on the next one. A press that re-anchors an open
-    // draft is where this lands, and a key left standing there would hand the same words
-    // back on the old passage at the next load.
-    if (previousCtx !== ctx && !leavesFlight) clearDraft(previousCtx);
+    if (previousCtx !== ctx) {
+      composerEpoch += 1;
+      const previousText = composerInput.value;
+      const leavesFlight =
+        inFlight?.ctx === previousCtx && previousText === inFlight.raw;
+      composerInput.value = "";
+      // Automatic selection merely opens another passage's view. An explicit Comment
+      // gesture may instead carry unsent words there, which preserves the old Alt-click
+      // promise without making a reader's next selection silently re-anchor their draft.
+      if (carry && previousText && !leavesFlight) {
+        clearDraft(previousCtx);
+        text ||= previousText;
+      } else {
+        const held = text ? null : loadDraft(ctx);
+        if (held) ({ text, suggest, about } = JSON.parse(held));
+      }
+    }
     pendingAnchor = anchor || null;
     pendingAbout = about;
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
-    composer.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
+    fabBar.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
     composerInput.value = text || composerInput.value;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
@@ -239,10 +234,8 @@ export function createSelectionComposer(runtime, dependencies) {
     syncComposer();
     composerInput.focus();
     watchComposer();
-    // The store hears about the anchor now, not at the next keystroke: saving only on
-    // input left a re-anchored draft stored against the anchor the press had just moved
-    // it off, and a reload between the press and the next character quietly un-made the
-    // move.
+    // The store hears about the anchor now, not at the next keystroke: a newly opened
+    // per-passage field is durable even before the reader adds its first character.
     saveComposerDraft();
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
@@ -289,9 +282,7 @@ export function createSelectionComposer(runtime, dependencies) {
   // the bar is carrying. It remains a button only while the choices are visible.
   fab.onclick = () => {
     if (!fabAnchor()) return;
-    const anchor = fabAnchor();
-    const { left, top } = fab.getBoundingClientRect();
-    openComposer(anchor, "", left, top);
+    openComposer(fabAnchor(), "");
   };
   return { hideComposer, openComposer, pendingComposer, setSuggestionMode };
 }

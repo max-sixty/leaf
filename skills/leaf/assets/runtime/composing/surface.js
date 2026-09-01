@@ -284,16 +284,16 @@ export function createSelectionSurface({
       : null;
   // The one way an item under a gesture becomes the composer's anchor, so no two routes
   // can come to write different anchors for the same press.
-  function openOnItem(item, from) {
-    openComment({ section: item.id }, "", from.left, from.top);
+  function openOnItem(item) {
+    openComment({ section: item.id }, "", { carry: true });
   }
   // Keyboard selection names the target and immediately lands in its Comment field.
   function selectResponseTarget({ anchor }) {
     openComment(anchor, "");
   }
   // Alt-click already names Comment, so the field takes focus in the same transaction.
-  function focusTargetComment({ anchor }, from = null) {
-    openComment(anchor, "", from?.left, from?.top);
+  function focusTargetComment({ anchor }) {
+    openComment(anchor, "", { carry: true });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
   // selectionchange out of updateFab: the durable anchor is already captured, and letting
@@ -547,7 +547,7 @@ export function createSelectionSurface({
     if (designIsOn()) {
       if (pageSelection()) return;
       const target = designTarget(ev.target);
-      if (target) openOnDesign(target, { left: ev.clientX + 6, top: ev.clientY - 40 });
+      if (target) openOnDesign(target);
       return;
     }
     // The record rather than this event's own coordinates, for the reason the record is

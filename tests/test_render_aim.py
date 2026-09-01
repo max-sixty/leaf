@@ -332,10 +332,10 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
 ):
     """A covering workspace owns its pixels until the reader targets that workspace.
 
-    The aim, composer, design legend, and inspect name share two semantic stacking
+    The aim, response bar, design legend, and inspect name share two semantic stacking
     planes. Paint attached to page content stays below the sheet; paint naming a target
     inside Leaf's chrome rises above it. The target decides the plane, so the same aim and
-    composer can serve both without a viewport-width z-index exception.
+    response bar can serve both without a viewport-width z-index exception.
     """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 560, 900)
@@ -370,15 +370,15 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     page.mouse.click(point["x"], point["y"])
     page.keyboard.up("Alt")
     expect(page.locator(".lf-composer")).to_be_visible()
-    composer_plane = page.locator(".lf-composer").evaluate(
+    response_plane = page.locator(".lf-fab-bar").evaluate(
         "node => ({plane: node.dataset.lfPaintPlane, "
         "z: Number(getComputedStyle(node).zIndex), "
         "tray: Number(getComputedStyle(document.querySelector('.lf-decisions-panel')).zIndex)})"
     )
     assert (
-        composer_plane["plane"] == "page"
-        and composer_plane["z"] < composer_plane["tray"]
-    ), f"page composer paints over the covering Asks sheet: {composer_plane}"
+        response_plane["plane"] == "page"
+        and response_plane["z"] < response_plane["tray"]
+    ), f"page response bar paints over the covering Asks sheet: {response_plane}"
     page.keyboard.press("Escape")
 
     page.locator("body").focus()
@@ -423,15 +423,15 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
         }"""
     )
     expect(page.locator(".lf-composer")).to_be_visible()
-    chrome_composer = page.locator(".lf-composer").evaluate(
+    chrome_response = page.locator(".lf-fab-bar").evaluate(
         "node => ({plane: node.dataset.lfPaintPlane, "
         "z: Number(getComputedStyle(node).zIndex), "
         "tray: Number(getComputedStyle(document.querySelector('.lf-decisions-panel')).zIndex)})"
     )
     assert (
-        chrome_composer["plane"] == "chrome"
-        and chrome_composer["z"] > chrome_composer["tray"]
-    ), f"a composer about the Asks sheet paints beneath it: {chrome_composer}"
+        chrome_response["plane"] == "chrome"
+        and chrome_response["z"] > chrome_response["tray"]
+    ), f"a response bar about the Asks sheet paints beneath it: {chrome_response}"
     assert errors == []
     page.close()
 
@@ -1138,6 +1138,11 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
     expect(page.locator(".lf-composer")).to_be_visible()
+    response_bar = page.locator(".lf-fab-bar")
+    expect(response_bar).to_have_attribute("data-lf-paint-plane", "chrome")
+    assert int(response_bar.evaluate("el => getComputedStyle(el).zIndex")) > int(
+        page.locator(".lf-panel").evaluate("el => getComputedStyle(el).zIndex")
+    ), "the field opened on chrome underneath the workspace it describes"
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "layer · Thread panel width · threads"
     )

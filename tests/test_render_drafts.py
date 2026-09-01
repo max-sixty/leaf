@@ -964,6 +964,32 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     page.close()
 
 
+def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
+    browser, serve
+):
+    """Opening fields is automatic, so selecting a new passage is not re-anchoring.
+
+    Each passage keeps its own durable draft: the newly selected passage starts empty,
+    and returning to the original passage restores the words written about it."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    field = page.locator(".lf-fab-input")
+    original = "These words belong to the first passage."
+
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_focused()
+    field.fill(original)
+
+    page.locator("#p2").click(click_count=3)
+    expect(field).to_be_focused()
+    expect(field).to_have_value("")
+
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_focused()
+    expect(field).to_have_value(original)
+    assert errors == []
+    page.close()
+
+
 def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     browser, serve, one_reader
 ):

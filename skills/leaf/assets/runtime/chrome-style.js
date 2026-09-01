@@ -357,12 +357,12 @@ export function chromeStyle({
      of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
      Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
      class itself. */
-  .lf-ui textarea:not(.lf-fab-input),
-  textarea.lf-ui:not(.lf-fab-input) { padding: 8px 10px; border: 1px solid var(--border-2);
+  .lf-ui textarea:where(:not(.lf-fab-input)),
+  textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid var(--border-2);
     border-radius: 6px; background: var(--card); color: inherit; resize: none;
     field-sizing: content; max-height: 50vh; overflow-y: auto; }
-  .lf-ui textarea:not(.lf-fab-input):is(:focus, .lf-focus),
-  textarea.lf-ui:not(.lf-fab-input):is(:focus, .lf-focus) { outline: none;
+  .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
+  textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: none;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 ${MARK_RULES}
@@ -601,9 +601,9 @@ ${MARK_RULES}
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
     /* Page paint belongs under a covering workspace. Paint whose target is inside the
-       chrome belongs above that workspace, including when the same aim or composer moves
+       chrome belongs above that workspace, including when the same aim or response bar moves
        between the two. The target owner states the plane; document order keeps aim,
-       composer, and inspect in their ordinary order within it. */
+       response bar, and inspect in their ordinary order within it. */
     :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
     .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);

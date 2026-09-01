@@ -485,6 +485,11 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         steps=16,
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
+    assert page.locator(".lf-fab-bar").evaluate(
+        "el => el.getBoundingClientRect().top"
+    ) > page.locator("[data-lf-for='sug-refill']").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ), "the bar never stepped past the row, so standing on no control proves nothing"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())

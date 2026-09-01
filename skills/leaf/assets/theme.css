@@ -97,6 +97,21 @@
 
   --card: #fffefb;   /* raised surfaces: cards, panels, controls */
   --field: #f4f1e8;  /* tinted fields: details, callouts, notes */
+  /* The ink every raised surface casts its shadow in. One per scheme, because the two
+     grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
+     only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
+     the same declaration over the dark paper lifts 1.4 — which is a drop shadow that is
+     in the stylesheet and not on the screen. Nine of the layer's twelve were written that
+     way. The dark value is as far as the medium goes: the paper is already at L* 8.3, so
+     black takes it to 3.0 and no further, and the WCAG ratio is the wrong instrument down
+     there (1.11:1 for an edge the eye reads perfectly well).
+
+     Depth is geometry here and nowhere else. The alphas that were spread .12–.24 across
+     the sites are gone, because a shadow's spread and offset already say how high a thing
+     is and a second dial saying the same thing is a second dial to keep in step: a card
+     in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
+     difference and enough of one. */
+  --shade: rgb(0 0 0 / .14);
   --code-bg: #eeeeeb; --pre-bg: #f5f5f3; --code-chrome: #efefec;
   --code-ink: #262624; --code-muted: #62615d; --code-border: #d6d5d0;
   --chip: #eeeade;   /* neutral chip */
@@ -213,6 +228,9 @@
     --accent: #8fb0d8; --ok: #7fb98c;   --warn: #d8a95c;   --danger: #d98b7a;
 
     --card: #201e1a; --field: #232019;
+    /* Four times the light alpha, for a fifth of the effect: 5.3 L* off the paper and
+       7.5 off a card, against the 1.4 the light value bought here. */
+    --shade: rgb(0 0 0 / .55);
     --code-bg: #2b2b29; --pre-bg: #1b1b1a; --code-chrome: #222220;
     --code-ink: #e8e7e3; --code-muted: #9b9992; --code-border: #3b3a37;
     --chip: #2d2922;

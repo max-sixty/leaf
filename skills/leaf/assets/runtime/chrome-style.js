@@ -304,7 +304,7 @@ export function chromeStyle({
     padding: 4px 7px; border-radius: 4px;
     background: var(--ink); color: var(--paper);
     font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap;
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent);
+    box-shadow: 0 2px 8px var(--shade);
     opacity: 0; visibility: hidden; pointer-events: none;
     transform: translate(-50%, -2px);
     transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
@@ -528,13 +528,13 @@ ${MARK_RULES}
     width: auto; height: auto; padding: 6px 10px; overflow: visible;
     opacity: 1;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-    color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
   .lf-visual-action:focus-visible { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-    color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade);
     outline: var(--here-ring); --lf-here-ring: visual-target;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
@@ -716,7 +716,7 @@ ${MARK_RULES}
       max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-      box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
+      box-shadow: 0 8px 24px var(--shade); padding: 4px; }
     .lf-version-menu:popover-open { display: grid; }
     /* Left-aligned text in a control that is otherwise a press: the rows are a list to
        read down, and a centred note re-ragged on every line is not one. */
@@ -1109,12 +1109,12 @@ ${MARK_RULES}
       border: 1px solid var(--border-2); border-radius: 999px; background: var(--card);
       color: var(--ink-2); font: 400 var(--t-6)/1.4 var(--sans);
       padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
-      box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+      box-shadow: 0 2px 6px var(--shade); }
     .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
       outline: none;
       border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
-        0 2px 6px rgba(0,0,0,.14); }
+        0 2px 6px var(--shade); }
     textarea.lf-fab-input { width: 216px; min-width: 0;
       max-height: min(132px, 30vh); border-radius: 999px;
       padding-inline: 12px;
@@ -1225,7 +1225,7 @@ ${MARK_RULES}
       max-height: min(80dvh, calc(100dvh - var(--lf-safe-top) - var(--lf-safe-bottom) - 32px));
       overflow: hidden; display: none; margin: 0;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-      box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 18px; }
+      box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }
     .lf-help.open { display: flex; flex-direction: column; }
     .lf-help::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
     .lf-help-head { display: flex; align-items: center; justify-content: space-between;
@@ -1267,7 +1267,7 @@ ${MARK_RULES}
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
-      background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+      background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
     /* The conversation has its fixed position measured from its Button: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */
@@ -1304,7 +1304,7 @@ ${MARK_RULES}
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
-      color: var(--ink); box-shadow: 0 18px 54px rgba(0,0,0,.24); }
+      color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
     .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
     .lf-page-map-list { margin-top: 10px; overflow: auto; max-height: calc(100vh - 110px); }
     .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
@@ -1424,7 +1424,7 @@ ${MARK_RULES}
       display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
       gap: 10px; padding: 7px; border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card);
-      box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+      box-shadow: 0 8px 24px var(--shade); }
     .lf-target-search[hidden] { display: none; }
     .lf-target-search-box { min-width: 0; box-sizing: border-box; font: inherit;
       padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;

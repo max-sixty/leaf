@@ -4045,3 +4045,108 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         f"corpus can be walked to, so nothing above is evidence about them:\n  "
         + "\n  ".join(unlit)
     )
+
+
+# Every declaration in the page's composed layer that lifts a box off the page: a
+# box-shadow with a blur radius. A ring is `0 0 0 Npx` and an inset band is `inset …`, so
+# the reading asks for a third length that is not nought — which is the one thing that
+# separates elevation from the other two uses of the property, and is decidable from the
+# declaration where "is this a shadow" is not.
+#
+# Flat and condition-blind for the reasons RING_NAMES gives next door: nothing re-runs a
+# selector, and a shadow painted only in some other medium is one this reading should say
+# nothing about.
+ELEVATION_SHADOWS = """() => {
+  const found = [];
+  const eaten = new Set();
+  const eat = (sheet) => {
+    if (!sheet || eaten.has(sheet)) return;
+    eaten.add(sheet);
+    let list;
+    try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
+    const walk = (from) => {
+      for (const rule of from) {
+        for (const property of ['box-shadow', '--lf-lift', '--lf-ring']) {
+          const value = rule.style?.getPropertyValue(property)?.trim();
+          if (!value || value === 'none') continue;
+          // The blur, which is the third length of a layer, past the two offsets. A ring
+          // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per
+          // layer, because a control may state its ring and its lift in one declaration.
+          const lifts = value.split(/,(?![^(]*\\))/).filter((layer) => {
+            if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
+            const lengths = layer.trim().split(/\\s+/)
+              .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
+            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0;
+          });
+          if (!lifts.length) continue;
+          const own = rule.selectorText;
+          const up = rule.parentRule?.selectorText;
+          found.push({
+            said: own && up ? `${up} { ${own}` : (own ?? up ?? '(a declaration)'),
+            property,
+            value: lifts.map((layer) => layer.trim()).join(', '),
+          });
+        }
+        if (rule.cssRules) walk(rule.cssRules);
+      }
+    };
+    walk(list);
+  };
+  const roots = [document];
+  for (const root of roots) {
+    for (const sheet of root.styleSheets) eat(sheet);
+    for (const sheet of root.adoptedStyleSheets) eat(sheet);
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) roots.push(el.shadowRoot);
+  }
+  return found;
+}"""
+
+
+def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink(
+    browser, serve
+):
+    """A drop shadow written as rgba(0,0,0,α) can only be right about one ground.
+
+    At .12 over the light paper a menu lifts its ground by 10 L*. The same declaration
+    over the dark paper lifts it by 1.4, which is a shadow that is in the stylesheet and
+    not on the screen — and nine of the layer's twelve elevation shadows were written that
+    way, each with an alpha of its own between .12 and .24. --shade is the ink, stated once
+    per scheme, and depth is left to the offsets and the blur that were already saying it.
+
+    Asked of the declarations rather than of the paint, because that is where the fault
+    is: on the dark ground the difference between the value that reads and the value that
+    does not is 4 L*, which no screenshot of a blurred edge will tell you about reliably,
+    while "does this name the token" is exact. The two schemes are then asked for
+    different answers from the token itself, which is the whole of what one hard-coded
+    colour could not do.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    lifted = page.evaluate(ELEVATION_SHADOWS)
+    assert len(lifted) >= 10, (
+        f"the layer declares {len(lifted)} elevation shadows, which is fewer than it "
+        f"ships: this reading has stopped finding them and the assertion below is "
+        f"about nothing"
+    )
+    raw = [shadow for shadow in lifted if "var(--shade)" not in shadow["value"]]
+    assert not raw, (
+        f"{len(raw)} of the layer's {len(lifted)} elevation shadows are cast in a "
+        f"colour of their own rather than in --shade, so the dark scheme cannot answer "
+        f"for them:\n  "
+        + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
+    )
+    light = page.evaluate(
+        "() => getComputedStyle(document.documentElement).getPropertyValue('--shade')"
+    )
+    assert errors == []
+    page.close()
+
+    dark, dark_errors = open_page(browser, serve(LONG_PAGE), color_scheme="dark")
+    shade = dark.evaluate(
+        "() => getComputedStyle(document.documentElement).getPropertyValue('--shade')"
+    )
+    assert shade.strip() and shade.strip() != light.strip(), (
+        f"both schemes cast their shadows in {shade!r}, so routing them through a token "
+        f"bought the dark page nothing it did not already have"
+    )
+    assert dark_errors == []
+    dark.close()

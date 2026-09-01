@@ -1362,7 +1362,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     Claude is told must be the same event.
 
     What stays is the row, saying what was done there. It used to clear itself in
-    the same frame as the press, leaving a corner toast as the only evidence that
+    the same frame as the press, leaving a banner notice as the only evidence that
     anything had happened — and clearing a control is the one thing a press may not
     do to the line it was made on. Now the control the user pressed states the
     outcome where it stood and stops offering. Its pair leaves and a persistent receipt
@@ -1501,7 +1501,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     and offered to accept “Retry three times. 1 comment”. It reads the slot the way the
     page is read instead, which is what `says` is for — read before deciding, because a
     reject retires the very slot the label comes from, and a retired slot says nothing:
-    the toast then named the widget's id instead of the words the user judged. Short
+    the notice then named the widget's id instead of the words the user judged. Short
     on purpose: the label cuts at 48 characters, which hid this on every shipped example."""
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page, errors = open_page(browser, url)
@@ -1510,7 +1510,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
     control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
-    expect(page.locator(".lf-toast")).to_have_text(
+    expect(page.locator(".lf-notice")).to_have_text(
         f"{verb} “Retry three times.” — recorded"
     )
     assert errors == []
@@ -1735,7 +1735,7 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     assert accept.get_attribute("aria-disabled") == "false"
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
-    expect(page.locator(".lf-toast")).to_contain_text("Couldn't send")
+    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
@@ -1783,7 +1783,7 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     ):
         accept.click()
     expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
-    expect(page.locator(".lf-toast")).to_contain_text("retrying your change")
+    expect(page.locator(".lf-notice")).to_contain_text("retrying your change")
 
     accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()

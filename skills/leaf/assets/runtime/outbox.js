@@ -30,7 +30,7 @@ export function createOutbox(runtime, dependencies) {
     registry,
     releaseProjectedOutbox,
     requirementMatches,
-    showToast,
+    notice,
     stageOutboxAction,
     stateCoordinate,
     stateProjection,
@@ -157,7 +157,7 @@ export function createOutbox(runtime, dependencies) {
       ]);
       if (sent.answer) return { answer: sent.answer };
       if (sent.error) {
-        if (!announced) showToast("Connection lost — retrying your change…");
+        if (!announced) notice("Connection lost — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -177,7 +177,7 @@ export function createOutbox(runtime, dependencies) {
       ]);
       if (decoded.readAnswer) return { answer: decoded.readAnswer };
       if (decoded.error) {
-        if (!announced) showToast("Couldn't read the answer — retrying your change…");
+        if (!announced) notice("Couldn't read the answer — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -207,10 +207,10 @@ export function createOutbox(runtime, dependencies) {
         (!("attempt" in answer) || answer.attempt === event.attempt) &&
         answer.ok === false
       ) {
-        showToast(`Couldn't send — ${answer.error || "the server refused it"}`);
+        notice(`Couldn't send — ${answer.error || "the server refused it"}`);
         return { answer: null };
       }
-      if (!announced) showToast("Server answer was incomplete — retrying your change…");
+      if (!announced) notice("Server answer was incomplete — retrying your change…");
       announced = true;
       await retryPause();
     }
@@ -265,7 +265,7 @@ export function createOutbox(runtime, dependencies) {
     // the same attempt would make the first accepted read resolve the second with the
     // wrong payload before that payload ever reached the server's conflict gate.
     if (outbox.some((entry) => entry.event.attempt === attempted.attempt)) {
-      showToast(`Couldn't send — attempt ${attempted.attempt} is already in use`);
+      notice(`Couldn't send — attempt ${attempted.attempt} is already in use`);
       return Promise.resolve(null);
     }
     const answer = new Promise((resolve) => {

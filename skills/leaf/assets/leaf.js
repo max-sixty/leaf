@@ -248,7 +248,7 @@ import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes
 import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
-import { announce, createNotifications, toast } from "./runtime/notifications.js";
+import { announce, createNotifications, notice } from "./runtime/notifications.js";
 import { createOutbox, outbox, sendAction } from "./runtime/outbox.js";
 import { createRequests } from "./runtime/requests.js";
 import { createDataProjection } from "./runtime/projection/data.js";
@@ -305,6 +305,7 @@ import { createWidgetLoader } from "./runtime/widget-loader.js";
 import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
 import {
   createMeasurements,
+  focusDestination,
   installReachedForWordsGuard,
   offer,
   quoted,
@@ -697,8 +698,12 @@ const commentsEdge = drawnEdge({
 const banner = el("header", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
+// The line's momentary other words (notifications.js): a gesture recorded, a version
+// arrived, a send refused. Seated after the line it stands in for, so the row holds
+// one sentence at a time.
+const noticeEl = el("span", "lf-ui lf-notice");
 const bannerStatus = el("div", "lf-banner-status");
-bannerStatus.append(dot, statusText);
+bannerStatus.append(dot, statusText, noticeEl);
 const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
   el,
 });
@@ -922,8 +927,8 @@ generalRow.append(generalInput, generalSend);
 // The panel's foot: everything standing below the scrolling thread list. The general
 // box is what it holds at rest, and the page's own reaction strip joins it above that
 // box when the registry offers reactions. One box rather than two siblings, because the
-// chrome lifts the key line and the toast clear of the foot over a covering panel, and a
-// lift measured off the composer alone stood them on the strip's pills.
+// chrome lifts the key line clear of the foot over a covering panel, and a lift
+// measured off the composer alone stood it on the strip's pills.
 const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
@@ -981,7 +986,6 @@ const composerSend = el("button", "lf-btn primary", "Comment");
 composerRow.append(composerSend);
 composer.append(composerQuote, suggestRow, composerInput, composerRow);
 fabBar.prepend(composer);
-const toastEl = el("div", "lf-ui lf-toast");
 const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 const helpEl = document.createElement("dialog");
@@ -1052,7 +1056,7 @@ selectionSearch.append(selectionInput, selectionStatus);
 // element by id, so each part that is a thing to point at carries a stable one under the
 // runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
 // passage is in — still passes over them, every one wearing lf-ui. What has no id is
-// what nobody comments on: the toast, the live region, the scope root itself.
+// what nobody comments on: the notice, the live region, the scope root itself.
 for (const [part, id] of [
   [banner, "lf-banner"],
   [versionMenu, "lf-versions"],
@@ -1081,7 +1085,6 @@ chromeRoot.append(
   selectionSearch,
   aimBox,
   fabBar,
-  toastEl,
   liveEl,
   helpEl,
   keylineEl,
@@ -1171,18 +1174,17 @@ chromeLayout = createChromeLayout({
   showTray,
   syncReactLayout: (...args) => syncReactLayout(...args),
   syncGeneral: (...args) => syncGeneral(...args),
-  toastEl,
   toggleBtn,
   traysEdge,
 });
 const { inPanel, panelCovers, panelIsOpen } = chromeLayout;
-const { showToast } = createNotifications({ liveEl, syncLayout, toastEl });
+createNotifications({ liveEl, noticeEl });
 
 // ---------- text inputs ----------
 const { paint: paintInputs, wire: wireInput } = createInput({
   focused,
   keys,
-  showToast,
+  notice,
   spell,
 });
 paintInputHints = paintInputs;
@@ -2013,7 +2015,7 @@ const {
   reactionVocabulary: () => registry.$reactions?.tokens,
   saying,
   showFab,
-  showToast,
+  notice,
   standingConversation,
   standingItem,
   suggestHere: () => selectionComposerRuntime.setSuggestionMode(true),
@@ -2932,7 +2934,7 @@ const {
   quoted,
   projectionFromView: (...args) => projectionFromView(...args),
   sameLayer,
-  showToast,
+  notice,
   stateCoordinate: (...args) => stateCoordinate(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
@@ -2949,12 +2951,13 @@ const { loadIcon, renderStatus, toneFor } = createBanner({
   el,
   presented,
   statusText,
-  toast,
+  notice,
 });
 
 const { activateRevision, currentActivation, revisionDocument, trackActivation } =
   createVersionActivation(versionRoots, {
     captureAuthoredFacets: (...args) => captureAuthoredFacets(...args),
+    captureStanding,
     captureView,
     comparisonBase,
     designIsOn: () => designOn,
@@ -3096,6 +3099,12 @@ function captureView(...args) {
 }
 function restoreView(...args) {
   return viewRuntime.restoreView(...args);
+}
+function captureStanding(...args) {
+  return viewRuntime.captureStanding(...args);
+}
+function restoreStanding(...args) {
+  return viewRuntime.restoreStanding(...args);
 }
 function sectionOf(...args) {
   return anchorRuntime.sectionOf(...args);
@@ -3243,7 +3252,7 @@ const runtimeProjection = createProjection(runtime, {
   settlementSlots,
   standOn,
   textNodesUnder,
-  toast,
+  notice,
 });
 const {
   authoredDetails,
@@ -3289,7 +3298,7 @@ outboxRuntime = createOutbox(runtime, {
   registry,
   releaseProjectedOutbox,
   requirementMatches,
-  showToast,
+  notice,
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
@@ -3490,7 +3499,12 @@ livingMargin = createLivingMargin({
 viewRuntime = createViewContinuity({
   TEXT_BLOCK,
   banner,
+  closestAcross,
+  containsAcross,
   cut,
+  elementById,
+  focusDestination,
+  focused,
   inChrome,
   landedAt,
   pageScroller,
@@ -3505,7 +3519,7 @@ viewRuntime = createViewContinuity({
 });
 
 createConversationLanding({ scrollToThread });
-createConversationBox({ post, renderPanel, showToast, wireInput });
+createConversationBox({ post, renderPanel, notice, wireInput });
 
 designRuntime = createDesign({
   ITEM,
@@ -3563,14 +3577,14 @@ stateApplication = createStateApplication({
   renderStatus,
   renderVersions,
   reportPageError,
+  restoreStanding,
   restoreView,
   revisionDocument,
   runtime,
   sameLayer,
-  setPanel,
   showComparison,
   showNews,
-  showToast,
+  notice,
   snapshotVersionNavigation,
   settleAcceptedDrafts,
   stateSignoff,
@@ -3698,7 +3712,7 @@ async function startPage() {
   paintHere(); // c is live again, whether or not that selection raised the button
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
-    showToast(`Updated to ${runtime.currentLabel}`);
+    notice(`Updated to ${runtime.currentLabel}`);
   if (savedComposer)
     openComposer(savedComposer.anchor, savedComposer.text, {
       suggest: Boolean(savedComposer.suggest),

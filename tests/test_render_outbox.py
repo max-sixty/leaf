@@ -328,7 +328,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
         "card-heater"
     ]
     assert _traffic(page).sends == 1
-    expect(page.locator(".lf-toast")).to_contain_text("is already in use")
+    expect(page.locator(".lf-notice")).to_contain_text("is already in use")
     assert errors == []
     page.close()
 

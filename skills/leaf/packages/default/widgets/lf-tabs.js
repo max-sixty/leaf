@@ -145,7 +145,7 @@ customElements.define(
       layoutChanged(this);
     }
 
-    // One Δn chip per tab holding marked passages, so the toast's count is
+    // One Δn chip per tab holding marked passages, so the notice's count is
     // accounted for even where the marks sit behind an inactive tab.
     #badges() {
       for (const [panel, btn] of this.#buttons) {

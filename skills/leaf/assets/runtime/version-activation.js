@@ -38,6 +38,7 @@ export function createVersionActivation(
   versionRoots,
   {
     captureAuthoredFacets,
+    captureStanding,
     captureView,
     comparisonBase,
     designIsOn,
@@ -135,6 +136,7 @@ export function createVersionActivation(
 
   async function activateRevision(doc, revision) {
     const view = captureView();
+    const standing = captureStanding();
     const source = doc.querySelector("body > main");
     const fresh = document.importNode(source, true);
     revisionDocuments.delete(revision.revision);
@@ -169,7 +171,7 @@ export function createVersionActivation(
     captureAuthoredFacets(fresh);
     syncLayout();
     if (designIsOn()) paintLegend();
-    return { view, comparedFrom };
+    return { view, standing, comparedFrom };
   }
 
   function currentActivation() {

@@ -46,7 +46,7 @@ export function createDrawnEdge({ el, keys, readerStore, syncLayout }) {
     // The one writer of the property the cascade reads that width from: the region's own box
     // and the strip the page yields are both stated against it. Written rather than read back
     // off the region because a closed one measures zero, which is exactly when the page most
-    // needs to know how wide it will be. The runtime's own readers — the toast's corner, the
+    // needs to know how wide it will be. The runtime's own readers — the key line's cap, the
     // room a wide widget spends — ask `width` instead of this property, so what the cascade
     // lays out and what the runtime measures cannot come apart.
     function state() {

@@ -299,8 +299,8 @@ def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
     page.close()
 
 
-def test_settling_a_secondary_button_leaves_one_focused_outcome(browser, serve):
-    """A contribution that shows its outcome does not grow a duplicate reading."""
+def test_settling_a_secondary_button_exposes_its_lifecycle(browser, serve):
+    """A settled outcome and its unsettled handoff stay one engaged cluster."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -313,8 +313,11 @@ def test_settling_a_secondary_button_leaves_one_focused_outcome(browser, serve):
 
     expect(item.locator(".lf-sug-receipt")).to_have_text("Rejected")
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
-    expect(options).to_be_hidden()
-    expect(item.locator(".lf-margin-action:visible")).to_have_count(1)
+    expect(options).to_be_visible()
+    expect(
+        options.get_by_role("button", name=re.compile(r"^Sent for "))
+    ).to_be_visible()
+    expect(item.locator(".lf-margin-action:visible")).to_have_count(2)
     expect(item.locator(".lf-sug-reject")).to_be_focused()
     assert errors == []
     page.close()
@@ -1035,7 +1038,7 @@ def test_one_information_button_does_not_raise_a_preview(browser, serve):
 def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     browser, serve
 ):
-    """One location has one resting Button; its other readings unfold as peer Buttons."""
+    """One location groups its thread and engaged handoff without moving the page."""
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
@@ -1047,7 +1050,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).not_to_have_attribute("aria-label", re.compile("Outcome"))
     expect(marker).not_to_have_attribute("title", re.compile(".+"))
     more = marker.locator("xpath=..").locator(":scope > .lf-margin-more")
-    expect(more).to_be_visible()
+    expect(more).to_be_hidden()
     claim = marker.locator("xpath=..").evaluate(
         """item => {
           const style = getComputedStyle(item);
@@ -1103,14 +1106,12 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.locator(":focus").get_attribute("aria-label") != held
 
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
-    expect(options).to_be_hidden()
-    more.click()
     expect(options).to_be_visible()
-    outcome = options.get_by_role("button", name=re.compile(r"Outcome for"))
+    outcome = options.get_by_role("button", name=re.compile(r"Sent for"))
     expect(outcome).to_be_visible()
     expect(preview).to_be_hidden()
     outcome.click()
-    expect(options).to_be_hidden()
+    expect(options).to_be_visible()
     expect(preview).to_be_hidden()
 
     assert errors == []

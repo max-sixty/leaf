@@ -1376,8 +1376,10 @@ with one unambiguous control therefore gets one Button, not a row of variants.
 An engaged contribution shows its complete peer set instead. Engagement is the
 owner's semantic interaction state, not DOM focus: an open editor, for example, keeps
 Save and Cancel exposed until either action ends the edit, even if focus moves within
-the document. An engaged set has no `…`; it cannot hide an action needed to complete
-or leave the interaction that is already under way.
+the document. An unsettled reader action engages the whole target in the same way,
+keeping its delivery lifecycle and every remaining peer visible until the handoff
+settles. An engaged set has no `…`; it cannot hide an action or status needed to
+understand, complete, or leave the interaction that is already under way.
 
 Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
 replaces `…` with every available peer, and Left/Right wrap through those visible
@@ -1394,8 +1396,8 @@ inside authored content. Its information face advances from **Sent** or **Waitin
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
 action's standing outcome supplies the same retained target cluster throughout. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
-the full conversation; an **Active** claim joins that cluster under `…`. A standalone
-page-widget claim gets an **Active** Button directly. When no page edge exists—inside
+the full conversation; an **Active** claim joins that engaged cluster as an exposed
+peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
 the full thread panel or a widget frozen into conversation chrome—the compact
 `.lf-receipt` remains the local fallback.
 

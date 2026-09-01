@@ -348,7 +348,13 @@ export function createLivingMargin(dependencies) {
   };
   const offerEngaged = (offered) =>
     typeof offered.engaged === "function" ? offered.engaged() : offered.engaged;
-  const entryEngaged = (entry) => entry.offers.some(offerEngaged);
+  // Engagement belongs to the whole target, not only to whichever contribution owns
+  // the primary control. An unresolved action acknowledgment is also an interaction
+  // still under way: keep its lifecycle face and every way out beside the outcome
+  // until the external handoff settles.
+  const entryEngaged = (entry) =>
+    entry.offers.some(offerEngaged) ||
+    entry.items.some((item) => item.acknowledgmentFace);
   // A modal or contextual thread surface temporarily owns focus without ending the
   // document interaction beneath it. Preserve that context so its commands remain
   // true and its owning Button can receive focus when the surface closes.
@@ -468,10 +474,7 @@ export function createLivingMargin(dependencies) {
   function markerFace(entry) {
     const kinds = kindsIn(entry, { markerOnly: true });
     const choice = primaryReading(entry);
-    const face =
-      (choice?.items.length === 1 && choice.items[0].acknowledgmentFace) ||
-      KINDS[choice?.kind] ||
-      KINDS.action;
+    const face = readingFace(choice);
     const faceCount = choice?.items.length ?? 0;
     return {
       kinds,
@@ -481,6 +484,14 @@ export function createLivingMargin(dependencies) {
       // and must not make a Thread Button appear to open more threads than it does.
       count: faceCount,
     };
+  }
+
+  function readingFace(choice) {
+    return (
+      (choice?.items.length === 1 && choice.items[0].acknowledgmentFace) ||
+      KINDS[choice?.kind] ||
+      KINDS.action
+    );
   }
 
   function syncThreadRelation(control, isThread) {
@@ -733,7 +744,12 @@ export function createLivingMargin(dependencies) {
         return {
           ...group,
           items: group.items
-            .filter((item) => item.marker === false || !represented.has(item.kind))
+            .filter(
+              (item) =>
+                item.marker === false ||
+                item.acknowledgmentFace ||
+                !represented.has(item.kind),
+            )
             .sort(
               (left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority,
             ),
@@ -1136,6 +1152,7 @@ export function createLivingMargin(dependencies) {
       tone: control.dataset.lfTone || "neutral",
     });
     node.setAttribute("aria-label", control.getAttribute("aria-label") || label);
+    node.lfForwardedControl = control;
     node.disabled =
       control.disabled || control.getAttribute("aria-disabled") === "true";
     for (const attribute of [
@@ -1164,7 +1181,7 @@ export function createLivingMargin(dependencies) {
       node.type = "button";
       readingButtons.set(key, node);
     }
-    const face = KINDS[choice.kind];
+    const face = readingFace(choice);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
     marginAction(node, {
@@ -1225,7 +1242,9 @@ export function createLivingMargin(dependencies) {
   }
 
   function syncControls(host, marker, more, options, entry) {
-    const focusedOption = options.contains(document.activeElement);
+    const active = document.activeElement;
+    const focusedOption = options.contains(active);
+    const forwardedControl = active?.lfForwardedControl;
     const primary = syncControlRoles(entry);
     const controls = directOffers(entry)
       .filter((offered) => offered.controls)
@@ -1261,7 +1280,13 @@ export function createLivingMargin(dependencies) {
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else (destination ?? document.body).focus({ preventScroll: true });
     } else if (lostOptionFocus) {
-      const next = clusterButtons(options)[0] ?? clusterButtons(host)[0];
+      // A secondary proxy can become the real primary when its press settles. Keep
+      // focus on that same semantic control instead of jumping to the first status
+      // reading merely because the cluster stayed engaged and replaced its peers.
+      const next =
+        (forwardedControl?.checkVisibility() ? forwardedControl : null) ??
+        clusterButtons(options)[0] ??
+        clusterButtons(host)[0];
       (next ?? document.body).focus({ preventScroll: true });
     }
     return primary;

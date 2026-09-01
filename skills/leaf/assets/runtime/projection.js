@@ -332,6 +332,16 @@ export function createProjection(runtime, dependencies) {
       // thread paints nothing, so there is nothing to offer the press. The server
       // refuses the same three (undo_error), this being the offer and that the door.
       if (e.token) return e;
+      // The approval, while it is the one the button is showing. Scoped the way
+      // paintApproval scopes what it reads, because a reader on v3 taking back their
+      // sign-off of v2 would be undoing a press whose result is nowhere on the page —
+      // and the button is the whole of what says the press happened.
+      if (
+        e.kind === "done" &&
+        e.revision === runtime.currentRevision &&
+        e.version === runtime.currentStamp
+      )
+        return e;
       // On the version it was made against: a later version may have been written
       // around the decision, and a press that paints nothing is not one to offer. What
       // *hearing* such an undo owes is reconciliation's, and is not the same answer.
@@ -354,6 +364,7 @@ export function createProjection(runtime, dependencies) {
     resolve: "Reopened the thread",
     unresolve: "Resolved the thread again",
     action: "Took back your last change",
+    done: "Took back your approval",
   };
   // A reaction's word is the token, which is the layer's word rather than a widget's
   // verb — read off the event, as the bar and the strip read it.

@@ -1472,6 +1472,14 @@ function paintApproval() {
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
   approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
+  // The word and the title turn over together. The title read "Approve this work; the
+  // page stays open for follow-up" whether or not the work had been approved, so the one
+  // surface that could have told a reader what pressing it would do next went on
+  // describing a press they had already made. Approved, it says the state and the way
+  // out of it, which is `z` like every other reader gesture.
+  approveBtn.title = approved
+    ? "Approved. Press z to take it back while it is still your last gesture"
+    : "Approve this work; the page stays open for follow-up";
   paintHere();
 }
 approveBtn.onclick = async () => {

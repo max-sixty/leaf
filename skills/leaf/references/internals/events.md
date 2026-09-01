@@ -34,7 +34,7 @@ failure in front of the user — author=page, heard by the watcher like a report
 and never counted against the reader).
 
 undo (the reader taking a gesture back, `undoes` naming it — a resolve, an
-unresolve, or an action, per UNDOABLE_KINDS) is the log's one word for that, and
+unresolve, an action, or a `done`, per UNDOABLE_KINDS) is the log's one word for that, and
 it names the gesture and nothing else: every other field is the target's to
 state. It withdraws rather than deletes. Nothing is removed from the log; the
 folds and the thread reading simply drop the event, so the page is what the

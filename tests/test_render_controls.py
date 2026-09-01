@@ -71,6 +71,7 @@ from render_support import (
     standing_ring,
     token_colour,
     told,
+    undo,
     watched,
 )
 
@@ -208,6 +209,64 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
     assert event["text"]
     expect(button).to_be_disabled()
+    assert errors == []
+    page.close()
+
+
+def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, serve):
+    """Sign-off was one press with no second step, and the heaviest press on the page.
+
+    A reader who meant Threads and hit the button beside it had approved the work, and
+    nothing on the page or in the log would take it back: `done` was outside
+    UNDOABLE_KINDS, so the append door refused the undo and the offer never reached the
+    key line. It is a mark rather than speech, the way a reaction is — the agent is told
+    the version is approved, not told something — so the withdrawal is the whole of the
+    correction, and it goes through the outbox and the `z` row every other reader gesture
+    uses.
+
+    Read at all three levels the fault sat in, because two of them were separately wrong:
+    the key line has to offer the press, the log has to take the undo, and the projection
+    the button reads has to stop counting an approval a reader withdrew — `done` was a
+    raw filter over the whole log, so an accepted undo would have left the button reading
+    "✓ Version approved" for ever.
+
+    And the tooltip, which is the other half of the same fault: it said "Approve this
+    work" whether or not the work had been approved, so the one surface that could tell a
+    reader what the press would do next described one they had already made.
+    """
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, serve(html))
+    button = page.locator(".lf-signoff")
+    expect(button).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
+    button.click()
+    round_trip(page)
+    expect(button).to_have_text("✓ Version approved")
+    expect(button).to_have_attribute(
+        "title", "Approved. Press z to take it back while it is still your last gesture"
+    )
+
+    undo(page)
+    expect(button).to_have_text("Approve version")
+    expect(button).to_be_enabled()
+    expect(button).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
+    kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
+    assert kinds[-2:] == ["done", "undo"], (
+        f"the withdrawal is not in the log as its own event: {kinds}"
+    )
+
+    # And the press is available again, which is what makes this a correction rather than
+    # a page the reader has spent.
+    button.click()
+    round_trip(page)
+    expect(button).to_have_text("✓ Version approved")
+    assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
     assert errors == []
     page.close()
 

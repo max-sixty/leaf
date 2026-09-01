@@ -68,11 +68,20 @@ _ROOTED_PAGE_ROUTE = re.compile(
 )
 
 _ROOTED_PAGE_ATTRIBUTE = re.compile(
-    rb'(?P<before>\b(?:action|data|href|poster|src)\s*=\s*["\'])/(?P<path>'
+    rb'(?P<before>=\s*["\'])/(?P<path>'
     rb"(?:api|runtime|widgets|vendor|media)/|"
     rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
     rb")",
     re.IGNORECASE,
+)
+_HTML_START_TAG = re.compile(rb"<[A-Za-z][^<>]*>", re.DOTALL)
+_STYLE_ATTRIBUTE = re.compile(
+    rb'(?P<before>\bstyle\s*=\s*)(?P<quote>["\'])(?P<value>.*?)(?P=quote)',
+    re.IGNORECASE | re.DOTALL,
+)
+_STYLE_ELEMENT = re.compile(
+    rb"(?P<open><style\b[^>]*>)(?P<value>.*?)(?P<close></style\s*>)",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -103,9 +112,36 @@ def scope_document_routes(body: bytes, page_root: str) -> bytes:
     if not page_root:
         return body
     root = page_root.rstrip("/").encode()
-    return _ROOTED_PAGE_ATTRIBUTE.sub(
-        lambda match: match.group("before") + root + b"/" + match.group("path"),
-        body,
+
+    def scope_routes(value: bytes) -> bytes:
+        return _ROOTED_PAGE_ROUTE.sub(
+            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            value,
+        )
+
+    def scope_start_tag(tag_match: re.Match) -> bytes:
+        tag = _ROOTED_PAGE_ATTRIBUTE.sub(
+            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            tag_match.group(),
+        )
+        return _STYLE_ATTRIBUTE.sub(
+            lambda match: (
+                match.group("before")
+                + match.group("quote")
+                + scope_routes(match.group("value"))
+                + match.group("quote")
+            ),
+            tag,
+        )
+
+    scoped = _HTML_START_TAG.sub(scope_start_tag, body)
+    return _STYLE_ELEMENT.sub(
+        lambda match: (
+            match.group("open")
+            + scope_routes(match.group("value"))
+            + match.group("close")
+        ),
+        scoped,
     )
 
 

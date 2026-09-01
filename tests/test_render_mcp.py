@@ -1,5 +1,8 @@
 """The MCP App bridge renders a page and returns durable feedback to its host."""
 
+import shutil
+
+from interact_support import ROOT
 from leaf.event_log import append_event, read_events
 from leaf.mcp_app import app_html, app_snapshot, apply_event
 from leaf.mcp_page import ProcessPageServer
@@ -87,13 +90,28 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             "text": "published",
         },
     )
+    media = page_dir / "media"
+    media.mkdir(exist_ok=True)
+    for filename in ("051bee487bfb5d13.png", "a99a1b63048502d0.png"):
+        shutil.copy2(ROOT / "examples" / "media" / filename, media / filename)
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
+        .replace(
+            "</head>",
+            "<style>#plan { background-image: "
+            "url(/media/051bee487bfb5d13.png); }</style></head>",
+        )
         .replace("<h2>Plan</h2>", "<h2>Plan now</h2>")
         .replace(
             "The cutoff lives in ",
             'Post to "/api/event" before the cutoff in ',
+        )
+        .replace(
+            "</section>",
+            '<lf-shot id="mcp-shot" alt="the page before and after" '
+            'before="/media/051bee487bfb5d13.png" '
+            'after="/media/a99a1b63048502d0.png"></lf-shot></section>',
         ),
         encoding="utf-8",
     )

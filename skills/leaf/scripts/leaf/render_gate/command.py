@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from .browser import browser_hint, launch_browser
 from .preview import preview_server
 from .version import render_version
 
@@ -16,13 +17,13 @@ def render_check(
     render=None,
     transition_held: bool = False,
 ) -> int:
-    """Serve candidate source to the machine's installed Chrome and run the
-    render invariants on it.
+    """Serve candidate source to the host's browser and run the render
+    invariants on it.
 
     Playwright is the gate's own extra, not the payload's: declaring it in
     `pyproject.toml` would put its wheel in every `server run`, `leaf wait`, and
     `version stamp`, so the import happens here and its absence names the
-    invocation that supplies it. Chrome is part of this gate: if it cannot
+    invocation that supplies it. A browser is part of this gate: if it cannot
     launch, the gate fails."""
     preview = preview_server if preview is None else preview
     render = render_version if render is None else render
@@ -43,11 +44,11 @@ def render_check(
         sync_playwright() as p,
     ):
         try:
-            browser = p.chromium.launch(channel="chrome")
+            browser = launch_browser(p)
         except PlaywrightError as error:
             print(
-                "✗ render check failed — Chrome did not launch: "
-                + str(error).strip().splitlines()[0],
+                "✗ render check failed — no browser launched: "
+                f"{str(error).strip().splitlines()[0]}. {browser_hint()}",
                 file=sys.stderr,
             )
             return 1

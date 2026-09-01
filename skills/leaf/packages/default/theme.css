@@ -1203,12 +1203,19 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 }
 
 /* The core sidebar states its actual posture after viewport and panel-room decisions.
- * Only a fine-pointer margin form fills that sticky box with a map; generic sidebars keep
- * their sticky behavior and an in-flow ToC stays open. */
+ * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
+ * their sticky behavior and an in-flow ToC stays open. The shell inset moves the fixed map
+ * beside a standing left workspace. */
 @media screen and (hover: hover) and (pointer: fine) {
   @container style(--lf-sidebar-posture: margin) {
-    lf-toc { height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+    lf-toc { position: fixed;
+             left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
+             top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+             width: calc(var(--sidebar) - var(--sp-4));
+             height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
              margin: 0; }
+    body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
+    body[data-lf-sizing] lf-toc { transition: none; }
     lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
                          --lf-toc-label-opacity: 0;
                          pointer-events: none; }

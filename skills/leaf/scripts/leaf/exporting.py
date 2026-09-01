@@ -14,6 +14,7 @@ from leaf.files import (
     version_revisions,
 )
 from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
+from leaf.render_gate.browser import browser_hint, launch_browser
 from leaf.render_gate.preview import preview_server
 from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import parse_structure
@@ -134,8 +135,8 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     get one: half the document is written by the widget layer at runtime, a mermaid
     diagram becomes an SVG only once mermaid has drawn it, and a code block is colored
     by the vendored tokenizer in the page rather than by anything that can read the
-    file. So Chrome is not an optimisation here and no `x-` key exempts a widget from
-    it; without a browser there is nothing to copy at all."""
+    file. So a browser is not an optimisation here and no `x-` key exempts a widget
+    from it; without one there is nothing to copy at all."""
     preview = preview_server if preview is None else preview
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -169,11 +170,12 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
         sync_playwright() as p,
     ):
         try:
-            browser = p.chromium.launch(channel="chrome")
+            browser = launch_browser(p)
         except PlaywrightError as e:
             sys.exit(
-                f"export needs Chrome, and it didn't launch ({str(e).strip().splitlines()[0]}). "
-                "A copy is the drawn page, so there is nothing to write without one."
+                "export needs a browser, and none launched "
+                f"({str(e).strip().splitlines()[0]}). A copy is the drawn page, so "
+                f"there is nothing to write without one. {browser_hint()}"
             )
         try:
             html = export_page(browser, url, page_dir, name)

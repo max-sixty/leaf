@@ -123,7 +123,11 @@ def test_mcp_refuses_an_anchor_on_static_widget_source(page_dir):
     )
 
     assert result.is_error is True
-    assert "data body is its source" in result.content[0].text
+    # A person selecting text in the panel reads this refusal, and they have no flags,
+    # so it names the recourse rather than a `leaf comment` option.
+    refusal = result.content[0].text
+    assert "data body is its source" in refusal
+    assert "--quote" not in refusal and "--section" not in refusal
     assert events_model.read_events(page_dir) == []
 
 

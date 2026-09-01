@@ -1281,7 +1281,6 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       opacity: var(--lf-toc-label-opacity); pointer-events: none;
       transition: color .12s ease-out, opacity .24s ease-out;
     }
-    lf-toc .lf-toc-start a::before { content: attr(data-lf-label); }
     lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                              line-height: 1.2; max-height: 2.4em; }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }

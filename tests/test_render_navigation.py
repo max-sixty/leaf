@@ -1688,6 +1688,69 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     page.close()
 
 
+# What the key line is saying, chip by chip. The word is the chip's own trailing span —
+# `keySequence` builds the keycaps into a classed element and the word is the unclassed
+# one beside it — and the commands are what the row projects, so a duplicate can be
+# reported as the pair of rows that made it rather than as a word said twice.
+KEY_LINE_HINTS = """() => [...document.querySelectorAll('.lf-keyline .lf-key')]
+  .filter(chip => !chip.hidden)
+  .map(chip => ({
+    commands: chip.dataset.lfCommands,
+    word: [...chip.children].filter(c => !c.className).map(c => c.textContent).join(''),
+  }))"""
+
+
+def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
+    """The line is a row of words with keycaps over them, and the word is what is read.
+
+    Two rows sharing one leaves the keycaps to carry the whole difference, which is the
+    line failing at the one thing it is for. Two pairs did. The versions menu binds Tab
+    and Shift-Tab to leaving it forward and backward, and on a one-version menu both are
+    at their boundary and live together — both saying "leave versions". And the page's `c`
+    says where the press goes; standing nowhere nameable that is the room the comments are
+    in, which said "threads" beside the t/T walk's own "threads".
+
+    Both scenes are read, and each is asserted to hold the rows at issue first: a line
+    that had stopped showing them would report a clean result about a page the reader
+    never sees. The words are the register's, which is where the fix goes — the line
+    prints what the rows say, and inventing a difference here would be this projection
+    disagreeing with the reference and the announcements.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+
+    # The shelf, because the ordinary shortlist shows the first live row and little else:
+    # what this is about is two words a reader can see at one time, and the shelf is where
+    # the page's own scene is all of it.
+    page.keyboard.press("?")
+    page.evaluate(RENDERED)
+    standing = page.evaluate(KEY_LINE_HINTS)
+    assert {"comment.create", "thread.next thread.previous"} <= {
+        hint["commands"] for hint in standing
+    }, f"the line no longer offers both the comments and the thread walk: {standing}"
+
+    # The menu claims every key but the reference, so its own two rows are the whole
+    # scene and the shelf has nothing to add to it.
+    page.keyboard.press("Escape")
+    page.keyboard.press("v")
+    page.evaluate(RENDERED)
+    versions = page.evaluate(KEY_LINE_HINTS)
+    assert {"version.leave-forward", "version.leave-backward"} <= {
+        hint["commands"] for hint in versions
+    }, f"the versions menu no longer offers both ways out at once: {versions}"
+
+    for scene, hints in (("the page", standing), ("the versions menu", versions)):
+        said = {}
+        for hint in hints:
+            said.setdefault(hint["word"], []).append(hint["commands"])
+        twice = {word: rows for word, rows in said.items() if len(rows) > 1}
+        assert not twice, (
+            f"on {scene} the key line says one word for two capabilities, so the "
+            f"keycaps are the whole difference: {twice}"
+        )
+    assert errors == []
+    page.close()
+
+
 def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
     """A tray that has rendered nothing and a tray that has failed to render look alike.
 

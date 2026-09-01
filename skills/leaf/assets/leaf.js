@@ -1635,7 +1635,10 @@ const commentDestination = () => {
   // shape of every other way in: a scope names its keys, and typing is a scope you enter.
   return {
     does: "Go to the threads",
-    line: "threads",
+    // Not "threads": that is the t/T walk's word on the same line, and the two are
+    // different capabilities — one goes to the room, the other steps through what is in
+    // it. A line printing one word twice leaves the keycaps to say which is which.
+    line: "go to threads",
     go: () => {
       setPanel(true);
       threadsBox.focus({ preventScroll: true });

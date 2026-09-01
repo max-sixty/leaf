@@ -361,12 +361,15 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
-    expect(start).to_have_attribute(
-        "aria-label", "Migration plan for the readers already in flight"
+    # Every row says its own word as text, the start row included. Its word used to be an
+    # attribute the rail form drew with `content: attr()`, which left the link that names
+    # the whole document saying nothing at all to any reading that asks a link what it
+    # says — the accessible name it falls back to, a text dump, the widget's own outline.
+    said = nav.locator("a").evaluate_all(
+        "links => links.map(a => a.textContent.trim())"
     )
-    expect(start).to_have_attribute(
-        "data-lf-label", "Migration plan for the readers already in flight"
-    )
+    assert said and all(said), f"a contents row carries no words: {said}"
+    expect(start).to_have_text("Migration plan for the readers already in flight")
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
@@ -553,6 +556,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     page.locator("body").focus()
+    # Twice: the layer's skip link is the document's first stop, and the map is what the
+    # page itself opens with.
+    page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(start).to_be_focused()
     expect(start).to_have_css("opacity", "1")

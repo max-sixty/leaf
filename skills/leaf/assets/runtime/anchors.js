@@ -1,4 +1,10 @@
-import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
+import {
+  clippedRect,
+  documentPoint,
+  shownBox,
+  shownParts,
+  shownRect,
+} from "./geometry.js";
 import { marginAction, registerMarginItem } from "./living-margin.js";
 import { moveScrollerBy } from "./scrolling.js";
 
@@ -569,16 +575,19 @@ export function createAnchors(dependencies) {
     if (!r) {
       aimBox.style.display = "none";
       aimBox.removeAttribute("data-for");
+      delete aimBox.dataset.lfPaintPlane;
       paintInspect(null);
       return;
     }
     const { left, top, right, bottom } = r;
+    const at = documentPoint(left, top);
     aimBox.setAttribute("data-for", aimed.id);
+    aimBox.dataset.lfPaintPlane = inChrome(aimed) ? "chrome" : "page";
     // The item's own corner radius, so the ring hugs the corner the item draws.
     Object.assign(aimBox.style, {
       display: "block",
-      left: left + "px",
-      top: top + pageScroller.scrollTop + "px",
+      left: at.left + "px",
+      top: at.top + "px",
       width: right - left + "px",
       height: bottom - top + "px",
       borderRadius: getComputedStyle(aimed).borderRadius,
@@ -591,14 +600,22 @@ export function createAnchors(dependencies) {
   // that re-derive them.
   function paintInspect(target, corner) {
     inspectEl.classList.toggle("lf-shown", Boolean(target));
-    if (!target) return;
+    if (!target) {
+      delete inspectEl.dataset.lfPaintPlane;
+      return;
+    }
+    inspectEl.dataset.lfPaintPlane = inChrome(target.el) ? "chrome" : "page";
     const name = target.part
       ? `${target.part} · ${designName(target.el)}`
       : designName(target.el);
     if (inspectEl.textContent !== name) inspectEl.textContent = name;
     const above = corner.top - inspectEl.offsetHeight - 2;
-    inspectEl.style.left = `${Math.max(2, corner.left)}px`;
-    inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
+    const at = documentPoint(
+      Math.max(2, corner.left),
+      above >= 0 ? above : corner.top + 2,
+    );
+    inspectEl.style.left = `${at.left}px`;
+    inspectEl.style.top = `${at.top}px`;
   }
   let hovering = null;
   let hoverQueued = false;
@@ -749,16 +766,15 @@ export function createAnchors(dependencies) {
     // a promise has to interrupt where an annotation may whisper, so the aim has a box
     // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
     // why). An open composer doesn't stand the aim down — a press while the box is up
-    // selects another target and raises its action bar — so the two can show at once,
-    // which is the true state: where the draft stands, and where the next response would
-    // land.
+    // moves the draft onto another target — so the two can show at once, which is the
+    // true state: where the draft stands, and where the next comment would land.
     const draft =
       composerIsOpen() && composerAnchor()
         ? resolveAnchor(composerAnchor(), text)
         : null;
-    // Where the draft's passage is, recorded the way the threads' is, because placeComposer
-    // has to keep the box off it. An element a thread already outlines belongs
-    // in the record too — it is marked, just in the posted colour rather than the accent.
+    // Where the draft's passage is, recorded the way the threads' is. An element a thread
+    // already outlines belongs in the record too — it is marked, just in the posted colour
+    // rather than the accent.
     pendingMarks = draft
       ? draft.element
         ? (draft.marks ?? shownParts(draft.element))
@@ -768,8 +784,8 @@ export function createAnchors(dependencies) {
     if (draft?.element) {
       // Part by part, because a thread's outline is claimed the same way: the draft takes
       // whichever boxes are still free and leaves the rest in the posted colour. The record
-      // above is the parts too, so placeComposer stands the box off the passage the reader
-      // can see rather than off a wrapper whose rect sits at the top of the document.
+      // above records the same shown parts rather than a wrapper whose rect may sit at the
+      // top of the document.
       const taken = allMarks();
       for (const part of pendingMarks)
         if (!taken.includes(part)) {
@@ -779,7 +795,7 @@ export function createAnchors(dependencies) {
     }
     if (draft?.segments) pending.push(...pendingMarks);
 
-    const active = actionAnchor();
+    const active = composerIsOpen() ? null : actionAnchor();
     const action = active && !active.quote ? resolveAnchor(active, text) : null;
     actionOutline = action?.element ? (action.marks ?? shownParts(action.element)) : [];
     for (const part of actionOutline) part.classList.add("lf-action-target");
@@ -913,11 +929,9 @@ export function createAnchors(dependencies) {
           mark = marginAction(offer("button", "lf-react-mark"), {
             glyph: entry?.glyph ?? root.token,
             label: root.token,
-            collapse: "always",
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;
-          mark.title = `${root.token} — press to take it back`;
           mark.setAttribute("aria-label", `${root.token} — take it back`);
           mark.onclick = () => withdraw(root);
         }
@@ -1333,7 +1347,6 @@ export function createAnchors(dependencies) {
     NOTE,
     isMarked: (id) => marked.has(id),
     placedAt: (id) => placed.get(id),
-    pendingMarkParts: () => [...pendingMarks],
     refreshAim,
     dockSeats,
     paintAnchors,

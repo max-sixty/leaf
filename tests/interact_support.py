@@ -873,7 +873,7 @@ def fetch(url, data=None, token=TOKEN, layer=None):
                     urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
                 )
                 with opener.open(state_url) as state:
-                    layer = json.loads(state.read())["layer"]
+                    layer = json.loads(state.read())["layer"]["generation"]
             headers["Leaf-Layer"] = layer
         request = urllib.request.Request(url, data=data, headers=headers)
         with opener.open(request) as res:

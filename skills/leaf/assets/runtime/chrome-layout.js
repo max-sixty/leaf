@@ -40,8 +40,6 @@ export const PANEL_KEY = "lf-panel-open";
 export function createChromeLayout({
   chromeRoot,
   commentsEdge,
-  composer,
-  composerIsOpen,
   closeReactions,
   containsAcross,
   currentTray,
@@ -54,7 +52,6 @@ export function createChromeLayout({
   panelChanged,
   panelFoot,
   panelList,
-  placeComposer,
   readerStore,
   refreshFab,
   refreshHover,
@@ -71,7 +68,7 @@ export function createChromeLayout({
   // distinction for a Threads panel restored or opened during startup; its General
   // composer stays usable while the log-derived list says what it is waiting for.
 
-  // The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
+  // The threads the panel last reconciled. A receipt repaints on the heartbeat's clock and
   // not only on the log's, because its age is half of what it says and a claim nobody
   // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
   // makes that cheap: buildThreads walks the log and the page, and a second walk every two
@@ -182,20 +179,11 @@ export function createChromeLayout({
     syncFloats();
     dockSeats();
   }
-  // The floats live in the document, and syncLayout is where its box changes shape — the
-  // panel takes or returns its strip, a resize moves every rect, the composer's own
-  // textarea grows under typing — so whatever float is up is placed again against the
-  // new geometry: the composer from its own marks (a detached one re-clamps where it
-  // stands), the button from the live selection where one still stands, and by
-  // re-clamping alone where none does. Skipping this leaves a float placed at a wide
-  // window's edge overhanging the box a panel then narrows, and an absolute child past
-  // body's client box is sideways-scrollable overflow: the document panned 328px left
-  // under a trackpad, with the composer standing on the panel that had displaced it.
+  // The response bar lives in the document, and syncLayout is where its containing box
+  // changes shape — the panel takes or returns its strip and a resize moves every rect.
+  // Re-place it against the durable anchor so it cannot overhang the narrowed shell and
+  // create sideways-scrollable overflow.
   function syncFloats() {
-    if (composerIsOpen()) {
-      const box = composer.getBoundingClientRect();
-      placeComposer(box.left, box.top);
-    }
     if (syncReactLayout()) return;
     refreshFab();
   }
@@ -244,49 +232,90 @@ export function createChromeLayout({
     syncLayout();
   });
   // Field sizing and every other chrome-size change feed the one chrome geometry writer.
+  // The document shell's size also feeds the page repaint door: content landing can move
+  // a target without emitting a pointer or scroll event.
   let layoutFrame = 0;
-  const scheduleLayout = () => {
+  let pageMoved = false;
+  const scheduleLayout = (shellMoved = false) => {
+    pageMoved ||= shellMoved;
     if (layoutFrame) return;
     layoutFrame = requestAnimationFrame(() => {
       layoutFrame = 0;
+      const repaintPage = pageMoved;
+      pageMoved = false;
       syncLayout();
+      if (repaintPage) pageShifted();
     });
   };
-  // Body's own inline size is the first of them, because the strip the page yields to the
-  // panel is an eased margin: setPanel writes the attribute and returns, and the box the
-  // floats are placed in goes on narrowing for another fifth of a second. One synchronous
-  // syncLayout at the press reads the wide box, so a composer standing in a wide window's
-  // margin kept a place the narrowed page no longer has — an absolute child past body's
-  // client box, which is sideways-scrollable overflow, with the box standing on the panel
-  // that displaced it. Watched rather than heard through `transitionend` because an
-  // interrupted slide still reports its last frame, and a strip a margin resident claims
-  // moves this width with no transition to end.
+  // Body's own box is the first of them, because the strip the page yields to a workspace
+  // is an eased margin: a state writer returns while the box and every page target keep
+  // moving for another fifth of a second. Width observation handles taking or returning
+  // room. Margin-transition frames handle an equal-width swap from a left tray to the
+  // right panel, where the shell translates without resizing. The attribute observation
+  // supplies the final reading when reduced motion removes the transition altogether.
   //
-  // Filtered to the content box's width: body's block size is the document's content
-  // height, so hearing every body resize would feed ordinary page growth back into a
-  // writer that reserves flow content. The width still hears both an outer strip and a
-  // padding rail. Writes land in the following animation frame, outside ResizeObserver
-  // delivery, so a reservation changing another watched chrome box cannot create an
-  // undelivered-notification loop.
+  // A height-only body resize is repaint-only. An image or font can move a later target
+  // without resizing that target or mutating the DOM, while sending that ordinary page
+  // growth through syncLayout would feed it into the writer that reserves flow content.
+  // A width change schedules syncLayout and its page repaint in the following animation
+  // frame, outside ResizeObserver delivery, so a reservation changing another watched
+  // chrome box cannot create an undelivered-notification loop. A height-only change calls
+  // pageShifted during delivery; its direct geometry write belongs to the unobserved aim
+  // box, while hover, legend, and action placement defer their work to frames.
   let bodyContentWidth = 0;
+  let bodyContentHeight = 0;
   const layoutSizes = new ResizeObserver((entries) => {
-    let shellChanged = false;
+    let layoutChanged = false;
+    let shellMoved = false;
     for (const { contentRect, target } of entries) {
       if (target !== document.body) {
-        shellChanged = true;
+        layoutChanged = true;
         continue;
       }
-      if (contentRect.width !== bodyContentWidth) shellChanged = true;
+      const widthChanged = contentRect.width !== bodyContentWidth;
+      const heightChanged = contentRect.height !== bodyContentHeight;
+      if (widthChanged) {
+        layoutChanged = true;
+      }
+      if (widthChanged || heightChanged) shellMoved = true;
       bodyContentWidth = contentRect.width;
+      bodyContentHeight = contentRect.height;
     }
-    if (shellChanged) scheduleLayout();
+    if (layoutChanged) scheduleLayout(shellMoved);
+    else if (shellMoved) pageShifted();
   });
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(keylineEl);
-  // The composer grows under typing (field-sizing), and a box placed above its passage
-  // grows downward, back over the mark it was moved off — so its own resize re-places it.
-  layoutSizes.observe(composer);
+
+  const movingMargins = new Set();
+  let shellFrame = 0;
+  const marginProperty = (event) =>
+    event.target === document.body &&
+    (event.propertyName === "margin-left" || event.propertyName === "margin-right");
+  function repaintMovingShell() {
+    shellFrame = 0;
+    pageShifted();
+    if (movingMargins.size) shellFrame = requestAnimationFrame(repaintMovingShell);
+  }
+  function scheduleShellRepaint() {
+    if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
+  }
+  document.body.addEventListener("transitionrun", (event) => {
+    if (!marginProperty(event)) return;
+    movingMargins.add(event.propertyName);
+    scheduleShellRepaint();
+  });
+  for (const type of ["transitionend", "transitioncancel"])
+    document.body.addEventListener(type, (event) => {
+      if (!marginProperty(event)) return;
+      movingMargins.delete(event.propertyName);
+      scheduleShellRepaint();
+    });
+  new MutationObserver(scheduleShellRepaint).observe(document.body, {
+    attributes: true,
+    attributeFilter: ["data-lf-panel", "data-lf-tray"],
+  });
 
   return { inPanel, panelCovers, panelIsOpen, setPanel, syncLayout };
 }

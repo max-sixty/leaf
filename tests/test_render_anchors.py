@@ -50,6 +50,7 @@ from render_support import (
     mark_point,
     open_page,
     panel_settled,
+    pending_text,
     post_event,
     resized,
     round_trip,
@@ -115,7 +116,7 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         // A reader reaches everything eventually — opens the details, clicks through to
         // the other tab — so everything is in scope, not just what the page opens on.
         document.querySelectorAll('details').forEach(d => (d.open = true));
@@ -150,7 +151,6 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
                     skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                     continue;
                 }
-                fab.click();
                 await tick();
                 const painted = CSS.highlights.get('lf-pending');
                 // The captured quote, read off the node whether or not the reader can
@@ -218,20 +218,19 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
-    # The theme uppercases a column heading, so the selection reads back as the reader
-    # sees it and the quote as the document holds it — the asymmetry that makes
-    # selectionAnchor read the text nodes rather than the selection's own toString().
-    assert page.evaluate("() => getSelection().toString()").strip() == "IN FLIGHT", (
+    # Focusing the immediate field collapses the browser Selection; the durable pending
+    # paint proves the drag selected the words the widget actually says.
+    assert pending_text(page).strip() == "In flight", (
         "a drag across the heading selected nothing — it is painted, not said"
     )
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
     page.locator(".lf-composer textarea").fill("this column's name is wrong")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -303,10 +302,10 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
         )
         assert selected == quote
         page.dispatch_event("body", "mouseup")
-        expect(page.locator(".lf-fab")).to_be_visible()
-        page.locator(".lf-fab").click()
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        page.locator(".lf-fab-input").click()
         page.locator(".lf-composer textarea").fill(f"fence {index}")
-        page.get_by_role("button", name="Comment", exact=True).click()
+        page.keyboard.press("Enter")
         expect(page.locator(".lf-thread")).to_have_count(index)
         actual_anchor = [
             event["anchor"]
@@ -404,19 +403,19 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
-    assert (
-        page.evaluate("() => getSelection().toString()").strip() == "Heated bird bath"
-    ), "a drag across the tab's name selected nothing"
+    assert pending_text(page).strip() == "Heated bird bath", (
+        "a drag across the tab's name selected nothing"
+    )
     # The drag ended on a button, and the button still switches tabs — but this mouseup
     # was a selection's, not a press, so the reader is still looking at what they were
     # reading when they reached for the name.
     expect(page.locator("#p-feeders")).to_be_visible()
 
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
     page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -440,20 +439,11 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.close()
 
 
-def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
-    """The other side of the guard above, and the one that cost more. A user reads
-    the sentence a suggestion sits in, drags across it, and then presses Accept — a
-    fresh press, long after that drag's own mouseup.
+def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
+    """A drag around a target opens the immediate field without deadening its Buttons.
 
-    Asking whether the live selection *contains* the control is a question about the
-    DOM, and a suggestion's row is the column's own child in flow between the block
-    holding the change and the next one: a drag across both runs straight over it. So
-    Accept did nothing, and kept doing nothing, because a press that refuses a drag
-    never collapses the selection that deadened it either. The keyboard still worked,
-    which is the shape of a bug nobody reports — it looks like a slip of the mouse.
-
-    Both decisions the product exists to collect go through a press, so this asserts the
-    pointer and then the keyboard, with the selection standing throughout."""
+    Focus collapses the browser's native selection, so the captured passage must remain
+    durable while the pointer path through `…` and a direct keyboard action both work."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
@@ -464,16 +454,15 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
-    assert page.evaluate(
-        "() => getSelection().containsNode(document.querySelector("
-        "'[data-lf-for=sug-refill] .lf-sug-reject'), true)"
-    ), "the selection doesn't reach the control, so this run tests nothing"
+    assert "Refill" in pending_text(page)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-reject").click()
+    item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Reject")
+    ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
-    assert page.evaluate("() => !getSelection().isCollapsed"), (
-        "the press cleared the selection, so the keyboard half below is untested"
-    )
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
@@ -482,42 +471,11 @@ def test_a_selection_around_a_control_does_not_deaden_it(browser, serve):
 
 
 def test_the_comment_button_stands_on_no_control(browser, serve):
-    """And the other way the same press is lost: not deadened but covered. A selection
-    fills its lines, so the button placed beside it goes out to the column's right edge —
-    into the margin, on the line the change starts, which is exactly where the row
-    deciding that change hangs. The user's own gesture put the 💬 over the Accept
-    they made it to reach, and the press did the one thing worse than nothing: it hit the
-    button and opened a composer, because a press on the 💬 is not the outside click that
-    dismisses it.
+    """The immediate comment field must not cover an authored control in the margin.
 
-    Asserted through the hit test rather than the rectangles, since what matters is which
-    element the press would reach — and then by making the press, which is the whole
-    claim.
-
-    Both readings ask where the row's own centre is, so both go quiet together the moment
-    the bar stops reaching it, and neither says so. That is not hypothetical: the bar
-    carrying six reaction pills reached 219px past the row, and the bar carrying 💬 and one
-    ellipsis stops 2.9px short of it, so between those two shapes this test ran on a page
-    where nothing was ever in the way. The walk stepping is the arrangement, so state it —
-    the sibling test below already does, and it is the assertion that caught the same
-    staleness rather than sleeping through it.
-
-    Read at the control's corners as well as its centre, because a press lands where the
-    reader aimed and the top of a pill is as much of it as the middle. The centre alone
-    could not fail here: the bar hangs 6px above the line it stands beside and is the row's
-    own height, so a bar that never stepped reaches the row's top edge and stops 1.25px
-    short of its centre — at every width where the row still hangs in the margin, not just
-    this one. The walk could have been removed outright and the centre stayed clear. The
-    corners are on the part the bar does reach, so the coverage claim is falsifiable again
-    without trading the hit test for rectangles; the press below still lands at the centre,
-    which is why the hit test is what carries the claim and the press confirms it.
-
-    Narrowed to where the bar and the row genuinely overlap rather than left at a desk's
-    width, because at 1200 the bar clears the row outright and steps only through
-    placeClear's 6px sharing gutter — 3.1px of slack, which is the allowance that same
-    filter's comment says a one-glyph difference between system fonts must not decide. A
-    precondition resting on it would go red for a font, saying staleness. At 930 the two
-    overlap by 20.3px and the step is the row's own doing."""
+    Check the controls' corners as well as their centres, then make the press. The hit
+    test proves what receives the pointer; the click proves that the decision, rather
+    than the floating response UI, handles it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Wide enough that the suggestion still hangs its row in the margin — below 900 it
     # docks under its block and is out of the bar's way again.
@@ -529,7 +487,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
         steps=16,
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
     assert page.locator(".lf-fab-bar").evaluate(
         "el => el.getBoundingClientRect().top"
     ) > page.locator("[data-lf-for='sug-refill']").evaluate(
@@ -537,7 +495,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     ), "the bar never stepped past the row, so standing on no control proves nothing"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome"))
+        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -556,23 +514,12 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     page.close()
 
 
-def test_the_margin_offers_one_kind_of_press(browser, serve):
-    """The 💬 and a change's ✓ Accept stand in the same margin, sometimes on the same
-    line — the test above is that collision — so they have to read as one thing.
+def test_the_floating_response_bar_has_one_compact_face(browser, serve):
+    """The input-first field and its reaction ellipsis read as one floating surface.
 
-    They did not. The button was the chrome's own idiom (a solid accent rectangle at
-    the chrome's size, and, through a cascade nobody meant, set in the page's serif
-    three points larger than every other control in the layer) beside two hairline
-    pills, which put two idioms four centimetres apart in the one place a reader
-    compares them. Where a control stands decides which it wears: in the runtime's
-    furniture a press is a .lf-btn and looks like one, and out in the margin it is a
-    marginal mark.
-
-    Pinned by reading both off one page. marginAction is one statement now, but either
-    wearer can still restate a property in its own rules, and this is what says such a
-    restatement kept the family. The shadow is the one property allowed to differ, and
-    it is the difference that is real: only one of them floats over the page's own words
-    rather than standing in the empty rail."""
+    The field is longer because it accepts words, but its type, border, colour, and
+    elevation belong to the same compact family as the adjacent press. Its radius stays
+    finite so it can grow into a multiline field without becoming a capsule."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
@@ -581,34 +528,32 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
         (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
         steps=16,
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
-    # The drag ends where the button is raised, so the pointer is on it: both are read
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    # The drag ends where the bar is raised, so the pointer is on it: both are read
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
     family = """el => { const s = getComputedStyle(el);
-        return Object.fromEntries(["font-family", "font-size", "line-height",
-            "border-radius", "border-top-width", "border-top-style", "padding",
-            "background-color", "color"].map(p => [p, s.getPropertyValue(p)])); }"""
-    raised = page.locator(".lf-fab").evaluate(family)
-    resident = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").evaluate(
-        family
-    )
-    assert raised == resident, (
-        "the margin's two presses are drawn differently:\n  "
+        return Object.fromEntries(["font-family", "font-size",
+            "border-top-width", "border-top-style",
+            "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
+    raised = page.locator(".lf-fab-input").evaluate(family)
+    adjacent = page.locator(".lf-fab-bar .lf-react-trigger").evaluate(family)
+    assert raised == adjacent, (
+        "the floating field and ellipsis are drawn differently:\n  "
         + "\n  ".join(
-            f"{k}: {raised[k]!r} vs {resident[k]!r}"
+            f"{k}: {raised[k]!r} vs {adjacent[k]!r}"
             for k in raised
-            if raised[k] != resident[k]
+            if raised[k] != adjacent[k]
         )
     )
     assert "system-ui" in raised["font-family"], (
-        f"the margin's presses speak in the document's voice: {raised['font-family']}"
+        f"the response bar speaks in the document's voice: {raised['font-family']}"
     )
     assert (
-        page.locator(".lf-fab").evaluate("el => getComputedStyle(el).boxShadow")
+        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).boxShadow")
         != "none"
-    ), "the one press that floats over the page says nothing about it"
+    ), "the field that floats over the page says nothing about its elevation"
     assert errors == []
     page.close()
 
@@ -632,8 +577,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
 
-    # The option's address and the chord's digit keep one physical key geometry. The option
-    # keeps its local accent outline; the chord digit is an ordinary available binding.
+    # The option's address and the chord's digit keep one physical key face. Both are
+    # ordinary available bindings, so geometry and emphasis stay the same.
     faces = """() => {
         const read = el => { const s = getComputedStyle(el);
             return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
@@ -663,48 +608,28 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
           })"""
     )
     option_emphasis, chord_emphasis, legend_emphasis = emphasis
-    assert option_emphasis["border"] == option_emphasis["ink"]
-    assert option_emphasis["ground"] != option_emphasis["ink"]
-    assert chord_emphasis == legend_emphasis
-    assert errors == []
-    page.close()
+    assert option_emphasis == chord_emphasis == legend_emphasis
 
-
-def test_the_composer_opens_where_the_button_stood(browser, serve):
-    """Stepping the button aside is undone if what it opens goes back. The button carries
-    the anchor it was raised on, and it used to carry the position it was *asked for*
-    alongside — the same point for as long as nothing moved it, and a different one from
-    the moment something did. So the 💬 cleared the row and the composer it opened landed
-    back on top of it."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    # The margin has to be narrow enough that the bar lands on the suggestion's row:
-    # the bar carries 💬 and one ellipsis, so on a wide window it fits in the gap
-    # between the column's right edge and the row hanging beyond it and never steps
-    # anywhere. Narrower still and the row docks under its block instead, which puts
-    # it out of the bar's way again — 930 is inside both edges of that band.
-    resized(page, 930, 900)
-    box = page.locator("#replace").bounding_box()
-    select(
-        page,
-        (box["x"] + 4, box["y"] + 6),
-        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
-        steps=16,
+    # Item selection uses letters rather than digits, but it names the same physical
+    # keys. Closing the address chord and opening selection must not reveal a fourth face.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.keyboard.press("s")
+    target = page.locator(".lf-target-hint").first
+    expect(target).to_be_visible()
+    target_key = target.evaluate(
+        """el => { const s = getComputedStyle(el);
+          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
+            "border-top-width", "border-top-style", "border-radius", "font-family",
+            "font-size", "line-height", "text-align"]
+            .map(p => [p, s.getPropertyValue(p)])); }"""
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
-    stood = page.locator(".lf-fab").evaluate("el => el.getBoundingClientRect().top")
-    # It moved, or this run would hold whether or not the position were carried along.
-    assert stood > page.locator("[data-lf-for='sug-refill']").evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    ), "the button never stepped aside, so where it stood proves nothing"
-
-    page.locator(".lf-fab").click()
-    expect(page.locator(".lf-composer")).to_be_visible()
-    opened = page.locator(".lf-composer").evaluate(
-        "el => el.getBoundingClientRect().top"
+    assert target_key == option_key
+    target_emphasis = target.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
     )
-    assert abs(opened - stood) <= 1, (
-        f"the composer opened at {opened}, where the button was asked for, not {stood}"
-    )
+    assert target_emphasis == option_emphasis
     assert errors == []
     page.close()
 
@@ -720,15 +645,12 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     text node that puts two EDGEs flush in the indexed reading — still grows whole.
 
     What the pointer path must not do is here too. A keyboard selection is never
-    grown — shift-arrow is the reader being precise — so the key release that raises
-    the button leaves a mid-word selection exactly as made, and so does the right
-    button, whose release precedes the context menu Copy lives in. A right-to-left
-    drag keeps its direction, asked of boundary points rather than node order because
-    a selection ending on the element holding its own start both precedes and
-    contains it. And machine-placed words never glue to the author's, on either
-    side of the declaration line: an undeclared generated span is a fenced cell in
-    the reading, and a declared label — a specimen's, rendered flush before its
-    words inside a list item, where both share the one block — is the seam itself.
+    grown — shift-arrow is the reader being precise — so the comment field captures
+    a mid-word selection exactly as made. Machine-placed words never glue to the
+    author's, on either side of the declaration line: an undeclared generated span
+    is a fenced cell in the reading, and a declared label — a specimen's, rendered
+    flush before its words inside a list item, where both share the one block — is
+    the seam itself.
 
     A sentence follows the same rule at its two meaningful edges. A drag that already
     reaches its opening and closing words grows over the punctuation around them, but
@@ -737,9 +659,8 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     drag must stay in one rendered block; matching endpoints around a nested paragraph
     do not make the intervening blocks one sentence.
 
-    The reads await one queued step first, the same tick the mouseup handler defers
-    its own work behind, so each one sees the selection after the snap rather than
-    racing it."""
+    The reads use Leaf's pending highlight because focus moves into the immediate
+    comment field and therefore collapses the browser's native selection."""
     page, errors = open_page(
         browser,
         serve(
@@ -770,43 +691,42 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
             return [box.left + 1, box.top + box.height / 2];
         }
     }"""
-    settled = (
-        "async () => { await new Promise(r => setTimeout(r, 0));"
-        " return getSelection().toString(); }"
-    )
 
     def spot(root, word, into):
         return page.evaluate(mid, {"root": root, "word": word, "into": into})
+
+    def captured():
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        quoted = composer_quote(page)["text"]
+        return quoted[1:-1]
 
     select(
         page,
         spot("#sentence", "Opening", 3),
         spot("#sentence", "together", 4),
     )
-    assert page.evaluate(settled) == "“Opening words stay together.”"
+    assert captured() == "“Opening words stay together.”"
 
     sentence_box = page.locator("#sentence").bounding_box()
     page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.locator("#sentence").scroll_into_view_if_needed()
     select(page, spot("#sentence", "words", 2), spot("#sentence", "stay", 2))
-    assert page.evaluate(settled) == "words stay"
+    assert captured() == "words stay"
 
     page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.locator("#nested").scroll_into_view_if_needed()
     select(page, spot("#nested", "Opening", 3), spot("#nested", "together", 4))
-    assert " ".join(page.evaluate(settled).split()) == (
-        "Opening words Nested block. closing together"
-    )
+    assert captured() == ("Opening words Nested block. closing together")
 
     nested_box = page.locator("#nested").bounding_box()
     page.mouse.click(nested_box["x"] - 40, nested_box["y"] + 4)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.locator("#p").scroll_into_view_if_needed()
     select(page, spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
-    assert page.evaluate(settled) == "paragraph carrying"
-    expect(page.locator(".lf-fab")).to_be_visible()
+    assert captured() == "paragraph carrying"
+    expect(page.locator(".lf-fab-input")).to_be_visible()
 
     # The bar the selection raised stands above it, over the line the next drag starts
     # on; a press in the margin beside the paragraph is the reader's own move that
@@ -815,46 +735,26 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     beside = page.locator("#p").bounding_box()
     page.mouse.click(beside["x"] - 40, beside["y"] + 4)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert page.evaluate(settled) == ""
+    assert pending_text(page) == ""
     select(page, spot("#p", "inside", 2), spot("#p", "it,", 1))
-    assert page.evaluate(settled) == "inside it"
+    assert captured() == "inside it"
 
-    # The same words dragged right to left: snapped the same, and still facing
-    # backward, or the shift-click that extends it next extends the wrong end. The
-    # click first is the reader's own move — a press inside the standing selection
-    # would drag its text, not start a new one.
+    # The same words dragged right to left are captured the same. The click first is
+    # the reader's own move — a press inside the standing selection would drag its
+    # text, not start a new one.
     page.locator("#t").click()
     select(page, spot("#p", "it,", 1), spot("#p", "inside", 2))
-    assert page.evaluate(settled) == "inside it"
-    assert page.evaluate(
-        "() => { const s = getSelection();"
-        " return s.anchorNode === s.focusNode ? s.anchorOffset > s.focusOffset"
-        " : Boolean(s.anchorNode.compareDocumentPosition(s.focusNode)"
-        " & Node.DOCUMENT_POSITION_PRECEDING); }"
-    ), "a right-to-left drag came out of the snap facing forward"
+    assert captured() == "inside it"
 
+    page.locator("#t").click()
+    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
     page.evaluate("""() => {
         const n = document.querySelector('#p').firstChild;
         const at = n.data.indexOf('paragraph') + 2;
         getSelection().setBaseAndExtent(n, at, n, at + 5);
     }""")
     page.keyboard.press("Shift")
-    assert page.evaluate(settled) == "ragra"
-    where = spot("#p", "paragraph", 4)
-    page.mouse.click(where[0], where[1], button="right")
-    assert page.evaluate(settled) == "ragra"
-
-    forward_kept = page.evaluate("""async () => {
-        const p = document.querySelector('#p2');
-        const at = p.firstChild.data.indexOf('neighbouring') + 3;
-        getSelection().setBaseAndExtent(p.firstChild, at, p, p.childNodes.length);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 0));
-        const s = getSelection();
-        const r = s.getRangeAt(0);
-        return s.anchorNode === r.startContainer && s.anchorOffset === r.startOffset;
-    }""")
-    assert forward_kept, "a forward selection ending on an element came out backward"
+    assert captured() == "ragra"
 
     page.evaluate("""() => {
         const n = document.querySelector('#p').firstChild;
@@ -863,7 +763,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         n.splitText(at); // at the new node's own end, so the second piece is empty
     }""")
     select(page, spot("#p", "graph", 1), spot("#p", "carrying", 4))
-    assert page.evaluate(settled) == "paragraph carrying"
+    assert captured() == "paragraph carrying"
 
     page.evaluate("""() => {
         const p2 = document.querySelector('#p2');
@@ -874,13 +774,13 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
     }""")
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
-    assert page.evaluate(settled) == "flagged between them"
+    assert captured() == "flagged between them"
 
     # The declared label: rendered by the real pass, flush before the specimen's own
     # words, unfenced because the registry models it — so the reading holds
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
     select(page, spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
-    assert page.evaluate(settled) == "glyphs set close"
+    assert captured() == "glyphs set close"
     assert errors == []
     page.close()
 
@@ -952,7 +852,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(x => setTimeout(x, 30));
-        document.querySelector('.lf-fab').click();
+        const field = document.querySelector('.lf-fab-input');
         await new Promise(x => setTimeout(x, 30));
         const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         return painted && painted.compareBoundaryPoints(Range.START_TO_START, r) === 0;
@@ -974,9 +874,9 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
 
     def compose_on(block):
         page.locator(block).click(click_count=3)
-        page.locator(".lf-fab").click()
+        page.locator(".lf-fab-input").click()
         page.wait_for_function(
-            "() => document.querySelector('.lf-composer').style.display === 'block'"
+            "() => document.querySelector('.lf-composer').style.display === 'contents'"
         )
 
     # Read off the composer's description of its own anchor, which is the captured quote
@@ -984,7 +884,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     compose_on("#p")  # authored across two source lines
     wrapped = composer_quote(page)["text"]
     assert "\n" not in wrapped, f"the quote carries the source's line wrap: {wrapped!r}"
-    page.get_by_role("button", name="Cancel").click()
+    page.keyboard.press("Escape")
 
     # Measured in the page: a lone surrogate does not survive the trip out to the test
     # runner, which replaces it, so asking out here would always come back clean.
@@ -1000,7 +900,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # to a UTF-8 file. A half character fails there, reported to the reader as an offline
     # server, and no retry can ever succeed.
     page.locator(".lf-composer textarea").fill("a comment on the capped passage")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
     page.wait_for_function("""() => document.querySelectorAll('.lf-thread').length === 1
         || document.querySelector('.lf-toast').classList.contains('show')""")
     assert page.locator(".lf-thread").count() == 1, (
@@ -1035,9 +935,9 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     # Open a composer on other text and type nothing, so the next mousedown outside it
     # is the one that takes it down.
     page.locator("#q").click(click_count=3)
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
 
     # The click that selected #q also scrolled it into view. Bring the other passage
@@ -1051,9 +951,9 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     # range runs up to the posted one, so this lands on the draft and nothing else.
     page.get_by_role("button", name="Close threads").click()
     page.locator("#p").click(click_count=3)
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     assert not page.locator(".lf-panel").evaluate(
@@ -1069,7 +969,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     """Opening the panel reflows the document, so anything that hit-tests the page after
     the panel opens is testing geometry that has already moved. When two handlers each
     asked where the pointer was, the second missed the mark the first had just opened and
-    raised the comment button on top of it — and the element anchor that left behind reads
+    raised the response bar on top of it — and the element anchor that left behind reads
     as composition in progress, which is what stops a page following new versions. The
     panel starts shut here because a panel already open is the case with no reflow."""
     version_url = serve(INLINE_PAGE)
@@ -1099,7 +999,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     page.mouse.click(spot["x"], spot["y"])
     panel_settled(page)
     expect(
-        page.locator(".lf-fab"),
+        page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
     ).not_to_be_visible()
 
@@ -2307,9 +2207,8 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
-        fab.click();
         await new Promise(r => setTimeout(r, 40));
         const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
@@ -2339,9 +2238,8 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
-        fab.click();
         await new Promise(r => setTimeout(r, 40));
         document.querySelector('.lf-composer textarea').value = 'is this idempotent?';
         document.querySelector('.lf-composer textarea')
@@ -2392,9 +2290,8 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
-        fab.click();
         await new Promise(r => setTimeout(r, 60));
         const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
@@ -2435,9 +2332,8 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
-        fab.click();
         await new Promise(r => setTimeout(r, 60));
         const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';
@@ -2539,8 +2435,8 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
         (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
         steps=12,
     )
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
 
     # The mark under the open composer is the selection, both ends of it — and on the
@@ -2565,7 +2461,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
 
     # And the anchor that posts says the same thing, since the mark is drawn from it.
     page.locator(".lf-composer textarea").fill("The whole of it.")
-    page.locator(".lf-composer button.primary").click()
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
@@ -2598,8 +2494,8 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     assert prose > 12000, f"the fixture holds {prose} characters, under the ceiling"
 
     page.keyboard.press("ControlOrMeta+a")
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     painted = page.evaluate(
         "() => [...(CSS.highlights.get('lf-pending') ?? [])]"
@@ -2608,7 +2504,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
     page.locator(".lf-composer textarea").fill("All of it.")
-    page.locator(".lf-composer button.primary").click()
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     # The posted anchor resolves on the ordinary pass too, which is the one that would
@@ -2639,9 +2535,8 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
-        fab.click();
         await new Promise(r => setTimeout(r, 40));
         const box = document.querySelector('.lf-composer textarea');
         box.value = 'does this hold?';
@@ -2959,6 +2854,9 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-panel")
     line = page.locator(".lf-keyline")
+    # Keep the page below the contextual-thread breakpoint so the premise remains about
+    # the page scope rather than the right-margin conversation it now opens at 1208px.
+    resized(page, 1207, 900)
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
     for word in ["threads", "page down / up", "versions"]:
@@ -3337,9 +3235,8 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab');
+        const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
-        fab.click();
         await new Promise(r => setTimeout(r, 40));
         const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
         if (!painted) return 'no mark';

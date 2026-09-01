@@ -116,9 +116,14 @@ CONTROL_ARCHETYPES = (
         "target": ".lf-signoff",
     },
     {
+        # The cluster's own row, not the contribution's: a target rests with one primary
+        # Button beside `…`, and every other contributed control is folded out of the
+        # rail, so the accept press has no visible control left to hold still. `…` is the
+        # press with neighbours — the primary stands beside it — and unfolding is the one
+        # transition that adds Buttons to the row it is made on.
         "name": "margin-action",
         "coverage": ".lf-margin-action",
-        "target": '[data-lf-for="stable-suggestion"] .lf-sug-accept',
+        "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
         "name": "option-pick",
@@ -366,7 +371,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
         "after": 400,
         "overflow": "hidden",
     }, f"the action shelf bypassed the covering panel's page lock: {locked}"
-    page.locator(".lf-threads-toggle").click()
+    page.get_by_role("button", name="Close threads").click()
     expect(page.locator(".lf-panel")).to_be_hidden()
 
     # Simulate the row's reachable busy state at the upper covering breakpoint. The
@@ -491,7 +496,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
             heading_box["y"] + heading_box["height"] / 2,
         ),
     )
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     last.focus()
     before_news = last.evaluate("el => el.getBoundingClientRect().left")
@@ -693,6 +698,13 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     # A control that settles its own decisions disappears while it still owns focus. Hand the
     # reader to the next standing destination instead of silently dropping them on body.
     answer_all = page.locator(".lf-answer-all")
+    # The blanket answer decides its decisions one at a time, so the press owes one round
+    # trip per decision the control counts. Read that number off the control's own face
+    # rather than writing the fixture's arithmetic out here.
+    owed = int(re.search(r"\((\d+)\)", answer_all.text_content()).group(1))
+    assert owed > 1, (
+        f"the fixture left the blanket answer a single trip, not a sequence: {owed}"
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
@@ -706,6 +718,19 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     assert _traffic(page).sends == 1, "one blanket-answer press became two event runs"
     held[0].continue_()
     page.unroute("**/api/event")
+    # Released, the press spends a whole trip on each remaining decision, so the last is
+    # still in flight when the first has settled. Say so here rather than letting the
+    # hide assertion absorb the transport: its budget is one repaint's worth, three
+    # sequential trips outlast it on a loaded machine, and the red then reads as a
+    # control that never went instead of a wait that was never stated.
+    # `test_accept_all_decides_every_pending_suggestion` stages the same sequence through
+    # each widget's own settle; this test is about where focus lands, so it names the
+    # outbox instead.
+    _until(
+        page,
+        lambda traffic: traffic.sends == owed and not traffic.pending,
+        f"settled every one of the {owed} answers the blanket press owed",
+    )
     expect(answer_all).to_be_hidden()
     version = page.locator(".lf-version")
     expect(version).to_be_focused()
@@ -830,7 +855,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             assert box["width"] >= 43.9 and box["height"] >= 43.9, (
                 f"a compact panel control kept a mouse-sized aim: {box}"
             )
-        page.locator(".lf-threads-toggle").tap()
+        page.get_by_role("button", name="Close threads").tap()
         panel_settled(page, open=False)
 
         # Across the covering boundary the banner fits the same touch aims. Its shelf and
@@ -1009,7 +1034,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        swipe(12, 280)
+        panel_box = page.locator(".lf-panel").bounding_box()
+        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -1022,6 +1048,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         )
 
         # The tray still has range at 320px, and its grip finishes sliding on screen.
+        page.get_by_role("button", name="Close threads").click()
+        panel_settled(page, open=False)
         page.locator(".lf-decisions").click()
         panel_settled(page, open=False)
         expect(page.locator(".lf-decisions-panel")).to_have_class(
@@ -2097,7 +2125,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
     # Closed with the key, the ring comes on — the reader's report, and the smaller half.
     page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
+    panel_settled(page, open=False)
     expect(toggle).to_be_focused()
     assert page.evaluate(ringed), "the control the reader is standing on says nothing"
 
@@ -3530,6 +3558,12 @@ RING_WALKS = (
     ("the versions menu", ("v", "ArrowUp", "ArrowUp"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("i",), ("corpus",)),
+    # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
+    # page cannot open for itself. The card is a press on a Thread Button; the sheet is a
+    # press on a Map control the wide posture does not draw at all, so its walk asks for
+    # the narrow window the control lives in.
+    ("a thread card", (), ("ship-review",)),
+    ("the page map sheet", (), ("corpus",)),
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
@@ -3549,6 +3583,8 @@ RING_WALK_EXAMPLES = tuple(
 # surface of their own; `c` and `g T` land on the list, which the walk's own first stop
 # reads.
 RING_SCOPE_SURFACE = {
+    "a thread card": (".lf-margin-preview:popover-open", None),
+    "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
     "the decisions tray": (".lf-decisions-panel.open", ".lf-decisions"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
@@ -3556,7 +3592,23 @@ RING_SCOPE_SURFACE = {
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
 }
-RING_SCOPE_CONTROL = {"the decisions tray": (".lf-decisions", ".lf-decisions-row")}
+RING_SCOPE_CONTROL = {
+    "the decisions tray": (".lf-decisions", ".lf-decisions-row"),
+    "a thread card": (
+        '.lf-margin-marker[data-lf-kinds~="comment"]',
+        ".lf-margin-preview",
+    ),
+    "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
+}
+# The window a scope's own surface stands in, where that is not the walk's own. Both
+# entries are a floor the layer states rather than a preference: the Map control is drawn
+# under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
+# where the document leaves room beside the source and opens Threads otherwise. Every
+# other scope is read at the width the page opened at.
+RING_WALK_VIEWPORT = (1200, 900)
+# The one scope whose surface the standing panel takes the place of.
+RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
+RING_SCOPE_WIDTH = {"a thread card": 1440, "the page map sheet": 760}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -3793,6 +3845,11 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for scope, keys, corpus in RING_WALKS:
             if name not in corpus:
                 continue
+            # The posture the scope's own surface stands in, read after the panel below
+            # has settled and put back afterwards, so the next scope walks the page this
+            # one was handed. Before the panel, the room a floor is measured against is
+            # the room the panel was still taking.
+            posture = RING_SCOPE_WIDTH.get(scope)
             # Three rungs, because a scope can be three deep: a tray, menu, or narrowing
             # over the panel, then the panel, then the page. The panel is reopened below,
             # so every scope starts from the same page.
@@ -3813,17 +3870,46 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 ):
                     source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)
-            if not page.locator(".lf-panel.open").count():
+            # Threads and a target's own Thread card are one surface offered two ways:
+            # with the panel standing, a Thread Button sends the reader there instead of
+            # building the card, so the card's walk is the one scope that starts with the
+            # panel shut. Every other scope starts from the same open-panel page.
+            if scope in RING_SCOPES_WITHOUT_PANEL:
+                if page.locator(".lf-panel.open").count():
+                    page.get_by_role("button", name="Close threads").click()
+                    panel_settled(page, open=False)
+                    page.evaluate(RING_WALK_START)
+            elif not page.locator(".lf-panel.open").count():
                 page.locator(".lf-threads-toggle").click()
                 panel_settled(page)
                 page.evaluate(RING_WALK_START)
+            if posture:
+                resized(page, posture, RING_WALK_VIEWPORT[1])
+                page_at_rest(page)
             if control := RING_SCOPE_CONTROL.get(scope):
                 opener, arrival = control
-                page.locator(opener).click()
+                # The first, because a page map has one Thread Button per commented
+                # target and the walk wants a card rather than a particular one.
+                page.locator(opener).first.click()
                 page.locator(arrival).first.focus()
+                # A press opened the scope and a script placed the reader in it, and
+                # neither is the keyboard: `:focus-visible` answers the input device, so
+                # a control arrived at that way wears no ring and reads exactly like one
+                # whose rule is missing. Step out and back so the walk's first stop is a
+                # keyboard stop like every stop after it.
+                page.keyboard.press("Tab")
+                page.evaluate(RENDERED)
+                page.keyboard.press("Shift+Tab")
             else:
+                # Each press read on a rendered frame, the way every Tab below it is. A
+                # key that opens a layer hands the reader their place in it from the
+                # platform's own event rather than from the press — a popover lands focus
+                # on a row from `toggle`, which is queued — so the next key of the
+                # sequence arrives at whatever the press left focus on, and the scope's
+                # own keys, bound inside the layer, never see it.
                 for key in keys:
                     page.keyboard.press(key)
+                    page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):
@@ -3886,6 +3972,11 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     f"{scope} opened on {example.stem} and the walk stood on nothing "
                     "in it"
                 )
+            if posture:
+                for _ in range(3):
+                    page.keyboard.press("Escape")
+                resized(page, *RING_WALK_VIEWPORT)
+                page_at_rest(page)
 
         for declared in page.evaluate(RING_NAMES):
             seen = rings.setdefault(declared["name"], [])

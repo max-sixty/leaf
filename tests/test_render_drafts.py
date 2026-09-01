@@ -38,6 +38,7 @@ from render_support import (
     open_page,
     painted,
     panel_settled,
+    pending_text,
     refuse,
     resized,
     round_trip,
@@ -55,6 +56,16 @@ def draft_controls(page, draft_id="draft-ops"):
     return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
 
 
+def cancel_draft(page, draft_id="draft-ops"):
+    """Cancel is the draft's alternative, reached through its one options Button."""
+    controls = draft_controls(page, draft_id)
+    item = controls.locator("xpath=..")
+    item.locator(":scope > .lf-margin-more").click()
+    item.locator(":scope > .lf-margin-options").get_by_role(
+        "button", name=re.compile(r"Cancel")
+    ).click()
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -66,8 +77,7 @@ def test_page_round_trip(browser, serve):
     page.evaluate("window.__leafJourneyDocument = 'held'")
 
     # Select the passage from the keyboard's path: a real Range, then the keyup
-    # the runtime watches for keyboard selections, then the c binding — which
-    # runs the same the fab's own click as the floating button's click.
+    # the runtime watches for keyboard selections. The immediate field takes focus.
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.getElementById('intro'));
@@ -76,21 +86,16 @@ def test_page_round_trip(browser, serve):
         document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     }""")
     page.wait_for_selector(
-        ".lf-fab", state="visible"
+        ".lf-fab-input", state="visible"
     )  # the selection raised the button
-    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
-    page.wait_for_selector(".lf-thread")
+    page.keyboard.press("Enter")
+    page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Posting opened the panel, and the page is sliding into the width that leaves for
-    # it. Measuring a column mid-slide aims the drag below at where it was, not where
-    # it is going, and the drop lands outside the column it was meant for.
-    panel_settled(page)
-
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
     grip = page.locator("#card-x .lf-grip").bounding_box()
@@ -275,6 +280,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     page.mouse.dblclick(*spot)
     editor = page.locator("#draft-ops textarea")
     expect(editor).to_be_focused()
+    pencil = draft_controls(page).locator(".lf-draft-pencil")
     assert page.screenshot(clip=band) == outside_before, (
         "opening the editor painted outside the box the draft already occupied"
     )
@@ -307,7 +313,8 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # reaches for it the instant the editor goes, so a style that hadn't caught up
     # would drop a keyboard user back at the top of the page.
     page.keyboard.press("Escape")
-    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_focused()
+    expect(pencil).to_be_focused()
+    expect(pencil).to_have_attribute("aria-expanded", "false")
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft came back from an edit a different shape than it went in"
     )
@@ -543,7 +550,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     assert second_draft.locator("textarea").count() == 0, (
         "the second tab opened an editor for a keystroke nobody made there"
     )
-    draft_controls(first).get_by_role("button", name="Cancel").click()
+    cancel_draft(first)
     second.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     second_draft.locator(".lf-draft-body").dblclick()
     expect(second_draft.locator("textarea")).to_have_value(edited)
@@ -800,13 +807,13 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     comment still appears, but its arrival must not move focus into its new thread."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
     page.locator("#p3").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
     page.locator(".lf-threads-toggle").click()
@@ -828,9 +835,9 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
-    """A sent comment clears a narrowing that hid its new thread, then leaves the
-    reader in that thread's reply box just as an already-visible comment does."""
+def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
+    """A sent comment preserves the panel's narrowing while its inline conversation
+    takes the reader; reopening the overview keeps that filter intact."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -838,12 +845,12 @@ def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
     page.locator("#p1").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(
         "This comment starts outside the filter."
     )
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     round_trip(page)
 
     sent = next(
@@ -851,8 +858,59 @@ def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')).to_be_focused()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    inline = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+    )
+    expect(inline.locator("textarea")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
+    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
+    """Focus handed to a new reply is not itself a draft; an edit to empty is."""
+    page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
+    resized(page, 1440, 900)
+    page.locator("#p1").click(click_count=3)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Follow this discussion.")
+    page.keyboard.press("Enter")
+    round_trip(page)
+
+    sent = events_model.read_events(serve.page_dir)[-1]
+    reply = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"] textarea'
+    )
+    expect(reply).to_be_focused()
+
+    d = serve.page_dir
+    v2 = NOTED_PAGE.replace(
+        "A short second passage.", "A revised short second passage."
+    )
+    (d / "versions" / "v2.html").write_text(v2)
+    stamp_version_file(d, 2, "v2")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+
+    reply.fill("A thought I changed my mind about.")
+    reply.fill("")
+    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['id']}") == ""
+    v3 = v2.replace(
+        "A revised short second passage.", "A twice-revised short second passage."
+    )
+    (d / "versions" / "v3.html").write_text(v3)
+    stamp_version_file(d, 3, "v3")
+    told(page)
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(reply).to_have_value("")
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 
@@ -871,18 +929,20 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     as a 💬 that never came up for the passage picked out after a send."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.locator("#p1").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
-    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.get_by_role("button", name="Comment", exact=True).click()
+    page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
     page.locator("#p2").click(click_count=3)
-    expect(page.locator(".lf-fab")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_value("")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -894,12 +954,45 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     # only a fresh decision repaints, so it stands wherever the last one left it — while
     # the key that comments on a selection reads the live one, and answers the general
     # box where there is none.
-    assert page.evaluate("() => getSelection().toString()").strip() == (
-        "A short second passage."
-    ), "the send's landing collapsed the passage the reader had picked out"
-    page.keyboard.press("c")
+    assert pending_text(page) == "A short second passage.", (
+        "the send's landing lost the passage the reader had picked out"
+    )
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    assert errors == []
+    page.close()
+
+
+def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
+    browser, serve
+):
+    """Opening fields is automatic, so selecting a new passage is not re-anchoring.
+
+    Each passage keeps its own durable draft: the newly selected passage starts empty,
+    and returning to the original passage restores the words written about it."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    field = page.locator(".lf-fab-input")
+    original = "These words belong to the first passage."
+
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_focused()
+    field.fill(original)
+
+    page.locator("#p2").click(click_count=3)
+    expect(field).to_be_focused()
+    expect(field).to_have_value("")
+    assert (
+        page.evaluate(
+            """() => Object.keys(localStorage)
+          .filter(key => key.startsWith('lf-draft:composer:')).length"""
+        )
+        == 1
+    )
+
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_focused()
+    expect(field).to_have_value(original)
     assert errors == []
     page.close()
 
@@ -1455,7 +1548,7 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     expect(stale_draft.locator("textarea")).to_have_value(old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
 
-    draft_controls(stale).get_by_role("button", name="Cancel").click()
+    cancel_draft(stale)
     expect(current_draft.locator("textarea")).to_have_value(newer)
     assert current.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
     stale_draft.locator(".lf-draft-body").dblclick()
@@ -1636,7 +1729,7 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(browser, serve):
     box = page.locator(".lf-composer textarea")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
     box.fill(newer)
 
@@ -1713,7 +1806,7 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
 
     sent = "The point is buried, and the paragraph after it repeats it."
     first.locator(".lf-composer textarea").fill(sent)
-    first.locator(".lf-composer").get_by_role("button", name="Comment").click()
+    first.keyboard.press("Enter")
     round_trip(first)
     expect(second.locator(".lf-composer")).to_be_hidden()
     said = [

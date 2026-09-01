@@ -8,6 +8,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -28,22 +32,8 @@ jobs:
         timeout-minutes: 45
         run: uv run pytest tests -v
 
-      # The runner has the package index the launcher resolves Playwright from.
-      # Bound browser wedges so they fail in time for `tend-ci-fix` to respond. On the
-      # step deliberately: a job-level bound concludes `cancelled` — the conclusion
-      # that hid the 360-minute cap's kills from `tend-ci-fix` in the first place.
-      #
-      # `-v` so a wedge names itself. The bound kills pytest rather than failing it, so
-      # nothing is written on the way out, and the default terminal reaches the log only
-      # once every 72 tests: run 33069480665 spent its last twenty-three minutes silent
-      # at 72% and named no test, which is the one fact `tend-ci-fix` needed. Under `-v`
-      # xdist writes a nodeid when a worker picks the test up and again when it reports,
-      # so whatever is left unreported is what stopped. It watches nothing and ends
-      # nothing — the hang guard `pyproject.toml` rules out is a different mechanism,
-      # and the reason it was removed was that it killed a worker to say less than this.
-      # A slow but advancing hosted runner reached 72% at the old 45-minute bound in run
-      # 33266184820. Ninety minutes still turns a wedge into a failure while giving the
-      # complete browser corpus room to finish under that measured slowdown.
+      # `-v` names a stalled test. The step timeout makes a wedge a failure that
+      # `tend-ci-fix` can act on.
       - name: 🧪 Nightly suite
         if: github.event_name == 'push'
         timeout-minutes: 90

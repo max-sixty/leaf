@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "leaf": {
+      "command": "./bin/leaf",
+      "args": ["mcp"],
+      "cwd": "."
+    }
+  }
+}

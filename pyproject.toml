@@ -35,7 +35,13 @@
 name = "leaf"
 version = "0"
 requires-python = ">=3.10"
-dependencies = ["click>=8", "jsonschema>=4", "playwright>=1.49", "tinycss2>=1.4"]
+dependencies = [
+  "click>=8",
+  "jsonschema>=4",
+  "mcp>=2.1.1",
+  "playwright>=1.49",
+  "tinycss2>=1.4",
+]
 
 [project.scripts]
 leaf = "leaf.cli:cli"
@@ -70,13 +76,3 @@ addopts = "-n 2 --dist loadgroup"
 # The `leaf` package needs no entry here: the project installs itself editable.
 pythonpath = ["scripts"]
 markers = ["nightly: complete browser or site integration; `--run-nightly` runs it"]
-# No hang guard runs inside the suite. What stalls here is a wait inside the browser,
-# and a faulthandler dump cannot name that test: its frames sit in a suspended greenlet,
-# so the one trip on main printed the server thread, execnet's reader, and Playwright's
-# event loop, and named nothing. It then exited the worker, which under `--dist
-# loadgroup` leaves the controller on a session that never finishes — the whole job's
-# cap spent on a run that had reached 99%. Playwright's own 30-second timeouts fail a
-# stalled browser wait with the test's nodeid, and the workflow's 45-minute step bound is
-# what turns a true wedge into the `failure` `tend-ci-fix` answers. Those timeouts are
-# not universal: `evaluate` takes none, so a wait a test states as a promise has to state
-# its end as well — `FRAMES` in `tests/render_harness.py` is that, and carries why.

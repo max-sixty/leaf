@@ -35,10 +35,10 @@ hierarchy, is available to selection and comments, names the Asks tray row, and
 is where `a` / `A` arrives. The nested widget still owns the answer or request
 lifecycle.
 
-Keep the author's preference in the option it belongs to as ordinary prose:
-`<em>My take: this is the safest rollout.</em>` is enough. Say why when the reason
-matters. Do not encode the preference as a badge, tint, ring, or option state; it
-is an argument for the reader to weigh, not a decision the reader has made.
+The author's preferred option may end its chip row with an ordinary tinted chip,
+such as `<lf-chip tone="ok">recommended</lf-chip>`. Keep the reason in that option
+as ordinary prose, such as `<em>My take: this is the safest rollout.</em>`. The chip
+is advice; `chosen` alone records the reader's pick.
 
 A page whose approval unblocks work declares:
 

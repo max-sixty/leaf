@@ -55,6 +55,7 @@ Commands:
   data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
+  mcp         Run Leaf's bundled MCP Apps server.
   package     Create and check packages.
   page        Create pages and add media.
   receipt     Record the terminal outcome of a reader request.
@@ -602,6 +603,86 @@ def test_init_vendors_the_layer(page_dir):
         "revision": 0,
         "sources": {},
     }
+
+
+def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
+    """The stable identity follows bytes while generation still invalidates old tabs."""
+    runner = CliRunner()
+    page = tmp_path / "page"
+    first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert first_init.exit_code == 0, first_init.output
+    first = interact_files.read_json(page / "registry.json")["$layer"]
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", first["fingerprint"])
+
+    state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
+    assert state.exit_code == 0, state.output
+    assert json.loads(state.output)["layer"] == first
+
+    second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert second_init.exit_code == 0, second_init.output
+    second = interact_files.read_json(page / "registry.json")["$layer"]
+    assert second["fingerprint"] == first["fingerprint"]
+    assert second["generation"] != first["generation"]
+
+
+def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index(
+    tmp_path, monkeypatch
+):
+    """An enclosing repo is not the payload, and reading the payload leaves Git alone."""
+
+    def git(repo, *args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+
+    outer = tmp_path / "outer"
+    plugin = outer / "installed" / "leaf"
+    plugin.mkdir(parents=True)
+    git(outer, "init")
+    (outer / "tracked").write_text("outer\n")
+    git(outer, "add", "tracked")
+    git(
+        outer,
+        "-c",
+        "user.name=Leaf Test",
+        "-c",
+        "user.email=leaf@example.test",
+        "commit",
+        "-m",
+        "outer",
+    )
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", plugin)
+    assert layer_model.payload_provenance() == {}
+
+    git(plugin, "init")
+    payload = plugin / "payload"
+    payload.write_text("first\n")
+    git(plugin, "add", "payload")
+    git(
+        plugin,
+        "-c",
+        "user.name=Leaf Test",
+        "-c",
+        "user.email=leaf@example.test",
+        "commit",
+        "-m",
+        "plugin",
+    )
+    payload.write_text("changed\n")
+    index = plugin / ".git" / "index"
+    before = index.stat().st_mtime_ns
+
+    provenance = layer_model.payload_provenance(include_path=True)
+
+    assert provenance == {
+        "path": str(plugin),
+        "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "dirty": True,
+    }
+    assert index.stat().st_mtime_ns == before
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):

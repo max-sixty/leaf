@@ -6,7 +6,7 @@ export function createConversationNarrowing(dependencies) {
     el,
     findInput,
     needsBtn,
-    paintWorkLines,
+    paintAcknowledgments,
     panelTitle,
     renderThreads,
     runtime,
@@ -83,7 +83,7 @@ export function createConversationNarrowing(dependencies) {
   function renarrow() {
     if (runtime.statePhase !== "ready") return;
     renderThreads(threads());
-    paintWorkLines();
+    paintAcknowledgments();
     // A new set of results starts at its own beginning. Keeping the old offset lands the
     // reader in the middle of a shorter list, or past the end of it, over a change they
     // made a keystroke at a time.

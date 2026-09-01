@@ -9,7 +9,7 @@ import { createConversationReactionStrips } from "./reaction-strips.js";
 import { createReplies } from "./replies.js";
 import { createThreadCards } from "./thread-card.js";
 import { createConversationThreadList } from "./thread-list.js";
-import { createWorkLines } from "./work-lines.js";
+import { createAcknowledgments } from "./acknowledgments.js";
 
 /* Conversation state and panel reconciliation. */
 export function createConversation(dependencies) {
@@ -39,7 +39,6 @@ export function createConversation(dependencies) {
     layerPart,
     loadDraft,
     markDeclared,
-    matchesWhen,
     mirrorDraft,
     motion,
     needsBtn,
@@ -79,6 +78,7 @@ export function createConversation(dependencies) {
     threadsBox,
     toggleBtn,
     updateSequence,
+    waitingForPickupSince,
     visualPartLabel,
     wireInput,
     withdraw,
@@ -140,7 +140,7 @@ export function createConversation(dependencies) {
     visualPartLabel,
     tokenEntry,
   });
-  const { wireReply } = createReplies({
+  const { replyBoxHasDraft, wireReply } = createReplies({
     landTyping,
     loadDraft,
     mirrorDraft,
@@ -181,26 +181,25 @@ export function createConversation(dependencies) {
     placedAt,
     sectionOf,
   });
-  const { paintWorkLines: paintWorkLinesUnheld } = createWorkLines({
-    agentName,
+  const { paintAcknowledgments: paintAcknowledgmentsUnheld } = createAcknowledgments({
     ago,
     claimState,
     droppedAt,
     el,
     elementById,
     inChrome,
-    matchesWhen,
     pageQueryAll,
     quietSince,
-    registry,
     runtime,
     threads: () => threadList,
     threadsBox,
-    updateSequence,
+    waitingForPickupSince,
   });
-  function paintWorkLines(...args) {
-    if (!threadListRuntime) return paintWorkLinesUnheld(...args);
-    return threadListRuntime.holdScrollPosition(() => paintWorkLinesUnheld(...args));
+  function paintAcknowledgments(...args) {
+    if (!threadListRuntime) return paintAcknowledgmentsUnheld(...args);
+    return threadListRuntime.holdScrollPosition(() =>
+      paintAcknowledgmentsUnheld(...args),
+    );
   }
 
   const narrowing = createConversationNarrowing({
@@ -209,7 +208,7 @@ export function createConversation(dependencies) {
     el,
     findInput,
     needsBtn,
-    paintWorkLines,
+    paintAcknowledgments,
     panelTitle,
     renderThreads,
     runtime,
@@ -354,7 +353,7 @@ export function createConversation(dependencies) {
     renderThreads(threads);
     renderConversations(threadList);
     paintPageStrip(threads);
-    paintWorkLines();
+    paintAcknowledgments();
   }
 
   return {
@@ -367,11 +366,12 @@ export function createConversation(dependencies) {
     narrowed,
     awaitsReader,
     setChildren,
-    paintWorkLines,
+    paintAcknowledgments,
     widen,
     paintThreadQuotes: cards.paintThreadQuotes,
     renderMarginThread,
     renderPanel,
+    replyBoxHasDraft,
     showThread,
     get threadList() {
       return threadList;

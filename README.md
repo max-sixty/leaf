@@ -40,6 +40,20 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
+### Experimental Codex MCP App
+
+The Codex plugin registers a bundled, local MCP server. This path is included so
+we can test an embedded Leaf review in installed Codex builds; the experiment will
+decide whether Leaf removes it, keeps the compact surface, or builds on it. It is
+not a commitment to replace the browser runtime.
+
+On Codex builds that render MCP Apps, the agent can attach the compact review
+directly to the task. The page and event log remain ordinary local files, while
+comments travel back as a follow-up turn. MCP App rendering is still gated in some
+Codex builds, so Leaf falls back to its full browser page and detached delivery
+loop there. The browser remains the full-fidelity surface for widget actions such
+as dragging and choosing.
+
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (the plugin is a

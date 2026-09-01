@@ -8,14 +8,15 @@ from ..event_log import now_iso
 from ..files import active_descriptor, version_descriptors
 from ..presence import presence
 from ..registry.contract import RegistryError
-from ..registry.storage import layer_generation, load_registry
+from ..registry.storage import layer_metadata, load_registry
 from .browser import project_browser_state
 
 
 def full_state(
     page_dir: Path,
     events: list,
-    layer: str | None = None,
+    layer_identity: dict | None = None,
+    preview: dict | None = None,
     source_error: str | None = None,
     view_revision: int | None = None,
     active_override: dict | None = None,
@@ -41,8 +42,9 @@ def full_state(
         registry = load_registry(page_dir)
     except RegistryError:
         registry = None
+    identity = layer_identity or layer_metadata(page_dir)
     return {
-        "layer": layer or layer_generation(page_dir),
+        "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads
         # `Date.now()`, which is the reader's own machine: a laptop an hour out
         # calls a claim made this minute an hour stale, on every seat at once, and
@@ -70,4 +72,5 @@ def full_state(
         # so the only vocabulary a page's frozen layer has to keep speaking is the
         # log's own, which $events already stamps.
         "events": events,
+        **({"preview": preview} if preview else {}),
     }

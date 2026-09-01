@@ -44,7 +44,7 @@
             <strong>Ship offline editing in the first patch</strong> The beta is green
             except for the reconnect exception below.
             <lf-task id="off-t-resync" status="stalled" owner="mobile">
-              <strong>iOS resync stall</strong> One reconnect in about 40. Nothing is
+              <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
               lost — the edits stay queued — but the reader sees a spinner until they
               background the app.
             </lf-task>
@@ -86,7 +86,9 @@
           one-in-forty failure compounds enough to block launch, and carries the
           follow-up work the approver wants ready if the vendor's release slips.
           Approval records the direction; task statuses change when the agent publishes
-          the resulting version.
+          the resulting version. Whether this review opens in the full browser or a
+          host's embedded Leaf app, its comments enter the same durable page log and
+          return to the same agent task.
         </p>
       </section>
     </main>

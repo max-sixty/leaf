@@ -153,7 +153,8 @@ catalog.</p>
               </p>
             </lf-option>
             <lf-option id="opt-redis"
-              ><lf-chip>effort: med</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+              ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip
+              ><lf-chip tone="ok">recommended</lf-chip>
               <strong>Redis, cookie fallback</strong>
               <dl class="facts">
                 <dt>Revoke</dt>
@@ -510,7 +511,7 @@ outside average, before, after
         the changes that prevent one bad job from holding every export behind it.
       </p>
 
-      <dl class="facts">
+      <dl class="facts" id="pm-summary">
         <dt>Detected</dt>
         <dd>09:14, queue-depth alert</dd>
         <dt>Resolved</dt>
@@ -1050,9 +1051,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 <lf-tab id="corpus-release-notes" label="Notes">
 <h1>Release notes, drafted</h1>
       <p class="lede" id="rn-lede">
-        Four notes cover everything user-visible in 3.2. Rewrite any draft in place;
-        decide the proposed replacement, deletion, and addition in the margin; then sign
-        off on the wording that should ship.
+        Four notes cover everything user-visible in 3.2. Every margin Button is a
+        circle: a heavier ring acts now, a regular ring reveals context, and … unfolds
+        more Buttons beside it. Rewrite any draft in place, then sign off on the wording
+        that should ship.
       </p>
       <aside class="sidebar" id="rn-sidebar">
         <lf-toc id="rn-contents"></lf-toc>
@@ -1137,7 +1139,8 @@ Run the schema migration before deploying. It is online and takes about a minute
         <p id="rn-omitted-body">
           The dependency bumps and the flaky-test fixes stay in the changelog only —
           nothing a user would change behavior over. If one of them deserves a note
-          after all, say so in a comment and a draft for it arrives in the next version.
+          after all, Alt-click this section and type in the focused field beside it;
+          Enter starts the thread, and a draft arrives in the next version.
         </p>
         <lf-specimen id="rn-bump-shape" label="the shape such a note would take">
           <lf-draft id="rn-bump-example">
@@ -1506,7 +1509,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <strong>Ship offline editing in the first patch</strong> The beta is green
             except for the reconnect exception below.
             <lf-task id="off-t-resync" status="stalled" owner="mobile">
-              <strong>iOS resync stall</strong> One reconnect in about 40. Nothing is
+              <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
               lost — the edits stay queued — but the reader sees a spinner until they
               background the app.
             </lf-task>
@@ -1548,7 +1551,9 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           one-in-forty failure compounds enough to block launch, and carries the
           follow-up work the approver wants ready if the vendor's release slips.
           Approval records the direction; task statuses change when the agent publishes
-          the resulting version.
+          the resulting version. Whether this review opens in the full browser or a
+          host's embedded Leaf app, its comments enter the same durable page log and
+          return to the same agent task.
         </p>
       </section>
 </lf-tab>

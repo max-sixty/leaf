@@ -5,8 +5,9 @@
  * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
  * stands, the surviving slot remains and the retired slot folds away as trackable
  * motion. The pressed control stays where the gesture happened and changes to a past-
- * tense record while its pair gives up ink but not room. Each control therefore reserves
- * the width of both of its possible words from the table below before it is shown.
+ * tense record while its pair leaves. The Button keeps its fixed circular fitting;
+ * the durable outcome is visible, selectable text beside it rather than a transient
+ * tooltip pretending to be document content.
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
  * through `registerMarginItem`; the living margin joins it to comment threads,
@@ -19,7 +20,6 @@ import {
   actionStands,
   alignText,
   FOLD_MS,
-  measure,
   marginAction,
   motion,
   offer,
@@ -29,15 +29,14 @@ import {
   relabel,
   renderRetired,
   registerMarginItem,
-  reserve,
   says,
   sendAction,
+  shownParts,
   textNodesUnder,
   toast,
 } from "/runtime/widget-api.js";
 
-// Each control's word in both states — what #name writes, and what the control
-// reserves room for, out of the one table so neither can outgrow the other.
+// Each control's word in both states, written by #name from one table.
 const WORDS = {
   accept: ["✓ Accept", "✓ Accepted"],
   reject: ["✗ Reject", "✗ Rejected"],
@@ -123,12 +122,13 @@ customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
     #row = null;
+    #receipt = null;
     #deciding = null; // the decision in flight, so a second press joins it
     #margin = null;
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
-      // restore this target's contribution to the shared margin item.
+      // restore this target's contribution to the shared Button cluster.
       if (!once(this)) {
         this.#offer();
         return;
@@ -152,21 +152,6 @@ customElements.define(
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
       this.#row.append(this.#button("accept"), this.#button("reject"));
       this.#offer();
-      // Off the row's own box, so it waits for one: this change may be one an agent sent
-      // in a reply, and the panel holding it opens later. Measured before, both numbers
-      // came off a row of no width at all — each control floored at nothing, so the
-      // press moved the line it was made on, and the page's rail was stated as bare
-      // margin. Neither reads as a missing measurement; they read as small numbers.
-      measure(this.#row, () => {
-        // In the document now, so each control measures its decided word in the face it
-        // actually renders in and floors itself there — the line the press is made on
-        // holds still when the word changes (see the module header).
-        for (const btn of this.#row.querySelectorAll(
-          ":scope > [data-lf-offer='button']",
-        ))
-          reserve(btn, WORDS[verb(btn)]);
-        this.#margin?.update();
-      });
     }
 
     disconnectedCallback() {
@@ -179,7 +164,15 @@ customElements.define(
     #offer() {
       if (!this.#row || this.#margin) return;
       this.#margin = registerMarginItem({
-        target: () => this,
+        // An accepted deletion (or rejected insertion) has no surviving slot and the
+        // suggestion itself leaves layout. Its receipt still describes the containing
+        // passage, so that passage becomes the durable perch instead of making a word
+        // marked data-lf-said disappear with a target that now paints no box.
+        target: () =>
+          !this.dataset.lfState ||
+          shownParts(this).some((part) => part.checkVisibility())
+            ? this
+            : this.parentElement,
         controls: this.#row,
         items: () => [
           {
@@ -210,23 +203,15 @@ customElements.define(
       return btn;
     }
 
-    // Everything a control says, in the state it is in: the word it shows (from
-    // WORDS, the same table its reservation is measured from), and the name that has
-    // to carry the change as well, since the visible word says only the outcome. The
+    // Everything a control says, in the state it is in: its transient verb (from
+    // WORDS), and the name that has to carry the change as well. The
     // change's own words come in rather than being read here, because settling
     // retires the slot they live in and a name asked for afterwards would answer the
-    // id. Both controls restate together — the pair's word flips too, unseen inside
-    // its hidden box and inside the room both reserved.
+    // id. Both controls restate together. The persistent outcome belongs to #receipt,
+    // outside the tooltip whose visibility depends on a hover or focus.
     #name(btn, decided, change) {
       const kind = verb(btn);
-      // A decided control's word is the page speaking — "✓ Accepted" states which way
-      // the decision went, the way a pick mark's "chosen" states which option won — so
-      // it is quotable, and paper and a copy keep the record where they drop the offer.
-      // Only the control matching the outcome: its pair flips too, unseen inside its
-      // hidden box, and words nobody can see are nobody's to quote.
-      relabel(btn, WORDS[kind][decided ? 1 : 0], {
-        says: decided && this.#row?.dataset.lfOutcome === kind,
-      });
+      btn.removeAttribute("data-lf-said");
       marginAction(btn, {
         ...FACE[kind],
         label: WORDS[kind][decided ? 1 : 0].replace(/^\S+\s+/, ""),
@@ -326,13 +311,23 @@ customElements.define(
       // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this);
       if (this.#row) {
-        // The row stays; what changes is which of the two controls is speaking. A
-        // quoted one grew none.
+        // The row stays. Its circular control gives the outcome its symbol; the word
+        // beside it is ordinary visible page text, so it can be selected, anchored,
+        // printed by a package that chooses to, and retained in a standalone copy.
+        // A quoted suggestion grew no row and therefore no receipt.
         this.#row.dataset.lfOutcome = outcome;
         for (const btn of this.#row.querySelectorAll(
           ":scope > [data-lf-offer='button']",
         ))
           this.#name(btn, true, change);
+        if (!this.#receipt) {
+          this.#receipt = document.createElement("span");
+          this.#receipt.className = "lf-sug-receipt";
+          this.#row.append(this.#receipt);
+        }
+        relabel(this.#receipt, outcome === "accept" ? "Accepted" : "Rejected", {
+          says: true,
+        });
       }
       this.#margin?.update();
       // The emphasis goes with the pending state: a decided suggestion is plain

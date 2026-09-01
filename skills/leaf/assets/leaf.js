@@ -255,6 +255,7 @@ import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
+  conversationInput,
   createConversationLanding,
   heldConversation,
   landIn,
@@ -279,9 +280,14 @@ import {
   createPresence,
   observeServerNow,
   quietSince,
+  waitingForPickupSince,
 } from "./runtime/presence.js";
 import { createPointer } from "./runtime/pointer.js";
-import { createReactions, paintReactionStanding } from "./runtime/reactions.js";
+import {
+  createReactions,
+  paintReactionStanding,
+  responseAction,
+} from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
@@ -917,18 +923,23 @@ const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
 
-// The floating Comment control names a selection before it has a stable target row.
-// Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
-// adds the registry-declared reaction buttons to its right. One affordance, raised only
-// where the reader has already pointed: a selection, a visual's click, an aimed item or
-// visual part, or `r`.
-const fabBar = el("div", "lf-ui lf-fab-bar");
+// The floating field immediately accepts a comment on the target the reader named.
+// Pressing Tab or its ellipsis exchanges its field for the other responses in place.
+// One affordance, raised only where the reader has already pointed:
+// a selection, a visual's click, an aimed item, or a visual part.
+const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
-const fab = marginAction(el("button", "lf-ui lf-pill lf-fab"), {
+const fabInput = document.createElement("textarea");
+fabInput.className = "lf-ui lf-response-control lf-fab-input";
+fabInput.rows = 1;
+fabInput.autocomplete = "off";
+fabInput.placeholder = "Comment…";
+fabInput.setAttribute("aria-label", "Comment");
+const fab = responseAction(el("button", "lf-ui lf-fab"), {
   glyph: "💬",
   label: "Comment",
-  collapse: "always",
+  behavior: "disclosure",
 });
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
@@ -936,7 +947,7 @@ fabBar.append(fab);
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
-const aimBox = el("div", "lf-ui lf-aim");
+const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
 const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
@@ -951,17 +962,20 @@ const suggestRow = el("label", "lf-suggest-row");
 const suggestCheck = document.createElement("input");
 suggestCheck.type = "checkbox";
 suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
-const composerInput = document.createElement("textarea");
+// The page-anchored composer is the extended Comment control itself. The hidden
+// composer node keeps the draft's controls and quote description, while this textarea
+// stays in the response bar and never jumps to a second box.
+const composerInput = fabInput;
 // The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
 // in CLAUDE.md). So what the box is anchored to travels as the box's own description,
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a reader at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerRow = el("div", "lf-composer-row");
-const composerCancel = el("button", "lf-btn", "Cancel");
 const composerSend = el("button", "lf-btn primary", "Comment");
-composerRow.append(composerCancel, composerSend);
+composerRow.append(composerSend);
 composer.append(composerQuote, suggestRow, composerInput, composerRow);
+fabBar.prepend(composer);
 const toastEl = el("div", "lf-ui lf-toast");
 const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
@@ -996,7 +1010,7 @@ keylineMore.onclick = () => {
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
 // writer (paintInspect), beside the box it names.
-const inspectEl = el("div", "lf-ui lf-inspect");
+const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
 inspectEl.setAttribute("aria-hidden", "true");
 // Design mode's legend: a box for every item on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
@@ -1062,7 +1076,6 @@ chromeRoot.append(
   selectionSearch,
   aimBox,
   fabBar,
-  composer,
   toastEl,
   liveEl,
   helpEl,
@@ -1116,7 +1129,7 @@ commentsEdge.over.addEventListener("change", () => {
 // distinction for a Threads panel restored or opened during startup; its General
 // composer stays usable while the log-derived list says what it is waiting for.
 
-// The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
+// The threads the panel last reconciled. A receipt repaints on the heartbeat's clock and
 // not only on the log's, because its age is half of what it says and a claim nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
 // makes that cheap: buildThreads walks the log and the page, and a second walk every two
@@ -1132,8 +1145,6 @@ chromeLayout = createChromeLayout({
   chromeRoot,
   closeReactions: () => setReact(false),
   commentsEdge,
-  composer,
-  composerIsOpen: () => composerOpen,
   containsAcross: (...args) => containsAcross(...args),
   currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
@@ -1147,7 +1158,6 @@ chromeLayout = createChromeLayout({
   },
   panelFoot,
   panelList: threadsBox,
-  placeComposer: (...args) => placeComposer(...args),
   readerStore,
   refreshFab: (...args) => refreshFab(...args),
   refreshHover: (...args) => refreshHover(...args),
@@ -1194,27 +1204,29 @@ const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection
   });
 
 const {
-  activateAimTarget,
   BANNER_CLEAR,
   activateVisual,
   beside,
   dismissFab,
   fabAnchorAt,
+  fabOptionsAvailable,
   fabTargetAt,
   fabReturnTo,
+  focusFabComment,
+  focusTargetComment,
   openOnItem,
   placeClear,
-  placeComposer,
   refreshFab,
+  selectResponseTarget,
   showFab,
+  showFabOptions,
   standDown,
   updateFab,
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
   anchorLabel: (...args) => anchorLabel(...args),
+  banner,
   blockAt: (...args) => blockAt(...args),
-  composer,
-  composerInput,
   composerIsOpen: () => composerOpen,
   closeVersionMenu,
   collapseKeyline: () => keyline?.less(),
@@ -1222,8 +1234,11 @@ const {
   designTarget,
   fab,
   fabBar,
+  fabInput,
   hideComposer: () => hideComposer(),
   hideReference: () => reference.show(false, false),
+  hasOtherResponses: (anchor) =>
+    reactionTokens().length > 0 || Boolean(anchor?.quote && !designOn),
   inChrome: (node) => inChrome(node),
   isReactArmed: () => isReactArmed(),
   keylineEl,
@@ -1233,7 +1248,6 @@ const {
   openComposer,
   openOnDesign,
   pageRange: (...args) => pageRange(...args),
-  pageScroller,
   pageSelection,
   pageText: (...args) => pageText(...args),
   pageWords: (...args) => pageWords(...args),
@@ -1242,7 +1256,6 @@ const {
   paintStanding: paintReactionStanding,
   panel,
   panelCovers,
-  pendingMarkParts,
   pointerAt,
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
@@ -1260,13 +1273,13 @@ const {
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
-  activateAimTarget,
   aimTargetAt,
   designIsOn: () => designOn,
   designPress,
   designTarget,
   elementFromPointAcross: (...args) => elementFromPointAcross(...args),
   inChrome: (node) => inChrome(node),
+  focusTargetComment,
   openOnDesign,
   pointerAt,
   refreshAim,
@@ -1299,21 +1312,23 @@ function openOnDesign(...args) {
 
 selectionComposerRuntime = createSelectionComposer(runtime, {
   clearDraft,
+  closeReactions: () => setReact(false),
   composer,
-  composerCancel,
   composerInput,
   composerSend,
   designIsOn: () => designOn,
   draftContexts,
+  elementById: (...args) => elementById(...args),
   fab,
   fabAnchor: fabAnchorAt,
+  fabBar,
+  inChrome,
   landTyping,
   loadDraft,
   mayLandTyping,
   openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
   paintAnchors,
   paintHere,
-  placeComposer,
   post,
   saveDraft,
   sendDraft,
@@ -1326,15 +1341,8 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   wireInput,
 });
 
-function openComposer(
-  anchor,
-  text,
-  left,
-  top,
-  suggest = false,
-  about = designOn ? "layer" : null,
-) {
-  return selectionComposerRuntime.openComposer(anchor, text, left, top, suggest, about);
+function openComposer(anchor, text, options = {}) {
+  return selectionComposerRuntime.openComposer(anchor, text, options);
 }
 const hideComposer = () => selectionComposerRuntime.hideComposer();
 
@@ -1572,9 +1580,12 @@ const commentDestination = () => {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
-      go: () => fab.click(),
+      go: focusFabComment,
     };
-  const said = standingConversation();
+  const inline = livingMargin?.activeInlineThread();
+  const inlineBox = inline && conversationInput(inline);
+  const said =
+    standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
   if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
@@ -1609,7 +1620,7 @@ const hasCapturedTarget = () => Boolean(fabAnchorAt());
 // raised the 💬 on something has said what they mean more recently than the focus they left
 // behind, which is the order decisionPosition reads its own answers in.
 function commentKey() {
-  updateFab(); // the selection may be newer than the mouseup that last placed the button
+  updateFab(); // the selection may be newer than the mouseup that last placed the bar
   commentDestination().go();
 }
 
@@ -1873,7 +1884,6 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
     BANNER_CLEAR,
     reducedMotion,
     scrollBehavior,
-    beside,
     inChrome: (node) => inChrome(node),
     inPanel,
     openOnItem,
@@ -1884,7 +1894,6 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
     scrollToElement,
     scrollToThread,
     setPanel,
-    shownBox,
     shownRect,
     threadsBox,
   });
@@ -1932,7 +1941,6 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
 
 const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
   createTargetSelection({
-    activateAimTarget,
     aimTargets,
     allButTheReference,
     anchoringIsReady: () => anchoringReady,
@@ -1956,6 +1964,7 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     selectionLayer,
     selectionSearch,
     selectionStatus,
+    selectResponseTarget,
     shownParts,
     shownRect: (...args) => shownRect(...args),
     updateFab,
@@ -1989,8 +1998,11 @@ const {
   fabReturnTo,
   fabBar,
   focused,
+  hideComposer: () => hideComposer(),
+  foldButtonOptions: () => livingMargin?.foldButtonOptions(),
   itemWord,
   offer,
+  openButtonOptions: (target) => livingMargin?.openButtonOptions(target) ?? false,
   paintHere,
   post,
   reactionVocabulary: () => registry.$reactions?.tokens,
@@ -1999,7 +2011,9 @@ const {
   showToast,
   standingConversation,
   standingItem,
+  suggestHere: () => selectionComposerRuntime.setSuggestionMode(true),
   undoable: (...args) => undoable(...args),
+  unfoldedButtons: () => livingMargin?.unfoldedButtons() ?? null,
   visualPartLabel: (...args) => visualPartLabel(...args),
   withdraw: (...args) => withdraw(...args),
 });
@@ -2078,6 +2092,28 @@ const SHORTCUT_SHELF = {
   rows: [LESS_SHORTCUTS],
 };
 
+// A Thread card and the unfolded Button cluster that owns it are one page-map stack,
+// though the card itself is hoisted into the chrome. This registered rung precedes the
+// reaction and navigation modes just as the surface's old local listener did: Escape
+// closes the card first, then folds the cluster on a second press.
+const pageMapRung = (atFocus = true) => livingMargin?.keyboardRung({ atFocus }) ?? null;
+const PAGE_MAP = {
+  title: "In the page map",
+  when: () => Boolean(pageMapRung(false)),
+  at: () => Boolean(pageMapRung()),
+  rows: [
+    {
+      id: "margin.back",
+      keys: ["Escape"],
+      does: () => pageMapRung(false)?.does,
+      line: () => pageMapRung()?.says,
+      referenceWhen: () => Boolean(pageMapRung(false)),
+      when: () => Boolean(pageMapRung()),
+      run: () => pageMapRung()?.out(),
+    },
+  ],
+};
+
 // Below the element scopes: the page's own modes, then the page. The composer's rung is
 // its own scope rather than the box's, because the box may not have focus — the reader
 // clicked away and the composer still stands, holding their draft.
@@ -2086,10 +2122,19 @@ const COMPOSER = {
   at: () => composerOpen,
   rows: [
     {
+      id: "comment.options",
+      keys: ["Tab"],
+      does: "Show other responses",
+      line: "other responses",
+      when: fabOptionsAvailable,
+      run: showFabOptions,
+    },
+    {
       id: "composer.close",
       keys: ["Escape"],
       does: "Close the composer, keeping the draft",
       line: "close — draft kept",
+      promoteEscape: false,
       run: () => {
         hideComposer();
         showFab(null);
@@ -2708,6 +2753,7 @@ const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
   HELP,
   SHORTCUT_SHELF,
+  PAGE_MAP,
   GO,
   REACT,
   SELECT,
@@ -2898,6 +2944,7 @@ const { loadIcon, renderStatus, toneFor } = createBanner({
   el,
   presented,
   statusText,
+  toast,
 });
 
 const { activateRevision, currentActivation, revisionDocument, trackActivation } =
@@ -2949,18 +2996,22 @@ const unaccountedGesture = () =>
   outbox.length > 0 ||
   Boolean(document.querySelector(".lf-dragging"));
 // The user is mid-something navigation would destroy: the above, and the words they
-// have typed — a composition surface is a focused textarea, any holding words, or a
-// widget-built one (data-lf-offer) even empty, because deleting everything is still an
-// edit.
+// have typed — a composition surface is a focused textarea holding words or a draft, or
+// a widget-built one (data-lf-offer) even empty, because deleting everything is still an
+// edit. A reply the runtime merely opened and focused is the exception: that landing has
+// no reader-authored draft to preserve and therefore does not stop a live page following.
 const midComposition = () => {
   const active = focused();
+  const replyDraft = conversationRuntime?.replyBoxHasDraft(active) ?? null;
   return (
     composerOpen ||
     isSelecting() ||
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||
     (active?.tagName === "TEXTAREA" &&
-      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+      (active.value !== "" ||
+        replyDraft === true ||
+        (replyDraft === null && active.hasAttribute("data-lf-offer"))))
   );
 };
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
@@ -3016,8 +3067,8 @@ function awaitsReader(...args) {
 function setChildren(...args) {
   return conversationRuntime.setChildren(...args);
 }
-function paintWorkLines(...args) {
-  return conversationRuntime.paintWorkLines(...args);
+function paintAcknowledgments(...args) {
+  return conversationRuntime.paintAcknowledgments(...args);
 }
 function widen(...args) {
   return conversationRuntime.widen(...args);
@@ -3107,9 +3158,6 @@ function isMarked(...args) {
 function placedAt(...args) {
   return anchorRuntime.placedAt(...args);
 }
-function pendingMarkParts(...args) {
-  return anchorRuntime.pendingMarkParts(...args);
-}
 
 const passageRuntime = createPassages({
   PAGE_PAINT_ATTRIBUTE,
@@ -3176,7 +3224,7 @@ const runtimeProjection = createProjection(runtime, {
   pageShifted,
   paintAnchors,
   paintKeys,
-  paintWorkLines,
+  paintAcknowledgments,
   post,
   projectedParent,
   quoteFrom,
@@ -3294,6 +3342,7 @@ conversationRuntime = createConversation({
   post,
   PRESS,
   quietSince,
+  waitingForPickupSince,
   reachScrollers,
   reachedForWords,
   reactDone: () => setReact(false),
@@ -3391,6 +3440,7 @@ const { ITEM, NOTE } = anchorRuntime;
 
 livingMargin = createLivingMargin({
   anchorLabel,
+  acknowledgments: () => runtime.browser?.acknowledgments ?? [],
   announce,
   approveBtn,
   blockAt,
@@ -3400,8 +3450,12 @@ livingMargin = createLivingMargin({
   comparisonChanges,
   compact: commentsEdge.over,
   closestAcross,
+  currentRevision: () => runtime.currentRevision,
+  designIsOn: () => designOn,
+  droppedAt,
   el,
   elementById,
+  focused,
   goToDecision,
   inChrome,
   itemSays,
@@ -3410,19 +3464,21 @@ livingMargin = createLivingMargin({
   offer,
   openDecisions,
   panelIsOpen: chromeLayout.panelIsOpen,
-  pageScroller,
   paintKeys,
   placedAt,
+  quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
   scrollBehavior,
   scrollToElement,
   setPanel,
   showThread,
   stateProjection,
+  threadPanel: panel,
   threads: () => conversationRuntime.threadList,
   toggleBtn,
   updateSequence,
   versionBtn,
+  waitingForPickupSince,
 });
 
 viewRuntime = createViewContinuity({
@@ -3449,6 +3505,7 @@ designRuntime = createDesign({
   ITEM,
   announce,
   banner,
+  closePageMapPreview: livingMargin.closePreview,
   closestAcross,
   containsAcross,
   cut,
@@ -3461,7 +3518,6 @@ designRuntime = createDesign({
   legendRoot,
   marginTargetAt: (...args) => livingMargin.marginTargetAt(...args),
   openComposer,
-  pageScroller,
   pageShifted,
   paintHere,
   refreshAim,
@@ -3490,7 +3546,7 @@ stateApplication = createStateApplication({
   observeServerNow,
   paintAnchors,
   paintApproval,
-  paintWorkLines,
+  paintAcknowledgments,
   panelIsOpen,
   presented,
   reconcileState,
@@ -3638,14 +3694,10 @@ async function startPage() {
   if (savedView && savedView.revision < runtime.currentRevision)
     showToast(`Updated to ${runtime.currentLabel}`);
   if (savedComposer)
-    openComposer(
-      savedComposer.anchor,
-      savedComposer.text,
-      (innerWidth - 320) / 2,
-      64,
-      Boolean(savedComposer.suggest),
-      savedComposer.about ?? null,
-    );
+    openComposer(savedComposer.anchor, savedComposer.text, {
+      suggest: Boolean(savedComposer.suggest),
+      about: savedComposer.about ?? null,
+    });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

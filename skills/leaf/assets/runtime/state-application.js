@@ -27,7 +27,7 @@ export function createStateApplication(dependencies) {
     observeServerNow,
     paintAnchors,
     paintApproval,
-    paintWorkLines,
+    paintAcknowledgments,
     panelIsOpen,
     presented,
     reconcileState,
@@ -70,7 +70,7 @@ export function createStateApplication(dependencies) {
     // Every state this page reads passes here — the poll's, and the one an accepted
     // event response carries — so the generation is checked once for both rather than
     // at each door it arrives through.
-    if (!sameLayer(state.layer)) return;
+    if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
       throw new TypeError("state must say when it was taken");
     // Ahead of the sequence checks below, which drop a response as state: a reading
@@ -260,7 +260,7 @@ export function createStateApplication(dependencies) {
       // Outside the log-growth block: a work claim lands and ages without changing an
       // event this tab holds. After widget reconciliation because a module may rebuild
       // its authored subtree; the local line is the transient overlay that follows it.
-      paintWorkLines();
+      paintAcknowledgments();
       if (activation) {
         restoreView(activation.view);
         paintAnchors();

@@ -16,6 +16,7 @@
     "annotation",
     "collaboration"
   ],
+  "mcpServers": "./.codex-plugin/mcp.json",
   "interface": {
     "displayName": "Leaf",
     "shortDescription": "Generative UI for your agent.",

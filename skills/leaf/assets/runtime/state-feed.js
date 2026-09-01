@@ -119,7 +119,7 @@ export function createStateFeed({
   //
   // A poll that brought nothing still re-applied the state the page already held, and the
   // runtime has a lot hanging off that — a clock ageing toward a threshold, a claim going
-  // quiet, a work line, an activation a live editor deferred and nothing else will ask
+  // quiet, a receipt, an activation a live editor deferred and nothing else will ask
   // about again. None of those needed the network; they rode it because a request was the
   // only thing that happened regularly, which made a round trip the page's clock.
   //

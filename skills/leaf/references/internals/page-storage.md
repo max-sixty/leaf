@@ -22,7 +22,9 @@ A page directory holds:
                          layer-wide facts under $ — $idioms, $languages, $keys (what
                          each x- key means), and the page's vocabulary stamp ($events,
                          x-state): the one statement of what this page's vendored
-                         runtime speaks
+                         runtime speaks. $layer keeps the reload-safety generation,
+                         stable content fingerprint, selected packages, and optional
+                         producer commit/dirty provenance
     guidance/            package-owned guidance grouped by audience. Files with the
                          same name concatenate in package order; `page guidance` reads
                          any audience
@@ -65,11 +67,9 @@ A page directory holds:
                          "work" holds typed, sequence-bounded claims on comment
                          threads or page widgets. At the state boundary these
                          private records become canonical claim updates, which
-                         their local seats show beside the page-wide line
-                         (`leaf status … --on`);
-                         when `leaf wait` prints for a non-working page, it
-                         writes working with "handoff": true until the agent's
-                         own `leaf status` lands
+                         their local receipts show beside the page-wide banner
+                         (`leaf status … --on`). Delivery pickup never writes
+                         this file; it is a page-owned event in comments.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all
@@ -81,14 +81,21 @@ A page directory holds:
                          studied and left
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
-                         `leaf ack`
-    service.json         {"host", "bind", "port", "enabled", "lifetime"}: the
-                         durable desired service. It preserves the exact URL an
+                         `leaf ack`; a page-owned pickup event separately names
+                         the exact reader events accepted by that consumer
+    preview.json         optional safe metadata written only by the repository's live
+                         example preview: example, checkout name, start time, and
+                         optional commit/dirty state. The server projects these named
+                         fields into preview-only browser chrome; it never serves this
+                         file or an absolute checkout path
+    service.json         {"host", "bind", "port", "enabled", "lifetime", "runtime"}:
+                         the durable desired service. It preserves the exact URL an
                          open browser holds and whether a session may end it.
                          A crash leaves it enabled so `leaf wait` can revive it;
                          `server stop` disables it and leaves the address and
-                         lifetime ready for a later start. The key in the URL is
-                         the machine's, not the page's, and lives in the state home
+                         lifetime ready for a later start. `runtime` identifies the
+                         payload path and its available Git provenance. The key in the
+                         URL is the machine's, not the page's, and lives in the state home
     server.lock          a contentless live-server lease, locked for the process's
                          whole life. The kernel releases it on a crash. A stop
                          asks the server to exit through service.json and waits
@@ -101,8 +108,10 @@ A page directory holds:
                          ownership discovery survive a page moving between sessions
 
 `leaf page state` is an on-demand semantic index over these authorities. Its
+`layer` object, shared with `/api/state`, reports the vendored generation,
+fingerprint, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
-error. Its `active.file` names the immutable revision the live root actually
+error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data.file` always names a readable JSON store. `event_seq`
 is the last event folded into the snapshot and can be passed to `leaf events
 --after`; it is distinct from the acknowledgement cursor. Agents read the active

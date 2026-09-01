@@ -16,6 +16,7 @@ export function createReplies({
   // so every Send control renders the same fact. The promise is the post itself, because a queue would
   // serialize the duplicate rather than refuse it.
   const REPLY_FLIGHT_NEWS = "lf-reply-flight";
+  const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
   const replyFlights = new Map(); // thread id -> post in flight
   const replyBusy = (id) => replyFlights.has(id);
   const tellReplyFlight = (id) =>
@@ -60,6 +61,7 @@ export function createReplies({
   // thread's and is stated once.
   function wireReply(t, input, send, { landed } = {}) {
     const draftCtx = "reply:" + t.root.id;
+    input[REPLY_DRAFT_CONTEXT] = draftCtx;
     input.value = loadDraft(draftCtx) ?? "";
     const sync = wireInput(input, {
       hint: "Reply",
@@ -86,5 +88,13 @@ export function createReplies({
     return sync;
   }
 
-  return { wireReply };
+  // null means this is not a reply box. False is the useful third state: a reply box
+  // opened by the runtime but never edited, whose empty focus is a landing rather than
+  // a composition the next live revision must preserve.
+  const replyBoxHasDraft = (input) => {
+    const ctx = input?.[REPLY_DRAFT_CONTEXT];
+    return ctx ? loadDraft(ctx) !== null : null;
+  };
+
+  return { replyBoxHasDraft, wireReply };
 }

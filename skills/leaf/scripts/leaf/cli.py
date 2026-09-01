@@ -78,6 +78,14 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
+@cli.command(short_help="Run Leaf's bundled MCP Apps server.")
+def mcp() -> None:
+    """Serve Leaf tools and its interactive review resource over stdio."""
+    from leaf.mcp_server import run_mcp_server
+
+    run_mcp_server()
+
+
 @cli.group(short_help="Deliver page updates to later turns of this Codex task.")
 def codex() -> None:
     """Run Leaf's detached Codex delivery carrier."""
@@ -297,7 +305,7 @@ def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
     Checks the exact source first, then records it as the next public version. Repeat
     --completes for each active widget work claim this version completes. A
     widget claim otherwise survives unrelated versions, and a version cannot
-    silently remove its local seat.
+    silently remove its page target.
     """
     cmd_stamp(resolve_dir(dir), text, completes)
 

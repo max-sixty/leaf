@@ -48,6 +48,22 @@ never spans a fence, so "the page has words here that the file doesn't" becomes
 a refusal when the comment is written, rather than an anchor that detaches later
 in the user's browser. Anchor on an opaque widget's element instead
 (`--section`), which is the same anchor a click on a diagram makes.
+The event door repeats that semantic check under the append transaction, but only
+for a transport that reaches it with nothing resolved — the MCP app, which renders
+the authored source with no runtime behind it. A runtime's own anchor is already
+answered against the rendered page, which holds words this reading cannot produce —
+a widget's label, a module's rendering — so re-reading it off the file would refuse a
+passage the page shows. Whitespace is the other refusal, and it is not the
+current runtime's doing: `quoteFrom` in assets/runtime/passages.js collapses a live
+selection to the same class this reading does, spelled to passages.py's
+COLLAPSE_CHARS, so those two agree. The spellings that arrive uncollapsed are the
+ones earlier runtimes write — test_a_quote_finds_its_passage_whatever_its_whitespace
+names them — and they name the same words, so a comparison against the canonical
+quote would turn a passage down for its whitespace alone.
+Where the capture does run, a transport may omit optional context for a quote that
+is unique in its declared section; when a quote repeats, its supplied prefix and
+suffix must resolve exactly one current occurrence. Widget source, retired text,
+and unresolved ambiguous passages are refused before append.
 
 ## Parsed source
 

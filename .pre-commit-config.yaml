@@ -58,18 +58,17 @@ repos:
     rev: v1.48.0
     hooks:
       - id: typos
-  # GitHub accepts `concurrency.queue`, which tend's generated `tend-review.yaml`
-  # sets, but this pin's schema does not know the key yet and there is no route out
-  # by bumping: rhysd/actionlint#657 is open, the fix (#661) was closed unmerged, and
-  # v1.7.12 is still the latest release. Ignore that one false positive, matching the
-  # accommodation upstream tend carries for the same file.
+  # GitHub accepts `concurrency.queue`, which tend's generated workflows set, but
+  # this pin's schema does not know the key yet and there is no route out by
+  # bumping: rhysd/actionlint#657 is open, the fix (#661) was closed unmerged, and
+  # v1.7.12 is still the latest release. `.github/actionlint.yaml`, which
+  # `uvx tend@latest init` now writes, ignores that one false positive under a glob
+  # scoped to the generated files, so the same key in a workflow this repo owns
+  # still fails.
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
       - id: actionlint
-        args:
-          - -ignore
-          - 'unexpected key "queue" for "concurrency" section'
   # actionlint already shellchecks the `run:` blocks in the workflows above. This
   # covers the shell outside them, starting with bin/leaf, which every install
   # executes.

@@ -36,9 +36,17 @@ Leaf's state home rather than in the page.
 
 ## Unreachable URLs and `--host`
 
-Only the user's browser can establish that a URL is unreachable. When they say
-it does not load, stop the server and restart it with a hostname their browser
-can use:
+A serve that binds loopback says so on the line after the lifetime note. That
+address is derived whenever the session carries no SSH environment, which
+includes sessions that are remote from the user without having arrived over SSH
+— a scheduler, a daemon, a detached background job. When that line appears and
+the session is not one the user is sitting at, ask them for a name their browser
+routes to and serve on it before handing the URL over, or export the version as
+a file.
+
+Otherwise only the user's browser can establish that a URL is unreachable. When
+they say it does not load, stop the server and restart it with a hostname their
+browser can use:
 
 ```bash
 leaf server stop <page>

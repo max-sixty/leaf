@@ -207,6 +207,24 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     expect(target).to_have_attribute("data-lf-gen", "1")
     expect(target).to_have_class(re.compile(r"\blf-ui\b"))
 
+    # A generated fragment target must not trap the heading's collapsed top margin
+    # inside an otherwise transparent section. The section, target, and first visible
+    # heading should begin at the same rendered edge.
+    verify_geometry = page.get_by_role("heading", name="Verify").evaluate(
+        """heading => {
+          const section = heading.parentElement;
+          const target = heading.previousElementSibling;
+          return {
+            sectionTop: section.getBoundingClientRect().top,
+            targetTop: target.getBoundingClientRect().top,
+            headingTop: heading.getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert max(verify_geometry.values()) - min(verify_geometry.values()) < 0.5, (
+        verify_geometry
+    )
+
     details = page.locator("details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()

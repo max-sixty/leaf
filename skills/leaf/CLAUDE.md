@@ -1741,8 +1741,12 @@ cost one letter; only the tail branches when the viewport holds more targets tha
 alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise across a
 scroll or revision. They are the whole route, so none may be dropped because its chip
 collides. A target whose visible box is strictly smaller and fully enclosed by another
-target steps its chip right once per enclosing box. Equal boxes stay at the same depth;
-the collision pass separates their chips without inventing a hierarchy.
+target steps its chip right once per enclosing box. An ancestor and descendant with the
+same visible box name one target: the innermost remains, matching direct aim. Equal boxes
+outside one containment chain stay at the same depth, and the collision pass separates
+their chips without inventing a hierarchy. Membership is fixed for the length of a
+scroll and re-read once it settles, so a target arriving mid-scroll is named at rest
+rather than on the frame it appears.
 
 Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses the
 last one announced. A viewport change that removes or renames that target clears the

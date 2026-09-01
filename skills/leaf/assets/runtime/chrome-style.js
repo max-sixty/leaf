@@ -703,10 +703,16 @@ ${MARK_RULES}
        the two together said no more than either — a reader could tell that v2 and v3
        were both being mentioned and not what either mention was for. The pair are grid
        siblings rather than a wrapper each, because a role="menu" owns menuitems and a
-       div between them is a claim about ARIA that nothing here needed to make. */
+       div between them is a claim about ARIA that nothing here needed to make.
+
+       Two anchored edges are the whole of the placement, so the other two are taken back
+       from the popover UA rule, which states inset 0 with auto margins: left alone, its
+       far edges stay pinned to the viewport's corner and its margins centre the box in
+       the band between them and the anchor, nowhere near the button. */
     .lf-version { anchor-name: --lf-version-btn; }
     .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
-      top: calc(anchor(bottom) + 6px); right: anchor(right); z-index: 8950;
+      top: calc(anchor(bottom) + 6px); right: anchor(right);
+      bottom: auto; left: auto; margin: 0; z-index: 8950;
       display: none; grid-template-columns: 1fr auto; align-items: start;
       min-width: anchor-size(width);
       max-width: min(360px, calc(100vw - 16px));

@@ -745,6 +745,45 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     page.close()
 
 
+def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
+    """An open versions menu keeps the two edges its anchor names, and no others.
+
+    The rule states the menu's top under the button's bottom and its right against the
+    button's right. The popover UA rule states the other two, `inset: 0` with
+    `margin: auto`, and unless the rule takes those back the auto margins centre the box
+    in the band between the anchored edges and the viewport's far corner: at 1200x900 a
+    menu whose anchored top reads as satisfied still opened 400px further down the page
+    and 450px in from the control that opened it. Both edges are therefore read against
+    the button's own box rather than against numbers, because what the anchor promises is
+    a relation and not a coordinate.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    chooser = page.locator(".lf-version")
+    expect(chooser).to_be_enabled()
+    chooser.click()
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    boxes = menu.evaluate(
+        """menu => {
+          const button = document.querySelector('.lf-version').getBoundingClientRect();
+          const box = menu.getBoundingClientRect();
+          return {button: {top: button.top, bottom: button.bottom, right: button.right},
+                  menu: {top: box.top, right: box.right, left: box.left}};
+        }"""
+    )
+    assert boxes["menu"]["top"] == pytest.approx(
+        boxes["button"]["bottom"] + 6, abs=2
+    ), f"the versions menu did not hang under the chooser's bottom edge: {boxes}"
+    assert boxes["menu"]["right"] == pytest.approx(boxes["button"]["right"], abs=2), (
+        f"the versions menu did not line up with the chooser's right edge: {boxes}"
+    )
+    assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
+        f"the versions menu covered the chooser it hangs from: {boxes}"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     browser, serve
 ):

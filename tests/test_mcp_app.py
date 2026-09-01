@@ -178,7 +178,11 @@ def test_registered_server_prefers_full_page_and_keeps_snapshot_as_fallback():
     assert set(by_uri) == {PAGE_RESOURCE_URI, APP_URI}
     assert by_uri[PAGE_RESOURCE_URI].meta == {
         "ui": {
-            "csp": {"frameDomains": [pages.origin]},
+            "csp": {
+                "connectDomains": [],
+                "resourceDomains": [],
+                "frameDomains": [pages.origin],
+            },
             "prefersBorder": False,
         }
     }

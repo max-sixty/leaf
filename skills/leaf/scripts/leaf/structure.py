@@ -226,11 +226,6 @@ class _StructParser(HTMLParser):
         # is a list that goes on admitting the next one it coins.
         self.reserved_markers = []
         self._svg_depth = 0
-        # Text under one direct child of an lf-* record. Decision headings and
-        # option <strong> labels are already structural authoring conventions;
-        # keep their words on the same generic record so non-DOM projections do
-        # not need a second HTML parser to rediscover what this walk just proved.
-        self._direct_text = []  # {"tag", "record": {"tag", "text"}}
 
     @property
     def ids(self) -> set:
@@ -276,12 +271,6 @@ class _StructParser(HTMLParser):
     def _implicit_close(self, tag):
         for _ in range(implicit_closes([t for t, *_ in self.stack], tag)):
             self.stack.pop()
-        self._trim_direct_text()
-
-    def _trim_direct_text(self):
-        """Drop direct-child collectors whose elements left the HTML stack."""
-        while self._direct_text and self._direct_text[-1]["depth"] > len(self.stack):
-            self._direct_text.pop()
 
     def _open_widget(self):
         """The innermost lf-* element still open, or None outside every one."""
@@ -432,11 +421,6 @@ class _StructParser(HTMLParser):
         if self.stack and self.stack[-1][2] is not None:
             self.stack[-1][2]["children"].append(tag)
             self.stack[-1][2]["direct"].append(tag)
-            direct = {"tag": tag, "text": ""}
-            self.stack[-1][2]["direct_text"].append(direct)
-            self._direct_text.append(
-                {"tag": tag, "record": direct, "depth": len(self.stack) + 1}
-            )
         record = None
         if tag.startswith("lf-"):
             record = {
@@ -447,8 +431,6 @@ class _StructParser(HTMLParser):
                 "direct": [],
                 "children": [],
                 "text": False,
-                # Each direct child's tag and descendant text, in document order.
-                "direct_text": [],
                 "body": "",  # a <pre> data body's text, for the x-lines gate
                 # The nearest enclosing lf element's record, so a child's line
                 # reference (x-lines) can find the data body it points into, and
@@ -494,8 +476,6 @@ class _StructParser(HTMLParser):
         if self.stack and self.stack[-1][2] is not None and data.strip():
             self.stack[-1][2]["text"] = True
             self.stack[-1][2]["direct"].append("#text")
-        for direct in self._direct_text:
-            direct["record"]["text"] += data
         if holder == "style":
             self.css += data
         elif holder == "title":
@@ -506,18 +486,11 @@ class _StructParser(HTMLParser):
             self.stack[-2][2]["body"] += data
 
     def handle_endtag(self, tag):
-        if (
-            self._direct_text
-            and self._direct_text[-1]["tag"] == tag
-            and self._direct_text[-1]["depth"] == len(self.stack)
-        ):
-            self._direct_text.pop()
         if tag == "svg":
             while self.stack and self.stack[-1][0] != "svg":
                 self.stack.pop()
             if self.stack:
                 self.stack.pop()
-            self._trim_direct_text()
             self._svg_depth = max(0, self._svg_depth - 1)
             return
         if self._svg_depth or tag in VOID_TAGS:
@@ -535,7 +508,6 @@ class _StructParser(HTMLParser):
                         f"</{tag}> at line {self.getpos()[0]} closes over unclosed: {unclosed}"
                     )
                 del self.stack[i:]
-                self._trim_direct_text()
                 return
         if tag not in OPTIONAL_END:
             self.errors.append(

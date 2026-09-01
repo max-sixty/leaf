@@ -89,7 +89,12 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
     )
     source = page_dir / "index.html"
     source.write_text(
-        source.read_text().replace("<h2>Plan</h2>", "<h2>Plan now</h2>"),
+        source.read_text()
+        .replace("<h2>Plan</h2>", "<h2>Plan now</h2>")
+        .replace(
+            "The cutoff lives in ",
+            'Post to "/api/event" before the cutoff in ',
+        ),
         encoding="utf-8",
     )
     activated = activate_source(page_dir, read_events(page_dir))
@@ -124,14 +129,30 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             if urlsplit.startswith(pages.origin)
         )
 
-        page.locator("#plan > p").click(click_count=3)
+        assert 'Post to "/api/event"' in page.locator("#plan > p").inner_text()
+        assert root not in page.locator("#plan > p").inner_text()
+        page.locator("#plan > p").evaluate(
+            """paragraph => {
+              const text = paragraph.firstChild;
+              const range = document.createRange();
+              range.setStart(text, 0);
+              range.setEnd(text, 'Post to "/api/event"'.length);
+              const selected = window.getSelection();
+              selected.removeAllRanges();
+              selected.addRange(range);
+              paragraph.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            }"""
+        )
         expect(page.locator(".lf-fab-input")).to_be_visible()
         page.locator(".lf-fab-input").click()
         page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
         with page.expect_response(lambda response: response.url.endswith("/api/event")):
             page.keyboard.press("Enter")
 
-        assert read_events(page_dir)[-1]["text"] == "Delivered through the MCP page."
+        saved = read_events(page_dir)[-1]
+        assert saved["text"] == "Delivered through the MCP page."
+        assert saved["anchor"]["quote"] == 'Post to "/api/event"'
+        assert root not in saved["anchor"]["quote"]
         expect(page.locator(".lf-thread")).to_contain_text(
             "Delivered through the MCP page."
         )

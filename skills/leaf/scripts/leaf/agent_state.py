@@ -59,8 +59,7 @@ def cmd_page_state(page_dir: Path) -> None:
     """Print the agent-side state from one transaction-consistent snapshot."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, page.events)
-        state = read_page_state(page_dir, page.events, activation.error)
-    print(json.dumps(state, indent=2, ensure_ascii=False))
+        _write_page_state(page_dir, page.events, activation.error)
 
 
 class _DocumentParser(Protocol):
@@ -275,13 +274,13 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     )
 
 
-def read_page_state(
+def _write_page_state(
     page_dir: Path, events: list, source_error: str | None = None
-) -> dict:
+) -> None:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this returns the active revision's elements, the
+    gets missed. So this prints the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), authored
     measurements whose live source has run again (`measurement_lag_entries`), the
@@ -341,4 +340,4 @@ def read_page_state(
         events,
     )
     _apply_thread_state(state, thread_reading)
-    return state
+    print(json.dumps(state, indent=2, ensure_ascii=False))

@@ -67,6 +67,14 @@ _ROOTED_PAGE_ROUTE = re.compile(
     rb")"
 )
 
+_ROOTED_PAGE_ATTRIBUTE = re.compile(
+    rb'(?P<before>\b(?:action|data|href|poster|src)\s*=\s*["\'])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")",
+    re.IGNORECASE,
+)
+
 
 def scope_page_routes(body: bytes, page_root: str) -> bytes:
     """Put Leaf's canonical root routes below one delivery capability path.
@@ -80,6 +88,22 @@ def scope_page_routes(body: bytes, page_root: str) -> bytes:
         return body
     root = page_root.rstrip("/").encode()
     return _ROOTED_PAGE_ROUTE.sub(
+        lambda match: match.group("before") + root + b"/" + match.group("path"),
+        body,
+    )
+
+
+def scope_document_routes(body: bytes, page_root: str) -> bytes:
+    """Scope only route-bearing HTML attributes in an authored document.
+
+    Authored prose is also the anchorable record. A route-looking phrase in that
+    prose must therefore remain byte-for-byte identical to the immutable revision,
+    while actual browser addresses still need the process page capability.
+    """
+    if not page_root:
+        return body
+    root = page_root.rstrip("/").encode()
+    return _ROOTED_PAGE_ATTRIBUTE.sub(
         lambda match: match.group("before") + root + b"/" + match.group("path"),
         body,
     )
@@ -128,7 +152,7 @@ def runtime_document(
         if version is not None
         else ""
     )
-    return scope_page_routes(
+    return scope_document_routes(
         (source[:offset] + markers + source[offset:]).encode(), page_root
     )
 
@@ -145,7 +169,6 @@ class Handler(BaseHTTPRequestHandler):
     # Every server a user reaches exposes noted versions only.
     preview_upto = None
     preview_source = None
-    cookie_attributes = "SameSite=Strict"
     # Empty on the ordinary one-page server. The MCP delivery server sets this to
     # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
     page_root = ""
@@ -338,16 +361,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",
-                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; "
-                f"{self.cookie_attributes}",
+                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict",
             )
             self.set_cookie = False
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if ctype.startswith(
-            ("text/css", "text/html", "text/javascript", "application/javascript")
-        ):
+        if ctype.startswith(("text/css", "text/javascript", "application/javascript")):
             body = scope_page_routes(body, self.page_root)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
@@ -592,7 +612,6 @@ def handler_for(
     preview_upto=None,
     preview_source=None,
     protocol_version="HTTP/1.0",
-    cookie_attributes="SameSite=Strict",
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
@@ -607,7 +626,6 @@ def handler_for(
             "preview_upto": preview_upto,
             "preview_source": preview_source,
             "protocol_version": protocol_version,
-            "cookie_attributes": cookie_attributes,
             "event_endpoint": EventEndpoint(page_dir),
             "layer": identity["generation"],
             "layer_identity": identity,

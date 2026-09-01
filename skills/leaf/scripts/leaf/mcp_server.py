@@ -39,7 +39,11 @@ def make_mcp_server(
         page_html if page_html is not None else page_app_html(),
         name="Leaf page",
         description="The complete canonical Leaf browser interface in an MCP App.",
-        csp=ResourceCsp(frame_domains=[pages.origin]),
+        csp=ResourceCsp(
+            connect_domains=[],
+            resource_domains=[],
+            frame_domains=[pages.origin],
+        ),
         prefers_border=False,
     )
     apps.add_html_resource(

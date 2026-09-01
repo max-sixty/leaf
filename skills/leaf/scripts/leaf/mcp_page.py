@@ -24,6 +24,25 @@ from .structure import parse_structure
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
 PAGE_APP_RESOURCE = ASSETS / "vendor" / "mcp-page-app.html"
 PAGE_FORMAT = "leaf.page/v1"
+_READY_PATH = "/mcp-ready.js"
+_READY_SCRIPT = (
+    b"if(window.parent!==window){const ready=()=>{if(document.body?.dataset."
+    b'lfPresented!=="1")return false;window.parent.postMessage({type:'
+    b'"leaf:mcp-page-ready"},"*");return true};if(!ready()){const observer='
+    b"new MutationObserver(()=>{if(ready())observer.disconnect()});observer.observe("
+    b"document.documentElement,{attributes:true,subtree:true,attributeFilter:"
+    b'["data-lf-presented"]})}}\n'
+)
+
+
+def _with_ready_signal(body: bytes, page_root: str) -> bytes:
+    """Let the parent App distinguish a loaded page from a browser error document."""
+    closing = body.lower().rfind(b"</body>")
+    if closing < 0:
+        return body
+    source = f"{page_root}{_READY_PATH}"
+    script = f'<script type="module" src="{source}" data-lf-runtime></script>'.encode()
+    return body[:closing] + script + body[closing:]
 
 
 @dataclass
@@ -70,6 +89,17 @@ class _RoutedPageHandler(Handler):
         if self.command == "POST":
             self.close_connection = True
         self._json({"error": "not found"}, 404)
+
+    def _send(self, status: int, ctype: str, body: bytes) -> None:
+        if status == 200 and ctype.startswith("text/html"):
+            body = _with_ready_signal(body, self.page_root)
+        super()._send(status, ctype, body)
+
+    def _get(self):
+        if urlsplit(self.path).path == _READY_PATH:
+            self._send(200, "text/javascript; charset=utf-8", _READY_SCRIPT)
+            return
+        super()._get()
 
     def _select_or_answer(self) -> bool | None:
         """Select a page, answering route faults before the shared handler exists."""
@@ -190,6 +220,12 @@ def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
         raise ToolError(
             f"{page_dir} has no active revision; write a valid index.html first"
         )
+    if state["browser"] is None:
+        detail = state["source_error"] or "the page registry cannot be projected"
+        raise ToolError(
+            f"{page_dir} cannot be presented with its vendored layer: {detail}. "
+            f"Run `leaf page init {page_dir}` to re-vendor the page."
+        )
     server = running_server(page_dir) or {}
     source = revision_path(page_dir, active["revision"]).read_text(encoding="utf-8")
     title = parse_structure(source).title.strip() or page_dir.name
@@ -227,7 +263,3 @@ def page_result(page: str | Path, pages: ProcessPageServer) -> CallToolResult:
         structuredContent=summary,
         _meta={"leaf": private},
     )
-
-
-def page_app_html() -> str:
-    return PAGE_APP_RESOURCE.read_text(encoding="utf-8")

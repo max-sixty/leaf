@@ -3,19 +3,20 @@
 import copy
 from pathlib import Path
 
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 from tinycss2 import parse_stylesheet, serialize
 
 from .event_endpoint import EventEndpoint
 from .exporting import inline_assets, inline_css_assets
 from .files import revision_path
+from .mcp_page import PAGE_APP_RESOURCE
 from .registry.storage import layer_generation
-from .schema import SKILL_ROOT
 from .served_state.service import PageStateService
 from .structure import parse_structure
 
-APP_URI = "ui://leaf/review/v1.html"
 APP_MIME = "text/html;profile=mcp-app"
+SNAPSHOT_FORMAT = "leaf.snapshot/v1"
 
 _ENDPOINTS: dict[tuple[Path, str], EventEndpoint] = {}
 
@@ -58,6 +59,12 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         raise ValueError(
             f"{page_dir} has no active revision; write a valid index.html first"
         )
+    if state["browser"] is None:
+        detail = state["source_error"] or "the page registry cannot be projected"
+        raise ToolError(
+            f"{page_dir} cannot be presented with its vendored layer: {detail}. "
+            f"Run `leaf page init {page_dir}` to re-vendor the page."
+        )
     revision = active["revision"]
     source = revision_path(page_dir, revision).read_text(encoding="utf-8")
     parsed = parse_structure(source)
@@ -68,6 +75,8 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
     )
     server = state.get("server") or {}
     summary = {
+        "format": SNAPSHOT_FORMAT,
+        "mode": "snapshot",
         "page": str(page_dir),
         "title": title,
         "revision": revision,
@@ -155,4 +164,4 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
 
 
 def app_html() -> str:
-    return (SKILL_ROOT / "assets" / "mcp-app.html").read_text(encoding="utf-8")
+    return PAGE_APP_RESOURCE.read_text(encoding="utf-8")

@@ -1,3 +1,5 @@
+# MCP Apps research
+
 ## Research Questions
 
 **Primary**: Can Leaf add MCP Apps as a delivery surface without adding a second interface or state authority?
@@ -10,25 +12,28 @@
 
 ## Current Status
 
-### Latest Results: experiment 30
+### Latest Results: experiment 32
 
-The production candidate passed in the official reference host: one exact CSP
-origin served the canonical page at a queryless random capability path, reached
-Leaf's presentation gate, appended a keyboard option action through the ordinary
-event endpoint, negotiated fullscreen, and produced no Leaf-origin console
-failure. This removes the earlier wildcard CSP, per-page server, query token,
-partitioned cookie, and hard-coded single-choice compact interface.
+The one-resource candidate removed experiment 31's Codex cache collision: both
+cards selected the correct adaptive mode, the snapshot rendered, and four
+read-only presentation/refresh calls needed no approval under `writes`. The
+full-mode shell was correct, but Codex blocked its nested localhost page with
+`ERR_BLOCKED_BY_CSP` despite the exact declared frame domain. The shell's iframe
+`load` event then falsely announced success for Chromium's error document. Codex
+desktop 26.825.32147 removes every `http:` frame domain while constructing the
+sandbox CSP; the official reference host accepts this exact origin.
 
 ### Current Experiment: none
 
-**Status**: Local reference-host candidate complete
-**Purpose**: The combined registered server now covers the complete canonical
-page, an explicit authored-snapshot fallback, and exact-origin capability routing.
+**Status**: Capability- and readiness-gated snapshot fallback complete locally
+**Purpose**: Submit it as experiment 33 without rewriting experiment 32's failed
+candidate result.
 
 ## Next Steps
 
-1. Probe the installed Codex host and record whether its private-network policy
-   accepts the exact localhost frame origin.
+1. Submit the readiness-gated candidate as experiment 33. The official host
+   should reveal the full page only after its presentation marker; Codex should
+   replace its hidden blocked frame with the read-only authored snapshot.
 2. Keep the detached Codex adapter as the sole durable wake and acknowledgement
    carrier; no remaining implementation decision depends on `ui/message` policy.
 3. If accessibility parity becomes the next question, compare Axe before and
@@ -36,6 +41,7 @@ page, an explicit authored-snapshot fallback, and exact-origin capability routin
 
 ## Reference
 
-- Reproduce experiment 30: `bash notes/mcp-apps/experiments/30/commands.sh`
-- Read its result: `cat notes/mcp-apps/experiments/30/results/reference-host.json`
+- Read the unified candidate result: `cat notes/mcp-apps/experiments/32/README.md`
+- Read the installed-main baseline: `cat notes/mcp-apps/experiments/31/README.md`
+- Reproduce the last reference-host run: `bash notes/mcp-apps/experiments/30/commands.sh`
 - Inspect the current project: `sed -n '1,240p' notes/mcp-apps/PROJECT.md`

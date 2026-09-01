@@ -5,7 +5,7 @@ import shutil
 from interact_support import ROOT
 from leaf.event_log import append_event, read_events
 from leaf.mcp_app import app_html, app_snapshot, apply_event
-from leaf.mcp_page import ProcessPageServer
+from leaf.mcp_page import ProcessPageServer, page_state
 from leaf.revisioning import activate_source
 from playwright.sync_api import expect
 
@@ -14,6 +14,7 @@ HOST = """<!doctype html>
 <script>
 window.calls = [];
 window.currentLeaf = null;
+window.snapshotLeaf = null;
 window.hostCapabilities = {openLinks: {}, serverTools: {}};
 const answer = (target, id, result) => target.postMessage(
   {jsonrpc: "2.0", id, result}, "*"
@@ -39,6 +40,7 @@ window.addEventListener("message", (event) => {
   if (message.method === "ui/initialize") {
     answer(event.source, message.id, {
       protocolVersion: "2026-01-26",
+      hostInfo: {name: "Leaf test host", version: "1"},
       hostCapabilities: window.hostCapabilities,
       hostContext: {
         theme: "light",
@@ -56,13 +58,17 @@ window.addEventListener("message", (event) => {
   }
   if (message.method === "tools/call") {
     const name = message.params.name;
+    let leaf = window.currentLeaf;
+    if (name === "leaf_snapshot_refresh" && window.snapshotLeaf)
+      leaf = window.snapshotLeaf;
     if (name === "leaf_snapshot_apply_event") {
       window.currentLeaf = {
         ...window.currentLeaf,
         eventSeq: window.currentLeaf.eventSeq + 1,
       };
+      leaf = window.currentLeaf;
     }
-    answer(event.source, message.id, toolResult(window.currentLeaf));
+    answer(event.source, message.id, toolResult(leaf));
     return;
   }
   if (message.method === "ui/message") {
@@ -238,6 +244,177 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         pages.close()
 
 
+def test_adaptive_app_renders_the_complete_page_payload(browser, page_dir):
+    pages = ProcessPageServer()
+    page = browser.new_page(viewport={"width": 1100, "height": 900})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.on(
+        "console",
+        lambda message: (
+            errors.append(message.text) if message.type == "error" else None
+        ),
+    )
+    try:
+        _, private = page_state(str(page_dir), pages)
+        _, snapshot = app_snapshot(str(page_dir))
+        page.set_content(HOST)
+        page.evaluate(
+            """input => {
+              window.currentLeaf = input.leaf;
+              window.hostCapabilities = {
+                ...window.hostCapabilities,
+                sandbox: {csp: {frameDomains: [input.origin]}},
+              };
+            }""",
+            {"leaf": private, "origin": pages.origin},
+        )
+        page.evaluate("leaf => window.snapshotLeaf = leaf", snapshot)
+        page.locator("#app").evaluate(
+            "(frame, html) => frame.srcdoc = html", app_html()
+        )
+        app = next(
+            frame for frame in page.frames if frame.parent_frame == page.main_frame
+        )
+        app.locator("#title").wait_for()
+
+        assert app.locator("#title").text_content() == "t"
+        assert "Complete page" in app.locator("#meta").text_content()
+        assert private["active"]["label"] in app.locator("#meta").text_content()
+        assert "undefined" not in app.locator("#app").text_content()
+        expect(app.locator("#leaf-page")).to_be_visible()
+        expect(app.locator("#comment-page")).to_be_hidden()
+        expect(app.locator("#snapshot")).to_be_visible()
+
+        expect(app.locator("#leaf-page")).to_have_attribute(
+            "src", private["inline_url"]
+        )
+        nested = next(frame for frame in page.frames if frame.parent_frame == app)
+        nested.wait_for_function(
+            "() => document.body.getAttribute('data-lf-presented') === '1'"
+        )
+        assert nested.url == private["inline_url"]
+        assert nested.title() == "t"
+        assert "Ship dark" in nested.locator("body").text_content()
+        assert "Leaf page loaded" not in app.locator("#status").text_content()
+        expect(app.locator("#status")).to_contain_text("Complete Leaf page ready")
+        assert not [
+            call
+            for call in page.evaluate("window.calls")
+            if call["method"] == "tools/call"
+            and call["params"]["name"] == "leaf_snapshot_refresh"
+        ]
+        app.locator("#refresh").click()
+        page.wait_for_function(
+            "() => window.calls.some(call => call.method === 'tools/call' && "
+            "call.params.name === 'leaf_refresh')"
+        )
+        assert not [
+            call
+            for call in page.evaluate("window.calls")
+            if call["method"] == "tools/call"
+            and call["params"]["name"] == "leaf_snapshot_apply_event"
+        ]
+        app.locator("#snapshot").click()
+        expect(app.locator("#page-host")).to_be_visible()
+        expect(app.locator("#leaf-page")).to_be_hidden()
+        assert "Authored snapshot" in app.locator("#meta").text_content()
+        assert "Ship dark" in app.locator("#page-host").evaluate(
+            "host => host.shadowRoot.textContent"
+        )
+        assert errors == []
+    finally:
+        page.close()
+        pages.close()
+
+
+def test_adaptive_app_skips_a_frame_the_host_did_not_approve(browser, page_dir):
+    pages = ProcessPageServer()
+    page = browser.new_page(viewport={"width": 1100, "height": 900})
+    try:
+        _, private = page_state(str(page_dir), pages)
+        _, snapshot = app_snapshot(str(page_dir))
+        page.set_content(HOST)
+        page.evaluate(
+            """leaf => {
+              window.currentLeaf = leaf;
+              window.hostCapabilities = {
+                ...window.hostCapabilities,
+                sandbox: {csp: {frameDomains: []}},
+              };
+            }""",
+            private,
+        )
+        page.evaluate("leaf => window.snapshotLeaf = leaf", snapshot)
+        page.locator("#app").evaluate(
+            "(frame, html) => frame.srcdoc = html", app_html()
+        )
+        app = next(
+            frame for frame in page.frames if frame.parent_frame == page.main_frame
+        )
+
+        expect(app.locator("#meta")).to_contain_text("Authored snapshot")
+        assert app.locator("#leaf-page").get_attribute("src") in (None, "about:blank")
+        assert not [
+            frame for frame in page.frames if frame.url.startswith(pages.origin)
+        ]
+        assert [
+            call["params"]["name"]
+            for call in page.evaluate("window.calls")
+            if call["method"] == "tools/call"
+        ] == ["leaf_snapshot_refresh"]
+        assert "did not approve" in app.locator("#status").text_content()
+    finally:
+        page.close()
+        pages.close()
+
+
+def test_adaptive_app_falls_back_when_the_complete_page_never_signals_ready(
+    browser, page_dir
+):
+    pages = ProcessPageServer()
+    page = browser.new_page(viewport={"width": 1100, "height": 900})
+    try:
+        _, private = page_state(str(page_dir), pages)
+        private["inline_url"] = f"{pages.origin}/blocked"
+        _, snapshot = app_snapshot(str(page_dir))
+        page.set_content(HOST)
+        page.evaluate("leaf => window.currentLeaf = leaf", private)
+        page.evaluate("leaf => window.snapshotLeaf = leaf", snapshot)
+        page.locator("#app").evaluate(
+            "(frame, html) => frame.srcdoc = html", app_html()
+        )
+        app = next(
+            frame for frame in page.frames if frame.parent_frame == page.main_frame
+        )
+        app.locator("#title").wait_for()
+
+        expect(app.locator("#page-loading")).to_be_visible()
+        expect(app.locator("#leaf-page")).to_be_hidden()
+        expect(app.locator("#meta")).to_contain_text("Authored snapshot", timeout=8000)
+        expect(app.locator("#page-host")).to_be_visible()
+        assert [
+            call["params"]["name"]
+            for call in page.evaluate("window.calls")
+            if call["method"] == "tools/call"
+        ] == ["leaf_snapshot_refresh"]
+        assert "did not become ready" in app.locator("#status").text_content()
+
+        app.locator("#browser").click()
+        page.wait_for_function(
+            "() => window.calls.some(call => call.method === 'ui/open-link')"
+        )
+        opened = next(
+            call
+            for call in page.evaluate("window.calls")
+            if call["method"] == "ui/open-link"
+        )
+        assert opened["params"]["url"] == private["inline_url"]
+    finally:
+        page.close()
+        pages.close()
+
+
 def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_delivery(
     browser, page_dir
 ):
@@ -259,7 +436,9 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
         page.locator("#app").evaluate(
             "(frame, html) => frame.srcdoc = html", app_html()
         )
-        app = page.frames[-1]
+        app = next(
+            frame for frame in page.frames if frame.parent_frame == page.main_frame
+        )
         app.locator("#title").wait_for()
         assert app.locator("#title").text_content() == "t"
         assert (
@@ -365,6 +544,12 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
         ]
         assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
 
+        app.locator("#refresh").click()
+        page.wait_for_function(
+            "() => window.calls.some(call => call.method === 'tools/call' && "
+            "call.params.name === 'leaf_snapshot_refresh')"
+        )
+
         assert app.locator("#browser").inner_text() == "Full page"
         app.locator("#browser").click()
         page.wait_for_function(
@@ -415,7 +600,9 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
         page.locator("#app").evaluate(
             "(frame, html) => frame.srcdoc = html", app_html()
         )
-        app = page.frames[-1]
+        app = next(
+            frame for frame in page.frames if frame.parent_frame == page.main_frame
+        )
         app.locator("#title").wait_for()
 
         assert (
@@ -456,7 +643,9 @@ def test_mcp_app_is_read_only_when_the_host_cannot_proxy_server_tools(
         page.locator("#app").evaluate(
             "(frame, html) => frame.srcdoc = html", app_html()
         )
-        app = page.frames[-1]
+        app = next(
+            frame for frame in page.frames if frame.parent_frame == page.main_frame
+        )
         app.locator("#title").wait_for()
 
         assert app.locator("#comment-page").is_disabled()

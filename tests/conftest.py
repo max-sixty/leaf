@@ -199,3 +199,44 @@ def browser():
         b = p.chromium.launch()
         yield b
         b.close()
+
+
+@pytest.fixture(scope="session")
+def headless_shell():
+    """The path of a browser that is not installed Chrome, for the tests that hand
+    one to a leaf process through LEAF_BROWSER_EXECUTABLE.
+
+    Playwright reports where its full Chromium build would be whether or not that
+    build is installed, and the documented setup installs the shell alone
+    (tests/CLAUDE.md, "Run the narrowest useful surface"). Both sit under one
+    registry root at one build number, so the shell's path follows from Chromium's;
+    where a developer installed the full build instead, that is the browser to hand
+    over and the same tests hold on it.
+
+    Asked in a subprocess because the answer is a path and the question is not free
+    here: a second `sync_playwright()` inside this process raises where the
+    session's `browser` fixture already holds one open, so which tests had run
+    first would decide whether the fixture worked."""
+    read = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from playwright.sync_api import sync_playwright\n"
+                "with sync_playwright() as p: print(p.chromium.executable_path)"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    chromium = Path(read.stdout.strip())
+    root, build = chromium.parents[2], chromium.parents[1].name.rsplit("-", 1)[1]
+    shell = root / f"chromium_headless_shell-{build}"
+    for candidate in (*sorted(shell.glob("*/chrome-headless-shell*")), chromium):
+        if candidate.is_file():
+            return str(candidate)
+    raise AssertionError(
+        f"no Playwright Chromium under {root}; run `uv run playwright install "
+        "chromium --only-shell` (tests/CLAUDE.md)"
+    )

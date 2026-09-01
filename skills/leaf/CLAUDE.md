@@ -113,7 +113,8 @@ start directional walks;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
 `runtime/navigation.js` owns reader travel and scroller selection;
-`runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
+`runtime/anchors.js` owns anchor resolution, paint, anchor-specific travel, and
+cross-widget projected-datum travel;
 `runtime/conversation/model.js` adapts server-projected threads to browser callers;
 `runtime/conversation/messages.js` owns message rendering;
 `runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
@@ -835,6 +836,11 @@ minimum obligations:
   descendant; `projectData` then owns the labels without moving those nodes. Pass
   `labelOf` when generic chrome should name a datum in human terms instead of exposing
   its stable key.
+- Cross-widget datum travel goes through `navigateToDatum(widget, attribute, key,
+  messages)`, where `attribute` is declared by the caller's `x-refers`. Core resolves
+  the target across declared shadow roots and owns lazy reveal, disclosure focus,
+  scrolling, history, and announcements. A target with lazy or semantic coordinates may
+  supply `lfRevealDatum(key)` and `lfDataDatum(key)`; callers do not inspect its DOM.
 - Declare each external input through the widget's `x-data`, then subscribe with
   `watchData(widget, input, callback)`. The authored source attribute is the page's
   binding; the named contract is the input's meaning. An optional declared snapshot
@@ -918,9 +924,10 @@ page-owned store with a replaceable current value and retained immutable capture
 `$data.contracts` declares reusable meanings and schemas. A widget's `x-data` names the
 contract, the attribute carrying this page's concrete source id, and optionally an
 attribute selecting one capture by data revision. `leaf data set` validates and
-atomically replaces the current value. `leaf data capture` reads a UTF-8 text file,
-may slice an inclusive line range, and both replaces current and retains the value
-under the new data revision.
+atomically replaces the current value. `leaf data capture` reads a UTF-8 file; text
+captures may slice an inclusive line range, while an explicit format may transform the
+file into a contract-shaped value. Both replace current and retain the value under the
+new data revision.
 Neither command appends an event or runs package code, and capture stores no source
 path. Each stored source retains its contract even after clear, so re-vendoring never has
 to infer meaning from a source's spelling.

@@ -88,13 +88,13 @@ Commands:
             ["data", "--help"],
             """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
 
-  Manage current values and immutable text captures.
+  Manage current values and immutable file captures.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  capture  Capture a bound UTF-8 text source.
+  capture  Capture a bound UTF-8 file.
   clear    Clear current and unreferenced captures.
   set      Replace one bound source value.
 """,

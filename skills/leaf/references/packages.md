@@ -339,19 +339,25 @@ complete snapshot using the page's source id:
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
 leaf data set PAGE release-ci --file signed-build-state.json --capture-label "release candidate"
-leaf data capture PAGE release-notes --text-file CHANGELOG.md --lines 20:44
+leaf data capture PAGE release-notes --file CHANGELOG.md --lines 20:44
+leaf data capture PAGE review-patch --file change.patch --format unified-diff \
+  --label "PR at 8f61c2a"
 leaf data clear PAGE release-ci
 ```
 
 `data set` validates before replacing the source atomically. Add `--capture-label` when
 that structured value should also be retained as an immutable snapshot; `data capture`
-is the UTF-8 text-file convenience for the same lifecycle. A rejected value leaves the
+reads a UTF-8 file into the same lifecycle. A rejected value leaves the
 prior revision untouched. Source revisions and event sequences are independent:
 an old poll may contain new data, and a new event response may contain old data, so
 neither orders the other.
 
-`data capture` reads a UTF-8 text file without making the author copy it into markup.
-It can select an inclusive `START:END` line range and attach a display label. A capture
+`data capture` reads a UTF-8 file without making the author copy it into markup.
+The default `text` format can select an inclusive `START:END` line range. The
+`unified-diff` format validates a Git patch and builds the file-fragmented manifest the
+diff widget consumes; binary, mode-only, empty added or deleted, copy, and malformed
+hunk entries are rejected rather than silently omitted. Both formats may attach a
+display label. A capture
 both replaces the source's current value and retains that value under the reported data
 revision. A widget without its snapshot attribute follows the current value; a widget with
 `snapshot="REVISION"` keeps reading that immutable capture. The captured source path is
@@ -436,6 +442,13 @@ rejection is reported as that subscriber's page error; it does not make later st
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
 until the element is reconnected.
+
+`navigateToDatum(widget, attribute, key, messages)` follows an `x-refers` attribute to
+another projection and travels to its opaque datum key. Leaf resolves declared shadow
+trees, asks the target to hydrate lazy data, opens its containing disclosure, focuses
+that disclosure, updates the fragment, and announces the supplied `success` or `missing`
+message. A lazy target may implement `lfRevealDatum(key)` to return its hydration promise
+and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
 
 ## Seeing it
 

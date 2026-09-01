@@ -283,8 +283,10 @@ def publish_pages(out: Path, env: dict) -> None:
                     "capture",
                     str(page),
                     operation["source"],
-                    "--text-file",
-                    str(operation["text_file"]),
+                    "--file",
+                    str(operation["input_file"]),
+                    "--format",
+                    operation["format"],
                 ]
                 if operation["label"] is not None:
                     args.extend(("--label", operation["label"]))

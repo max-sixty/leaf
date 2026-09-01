@@ -79,6 +79,34 @@ def lifetime_note(page_dir: Path) -> str:
     )
 
 
+def loopback_note(page_dir: Path) -> str | None:
+    """Whether the URL just printed leaves this machine, said before it is handed
+    over rather than after the user reports a dead link.
+
+    A derived address is loopback whenever SSH_CONNECTION is absent, and that is
+    not only a session sitting with its reader: a scheduler, a daemon, or a
+    detached background job is remote from the user without having arrived over
+    SSH, and takes the same branch. Neither the URL nor the lifetime line says
+    the address is machine-local, so the one reader who cannot report it is the
+    one who receives it.
+
+    Read from the recorded bind rather than from SSH_CONNECTION, because the
+    record is what the server bound: a restart re-serving a loopback record says
+    the same thing in an environment that would derive something else. A stated
+    host binds the wildcard, which is not loopback, and says nothing."""
+    bind = (read_json(page_dir / "service.json") or {}).get("bind")
+    try:
+        local = ipaddress.ip_address(bind).is_loopback
+    except ValueError:
+        return None
+    if not local:
+        return None
+    return (
+        "loopback bind: this URL opens only from a browser on this machine. "
+        "Re-serve with `--host NAME` for a reader anywhere else."
+    )
+
+
 def stop_when_service_ends(page_dir: Path) -> None:
     """Apply desired state and session ownership from inside the server.
 

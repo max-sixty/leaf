@@ -337,9 +337,15 @@ def wait_hovered(page, text):
 
 def card_body(page, says):
     """A point low on a comment's card, below the quote — where a reader's hand rests
-    while they read the comment, and where nothing presses."""
+    while they read the comment, and where nothing presses.
+
+    Low on the card *as the reader sees it*: the list scrolls, so the last card's own
+    bottom can sit below the scroller and behind the panel's foot. A point read off the
+    card's rect alone lands on the general box there, which hovers no card at all."""
     box = page.locator(".lf-thread").filter(has_text=says).first.bounding_box()
-    return box["x"] + box["width"] / 2, box["y"] + box["height"] - 8
+    seen = page.locator(".lf-threads").bounding_box()
+    bottom = min(box["y"] + box["height"], seen["y"] + seen["height"])
+    return box["x"] + box["width"] / 2, bottom - 8
 
 
 # Addressable links that start within one digit's width of each other: a run of footnote

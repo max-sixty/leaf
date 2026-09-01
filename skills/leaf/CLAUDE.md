@@ -650,8 +650,13 @@ connected before the first state and one constructed by a later thread reconcile
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
 event list did not grow and the heartbeat's re-application of the state the page
-already holds. This lets a module refresh elapsed time and retry a render
-deferred by live input without owning a timer or a second event cursor.
+already holds. The outbox fires it too, for the reconciliation it performs on an
+answer of its own — a refused action, or a read event — which withdraws or
+settles a winner without applying a state. Every pass that reconciles is
+therefore heard through this one event, which is what keeps a surface reading the
+projection rather than the DOM current with a withdrawal. It also lets a module
+refresh elapsed time and retry a render deferred by live input without owning a
+timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchUpdates` when their element disconnects.
 
@@ -1371,18 +1376,19 @@ the full thread panel or a widget frozen into conversation chrome—the compact
 
 Content modules contribute through `registerMarginItem`; they own their verbs and
 events, never placement or control styling. Every press in a contribution is built
-with `marginAction(control, {glyph, label, behavior, tone, collapse})`. That is the
-one RHS control type: it owns the capsule, height, radius, type, focus, state paint,
-and glyph/word anatomy shared by decisions, editing, communications, and information
-triggers. Its behavior states the promise before the press:
+with `marginAction(control, {glyph, label, behavior, tone})`. That is the one RHS
+control type: it owns the circle, size, type, focus, state paint, and glyph/word
+anatomy shared by decisions, editing, communications, and information triggers. Its
+behavior states the promise before the press:
 
-- `action` is filled, carries an imperative verb, and performs its effect immediately;
-- `disclosure` is hollow, carries `aria-expanded` when it controls persistent context,
-  and opens or closes that context without settling it;
-- `options` is the hollow `…` Button and unfolds the cluster's secondary Buttons in
+- `action` has a uniformly heavier ring, carries an imperative verb, and performs its
+  effect immediately;
+- `disclosure` has the ordinary ring, carries `aria-expanded` when it controls
+  persistent context, and opens or closes that context without settling it;
+- `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
   place.
 
-Shape and fill state carry that distinction without an added chevron. A lone
+Ring weight carries that distinction without changing shape or adding a chevron. A lone
 non-thread informational Button reveals its target directly. Each additional
 non-thread reading gets its own peer Button under `…`; pressing one reveals that
 reading directly rather than collecting readings in a card. All threads at one target
@@ -1403,10 +1409,11 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
-complete target cluster fits and hides it only when the shared layout needs the room;
-`always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes
-paint, not behavior, the DOM, or the accessible name.
+Every Button rests as a circle. Its label appears as transient chrome on hover or
+keyboard focus without changing the cluster's geometry; an open disclosure keeps its
+label visible. Labels for `disclosure` and `options` end in an ellipsis, while immediate
+action labels do not. The complete word remains in the DOM and the accessible name
+never changes.
 
 The living margin groups contributions and state readings by exact target identity,
 chooses the primary, and owns the generated disclosure and `…` Buttons plus the

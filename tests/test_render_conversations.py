@@ -1750,12 +1750,18 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,
     # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
-    # last, which is worn by nothing and is here for the other half of the sentence. lf-copy is the medium `version export` marks on the root, and the runtime
-    # names it under a negation to withhold the live page's scroller from a file that has
-    # no panel to scroll beside; a rule that dresses no element can leak onto none, and
-    # what the pin is for is the day one of these stops being either kind.
+    # first two, which document level names only to hold a rule off them and which are here
+    # for the other half of the sentence. lf-copy is the medium `version export` marks on
+    # the root, and the runtime names it under a negation to withhold the live page's
+    # scroller from a file that has no panel to scroll beside; a rule that dresses no
+    # element can leak onto none, and what the pin is for is the day one of these stops
+    # being either kind.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
+        # The compact response field, named the same way: the general text box's rule
+        # excludes it at document level because the field takes its whole geometry from
+        # the response controls it shares a baseline with, inside the chrome's own scope.
+        "lf-fab-input",
         "lf-ui",
         # A native label can pass through an intermediate focus target. These project
         # the held control's focus until activation settles.
@@ -1792,7 +1798,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-action",
         "lf-margin-action-glyph",
         "lf-margin-action-space",
-        "lf-condensed",
+        "lf-margin-action-label",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",
@@ -2268,19 +2274,16 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
 def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
     browser, serve
 ):
-    """A change sent in a reply measures itself when it is drawn, and states nothing
+    """A change sent in a reply keeps the canonical Button fitting and states nothing
     about the page's margin.
 
-    Two numbers come off a suggestion's row of controls at upgrade: each control's
-    floor, so the line a press is made on holds still when "Accept" becomes
-    "Accepted", and — once, for the whole page — the rail the document leaves at its
-    right edge for those rows to stand in. Both were taken off a row inside a comment
-    panel nobody had opened, where the box is zero: the controls floored at nothing,
-    and the page's rail was stated as bare margin and never restated, by a row that is
-    not in the page's margin at all.
+    A suggestion's controls and the document rail used to be measured together at
+    upgrade. A reply is upgraded inside a closed comment panel, where its box is zero:
+    that made its controls collapse and let a row outside the page's margin state the
+    page's rail. The fixed circular fitting no longer depends on that measurement, and
+    only an on-page contribution may claim rail space.
 
-    The page's own change is the control for the first number and the author of the
-    second."""
+    The page's own change is the geometry reference and the author of that rail."""
     reply_url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(serve.page_dir, REPLY_CHANGE, "tv-msg-sug")
     page, errors = open_page(browser, reply_url)
@@ -2299,14 +2302,15 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
         "a row standing in the panel stated the page's rail once it had a box of "
         "its own to state it from"
     )
-    floors = (
+    geometries = (
         "() => [...document.querySelectorAll("
         "'.lf-sug-actions [data-lf-offer=button]')]"
-        ".map((b) => b.style.minWidth)"
+        ".map((b) => { const s = getComputedStyle(b); "
+        "return [s.width, s.height, s.borderRadius]; })"
     )
-    in_reply = page.evaluate(floors)
-    assert in_reply and all(f for f in in_reply), (
-        f"a control in a reply holds no room for the word its press writes: {in_reply}"
+    in_reply = page.evaluate(geometries)
+    assert in_reply and all(shape == ["32px", "32px", "50%"] for shape in in_reply), (
+        f"a control in a reply lost the canonical circle: {in_reply}"
     )
     assert errors == []
     page.close()
@@ -2314,7 +2318,7 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
     # The same controls on the page, whose numbers these have to be.
     page, errors = open_page(browser, serve(CHANGE_PAGE))
     resized(page, 1280, 900)
-    on_page = page.evaluate(floors)
+    on_page = page.evaluate(geometries)
     assert in_reply == on_page, (
         f"the same control measures {in_reply} in a reply and {on_page} on the page"
     )

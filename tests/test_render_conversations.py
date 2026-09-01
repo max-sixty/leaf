@@ -61,9 +61,9 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
-    assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
-        "the new thread was in view without scrolling, so the reveal proved nothing"
-    )
+    assert (
+        page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0
+    ), "the new thread was in view without scrolling, so the reveal proved nothing"
     expect(box).to_be_focused()
     expect(box).to_have_value("")
 
@@ -119,9 +119,9 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
         "          top: window.__held.getBoundingClientRect().top })"
     )
     assert after["connected"], "the held thread was replaced, so its box says nothing"
-    assert abs(after["top"] - held["top"]) < 1, (
-        f"the arriving reply moved the thread the reader was on: {held} -> {after}"
-    )
+    assert (
+        abs(after["top"] - held["top"]) < 1
+    ), f"the arriving reply moved the thread the reader was on: {held} -> {after}"
     assert errors == []
     page.close()
 
@@ -148,9 +148,9 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     scroll = page.locator(".lf-threads").evaluate(
         "el => ({at: el.scrollTop, max: el.scrollHeight - el.clientHeight})"
     )
-    assert 0 < scroll["at"] < scroll["max"], (
-        f"the pressed card is at a scroll limit, so the list cannot hold it: {scroll}"
-    )
+    assert (
+        0 < scroll["at"] < scroll["max"]
+    ), f"the pressed card is at a scroll limit, so the list cannot hold it: {scroll}"
     resolve = page.locator(f'.lf-thread[data-id="{target}"] .lf-resolve')
     box = resolve.bounding_box()
     point = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
@@ -241,13 +241,11 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-work-line')).to_have_count(
-        1
-    )
+    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-receipt')).to_have_count(1)
     after = target_card.evaluate("el => el.getBoundingClientRect().top")
-    assert after == pytest.approx(before, abs=1), (
-        f"the work claim moved the later card from {before:.1f}px to {after:.1f}px"
-    )
+    assert after == pytest.approx(
+        before, abs=1
+    ), f"the work claim moved the later card from {before:.1f}px to {after:.1f}px"
     assert errors == []
     page.close()
 
@@ -837,9 +835,9 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     find = page.locator(".lf-find-box")
     for key in ("r", "e", "Backspace", "Backspace"):
         find.press(key)
-    assert page.evaluate("() => ({...window.__replyListeners})") == listeners, (
-        "reconciling a hidden thread registered another reply-box listener"
-    )
+    assert (
+        page.evaluate("() => ({...window.__replyListeners})") == listeners
+    ), "reconciling a hidden thread registered another reply-box listener"
     expect(find).to_have_value("")
 
     # The completed thread is absent under the narrowing. A later structured ask must
@@ -1033,9 +1031,9 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     resolved_edge = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
         "node => node.getBoundingClientRect().right"
     )
-    assert resolved_edge == pytest.approx(action_edge, abs=1), (
-        "the held outcome left the action row's right edge"
-    )
+    assert resolved_edge == pytest.approx(
+        action_edge, abs=1
+    ), "the held outcome left the action row's right edge"
     held = page.evaluate(LIST_STATE)
     assert held["standing"] == [c1, c2, c3], (
         "the resolved thread gave up its place in the frame it was resolved in, so "
@@ -1045,9 +1043,9 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "a thread on its way out is still walkable by t/T, so a "
         f"key can land on room that is about to go: the list offered {held['walkable']}"
     )
-    assert page.evaluate("() => window.__lfHeld.length") == 1, (
-        "the room went back without motion carrying it"
-    )
+    assert (
+        page.evaluate("() => window.__lfHeld.length") == 1
+    ), "the room went back without motion carrying it"
     now = page.locator(f'.lf-thread[data-id="{c2}"]').bounding_box()
     assert now == stood, (
         f"the thread below stood at {stood} and reads {now} in the frame the outcome "
@@ -1132,9 +1130,9 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         [source, target],
     )
     assert setup["sourceVisible"], "the folding card is outside the visible reflow"
-    assert setup["scrollTop"] > setup["source"]["height"], (
-        "the list cannot compensate for the fold before reaching its top edge"
-    )
+    assert (
+        setup["scrollTop"] > setup["source"]["height"]
+    ), "the list cannot compensate for the fold before reaching its top edge"
     point = [
         setup["target"]["x"] + setup["target"]["width"] / 2,
         setup["target"]["y"] + setup["target"]["height"] / 2,
@@ -1153,9 +1151,9 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     )
     told(page)
     expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
-    assert page.evaluate("() => window.__lfHeld.length") == before + 1, (
-        "the remote resolution did not start a fold"
-    )
+    assert (
+        page.evaluate("() => window.__lfHeld.length") == before + 1
+    ), "the remote resolution did not start a fold"
     assert (
         page.locator(".lf-threads").evaluate(
             "el => getComputedStyle(el).overflowAnchor"
@@ -1243,9 +1241,9 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     source_box = source_card.bounding_box()
     target_top = target_card.evaluate("el => el.getBoundingClientRect().top")
     scroll_top = page.locator(".lf-threads").evaluate("el => el.scrollTop")
-    assert scroll_top > source_box["height"], (
-        "the list cannot compensate for the fold before reaching its top edge"
-    )
+    assert (
+        scroll_top > source_box["height"]
+    ), "the list cannot compensate for the fold before reaching its top edge"
     point = [
         source_box["x"] + source_box["width"] / 2,
         source_box["y"] + source_box["height"] / 2,
@@ -1294,7 +1292,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     the motion starts, and a hold that reads it again mid-fold pins a card above the
     fold while everything past it — the successor the reader was aiming at among it —
     goes on moving. The arrival here is another thread's reply, which is one of several:
-    the two-second heartbeat repaints the work lines under the same hold, and so does a
+    the two-second heartbeat repaints the receipts under the same hold, and so does a
     narrowing.
     """
     page, errors = open_page(
@@ -1422,9 +1420,10 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
         "}",
         [source, successor],
     )
-    assert setup == {"sourceAbove": True, "successorVisible": True}, (
-        f"the fold is not above every visible fallback: {setup}"
-    )
+    assert setup == {
+        "sourceAbove": True,
+        "successorVisible": True,
+    }, f"the fold is not above every visible fallback: {setup}"
     resolved_box = resolved_card.bounding_box()
     page.mouse.move(
         resolved_box["x"] + resolved_box["width"] / 2,
@@ -1477,9 +1476,9 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
     assert not resolved_card.evaluate("el => el.checkVisibility()")
     page.evaluate(RENDERED)
     handed_off = page.evaluate(reading, successor)
-    assert handed_off["top"] == pytest.approx(inherited["top"], abs=1), (
-        f"the fallback paid for an old fold delta twice: {inherited} -> {handed_off}"
-    )
+    assert handed_off["top"] == pytest.approx(
+        inherited["top"], abs=1
+    ), f"the fallback paid for an old fold delta twice: {inherited} -> {handed_off}"
 
     page.evaluate("i => window.__lfHeld[i].finish()", before)
     page.evaluate(RENDERED)
@@ -1512,9 +1511,9 @@ def test_an_external_resolution_leaves_the_reader_on_the_thread_list(browser, se
     told(page)
     going = page.locator(f'.lf-going[data-id="{root["id"]}"]')
     expect(going).to_have_attribute("inert", "")
-    assert page.evaluate("() => window.__lfHeld.length") == 1, (
-        "the thread left without exercising the animated inert path"
-    )
+    assert (
+        page.evaluate("() => window.__lfHeld.length") == 1
+    ), "the thread left without exercising the animated inert path"
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(going.locator("textarea")).to_have_value(
         "This draft survives the other actor settling its thread."
@@ -1607,9 +1606,9 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         ]
         page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
         expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
-        assert page.evaluate("() => window.__lfHeld.length") == 0, (
-            "a reader who asked for less motion was given a fold to sit through"
-        )
+        assert (
+            page.evaluate("() => window.__lfHeld.length") == 0
+        ), "a reader who asked for less motion was given a fold to sit through"
         assert page.evaluate(LIST_STATE) == {
             "standing": [c2],
             "walkable": [c2],
@@ -1674,9 +1673,9 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     round_trip(page)
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
-    assert page.evaluate("window.__lfHeld.length") > folds, (
-        "the second settlement drew no fold of its own"
-    )
+    assert (
+        page.evaluate("window.__lfHeld.length") > folds
+    ), "the second settlement drew no fold of its own"
 
     # And the first fold runs out, which is the other half of two folds standing at
     # once: its node left the list when the thread reopened, and the record it must
@@ -1742,12 +1741,12 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         return { scoped: [...scoped], global: [...global_],
                  moved: Object.keys(a).filter(p => a[p] !== b[p]) };
     }""")
-    assert "lf-live" in surface["scoped"] and len(surface["scoped"]) > 20, (
-        "the @scope block is missing or nearly empty — the chrome has lost its rules"
-    )
-    assert surface["moved"] == [], (
-        f"scoped chrome rules reached an element in the page: {surface['moved']}"
-    )
+    assert (
+        "lf-live" in surface["scoped"] and len(surface["scoped"]) > 20
+    ), "the @scope block is missing or nearly empty — the chrome has lost its rules"
+    assert (
+        surface["moved"] == []
+    ), f"scoped chrome rules reached an element in the page: {surface['moved']}"
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,
     # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
@@ -1755,53 +1754,54 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # names it under a negation to withhold the live page's scroller from a file that has
     # no panel to scroll beside; a rule that dresses no element can leak onto none, and
     # what the pin is for is the day one of these stops being either kind.
-    assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        "lf-copy",
-        "lf-ui",
-        # A native label can pass through an intermediate focus target. These project
-        # the held control's focus until activation settles.
-        "lf-focus",
-        "lf-focus-visible",
-        "lf-btn",
-        "lf-pill",
-        "lf-address",
-        "lf-over-mark",
-        "lf-mark-el",
-        "lf-mark-hover",  # the same element mark, for the one the pointer indicates
-        "lf-mark-here",  # the same element mark, for the comment the reader is in
-        "lf-pending",
-        "lf-ins-block",
-        "lf-mark-note",
-        "lf-aiming",
-        "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
-        "lf-over-item",
-        "lf-quiet",
-        # Shared textual thread boxes render both in page-owned widget seats and in the
-        # chrome-owned margin preview.
-        "lf-conversation-msg",
-        "lf-say",
-        # A standing reaction's paint on the page: the element outline, the seat in the
-        # margin and the glyph in it, and the wash a copy carries as a <mark>.
-        "lf-react-el",
-        "lf-reacts",
-        "lf-react-mark",
-        "lf-react",
-        # Target actions are contributed outside the chrome scope and share one complete
-        # item. These names are the deliberate document-level half of that seam.
-        "lf-margin-item",
-        "lf-margin-contribution",
-        "lf-margin-action",
-        "lf-margin-action-glyph",
-        "lf-margin-action-space",
-        "lf-condensed",
-        # Visual reactions add a quiet keyboard proxy beside the authored target and
-        # an outline on the target while its shared action bar is standing.
-        "lf-visual-actions",
-        "lf-visual-action",
-        "lf-action-target",
-    }, (
-        "the document-level class surface changed: widen the shared vocabulary on purpose"
-    )
+    assert (
+        {c for c in surface["global"] if c.startswith("lf-")}
+        == {
+            "lf-copy",
+            "lf-ui",
+            # A native label can pass through an intermediate focus target. These project
+            # the held control's focus until activation settles.
+            "lf-focus",
+            "lf-focus-visible",
+            "lf-btn",
+            "lf-pill",
+            "lf-address",
+            "lf-over-mark",
+            "lf-mark-el",
+            "lf-mark-hover",  # the same element mark, for the one the pointer indicates
+            "lf-mark-here",  # the same element mark, for the comment the reader is in
+            "lf-pending",
+            "lf-ins-block",
+            "lf-mark-note",
+            "lf-aiming",
+            "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
+            "lf-over-item",
+            "lf-quiet",
+            # Shared textual thread boxes render both in page-owned widget seats and in the
+            # chrome-owned margin preview.
+            "lf-conversation-msg",
+            "lf-say",
+            # A standing reaction's paint on the page: the element outline, the seat in the
+            # margin and the glyph in it, and the wash a copy carries as a <mark>.
+            "lf-react-el",
+            "lf-reacts",
+            "lf-react-mark",
+            "lf-react",
+            # Target actions are contributed outside the chrome scope and share one complete
+            # item. These names are the deliberate document-level half of that seam.
+            "lf-margin-item",
+            "lf-margin-contribution",
+            "lf-margin-action",
+            "lf-margin-action-glyph",
+            "lf-margin-action-space",
+            "lf-condensed",
+            # Visual reactions add a quiet keyboard proxy beside the authored target and
+            # an outline on the target while its shared action bar is standing.
+            "lf-visual-actions",
+            "lf-visual-action",
+            "lf-action-target",
+        }
+    ), "the document-level class surface changed: widen the shared vocabulary on purpose"
     page.close()
 
 
@@ -1999,9 +1999,9 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
         f"{before['page']}px → {after['page']}px; the reader's place in the page is "
         "not this thread's to spend"
     )
-    assert after["panel"] != before["panel"], (
-        "the panel did not move at all, so the page holding still says nothing"
-    )
+    assert (
+        after["panel"] != before["panel"]
+    ), "the panel did not move at all, so the page holding still says nothing"
     assert not landed["atEnd"], (
         "the list is at the end of its range, which scrollIntoView reaches on its own "
         "— the seed must leave messages below the one carrying the widget, or the "
@@ -2106,9 +2106,9 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     after = page.evaluate(BOTH_BOXES)
     page.keyboard.up("Alt")
 
-    assert after == before, (
-        f"a thread about a fixed part of the layer moved something: {before} -> {after}"
-    )
+    assert (
+        after == before
+    ), f"a thread about a fixed part of the layer moved something: {before} -> {after}"
     assert page.evaluate(seen) == stood, (
         "the press moved the thread the reader pressed, which is the surface they were "
         "looking at"
@@ -2239,16 +2239,16 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     )
     inside = [m for m in marks if m["chrome"]]
     outside = [m for m in marks if not m["chrome"]]
-    assert inside and outside, (
-        f"this needs a mark in each document to compare; got {marks}"
-    )
+    assert (
+        inside and outside
+    ), f"this needs a mark in each document to compare; got {marks}"
     assert all(m["cursor"] == "pointer" for m in outside), (
         f"the page's own mark lost its hand, so the reading below is about nothing: "
         f"{outside}"
     )
-    assert all(m["cursor"] != "pointer" for m in inside), (
-        f"a mark in the layer offers the hand and no press is taken there: {inside}"
-    )
+    assert all(
+        m["cursor"] != "pointer" for m in inside
+    ), f"a mark in the layer offers the hand and no press is taken there: {inside}"
     # And the other half of the sentence, since a cursor is only a promise about a
     # press: the press itself, on the marked widget's own words, reaching no thread.
     opened = page.evaluate(
@@ -2306,9 +2306,9 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
         ".map((b) => b.style.minWidth)"
     )
     in_reply = page.evaluate(floors)
-    assert in_reply and all(f for f in in_reply), (
-        f"a control in a reply holds no room for the word its press writes: {in_reply}"
-    )
+    assert in_reply and all(
+        f for f in in_reply
+    ), f"a control in a reply holds no room for the word its press writes: {in_reply}"
     assert errors == []
     page.close()
 
@@ -2316,12 +2316,12 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
     page, errors = open_page(browser, serve(CHANGE_PAGE))
     resized(page, 1280, 900)
     on_page = page.evaluate(floors)
-    assert in_reply == on_page, (
-        f"the same control measures {in_reply} in a reply and {on_page} on the page"
-    )
-    assert page.evaluate(rail).strip(), (
-        "the page's own row states no rail, so the absence read above says nothing"
-    )
+    assert (
+        in_reply == on_page
+    ), f"the same control measures {in_reply} in a reply and {on_page} on the page"
+    assert (
+        page.evaluate(rail).strip()
+    ), "the page's own row states no rail, so the absence read above says nothing"
     assert errors == []
     page.close()
 
@@ -2492,9 +2492,9 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         threads = page.locator(".lf-threads > .lf-thread").count()
-        assert threads == 16, (
-            f"the fixture built {threads} threads, not the 16 it needs"
-        )
+        assert (
+            threads == 16
+        ), f"the fixture built {threads} threads, not the 16 it needs"
         assert page.evaluate(
             "() => { const l = document.querySelector('.lf-threads');"
             " return l.scrollHeight > l.clientHeight; }"
@@ -2534,9 +2534,9 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         # Non-vacuity: the walk has to have been on threads inside the scrolling list,
         # drawing rings, or the loop above asserted nothing at every step.
         assert standing_ring(page), "the walk ends on nothing wearing a ring"
-        assert standing_ring(page)["scrolled"], (
-            "the walk ends outside a scroll region, so the cut half proved nothing"
-        )
+        assert standing_ring(page)[
+            "scrolled"
+        ], "the walk ends outside a scroll region, so the cut half proved nothing"
 
         # The list's own controls, which t and T never reach: Reply and Resolve inside a
         # card draw their rings outside themselves, as does a run heading, which is a
@@ -2601,9 +2601,9 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
 
     page.keyboard.press("g")
     page.keyboard.press("p")
-    assert page.evaluate("() => document.activeElement === document.body"), (
-        "g p left the reader in the panel"
-    )
+    assert page.evaluate(
+        "() => document.activeElement === document.body"
+    ), "g p left the reader in the panel"
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(find).to_have_value("capacity")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
@@ -2658,9 +2658,9 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
         panel_settled(page)
         box = page.locator(".lf-threads")
         target = page.locator(".lf-threads > .lf-thread").nth(8)
-        assert box.evaluate("el => el.scrollHeight > el.clientHeight"), (
-            "the list does not scroll, so its edges are not distinct places"
-        )
+        assert box.evaluate(
+            "el => el.scrollHeight > el.clientHeight"
+        ), "the list does not scroll, so its edges are not distinct places"
         target.evaluate("el => el.focus({preventScroll: true})")
 
         before_page = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -2931,9 +2931,9 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         page.evaluate(BURY, 20)
         page.evaluate(RENDERED)
         before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-        assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
-            "the setup did not put the first card under its heading"
-        )
+        assert (
+            page.evaluate(UNDER_HEADING)["covered"] >= 20
+        ), "the setup did not put the first card under its heading"
 
         page.evaluate(
             """() => {
@@ -2949,9 +2949,9 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
         first.evaluate("el => el.focus({preventScroll: true})")
         page.evaluate(RENDERED)
-        assert page.evaluate(COVERED_TOP) is not None, (
-            "an unrelated pointer cancellation released the active panel gesture"
-        )
+        assert (
+            page.evaluate(COVERED_TOP) is not None
+        ), "an unrelated pointer cancellation released the active panel gesture"
 
         page.evaluate(
             """() => dispatchEvent(new PointerEvent('pointercancel', {
@@ -3019,9 +3019,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         assert (
             destination["bottom"] <= destination["banner"]
             or destination["top"] >= destination["height"]
-        ), (
-            f"the quoted passage is still readable, so a click need not travel: {destination}"
-        )
+        ), f"the quoted passage is still readable, so a click need not travel: {destination}"
 
         where = "() => document.scrollingElement.scrollTop"
         before = page.evaluate(where)
@@ -3035,9 +3033,9 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         page.wait_for_timeout(400)  # the travel is a glide, so let one finish if it ran
 
         drawn = page.evaluate("() => getSelection().toString()")
-        assert len(drawn) > 8, (
-            f"the drag took {drawn!r} of the quote, so this asserts nothing about one"
-        )
+        assert (
+            len(drawn) > 8
+        ), f"the drag took {drawn!r} of the quote, so this asserts nothing about one"
         after = page.evaluate(where)
         assert after == before, (
             f"the page travelled from {before} to {after} while the reader was taking "
@@ -3115,9 +3113,9 @@ def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
             "reader was selecting went with it"
         )
         drawn = page.evaluate("() => getSelection().toString()")
-        assert len(drawn) > 4, (
-            f"the drag selected {drawn!r}, so this asserts nothing about a selection"
-        )
+        assert (
+            len(drawn) > 4
+        ), f"the drag selected {drawn!r}, so this asserts nothing about a selection"
 
         assert errors == []
         page.close()
@@ -3171,12 +3169,12 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         # Narrow it until the long heading wraps. The gesture is the reader's own.
         draw_edge(page, edge, -(edge.wide - 320))
         edge_settled(page, edge)
-        assert page.evaluate(tallest) > 38, (
-            "no heading wrapped at the narrow end, so the drag changed nothing to notice"
-        )
-        assert page.evaluate(room) == f"{page.evaluate(tallest)}px", (
-            "the room a heading takes was measured at a width the reader has left"
-        )
+        assert (
+            page.evaluate(tallest) > 38
+        ), "no heading wrapped at the narrow end, so the drag changed nothing to notice"
+        assert (
+            page.evaluate(room) == f"{page.evaluate(tallest)}px"
+        ), "the room a heading takes was measured at a width the reader has left"
 
         # And the walk lands clear of it, which is what the number is for. Standing
         # nowhere first, said rather than clicked: `c` opens the box belonging to

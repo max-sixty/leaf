@@ -61,11 +61,9 @@ A page directory holds:
                          "work" holds typed, sequence-bounded claims on comment
                          threads or page widgets. At the state boundary these
                          private records become canonical claim updates, which
-                         their local seats show beside the page-wide line
-                         (`leaf status … --on`);
-                         when `leaf wait` prints for a non-working page, it
-                         writes working with "handoff": true until the agent's
-                         own `leaf status` lands
+                         their local receipts show beside the page-wide banner
+                         (`leaf status … --on`). Delivery pickup never writes
+                         this file; it is a page-owned event in comments.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all
@@ -77,7 +75,8 @@ A page directory holds:
                          studied and left
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
-                         `leaf ack`
+                         `leaf ack`; a page-owned pickup event separately names
+                         the exact reader events accepted by that consumer
     service.json         {"host", "bind", "port", "enabled", "lifetime"}: the
                          durable desired service. It preserves the exact URL an
                          open browser holds and whether a session may end it.

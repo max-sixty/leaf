@@ -21,7 +21,8 @@ The main owners are:
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;
-- `work`: transient work claims and widget work seats;
+- `acknowledgments` and `work`: growing delivery receipts, transient work
+  claims, and widget work seats;
 - `decisions`: declaration-driven page and thread decision projections;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;

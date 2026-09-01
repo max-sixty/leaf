@@ -71,7 +71,7 @@ export function createChromeLayout({
   // distinction for a Threads panel restored or opened during startup; its General
   // composer stays usable while the log-derived list says what it is waiting for.
 
-  // The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
+  // The threads the panel last reconciled. A receipt repaints on the heartbeat's clock and
   // not only on the log's, because its age is half of what it says and a claim nobody
   // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
   // makes that cheap: buildThreads walks the log and the page, and a second walk every two

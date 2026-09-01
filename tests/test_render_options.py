@@ -10,6 +10,8 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
@@ -87,12 +89,12 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
             runtimeName: runtimeAnimation?.animationName ?? null,
         };
     }""")
-    assert sampled["pageDistance"] == pytest.approx(20), (
-        f"the runtime replaced the page's lf-pulse keyframes: {sampled}"
-    )
-    assert sampled["runtimeName"] and sampled["runtimeName"] != "lf-pulse", (
-        f"the chrome lost its own private pulse animation: {sampled}"
-    )
+    assert sampled["pageDistance"] == pytest.approx(
+        20
+    ), f"the runtime replaced the page's lf-pulse keyframes: {sampled}"
+    assert (
+        sampled["runtimeName"] and sampled["runtimeName"] != "lf-pulse"
+    ), f"the chrome lost its own private pulse animation: {sampled}"
     assert errors == []
     page.close()
 
@@ -119,9 +121,9 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     pi = page.locator("#st-pi").bounding_box()
     group = page.locator("#stacked").bounding_box()
     assert sd["y"] + sd["height"] <= pi["y"], "substantial options must stack"
-    assert sd["width"] > group["width"] * 0.95, (
-        "a stacked option takes the whole column"
-    )
+    assert (
+        sd["width"] > group["width"] * 0.95
+    ), "a stacked option takes the whole column"
 
     rails = [
         page.locator(f"#{i} > dl.facts").bounding_box() for i in ("st-sd", "st-pi")
@@ -155,13 +157,13 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     )
     band = [chips.nth(i).bounding_box() for i in range(2)]
     for chip in band:
-        assert chip["y"] + chip["height"] <= title["y"] + 1, (
-            "the chips read before the title"
-        )
+        assert (
+            chip["y"] + chip["height"] <= title["y"] + 1
+        ), "the chips read before the title"
     assert abs(band[0]["x"] - title["x"]) < 1, "and start where the title does"
-    assert band[0]["x"] + band[0]["width"] <= band[1]["x"], (
-        "in the author's order, not overlapping"
-    )
+    assert (
+        band[0]["x"] + band[0]["width"] <= band[1]["x"]
+    ), "in the author's order, not overlapping"
 
     paper = page.locator("#t-paper").bounding_box()
     gps = page.locator("#t-gps").bounding_box()
@@ -191,13 +193,13 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     long_chips = page.locator("#t-gps > lf-chip")
     expect(long_chips).to_have_count(3)
     wrapped = [long_chips.nth(i).bounding_box() for i in range(3)]
-    assert wrapped[-1]["y"] > wrapped[0]["y"], (
-        "a band too wide for its card takes a second line"
-    )
+    assert (
+        wrapped[-1]["y"] > wrapped[0]["y"]
+    ), "a band too wide for its card takes a second line"
     for chip in wrapped:
-        assert chip["x"] + chip["width"] <= gps["x"] + gps["width"], (
-            "no chip the author wrote may cross the card's edge"
-        )
+        assert (
+            chip["x"] + chip["width"] <= gps["x"] + gps["width"]
+        ), "no chip the author wrote may cross the card's edge"
     page.close()
 
 
@@ -228,17 +230,17 @@ def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
         2,
     ], f"five terse variants come out three across at this width: {rows}"
     widths = [box["width"] for box in boxes.values()]
-    assert max(widths) - min(widths) < 1, (
-        f"a cell is one width whichever row it falls on: {widths}"
-    )
+    assert (
+        max(widths) - min(widths) < 1
+    ), f"a cell is one width whichever row it falls on: {widths}"
     tall, short = boxes["cv-ash"]["height"], boxes["cv-oak"]["height"]
     assert tall > short + 60, (
         f"cv-oak says one word and cv-ash six lines, so nothing but the row can be "
         f"setting a height they share: {short} vs {tall}"
     )
-    assert boxes["cv-fir"]["height"] > boxes["cv-yew"]["height"] + 10, (
-        "the second row the same, cv-fir taking two lines to cv-yew's one"
-    )
+    assert (
+        boxes["cv-fir"]["height"] > boxes["cv-yew"]["height"] + 10
+    ), "the second row the same, cv-fir taking two lines to cv-yew's one"
     for name in ("cv-elm", "cv-yew"):
         assert abs(boxes[name]["height"] - short) < 1, (
             f"{name} says as much as cv-oak and is the same box: "
@@ -261,9 +263,9 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
     rail = page.locator("#st-sd > dl.facts").bounding_box()
     prose = page.locator("#st-sd > p").bounding_box()
     card = page.locator("#st-sd").bounding_box()
-    assert rail["width"] > card["width"] * 0.8, (
-        "the rail still docks in a row this narrow"
-    )
+    assert (
+        rail["width"] > card["width"] * 0.8
+    ), "the rail still docks in a row this narrow"
     assert rail["y"] + rail["height"] <= prose["y"], "the case has to clear the rail"
     page.close()
 
@@ -345,9 +347,9 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     expect(mark).to_have_attribute("role", "checkbox")
     expect(mark).to_have_attribute("aria-checked", "false")
     line = key_line(page)
-    assert "toggle the nth" in line, (
-        f"the selected Decision hides its numbered answers behind More: {line}"
-    )
+    assert (
+        "toggle the nth" in line
+    ), f"the selected Decision hides its numbered answers behind More: {line}"
     expect(page.locator("#storage-options .lf-address")).to_have_text(["1", "2"])
     expect(page.locator("#storage-options .lf-address").first).to_be_visible()
     page.keyboard.press("Enter")
@@ -387,35 +389,35 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     edge = """el => { const s = getComputedStyle(el);
                       return s.borderTopStyle === 'none' ? 0 : parseFloat(s.borderTopWidth); }"""
-    assert page.locator("#approach").evaluate(edge) > 0, (
-        "the group draws no edge of its own, so nothing says the set is one thing"
-    )
-    assert page.locator("#opt-shim").evaluate(edge) == 0, (
-        "an option still draws its own border, so the group reads as cards standing apart"
-    )
+    assert (
+        page.locator("#approach").evaluate(edge) > 0
+    ), "the group draws no edge of its own, so nothing says the set is one thing"
+    assert (
+        page.locator("#opt-shim").evaluate(edge) == 0
+    ), "an option still draws its own border, so the group reads as cards standing apart"
     # The hairline belongs to the upper neighbour, so a child that floats inside the
     # group on a margin of its own — the thread question's Done press — is never
     # handed a recolored top edge.
     below = """el => { const s = getComputedStyle(el);
                        return s.borderBottomStyle === 'none' ? 0 : parseFloat(s.borderBottomWidth); }"""
-    assert page.locator("#opt-shim").evaluate(below) == 1, (
-        "the cells share no hairline, so the set reads as one box rather than as cells"
-    )
+    assert (
+        page.locator("#opt-shim").evaluate(below) == 1
+    ), "the cells share no hairline, so the set reads as one box rather than as cells"
     # The group's last child is the cell the module appends for the reader's own
     # option, so the last authored option still draws its line — against that cell,
     # not the group's border.
-    assert page.locator("#approach > :last-child").evaluate(below) == 0, (
-        "the group's last child draws a line against the group's own border"
-    )
+    assert (
+        page.locator("#approach > :last-child").evaluate(below) == 0
+    ), "the group's last child draws a line against the group's own border"
 
     mark = page.locator("#opt-shim .lf-pick")
     box = """el => [Math.round(el.getBoundingClientRect().width),
                     Math.round(parseFloat(getComputedStyle(el, '::before').width)),
                     getComputedStyle(el, '::before').visibility]"""
     width, ring, drawn = mark.evaluate(box)
-    assert width == ring, (
-        f"the resting mark carries more than its ring: {width} vs {ring}"
-    )
+    assert (
+        width == ring
+    ), f"the resting mark carries more than its ring: {width} vs {ring}"
     assert drawn == "hidden", "the ring is drawn on a card the group already speaks for"
 
     # And a reader arriving by keyboard can see the exact row they landed on. The
@@ -451,20 +453,20 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     expect(mark).to_have_text("selected")
     assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
     width, ring, drawn = mark.evaluate(box)
-    assert width == ring and drawn == "visible", (
-        f"the picked mark is more than its check: {width} vs {ring}, {drawn}"
-    )
+    assert (
+        width == ring and drawn == "visible"
+    ), f"the picked mark is more than its check: {width} vs {ring}, {drawn}"
 
     # The copy medium: scripts are dropped, so the pick cannot be made and the group must
     # not go on saying one is waiting. The cards come apart and their rings come back, which
     # is the same page paper gets, and both get it by never being handed the offer.
     page.evaluate("() => document.documentElement.classList.add('lf-copy')")
-    assert page.locator("#approach").evaluate(edge) == 0, (
-        "a copy still draws the group as a control it has no way to work"
-    )
-    assert page.locator("#opt-stage").evaluate(edge) > 0, (
-        "the cards did not come back apart in a copy"
-    )
+    assert (
+        page.locator("#approach").evaluate(edge) == 0
+    ), "a copy still draws the group as a control it has no way to work"
+    assert (
+        page.locator("#opt-stage").evaluate(edge) > 0
+    ), "the cards did not come back apart in a copy"
     assert (
         page.locator("#opt-shim").evaluate(
             "el => getComputedStyle(el, '::after').content"
@@ -492,9 +494,9 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
     expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
     assert heading.evaluate("el => el.getBoundingClientRect().bottom") < page.locator(
         f"#{group}"
-    ).evaluate("el => el.getBoundingClientRect().top"), (
-        "the answer control stands before its authored question"
-    )
+    ).evaluate(
+        "el => el.getBoundingClientRect().top"
+    ), "the answer control stands before its authored question"
     assert errors == []
     page.close()
 
@@ -558,9 +560,9 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     assert len(cells) > 2, f"a control of {len(cells)} cells proves little: {cells}"
 
     apart = [c for c in cells if c["gap"] is not None and c["gap"] > 0.5]
-    assert not apart, (
-        f"cells of #{group} stand apart from the line that joins them: {apart}"
-    )
+    assert (
+        not apart
+    ), f"cells of #{group} stand apart from the line that joins them: {apart}"
 
     bare = [c for c in cells if c["opens"] < 0.5]
     assert not bare, (
@@ -689,18 +691,18 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         "the live group makes no offer either, so the exhibit's missing one says "
         f"nothing: card {live_card}, group {live_box}"
     )
-    assert quoted_card["cursor"] != "pointer", (
-        f"a quoted card invites the pointer: {quoted_card['cursor']}"
-    )
-    assert quoted_box["box"] == "0px", (
-        f"the exhibit is drawn as a control to answer: {quoted_box['box']} border"
-    )
+    assert (
+        quoted_card["cursor"] != "pointer"
+    ), f"a quoted card invites the pointer: {quoted_card['cursor']}"
+    assert (
+        quoted_box["box"] == "0px"
+    ), f"the exhibit is drawn as a control to answer: {quoted_box['box']} border"
     # The rail is the third at-rest offer and the quietest: a live card gives up its
     # leading inches to the digit a keyboard pick answers by, and an exhibit takes no
     # keys, so room held there is room held for an address that can never arrive.
-    assert quoted_card["rail"] != live_card["rail"], (
-        f"the exhibit reserves the keyboard rail a live card does: {quoted_card['rail']}"
-    )
+    assert (
+        quoted_card["rail"] != live_card["rail"]
+    ), f"the exhibit reserves the keyboard rail a live card does: {quoted_card['rail']}"
 
     # And under the pointer. A live choose group is a joined control, and a cell that rose
     # would pull away from the hairlines holding the group together, so what both forms
@@ -797,9 +799,9 @@ def test_one_band_says_where_the_reader_is_standing(browser, serve):
         "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"
     ), "the keyboard is not on the group's own mark, so this reads nothing"
     assert group.evaluate(drawn) == 0
-    assert page.locator("#storage-evict").evaluate(drawn) > 0, (
-        "the focused option row draws no keyboard band"
-    )
+    assert (
+        page.locator("#storage-evict").evaluate(drawn) > 0
+    ), "the focused option row draws no keyboard band"
     assert (
         group.evaluate("el => parseFloat(getComputedStyle(el).borderTopWidth)") > 0
     ), "moving focus removed the group's permanent frame"
@@ -874,19 +876,19 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     hairline = """el => { const s = getComputedStyle(el);
                           return s.borderBottomStyle === 'none'
                                    ? 0 : parseFloat(s.borderBottomWidth); }"""
-    assert page.locator("#jobs").evaluate(edge) > 0, (
-        "a list offering a pick draws no edge, so nothing says the rows are answerable"
-    )
-    assert page.locator("#job-mounts").evaluate(hairline) > 0, (
-        "a row draws no box of its own, so its bounds show only under the pointer"
-    )
+    assert (
+        page.locator("#jobs").evaluate(edge) > 0
+    ), "a list offering a pick draws no edge, so nothing says the rows are answerable"
+    assert (
+        page.locator("#job-mounts").evaluate(hairline) > 0
+    ), "a row draws no box of its own, so its bounds show only under the pointer"
     # And the shape is the offer, so a list that asks nothing wears none of it.
-    assert page.locator("#ordered").evaluate(edge) == 0, (
-        "a list with no pick to take was drawn as a control anyway"
-    )
-    assert page.locator("#ord-mounts").evaluate(hairline) == 0, (
-        "a row nobody can press draws cell edges anyway"
-    )
+    assert (
+        page.locator("#ordered").evaluate(edge) == 0
+    ), "a list with no pick to take was drawn as a control anyway"
+    assert (
+        page.locator("#ord-mounts").evaluate(hairline) == 0
+    ), "a row nobody can press draws cell edges anyway"
 
     # The block a row is about, reachable as a link and written as the id it names —
     # the same way the thread panel writes an element anchor.
@@ -1084,9 +1086,9 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
 
     page.locator("#ro-note .lf-draft-body").dblclick()
     expect(page.locator("#ro-note textarea")).to_be_visible()
-    assert not option.evaluate(picked), (
-        "opening the draft's editor answered the question"
-    )
+    assert not option.evaluate(
+        picked
+    ), "opening the draft's editor answered the question"
 
     words = page.locator("#ro-column-p")
     box = words.bounding_box()
@@ -1095,9 +1097,9 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     assert page.evaluate("() => !getSelection().isCollapsed")
     assert not option.evaluate(picked), "selecting the option's words answered it"
 
-    assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
-        "the reader working the evidence sent Claude a decision they never made"
-    )
+    assert [
+        e for e in sent_events(serve.page_dir) if e["kind"] == "action"
+    ] == [], "the reader working the evidence sent Claude a decision they never made"
 
     # And the option's own words still answer it, which is what the card is for.
     page.evaluate("() => getSelection().removeAllRanges()")
@@ -1168,9 +1170,9 @@ def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
               }"""
     space, gap = page.evaluate(room)
     assert space > 1, "the space the label was written with is not on the screen"
-    assert abs(gap - space) < 0.5, (
-        f"{gap}px of room where the label asked for {space}px"
-    )
+    assert (
+        abs(gap - space) < 0.5
+    ), f"{gap}px of room where the label asked for {space}px"
     assert errors == []
     page.close()
 
@@ -1210,9 +1212,9 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     expect(chip).to_have_text("reversible")
     expect(page.locator("#job-heater > .lf-pick:last-child")).to_have_count(1)
     ref = page.locator("#job-heater .lf-ref").bounding_box()
-    assert chip.bounding_box()["x"] < ref["x"], (
-        "the chip stands before the row's apparatus"
-    )
+    assert (
+        chip.bounding_box()["x"] < ref["x"]
+    ), "the chip stands before the row's apparatus"
     assert errors == []
     page.close()
 
@@ -1273,9 +1275,9 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
         ("#e-dark", "failure"),
         ("#t-baffles", "blocked"),
     ):
-        assert word in page.locator(sel).aria_snapshot(), (
-            f"{sel} paints `{word}` and says nothing of it to a reader listening"
-        )
+        assert (
+            word in page.locator(sel).aria_snapshot()
+        ), f"{sel} paints `{word}` and says nothing of it to a reader listening"
     room = page.locator(".lf-quiet").evaluate_all(
         """els => els.map(el => { const r = el.getBoundingClientRect();
              return [el.textContent, r.width, r.height,
@@ -1339,6 +1341,66 @@ def test_a_pick_states_the_whole_set(browser, serve):
         ("bracket", {"options": ["br-cedar"]}),
         ("bracket", {"options": []}),
     ]
+    assert errors == []
+    page.close()
+
+
+def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
+    browser, serve
+):
+    """A widget needs no x-work declaration to acknowledge the reader's move.
+
+    The owner's existing page-edge Button keeps its DOM identity while durable
+    transport acceptance advances Sent to Picked up and a real claim makes it Active.
+    Once authored markup records the choice, the Button returns to Outcome.
+    """
+    url = serve(DECISION_PAGE)
+    page, errors = open_page(browser, live_url(url))
+    d = serve.page_dir
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    action = next(
+        event
+        for event in reversed(sent_events(d))
+        if event.get("widget") == "jobs" and event.get("action") == "choose"
+    )
+    logged_action = next(
+        event for event in events_model.read_events(d) if event["id"] == action["id"]
+    )
+    receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("✓")
+    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
+    expect(page.locator("#jobs > .lf-receipt")).to_have_count(0)
+    receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, [logged_action])
+    session_model.cmd_ack(d, logged_action["seq"])
+    told(page)
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+
+    active = CliRunner().invoke(
+        cli_model.cli,
+        ["status", str(d), "working", "checking the mounts", "--on", "jobs"],
+    )
+    assert active.exit_code == 0, active.output
+    told(page)
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
+    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+
+    honored = DECISION_PAGE.replace(
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+    )
+    stamp_page(d, honored, "Honor the mounts choice", completes=("jobs",))
+    wait_for_revision(page, 2)
+    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Outcome, "))
     assert errors == []
     page.close()
 
@@ -1456,7 +1518,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its generated line without
+    A board card declares a local work seat and receives its page-edge Button without
     inventing a comment thread. An options group deliberately has no such seat: adding
     an option changes decision state, and any discussion starts as a separate thread
     once that option exists. Unrelated versions leave the board claim standing, while
@@ -1491,32 +1553,35 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     assert unsupported.exit_code != 0
     assert "no local work seat" in unsupported.output
 
-    card_line = page.locator("#card-migration > .lf-work-line")
-    expect(card_line).to_have_text(
-        re.compile(r"^Claude is on this — checking the shard\s*just now$")
+    card_button = page.locator(
+        '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
-    expect(card_line).to_be_visible()
-    card_words, card_age = card_line.locator(
-        ":scope > span, :scope > time"
-    ).evaluate_all("els => els.map(el => el.getBoundingClientRect().bottom)")
-    assert abs(card_words - card_age) <= 1, (
-        "the age splits a wrapped card sentence instead of following its last line"
+    expect(card_button).to_have_attribute("data-lf-kinds", "activity")
+    expect(card_button.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(card_button).to_have_attribute(
+        "aria-label", re.compile("checking the shard")
     )
+    card_button.click()
+    expect(page.locator(".lf-live")).to_contain_text("checking the shard")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    expect(page.locator(".lf-panel .lf-work-line")).to_have_count(0)
-    expect(card_line).to_have_class(re.compile(r"\blf-ui\b"))
-    assert card_line.get_attribute("data-lf-gen") == "1"
+    expect(page.locator(".lf-panel .lf-receipt")).to_have_count(0)
+    expect(page.locator("#card-migration > .lf-receipt")).to_have_count(0)
+    expect(card_button).to_have_class(re.compile(r"\blf-margin-action\b"))
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")
     wait_for_revision(page, 2)
-    expect(card_line).to_have_count(1)
+    expect(card_button).to_have_count(1)
 
     # A new claim belongs to v2 and does not appear in a pinned v1 page.
     claim("card-migration", "checking the fallback")
-    expect(card_line).to_contain_text("checking the fallback")
+    expect(card_button).to_have_attribute(
+        "aria-label", re.compile("checking the fallback")
+    )
     pinned, pinned_errors = open_page(browser, url, pin=True)
-    expect(pinned.locator("#card-migration > .lf-work-line")).to_have_count(0)
+    expect(
+        pinned.locator('[data-lf-margin-for="card-migration"] > .lf-margin-marker')
+    ).to_have_count(0)
     assert pinned_errors == []
     pinned.close()
 
@@ -1527,14 +1592,14 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         completes=("card-migration",),
     )
     wait_for_revision(page, 3)
-    expect(page.locator(".lf-work-line")).to_have_count(0)
+    expect(page.locator(".lf-receipt")).to_have_count(0)
     assert errors == []
     page.close()
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
     """A customization may deliberately give a container member a content seat.
-    The runtime's generated line is still apparatus rather than that member's own
+    The runtime's generated Button is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
     option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
@@ -1559,13 +1624,13 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     assert result.exit_code == 0, result.output
     told(page)
 
-    work_line = page.locator("#job-mounts > .lf-work-line")
-    expect(work_line).to_be_visible()
-    work_line.click()
+    work_button = page.locator('[data-lf-margin-for="job-mounts"] > .lf-margin-marker')
+    expect(work_button).to_have_attribute("data-lf-kinds", "activity")
+    work_button.click()
 
     # A press that does nothing states no fact to wait on, so the control is the same
     # gesture where it is supposed to work: pick the neighbouring option and let its
-    # send settle. One outbox in gesture order means a pick the work line had taken
+    # send settle. One outbox in gesture order means a pick the receipt had taken
     # would already stand ahead of this one, so the whole log can be read once.
     page.locator("#job-heater").click()
     round_trip(page)
@@ -1603,14 +1668,14 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    work_line = page.locator("#shadow-card > .lf-work-line")
-    expect(work_line).to_have_count(1)
+    work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
+    expect(work_button).to_have_attribute("data-lf-kinds", "activity")
 
     page.evaluate(
         """() => document.getElementById('patch').shadowRoot.append(
             document.getElementById('shadow-card'))"""
     )
-    expect(work_line).to_have_count(1)
+    expect(work_button).to_have_count(1)
 
     settled = stamp_page(
         d,
@@ -1620,12 +1685,12 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     )
     assert settled["version"] == 2
     told(page)
-    expect(work_line).to_have_count(0)
+    expect(work_button).to_have_count(0)
     assert errors == []
     page.close()
 
 
-def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
+def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, serve):
     """The same declaration-backed seat may be staged into an x-shadow widget;
     crossing that supported boundary must not turn the shared local line back into an
     unstyled block."""
@@ -1650,15 +1715,16 @@ def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
     )
     assert result.exit_code == 0, result.output
     told(page)
-    work_line = page.locator("#shadow-card > .lf-work-line")
-    expect(work_line).to_have_css("display", "flex")
+    work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
+    expect(work_button).to_have_css("display", "flex")
 
     page.evaluate(
         """() => document.getElementById('patch').shadowRoot.append(
             document.getElementById('shadow-card'))"""
     )
-    expect(work_line).to_have_css("display", "flex")
-    expect(work_line).to_have_css("border-left-style", "dashed")
+    expect(work_button).to_have_css("display", "flex")
+    expect(work_button).to_have_css("border-radius", "999px")
+    expect(work_button).to_have_css("min-height", "30px")
     assert errors == []
     page.close()
 
@@ -1763,9 +1829,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     )
     if not specimens:
         owners = page.locator("#corpus > lf-tab:has(lf-specimen)")
-        assert owners.count(), (
-            "this page declares a specimen but no visible exhibit or corpus panel owns it"
-        )
+        assert owners.count(), "this page declares a specimen but no visible exhibit or corpus panel owns it"
         label = owners.first.get_attribute("label")
         page.get_by_role("tab", name=label, exact=True).click()
         specimens = page.locator("lf-specimen").evaluate_all(
@@ -1891,7 +1955,13 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     can fail."""
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
     assert errors == []
+    page.evaluate(
+        """() => document.addEventListener('lf-margin-layout', () => {
+          window.lfMarginLayoutWidth = innerWidth;
+        })"""
+    )
     resized(page, 380, 900)
+    page.wait_for_function("() => window.lfMarginLayoutWidth === 380")
     wide = page.evaluate(
         "() => [document.documentElement.scrollWidth,"
         " document.documentElement.clientWidth,"
@@ -1995,6 +2065,14 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
+    receipt = page.locator(
+        f'#rp-live > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+    )
+    expect(receipt).to_contain_text("✓ Sent")
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, actions)
+    told(page)
+    expect(receipt).to_contain_text("✓ Picked up")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
     page.close()
 

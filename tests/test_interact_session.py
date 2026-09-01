@@ -66,6 +66,13 @@ from leaf.registry import storage as registry_storage
 from leaf.served_state import page as served_page
 
 
+def last_deliverable_seq(page_dir: Path) -> int:
+    """The last event a wait can print, excluding page-owned pickup records."""
+    return service_model.unacknowledged(events_model.read_events(page_dir), 0)[-1][
+        "seq"
+    ]
+
+
 def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
     """A process-boundary `codex queue` implementation for adapter tests."""
     program = tmp_path / "fake-codex"
@@ -102,19 +109,20 @@ print("queued")
     return program, log
 
 
-def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
-    """`leaf status --on` writes one claim at two seats: the page's line, which the
-    banner reads, and a line on the thread the work is about, which the reader sees
+def test_an_active_receipt_says_which_thread_the_agent_is_on(
+    page_dir, capsys, monkeypatch
+):
+    """`leaf status --on` writes one claim at two seats: the page's banner, which
+    reads it, and a receipt on the thread the work is about, which the reader sees
     under their own words. One command writes both because they are one sentence — a
     delegate that reports its thread is the agent checking in, and the shared timestamp
     is what keeps a `working` claim believed across a turn boundary the session that
     made the claim can no longer write across.
 
-    The line carries across every later write but its own. That is the case it exists
-    for: a wait handing over mid-delegation writes "picking up 1 update" over the
-    page's line, and a line dropped there would take the reader's only sign that their
-    question is in hand with it. `idle` is the end of the agent's side, and clears them
-    with the leaf."""
+    The claim carries across every later status write but its own settlement. Pickup
+    is recorded separately in the event log, so transport acceptance neither replaces
+    this work nor invents a page-wide working claim. `idle` is the end of the agent's
+    side, and clears explicit work with the leaf."""
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
@@ -173,8 +181,8 @@ def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeyp
     assert (waiting["state"], waiting["detail"]) == ("waiting", "look at v2")
     assert waiting["work"][0]["detail"] == "reading the traces"
 
-    # Nor does the handoff a wait writes on its way out, which is the whole point of
-    # carrying them: the pickup interrupts the delegate rather than replacing it.
+    # Nor does a pickup replace the claim: it is a durable transport fact about the
+    # exact reader events and leaves the page-wide status alone.
     serving(page_dir, 1)
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "and this?"}
@@ -182,8 +190,11 @@ def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeyp
     assert session_model.cmd_wait(page_dir) == 0
     capsys.readouterr()
     handed = files_model.read_json(page_dir / "status.json")
-    assert (handed["state"], handed["handoff"]) == ("working", True)
+    assert (handed["state"], handed["detail"]) == ("waiting", "look at v2")
     assert handed["work"][0]["detail"] == "reading the traces"
+    pickup = events_model.read_events(page_dir)[-1]
+    assert pickup["kind"] == "pickup"
+    assert pickup["events"] == ["c1", "c2"]
 
     session_model.cmd_status(page_dir, "idle", "")
     assert "work" not in files_model.read_json(page_dir / "status.json")
@@ -460,23 +471,26 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "later"}
     )
-    session_model.cmd_ack(page_dir, 2)
-    session_model.cmd_ack(page_dir, 2)  # retries are harmless
-    assert files_model.read_json(page_dir / "cursor.json")["seq"] == 2
+    delivered_through = shown[-1]["seq"]
+    session_model.cmd_ack(page_dir, delivered_through)
+    session_model.cmd_ack(page_dir, delivered_through)  # retries are harmless
+    assert files_model.read_json(page_dir / "cursor.json")["seq"] == delivered_through
     assert page_state(page_dir)["pending"] == 1
 
     assert session_model.cmd_wait(page_dir) == 0
-    assert [
-        json.loads(line)["id"] for line in capsys.readouterr().out.splitlines()[1:]
-    ] == ["c2"]
-    session_model.cmd_ack(page_dir, 3)
+    [later] = [json.loads(line) for line in capsys.readouterr().out.splitlines()[1:]]
+    assert later["id"] == "c2"
+    session_model.cmd_ack(page_dir, later["seq"])
     assert page_state(page_dir)["pending"] == 0
-    # The wait status is marked a handoff, which dates the claim: the agent's own
-    # `leaf status` clears the mark, so the mark surviving is a pickup that never landed.
+    # Pickup is exact log evidence and does not rewrite the agent's page-wide claim.
     status = files_model.read_json(page_dir / "status.json")
-    assert (status["state"], status["handoff"]) == ("working", True)
+    assert status["state"] == "waiting"
+    pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
+    assert [e["events"] for e in pickups] == [["c1", shown[1]["id"]], ["c2"]]
     session_model.cmd_status(page_dir, "working", "revising the plan")
-    assert "handoff" not in files_model.read_json(page_dir / "status.json")
+    assert (
+        files_model.read_json(page_dir / "status.json")["detail"] == "revising the plan"
+    )
 
     # A worker's report wakes the watcher like a user event — it is the
     # orchestrator's to fold into a version — but the reader's banner count
@@ -522,6 +536,8 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     retry = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert retry.exit_code == 0, retry.output
     assert json.loads(retry.output.splitlines()[0]) == header
+    pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
+    assert len(pickups) == 1 and pickups[0]["events"] == ["c1"]
 
     # If wait output was lost or truncated, retrieving it again before ack can
     # include a newer event. The old event keeps the same page-and-seq identity
@@ -535,7 +551,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
         json.loads(line) for line in grown.output.strip().splitlines()
     ]
     assert grown_header == header
-    assert [event["seq"] for event in grown_events] == [1, 2]
+    assert [event["seq"] for event in grown_events] == [1, 3]
 
 
 def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys):
@@ -595,7 +611,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
 
     # A comment that opens a thread states its own anchor on its own line, so
     # there is nothing behind it to carry.
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "separately — the rollout"},
@@ -606,7 +622,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
 
     # The reader closing a thread from the panel posts a resolve, whose only
     # pointer at the conversation is the message it names.
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": followed["id"]}
     )
@@ -685,7 +701,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     # Standing, so a later delivery in this thread carries what the reader
     # settled. Without it the agent meets the question with no answer under it
     # and replies reopening a list they have already ticked.
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
         {
@@ -704,7 +720,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
 
     # Taken back, and the conversation stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
     )
@@ -937,7 +953,7 @@ def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, caps
     the same reading the accept did."""
     _settling_page(page_dir)
     accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
@@ -957,7 +973,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     directly. Exact history and live delivery use one Leaf-owned membership join."""
     _settling_page(page_dir)
     accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
 
     rejected = events_model.append_event(
@@ -1148,7 +1164,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         assert session_model.cmd_wait(page_dir) == 0
         header, *_rest = capsys.readouterr().out.strip().splitlines()
         headers.append(len(header))
-        session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+        session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
         capsys.readouterr()
 
     # Flat, not merely slower: twenty further exchanges add only the few
@@ -1215,7 +1231,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
                 "text": f"turn {turn}",
             },
         )["id"]
-    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
     events_model.append_event(
         page_dir,
@@ -1308,9 +1324,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         time.sleep(0.05)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert leases_model.lock_is_held(lease_path), (
-        "acknowledgement returned without holding the next wait"
-    )
+    assert leases_model.lock_is_held(
+        lease_path
+    ), "acknowledgement returned without holding the next wait"
     status_before_delivery = (page_dir / "status.json").read_bytes()
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
@@ -1782,9 +1798,10 @@ def test_one_wait_watches_every_page_the_session_holds(
     lines = capsys.readouterr().out.strip().splitlines()
     assert json.loads(lines[0]) == {"page": str(second), "threads": []}
     assert [json.loads(line)["text"] for line in lines[1:]] == ["hi"]
-    # The page that spoke picked up the handoff status; the other is untouched.
-    assert files_model.read_json(second / "status.json")["state"] == "working"
+    # The page that spoke records exact pickup; neither page's status is rewritten.
+    assert files_model.read_json(second / "status.json")["state"] == "waiting"
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
+    assert events_model.read_events(second)[-1]["kind"] == "pickup"
 
     # Idling one leaf leaves the watch to the others; idling the last ends it.
     session_model.cmd_ack(second, 1)
@@ -1980,6 +1997,7 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     }
 
     codex_model.finish_intent({"id": "original", "host": "codex"}, intent)
+    codex_model.finish_intent({"id": "original", "host": "codex"}, intent)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": delivered["seq"]}
     assert service_model.page_claim(page_dir) == successor
@@ -1988,7 +2006,12 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
         "waiting",
         "successor is listening",
     )
-    assert "handoff" not in status
+    pickups = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert len(pickups) == 1 and pickups[0]["events"] == [delivered["id"]]
 
 
 def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
@@ -2433,9 +2456,9 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(timeout=10), (
-            "the first init never reached its held read"
-        )
+        assert reached_layer.wait(
+            timeout=10
+        ), "the first init never reached its held read"
 
         launcher = PLUGIN_ROOT / "bin" / "leaf"
         second = spawn(
@@ -3090,7 +3113,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
@@ -3134,7 +3157,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert asked["id"] in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_reply(
@@ -3148,7 +3171,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     moot = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "and C?"}
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert moot["id"] in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_resolve(claimed, moot["id"])
@@ -3170,7 +3193,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         claimed,
         {"kind": "reply", "author": "user", "parent": ask["id"], "text": "sqlite"},
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert ask["id"] in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_reply(claimed, ask["id"], "sqlite it is", None)
@@ -3212,7 +3235,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
             "text": "Add the camera first.",
         },
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
@@ -3243,7 +3266,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
             "text": "Yes.",
         },
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert proposal["id"] in reason
@@ -3278,7 +3301,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert answer["decision"] == "block"
@@ -4092,7 +4115,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_decision(claimed, capsys):
         claimed,
         {"kind": "reply", "author": "user", "parent": answer["id"], "token": "ok"},
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -4102,6 +4125,6 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_decision(claimed, capsys):
         claimed,
         {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
     )
-    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert json.loads(capsys.readouterr().out)["decision"] == "block"

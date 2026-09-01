@@ -1,4 +1,4 @@
-# Session lifetime and work claims
+# Session lifetime, pickup, and work claims
 
 status.json is a claim, and a claim never expires on its own: an agent that
 stopped watching renders exactly like one that is watching and has nothing to
@@ -6,22 +6,31 @@ say, so a comment can sit unread with the page still reading "Claude is
 working". The directory therefore also carries what it can prove — a lease only
 a live `leaf wait` can hold, the acknowledgement cursor, and whether the owning
 session's lifetime stands — and `/api/state` ships those beside the claim, so the
-banner can say when
-the claim has outlived its evidence. When a wait prints for a
-non-working page, it marks the status it writes "handoff", which dates that
-claim: after acknowledgement the agent writes its own `leaf status`, so a
-handoff mark that survives means a dropped pickup rather than a long turn, and
-the banner gives it a much shorter rope. Wait output that lands while the agent
-is already working leaves the existing claim untouched; there is no pickup gap
-to date.
+banner can say when the claim has outlived its evidence.
+
+Delivery acceptance is a different fact from work. Once a direct wait has
+flushed its batch, or Codex's durable queue has accepted it, the carrier appends
+one page-owned `pickup` event naming the reader event ids it delivered. Retries
+name nothing new, so pickup is idempotent. It never rewrites `status.json` and
+therefore cannot claim the agent has begun work, replace an existing claim, or
+make one interaction borrow another's page-wide status.
+
+The browser projects one acknowledgment on each unsettled reader move. On the page it
+reuses the subject's existing Target Button; the full thread panel and widgets frozen
+into conversation chrome use a compact local row because they have no page edge.
+Append is **Sent**; a `pickup` naming that move is **Picked up**; a later explicit
+`status … --on` claim on the same subject is **Active**. Sent becomes **Waiting for
+pickup** after the short pickup grace, without inventing a new log state. A reply,
+resolution, or authored state that honors the move settles the acknowledgment. The
+append-only log remains the authority for every durable phase.
 
 So a claim of work has to be renewed, and the command that makes one renews it.
 `--on` names the comment thread the work is about, so one check-in moves both
-the page's line and the note the reader sees under their own words in the
-thread panel, where it stands until the agent's next word in that thread. That
-is how a claim crosses a turn boundary the session cannot write across: nothing
-in a session touches status.json while its turn is over, so work handed to a
-delegate is renewed from the delegate's own hands or not at all.
+the page's banner and its Target Button, plus the local receipt the reader sees
+under their own words in the full thread panel. They stand until the agent's next
+word in that thread. That is how a claim crosses a turn boundary the session cannot
+write across: nothing in a session touches status.json while its turn is over, so
+work handed to a delegate is renewed from the delegate's own hands or not at all.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant whose lifetime has ended settles the question
@@ -77,7 +86,8 @@ stable Leaf delivery id and exact pointer prompt across queue acceptance before
 cursor acknowledgement. An uncertain queue command is retried with that same
 pointer. The resulting delivery is at least once; a repeated turn recognizes
 the delivery id and applies the page-and-sequence retry rule. Once a queue
-command succeeds, the adapter advances the page cursor and removes the intent.
+command succeeds, the adapter records pickup, advances the page cursor, and
+removes the intent.
 The payload stays as conservative recovery state because queue acceptance does
 not prove that a later turn read it.
 

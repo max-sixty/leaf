@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from .acknowledgments import page_action_unsettled
 from .decisions import asking, quoted_in, replayed_attrs
 from .events import build_threads, note_settlements
 from .files import latest_revision, revision_path
@@ -170,10 +171,18 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             sys.exit(f"{target} is not visible under the page's standing outcomes")
         if quoted_in(widget, registry):
             sys.exit(f"{target} is quoted exhibit content, not a live page widget")
-        if not widget_work_seat(widget, widget_projection, registry):
+        has_receipt = any(
+            event["widget"] == target
+            and page_action_unsettled(coordinate, event, spec, parser, spk, registry)
+            for coordinate, (event, spec) in widget_projection.actions.items()
+        )
+        if (
+            not widget_work_seat(widget, widget_projection, registry)
+            and not has_receipt
+        ):
             sys.exit(
                 f"{target} has no local work seat; its widget declaration "
-                "does not provide one in this state"
+                "does not provide one in this state and it has no unsettled action receipt"
             )
         return {
             "subject": {"kind": "widget", "id": target},

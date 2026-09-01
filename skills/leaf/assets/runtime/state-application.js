@@ -27,7 +27,7 @@ export function createStateApplication(dependencies) {
     observeServerNow,
     paintAnchors,
     paintApproval,
-    paintWorkLines,
+    paintAcknowledgments,
     panelIsOpen,
     presented,
     reconcileState,
@@ -260,7 +260,7 @@ export function createStateApplication(dependencies) {
       // Outside the log-growth block: a work claim lands and ages without changing an
       // event this tab holds. After widget reconciliation because a module may rebuild
       // its authored subtree; the local line is the transient overlay that follows it.
-      paintWorkLines();
+      paintAcknowledgments();
       if (activation) {
         restoreView(activation.view);
         paintAnchors();

@@ -72,7 +72,7 @@
     "contracts": {}
   },
   "$events": {
-    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it.",
+    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it.",
     "kinds": {
       "comment": {
         "record": {
@@ -301,6 +301,26 @@
             "session": {"type": "string", "minLength": 1}
           },
           "required": ["id", "ts", "author", "kind", "seq", "request", "status", "text"],
+          "additionalProperties": false
+        }
+      },
+      "pickup": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "page"},
+            "kind": {"const": "pickup"},
+            "seq": {"type": "integer", "minimum": 1},
+            "events": {
+              "type": "array",
+              "items": {"type": "string", "minLength": 1},
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "events"],
           "additionalProperties": false
         }
       },

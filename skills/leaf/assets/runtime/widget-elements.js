@@ -199,11 +199,11 @@ export function worksInside(node, container) {
   // `contains` counts an element as containing itself, so the container is ruled out by
   // name — the question is what stands between the two, and a container that is itself
   // a thing to work would otherwise answer with itself and never take a gesture again.
-  // A local work line is runtime apparatus too. It may deliberately sit in one of
+  // A local receipt is runtime apparatus too. It may deliberately sit in one of
   // this container's declared parts, where the part is otherwise the gesture target;
   // reading or selecting the status must not cast that gesture on its way through.
   const inner = node.closest(
-    [...held, WORKS, "[data-lf-offer]", ".lf-work-line"].join(","),
+    [...held, WORKS, "[data-lf-offer]", ".lf-receipt"].join(","),
   );
   return inner && inner !== container && container.contains(inner) ? inner : null;
 }

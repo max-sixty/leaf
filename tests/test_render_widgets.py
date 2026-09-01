@@ -47,7 +47,6 @@ from render_support import (
     _until,
     actions,
     compare_with,
-    composer_quote,
     leaf_page,
     live_url,
     open_page,
@@ -2354,8 +2353,8 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     box = intro.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    assert "signed-cookie" in composer_quote(page)["text"]
+    expect(page.locator("#lf-composer-quote")).to_contain_text("signed-cookie")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     # Put it down again, so what follows is a rise and not a leftover.
     page.locator("#h").click()
     expect(page.locator(".lf-fab-input")).to_be_hidden()

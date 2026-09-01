@@ -3889,6 +3889,9 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     page, errors = open_page(browser, serve(INLINE_PAGE))
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(box).not_to_be_focused()
+    page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
 
@@ -3910,6 +3913,51 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
     assert errors == []
     page.close()
+
+
+def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
+    """Leaf may offer a response without taking the browser's selection gestures."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    try:
+        page, errors = open_page(browser, serve(INLINE_PAGE), context=context)
+        paragraph = page.locator("#p")
+        paragraph.click(click_count=3)
+        expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+        selected = page.evaluate("() => getSelection().toString()")
+        assert "A paragraph carrying" in selected
+        is_mac = page.evaluate(
+            "() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)"
+        )
+        page.keyboard.press("Meta+c" if is_mac else "Control+c")
+        assert page.evaluate("() => navigator.clipboard.readText()") == selected
+
+        page.evaluate(
+            """() => {
+              window.lfContextMenu = null;
+              document.addEventListener('contextmenu', event => {
+                setTimeout(() => {
+                  window.lfContextMenu = {
+                    prevented: event.defaultPrevented,
+                    selection: getSelection().toString(),
+                  };
+                });
+              }, {capture: true, once: true});
+            }"""
+        )
+        paragraph.click(button="right")
+        page.wait_for_function("() => window.lfContextMenu !== null")
+        assert page.evaluate("() => window.lfContextMenu") == {
+            "prevented": False,
+            "selection": selected,
+        }
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
 
 
 def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
@@ -3938,10 +3986,10 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.close()
 
 
-def test_the_key_line_names_the_immediate_comment_and_its_other_responses(
+def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     browser, serve
 ):
-    """Targeting enters Comment immediately; the key line names send and the Tab exit."""
+    """Comment enters a selected passage's field; the line names send and Tab exit."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     line = page.locator(".lf-keyline")
     help_el = page.locator(".lf-help")
@@ -3953,8 +4001,9 @@ def test_the_key_line_names_the_immediate_comment_and_its_other_responses(
     expect(help_el).to_contain_text("Go to the threads")
     page.keyboard.press("Escape")
 
-    # A real selection enters its field during the gesture. Once there, letters and `?`
-    # belong to the comment rather than falling through to page shortcuts.
+    # A real selection keeps the browser selection until Comment explicitly enters its
+    # field. Once there, letters and `?` belong to the comment rather than falling through
+    # to page shortcuts.
     box = page.locator("#prose").bounding_box()
     select(
         page,
@@ -3963,6 +4012,9 @@ def test_the_key_line_names_the_immediate_comment_and_its_other_responses(
         steps=12,
     )
     field = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(field).not_to_be_focused()
+    page.keyboard.press("c")
     expect(field).to_be_focused()
     expect(line).to_contain_text("comment")
     expect(line).to_contain_text("other responses")
@@ -3982,8 +4034,8 @@ def test_the_key_line_names_the_immediate_comment_and_its_other_responses(
     page.close()
 
 
-def test_typing_in_the_immediate_comment_wins_over_page_shortcuts(browser, serve):
-    """Once targeting focuses Comment, a shortcut letter is ordinary comment text."""
+def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
+    """Once Comment focuses a selected passage's field, shortcut letters are text."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
 
     box = page.locator("#prose").bounding_box()
@@ -3994,6 +4046,9 @@ def test_typing_in_the_immediate_comment_wins_over_page_shortcuts(browser, serve
         steps=12,
     )
     fab = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(fab).not_to_be_focused()
+    page.keyboard.press("c")
     expect(fab).to_be_focused()
     page.keyboard.press("c")
     expect(fab).to_have_value("c")
@@ -4047,6 +4102,9 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     )
     composer = page.locator(".lf-composer")
     field = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(field).not_to_be_focused()
+    page.keyboard.press("c")
     expect(field).to_be_focused()
     send = composer.locator(".lf-composer-row .primary")
     send.evaluate(

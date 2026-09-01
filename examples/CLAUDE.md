@@ -86,7 +86,7 @@ nothing.
 Use `corpus.html` when measuring runtime cost across the composed surface. A small
 fixture can establish a cause, but it cannot stand in for the composed surface.
 
-## An example is one stamped version, plus any log and data it ships beside it
+## An example is its stamped versions, plus any log and data it ships beside it
 
 `examples/layer.json` names the package selections shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
@@ -94,11 +94,54 @@ layer the website serves. Every bundled package belongs in it, whether or not a
 page uses that package today: the list is what the corpus floors read to decide
 which vocabulary they cover.
 
-An example's markup is the source stamped as v1, and nothing ever revises it.
-That puts `restated` and `overruled` out of reach: each answers something only a
-later revision does — `restated` retracts a decision, `overruled` keeps a
-revision's own state over a report — and there is no later revision here.
-`version check` refuses both.
+An example's markup is its current version. Most examples are only that, and were
+all of them for as long as a builder had one file to stamp — which left version
+travel outside the corpus entirely. The chooser, the changes-since marks, the
+activation that follows a newer version, and the landmark that keeps the reader in
+place across it are the page's largest body of behaviour with no authored page
+behind it, and a widget's gap read the same way: green tests over a surface the
+corpus never composed.
+
+So an example that was revised ships each earlier version as
+`examples/versions/<stem>.vN.html`. `example_versions` in `scripts/example_data.py`
+is the one reader of that list — the ordering is the filename's, not a manifest's,
+because every builder already writes its own stamp text — and each builder walks it
+oldest first through the real `version stamp`: `scripts/preview.py`,
+`publish_pages` in `scripts/site.py`, `serve` in `tests/render_harness.py`, and
+`test_examples_pass_check`, which lints every version rather than only the current
+one. The prior versions live under `versions/` so that the `examples/*.html` glob
+every one of those builders starts from keeps reading exactly the examples.
+
+Three orderings hold, and each of them was a bug first. The seed goes in after the
+first stamp and before any later one, so a revised example reads the way it
+happened: the version, what the reader said about it, then the version that
+answered them. The cursor goes to the end after the *last* stamp, or the closing
+note arrives as unread news. And the current version is written into the page
+before the data operations, because the data door validates a source against the
+page's markup and the current version is the one that has to bind it — so a revised
+example's versions share their data bindings.
+
+A prior version is not an example. It stands outside the `*.html` glob deliberately:
+the corpus embeds only the current version, and the authored-content sweeps —
+above all the one holding two examples to twelve consecutive shared words — would
+read a revision against its own earlier draft and find nothing but shared
+sentences, which is what a revision is.
+
+`log-retention` is the revising example today. Its second version rewrites one
+paragraph around a sentence the reader quoted, adds a paragraph and a step, and
+leaves the rest alone: comparing against v1 marks three blocks and leaves the
+thread on the untouched section unmarked, and both threads stay attached because
+both quotes survive. That is the case worth holding — an anchor that detaches is
+the failure `test_a_shipped_log_opens_its_example_on_a_live_thread` names, not a
+shape to demonstrate.
+
+`restated` and `overruled` are reachable now, and no example uses one. Each answers
+something only a later revision does — `restated` retracts a decision, `overruled`
+keeps a revision's own state over a report — so both need a decision or a report
+standing in the seeded log that the next version then contradicts. Write one when
+there is a page it makes sense on, rather than to fill the slot: a revision exists
+to answer a comment, and a fixture that revises in order to retract is a page about
+its own mechanism.
 
 The log is a different matter: it was empty by default, not by nature. A thread
 is the one thing no markup describes, so an example that wants to show one ships

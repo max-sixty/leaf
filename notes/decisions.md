@@ -35,7 +35,7 @@ where a rendered fragment would come from code outside it; leaf already vendors 
 browser code, so vendoring a renderer beside it answers that, and the objection folds back
 into the sandbox.
 
-Version activation is where htmx would fit. `version-activation.js` fetches the next
+Version activation is where htmx would fit. `version.js` fetches the next
 immutable revision and replaces `body > main`, which is a hypermedia navigation and nothing
 more; htmx would do it, `transition:true` included. The reason not to is that the lines
 around the swap carry the contract — the layer-generation check, the head and root attribute

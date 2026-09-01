@@ -1,4 +1,4 @@
-"""Selection, passage, syntax, and version-navigation tests."""
+"""Selection, passage, syntax, and version-travel tests."""
 
 import json
 import re
@@ -2553,6 +2553,64 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
+    assert errors == []
+    page.close()
+
+
+def test_a_revised_example_travels_between_its_own_versions(browser, serve):
+    """The corpus's own reading of version travel, on the one example that was revised.
+
+    Every other version fixture publishes a second version out of one markup string,
+    which is a page nobody wrote: the two documents differ by whatever the fixture
+    edited, and what a reader would see marked is whatever that edit happened to be.
+    The shipped example is an authored pair — a proposal and the version that answered
+    a comment on it — so what the comparison marks here is what a revision is: the
+    paragraph rewritten around the sentence the reader quoted, plus the paragraph and
+    the step it grew. Everything the revision left alone stays unmarked, including the
+    section the other thread stands on, and both threads stay attached because both
+    quotes survived.
+
+    That is also this file's floor for the corpus. The example sweeps serve the newest
+    version and never press anything, so with no reading here the chooser could offer
+    a list nobody walks and a Δ nobody presses on every page in examples/."""
+    example = next(p for p in EXAMPLES if p.stem == "log-retention")
+    page, errors = open_page(browser, serve(example))
+
+    # Served at the newest version, with the earlier one behind the chooser.
+    expect(page.locator(".lf-version")).to_have_text("v2 ▾")
+    expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
+
+    compare_with(page, 1)
+    expect(page.locator("main .lf-ins-block")).to_have_count(3)
+    marked = page.eval_on_selector_all(
+        "main .lf-ins-block", "els => els.map(e => e.id).sort()"
+    )
+    assert marked == ["ret-cost-body", "ret-cost-keep", "ret-steps-carve"], marked
+
+    # The threads the log opened, both still on their passages: one on a block the
+    # revision rewrote, one on a block it never touched.
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+    painted = re.sub(
+        r"\s",
+        "",
+        page.evaluate(
+            "() => [...CSS.highlights.get('lf-mark')].map(r => r.toString()).join('')"
+        ),
+    )
+    for quote in (
+        "Two years of incident write-ups name a log older than six weeks exactly twice.",
+        "The distribution is not a curve with a tail; it is a wall.",
+    ):
+        assert re.sub(r"\s", "", quote) in painted, painted[:160]
+
+    # And the older document is a real destination, not just a row: choosing it pins
+    # the reader to the immutable file the chooser named.
+    page.locator(".lf-version").click()
+    page.locator('.lf-version-row[data-lf-version="1"]').click()
+    page.wait_for_url(re.compile(r"/versions/v1\.html"))
+    expect(page.locator(".lf-version")).to_have_text("v1 ▾")
+    expect(page.locator("#ret-cost-keep")).to_have_count(0)
     assert errors == []
     page.close()
 

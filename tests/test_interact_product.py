@@ -10,7 +10,7 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations
+from example_data import data_operations, example_versions
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMMAND_SUBJECTS,
@@ -406,9 +406,11 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
     for example in examples:
         d = tmp_path / example.stem
         clone_initialized_page("examples", d, initialize)
-        (d / "index.html").write_text(example.read_text())
-        (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        # The data door validates a source against the page's markup, and the current
+        # version is the one that has to bind it; the loop below then walks every
+        # version, oldest first, exactly as a builder stamps them.
+        (d / "index.html").write_text(example.read_text())
         for operation in data_operations(example):
             if operation["kind"] == "set":
                 data_model.cmd_data_set(
@@ -426,8 +428,6 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
                     operation["label"],
                     operation["format"],
                 )
-        activated = revisioning_model.activate_source(d, [])
-        assert activated.error is None
         # The example's companion log, where it ships one (examples/CLAUDE.md), so
         # the lint reads the page under the state its own log puts on it.
         seed = example.with_suffix(".jsonl")
@@ -436,8 +436,17 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             # same here: normalizing a stale event contract in the fixture would
             # let the shipped demo fail while its corpus gate stayed green.
             (d / "comments.jsonl").write_bytes(seed.read_bytes())
-        result = check(d)
-        assert result.exit_code == 0, f"{example.name}: {result.output}"
+        # Every authored version, not only the current one. A prior version is markup
+        # a builder stamps through the same door, so a fault in one stops preview and
+        # the site build — which is a slow way to hear it from this gate.
+        for number, version in enumerate(example_versions(example), start=1):
+            markup = version.read_text()
+            (d / "index.html").write_text(markup)
+            (d / "versions" / f"v{number}.html").write_text(markup)
+            activated = revisioning_model.activate_source(d, [])
+            assert activated.error is None
+            result = check(d)
+            assert result.exit_code == 0, f"{version.name}: {result.output}"
 
 
 def test_every_widget_in_the_vocabulary_stands_in_an_example():

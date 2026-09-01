@@ -886,8 +886,7 @@ export function createLivingMargin(dependencies) {
       render();
       if (returnFocus && previousKey) {
         const more = moreButtons.get(previousKey);
-        if (more?.isConnected && !more.hidden)
-          more.focus({ preventScroll: true });
+        if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
       } else if (focusOption && nextKey) {
         const choices = clusterButtons(optionGroups.get(nextKey));
         const fallback = clusterButtons(hosts.get(nextKey));

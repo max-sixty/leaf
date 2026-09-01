@@ -1547,6 +1547,31 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
+.lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+                 margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
+                 border-radius: var(--r); background: var(--code-chrome);
+                 color: var(--code-muted); font: var(--t-6) var(--sans); }
+.lf-diff-search-label { flex: 1 1 220px; }
+.lf-diff-search { box-sizing: border-box; width: 100%; min-height: 30px; padding: 5px 8px;
+                  border: 1px solid var(--code-border); border-radius: calc(var(--r) - 2px);
+                  background: var(--pre-bg); color: var(--code-ink); font: inherit; }
+.lf-diff-search::placeholder { color: var(--code-muted); opacity: 1; }
+.lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lf-diff-next, .lf-diff-review { min-height: 30px; padding: 4px 9px;
+                                border: 1px solid var(--code-border);
+                                border-radius: 999px; background: var(--pre-bg);
+                                color: var(--code-ink); font: inherit; cursor: pointer; }
+.lf-diff-next:disabled { opacity: .55; cursor: default; }
+.lf-diff-review { flex: none; min-height: 26px; padding: 2px 8px;
+                  color: var(--code-muted); font-size: var(--t-6); float: right;
+                  margin: -2px 0 -2px 8px; }
+.lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
+                                                         font-weight: 650; }
+.lf-diff-filtered { display: none !important; }
+.lf-diff-next:is(:focus-visible, .lf-focus-visible),
+.lf-diff-review:is(:focus-visible, .lf-focus-visible),
+.lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+                                                        outline-offset: 1px; }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
@@ -1602,6 +1627,10 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
 [data-lf-syn="nu"] { color: var(--syn-number); }
 [data-lf-syn="fn"] { color: var(--syn-name); }
 [data-lf-syn="ty"] { color: var(--syn-type); }
+@media print {
+  .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
+  .lf-diff-filtered { display: block !important; }
+}
 /* lf-shadow:end */
 
 

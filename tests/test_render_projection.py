@@ -243,12 +243,13 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     call_diff = """calldiff diff main → feature
 
   Limiter.bucket_key(self, request)  gateway/limits.py:38
-+ └─ if request.token  gateway/limits.py:39
++ └─ if request.token  gateway/limits.py:40
 """
     patch = """diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
-@@ -38,2 +38,4 @@ class Limiter:
+@@ -38,3 +38,5 @@ class Limiter:
+ class Limiter:
 -    def bucket_key(self, request):
 -        return request.remote_addr
 +    def bucket_key(self, request):
@@ -302,10 +303,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(lines.nth(2).locator(".lf-call-marker")).to_have_text("+")
     expect(lines.nth(2)).to_have_attribute(
         "data-lf-datum-label",
-        "added call-tree item └─ if request.token at gateway/limits.py:39",
+        "added call-tree item └─ if request.token at gateway/limits.py:40",
     )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
-        "gateway/limits.py:39"
+        "gateway/limits.py:40"
     )
     assert (
         lines.nth(2)
@@ -338,7 +339,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     told(page)
     expect(group).to_have_attribute("open", "")
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
-        "gateway/limits.py:39"
+        "gateway/limits.py:40"
     )
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
@@ -346,13 +347,46 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
-    lines.nth(2).locator(".lf-call-location").click()
-    expect(page).to_have_url(re.compile(r"#patch$"))
-    added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",39]\']')
-    expect(added).to_be_in_viewport()
+    lines.nth(1).locator(".lf-call-location").click()
+    context = page.locator(
+        'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
+    )
+    expect(context).to_be_in_viewport()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Opened gateway/limits.py:38 in the exact patch"
+    )
     assert page.evaluate(
         "() => document.querySelector('#patch').shadowRoot.activeElement"
         ".matches('summary')"
+    )
+
+    search = page.locator("#patch .lf-diff-search")
+    search.fill("nothing-matches")
+    expect(context).to_be_hidden()
+    lines.nth(2).locator(".lf-call-location").click()
+    expect(search).to_have_value("")
+    expect(page).to_have_url(re.compile(r"#patch$"))
+    added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",40]\']')
+    expect(added).to_be_in_viewport()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Opened gateway/limits.py:40 in the exact patch"
+    )
+    assert page.evaluate(
+        "() => document.querySelector('#patch').shadowRoot.activeElement"
+        ".matches('summary')"
+    )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        patch.replace(" class Limiter:", " class Limiter:  # raw source"),
+    )
+    told(page)
+    expect(context).to_contain_text("class Limiter:  # raw source")
+    lines.nth(1).locator(".lf-call-location").click()
+    expect(context).to_be_in_viewport()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Opened gateway/limits.py:38 in the exact patch"
     )
 
     page.evaluate("() => getSelection().removeAllRanges()")
@@ -362,7 +396,32 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
-        "§ added call-tree item └─ if request.token at gateway/limits.py:39"
+        "§ added call-tree item └─ if request.token at gateway/limits.py:40"
+    )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -100 +102 @@
+ shifted_call()
+""",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:100",
+    )
+    told(page)
+    shifted = page.locator(
+        'lf-diff [data-lf-datum=\'["gateway/limits.py","both",100,102]\']'
+    )
+    widget.locator(".lf-call-line").nth(1).locator(".lf-call-location").click()
+    expect(shifted).to_be_in_viewport()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Opened gateway/limits.py:100 in the exact patch"
     )
 
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
@@ -374,7 +433,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → feature\n+ └─ orphan()  gateway/limits.py:39",
+        "calldiff diff main → feature\n+ └─ orphan()  gateway/limits.py:40",
     )
     told(page)
     expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
@@ -385,6 +444,118 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
+    browser, serve
+):
+    authored = leaf_page(
+        "large diff review",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    manifest = {
+        "files": [
+            {
+                "key": path,
+                "path": path,
+                "kind": "patch",
+                "additions": 1,
+                "deletions": 1,
+                "patch": f"""diff --git a/{path} b/{path}
+--- a/{path}
++++ b/{path}
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+            }
+            for path in ("src/first.py", "src/second file.py", "tests/third.py")
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
+    page, errors = open_page(browser, url)
+    diff = page.locator("#patch")
+    progress = diff.locator(".lf-diff-progress")
+    summaries = diff.locator("summary")
+    reviews = diff.locator(".lf-diff-review")
+
+    expect(progress).to_have_text("0 of 3 reviewed")
+    expect(summaries).to_have_count(3)
+    expect(reviews).to_have_count(3)
+    expect(diff.locator("[data-line]")).to_have_count(0)
+
+    reviews.nth(0).click()
+    round_trip(page)
+    expect(reviews.nth(0)).to_have_attribute("aria-pressed", "true")
+    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
+    expect(progress).to_have_text("1 of 3 reviewed")
+    event = actions(serve.page_dir)[-1]
+    assert event["widget"] == "patch"
+    assert event["action"] == "review"
+    assert event["detail"] == {"file": "src/first.py", "reviewed": True}
+
+    # A source refresh rebuilds the file shells. The current reviewed set comes back
+    # from the action projection rather than from those replaced nodes.
+    refreshed = json.loads(json.dumps(manifest))
+    refreshed["files"][0]["additions"] = 2
+    data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
+    told(page)
+    reviews = diff.locator(".lf-diff-review")
+    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
+
+    page.reload(wait_until="load")
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    diff = page.locator("#patch")
+    summaries = diff.locator("summary")
+    reviews = diff.locator(".lf-diff-review")
+    progress = diff.locator(".lf-diff-progress")
+    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
+    expect(progress).to_have_text("1 of 3 reviewed")
+
+    next_unreviewed = diff.locator(".lf-diff-next")
+    next_unreviewed.click()
+    expect(summaries.nth(1)).to_be_focused()
+    next_unreviewed.click()
+    expect(summaries.nth(2)).to_be_focused()
+    expect(diff.locator("[data-line]")).to_have_count(4)
+
+    summaries.nth(0).focus()
+    page.keyboard.press("/")
+    search = diff.locator(".lf-diff-search")
+    expect(search).to_be_focused()
+    search.fill("second")
+    expect(summaries.nth(0)).to_be_hidden()
+    expect(summaries.nth(1)).to_be_visible()
+    expect(summaries.nth(2)).to_be_hidden()
+    expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
+
+    summaries.nth(1).focus()
+    page.keyboard.press("Alt+ArrowDown")
+    expect(summaries.nth(1)).to_be_focused()
+    expect(diff.locator("details").nth(1)).to_have_attribute("open", "")
+    expect(diff.locator("[data-line]")).to_have_count(4)
+    reviews.nth(1).click()
+    round_trip(page)
+    expect(progress).to_have_text("2 of 3 reviewed · 1 matching")
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    page.emulate_media(media="print")
+    expect(diff.locator(".lf-diff-tools")).to_be_hidden()
+    for index in range(3):
+        expect(summaries.nth(index)).to_be_visible()
+    expect(reviews.nth(0)).to_be_visible()
+    expect(reviews.nth(2)).to_be_hidden()
+    page.emulate_media(media="screen")
+
     assert errors == []
     page.close()
 

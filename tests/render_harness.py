@@ -485,9 +485,10 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                     data_model.cmd_data_capture(
                         d,
                         operation["source"],
-                        operation["text_file"],
+                        operation["input_file"],
                         operation["lines"],
                         operation["label"],
+                        operation["format"],
                     )
         activated = revisioning_model.activate_source(d, events_model.read_events(d))
         assert activated.error is None and activated.revision == 1, activated.error

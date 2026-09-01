@@ -19,6 +19,299 @@ from .registry.storage import require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 
+_HUNK_HEADER = re.compile(
+    r"^@@ -(?P<old_start>[0-9]+)(?:,(?P<old_count>[0-9]+))? "
+    r"\+(?P<new_start>[0-9]+)(?:,(?P<new_count>[0-9]+))? @@(?: .*)?$"
+)
+_GIT_PATH_TOKEN = r'(?:(?:"(?:\\.|[^"\\])*")|\S+)'
+
+_GIT_PATH_ESCAPES = {
+    "a": 0x07,
+    "b": 0x08,
+    "t": 0x09,
+    "n": 0x0A,
+    "v": 0x0B,
+    "f": 0x0C,
+    "r": 0x0D,
+    '"': 0x22,
+    "\\": 0x5C,
+}
+
+
+def _decode_git_path(path: str) -> str:
+    """Decode the C-style quoting Git uses for diff path fields."""
+    if not path.startswith('"'):
+        return path
+    if len(path) < 2 or not path.endswith('"'):
+        raise DataError(f"invalid quoted Git path {path!r}")
+    encoded = bytearray()
+    inner = path[1:-1]
+    index = 0
+    while index < len(inner):
+        character = inner[index]
+        if character != "\\":
+            encoded.extend(character.encode("utf-8"))
+            index += 1
+            continue
+        index += 1
+        if index == len(inner):
+            raise DataError(f"invalid quoted Git path {path!r}")
+        escaped = inner[index]
+        if escaped in _GIT_PATH_ESCAPES:
+            encoded.append(_GIT_PATH_ESCAPES[escaped])
+            index += 1
+            continue
+        if escaped in "01234567":
+            end = index + 1
+            while end < min(index + 3, len(inner)) and inner[end] in "01234567":
+                end += 1
+            byte = int(inner[index:end], 8)
+            if byte > 0xFF:
+                raise DataError(f"invalid quoted Git path escape \\{inner[index:end]}")
+            encoded.append(byte)
+            index = end
+            continue
+        raise DataError(f"invalid quoted Git path escape \\{escaped}")
+    if 0 in encoded:
+        raise DataError("quoted Git path contains a NUL byte")
+    try:
+        return encoded.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise DataError(f"quoted Git path is not UTF-8: {path!r}") from error
+
+
+def _diff_header_path(side: str, path: str) -> str:
+    return (
+        f'"{side}/{path[1:]}'
+        if path.startswith('"') and path.endswith('"')
+        else f"{side}/{path}"
+    )
+
+
+def _diff_header_paths(
+    section: str,
+    marked_old: str | None = None,
+    marked_new: str | None = None,
+) -> tuple[str, str]:
+    header = section.split("\n", 1)[0]
+    match = re.fullmatch(
+        rf"diff --git (?P<old>{_GIT_PATH_TOKEN}) (?P<new>{_GIT_PATH_TOKEN})",
+        header,
+    )
+    if match is None:
+        # Git leaves ordinary spaces unquoted in `diff --git` and terminates the
+        # unambiguous ---/+++ paths with a tab instead. Reconstruct the header from
+        # that already-parsed pair rather than guessing where one path ends.
+        if marked_old is None or marked_new is None:
+            raise DataError(f"invalid Git diff header: {header}")
+        old = None if marked_old == "/dev/null" else _diff_display_path(marked_old)
+        new = None if marked_new == "/dev/null" else _diff_display_path(marked_new)
+        old = old or new
+        new = new or old
+        if (
+            old is None
+            or new is None
+            or header
+            != (
+                f"diff --git {_diff_header_path('a', old)} "
+                f"{_diff_header_path('b', new)}"
+            )
+        ):
+            raise DataError(f"invalid Git diff header: {header}")
+        return old, new
+    old = _decode_git_path(match.group("old"))
+    new = _decode_git_path(match.group("new"))
+    if not old.startswith("a/") or not new.startswith("b/"):
+        raise DataError(f"invalid Git diff paths: {header}")
+    return old[2:], new[2:]
+
+
+def _diff_display_path(path: str) -> str:
+    """Decode one Git header path and remove its a/ or b/ side marker."""
+    decoded = _decode_git_path(path)
+    return decoded[2:] if decoded.startswith(("a/", "b/")) else decoded
+
+
+def _diff_marked_paths(section: str) -> tuple[str | None, str | None]:
+    """Read the adjacent ---/+++ file headers before the first textual hunk."""
+    lines = section.split("\n")
+    first_hunk = next(
+        (index for index, line in enumerate(lines) if line.startswith("@@")),
+        len(lines),
+    )
+    marked = lines[1:first_hunk]
+    old = [
+        (index, line[4:])
+        for index, line in enumerate(marked)
+        if line.startswith("--- ")
+    ]
+    new = [
+        (index, line[4:])
+        for index, line in enumerate(marked)
+        if line.startswith("+++ ")
+    ]
+    if not old and not new:
+        return None, None
+    if len(old) != 1 or len(new) != 1 or new[0][0] != old[0][0] + 1:
+        raise DataError("unified diff needs one adjacent ---/+++ file-header pair")
+    # A traditional unified header may append a timestamp after a tab. Git's quoted
+    # paths keep whitespace inside the quotes and need no special casing here.
+    return old[0][1].split("\t", 1)[0], new[0][1].split("\t", 1)[0]
+
+
+def _diff_rename_paths(section: str) -> tuple[str | None, str | None]:
+    previous = re.search(r"^rename from (.+)$", section, re.MULTILINE)
+    renamed = re.search(r"^rename to (.+)$", section, re.MULTILINE)
+    if bool(previous) != bool(renamed):
+        raise DataError("unified diff has an incomplete rename block")
+    return (
+        _decode_git_path(previous.group(1)) if previous is not None else None,
+        _decode_git_path(renamed.group(1)) if renamed is not None else None,
+    )
+
+
+def _path_only_rename(section: str) -> tuple[str, str] | None:
+    lines = section.rstrip("\n").split("\n")
+    if len(lines) != 4 or lines[1] != "similarity index 100%":
+        return None
+    previous = re.fullmatch(r"rename from (.+)", lines[2])
+    renamed = re.fullmatch(r"rename to (.+)", lines[3])
+    if previous is None or renamed is None:
+        return None
+    old_path = previous.group(1)
+    new_path = renamed.group(1)
+    if old_path == '""' or new_path == '""':
+        return None
+    if lines[0] != (
+        f"diff --git {_diff_header_path('a', old_path)} "
+        f"{_diff_header_path('b', new_path)}"
+    ):
+        return None
+    return _decode_git_path(old_path), _decode_git_path(new_path)
+
+
+def _diff_hunk_counts(section: str, path: str) -> tuple[int, int]:
+    """Validate every textual hunk and return its additions and deletions."""
+    lines = section.rstrip("\n").split("\n")
+    starts = [index for index, line in enumerate(lines) if line.startswith("@@")]
+    if not starts:
+        raise DataError(
+            f"unsupported hunkless diff for {path}; only exact path-only renames "
+            "may omit textual @@ hunks"
+        )
+    additions = deletions = 0
+    for position, start in enumerate(starts):
+        header = _HUNK_HEADER.fullmatch(lines[start])
+        if header is None:
+            raise DataError(f"invalid hunk header for {path}: {lines[start]}")
+        old_expected = int(header.group("old_count") or 1)
+        new_expected = int(header.group("new_count") or 1)
+        old_seen = new_seen = 0
+        end = starts[position + 1] if position + 1 < len(starts) else len(lines)
+        for line in lines[start + 1 : end]:
+            if line == r"\ No newline at end of file":
+                continue
+            if not line or line[0] not in " +-":
+                raise DataError(f"invalid hunk line for {path}: {line!r}")
+            if line[0] in " -":
+                old_seen += 1
+            if line[0] in " +":
+                new_seen += 1
+            if line[0] == "-":
+                deletions += 1
+            elif line[0] == "+":
+                additions += 1
+        if (old_seen, new_seen) != (old_expected, new_expected):
+            raise DataError(
+                f"hunk line counts for {path} are {old_seen} old and {new_seen} new; "
+                f"the header declares {old_expected} old and {new_expected} new"
+            )
+    return additions, deletions
+
+
+def unified_diff_manifest(source: str) -> dict:
+    """Parse one supported Git unified patch into Leaf's fragmented manifest."""
+    sections = [
+        section
+        for section in re.split(r"(?=^diff --git )", source, flags=re.MULTILINE)
+        if section.startswith("diff --git ")
+    ]
+    if not sections:
+        raise DataError("unified diff contains no files")
+
+    files = []
+    paths = set()
+    for section in sections:
+        if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
+            raise DataError(
+                "unsupported copy diff; omit copy metadata and provide textual @@ "
+                "hunks for an edited destination"
+            )
+        previous, renamed = _diff_rename_paths(section)
+        pure_rename = _path_only_rename(section)
+        if pure_rename is not None:
+            previous, path = pure_rename
+            additions = deletions = 0
+            kind = "rename"
+        else:
+            old_header, new_header = _diff_marked_paths(section)
+            header_old, header_new = _diff_header_paths(section, old_header, new_header)
+            if old_header is None or new_header is None:
+                if re.search(r"^@@", section, re.MULTILINE):
+                    raise DataError(
+                        "unified diff has no ---/+++ file-header pair before its first hunk"
+                    )
+                if previous is not None or renamed is not None:
+                    raise DataError(
+                        "unsupported hunkless rename; only the exact four-line "
+                        "path-only form may omit textual @@ hunks"
+                    )
+                header = section.split("\n", 1)[0]
+                raise DataError(f"unsupported hunkless diff: {header}")
+            if old_header == new_header == "/dev/null":
+                raise DataError("diff file has no old or new path")
+            marked_old = (
+                "/dev/null"
+                if old_header == "/dev/null"
+                else _diff_display_path(old_header)
+            )
+            marked_new = (
+                "/dev/null"
+                if new_header == "/dev/null"
+                else _diff_display_path(new_header)
+            )
+            if (marked_old != "/dev/null" and marked_old != header_old) or (
+                marked_new != "/dev/null" and marked_new != header_new
+            ):
+                raise DataError(
+                    "unified diff ---/+++ paths disagree with its diff --git header"
+                )
+            if (previous is not None and previous != header_old) or (
+                renamed is not None and renamed != header_new
+            ):
+                raise DataError(
+                    "unified diff rename paths disagree with its diff --git header"
+                )
+            selected = new_header if new_header != "/dev/null" else old_header
+            path = renamed or _diff_display_path(selected)
+            additions, deletions = _diff_hunk_counts(section, path)
+            kind = "patch"
+        if path in paths:
+            raise DataError(f"unified diff repeats file path {path!r}")
+        paths.add(path)
+        files.append(
+            {
+                "key": path,
+                "path": path,
+                **({"previousPath": previous} if previous is not None else {}),
+                "kind": kind,
+                "additions": additions,
+                "deletions": deletions,
+                "patch": section,
+            }
+        )
+    return {"files": files}
+
 
 def empty_data() -> dict:
     return {"revision": 0, "sources": {}}
@@ -356,15 +649,22 @@ def cmd_data_set(
 def cmd_data_capture(
     page_dir: Path,
     source: str,
-    text_file: Path,
+    input_file: Path,
     lines: str | None = None,
     label: str | None = None,
+    capture_format: str = "text",
 ) -> None:
-    """Capture UTF-8 text as both the current value and an immutable snapshot."""
+    """Capture one UTF-8 file as the current value and an immutable snapshot."""
     try:
-        value = text_file.read_text(encoding="utf-8")
+        value = input_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
-        raise DataError(f"could not read {text_file}: {error}") from error
+        raise DataError(f"could not read {input_file}: {error}") from error
+    if capture_format not in {"text", "unified-diff"}:
+        raise DataError(f"unsupported capture format {capture_format!r}")
+    if capture_format == "unified-diff":
+        if lines is not None:
+            raise DataError("lines can only select part of a text capture")
+        value = unified_diff_manifest(value)
     if lines is not None:
         match = re.fullmatch(r"([1-9][0-9]*):([1-9][0-9]*)", lines)
         if match is None:
@@ -374,11 +674,11 @@ def cmd_data_capture(
         available = value.splitlines(keepends=True)
         if end < start or end > len(available):
             raise DataError(
-                f"lines {lines} are outside {text_file}, which has "
+                f"lines {lines} are outside {input_file}, which has "
                 f"{len(available)} lines"
             )
         value = "".join(available[start - 1 : end])
-    capture_label = text_file.name if label is None else label
+    capture_label = input_file.name if label is None else label
     if not capture_label:
         raise DataError("label must be a non-empty string")
 

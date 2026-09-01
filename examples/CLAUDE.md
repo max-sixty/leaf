@@ -114,8 +114,9 @@ reader's own tab.
 
 External data is the other companion state. An example that binds a widget input to a
 source ships `<stem>.data.json`, mapping each page-owned source id to its complete
-current value. A reserved `$captures` object instead maps a source id to `text-file`
-and optional `label` or `lines`; the file is a sibling of the example. Builders apply
+current value. A reserved `$captures` object instead maps a source id to `file` and
+optional `format`, `label`, or `lines`; the file is a sibling of the example. The
+format defaults to `text`, where `lines` may select an inclusive range. Builders apply
 captures first and then current values through `leaf data capture` and `leaf data set`,
 so binding, contract validation, revisioning, live preview, browser sweeps, and the
 static site all exercise the real doors. `scripts/corpus.py` composes those companions
@@ -125,10 +126,10 @@ its own page and in corpus composition, so the first capture in the first contri
 example owns snapshot `1`; grow this fixture convention only when another capture
 actually needs to compose.
 
-A large unified diff stays in its `.patch` source file. Put it under `$imports` as
-`unified-diff-file` plus `label`; the example tooling splits it into the `unified-diff`
-file manifest and applies it with `data set --capture-label`. The raw patch remains the
-human-auditable fixture, while the browser receives only its manifest until a file opens.
+A large unified diff stays in its `.patch` source file. Capture it with
+`"format": "unified-diff"`; the public capture door validates and splits it into the
+file manifest, so the raw patch remains the human-auditable fixture while the browser
+receives only its manifest until a file opens.
 
 Wherever the page is served, the cursor is set to the end of the seeded log. A
 seed is history, not news. Leave the cursor at zero and every preview hands the

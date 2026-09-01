@@ -58,22 +58,17 @@ binding so Leaf can give the source its page-lifetime contract:
 Then capture the whole UTF-8 text file or an inclusive line range:
 
 ```bash
-leaf data capture <page> leaf-skill --text-file SKILL.md --label SKILL.md
-leaf data capture <page> leaf-skill --text-file SKILL.md --lines 71:102
-leaf data capture <page> pr-patch --text-file change.patch --label "PR at 8f61c2a"
+leaf data capture <page> leaf-skill --file SKILL.md --label SKILL.md
+leaf data capture <page> leaf-skill --file SKILL.md --lines 71:102
+leaf data capture <page> pr-patch --file change.patch --format unified-diff \
+  --label "PR at 8f61c2a"
 ```
 
-That text capture is the compact path for an ordinary patch. For a large review, set a
-structured `unified-diff` value whose `files` array carries `key`, `path`, `kind`,
-`additions`, `deletions`, and `patch` for each file. Keep `key` equal to `path`. Leaf
-sends only the manifest at startup and fetches each `patch` fragment when its disclosure
-opens; `--capture-label` gives the structured value the same immutable snapshot behavior
-as a text capture.
-
-```bash
-leaf data set <page> pr-patch --file change-manifest.json \
-  --capture-label "PR at 8f61c2a"
-```
+The `unified-diff` transform validates each file and builds a structured value whose
+`files` array carries its path, change counts, and patch. Leaf sends only that manifest
+at startup and fetches each patch fragment when its disclosure opens. Files the widget
+cannot present as review evidence are rejected before capture: binary, mode-only, empty
+added or deleted, copy, malformed hunk, and inexact hunkless rename entries.
 
 Capture and structured `data set --capture-label` print the data revision retained. Add
 `snapshot="REVISION"` before

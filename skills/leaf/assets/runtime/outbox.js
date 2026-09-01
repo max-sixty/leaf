@@ -234,6 +234,12 @@ export function createOutbox(runtime, dependencies) {
         // contains their attempt, never merely by a response whose rendering failed.
         if (entry.rejected || entry.readEvent) {
           if (reconcileKnownState()) releaseProjectedOutbox();
+          // Sequence consumers hear a reconciliation performed here the way they hear
+          // every other one. This one withdraws a refused winner from the projection, and
+          // a surface reading the projection rather than the DOM — the margin's row for
+          // that winner, acknowledgment face and all — would otherwise stand on the
+          // withdrawn state until the heartbeat's next tick.
+          document.dispatchEvent(new Event("lf-actions"));
         }
         // The list is an input to the key line and no focus/mouse event accompanies
         // either edge. Repaint before resolving the caller, whose own settlement may

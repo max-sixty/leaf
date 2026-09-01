@@ -12,28 +12,29 @@
 
 ## Current Status
 
-### Latest Results: experiment 32
+### Latest Results: experiment 34
 
-The one-resource candidate removed experiment 31's Codex cache collision: both
-cards selected the correct adaptive mode, the snapshot rendered, and four
-read-only presentation/refresh calls needed no approval under `writes`. The
-full-mode shell was correct, but Codex blocked its nested localhost page with
-`ERR_BLOCKED_BY_CSP` despite the exact declared frame domain. The shell's iframe
-`load` event then falsely announced success for Chromium's error document. Codex
-desktop 26.825.32147 removes every `http:` frame domain while constructing the
-sandbox CSP; the official reference host accepts this exact origin.
+A fresh `leaf_candidate_final` process loaded the current shared resource and
+completed `leaf_present` without an approval prompt. Codex committed and ran the
+widget, then issued one successful app-initiated tool call for the automatic
+`leaf_snapshot_refresh`. It made no nested localhost attempt and logged none of
+experiment 32's CSP or renderer failures. A retained screenshot shows the
+correct full-mode shell and its immediate capability-gate status, with no broken
+frame. The successful refresh log and Chromium tests cover the final snapshot;
+another app took focus before its screenshot could be retained.
 
 ### Current Experiment: none
 
-**Status**: Capability- and readiness-gated snapshot fallback complete locally
-**Purpose**: Submit it as experiment 33 without rewriting experiment 32's failed
-candidate result.
+**Status**: A fresh Codex process visually confirmed the capability-gate
+transition. Logs and Chromium cover the rendered fallback; its final Codex
+screenshot remains outstanding.
+**Purpose**: Retain visual evidence of the final snapshot without changing the
+validated transport.
 
 ## Next Steps
 
-1. Submit the readiness-gated candidate as experiment 33. The official host
-   should reveal the full page only after its presentation marker; Codex should
-   replace its hidden blocked frame with the read-only authored snapshot.
+1. Repeat the fresh-identity `leaf_present` probe as experiment 35 while keeping
+   its task foregrounded long enough to retain the final snapshot screenshot.
 2. Keep the detached Codex adapter as the sole durable wake and acknowledgement
    carrier; no remaining implementation decision depends on `ui/message` policy.
 3. If accessibility parity becomes the next question, compare Axe before and
@@ -41,6 +42,8 @@ candidate result.
 
 ## Reference
 
+- Read the fresh-process Codex result: `cat notes/mcp-apps/experiments/34/README.md`
+- Read the invalid reused-process attempt: `cat notes/mcp-apps/experiments/33/README.md`
 - Read the unified candidate result: `cat notes/mcp-apps/experiments/32/README.md`
 - Read the installed-main baseline: `cat notes/mcp-apps/experiments/31/README.md`
 - Reproduce the last reference-host run: `bash notes/mcp-apps/experiments/30/commands.sh`

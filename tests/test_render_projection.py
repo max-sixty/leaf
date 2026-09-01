@@ -987,6 +987,9 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     # The worklist keeps its place through that.
     page.keyboard.press("a")
     expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
+    walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
+    expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
+    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
     # A window tall enough to hold the whole page, so the root has no scroll range and the
     # browser will not focus body as a scrolling affordance.

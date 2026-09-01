@@ -944,6 +944,16 @@ export function createLivingMargin(dependencies) {
       document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
   }
 
+  function focusForNavigation(control) {
+    const wasSettlingOptionsFocus = settlingOptionsFocus;
+    settlingOptionsFocus = true;
+    try {
+      control.focus({ preventScroll: true });
+    } finally {
+      settlingOptionsFocus = wasSettlingOptionsFocus;
+    }
+  }
+
   function openButtonOptions(target) {
     render();
     const entry = pageMapEntries.find((candidate) => candidate.target === target);
@@ -1950,6 +1960,7 @@ export function createLivingMargin(dependencies) {
     },
     closePreview: () => closePreview(false),
     enterPageMap,
+    focusForNavigation,
     keyboardRung,
     marginTargetAt,
     openButtonOptions,

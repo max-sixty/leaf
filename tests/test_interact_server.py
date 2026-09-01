@@ -54,7 +54,7 @@ from leaf.served_state import page as served_page
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
     publish(page_dir)
-    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    current = json.loads(fetch(f"{server}/api/state")[1])["layer"]["generation"]
     before = event_model.read_events(page_dir)
 
     status, body = fetch(
@@ -953,7 +953,7 @@ def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):
 def test_an_event_with_an_unknown_view_revision_is_not_appended(server, page_dir):
     publish(page_dir)
     before = event_model.read_events(page_dir)
-    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]["generation"]
     address = urllib.parse.urlsplit(server)
     connection = http.client.HTTPConnection(address.hostname, address.port)
     event = {
@@ -2645,7 +2645,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
     try:
         door.putrequest("POST", f"/api/event?t={TOKEN}")
-        door.putheader("Leaf-Layer", json.loads(served)["layer"])
+        door.putheader("Leaf-Layer", json.loads(served)["layer"]["generation"])
         door.putheader("Content-Length", "999999999999999999")
         door.putheader("Content-Type", "application/json")
         door.endheaders()

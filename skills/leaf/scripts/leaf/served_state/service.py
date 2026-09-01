@@ -24,13 +24,11 @@ class PageStateService:
         self,
         page_dir: Path,
         *,
-        layer: str,
         preview_source: dict | None = None,
         layer_identity: dict | None = None,
         preview: dict | None = None,
     ):
         self.page_dir = page_dir
-        self.layer = layer
         self.preview_source = preview_source
         self.layer_identity = layer_identity
         self.preview = preview
@@ -51,7 +49,6 @@ class PageStateService:
         return served_page.full_state(
             self.page_dir,
             events,
-            layer=self.layer,
             layer_identity=self.layer_identity,
             preview=self.preview,
             source_error=source_error,

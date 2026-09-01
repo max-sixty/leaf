@@ -133,9 +133,9 @@ export function createBanner({
       ...(preview.commit ? [`commit: ${preview.commit}`] : []),
       ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
       `started: ${preview.started}`,
-      `layer generation: ${state.layer_identity.generation}`,
-      ...(state.layer_identity.fingerprint
-        ? [`layer fingerprint: ${state.layer_identity.fingerprint}`]
+      `layer generation: ${state.layer.generation}`,
+      ...(state.layer.fingerprint
+        ? [`layer fingerprint: ${state.layer.fingerprint}`]
         : []),
       ...(state.active ? [`revision: ${state.active.revision}`] : []),
       `event sequence: ${state.events.at(-1)?.seq ?? 0}`,

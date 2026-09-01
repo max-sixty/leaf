@@ -115,7 +115,6 @@ class Handler(BaseHTTPRequestHandler):
     def _state_service(self) -> PageStateService:
         return PageStateService(
             self.page_dir,
-            layer=self.layer,
             preview_source=self.preview_source,
             layer_identity=self.layer_identity,
             preview=self.preview,

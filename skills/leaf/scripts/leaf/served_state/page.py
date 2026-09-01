@@ -14,7 +14,6 @@ from .browser import project_browser_state
 def full_state(
     page_dir: Path,
     events: list,
-    layer: str | None = None,
     layer_identity: dict | None = None,
     preview: dict | None = None,
     source_error: str | None = None,
@@ -40,8 +39,7 @@ def full_state(
     )
     identity = layer_identity or layer_metadata(page_dir)
     return {
-        "layer": layer or identity["generation"],
-        "layer_identity": identity,
+        "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads
         # `Date.now()`, which is the reader's own machine: a laptop an hour out
         # calls a claim made this minute an hour stale, on every seat at once, and

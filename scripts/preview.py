@@ -244,7 +244,7 @@ def mark_preview(source: Path, page: Path, runtime: Path) -> None:
     metadata = {
         "kind": "example",
         "example": source.stem,
-        "checkout": runtime.parent.name,
+        "checkout": runtime.name,
         "started": datetime.now(timezone.utc).isoformat(),
         **({"commit": producer["commit"]} if "commit" in producer else {}),
         **({"dirty": producer["dirty"]} if "dirty" in producer else {}),

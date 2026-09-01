@@ -105,7 +105,8 @@ A page directory holds:
                          ownership discovery survive a page moving between sessions
 
 `leaf page state` is an on-demand semantic index over these authorities. Its
-`layer` object reports the vendored generation, fingerprint, packages, and producer;
+`layer` object, shared with `/api/state`, reports the vendored generation,
+fingerprint, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data.file` always names a readable JSON store. `event_seq`

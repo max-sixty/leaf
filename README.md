@@ -78,9 +78,12 @@ bin/leaf mcp
 ```
 
 The model-visible `leaf_present` tool takes an initialized page's absolute
-directory. `leaf_present_snapshot` selects the smaller fallback explicitly. Both
-presentation tools and their refresh tools are read-only; only a snapshot comment
-append requests write approval.
+directory. `leaf_present_snapshot` selects the smaller fallback explicitly. The
+presentation and refresh tools use the read-only hint so opening a page does not
+request write approval. A presentation may materialize a changed, valid `index.html`
+as Leaf's next immutable revision inside that page directory; it does not edit the
+source, append an event, or write outside Leaf's revision store. Only a snapshot
+comment append requests write approval.
 
 ## Packages
 

@@ -322,7 +322,9 @@ def test_adaptive_app_renders_the_complete_page_payload(browser, page_dir):
         assert "Ship dark" in app.locator("#page-host").evaluate(
             "host => host.shadowRoot.textContent"
         )
+        assert errors == []
 
+        pages.close()
         page.evaluate(
             """leaf => {
               window.currentLeaf = leaf;
@@ -339,9 +341,12 @@ def test_adaptive_app_renders_the_complete_page_payload(browser, page_dir):
             }""",
             private,
         )
-        expect(app.locator("#leaf-page")).to_be_visible()
-        expect(app.locator("#page-host")).to_be_hidden()
-        assert errors == []
+        expect(app.locator("#meta")).to_contain_text("Complete page")
+        expect(app.locator("#page-loading")).to_be_visible()
+        expect(app.locator("#leaf-page")).to_be_hidden()
+        expect(app.locator("#status")).not_to_contain_text("Complete Leaf page ready")
+        expect(app.locator("#meta")).to_contain_text("Authored snapshot", timeout=8000)
+        expect(app.locator("#page-host")).to_be_visible()
     finally:
         page.close()
         pages.close()

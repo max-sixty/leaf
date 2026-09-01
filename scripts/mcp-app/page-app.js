@@ -223,6 +223,13 @@ function clearReadyTimer() {
   readyTimer = null;
 }
 
+function blankPageFrame() {
+  clearReadyTimer();
+  frame.hidden = true;
+  frame.src = "about:blank";
+  readyUrl = null;
+}
+
 function approvedFrameDomains() {
   const domains = hostCapabilities.sandbox?.csp?.frameDomains;
   return Array.isArray(domains) ? domains : null;
@@ -300,7 +307,7 @@ function renderPage(state) {
   const next = safePageUrl(state.inline_url);
   hostCapabilities = app.getHostCapabilities() || hostCapabilities;
   if (!frameOriginApproved(next)) {
-    frame.removeAttribute("src");
+    blankPageFrame();
     showStatus(
       "This host did not approve the complete page frame. Opening the comments-only snapshot…",
     );
@@ -335,7 +342,6 @@ function renderSnapshot(state) {
     state.url || fullRoute?.browserUrl || fullRoute?.inlineUrl || null;
   current = { ...state, ...(fallbackUrl && { url: fallbackUrl }) };
   currentMode = "snapshot";
-  clearReadyTimer();
   shell.classList.remove("page-mode");
   surface.classList.remove("page-surface");
   title.textContent = state.title || "Leaf review";
@@ -346,8 +352,7 @@ function renderSnapshot(state) {
   browser.title = "Open the full Leaf runtime for active controls";
   browser.disabled = false;
   pageLoading.hidden = true;
-  frame.hidden = true;
-  frame.src = "about:blank";
+  blankPageFrame();
   pageHost.hidden = false;
   const style = document.createElement("style");
   style.dataset.leafTheme = "";
@@ -465,8 +470,7 @@ app.ontoolresult = (result) => {
 app.onhostcontextchanged = applyHostContext;
 app.onerror = (error) => showStatus(`Host error: ${errorText(error)}`, { error: true });
 app.onteardown = async () => {
-  clearReadyTimer();
-  frame.src = "about:blank";
+  blankPageFrame();
   return {};
 };
 

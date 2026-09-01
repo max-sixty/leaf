@@ -30,14 +30,20 @@ page, a page with no active revision, and a missing, malformed, or stale vendore
 registry. Layer failures name `leaf page init`; they do not surface as server
 faults.
 
+All four presentation and refresh tools use `readOnlyHint` so opening a page does
+not prompt as a write. Their shared page-state read may materialize a changed,
+valid `index.html` as the page's next immutable revision. That derived write
+records source the caller already placed in the named Leaf page; presentation
+does not edit the source, append an event, or write outside the page's revision
+store.
+
 ## Complete page
 
-`leaf_present` is model-visible and `leaf_refresh` is app-only. Both are marked
-read-only: they read the durable page, while the process-local HTTP origin is
-ephemeral presentation transport. The ordinary text and structured result carry
-a small summary. The local frame address and optional ordinary browser URL live
-only under `_meta.leaf`, which the host sends to the app without adding it to
-model context.
+`leaf_present` is model-visible and `leaf_refresh` is app-only. The process-local
+HTTP origin is ephemeral presentation transport. The ordinary text and structured
+result carry a small summary. The local frame address and optional ordinary browser
+URL live only under `_meta.leaf`, which the host sends to the app without adding it
+to model context.
 
 One `ProcessPageServer` binds `127.0.0.1` on an ephemeral port before the resource
 is registered. Its exact `http://localhost:<port>` origin is the resource's sole

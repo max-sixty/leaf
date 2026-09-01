@@ -233,7 +233,11 @@ def headless_shell():
         check=True,
     )
     chromium = Path(read.stdout.strip())
-    versioned = next(p for p in chromium.parents if p.name.startswith("chromium-"))
+    versioned = next(
+        (p for p in chromium.parents if p.name.startswith("chromium-")), None
+    )
+    if versioned is None:
+        raise AssertionError(f"{chromium} is not under a Playwright chromium build")
     root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
     shell = root / f"chromium_headless_shell-{build}"
     for candidate in (*sorted(shell.glob("*/chrome-headless-shell*")), chromium):

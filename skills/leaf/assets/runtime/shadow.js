@@ -48,7 +48,17 @@ const SHADOW_PRESENTATION_CSS = `
     }
   }
 }`;
-export async function loadShadowRules() {
+// One read for the tab. The three boundaries that import widget modules each ask for the
+// rules the widgets they are about to upgrade render under, and an x-shadow widget can
+// arrive at any of them — in the document, in a later version, or in an agent's reply —
+// so the ask is repeated and the answer is not. Sharing the promise rather than the text
+// also holds a second caller behind the first read instead of starting another.
+let loading = null;
+export function loadShadowRules() {
+  loading ??= readShadowRules();
+  return loading;
+}
+async function readShadowRules() {
   const response = await fetch("/theme.css");
   if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
   // Refused rather than defaulted to nothing. A project theme that drops the markers

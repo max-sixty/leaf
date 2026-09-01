@@ -555,14 +555,19 @@ function reveal(el) {
 }
 
 let anchoringReady = false;
-const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWidgets } =
-  createWidgetLoader({
-    buildReactBar: (...args) => buildReactBar(...args),
-    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
-    reportPageError,
-    revealLayer,
-    sameLayer,
-  });
+const {
+  importWidgets,
+  opaquePassageParts,
+  opaquePassageRoots,
+  rememberPassageParts,
+  upgradeWidgets,
+} = createWidgetLoader({
+  buildReactBar: (...args) => buildReactBar(...args),
+  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  reportPageError,
+  revealLayer,
+  sameLayer,
+});
 
 // ---------- comment layer ----------
 
@@ -2955,6 +2960,7 @@ const { activateRevision, currentActivation, revisionDocument, trackActivation }
     captureView,
     comparisonBase,
     designIsOn: () => designOn,
+    importWidgets,
     paintLegend,
     pruneScopedElements,
     rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
@@ -3542,6 +3548,7 @@ stateApplication = createStateApplication({
   clearForcedActivation,
   currentActivation,
   getSignoffDeclared: () => signoffDeclared,
+  importWidgets,
   latestChip,
   loadMarked,
   midComposition,

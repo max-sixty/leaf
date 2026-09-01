@@ -20,6 +20,7 @@ export function createStateApplication(dependencies) {
     clearForcedActivation,
     currentActivation,
     getSignoffDeclared,
+    importWidgets,
     latestChip,
     loadMarked,
     midComposition,
@@ -55,6 +56,11 @@ export function createStateApplication(dependencies) {
   } = dependencies;
 
   let agentMsgCount = -1;
+  // Which frozen markup has already been read for the modules it needs. A state read
+  // carries the whole log, an event's markup never changes, and the parse is the only
+  // way to know which tags are in it — so each one is read once rather than on every
+  // poll of a conversation that may be full of widgets.
+  const markupRead = new Set();
 
   // Whether an answer was taken before the one the page holds. Answers cross — a read
   // held by a slow proxy or a test while a later one lands, a POST's answer beside a
@@ -147,6 +153,18 @@ export function createStateApplication(dependencies) {
     const preparations = [];
     if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
       preparations.push(loadMarked());
+    // And the modules for the widgets a message carries, on the same stretch and for the
+    // same reason: a reply's frozen markup may hold a tag this document never had, and
+    // buildMsgBody instantiates it synchronously once the panel builds a body.
+    for (const e of nextEvents) {
+      if (!e.markup || markupRead.has(e.id)) continue;
+      markupRead.add(e.id);
+      // Parsed the way buildMsgBody parses it, so the tags found here are the tags that
+      // will stand in the body: an inert template, one fragment at a time.
+      const frozen = document.createElement("template");
+      frozen.innerHTML = e.markup;
+      preparations.push(importWidgets(frozen.content));
+    }
     if (wantsActivation)
       preparations.push(
         revisionDocument(state.active)

@@ -41,6 +41,7 @@ export function createVersionActivation(
     captureView,
     comparisonBase,
     designIsOn,
+    importWidgets,
     paintLegend,
     pruneScopedElements,
     rememberAuthoredMarkup,
@@ -136,6 +137,11 @@ export function createVersionActivation(
   async function activateRevision(doc, revision) {
     const view = captureView();
     const source = doc.querySelector("body > main");
+    // Step 4 of the startup order, at the boundary that runs the same passes: this
+    // version may introduce a tag the standing document never carried, and insertion is
+    // where its connectedCallback runs. Awaited here, before anything is torn down, so
+    // the page the reader is still looking at is whole for the length of the import.
+    await importWidgets(source);
     const fresh = document.importNode(source, true);
     revisionDocuments.delete(revision.revision);
     const settlingFrom = settling.length;

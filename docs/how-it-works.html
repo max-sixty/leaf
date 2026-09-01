@@ -367,9 +367,10 @@ $ leaf ack ./review 3</code></pre>
           writing <code>&lt;lf-board&gt;</code> is what adds dragging. CSS is the
           theme's: it renders every widget's look, and many widgets need nothing else.
           JS is the runtime's, opt-in per widget: a registry flag
-          (<code>x-upgrade</code>) names the tags whose behavior module loads, and the
-          behavior attaches to markup that has already rendered, so a module that fails
-          to load leaves a readable page rather than a blank one.
+          (<code>x-upgrade</code>) names the tags that have a behavior module, each page
+          loads the ones its own markup uses, and the behavior attaches to markup that
+          has already rendered, so a module that fails to load leaves a readable page
+          rather than a blank one.
         </p>
         <p id="review-meta">
           The head's meta channel carries what the page asks of its reader: one that

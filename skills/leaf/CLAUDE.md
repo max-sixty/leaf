@@ -219,11 +219,24 @@ Startup order is load-bearing:
 2. Fetch and validate the registry.
 3. Index passage fences and clone recordless authored widgets while the DOM
    still contains only the version's markup.
-4. Import modules declared by `x-upgrade`.
+4. Import the modules declared by `x-upgrade` for the tags this document
+   contains, and no others.
 5. Wait for module settlement, then run the shared dressing passes.
 6. Capture authored record facets from the upgraded, authored state.
 7. Mark `body` `data-lf-upgraded="1"`.
 8. Apply the prepared state answer, reconcile it, and present the page.
+
+A page loads what it uses. `importWidgets` is the one import-on-demand door: it
+takes the markup about to be upgraded, imports each declared tag standing in it
+once per tab, and loads the shadow rules only where an `x-shadow` widget is among
+them. Three boundaries introduce markup and all three call it — startup with the
+document, a version activation with the incoming `main`, and the state
+application with the frozen markup an agent's reply carries, ahead of the panel
+building a body. Each of them names the tags it needs, so nothing imports on a
+mutation after the element is already connected. A module whose own payload is
+large (`lf-diff`'s renderer) imports it on first render for the same reason.
+`missingUpgrades` therefore reports the page's own widgets; that a declared
+module exists at all stays `package check`'s.
 
 `rememberAuthoredMarkup` runs before imports because a clone taken after upgrade
 would contain generated controls and the module's once-only stamp. It stores

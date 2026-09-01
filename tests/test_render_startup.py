@@ -8,6 +8,7 @@ import re
 import threading
 import time
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 import pytest
 from click.testing import CliRunner
@@ -28,6 +29,7 @@ from render_support import (
     BOTH_STAMPS,
     DRAFT_EDITED,
     DRAFT_TEXT,
+    EXAMPLES,
     FIRST_PRESENTATION,
     JOURNEY_V1,
     JOURNEY_V2,
@@ -1580,6 +1582,156 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert errors == []
     page.close()
+
+
+def _asked(context):
+    """Every path this context's pages ever ask for, listening before the first one.
+
+    The count is what the reading is about, so the listener goes on the context rather
+    than on a page: `open_page` makes the page and navigates it in one call, and a
+    listener attached to what it hands back has already missed the document, the theme,
+    the registry and every module.
+    """
+    paths = []
+    context.on("request", lambda request: paths.append(urlparse(request.url).path))
+    return paths
+
+
+def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
+    """The vocabulary is the layer's; the modules are this page's.
+
+    Every declared `x-upgrade` tag used to import on every page, so a triage board
+    with no diff anywhere on it fetched Pierre's renderer, and that one module was
+    more than half the bytes the page moved. The board's own module is the
+    population: a page that asked for nothing would satisfy every refusal below and
+    say nothing about which of them holds.
+
+    The theme is here for a second reason. The document's `<link>` fetches it and
+    `loadShadowRules` used to fetch it again for the rules an `x-shadow` widget
+    renders under, whether or not the page had one — 235KB twice over on a page with
+    no shadow tree in it. The rules load where such a widget stands and are read once
+    for the tab.
+    """
+    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    asked = _asked(context)
+    page, errors = open_page(browser, serve(example), context=context)
+
+    modules = sorted(p for p in asked if p.startswith("/widgets/"))
+    assert modules == ["/widgets/lf-board.js"], modules
+    assert not [p for p in asked if "pierre-diffs" in p], asked
+    assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
+    assert asked.count("/registry.json") == 1, [
+        p for p in asked if p == "/registry.json"
+    ]
+
+    # The narrowing has to have narrowed something: the layer this page was vendored
+    # with declares a vocabulary many times the size of what it just loaded.
+    declared = page.evaluate(
+        """async () => {
+          const { tagsDeclaring } = await import('/runtime/registry.js');
+          return tagsDeclaring((entry) => entry['x-upgrade']).length;
+        }"""
+    )
+    assert declared > len(modules) + 5, declared
+    assert page.evaluate("() => !!customElements.get('lf-board')")
+    assert errors == []
+    context.close()
+
+
+def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):
+    """The other side of the narrowing, on the example that ships a diff.
+
+    The walkthrough's diff is bound to a captured patch and arrives as a manifest of
+    collapsed files, so its module renders the file rows without parsing a line. That
+    is the boundary the renderer now follows: the module loads because the markup
+    carries `<lf-diff>`, and Pierre loads when a file is opened and its lines are
+    drawn. Both halves are asserted, because either alone would pass on a diff that
+    never rendered at all.
+    """
+    example = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    asked = _asked(context)
+    page, errors = open_page(browser, serve(example), context=context)
+
+    assert "/widgets/lf-diff.js" in asked
+    assert not [p for p in asked if "pierre-diffs" in p], (
+        "a collapsed manifest draws no lines, so nothing has needed the renderer yet"
+    )
+    diff = page.locator("lf-diff#pr-exact-patch")
+    expect(diff).to_have_class(re.compile(r"\blf-rendered\b"))
+    files = diff.locator("details > summary")
+    expect(files.first).to_be_visible()
+
+    files.first.click()
+    expect(diff.locator("[data-line]").first).to_be_visible()
+    assert [p for p in asked if "pierre-diffs" in p] == ["/vendor/pierre-diffs.esm.js"]
+    assert diff.locator(".lf-error").count() == 0
+    assert errors == []
+    context.close()
+
+
+def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
+    """A tag the document never had still upgrades in the panel.
+
+    The frozen markup an agent's reply carries is the third boundary that can
+    introduce a widget, and `buildMsgBody` instantiates it synchronously once the
+    panel builds a body — so the module has to be in hand before the state that
+    carries the reply is applied, not fetched on a mutation once the element is
+    already connected. The board is served first with no options anywhere on it, so
+    the module can only have arrived because the reply asked for it.
+    """
+    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    asked = _asked(context)
+    page, errors = open_page(browser, serve(example), context=context)
+    assert "/widgets/lf-options.js" not in asked
+    assert page.evaluate("() => !customElements.get('lf-options')")
+
+    d = serve.page_dir
+    events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-store",
+            "author": "user",
+            "revision": 1,
+            "text": "Which store should we write up?",
+        },
+    )
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(d),
+            "--to",
+            "c-store",
+            "--text",
+            "Depends what you want to keep:",
+            "--markup",
+            (
+                '<lf-decision id="store-decision"><h3>Which store?</h3>'
+                '<lf-options id="store-pick" choose>'
+                '<lf-option id="store-redis"><strong>Redis</strong></lf-option>'
+                '<lf-option id="store-cookie"><strong>A signed cookie</strong>'
+                "</lf-option></lf-options></lf-decision>"
+            ),
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+
+    told(page)
+    assert "/widgets/lf-options.js" in asked
+    assert page.evaluate("() => !!customElements.get('lf-options')")
+
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page)
+    options = page.locator(".lf-panel lf-options#store-pick")
+    expect(options).to_be_visible()
+    # Its module's own work, not the markup's: the pick control each option is chosen by.
+    expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
+    assert errors == []
+    context.close()
 
 
 def test_overlapping_polls_never_move_the_log_backwards(browser, serve):

@@ -21,7 +21,14 @@ import {
   toast,
   watchData,
 } from "/runtime/widget-api.js";
-import { parsePatchFiles, preloadDiffHTML } from "/vendor/pierre-diffs.esm.js";
+// Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
+// that is actually rendering has any use for it — an authored <lf-diff> bound to data
+// that has not arrived yet does not. So it is imported on first use rather than at
+// module load: the page pays for the renderer when it draws a diff, and a version whose
+// diff has been taken back out stops paying on the next load. The promise is kept, so
+// every later file, every other diff on the page, and every re-render share one import.
+let renderer = null;
+const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
 const OPTIONS = Object.freeze({
   diffStyle: "unified",
@@ -257,6 +264,7 @@ function pathOnlyRenames(source) {
 }
 
 async function renderFile(file, sharedStyles, open) {
+  const { preloadDiffHTML } = await pierre();
   file.lang = langForPath(file.name) ?? "text";
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({ fileDiff: file, options: OPTIONS });
@@ -294,12 +302,13 @@ async function renderFile(file, sharedStyles, open) {
   return { node: details, lines };
 }
 
-function parsedFiles(source) {
+async function parsedFiles(source) {
   if (/^copy (?:from|to) /m.test(source))
     throw new Error(
       "unsupported copy diff (copy entries belong in prose; omit " +
         "copy metadata and use textual @@ hunks for an edited destination)",
     );
+  const { parsePatchFiles } = await pierre();
   const files = parsePatchFiles(source, undefined, true).flatMap(
     (patch) => patch.files,
   );
@@ -436,7 +445,7 @@ customElements.define(
         this.manifestEntries = null;
         this.sharedStyles = null;
         // Strict parsing keeps a malformed hunk from becoming incomplete evidence.
-        const files = parsedFiles(source);
+        const files = await parsedFiles(source);
         const sharedStyles = new Map();
         const rendered = [];
         const open = !this.hasAttribute("collapsed");
@@ -602,7 +611,7 @@ customElements.define(
           if (rendering !== this.rendering || !this.isConnected) return;
           if (typeof patch !== "string")
             throw new Error("the fragment is not unified patch text");
-          const files = parsedFiles(patch);
+          const files = await parsedFiles(patch);
           if (files.length !== 1 || files[0].name !== entry.record.path)
             throw new Error(
               `the fragment for ${entry.record.path} does not contain that one file`,

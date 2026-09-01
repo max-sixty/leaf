@@ -104,6 +104,57 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     assert b"known: ['node:A', 'node:B']" in body
 
 
+def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
+    """The browser resolves its own anchor against the rendered page before it posts,
+    and the page holds words this side cannot produce — a widget's label, whatever a
+    module wrote — while an earlier runtime spells the same words in whitespace this
+    side collapses away. So the door does not read a served page's anchor back off
+    the file: a re-capture there refused a quote whose only sin was a line break, and
+    every comment made on a tab's own name.
+
+    The MCP surface is the transport that does ask for the capture, because nothing
+    has resolved its selection (`capture_anchors`, held by test_interact_mcp)."""
+    publish(page_dir)
+    passage = "The cutoff lives in"
+    for name, quote in {
+        "as the file holds it": passage,
+        "wrapped where a line ended": passage.replace(" lives", "\nlives"),
+        "spaced out by a rendering": passage.replace(" ", "   "),
+    }.items():
+        sent = {
+            "kind": "comment",
+            "revision": 1,
+            "text": name,
+            "anchor": {"section": "plan", "quote": quote},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+        assert status == 200, body
+
+    kept = [
+        event["anchor"]["quote"]
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert kept == [
+        passage,
+        passage.replace(" lives", "\nlives"),
+        passage.replace(" ", "   "),
+    ], "the door rewrote an anchor the browser had already settled"
+
+    # The refusal a re-capture here would bring back: a quote only the rendering holds.
+    # The file reading places a widget's body in its source and turns it down outright
+    # (test_interact_mcp holds that refusal on the MCP path), while the spellings above
+    # all collapse to text the file does hold, so none of them reaches it.
+    source_quote = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "a passage only the rendering holds",
+        "anchor": {"section": "flow", "quote": "graph LR A --> B"},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(source_quote).encode())
+    assert status == 200, body
+
+
 def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     declare_data_input(
         page_dir,
@@ -649,7 +700,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     draft = {
         "kind": "comment",
         "revision": 2,
-        "anchor": {"quote": "hello"},
+        "anchor": {"section": "plan", "quote": "The cutoff lives in"},
         "text": "The words a reader typed before the version moved.",
         "attempt": "attempt-draft-0001",
     }

@@ -290,6 +290,15 @@ export function bake() {
   // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy
   // that kept nothing in it. Decided records and standing reaction marks remain as
   // children and therefore retain both their shared item and its rail.
+  //
+  // The fold `…` unfolds is a container of the same kind, and it stands in every item
+  // whether or not anything is folded into it. Emptied of its stand-in Buttons, it is a
+  // child the item still has, so an item holding nothing else is no longer `:empty` and
+  // kept the rail open on the strength of a shell. Take the emptied fold first, then ask
+  // the item.
+  document
+    .querySelectorAll(".lf-margin-options:empty")
+    .forEach((fold) => fold.remove());
   document.querySelectorAll(".lf-margin-item:empty").forEach((item) => item.remove());
   // What the runtime painted, as against what a widget built, goes the same way. An
   // element-anchored comment's mark is a class the kept stylesheet answers with a

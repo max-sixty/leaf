@@ -344,9 +344,9 @@ export function chromeStyle({
   /* The address chip is worn on both sides of the scope — an option's own corner in the
      page, and the chord's chips in the chrome's address layer — so its box is stated
      here. KEY_BOX is that box; the chrome's own step keys read the same statement from
-     inside @scope. */
-  .lf-address { ${KEY_BOX} display: none; border-color: var(--accent);
-    background: var(--card); color: var(--accent); z-index: 1; }
+     inside @scope. An address is an available key, so KEY_BOX's neutral face is also
+     its complete colour statement; completed steps take the pressed face below. */
+  .lf-address { ${KEY_BOX} display: none; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -1202,28 +1202,23 @@ ${MARK_RULES}
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     .lf-page-map-toggle { display: none; }
-    .lf-margin-preview { position: fixed; position-anchor: --lf-margin-preview;
-      position-area: inline-start center; position-try-fallbacks: flip-inline, flip-block;
+    .lf-margin-preview { position: fixed;
       z-index: 9150; width: min(320px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
-    /* A compact preview follows its marker through native anchor positioning. The full
-       conversation instead has its fixed top measured from that marker: the card also
+    /* The conversation has its fixed position measured from its Button: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */
     .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
       position-try-fallbacks: none;
-      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) 8px auto auto;
-      width: min(var(--thread-card), calc(100vw - 24px));
+      inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
+        var(--lf-thread-left, 8px);
+      width: min(var(--thread-card), calc(100vw - var(--lf-thread-left, 8px) - 8px));
       max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
     .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
       gap: 8px; }
-    .lf-margin-thread-action { flex: none; margin: 0; padding: 2px 7px;
-      border-color: var(--rule); background: transparent; color: var(--muted);
-      font-size: var(--t-6); }
-    .lf-margin-thread-action[hidden] { display: none; }
     .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
       line-height: 1.35; }
     .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
@@ -1238,8 +1233,14 @@ ${MARK_RULES}
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+    /* Inset, because a row here fills the list to its own edge and the list is a
+       scroller: there is nothing outside the row for a ring to be drawn in, and an
+       outset one is cut on both sides by the box it scrolls in. The layer's rule for
+       a box whose edge touches something that paints (CLAUDE.md, "Standing somewhere").
+       The ring's width is the inset, so the band lands just inside the row's own edge. */
     .lf-page-map-action:focus-visible {
-      outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
+      outline: var(--here-ring); --lf-here-ring: page-map-action;
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);

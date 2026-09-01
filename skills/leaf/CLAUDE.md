@@ -1376,6 +1376,18 @@ never merely on focus or hover; when the document cannot leave it room beside th
 source, the same press opens the full Threads surface. The thread card is the only
 generated contextual pane, not a generic container for alternatives.
 
+The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
+over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
+on the next press; each rung is named on the key line before it runs.
+
+A gesture that unfolds a cluster for its own use puts that fold back, and only that one:
+putting the reaction choices away folds back the cluster the raise unfolded, so a disarm
+over a reply strip or over a fold the reader opened themselves takes away no layer the
+gesture put on. That put-down folds without claiming the focus — it runs from wherever
+the reader is standing, so taking the focus would throw them onto a cluster they may
+have left, and would send a press already on its way to a Button they were not standing
+on.
+
 Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
 complete target cluster fits and hides it only when the shared layout needs the room;
 `always` is for vocabulary whose glyph is sufficient at rest. Collapsing changes
@@ -1398,6 +1410,15 @@ it has one; an action-only item receives focus on its first available action wit
 performing it. In the compact posture, an informational item opens the Page map sheet
 at that location instead of reviving the hidden desktop preview; an action-only item
 keeps its direct focus arrival on the action docked into the page.
+
+A thread card names the target without offering a second route to the panel the banner
+already opens. At wide widths it is the conversation itself, measured eight pixels
+beside the pressed Thread Button in the same turn it is shown or changes size. While
+that Button keeps focus, `c` enters the card's one reply box; several roots leave the
+destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+open panel waits for the body's strip motion before choosing the card posture. When the
+document cannot leave the card room beside its Button, the press opens the full Threads
+surface instead.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail
 claim is the widest stable contribution seen and is monotonic for the document's
@@ -1767,8 +1788,9 @@ reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
 
 Its destination is the anchor the 💬 carries, then the open thread the reader is
-in, then the item they are standing in, and, when none of those is in hand, the
-conversation itself. `commentDestination` decides it once and states the
+in or the single inline thread held by a pressed Page-map marker, then the item they are
+standing in, and, when none of those is in hand, the conversation itself.
+`commentDestination` decides it once and states the
 sentence, the key line and the press together, so the reference, the line and
 what happens cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader

@@ -347,14 +347,23 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     expect(mark).to_have_attribute("role", "checkbox")
     expect(mark).to_have_attribute("aria-checked", "false")
     line = key_line(page)
+    assert "toggle the nth" in line, (
+        f"the selected Decision hides its numbered answers behind More: {line}"
+    )
+    option_hints = page.locator("#storage-options > lf-option > .lf-address")
+    expect(option_hints).to_have_text(["1", "2"])
+    expect(option_hints.first).to_be_visible()
+    write_hint = page.locator("#storage-options > .lf-another > .lf-address")
+    expect(write_hint).to_have_text("⏎")
+    expect(write_hint).to_be_visible()
     assert (
-        "toggle the nth" in line
-    ), f"the selected Decision hides its numbered answers behind More: {line}"
-    expect(page.locator("#storage-options .lf-address")).to_have_text(["1", "2"])
-    expect(page.locator("#storage-options .lf-address").first).to_be_visible()
+        abs(write_hint.bounding_box()["x"] - option_hints.first.bounding_box()["x"])
+        < 0.5
+    )
     page.keyboard.press("Enter")
     box = page.locator("#storage-options > .lf-another input")
     expect(box).to_be_focused()
+    expect(write_hint).to_be_hidden()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
     assert errors == []
     page.close()

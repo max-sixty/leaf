@@ -1,36 +1,38 @@
 /* Version travel: everything the reader's move between two documents of one page takes.
  *
- * The four sections below are one owner because they are one gesture. The chooser states
- * which version this is and offers the others; a comparison marks what changed since one
- * of them; activation is how the live root follows a newer revision without navigating;
- * and the reading landmark is what keeps the reader where they were across that
- * replacement. Each is written in terms of the others — the walk through the menu sets a
- * comparison per row, an activation drops the standing comparison and puts it back, the
- * chooser's word says whether one is standing, and activation captures the landmark
- * before it replaces the authored main — so a boundary between them is a set of callbacks
- * passed back and forth rather than a seam anything else could stand at.
+ * One owner, because it is one gesture: the walk through the chooser's menu states a
+ * comparison per row, an activation drops the standing comparison and puts it back once
+ * the new main stands, the chooser's word says whether one is standing, and the
+ * activation captures the reading landmark before it replaces the authored main. Those
+ * are local calls here rather than callbacks across a seam nothing else could stand at.
  *
- * What the rest of the runtime asks for is a small surface: the three key rows, the
- * chooser's own nodes, the live-activation calls state-application drives, and the reading
- * `blocksOnScreen` that the decision walk starts from. Everything else here is private.
+ * The surface is the three key rows, the chooser's nodes (control, menu, newest-version
+ * chip), the two calls state application drives — `renderVersions` paints the chooser
+ * from a state, `prepareActivation` fetches the revision a state names ahead of the
+ * commit that installs it — the arrival landing, and `blocksOnScreen`, the reading the
+ * decision walk starts from.
  */
 import { runtime } from "./context.js";
+import { designOn } from "./design.js";
 import { shownBox } from "./geometry.js";
 import { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
+import { toast } from "./notifications.js";
 import { inChrome, textNodesUnder, wrote } from "./passages.js";
 import { MARKED_IN_PAGE, dress, markDeclared } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
-import { PAGE_SCOPE, versionUrl } from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, versionUrl } from "./storage.js";
 import { quoted } from "./widget-elements.js";
 import { settle, settling } from "./widget-upgrade.js";
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
-// onto those same two elements. Remember exactly the authored share before the runtime
-// writes anything so a version activation can replace that share without erasing the
+// onto those same two elements. The authored share is remembered at import, before the
+// boot module has run a line: no runtime module writes the document at its own top
+// level, and the runtime's stylesheet and the banner's icon link come later from the
+// boot module. An activation can then replace exactly that share without erasing the
 // presentation, layout, and mode facts the surviving runtime owns.
 const authoredAttributes = (root) =>
   new Map([...root.attributes].map(({ name, value }) => [name, value]));
@@ -50,59 +52,52 @@ const versionedHeadNode = (node) =>
         node.rel === "stylesheet" &&
         new URL(node.href, document.baseURI).pathname === "/theme.css"
       )));
-
-export function captureVersionRoots() {
-  return {
-    authoredBodyAttributes: authoredAttributes(document.body),
-    authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
-    authoredHtmlAttributes: authoredAttributes(document.documentElement),
-  };
-}
+let authoredBodyAttributes = authoredAttributes(document.body);
+let authoredHeadNodes = new Set([...document.head.children].filter(versionedHeadNode));
+let authoredHtmlAttributes = authoredAttributes(document.documentElement);
 
 /* Semantic reading position preserved across authored-document replacement. */
 const VIEW_KEY = "lf-view";
 const LANDMARK_CAP = 160;
 
-export function createVersion(
-  versionRoots,
-  {
-    allButTheReference,
-    banner,
-    captureAuthoredFacets,
-    cut,
-    designIsOn,
-    domFacet,
-    el,
-    elementById,
-    landedAt,
-    latestChip,
-    liveRoot,
-    pageText,
-    paintHere,
-    paintLegend,
-    projectionFromView,
-    pruneScopedElements,
-    quoteFrom,
-    rangeOf,
-    readAndApply,
-    rememberAuthoredMarkup,
-    rememberPassageParts,
-    resetAuthoredPage,
-    resolveAnchor,
-    reveal,
-    sameLayer,
-    setLanded,
-    showNews,
-    showToast,
-    stateCoordinate,
-    stateSignoff,
-    style,
-    syncLayout,
-    textBlockSelector,
-  },
-) {
+export function createVersion({
+  allButTheReference,
+  banner,
+  captureAuthoredFacets,
+  cut,
+  domFacet,
+  el,
+  elementById,
+  landedAt,
+  midComposition,
+  pageText,
+  paintHere,
+  paintLegend,
+  projectionFromView,
+  pruneScopedElements,
+  quoteFrom,
+  rangeOf,
+  readAndApply,
+  rememberAuthoredMarkup,
+  rememberPassageParts,
+  reportPageError,
+  reserveNewsSlot,
+  resetAuthoredPage,
+  resolveAnchor,
+  reveal,
+  sameLayer,
+  setLanded,
+  showNews,
+  stateCoordinate,
+  stateSignoff,
+  style,
+  syncLayout,
+  textBlockSelector,
+}) {
   // ---------- the version chooser ----------
-  const versions = runtime.versions;
+  // `runtime.versions` is spliced in place, never reassigned: context's readers hold it.
+  const stamped = (version) =>
+    runtime.versions.find((candidate) => candidate.version === version);
   // The version chooser: a press that says which version this is, and a menu that says
   // what each one was and what it changed. It was a <select>, and the two things that
   // cost were both the control's rather than the styling's. A select takes its inner
@@ -130,25 +125,26 @@ export function createVersion(
   // reader announces.
   // The closed control is an address, not the menu's account of the working document.
   // Keep it to the stable version token (or Draft); the full "Draft after vN" context
-  // remains in the menu row and the control's title. `label` lets the banner reserve the
-  // largest compact token it can write without reintroducing that account as dead width.
+  // remains in the menu row and the control's title. `versionLabels` is every compact
+  // token the control can wear, for the banner to reserve the widest of without
+  // reintroducing that account as dead width.
   const versionLabel = (
     comparing,
     label = runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`,
   ) => (comparing ? "Δ " : "") + `${label} ▾`;
+  const versionLabels = () =>
+    [undefined, "Draft", "v999"].flatMap((label) => [
+      versionLabel(false, label),
+      versionLabel(true, label),
+    ]);
   const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
-  // Nothing to open until the log says what versions there are, and a control that answers
-  // nothing is a way in painted where there is no layer behind it — the same reason the
-  // page's own approve button waits for the page. `versionsOffered` is what the key and the
-  // menu already read; this is the pointer's half of it, cleared by renderVersions.
-  versionBtn.disabled = true;
   versionBtn.setAttribute("aria-haspopup", "menu");
   versionBtn.setAttribute("aria-expanded", "false");
   const versionMenu = el("div", "lf-ui lf-version-menu");
   versionMenu.setAttribute("popover", "auto");
   versionMenu.setAttribute("role", "menu");
   versionMenu.setAttribute("aria-label", "Versions");
-  let versionMenuOpen = false;
+  const versionMenuIsOpen = () => versionMenu.matches(":popover-open");
   // Whether there is a menu to open is not whether there is anything in it to walk: a
   // first version has no neighbour, but its menu still explains that version. The
   // browser owns dismissal; Leaf only enables its version-walk bindings when a
@@ -160,7 +156,7 @@ export function createVersion(
     if (runtime.active?.version === null) revisions.add(runtime.active.revision);
     return revisions;
   };
-  const versionCount = () => versions.length + draftRevisions().size;
+  const versionCount = () => runtime.versions.length + draftRevisions().size;
   const versionsOffered = () => versionCount() > 0;
   const versionsToWalk = () => versionCount() > 1;
   // The walk is the versions, not every press in the menu.
@@ -201,17 +197,16 @@ export function createVersion(
   // they pressed rather than moved to the chooser they pressed away from. Leaf is left
   // with the close, which is the only end state it asks for.
   function closeVersionMenu() {
-    if (versionMenu.matches(":popover-open")) versionMenu.hidePopover();
+    if (versionMenuIsOpen()) versionMenu.hidePopover();
   }
   versionMenu.addEventListener("toggle", (event) => {
-    versionMenuOpen = event.newState === "open";
-    versionBtn.setAttribute("aria-expanded", String(versionMenuOpen));
+    const open = event.newState === "open";
+    versionBtn.setAttribute("aria-expanded", String(open));
     // Focus is the menu's own only where nothing else has claimed it. An open lands on the
     // row the comparison stands on — unless the reader is already inside, which is where the
     // reference's restore puts them when it hands the menu back, and moving them off it
     // would undo the whole point of the exemption.
-    if (versionMenuOpen && !versionMenu.contains(document.activeElement))
-      focusVersionRow();
+    if (open && !versionMenu.contains(document.activeElement)) focusVersionRow();
     paintHere();
   });
   // The press is the popover's declared invoker rather than a click handler that toggles by
@@ -223,6 +218,19 @@ export function createVersion(
   // the control, and the platform offers no way back along its own link.
   versionBtn.popoverTargetElement = versionMenu;
   versionMenu.lfInvoker = versionBtn;
+  // The newest-version chip. Its hidden pinned slot carries representative words as well
+  // as a measured width: an empty button is shorter, so its first real label would still
+  // move vertically. Its press goes through the chooser's one door (goActive): at the
+  // live root an explicit in-place release of the composition hold, on an immutable page
+  // ordinary version travel.
+  const latestChip = el(
+    "button",
+    "lf-ui lf-btn lf-latest-chip",
+    "New page available → open v999",
+  );
+  latestChip.onclick = () => goActive();
+  if (!LIVE_ROOT) reserveNewsSlot(latestChip);
+  const arriving = (label) => `New page available → open ${label}`;
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
@@ -305,7 +313,7 @@ export function createVersion(
   const VERSIONS = {
     title: "In the versions menu",
     when: versionsOffered,
-    at: () => versionMenu.matches(":popover-open"),
+    at: versionMenuIsOpen,
     // A mode over the page suspends the page, which the two modes above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
     // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
@@ -376,56 +384,9 @@ export function createVersion(
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
-  // A state candidate can be rejected after this owner has painted it. Keep the stable
-  // versions array, private render cache, controls, and menu subtree one restoration
-  // boundary; callers cannot reconstruct those facts from runtime fields alone. An open
-  // menu keeps its existing nodes when they never changed, because their identity carries
-  // the reader's focus.
-  function snapshotVersionNavigation() {
-    const prior = {
-      active: structuredClone(runtime.active),
-      currentLabel: runtime.currentLabel,
-      currentRevision: runtime.currentRevision,
-      currentStamp: runtime.currentStamp,
-      latestAttributes: [...latestChip.attributes].map(({ name, value }) => [
-        name,
-        value,
-      ]),
-      latestText: latestChip.textContent,
-      lastVersionsKey,
-      menuChildren: [...versionMenu.childNodes],
-      versionBtnDisabled: versionBtn.disabled,
-      versions: structuredClone(versions),
-      versionsWalkable,
-    };
-    return () => {
-      const repaintKeys = versionsWalkable !== prior.versionsWalkable;
-      versions.splice(0, versions.length, ...prior.versions);
-      runtime.active = prior.active;
-      runtime.currentLabel = prior.currentLabel;
-      runtime.currentRevision = prior.currentRevision;
-      runtime.currentStamp = prior.currentStamp;
-      lastVersionsKey = prior.lastVersionsKey;
-      versionsWalkable = prior.versionsWalkable;
-      const menuChildren = [...versionMenu.childNodes];
-      if (
-        menuChildren.length !== prior.menuChildren.length ||
-        menuChildren.some((child, index) => child !== prior.menuChildren[index])
-      )
-        versionMenu.replaceChildren(...prior.menuChildren);
-      versionBtn.disabled = prior.versionBtnDisabled;
-      paintDiff();
-      for (const { name } of [...latestChip.attributes])
-        latestChip.removeAttribute(name);
-      for (const [name, value] of prior.latestAttributes)
-        latestChip.setAttribute(name, value);
-      latestChip.textContent = prior.latestText;
-      if (repaintKeys) paintKeys();
-    };
-  }
   const goVersion = (version) => {
     if (version === runtime.currentStamp) return;
-    const target = versions.find((candidate) => candidate.version === version);
+    const target = stamped(version);
     if (!target) return;
     const url = new URL(target.url, location.href);
     url.searchParams.set("pin", "");
@@ -433,7 +394,7 @@ export function createVersion(
   };
   const goActive = () => {
     if (!runtime.active) return;
-    if (liveRoot) {
+    if (LIVE_ROOT) {
       if (runtime.active.revision === runtime.currentRevision) return;
       forceActivation = true;
       closeVersionMenu();
@@ -442,35 +403,113 @@ export function createVersion(
     }
     location.href = PAGE_SCOPE || "/";
   };
+  function menuRows(state, notes) {
+    const latest = state.versions.at(-1)?.version;
+    const entries = state.versions.map((entry) => ({
+      revision: entry.revision,
+      version: entry.version,
+      name: `v${entry.version}${entry.version === latest ? " (latest version)" : ""}`,
+      note: notes[entry.version],
+      current: entry.version === runtime.currentStamp,
+      open: () => goVersion(entry.version),
+      comparable: comparable(entry.version),
+    }));
+    for (const revision of draftRevisions()) {
+      const active = revision === state.active.revision;
+      entries.push({
+        revision,
+        version: Infinity,
+        name: `${active ? "Current" : "This view"} · ${
+          revision === runtime.currentRevision
+            ? runtime.currentLabel
+            : state.active.label
+        }`,
+        current: revision === runtime.currentRevision,
+        open: () => {
+          if (active) goActive();
+        },
+        comparable: false,
+      });
+    }
+    entries.sort(
+      (left, right) => left.revision - right.revision || left.version - right.version,
+    );
+    return entries.flatMap((entry) => {
+      const row = el("button", "lf-version-row");
+      row.setAttribute("role", "menuitem");
+      row.dataset.lfRevision = entry.revision;
+      if (entry.version !== Infinity) row.dataset.lfVersion = entry.version;
+      // The version and its note are two kinds of word — which one this is, and
+      // what it was — so they are two elements rather than one string. That is
+      // what lets the note wrap to as many lines as it needs, which is the whole
+      // reason the notes are here rather than on a control 190px wide.
+      row.append(el("span", "lf-version-num", entry.name));
+      if (entry.note) row.append(el("span", "lf-version-note", entry.note));
+      if (entry.current) row.setAttribute("aria-current", "true");
+      row.onclick = () => {
+        closeVersionMenu();
+        entry.open();
+      };
+      if (!entry.comparable) return [row];
+      // The comparison this row offers, in the menu's second column beside the note
+      // that says the same thing in words. A grid sibling rather than a child, a
+      // button inside a button being no markup at all, and named in full: the glyph
+      // is the eye's shorthand and says nothing aloud.
+      const press = el("button", "lf-version-diff", "Δ");
+      press.setAttribute("role", "menuitemcheckbox");
+      press.dataset.lfVersion = entry.version;
+      press.setAttribute("aria-label", `Mark what changed since v${entry.version}`);
+      press.title = `Mark what changed since v${entry.version}`;
+      // The pointer's own door, and it closes the menu: the marks are on the page this
+      // hangs over, and a pointer has no walk to be standing in the middle of. The
+      // keyboard's is the walk itself, which leaves the list up.
+      press.onclick = () => {
+        closeVersionMenu();
+        pressComparison(entry.version);
+      };
+      return [row, press];
+    });
+  }
+  // `null` is the page before its first state. A rendering is a function of its argument
+  // and the three current-document facts on `runtime`, so state application rolls a
+  // refused candidate back by painting the last accepted state again.
   function renderVersions(state) {
-    versions.splice(0, versions.length, ...state.versions);
-    runtime.active = structuredClone(state.active);
-    if (liveRoot && runtime.currentRevision === runtime.active.revision) {
+    runtime.versions.splice(0, runtime.versions.length, ...(state?.versions ?? []));
+    runtime.active = state === null ? null : structuredClone(state.active);
+    if (
+      LIVE_ROOT &&
+      runtime.active !== null &&
+      runtime.currentRevision === runtime.active.revision
+    ) {
       runtime.currentStamp = runtime.active.version;
       runtime.currentLabel = runtime.active.label;
     } else if (runtime.currentStamp !== null) {
       runtime.currentLabel = `v${runtime.currentStamp}`;
-      const current = versions.find(
-        (candidate) => candidate.version === runtime.currentStamp,
-      );
+      const current = stamped(runtime.currentStamp);
       if (current) runtime.currentRevision = current.revision;
     }
-    versionBtn.disabled = !versionsOffered();
+    // Nothing to open until the log says what versions there are, and a control that
+    // answers nothing is a way in painted where there is no layer behind it — the same
+    // reason the page's own approve button waits for the page. `versionsOffered` is what
+    // the key and the menu already read; this is the pointer's half of it.
+    versionBtn.disabled = state === null || !versionsOffered();
     const walkable = versionsToWalk();
     if (walkable !== versionsWalkable) {
       versionsWalkable = walkable;
       paintKeys();
     }
     const notes = runtime.browser?.version_notes ?? {};
-    const key = JSON.stringify([
-      state.active,
-      state.versions,
-      notes,
-      runtime.currentRevision,
-      runtime.currentStamp,
-      runtime.currentLabel,
-    ]);
-    const current = runtime.currentStamp;
+    const key =
+      state === null
+        ? ""
+        : JSON.stringify([
+            state.active,
+            state.versions,
+            notes,
+            runtime.currentRevision,
+            runtime.currentStamp,
+            runtime.currentLabel,
+          ]);
     // Rebuilt rather than reconciled: this runs only when the versions or their notes
     // actually changed, which on a page's whole life is a handful of times, and the
     // menu is only ever read while it is open — where a rebuild would take the focused
@@ -480,98 +519,19 @@ export function createVersion(
     // version out of the menu until some later one happened along. A version arriving
     // under an open menu is the new-version chip's news; the list catches up on the
     // next poll after it closes.
-    if (key !== lastVersionsKey && !versionMenuOpen) {
+    if (key !== lastVersionsKey && !versionMenuIsOpen()) {
       lastVersionsKey = key;
-      versionMenu.textContent = "";
-      const menuEntries = state.versions.map((entry) => ({
-        ...entry,
-        kind: "version",
-      }));
-      for (const revision of draftRevisions())
-        menuEntries.push({
-          kind: "draft",
-          revision,
-          label:
-            revision === runtime.currentRevision
-              ? runtime.currentLabel
-              : state.active.label,
-          active: revision === state.active.revision,
-        });
-      menuEntries.sort(
-        (left, right) =>
-          left.revision - right.revision ||
-          (left.kind === "version" ? left.version : Infinity) -
-            (right.kind === "version" ? right.version : Infinity),
-      );
-      for (const entry of menuEntries) {
-        const { revision } = entry;
-        const row = el("button", "lf-version-row");
-        row.setAttribute("role", "menuitem");
-        row.dataset.lfRevision = revision;
-        if (entry.kind === "draft") {
-          row.append(
-            el(
-              "span",
-              "lf-version-num",
-              `${entry.active ? "Current" : "This view"} · ${entry.label}`,
-            ),
-          );
-          if (runtime.currentRevision === revision)
-            row.setAttribute("aria-current", "true");
-          row.onclick = () => {
-            closeVersionMenu();
-            if (entry.active) goActive();
-          };
-          versionMenu.append(row);
-          continue;
-        }
-        const { version } = entry;
-        const isLatest = version === state.versions.at(-1)?.version;
-        row.dataset.lfVersion = version;
-        // The version and its note are two kinds of word — which one this is, and
-        // what it was — so they are two elements rather than one string. That is
-        // what lets the note wrap to as many lines as it needs, which is the whole
-        // reason the notes are here rather than on a control 190px wide.
-        row.append(
-          el(
-            "span",
-            "lf-version-num",
-            `v${version}${isLatest ? " (latest version)" : ""}`,
-          ),
-        );
-        if (notes[version]) row.append(el("span", "lf-version-note", notes[version]));
-        if (version === current) row.setAttribute("aria-current", "true");
-        row.onclick = () => {
-          closeVersionMenu();
-          goVersion(version);
-        };
-        versionMenu.append(row);
-        // The comparison this row offers, in the menu's second column beside the note
-        // that says the same thing in words. A grid sibling rather than a child, a
-        // button inside a button being no markup at all, and named in full: the glyph
-        // is the eye's shorthand and says nothing aloud.
-        if (comparable(version)) {
-          const press = el("button", "lf-version-diff", "Δ");
-          press.setAttribute("role", "menuitemcheckbox");
-          press.dataset.lfVersion = version;
-          press.setAttribute("aria-label", `Mark what changed since v${version}`);
-          press.title = `Mark what changed since v${version}`;
-          // The pointer's own door, and it closes the menu: the marks are on the page this
-          // hangs over, and a pointer has no walk to be standing in the middle of. The
-          // keyboard's is the walk itself, which leaves the list up.
-          press.onclick = () => {
-            closeVersionMenu();
-            pressComparison(version);
-          };
-          versionMenu.append(press);
-        }
-      }
+      versionMenu.replaceChildren(...(state === null ? [] : menuRows(state, notes)));
     }
     paintDiff(); // the label may change even when an open menu defers its new rows
+    // The keyboard reaches the chip through the chooser rather than past it — v opens the
+    // menu, and the letter again takes the current page; the banner spells that motion
+    // onto this title.
     const behind =
+      runtime.active !== null &&
       runtime.currentRevision !== null &&
       runtime.active.revision !== runtime.currentRevision;
-    const sourceFailed = liveRoot && Boolean(state.source_error);
+    const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
     latestChip.disabled = sourceFailed;
     latestChip.dataset.lfKeyTitle = sourceFailed
       ? state.source_error
@@ -579,16 +539,8 @@ export function createVersion(
     latestChip.title = latestChip.dataset.lfKeyTitle;
     showNews(latestChip, sourceFailed || behind);
     if (sourceFailed) latestChip.textContent = "Latest edit couldn't be shown";
-    else if (behind)
-      latestChip.textContent = `New page available → open ${runtime.active.label}`;
+    else if (behind) latestChip.textContent = arriving(runtime.active.label);
   }
-
-  const activationIsForced = () => forceActivation;
-  const clearForcedActivation = () => {
-    forceActivation = false;
-  };
-
-  const versionMenuIsOpen = () => versionMenuOpen;
 
   // ---------- version diff ----------
   // "Changes since vN": blocks (paragraphs, list items, widget items) whose text
@@ -689,17 +641,6 @@ export function createVersion(
     }
     return pairs;
   }
-  // The base version's own document, which is the whole of what a comparison waits for. Split
-  // from the marking below so that everything touching the live page happens in one synchronous
-  // stretch after the single await: the walk through the menu asks for a comparison per row, and
-  // a marking pass that could interleave with the next row's would leave two bases' marks
-  // standing under a chooser naming one of them.
-  async function baseDocument(baseVersion) {
-    const baseName = versionUrl(baseVersion);
-    const res = await fetch(baseName);
-    if (!res.ok) throw new Error(`couldn't load ${baseName}`);
-    return new DOMParser().parseFromString(await res.text(), "text/html");
-  }
   async function baseReading(baseRevision, throughSeq) {
     const params = new URLSearchParams({
       revision: String(baseRevision),
@@ -733,9 +674,7 @@ export function createVersion(
     // just as an action did, so what the reader saw includes it) against the
     // live DOM, which already wears the current folds. Body facets are words and
     // the block keys above own them.
-    const baseRevision = runtime.versions.find(
-      (candidate) => candidate.version === baseVersion,
-    )?.revision;
+    const baseRevision = stamped(baseVersion)?.revision;
     if (baseRevision == null)
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
@@ -778,7 +717,7 @@ export function createVersion(
   // Whether a stamped version can be compared with the revision being read: any stamp
   // on an earlier revision, which is which rows the menu builds a press onto.
   const comparable = (version) => {
-    const base = runtime.versions.find((candidate) => candidate.version === version);
+    const base = stamped(version);
     return (
       runtime.currentRevision !== null &&
       base !== undefined &&
@@ -787,10 +726,10 @@ export function createVersion(
   };
   // Every rendering of the pair above, written in one place: the chooser's word, its
   // paint and what it says it will do, the checked state of each row's Δ, and the rail
-  // down the rows the comparison spans. Called by the setter, by a menu rebuild — the
-  // other thing that can leave a rendering behind the state — and once at load, so what
-  // the chooser says it will do is written here from the start rather than standing as a
-  // second copy of these sentences up where the control is built.
+  // down the rows the comparison spans. Called by the setter, by every chooser render —
+  // the other thing that can leave a rendering behind the state — and so once at load,
+  // where what the chooser says it will do is written from the start rather than
+  // standing as a second copy of these sentences up where the control is built.
   function paintDiff() {
     versionBtn.textContent = versionLabel(diffOn);
     versionBtn.classList.toggle("on", diffOn);
@@ -811,11 +750,9 @@ export function createVersion(
     const shortcut = labelOf(CHOOSER);
     versionBtn.title =
       versionBtn.dataset.lfKeyTitle + (shortcut ? ` (${shortcut})` : "");
+    const baseRevision = stamped(diffBase)?.revision;
     for (const row of versionMenu.querySelectorAll(".lf-version-row")) {
       const revision = +row.dataset.lfRevision;
-      const baseRevision = runtime.versions.find(
-        (candidate) => candidate.version === diffBase,
-      )?.revision;
       row.classList.toggle(
         "lf-compared",
         diffOn &&
@@ -830,7 +767,6 @@ export function createVersion(
         String(diffOn && +press.dataset.lfVersion === diffBase),
       );
   }
-  paintDiff();
   // Whether the comparison is standing and what against — the only thing that decides
   // it, the marks and the paint being renderings rather than a second copy.
   function setDiff(on, base) {
@@ -846,20 +782,22 @@ export function createVersion(
     // together, rather than announcing an applied DOM diff before it is standing.
     document.dispatchEvent(new CustomEvent("lf-comparison"));
   }
-  // The one way a comparison starts, from a row's press or from the walk through the menu.
-  // It states a base rather than toggling one — the toggle is a press's own reading of it,
-  // and the walk has none to spend, standing on a row being what makes it the base however
-  // many times the reader arrives there.
+  // The one way a comparison starts, from a row's press, from the walk through the menu,
+  // or from an activation putting back the one it dropped. It states a base rather than
+  // toggling one — the toggle is a press's own reading of it, and the walk has none to
+  // spend, standing on a row being what makes it the base however many times the reader
+  // arrives there. Everything touching the live page happens in one synchronous stretch
+  // after the single await: the walk asks for a comparison per row, and a marking pass
+  // that could interleave with the next row's would leave two bases' marks standing
+  // under a chooser naming one of them.
   async function showComparison(base) {
     const mine = ++diffRequest;
-    const baseRevision = runtime.versions.find(
-      (candidate) => candidate.version === base,
-    )?.revision;
+    const baseRevision = stamped(base)?.revision;
     if (baseRevision == null) {
-      showToast(`Couldn't load v${base}`);
+      toast(`Couldn't load v${base}`);
       return;
     }
-    const documentRequest = baseDocument(base);
+    const documentRequest = authoredDocument(versionUrl(base));
     let doc;
     let reading;
     try {
@@ -871,18 +809,18 @@ export function createVersion(
           documentRequest,
           baseReading(baseRevision, throughSeq),
         ]);
-        if (reading === null || mine !== diffRequest) return;
+        if (doc === null || reading === null || mine !== diffRequest) return;
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
     } catch {
-      showToast(`Couldn't load v${base}`);
+      toast(`Couldn't load v${base}`);
       return;
     }
     if (mine !== diffRequest) return;
     if (diffOn) setDiff(false); // the old base's marks, before the new base's land
     const n = applyDiff(doc, base, reading);
     setDiff(true, base);
-    showToast(
+    toast(
       n
         ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
         : `No text changes since v${base}`,
@@ -898,36 +836,34 @@ export function createVersion(
   const comparisonBase = () => (diffOn ? diffBase : null);
   const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
-  // ---------- live revision activation ----------
-  let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
-    versionRoots;
+  // ---------- another version's document ----------
+  // One fetch for the comparison base and for the revision the live root follows. Null is
+  // a document from a layer this page no longer runs; `sameLayer` has it reloading by then.
+  async function authoredDocument(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
+    const generation = response.headers.get("Leaf-Layer");
+    if (generation && !sameLayer(generation)) return null;
+    const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+    if (doc.querySelectorAll("body > main").length !== 1)
+      throw new Error(`${url} has no single authored main`);
+    return doc;
+  }
+  // State reads overlap, and two naming the same newer revision share one fetch.
   const revisionDocuments = new Map();
-  let activatingState = null;
   function revisionDocument(revision) {
-    if (revisionDocuments.has(revision.revision))
-      return revisionDocuments.get(revision.revision);
-    const name = revision.url;
-    const loading = fetch(name)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`couldn't load ${name} (${response.status})`);
-        const generation = response.headers.get("Leaf-Layer");
-        if (generation && !sameLayer(generation)) return null;
-        const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-        if (
-          !doc.querySelector("body > main") ||
-          doc.querySelectorAll("body > main").length !== 1
-        )
-          throw new Error(`${name} has no single authored main`);
-        return doc;
-      })
-      .catch((error) => {
-        revisionDocuments.delete(revision.revision);
-        throw error;
-      });
-    revisionDocuments.set(revision.revision, loading);
-    return loading;
+    if (!revisionDocuments.has(revision.revision))
+      revisionDocuments.set(
+        revision.revision,
+        authoredDocument(revision.url).catch((error) => {
+          revisionDocuments.delete(revision.revision);
+          throw error;
+        }),
+      );
+    return revisionDocuments.get(revision.revision);
   }
 
+  // ---------- live revision activation ----------
   function replaceAuthoredAttributes(target, source, prior) {
     const scratch = document.createElement(target.localName);
     for (const [name, value] of prior) scratch.setAttribute(name, value);
@@ -976,6 +912,8 @@ export function createVersion(
     stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
   }
 
+  // Resolves to the second half of the move — the reader's place, and the comparison the
+  // replacement dropped — run once the state that brought the revision is on the new main.
   async function activateRevision(doc, revision) {
     const view = captureView();
     const source = doc.querySelector("body > main");
@@ -1011,17 +949,50 @@ export function createVersion(
     reachScrollers(fresh);
     captureAuthoredFacets(fresh);
     syncLayout();
-    if (designIsOn()) paintLegend();
-    return { view, comparedFrom };
+    if (designOn) paintLegend();
+    return () => {
+      restoreView(view);
+      if (comparedFrom !== null) showComparison(comparedFrom);
+    };
   }
 
-  function currentActivation() {
-    return activatingState;
-  }
-  function trackActivation(running) {
-    activatingState = running;
-    return () => {
-      if (activatingState === running) activatingState = null;
+  // The move a state asks of the live root, fetched ahead of the commit that makes it.
+  // Null where there is nothing to follow — no newer revision, or a document that failed
+  // to load, which is reported and leaves the chip as the way to try again; `stale` where
+  // the document came from a re-vendored layer, so the page is reloading and the state
+  // belongs to the layer it is leaving. Whether the move happens now is asked at the
+  // commit: `midComposition` or an open menu defers it, unless the chip was pressed
+  // (goActive) — the one override, spent by the install it forced.
+  async function prepareActivation(state) {
+    const target = state.active;
+    if (
+      !LIVE_ROOT ||
+      runtime.currentRevision === null ||
+      target.revision <= runtime.currentRevision
+    )
+      return null;
+    latestChip.textContent = arriving(target.label);
+    showNews(latestChip, true);
+    let doc;
+    try {
+      doc = await revisionDocument(target);
+    } catch (error) {
+      reportPageError(
+        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
+      );
+      return null;
+    }
+    if (doc === null) return { stale: true };
+    return {
+      stale: false,
+      activates: () =>
+        target.revision > runtime.currentRevision &&
+        (!midComposition() || forceActivation) &&
+        !versionMenuIsOpen(),
+      install: () => {
+        forceActivation = false;
+        return activateRevision(doc, target);
+      },
     };
   }
 
@@ -1172,28 +1143,23 @@ export function createVersion(
     return { landArrival, savedView };
   }
 
+  renderVersions(null);
+
   return {
     CHOOSER,
     NEWEST,
     VERSIONS,
-    activateRevision,
-    activationIsForced,
     blocksOnScreen,
-    clearForcedActivation,
     closeVersionMenu,
     comparisonBase,
     comparisonChanges,
-    currentActivation,
     goActive,
     installArrival,
+    latestChip,
+    prepareActivation,
     renderVersions,
-    restoreView,
-    revisionDocument,
-    showComparison,
-    snapshotVersionNavigation,
-    trackActivation,
     versionBtn,
-    versionLabel,
+    versionLabels,
     versionMenu,
     versionMenuIsOpen,
   };

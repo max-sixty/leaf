@@ -66,7 +66,7 @@ subscriptions;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
-`runtime/state-application.js` owns stale-answer ordering, version preparation,
+`runtime/state-application.js` owns stale-answer ordering, activation serialization,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
@@ -76,11 +76,11 @@ Web Animations playback;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
-`runtime/version.js` owns version travel whole: the chooser control, its menu, its own
-`v` and the menu's key scope, forced live activation, version-comparison state, marks and
-chooser paint, version document loading, authored-root replacement, activation
-serialization, the persisted semantic reading landmarks carried across that replacement,
-and the page-block reading directional walks start from;
+`runtime/version.js` owns version travel whole: the chooser control, its menu and the
+newest-version chip, its own `v` and the menu's key scope, forced live activation,
+version-comparison state, marks and chooser paint, version document loading,
+authored-root replacement, the persisted semantic reading landmarks carried across that
+replacement, and the page-block reading directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture

@@ -293,7 +293,7 @@ import {
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
-import { captureVersionRoots, createVersion } from "./runtime/version.js";
+import { createVersion } from "./runtime/version.js";
 import { createWidgetLoader } from "./runtime/widget-loader.js";
 import { failSoft, settling } from "./runtime/widget-upgrade.js";
 import {
@@ -354,9 +354,6 @@ configureBindings({ characterShortcuts: () => characterShortcutsOn });
 async function undoLast(...args) {
   return runtimeProjection.undoLast(...args);
 }
-
-// Capture the authored share before the runtime paints roots or appends head chrome.
-const versionRoots = captureVersionRoots();
 
 const { promoteDeferredModals } = createDeferredModals({
   presentedAttribute: PAGE_PAINT_ATTRIBUTE.presented,
@@ -560,7 +557,6 @@ const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWid
 // ---------- comment layer ----------
 
 const VERSION_MATCH = location.pathname.match(VERSION_PATH);
-const LIVE_ROOT = location.pathname.endsWith("/") && !VERSION_MATCH;
 const servedRevision = document.querySelector(
   'meta[name="lf-revision"][data-lf-runtime]',
 )?.content;
@@ -695,19 +691,6 @@ bannerStatus.append(dot, statusText);
 const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
   el,
 });
-// The hidden pinned slot carries representative words as well as a measured width: an
-// empty button is shorter, so its first real label would still move vertically.
-const latestChip = el(
-  "button",
-  "lf-ui lf-btn lf-latest-chip",
-  "New page available → open v999",
-);
-// The keyboard reaches this through the chooser rather than past it: v opens the menu, and
-// the letter again takes the current page. The chip names that motion, spelled from the
-// two rows that make it rather than typed out beside them.
-latestChip.dataset.lfKeyTitle = "Open the current page";
-latestChip.title = latestChip.dataset.lfKeyTitle;
-if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
   decisionRows,
@@ -761,7 +744,7 @@ const { leavesOffered, othersLinks, renderOthers } = createLiveLeaves({
   toneFor: (...args) => toneFor(...args),
   walkRows,
 });
-for (const control of [latestChip, decisionsBtn, othersBtn]) showNews(control, false);
+for (const control of [decisionsBtn, othersBtn]) showNews(control, false);
 // One owner for everything a move between two documents of one page takes: the chooser
 // and its key, the comparison marks, live activation, and the reading landmark that
 // survives it. Wired here because the chooser's control belongs to the banner row built
@@ -771,38 +754,29 @@ const {
   CHOOSER,
   NEWEST,
   VERSIONS,
-  activateRevision,
-  activationIsForced,
   blocksOnScreen,
-  clearForcedActivation,
   closeVersionMenu,
   comparisonBase,
   comparisonChanges,
-  currentActivation,
   goActive,
   installArrival,
+  latestChip,
+  prepareActivation,
   renderVersions,
-  restoreView,
-  revisionDocument,
-  showComparison,
-  snapshotVersionNavigation,
-  trackActivation,
   versionBtn,
-  versionLabel,
+  versionLabels,
   versionMenu,
   versionMenuIsOpen,
-} = createVersion(versionRoots, {
+} = createVersion({
   allButTheReference,
   banner,
   captureAuthoredFacets: (...args) => captureAuthoredFacets(...args),
   cut: (...args) => cut(...args),
-  designIsOn: () => designOn,
   domFacet: (...args) => domFacet(...args),
   el,
   elementById: (...args) => elementById(...args),
   landedAt: (...args) => landedAt(...args),
-  latestChip,
-  liveRoot: LIVE_ROOT,
+  midComposition: () => midComposition(),
   pageText: (...args) => pageText(...args),
   paintHere,
   paintLegend,
@@ -813,13 +787,14 @@ const {
   readAndApply,
   rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
   rememberPassageParts,
+  reportPageError,
+  reserveNewsSlot,
   resetAuthoredPage: (...args) => resetAuthoredPage(...args),
   resolveAnchor,
   reveal,
   sameLayer,
   setLanded: (...args) => setLanded(...args),
   showNews,
-  showToast: (...args) => showToast(...args),
   stateCoordinate: (...args) => stateCoordinate(...args),
   stateSignoff,
   style,
@@ -1135,14 +1110,7 @@ function reserveBannerControls() {
     "Latest edit couldn't be shown",
   ]);
   latestChip.classList.toggle("lf-news-shown", latestWasShown);
-  reserve(versionBtn, [
-    versionLabel(false),
-    versionLabel(true),
-    versionLabel(false, "Draft"),
-    versionLabel(true, "Draft"),
-    versionLabel(false, "v999"),
-    versionLabel(true, "v999"),
-  ]);
+  reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
   reserve(decisionsBtn, ["Asks (999)"]);
@@ -2979,11 +2947,6 @@ const midComposition = () => {
         (replyDraft === null && active.hasAttribute("data-lf-offer"))))
   );
 };
-// Through the chooser's one door, so the chip opens exactly the version it names. At the
-// live root that is an explicit in-place release of the composition hold; on an immutable
-// page it is ordinary version travel.
-latestChip.onclick = () => goActive();
-
 // ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
@@ -3469,24 +3432,18 @@ designRuntime = createDesign({
 });
 
 stateApplication = createStateApplication({
-  LIVE_ROOT,
   PAGE_PAINT_ATTRIBUTE,
   acceptData,
-  activateRevision,
-  activationIsForced,
   accountOutbox,
-  clearForcedActivation,
-  currentActivation,
   getSignoffDeclared: () => signoffDeclared,
-  latestChip,
   loadMarked,
-  midComposition,
   notifyDataSubscribers,
   observeServerNow,
   paintAnchors,
   paintApproval,
   paintAcknowledgments,
   panelIsOpen,
+  prepareActivation,
   presented,
   reconcileState,
   refreshHover,
@@ -3495,21 +3452,13 @@ stateApplication = createStateApplication({
   renderPanel,
   renderStatus,
   renderVersions,
-  reportPageError,
-  restoreView,
-  revisionDocument,
   runtime,
   sameLayer,
   setPanel,
-  showComparison,
-  showNews,
   showToast,
-  snapshotVersionNavigation,
   settleAcceptedDrafts,
   stateSignoff,
-  trackActivation,
   updateFab,
-  versionMenuIsOpen,
 });
 
 stateFeed = createStateFeed({

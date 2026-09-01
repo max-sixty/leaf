@@ -4,39 +4,55 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>Leaf page</title>
+    <title>Leaf presentation</title>
     <style>
       /* LEAF_MCP_STYLE */
     </style>
   </head>
   <body>
-    <main class="shell" id="app">
+    <main class="app" id="app">
       <header class="bar">
-        <div class="identity">
-          <span class="mark" aria-hidden="true"><!-- LEAF_MCP_ICON --></span>
-          <span class="product">Leaf</span>
-          <span class="page-title" id="page-title">Opening page…</span>
-        </div>
-        <div class="actions">
-          <button id="refresh" type="button">Refresh</button>
-          <button id="open-page" type="button" disabled>Open in browser</button>
-          <button id="display-mode" type="button" hidden>Full screen</button>
-        </div>
+        <span class="mark" aria-hidden="true"><!-- LEAF_MCP_ICON --></span>
+        <span class="identity">
+          <span class="title-line">
+            <b id="title">Leaf</b>
+            <span
+              class="stage"
+              title="Merged for installed testing; Leaf will decide whether to keep or expand this transport."
+              >Experimental</span
+            >
+          </span>
+          <small id="meta">Connecting to the host…</small>
+        </span>
+        <span class="actions">
+          <button class="btn" id="comment-page" type="button">Comment</button>
+          <button class="btn" id="browser" type="button" disabled>Full page</button>
+          <button class="btn" id="snapshot" type="button" hidden>Snapshot</button>
+          <button class="btn" id="refresh" type="button">Refresh</button>
+          <button class="btn" id="fullscreen" type="button" hidden>Fullscreen</button>
+        </span>
       </header>
+      <div class="status" id="status" role="status" aria-live="polite">
+        <span id="status-text"></span>
+      </div>
       <section class="surface" id="surface">
-        <p class="loading" id="loading">Starting the Leaf page…</p>
+        <p class="empty" id="page-loading" hidden>Opening the complete page…</p>
         <iframe
           id="leaf-page"
           title="Leaf page"
           referrerpolicy="no-referrer"
           hidden
         ></iframe>
+        <div id="page-host"><p class="empty">Waiting for the Leaf page…</p></div>
       </section>
-      <footer class="foot">
-        <span id="sequence">Waiting for Leaf</span>
-        <span id="source-warning" hidden>Showing the last valid revision</span>
-        <span id="status" role="status" aria-live="polite"></span>
-      </footer>
+      <form class="composer" id="composer">
+        <div class="quote" id="quote"></div>
+        <textarea id="comment" placeholder="Comment on this page" required></textarea>
+        <div class="composer-actions">
+          <button class="btn" id="cancel" type="button">Cancel</button>
+          <button class="btn primary" id="send" type="submit">Send comment</button>
+        </div>
+      </form>
     </main>
     <script>
       /* LEAF_MCP_SCRIPT */

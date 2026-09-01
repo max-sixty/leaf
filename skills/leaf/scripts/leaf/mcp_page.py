@@ -15,6 +15,7 @@ from .event_endpoint import EventEndpoint
 from .files import revision_path
 from .hosting import server_at
 from .http import Handler
+from .registry.contract import RegistryError
 from .registry.storage import layer_metadata
 from .schema import ASSETS
 from .served_state.service import PageStateService
@@ -24,6 +25,25 @@ from .structure import parse_structure
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
 PAGE_APP_RESOURCE = ASSETS / "vendor" / "mcp-page-app.html"
 PAGE_FORMAT = "leaf.page/v1"
+_READY_PATH = "/mcp-ready.js"
+_READY_SCRIPT = (
+    b"if(window.parent!==window){const ready=()=>{if(document.body?.dataset."
+    b'lfPresented!=="1")return false;window.parent.postMessage({type:'
+    b'"leaf:mcp-page-ready"},"*");return true};if(!ready()){const observer='
+    b"new MutationObserver(()=>{if(ready())observer.disconnect()});observer.observe("
+    b"document.documentElement,{attributes:true,subtree:true,attributeFilter:"
+    b'["data-lf-presented"]})}}\n'
+)
+
+
+def _with_ready_signal(body: bytes, page_root: str) -> bytes:
+    """Let the parent App distinguish a loaded page from a browser error document."""
+    closing = body.lower().rfind(b"</body>")
+    if closing < 0:
+        return body
+    source = f"{page_root}{_READY_PATH}"
+    script = f'<script type="module" src="{source}" data-lf-runtime></script>'.encode()
+    return body[:closing] + script + body[closing:]
 
 
 @dataclass
@@ -70,6 +90,17 @@ class _RoutedPageHandler(Handler):
         if self.command == "POST":
             self.close_connection = True
         self._json({"error": "not found"}, 404)
+
+    def _send(self, status: int, ctype: str, body: bytes) -> None:
+        if status == 200 and ctype.startswith("text/html"):
+            body = _with_ready_signal(body, self.page_root)
+        super()._send(status, ctype, body)
+
+    def _get(self):
+        if urlsplit(self.path).path == _READY_PATH:
+            self._send(200, "text/javascript; charset=utf-8", _READY_SCRIPT)
+            return
+        super()._get()
 
     def _select_or_answer(self) -> bool | None:
         """Select a page, answering route faults before the shared handler exists."""
@@ -177,19 +208,41 @@ def resolve_page(page: str | Path) -> Path:
     return page_dir
 
 
-def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
-    """Return a model-sized summary and the app-private canonical page address."""
-    page_dir = resolve_page(page)
-    state = PageStateService(
-        page_dir,
-        layer_identity=layer_metadata(page_dir),
-        preview=preview_metadata(page_dir),
-    ).page_state()
+def unpresentable_layer_error(page_dir: Path, detail: str) -> ToolError:
+    """Explain a page layer that the MCP presentation boundary cannot read."""
+    message = (
+        f"{page_dir} cannot be presented with its vendored layer: {detail.rstrip('.')}"
+    )
+    if "leaf page init" not in detail:
+        message += f". Run `leaf page init {page_dir}` to re-vendor the page"
+    return ToolError(f"{message}.")
+
+
+def require_active_revision(page_dir: Path, state: dict) -> dict:
+    """Return the active revision or explain the source the page still needs."""
     active = state.get("active")
     if active is None:
         raise ToolError(
             f"{page_dir} has no active revision; write a valid index.html first"
         )
+    return active
+
+
+def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
+    """Return a model-sized summary and the app-private canonical page address."""
+    page_dir = resolve_page(page)
+    try:
+        state = PageStateService(
+            page_dir,
+            layer_identity=layer_metadata(page_dir),
+            preview=preview_metadata(page_dir),
+        ).page_state()
+    except RegistryError as error:
+        raise unpresentable_layer_error(page_dir, str(error)) from error
+    active = require_active_revision(page_dir, state)
+    if state["browser"] is None:
+        detail = state["source_error"] or "the page registry cannot be projected"
+        raise unpresentable_layer_error(page_dir, detail)
     server = running_server(page_dir) or {}
     source = revision_path(page_dir, active["revision"]).read_text(encoding="utf-8")
     title = parse_structure(source).title.strip() or page_dir.name
@@ -202,9 +255,13 @@ def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
         "event_seq": state["browser"]["basis"]["through_seq"],
         "source_error": state["source_error"],
     }
+    try:
+        inline_url = pages.open(page_dir)
+    except RegistryError as error:
+        raise unpresentable_layer_error(page_dir, str(error)) from error
     private = {
         **summary,
-        "inline_url": pages.open(page_dir),
+        "inline_url": inline_url,
         "browser_url": server.get("url"),
         "message": (
             "Opening the last valid revision; the current authored source is invalid."
@@ -227,7 +284,3 @@ def page_result(page: str | Path, pages: ProcessPageServer) -> CallToolResult:
         structuredContent=summary,
         _meta={"leaf": private},
     )
-
-
-def page_app_html() -> str:
-    return PAGE_APP_RESOURCE.read_text(encoding="utf-8")

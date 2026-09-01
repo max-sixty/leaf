@@ -9,7 +9,6 @@ from urllib.parse import urlsplit
 import anyio
 from interact_support import PAGE
 from leaf.event_log import append_event, read_events
-from leaf.mcp_app import APP_URI
 from leaf.mcp_page import (
     PAGE_APP_RESOURCE,
     PAGE_FORMAT,
@@ -67,6 +66,11 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         root = urlsplit(first_url).path.rstrip("/")
         assert f'src="{root}/leaf.js"' in html
         assert f'href="{root}/theme.css"' in html
+        assert f'src="{root}/mcp-ready.js"' in html
+
+        with urllib.request.urlopen(f"{pages.origin}{root}/mcp-ready.js") as response:
+            ready = response.read().decode()
+        assert 'type:"leaf:mcp-page-ready"' in ready
 
         with urllib.request.urlopen(
             f"{pages.origin}{root}/runtime/layer-client.js"
@@ -120,8 +124,7 @@ def test_page_result_keeps_the_capability_private(page_dir):
         summary, private = page_state(str(page_dir), pages)
         server = make_mcp_server(
             pages,
-            page_html="<!doctype html><title>page app</title>",
-            snapshot_html="<!doctype html><title>snapshot app</title>",
+            presentation_html="<!doctype html><title>Leaf app</title>",
         )
         result = call(server, "leaf_present", {"page": str(page_dir)})
     finally:
@@ -137,13 +140,12 @@ def test_page_result_keeps_the_capability_private(page_dir):
     assert result.meta["leaf"]["inline_url"] == private["inline_url"]
 
 
-def test_registered_server_prefers_full_page_and_keeps_snapshot_as_fallback():
+def test_registered_server_uses_one_adaptive_resource_for_every_presentation():
     pages = ProcessPageServer()
     try:
         server = make_mcp_server(
             pages,
-            page_html="<!doctype html><title>page app</title>",
-            snapshot_html="<!doctype html><title>snapshot app</title>",
+            presentation_html="<!doctype html><title>Leaf app</title>",
         )
 
         async def inspect():
@@ -167,15 +169,27 @@ def test_registered_server_prefers_full_page_and_keeps_snapshot_as_fallback():
     }
     assert by_name["leaf_refresh"].meta["ui"]["visibility"] == ["app"]
     assert by_name["leaf_present_snapshot"].meta["ui"] == {
-        "resourceUri": APP_URI,
+        "resourceUri": PAGE_RESOURCE_URI,
         "visibility": ["model"],
     }
     assert by_name["leaf_snapshot_apply_event"].meta["ui"]["visibility"] == ["app"]
+    assert {tool.meta["ui"]["resourceUri"] for tool in by_name.values()} == {
+        PAGE_RESOURCE_URI
+    }
+    assert {
+        name: tool.annotations.read_only_hint for name, tool in by_name.items()
+    } == {
+        "leaf_present": True,
+        "leaf_refresh": True,
+        "leaf_present_snapshot": True,
+        "leaf_snapshot_apply_event": False,
+        "leaf_snapshot_refresh": True,
+    }
     assert "leaf_delivery_ack" not in by_name
     assert "leaf_open_compact_ask" not in by_name
 
     by_uri = {str(resource.uri): resource for resource in resources}
-    assert set(by_uri) == {PAGE_RESOURCE_URI, APP_URI}
+    assert set(by_uri) == {PAGE_RESOURCE_URI}
     assert by_uri[PAGE_RESOURCE_URI].meta == {
         "ui": {
             "csp": {
@@ -186,15 +200,9 @@ def test_registered_server_prefers_full_page_and_keeps_snapshot_as_fallback():
             "prefersBorder": False,
         }
     }
-    assert by_uri[APP_URI].meta == {
-        "ui": {
-            "csp": {"connectDomains": [], "resourceDomains": []},
-            "prefersBorder": False,
-        }
-    }
 
 
-def test_shipped_page_app_is_one_self_contained_html_blob():
+def test_shipped_adaptive_app_is_one_self_contained_html_blob():
     page = PAGE_APP_RESOURCE.read_text(encoding="utf-8")
 
     assert "LEAF_MCP_STYLE" not in page
@@ -204,4 +212,7 @@ def test_shipped_page_app_is_one_self_contained_html_blob():
     assert '<script src="' not in page
     assert '<link rel="stylesheet"' not in page
     assert "leaf_refresh" in page
+    assert "leaf_snapshot_refresh" in page
+    assert "leaf_snapshot_apply_event" in page
     assert 'id="leaf-page"' in page
+    assert 'id="page-host"' in page

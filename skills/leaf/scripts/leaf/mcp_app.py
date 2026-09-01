@@ -9,13 +9,19 @@ from tinycss2 import parse_stylesheet, serialize
 from .event_endpoint import EventEndpoint
 from .exporting import inline_assets, inline_css_assets
 from .files import revision_path
+from .mcp_page import (
+    PAGE_APP_RESOURCE,
+    require_active_revision,
+    resolve_page,
+    unpresentable_layer_error,
+)
+from .registry.contract import RegistryError
 from .registry.storage import layer_generation
-from .schema import SKILL_ROOT
 from .served_state.service import PageStateService
 from .structure import parse_structure
 
-APP_URI = "ui://leaf/review/v1.html"
 APP_MIME = "text/html;profile=mcp-app"
+SNAPSHOT_FORMAT = "leaf.snapshot/v1"
 
 _ENDPOINTS: dict[tuple[Path, str], EventEndpoint] = {}
 
@@ -37,27 +43,20 @@ def split_theme(theme: str) -> tuple[str, str]:
     return "".join(base), "".join(dark)
 
 
-def resolve_page(page: str) -> Path:
-    page_dir = Path(page).expanduser().resolve()
-    if not (page_dir / "comments.jsonl").is_file():
-        raise ValueError(
-            f"{page_dir} is not an initialized Leaf page; run `leaf page init` first"
-        )
-    return page_dir
-
-
 def state_service(page_dir: Path) -> PageStateService:
     return PageStateService(page_dir)
 
 
 def app_snapshot(page: str) -> tuple[dict, dict]:
     page_dir = resolve_page(page)
-    state = state_service(page_dir).page_state()
-    active = state.get("active")
-    if active is None:
-        raise ValueError(
-            f"{page_dir} has no active revision; write a valid index.html first"
-        )
+    try:
+        state = state_service(page_dir).page_state()
+    except RegistryError as error:
+        raise unpresentable_layer_error(page_dir, str(error)) from error
+    active = require_active_revision(page_dir, state)
+    if state["browser"] is None:
+        detail = state["source_error"] or "the page registry cannot be projected"
+        raise unpresentable_layer_error(page_dir, detail)
     revision = active["revision"]
     source = revision_path(page_dir, revision).read_text(encoding="utf-8")
     parsed = parse_structure(source)
@@ -68,6 +67,8 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
     )
     server = state.get("server") or {}
     summary = {
+        "format": SNAPSHOT_FORMAT,
+        "mode": "snapshot",
         "page": str(page_dir),
         "title": title,
         "revision": revision,
@@ -101,8 +102,19 @@ def result_for_page(page: str, *, message: str | None = None) -> CallToolResult:
 
 
 def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolResult:
-    page_dir = resolve_page(page)
     candidate = copy.deepcopy(event)
+    if candidate.get("kind") != "comment":
+        return CallToolResult(
+            content=[
+                TextContent(
+                    type="text",
+                    text="Leaf snapshot feedback accepts only comment events.",
+                )
+            ],
+            structuredContent={"ok": False, "status": 400},
+            isError=True,
+        )
+    page_dir = resolve_page(page)
     if not candidate.get("attempt"):
         return CallToolResult(
             content=[
@@ -155,4 +167,4 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
 
 
 def app_html() -> str:
-    return (SKILL_ROOT / "assets" / "mcp-app.html").read_text(encoding="utf-8")
+    return PAGE_APP_RESOURCE.read_text(encoding="utf-8")

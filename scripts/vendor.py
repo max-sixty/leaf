@@ -429,13 +429,14 @@ def build_pierre(work: Path) -> list[Path]:
 
 
 def build_mcp_app(work: Path) -> list[Path]:
-    """Bundle the MCP Apps surfaces into self-contained `ui://` resources.
+    """Bundle the adaptive MCP App into one self-contained `ui://` resource.
 
     An MCP host reads one HTML blob from the server; it does not fetch Leaf's
     ordinary app assets. The SDK, application code, styles, and existing Leaf
     mark are therefore inlined into committed files that an installed plugin can
-    serve without npm or network access. The complete-page resource may frame
-    the process-scoped page server, but the resource itself remains standalone.
+    serve without npm or network access. A complete-page result may frame the
+    process-scoped page server, while a snapshot result stays inside the same
+    standalone resource.
     """
     source = ROOT / "scripts/mcp-app"
     run(

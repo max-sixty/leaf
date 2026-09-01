@@ -359,13 +359,31 @@ flowchart LR
             ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
+        <h3 id="pr-hunk-heading">The default the picker now opens on</h3>
+        <p id="pr-hunk-intro">
+          The one hunk the rest of the change is arranged around: the picker asks for a
+          prepared diff instead of assembling its own <code>git diff</code> arguments.
+        </p>
+        <lf-diff id="pr-key-hunk">
+          <pre>
+diff --git a/src/git/diff.rs b/src/git/diff.rs
+--- a/src/git/diff.rs
++++ b/src/git/diff.rs
+@@ -112,4 +112,3 @@ impl Repository {
+     pub fn picker_preview(&amp;self, worktree: &amp;Worktree) -&gt; Result&lt;Diff&gt; {
+-        let args = ["diff", "--patch", "--no-color", "--find-renames", "--diff-algorithm=histogram", "HEAD"];
+-        Diff::parse(&amp;self.git(&amp;args, worktree.path())?)
++        PreparedDiff::for_worktree(self, worktree)?.unified()
+     }
+</pre>
+        </lf-diff>
         <h3 id="pr-invariant-heading">Review invariants</h3>
         <p id="pr-invariant-intro">
           The implementation is expected to preserve these three properties.
         </p>
         <lf-code id="pr-review-invariants" language="rust" hi="1-3">
           <pre>
-assert_eq!(real_index_after, real_index_before);
+assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
 assert!(temp_index.is_operation_scoped());
 assert!(offscreen_worktree_preview.is_demand_loaded());
 </pre>

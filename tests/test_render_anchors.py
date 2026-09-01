@@ -3342,9 +3342,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     added.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Review the whole added line.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
@@ -3394,9 +3395,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "endsAtTokenStart": True,
     }, selected
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
+    page.locator(".lf-fab-input").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Review this expression.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
         "app.py · new line 2 · “request.token.id”"

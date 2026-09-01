@@ -26,6 +26,39 @@ export function coveredWords({
     }
     return false;
   };
+  // What a run paints, which is not the whole of its rect. A box that clips its overflow
+  // shows only the part inside it, so a name ellipsised in a narrow column reads as
+  // covering whatever stands beside it while the reader sees the ellipsis and nothing
+  // else — the CallDiff root's own row, where the copy revealed a tab the live page keeps
+  // closed. Every clipping ancestor is intersected in, out through each shadow host, so
+  // the reading is the one the reader is given.
+  const painted = (el, drawn) => {
+    let box = drawn;
+    for (
+      let ancestor = el;
+      ancestor && box;
+      ancestor = ancestor.parentElement ?? ancestor.getRootNode().host ?? null
+    ) {
+      const style = getComputedStyle(ancestor);
+      if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+        const bounds = ancestor.getBoundingClientRect();
+        const left = Math.max(box.left, bounds.left);
+        const right = Math.min(box.right, bounds.right);
+        const top = Math.max(box.top, bounds.top);
+        const bottom = Math.min(box.bottom, bounds.bottom);
+        box =
+          right > left && bottom > top
+            ? new DOMRect(left, top, right - left, bottom - top)
+            : null;
+      }
+      // An out-of-flow box is laid out against its containing block rather than against
+      // the ancestry, so a hidden overflow further out need not reach it at all. Stop
+      // climbing there and keep the rect whole: over-reporting a cover is this reading's
+      // safe direction, and missing one is the fault it was written for.
+      if (style.position === "absolute" || style.position === "fixed") break;
+    }
+    return box;
+  };
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let node = walk.nextNode(); node; node = walk.nextNode()) {
     const el = node.parentElement;
@@ -41,9 +74,11 @@ export function coveredWords({
     const range = document.createRange();
     range.selectNodeContents(node);
     const label = el.closest("text");
-    for (const box of range.getClientRects())
-      if (box.width > 1 && box.height > 1)
+    for (const drawn of range.getClientRects()) {
+      const box = painted(el, drawn);
+      if (box && box.width > 1 && box.height > 1)
         runs.push({ el, label, box, text: node.data.trim().slice(0, 40) });
+    }
   }
   const found = [];
   for (let i = 0; i < runs.length; i++)

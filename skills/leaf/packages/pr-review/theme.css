@@ -121,10 +121,15 @@ lf-pull-request {
   font: var(--t-4) var(--mono);
 }
 
+/* The card is already a tint of the accent over the page's paper, so a second
+ * translucent accent here stacked into a surface the layer's own --muted ink could not
+ * clear: the label and any emphasis inside the author's words read at 4.32:1. The
+ * raised-surface token separates the quoted block from the card by going lighter
+ * instead, which the accent rule beside it was doing the work of anyway. */
 .lf-pr-description {
   padding: var(--sp-3);
   border-inline-start: 3px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  background: var(--card);
 }
 
 .lf-pr-description-label,
@@ -268,7 +273,10 @@ lf-call-diff {
   font-size: var(--t-6);
 }
 
-.lf-call-toggle {
+/* Doubled with .lf-ui, which `offer` writes on every control a widget injects: the
+ * runtime's chrome face and ink are stated at one class, so a package rule that names
+ * only its own class loses the face it asked for. */
+.lf-call-toggle.lf-ui {
   flex: none;
   padding: 3px 9px;
   border: 1px solid var(--code-border);
@@ -420,7 +428,9 @@ lf-call-diff {
   text-underline-offset: 2px;
 }
 
-.lf-call-location:hover {
+/* Only where there is somewhere to go: a row that names its location without linking it
+ * must not answer the pointer as though it did. */
+.lf-call-location[href]:hover {
   color: var(--accent);
 }
 

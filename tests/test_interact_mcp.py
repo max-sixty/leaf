@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from leaf import event_log as events_model
@@ -133,7 +134,16 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
             result = await session.call_tool("leaf_present", {"page": str(page_dir)})
             return initialized, tools, resources, resource, result
 
-    initialized, tools, resources, resource, result = asyncio.run(exchange())
+    # On its own thread, because the session-scoped `browser` fixture leaves one
+    # running in the worker's main thread for the rest of the run: Playwright's sync API
+    # drives an asyncio loop and holds it open for the lifetime of `sync_playwright()`,
+    # so `asyncio.run` there refuses to start a second. Ordering decides whether a worker
+    # has opened a browser first, which is what made this fail in a full run and pass in
+    # a run of this file alone.
+    with ThreadPoolExecutor(max_workers=1) as loop_thread:
+        initialized, tools, resources, resource, result = loop_thread.submit(
+            lambda: asyncio.run(exchange())
+        ).result()
     by_name = {tool.name: tool for tool in tools.tools}
 
     assert initialized.protocol_version == "2025-11-25"

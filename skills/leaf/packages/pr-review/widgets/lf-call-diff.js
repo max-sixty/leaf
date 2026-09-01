@@ -4,6 +4,7 @@
  * grammar and projects each row as commentable evidence. */
 import {
   announce,
+  offer,
   projectData,
   scrollBehavior,
   watchData,
@@ -109,9 +110,10 @@ function updateDisclosureControl(owner) {
 function buildToolbar(owner) {
   const toolbar = make("div", "lf-call-tools");
   const summary = make("p", "lf-call-summary");
-  const button = make("button", "lf-call-toggle");
-  toolbar.dataset.lfUi = "";
-  button.type = "button";
+  // `offer`, not a bare button: the disclosure control is chrome this widget injected
+  // and a handler is all it ever was, so the markers it writes are what tells the
+  // exported copy to take the press away rather than draw a hand over a dead one.
+  const button = offer("button", "lf-call-toggle");
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);
@@ -210,20 +212,32 @@ function renderLine(record, prior, owner) {
   setText(body, record.body);
   setText(location, record.location);
   location.hidden = !record.location;
-  location.href = `#${owner.getAttribute("diff")}`;
-  location.onclick = async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (await travelToLine(owner, record)) return;
-    const url = new URL(window.location.href);
-    url.hash = owner.getAttribute("diff");
-    history.pushState(null, "", url);
-    document.getElementById(owner.getAttribute("diff"))?.scrollIntoView({
-      behavior: scrollBehavior(),
-      block: "start",
-    });
-    announce(`${record.location} is not present in the exact patch`);
-  };
+  // Two rows have the element and no journey to offer, and an `href` on either is a way
+  // in that leads nowhere. The header names no location at all, and its hidden anchor
+  // answered the scroll sweep's question — "is there a way into this box?" — for a box
+  // whose words run off the side, so a copy shipped it with no keyboard route at all.
+  // A group's own row is the disclosure, and a link inside a <summary> is two gestures
+  // on one box: the press folds and the anchor travels. The calls beneath it keep the
+  // link, which is where following the root's own location leads anyway.
+  if (record.location && !line.matches("summary")) {
+    location.href = `#${owner.getAttribute("diff")}`;
+    location.onclick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (await travelToLine(owner, record)) return;
+      const url = new URL(window.location.href);
+      url.hash = owner.getAttribute("diff");
+      history.pushState(null, "", url);
+      document.getElementById(owner.getAttribute("diff"))?.scrollIntoView({
+        behavior: scrollBehavior(),
+        block: "start",
+      });
+      announce(`${record.location} is not present in the exact patch`);
+    };
+  } else {
+    location.removeAttribute("href");
+    location.onclick = null;
+  }
   return line;
 }
 

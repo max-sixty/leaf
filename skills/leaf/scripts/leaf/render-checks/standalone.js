@@ -295,6 +295,14 @@ export function bake() {
     }
     el.removeAttribute("role");
     el.removeAttribute("tabindex");
+    // And the marker stops naming a kind. Its value is what the theme's one pressable
+    // rule reads to tell a press from the rest of the chrome a widget builds, so a value
+    // left standing here is the pointer hand on a control this file cannot answer — the
+    // copy norm's own case, which used to be argued about a class and is the same
+    // argument about an attribute that outlives the role. The attribute itself stays:
+    // print, the anchor pass and the render gate all ask whether a widget built this,
+    // which is still true of a word that has stopped being a press.
+    el.setAttribute("data-lf-offer", "");
     for (const attr of [
       "href",
       "type",

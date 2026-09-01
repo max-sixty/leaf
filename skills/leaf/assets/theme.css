@@ -799,6 +799,86 @@ dd { margin: 0 0 8px 0; }
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
   border-radius: 999px; background: var(--chip); color: var(--ink-2); }
 
+/* Pressable, said once per layer, and the pill above is what it is said against. A
+ * chip that opens a section and a badge that counts something were the same object at
+ * rest — one ground, one ink, one corner, one size — and the only page that said which
+ * was which said it in prose. The reader had to press one to find out.
+ *
+ * The marker is the runtime's own, not a new one: `offer` and `selectableOffer` write
+ * data-lf-offer on everything a widget builds to be worked, and three passes already
+ * asked it before this one (print, the drag guard, the render gate). So the hand, the ground under the
+ * aim, and the here ring are stated once against that attribute rather than restated by
+ * each widget's rules — which is what makes them a layer fact. A widget family that
+ * joins tomorrow wears all three with its entry and its module, having written no CSS,
+ * and a family that wants its own says so in its own theme rules, which come after this
+ * file in the merged sheet and outrank it at equal specificity.
+ *
+ * .tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
+ * is the line the rule draws — not "does this look like a control" but "did a widget
+ * build this to be worked", which is a fact the runtime holds rather than a judgement
+ * a stylesheet re-makes.
+ *
+ * The ground and not the ink, because ink is what a widget spends on its own meaning:
+ * an operation's press is inked by whether it is live, a pick's mark by whether it is
+ * taken. A wash toward the ink leaves both of those readable and reads the same way on
+ * the paper-white palette and the dark one — the joined option group's own answer to
+ * this question, arrived at there for the same reason (packages/default/theme.css).
+ *
+ * An inset shadow rather than a background, because it composes instead of competing.
+ * `background` is the one property a control's own dress is written in, and every layer
+ * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
+ * both. A shared rule setting `background` has to out-specify all of them to be seen and
+ * then wins against the ones that should have won — the aim wash landed on nothing at
+ * all against `.lf-command-facts > [role="button"]`, which ties it exactly. The shadow is
+ * painted over whatever fill the control wears, so the chip keeps its ground, the .lf-btn
+ * keeps its swap, and both deepen by the same amount under the pointer. It is inset, so
+ * it paints inside the padding box, follows the corner the control already has, and adds
+ * nothing outside a rectangle the movement tests are watching.
+ *
+ * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
+ * for "there is nothing left to do here", and it is stated with the hand it withdraws so
+ * the two cannot come apart: a one-shot request that had been answered still wore the
+ * full-strength border of a live one and differed only in ink, which greyscale drops and
+ * a reader scanning a column of eight of them never sees. Chrome's own .lf-btn says the
+ * same pair for the same reason (chrome-style.js); this reaches the controls that are
+ * not one.
+ *
+ * The ring is the fallback rather than the rule: every control with a ring of its own
+ * outranks this, and what is left is the controls that were wearing the platform's
+ * outline or, where a widget had restyled them, nothing at all. Named like every other
+ * ring the layer draws, so the corpus floor can credit it (--lf-here-ring, above).
+ *
+ * Every rule here is written to be outranked. The value guard sits in :where() so it
+ * costs nothing, which leaves each rule at the weight of the thing it is answering — the
+ * ring at a plain attribute and a state, so lf-option's own pick ring and chrome's .lf-btn
+ * ring both still win and keep their names. A floor is only a floor if what is built on
+ * it comes out on top.
+ *
+ * The value and not the bare attribute, because `offer` writes two different facts into
+ * one dataset key: "button" for a press it built, the role for a `selectableOffer`, and
+ * the empty string for everything else it makes — the draft's controls row, its history
+ * disclosure, its edit box, a generated form. Those are chrome a widget injected, not
+ * things to press, and the bare attribute put the hand on a textarea and a wrapper div.
+ * The distinction is the one `offer` already draws; this reads it rather than keeping a
+ * list of the tags and roles that count, so a role a widget reaches for next year is a
+ * pressable the day its module names it.
+ *
+ * Inside the shadow markers, because a widget declaring x-shadow builds its controls in
+ * a tree the document's stylesheet does not reach, and a floor that stopped at the light
+ * DOM would be a floor the newest kind of widget is the one to fall through. The slice is
+ * copied into each declared root rather than moved out of this file, so one statement
+ * dresses both sides and there is no second copy to drift. */
+/* lf-shadow:start */
+[data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
+[data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
+  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
+[data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
+  cursor: default; opacity: .55; }
+[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--here-ring); --lf-here-ring: pressable;
+  outline-offset: var(--here-ring-gap); }
+/* lf-shadow:end */
+
 /* ---------- class idioms ---------- */
 
 .eyebrow { font-size: var(--t-6); letter-spacing: .1em; text-transform: uppercase;

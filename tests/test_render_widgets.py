@@ -21,6 +21,7 @@ from render_support import (
     CHART_MARKS,
     CHART_MARKUP,
     CHART_PAGE,
+    CHIP_PAGE,
     COLLAPSED_PAGE,
     CONVERSATION_DIFF_PAGE,
     CROWDED_CHART_PAGE,
@@ -3737,5 +3738,112 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
             "quote": _DIFF_TAIL,
         }
     ), anchors
+
+
+def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
+    """One rule, read off the marker `offer` already writes, rather than each widget
+    deciding for itself whether the reader can press what it drew.
+
+    The measured fault was that they could not tell: on the command hub a chip that
+    opened a section and a badge that counted something computed the same ground, the
+    same ink, the same 999px corner and the same 11.5px size, so the only way to learn
+    which was which was to press one. That is not a fact about chips — it is what happens
+    when "this is pressable" has no owner, and every widget that draws a small filled
+    shape has to remember to say it again.
+
+    So the layer says it once, against `data-lf-offer`, and the value is what it reads:
+    `offer` writes the tag or role for a thing to press and the empty string for the rest
+    of the chrome it builds — a controls row, a history disclosure, an edit box. A badge
+    the page wrote carries no marker at all and needs no exclusion, which is the half
+    worth pinning: the rule stays off it because the marker means what it says, not
+    because a list of static classes is kept beside the rule.
+
+    Three registers, because a pointer, a hand and a keyboard arrive by different routes
+    and only one of them is on screen at rest. The hand is the resting answer, and a
+    control with nothing left to do gives it up along with its opacity. The badges are
+    read outside a choose group on purpose: a card group makes the whole option the
+    press, so a chip inside one inherits the hand from the control it is sitting in and
+    would be answering this question about its parent. The wash is the aim, read as a
+    change against each control's own resting shadow rather than against a constant: a
+    control is free to wear a drop shadow of its own, and several here do, so an
+    absolute reading would pin the theme's current furniture instead of the rule. The
+    ring is the keyboard's, and this is the half of it a shared rule has to get right by
+    losing: a control with a ring of its own keeps it and keeps its name, so what is
+    asserted here is that a named ring is drawn and not which rule drew it. Which box
+    wears it is a separate question from which one holds the focus - a joined option group
+    draws it on the row its picks give up, and getComputedStyle(activeElement) reports
+    'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
+    the shared rule is what draws it, and that case is asserted on a request press in
+    test_render_projection.py, which is where the layer has a control no widget rings."""
+    page, errors = open_page(browser, serve(CHIP_PAGE))
+    state = """() => {
+      const kind = (el) => {
+        const cs = getComputedStyle(el);
+        return {cursor: cs.cursor, opacity: cs.opacity,
+                off: el.matches('[aria-disabled="true"], :disabled')};
+      };
+      const presses = [...document.querySelectorAll('[data-lf-offer]')]
+        .filter((el) => el.dataset.lfOffer !== '');
+      const said = [document.querySelector('#intro > .tag'),
+                    document.querySelector('#t-camera .lf-chips > span')];
+      return {
+        presses: presses.map(kind), said: said.map(kind),
+        saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),
+      };
+    }"""
+    rest = page.evaluate(state)
+    live = [p for p in rest["presses"] if not p["off"]]
+    spent = [p for p in rest["presses"] if p["off"]]
+    assert live and spent and len(rest["said"]) == 2, (
+        f"the page is missing one of the three populations this compares: {rest}"
+    )
+    assert all(p["cursor"] == "pointer" for p in live), (
+        f"a control a widget built does not take the hand: {live}"
+    )
+    assert all(p["cursor"] == "default" and float(p["opacity"]) < 1 for p in spent), (
+        f"a control with nothing left to do still offers itself: {spent}"
+    )
+    assert not any(s["cursor"] == "pointer" for s in rest["said"]), (
+        "a label the page wrote takes the hand, so the reader is invited to press words"
+    )
+    assert rest["saidMarked"] == [False, False], (
+        "a static label carries the control marker, so the rule is being kept off it by "
+        "an exclusion rather than by the marker meaning what it says"
+    )
+    # The aim. The wash is an inset shadow so that it deepens whatever fill the control
+    # already wears instead of contesting the `background` its own widget wrote, which is
+    # what lets it be read as an addition to whatever the control had at rest.
+    shadow = "el => getComputedStyle(el).boxShadow"
+    mark = page.locator("#p-keep .lf-pick")
+    before = mark.evaluate(shadow)
+    mark.hover()
+    washed = mark.evaluate(shadow)
+    assert washed != before and "inset" in washed, (
+        f"the control under the pointer says nothing about being pressed: "
+        f"{before!r} -> {washed!r}"
+    )
+    tag = page.locator("#intro > .tag")
+    tag_rest = tag.evaluate(shadow)
+    tag.hover()
+    assert tag.evaluate(shadow) == tag_rest, (
+        "a label the page wrote answers the pointer as though it were a control"
+    )
+
+    # The keyboard. Reached by a real Tab, because :focus-visible is a fact about how
+    # focus arrived and element.focus() alone draws no ring at all.
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    ring = page.evaluate(
+        """() => { const on = document.activeElement.closest('lf-option')
+                          ?? document.activeElement;
+             const cs = getComputedStyle(on);
+             return [cs.outlineStyle, cs.outlineWidth,
+                     cs.getPropertyValue('--here-ring-w').trim(),
+                     cs.getPropertyValue('--lf-here-ring').trim()]; }"""
+    )
+    assert ring[0] == "solid" and ring[1] == ring[2] and ring[3] != "none", (
+        f"nothing draws a named here ring where the keyboard is standing: {ring}"
+    )
     assert errors == []
     page.close()

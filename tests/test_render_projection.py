@@ -5019,3 +5019,97 @@ def test_project_widget_can_join_the_orchestration_projection(
     expect(page.get_by_role("button", name="Asks (1)")).to_be_visible()
     assert errors == []
     page.close()
+
+
+def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, serve):
+    """Two readings of the same fault on one page: the command hub told the reader
+    nothing, at rest, about what could be pressed and what had already been.
+
+    The chip. A chip that opens a worker list and a badge that counts finished tasks
+    computed the same ground (238,234,222), the same ink, the same 999px corner and the
+    same 11.5px size. Nothing separated them until the pointer was already on one, and
+    the ink they differ in is a fact about their content rather than about being
+    pressable. What separates them now is the marker the runtime writes on a control it
+    built, which is the one thing on the page that already knows the answer.
+
+    The request. A one-shot request is spent for good the moment its receipt lands, and a
+    spent one kept its border at full strength and differed from a live one only by ink -
+    111,106,96 against 28,27,24. Greyscale drops that, and a reader scanning eight presses
+    down a column never sees it as a difference at all. The shape cue is the layer's,
+    stated once beside the hand it withdraws, so a request that is finished cannot go on
+    looking like one that is waiting.
+
+    And the ring, which is this page's job to prove because the request press is the
+    layer's example of a control no widget rings: the shared rule is a fallback, and a
+    fallback that nothing ever falls back to is a rule that was never tested."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    face = """el => { const cs = getComputedStyle(el);
+        return {cursor: cs.cursor, opacity: cs.opacity,
+                background: cs.backgroundColor, radius: cs.borderTopLeftRadius,
+                size: cs.fontSize, offer: el.dataset.lfOffer ?? null}; }"""
+    chip = page.locator('.lf-command-facts > [role="button"]').first
+    badge = page.locator(".lf-task-progress").first
+    worn, still = chip.evaluate(face), badge.evaluate(face)
+    assert (worn["background"], worn["radius"], worn["size"]) == (
+        still["background"],
+        still["radius"],
+        still["size"],
+    ), "the fixture no longer has two pills that look alike, so this proves nothing"
+    assert worn["offer"] == "button" and still["offer"] is None
+    assert worn["cursor"] == "pointer" and still["cursor"] != "pointer", (
+        f"a chip that opens a section and one that counts something read the same: "
+        f"{worn} vs {still}"
+    )
+
+    operations = page.locator("#dedupe-operations")
+    live = operations.get_by_role("button", name="Restart with a fresh worker")
+    ready = live.evaluate(face)
+    assert ready["cursor"] == "pointer" and float(ready["opacity"]) == 1
+
+    # The ring the shared rule draws, on the one control the layer leaves to it. Reached
+    # by a real Tab, because :focus-visible is a fact about how focus arrived.
+    live.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    ring = page.evaluate(
+        """() => { const cs = getComputedStyle(document.activeElement);
+             return [cs.outlineStyle, cs.outlineWidth,
+                     cs.getPropertyValue('--here-ring-w').trim(),
+                     cs.getPropertyValue('--lf-here-ring').trim()]; }"""
+    )
+    assert ring == ["solid", ring[2], ring[2], "pressable"], (
+        f"a request press wears no here ring from the layer's shared rule: {ring}"
+    )
+
+    live.click()
+    round_trip(page)
+    request = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request"
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Started w-9 on the preserved branch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    expect(operations).to_contain_text("restart succeeded")
+
+    spent = live.evaluate(face)
+    assert float(spent["opacity"]) < 1, (
+        f"a request that has been answered looks exactly as available as one that has "
+        f"not: {spent}"
+    )
+    assert spent["cursor"] == "default", (
+        "a spent request still takes the hand, so the page invites a press it will refuse"
+    )
+    assert errors == []
+    page.close()

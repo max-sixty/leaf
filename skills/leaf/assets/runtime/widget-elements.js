@@ -168,8 +168,8 @@ export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
 // this container is made of (x-parent) — declared rather than listed, so the twelfth
 // widget is covered by its entry and a widget whose gesture lands on its own words rather
-// than on chrome (lf-draft's double-click) is covered with the rest. Inert ones go in with
-// them: a diagram is evidence the reader studies with the pointer on it, and which
+// than on chrome (a press on lf-draft's own box) is covered with the rest. Inert ones go
+// in with them: a diagram is evidence the reader studies with the pointer on it, and which
 // evidence happens to carry a control is nothing they can see.
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
@@ -325,8 +325,10 @@ export function installReachedForWordsGuard() {
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it
-// is worded, and three passes ask it (print, the drag guard above, the render gate).
-// Clearing it here made "paper drops this" the meaning and left the other two unable to
+// is worded, and four passes ask it (print, the drag guard above, the render gate, and
+// the theme's one pressable rule, which reads the value to tell a press from the rest of
+// what a widget builds).
+// Clearing it here made "paper drops this" the meaning and left the others unable to
 // see a control — a drag across a picked card's mark was a press again, and only
 // lf-options' own guard on the card stood between that and clearing the pick.
 //

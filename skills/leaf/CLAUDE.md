@@ -2753,9 +2753,18 @@ Widget affordances fall into three groups:
   `html:not(.lf-copy)`.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
-spelled (`button`, `[role="button"]`), never on a control class alone. Export takes
-the role off and leaves the class, so a hand hung on the class is a hand a file cannot
-answer. A control that keeps its shape in a copy keeps its name too, and the name needs
+spelled, never on a control class alone. Export takes the role off and leaves the class,
+so a hand hung on the class is a hand a file cannot answer. The layer's own spelling is
+the value `offer` writes into `data-lf-offer`: the tag or role for a press it built, the
+empty string for the rest of the chrome a widget makes. The theme's one pressable rule
+reads that value, and the marker outlives the role — a press carrying page words becomes
+a span in a copy and keeps its words — so the copy clears the value where it strips the
+role, and the promise leaves with the thing that could have answered it. A guard in the
+theme would not do: it would have to be written twice, once for the document and once for
+the slice a declared shadow tree renders under, where `html:not(.lf-copy)` matches
+nothing at all.
+
+A control that keeps its shape in a copy keeps its name too, and the name needs
 a role that admits one: a glyph whose word is collapsed away is an `img` with a text
 alternative, not a bare span wearing `aria-label`.
 

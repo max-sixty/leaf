@@ -437,8 +437,8 @@ function receiveState(...args) {
 //           A row with no `run` may carry one all the same, since a press can be real and
 //           immediate without being the runtime's: Enter opens the focused leaf because
 //           the row is a link. What carries no word is reference, named in the "?"
-//           overlay and never promised as the next press — F7, ⌥ click, a draft's
-//           double-click.
+//           overlay and never promised as the next press — F7, ⌥ click, a press on a
+//           draft's own box.
 //   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
 //           never changes whether the command dispatches or appears in the reference.
 //   linePriority — `persistent` keeps an essential row beside the contextual shortlist.

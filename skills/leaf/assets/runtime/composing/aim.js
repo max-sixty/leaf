@@ -102,8 +102,8 @@ export function createAim({
   //
   // A press is its down, its up and the click they make, a double press one event more, and
   // the aim takes every one of them: which a widget listens on is not something the runtime
-  // can know, and lf-draft already opens its editor on the second mousedown rather than on
-  // the dblclick, for reasons of its own.
+  // can know, and lf-draft opens its editor on the click rather than on either mousedown,
+  // for reasons of its own.
   const PRESS_EVENTS = [
     "pointerdown",
     "mousedown",

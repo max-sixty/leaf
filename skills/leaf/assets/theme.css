@@ -1361,19 +1361,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * queries: those ask how much room is left beside the panel, which is the question the
  * runtime's old cramped veto asked, and the answer moves with the panel by design. */
 @media screen and (min-width: 900px) {
-  body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
-    /* The 32px marker hangs 22px off the column and its complete host keeps the
-       shared focus-ring room at the outer edge. Claim all three, or opening a side
-       panel leaves that last band past body's room and the layout hides the marker.
-       Both this claim and the wider card claim below hold their condition in :where(),
-       so the two carry the same specificity and document order decides between them —
-       which is what says the card wins where a thread needs it. Counted instead, this
-       condition names one more compound than the card's, so it outranked the card and a
-       page with a thread on it kept the narrow rail. */
-    --claim-map: calc(54px + var(--here-ring-room));
-  }
-  main:has(.lf-margin-item[data-lf-claims-rail]) {
-    --claim-rail: var(--rail, 54px);
+  :root[data-lf-rail] main {
+    /* The floor is the generated marker: 32px of glyph hanging 22px off the column,
+       with the shared focus-ring room at the outer edge. Claim all three, or opening a
+       side panel leaves that last band past body's room and the layout hides the
+       marker. Over that floor stands the widest stable contribution the shared layout
+       has measured, which is wider wherever a contributed control takes the marker's
+       place. What the condition reads is stated with the rest of the claim below. */
+    --claim-rail: max(calc(54px + var(--here-ring-room)), var(--rail, 0px));
   }
 }
 @media screen {
@@ -1409,16 +1404,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }
 }
-/* A page carrying a target item reserves the widest stable width the shared layout has
- * measured, rather than hanging durable apparatus in accidental leftover space. The
- * claim is monotonic for the page's life: settling an action cannot move the column under
- * the reader. Temporary reaction choices borrow the available RHS and dock the complete
- * item if they do not fit; they do not enlarge this claim. Below the breakpoint the whole
- * item docks into flow.
+/* A page that can grow a page-edge Button reserves this strip at load. The runtime says
+ * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
+ * in accidental leftover space and the reader never buys the room for it with a gesture.
+ * The claim's width is the widest stable width the shared layout has measured, over a
+ * floor of the generated marker's own fitting, and it is monotonic for the page's life:
+ * neither settling an action nor taking it back moves the column under the reader.
+ * Temporary reaction choices borrow the available RHS and dock the complete item if they
+ * do not fit; they do not enlarge this claim. Below the breakpoint the whole item docks
+ * into flow.
  *
  * This is a claim rather than the strip itself because a sidenote may claim the same side;
- * body spends the wider claim, not their sum. Presence is the pre-layout condition: asking
- * whether the item docked would feed the reservation decision back into itself. */
+ * body spends the wider claim, not their sum. The condition is what the page declares,
+ * because both readings of the margin's own contents fail. Asking whether an item docked
+ * feeds the reservation decision back into itself. Asking whether an item stands there at
+ * all put the reflow on the gesture that raised the first one, and a second reflow on the
+ * gesture that took it back. */
 @media screen and (min-width: 900px) {
   /* And the right margin is spoken for where a row hangs in it, so a wide widget level
      with one grows to the left alone. The row hangs 22px off the column and the strip is

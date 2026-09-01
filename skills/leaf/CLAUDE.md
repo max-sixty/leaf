@@ -1495,18 +1495,27 @@ open panel waits for the body's strip motion before choosing the card posture. W
 document cannot leave the card room beside its Button, the press opens the full Threads
 surface instead.
 
-`margin-layout` places, packs, docks, and measures the complete host. Its rail
-claim is the widest stable contribution seen and is monotonic for the document's
-lifetime, so settling an action cannot shift the readable column. A temporary
-contribution registers with `claim: false`: it borrows available RHS room and
-docks the complete host when it cannot fit, without moving the column on first
-open or leaving blank room after close. A stable contribution whose future primary
-and `…` fitting is wider than its resting one declares that pixel width with
-`reserve`; the claim includes it before the control changes. Below the margin
-breakpoint the complete host docks into flow. Visibility and vertical placement
-read `shownParts` and `shownBox`, not the target's raw client rect: a project may
-set `display: contents` while its rendered descendants remain usable, and a
-collapsed target has no rendered part to offer.
+A page holding a tag whose registry entry declares `x-state` or `x-work` may grow a
+page-edge Button, so it reserves the rail at load and never gives it back. The runtime
+states that reservation as `data-lf-rail` on the root, and the cascade spends it there;
+neither reads what is standing in the margin, because a row's placement depends on the
+strip it would be answering about. A page that declares nothing still reserves on its
+first marker.
+
+`margin-layout` places, packs, docks, and measures the complete host. Its rail claim is
+the widest stable contribution seen over a floor of the generated marker's own fitting,
+and is monotonic for the document's lifetime, so neither settling an action nor taking
+one back shifts the readable column. A first contribution wider than that floor still
+widens the claim once; `reserve` is how a contribution declares that width in advance.
+A temporary contribution registers with `claim: false`: it borrows available RHS room
+and docks the complete host when it cannot fit, without moving the column on first open
+or leaving blank room after close. A stable contribution whose future primary and `…`
+fitting is wider than its resting one declares that pixel width with `reserve`; the
+claim includes it before the control changes. Below the margin breakpoint the complete
+host docks into flow. Visibility and vertical placement read `shownParts` and
+`shownBox`, not the target's raw client rect: a project may set `display: contents`
+while its rendered descendants remain usable, and a collapsed target has no rendered
+part to offer.
 
 The `r` key unfolds this same cluster's secondary Button group for a page selection or
 item. Comment, Suggest where available, and the declared reaction Buttons appear there

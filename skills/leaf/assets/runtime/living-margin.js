@@ -1,12 +1,14 @@
 import {
   layoutMarginRows,
   registerMarginRow,
+  reserveRail,
   scheduleMarginLayout,
   unregisterMarginRow,
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
+import { tagsDeclaring } from "./registry.js";
 
 // `indication` marks a reading that reports rather than offers: a receipt for a move
 // already made, or the outcome that answered it. The reader has nothing to press there,
@@ -1289,7 +1291,29 @@ export function createLivingMargin(dependencies) {
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
+  // A page that can grow a page-edge Button takes the strip before the reader asks for
+  // one, so the first gesture is not paid for with a reflow of the whole page. x-state
+  // declares a widget the reader can act on, and an action's standing outcome comes back
+  // as a Target Button; x-work declares a widget an agent can claim, and the claim
+  // arrives at the same place. Either declaration on a tag the page holds says a Button
+  // is coming, so nothing here names a widget and a new one joins by declaring. The
+  // question is the page's rather than the document's because a widget frozen into
+  // thread markup or standing in a panel has no page edge to grow a Button at. Asked
+  // again after each reconcile, because a later version may be the first to carry such
+  // a tag.
+  let railHeld = false;
+  function reserveRailForPage() {
+    if (railHeld) return;
+    const tags = tagsDeclaring((entry) => entry["x-state"] || entry["x-work"]);
+    if (!tags.length) return;
+    const holders = [...document.querySelectorAll(tags.join(","))];
+    if (!holders.some((el) => !inChrome(el))) return;
+    railHeld = true;
+    reserveRail();
+  }
+
   function render() {
+    reserveRailForPage();
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewButton;
     transferThreadFocus = false;
@@ -1387,10 +1411,6 @@ export function createLivingMargin(dependencies) {
       host.setAttribute("aria-label", `Page actions for ${entry.title}`);
       marker.lfEntry = entry;
       const primary = syncControls(host, marker, more, options, entry);
-      host.toggleAttribute(
-        "data-lf-claims-rail",
-        entry.offers.some((offered) => offered.claim && offered.controls),
-      );
       if (entry.offers.length) {
         host.dataset.lfExternal = "1";
         const perch = externalPerch(entry.target, main);

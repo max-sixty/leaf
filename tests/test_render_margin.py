@@ -26,6 +26,7 @@ from render_support import (
     select,
     ticked,
     told,
+    undo,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1631,6 +1632,58 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)
     assert strip_right() == 520
+
+    assert errors == []
+    page.close()
+
+
+def test_a_page_that_can_grow_a_button_reserves_its_rail_before_the_first_gesture(
+    browser, serve
+):
+    """The reader's first move must not be the gesture that pays for the margin.
+
+    Moving a card raises an acknowledgement Button at the page edge. Reserved only while
+    that Button stood, the strip arrived with the move and left again with the undo, and
+    the column moved 29px each way — for a control the page had always been going to
+    offer. So the reservation is read off what the page declares, a tag whose registry
+    entry has an action or work channel, and the column stands where it will stand
+    before the reader touches anything.
+
+    Measured on the shipped board rather than a fixture, because the strip is only worth
+    reserving where a real page's width, its claims and its exhibits meet; a fixture
+    built to make those agree would prove nothing about any page a reader opens."""
+    example = next(page for page in EXAMPLES if page.stem == "triage-board")
+    page, errors = open_page(browser, live_url(serve(example)))
+    margins_laid_out(page)
+    column = page.locator("main").evaluate(
+        "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+    )
+
+    page.locator("#card-ie .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator("#col-fixed #card-ie")).to_have_count(1)
+    margins_laid_out(page)
+    # Without a Button in the margin the readings below would agree for the wrong reason.
+    expect(page.locator(".lf-margin-item")).to_have_count(1)
+    assert (
+        page.locator("main").evaluate(
+            "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+        )
+        == column
+    ), "raising the acknowledgement Button moved the readable column"
+
+    undo(page)
+    expect(page.locator("#col-wont #card-ie")).to_have_count(1)
+    margins_laid_out(page)
+    assert (
+        page.locator("main").evaluate(
+            "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+        )
+        == column
+    ), "withdrawing the move handed the strip back and moved the column with it"
 
     assert errors == []
     page.close()

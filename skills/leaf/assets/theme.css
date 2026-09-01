@@ -1289,8 +1289,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 .lf-margin-item.lf-waiting { display: none; }
-.lf-margin-item.lf-docked { position: static; max-width: 100%; margin: 2px 0 12px;
-    flex-wrap: wrap; white-space: normal; }
+/* display, because the item is inline-flex where it hangs and absolute position is what
+ * blockifies it there. Left inline-level once docked, the row joins whatever line box
+ * its perch sits on: a change inside a card perches on an inline element, so the ✓/✗
+ * landed on the last line of the sentence it decides, straddling the words instead of
+ * standing under them. A docked row is a line of its own wherever it comes to rest.
+ *
+ * fit-content keeps that line the width of the controls standing in it, the box the row
+ * had in the margin: a block-level row stretched to the column would take presses across
+ * the whole width of a line the reader is trying to select in (pointer-events above). */
+.lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
+    max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }

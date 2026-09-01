@@ -29,6 +29,7 @@ export function createReactions({
   fabReturnTo,
   fabBar,
   focused,
+  foldButtonOptions,
   itemWord,
   offer,
   openButtonOptions,
@@ -41,6 +42,7 @@ export function createReactions({
   standingConversation,
   standingItem,
   undoable,
+  unfoldedButtons,
   visualPartLabel,
   withdraw,
 }) {
@@ -184,6 +186,10 @@ export function createReactions({
   // Threads alone. Page-wide reactions remain an explicit surface inside that panel.
   let reactArmed = false;
   let reactRaised = false;
+  // Whether this raise is what unfolded the target's cluster, and so whether putting the
+  // choices away has a fold of its own to put back. A reader who pressed `…` themselves
+  // and then `r` opened that layer before the raise found it, and it is theirs to keep.
+  let marginUnfolded = false;
   let reactFrom = null;
   let reactSurface = null;
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
@@ -218,7 +224,11 @@ export function createReactions({
       // opened and leave that larger rail behind after the choices closed.
       claim: false,
     });
-    if (openButtonOptions(target)) return true;
+    const standing = unfoldedButtons()?.lfTarget === target;
+    if (openButtonOptions(target)) {
+      marginUnfolded = !standing;
+      return true;
+    }
     marginOffer.unregister();
     marginOffer = null;
     return false;
@@ -229,6 +239,14 @@ export function createReactions({
     marginOffer = null;
     seatCommentInBar(false);
     delete fabBar.dataset.lfMarginRaised;
+    // A raise that unfolded the target's Buttons to stand these choices in puts that fold
+    // back, so cancelling leaves the cluster as the press found it rather than an empty
+    // fold the reader has to close themselves. Only that raise: this runs on every
+    // disarm, including one whose surface was a reply strip and which never raised the
+    // margin at all, and including one over a fold the reader had already opened for
+    // themselves — folding either takes away a layer the gesture never put on.
+    if (marginUnfolded) foldButtonOptions();
+    marginUnfolded = false;
   }
 
   function seatCommentInBar(takeFocus) {

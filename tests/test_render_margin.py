@@ -334,6 +334,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "Edit…"
     )
     expect(page.locator(".lf-margin-action-cue")).to_have_count(0)
+    expect(page.locator(".lf-margin-action[title]")).to_have_count(0)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
     accept = suggestion.locator(".lf-sug-accept")

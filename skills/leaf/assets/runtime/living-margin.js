@@ -36,7 +36,9 @@ const changedOffers = () => {
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
 // controls one family. The visible word remains in the DOM as a transient label, so
-// every Button keeps one circular fitting and one stable accessible name.
+// every Button keeps one circular fitting and one stable accessible name. Native
+// `title` bubbles would repeat that label on a different timer and with a different
+// face, so this anatomy owns the only visual tooltip too.
 export function marginAction(
   control,
   { glyph, label, behavior = "action", tone = "neutral" },
@@ -52,6 +54,7 @@ export function marginAction(
   const labelText = String(label);
 
   control.classList.add("lf-margin-action");
+  control.removeAttribute("title");
   control.dataset.lfBehavior = behavior;
   control.dataset.lfTone = tone;
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
@@ -970,10 +973,6 @@ export function createLivingMargin(dependencies) {
       behavior: "disclosure",
     });
     row.setAttribute("aria-label", markerName(entry, index, anchored));
-    row.title =
-      markerCount === 1 && choice.items[0].acknowledgmentFace
-        ? choice.text
-        : `${face.label}${markerCount > 1 ? `s (${markerCount})` : ""}`;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     if (markerCount > 1) {
@@ -1043,7 +1042,6 @@ export function createLivingMargin(dependencies) {
       if (value == null) node.removeAttribute(attribute);
       else node.setAttribute(attribute, value);
     }
-    node.title = control.title;
     node.onclick = () => {
       setOptionsOpen(entry, false, { returnFocus: true });
       control.click();
@@ -1075,10 +1073,6 @@ export function createLivingMargin(dependencies) {
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
-    node.title = choice.items
-      .map((item) => item.text)
-      .filter(Boolean)
-      .join(" · ");
     if (count > 1) {
       const badge = el("span", "lf-margin-count");
       badge.setAttribute("aria-hidden", "true");

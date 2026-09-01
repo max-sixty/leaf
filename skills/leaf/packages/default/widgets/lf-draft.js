@@ -207,7 +207,6 @@ customElements.define(
       );
       this.#pencil.classList.add("lf-draft-pencil");
       this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
-      this.#pencil.title = "Edit this text — or double-click it";
       this.#row = offer("div", "lf-draft-controls");
       this.#row.dataset.lfFor = this.id;
       this.#cancel = this.#marginButton("×", "Cancel", () => this.#close(true));

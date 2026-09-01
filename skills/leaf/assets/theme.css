@@ -1233,7 +1233,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * ✓/✗ row hanging on the change's own line says it, and this word stays clipped for
  * whoever is listening. A copy has no row — export strips a control the page doesn't
  * speak through, and a pending one says nothing yet, so it goes whole — which left the
- * two states saying opposite amounts there: a decided change keeps its "✓ Accepted", a
+ * two states saying opposite amounts there: a decided change keeps its "Accepted", a
  * pending one kept nothing, and a struck red paragraph with an empty margin beside it
  * is exactly what a deletion looks like once it has happened. The word #voice already
  * writes is what the copy shows instead, so nothing new is drawn and both readings of
@@ -1269,18 +1269,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-/* Decided. The control the user pressed states the outcome where it stood, in the
- * common action type's outcome colour; its pair stops showing without giving up its
- * room, so the one line a press must not disturb is the line the press leaves exactly
- * as it found it.
- * The past tense replaces the transient label inside the same fixed circle, so the word
- * can change without the box doing the same.
+/* Decided. The surviving circle keeps the outcome glyph and its common action colour;
+ * the past tense is a persistent receipt beside it. A tooltip is discovery chrome, not
+ * a place for document state: the receipt is visible and selectable, and survives a
+ * standalone copy after its inert Button is stripped.
  *
- * visibility, not display: the room is the point. It also takes the hidden control out
- * of the tab order and out of the accessibility tree, which is what a press nobody can
- * make any more should be. */
+ * The losing control leaves the row. Accept is the primary gesture and therefore stays
+ * under the hand that pressed it; Reject is reached through `…`, so its proxy has
+ * already folded away before the real control becomes the surviving first circle. */
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { visibility: hidden; }
+.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { display: none; }
+.lf-sug-actions[data-lf-outcome] .lf-margin-action-label { display: none; }
+.lf-sug-receipt { color: var(--ink-2); font-weight: 600; }
+.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-receipt { color: var(--ok-ink); }
+.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-receipt { color: var(--danger-ink); }
 
 /* The living margin is a retained projection with one cluster per page target. Its
  * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share

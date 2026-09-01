@@ -914,7 +914,6 @@ export function createAnchors(dependencies) {
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;
-          mark.title = `${root.token} — press to take it back`;
           mark.setAttribute("aria-label", `${root.token} — take it back`);
           mark.onclick = () => withdraw(root);
         }

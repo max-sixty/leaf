@@ -267,9 +267,8 @@ export function chromeStyle({
      The lift under the pointer is the same promise in the other property, and the tones
      below are that lift wearing a colour, so all of them are spelled the same way. The
      hand is the only half a gate can see — the copy's offering reading takes the cursor and
-     nothing else — and aria-disabled is no guard in a file either: BAKE strips it with
-     the rest of the aria state, so a decided suggestion's record, which survives on
-     data-lf-said, would light its accept tint under a pointer that can decide nothing. */
+     nothing else. A decided suggestion puts its durable word in a sibling receipt;
+     BAKE strips the inert Button and leaves that page text behind. */
   .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
   .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);

@@ -1744,8 +1744,8 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
             document.getElementById('shadow-card'))"""
     )
     expect(work_button).to_have_css("display", "flex")
-    expect(work_button).to_have_css("border-radius", "999px")
-    expect(work_button).to_have_css("min-height", "30px")
+    expect(work_button).to_have_css("border-radius", "50%")
+    expect(work_button).to_have_css("min-height", "32px")
     assert errors == []
     page.close()
 

@@ -441,8 +441,8 @@ export function renderSaid(root) {
 // Its two neighbours in that vocabulary stay silent, and the line between them is what
 // the paint is the only copy of. A retraction is one: nothing else on the page says the
 // decision was undone. data-lf-pending and data-lf-reported are not — each marks a state
-// whose substance is already in the control's own visual and semantic state (a check and
-// tint, "✓ Accepted") or the status this pass speaks, and adds only that no version
+// whose substance is already in the control and receipt's visual and semantic state (a
+// check, tint, and visible "Accepted") or the status this pass speaks, and adds only that no version
 // carries it yet. Saying that
 // on every decided element for the rest of the session would be a second sentence about
 // every one of them, for a fact no reader is owed the way they are owed a retraction.

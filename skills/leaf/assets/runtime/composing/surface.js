@@ -334,7 +334,11 @@ export function createSelectionSurface({
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
     if (anchor?.quote.length >= MIN_QUOTE) {
-      openComment(anchor, "");
+      // Selecting words is still the browser's gesture. Open Leaf's response field beside
+      // them without moving focus into it, so the live Selection remains available to Copy
+      // and the native context menu. An explicit Comment press uses the same field and
+      // focuses it through focusFabComment below.
+      openComment(anchor, "", { focus: false });
     } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) showFab(null);
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
@@ -363,12 +367,12 @@ export function createSelectionSurface({
   let actionPress = false;
   let targetActivation = false;
   let fabInputTakingFocus = false;
-  function openComment(...args) {
+  function openComment(anchor, text, options = {}) {
     // Chromium may collapse the native page Selection before dispatching the textarea's
     // focus event. Mark the handoff first so that intermediate selectionchange cannot
     // dismiss the durable anchor the composer is opening on.
-    fabInputTakingFocus = true;
-    return openComposer(...args);
+    fabInputTakingFocus = options.focus !== false;
+    return openComposer(anchor, text, options);
   }
   function fabHoldsCapturedPassage() {
     return fabInputTakingFocus || fabBar.contains(document.activeElement);

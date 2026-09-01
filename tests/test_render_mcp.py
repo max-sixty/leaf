@@ -1,13 +1,17 @@
 """The MCP App bridge renders a page and returns durable feedback to its host."""
 
+import json
 import shutil
 
 from interact_support import ROOT
+from leaf.anchor_capture import capture_anchor
 from leaf.event_log import append_event, read_events
+from leaf.files import revision_path
 from leaf.mcp_app import app_html, app_snapshot, apply_event
 from leaf.mcp_page import ProcessPageServer
 from leaf.revisioning import activate_source
 from playwright.sync_api import expect
+from render_support import leaf_page, live_url, open_page
 
 HOST = """<!doctype html>
 <iframe id="app" style="width:100%;height:760px;border:0"></iframe>
@@ -56,6 +60,14 @@ window.addEventListener("message", (event) => {
   }
   if (message.method === "tools/call") {
     const name = message.params.name;
+    if (window.toolError) {
+      answer(event.source, message.id, {
+        content: [{type: "text", text: window.toolError}],
+        structuredContent: {ok: false, status: 400},
+        isError: true,
+      });
+      return;
+    }
     if (name === "leaf_snapshot_apply_event") {
       window.currentLeaf = {
         ...window.currentLeaf,
@@ -465,3 +477,248 @@ def test_mcp_app_is_read_only_when_the_host_cannot_proxy_server_tools(
         assert "read-only" in app.locator("#status").text_content()
     finally:
         page.close()
+
+
+# Three passages a host paints differently from the way the version file holds them: the
+# theme uppercases a table header and an eyebrow, and a <br> puts a line break where the
+# page's own words run straight on. Each is ordinary authored markup — every shipped
+# example carries an eyebrow — so this is what a reader points at, not an edge case.
+SNAPSHOT_READING_PAGE = leaf_page(
+    "snapshot reading",
+    """
+<section id="plan">
+<h2>Plan</h2>
+<p class="eyebrow">Phase one</p>
+<table>
+<thead><tr><th>Stage</th><th>Owner</th></tr></thead>
+<tbody><tr><td>Backfill</td><td>Ana</td></tr></tbody>
+</table>
+<p id="wrapped">Ship the flag<br>then backfill.</p>
+</section>
+<p class="loose">Nothing on the page owns this line.</p>
+""",
+)
+
+
+def open_snapshot_app(browser, page_dir):
+    """The snapshot resource in a host frame, showing the page's active revision."""
+    _, private = app_snapshot(str(page_dir))
+    host = browser.new_page(viewport={"width": 1100, "height": 900})
+    host.set_content(HOST)
+    host.evaluate("leaf => window.currentLeaf = leaf", private)
+    host.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = host.frames[-1]
+    app.locator("#title").wait_for()
+    return host, app
+
+
+def send_selection(host, app, selector, text, sent, phrase=None):
+    """Select an element's words in the rendered snapshot and send a comment on them.
+
+    `phrase` picks those exact words out of the element instead of all of it. Answers
+    with the event the app asked its host to apply — the whole of what this transport
+    contributes to an anchor, the append gate owning everything after it.
+    """
+    app.evaluate(
+        """([selector, phrase]) => {
+          const root = document.querySelector('#page-host').shadowRoot;
+          const element = root.querySelector(selector);
+          const range = document.createRange();
+          if (phrase === null) range.selectNodeContents(element);
+          else {
+            const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            let found = false;
+            for (let node = walk.nextNode(); node && !found; node = walk.nextNode()) {
+              const at = node.data.indexOf(phrase);
+              if (at === -1) continue;
+              range.setStart(node, at);
+              range.setEnd(node, at + phrase.length);
+              found = true;
+            }
+            if (!found) throw new Error(`${selector} does not say ${phrase}`);
+          }
+          const selected = root.getSelection();
+          selected.removeAllRanges();
+          selected.addRange(range);
+          element.dispatchEvent(
+            new MouseEvent('mouseup', {bubbles: true, composed: true}),
+          );
+        }""",
+        [selector, phrase],
+    )
+    app.locator("#comment").fill(text)
+    app.locator("#send").click()
+    host.wait_for_function(
+        "sent => window.calls.filter("
+        "  call => call.method === 'tools/call'"
+        "    && call.params.name === 'leaf_snapshot_apply_event'"
+        ").length === sent",
+        arg=sent,
+    )
+    return host.evaluate(
+        """() => window.calls
+             .filter(call => call.params?.name === 'leaf_snapshot_apply_event')
+             .at(-1).params.arguments.event"""
+    )
+
+
+def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
+    browser, serve
+):
+    """A selection's own toString() is the rendered reading, and the rendering is not the
+    page's words: the theme uppercases a table header and an eyebrow, and a <br> breaks a
+    run the file holds unbroken. An anchor written from it names a passage no reading of
+    the version can find, so the reader is told the page never said the words in front of
+    them. The app therefore reads the document's own text nodes, posts that and nothing
+    else, and the append gate — the one resolver — writes the neighbours and stores the
+    same anchor `leaf comment` would. The full page then paints those exact passages."""
+    url = serve(SNAPSHOT_READING_PAGE)
+    page_dir = serve.page_dir
+    source = revision_path(page_dir, 1).read_text(encoding="utf-8")
+    registry = json.loads((page_dir / "registry.json").read_text())
+    cases = [
+        ("p.eyebrow", "Phase one", "plan"),
+        ("th", "Stage", "plan"),
+        ("#wrapped", "Ship the flagthen backfill.", "wrapped"),
+    ]
+
+    host, app = open_snapshot_app(browser, page_dir)
+    try:
+        for sent, (selector, quote, section) in enumerate(cases, 1):
+            posted = send_selection(host, app, selector, f"on {quote}", sent)
+            assert posted["anchor"] == {"quote": quote, "section": section}, (
+                f"{selector} posted {posted['anchor']}"
+            )
+            result = apply_event(str(page_dir), posted, posted["revision"])
+            assert result.is_error is False, result.content[0].text
+            stored = [
+                event["anchor"]
+                for event in read_events(page_dir)
+                if event["kind"] == "comment"
+            ][-1]
+            assert stored == capture_anchor(source, registry, quote, section), (
+                f"{selector} stored {stored}"
+            )
+    finally:
+        host.close()
+
+    page, errors = open_page(browser, live_url(url))
+    try:
+        expect(page.locator(".lf-thread")).to_have_count(3)
+        expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+        landed = page.evaluate("""() => {
+            // The paint pass writes a hidden line into every commented text block, so a
+            // block's own words are its text-node children rather than its childNodes.
+            const words = (selector) => [
+              ...document.querySelector(selector).childNodes,
+            ].filter(node => node.nodeType === Node.TEXT_NODE);
+            const wrapped = words('#wrapped');
+            const wanted = [
+              [words('#plan p.eyebrow')[0], null],
+              [words('#plan th')[0], null],
+              [wrapped[0], wrapped.at(-1)],
+            ].map(([head, tail]) => {
+              const range = document.createRange();
+              range.setStart(head, 0);
+              range.setEnd(tail ?? head, (tail ?? head).data.length);
+              return range;
+            });
+            // A passage running across an element boundary paints one range per text
+            // node, so each end is asked for separately.
+            const painted = [...CSS.highlights.get('lf-mark')];
+            const at = (want, how) => painted.filter(
+              mark => mark.compareBoundaryPoints(how, want) === 0
+            ).length;
+            return wanted.map(want => [
+              at(want, Range.START_TO_START), at(want, Range.END_TO_END),
+            ]);
+        }""")
+        assert landed == [[1, 1], [1, 1], [1, 1]], (
+            f"the marks did not land on the passages ({landed})"
+        )
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_an_element_anchor_names_the_page_and_never_the_apps_own_shell(browser, serve):
+    """A double press asks for the element under it, and the composed path it arrives on
+    runs out through this app's shell — whose ids belong to the app, not to any version of
+    the page. Reaching one would post a section the append gate can only refuse."""
+    serve(SNAPSHOT_READING_PAGE)
+    host, app = open_snapshot_app(browser, serve.page_dir)
+    try:
+        press = """(selector) => {
+          const root = document.querySelector('#page-host').shadowRoot;
+          root.querySelector(selector).dispatchEvent(
+            new MouseEvent('dblclick', {bubbles: true, composed: true}),
+          );
+        }"""
+        app.evaluate(press, "p.loose")
+        assert not app.locator("#composer").evaluate(
+            "form => form.classList.contains('open')"
+        )
+
+        app.evaluate(press, "#wrapped")
+        expect(app.locator("#composer")).to_have_class("composer open")
+        assert app.locator("#quote").text_content() == "On § wrapped"
+    finally:
+        host.close()
+
+
+TWICE_PAGE = leaf_page(
+    "twice",
+    """
+<section id="plan">
+<p>The flag is off. We ship next week.</p>
+<p>Later: The flag is off. We hold the release.</p>
+</section>
+""",
+)
+
+
+def test_a_refused_anchor_reaches_the_reader_with_their_draft_intact(browser, serve):
+    """The gate refuses a quote no context identifies, and the reader is the one who can
+    still fix it by selecting more. So the app has to hand back what the gate said —
+    occurrences and all — and leave the comment where they typed it."""
+    serve(TWICE_PAGE)
+    page_dir = serve.page_dir
+    ambiguous = {"section": "plan", "quote": "The flag is off"}
+    refusal = apply_event(
+        str(page_dir),
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Which one?",
+            "anchor": ambiguous,
+            "attempt": "mcp-render-ambiguous-1",
+        },
+        1,
+    )
+    assert refusal.is_error is True
+    assert [
+        event for event in read_events(page_dir) if event["kind"] == "comment"
+    ] == []
+
+    host, app = open_snapshot_app(browser, page_dir)
+    try:
+        host.evaluate("text => window.toolError = text", refusal.content[0].text)
+        posted = send_selection(
+            host,
+            app,
+            "#plan p:last-of-type",
+            "Which one?",
+            1,
+            phrase="The flag is off",
+        )
+        # The app posted the very anchor the gate turned down above, so the message the
+        # host is handing back is that event's own answer.
+        assert posted["anchor"] == ambiguous
+        expect(app.locator("#status")).to_have_class("status show error")
+        status = app.locator("#status").text_content()
+        assert "says 'The flag is off' 2 times" in status
+        assert status.count("\n  - ") == 2
+        expect(app.locator("#composer")).to_have_class("composer open")
+        assert app.locator("#comment").input_value() == "Which one?"
+    finally:
+        host.close()

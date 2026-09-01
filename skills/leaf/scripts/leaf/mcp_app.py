@@ -9,6 +9,7 @@ from tinycss2 import parse_stylesheet, serialize
 from .event_endpoint import EventEndpoint
 from .exporting import inline_assets, inline_css_assets
 from .files import revision_path
+from .passages import TEXT_BLOCK_TAGS
 from .registry.storage import layer_generation
 from .schema import SKILL_ROOT
 from .served_state.service import PageStateService
@@ -81,6 +82,10 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         "authoredCss": inline_css_assets(parsed.css, page_dir),
         "theme": theme,
         "darkTheme": dark_theme,
+        # The app reads a selection out of the document it renders, and one space goes
+        # wherever the enclosing text block changes. That vocabulary is this side's, so
+        # it travels with the document rather than becoming a third list to keep equal.
+        "textBlocks": ",".join(sorted(TEXT_BLOCK_TAGS)),
     }
     return summary, private
 

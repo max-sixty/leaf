@@ -6,10 +6,13 @@ import os
 import sys
 from pathlib import Path
 
+from interact_support import PAGE
 from leaf import event_log as events_model
 from leaf.mcp_app import APP_MIME, APP_URI, app_snapshot, apply_event
 from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
 from leaf.mcp_server import make_mcp_server
+from leaf.passages import TEXT_BLOCK_TAGS
+from leaf.revisioning import activate_source
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -36,6 +39,62 @@ def test_snapshot_event_round_trip_is_durable_retryable_and_canonical(page_dir):
     assert stored["anchor"]["quote"] == "The cutoff lives in"
     assert stored["anchor"]["section"] == "plan"
     assert stored["anchor"]["suffix"]
+
+
+def test_the_snapshot_door_refuses_a_passage_no_context_identifies(page_dir):
+    """The snapshot resolves nothing; the append gate does, and one gesture must name one
+    passage. Two copies of the same words are two answers, so the door refuses rather than
+    reading document order as identity — and it names the copies, because extending the
+    selection is what the reader has to do about it. This is the same rule the browser
+    keeps by storing neighbours: neither side ever guesses which copy was meant."""
+    twice = PAGE.replace(
+        "<h2>Plan</h2>",
+        "<h2>Plan</h2>\n  <p>The flag is off. We ship next week.</p>\n"
+        "  <p>Later: The flag is off. We hold the release.</p>",
+    )
+    (page_dir / "index.html").write_text(twice, encoding="utf-8")
+    activated = activate_source(page_dir, events_model.read_events(page_dir))
+    assert activated.error is None and activated.revision == 2
+
+    def comment(quote, attempt):
+        return apply_event(
+            str(page_dir),
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "Which one is this about?",
+                "anchor": {"section": "plan", "quote": quote},
+                "attempt": attempt,
+            },
+            2,
+        )
+
+    refused = comment("The flag is off", "mcp-ambiguous-passage-1")
+    assert refused.is_error is True
+    assert "says 'The flag is off' 2 times" in refused.content[0].text
+    assert "We hold the release" in refused.content[0].text
+    assert [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ] == []
+
+    accepted = comment("The flag is off. We hold", "mcp-extended-passage-1")
+    assert accepted.is_error is False
+    stored = events_model.read_events(page_dir)[-1]["anchor"]
+    assert stored["quote"] == "The flag is off. We hold"
+    assert stored["prefix"].endswith("Later:")
+
+
+def test_the_snapshot_is_handed_the_block_vocabulary_it_reads_a_selection_with(
+    page_dir,
+):
+    """One space goes wherever the enclosing text block changes, and the file side owns
+    which tags those are. The app is sent that vocabulary rather than restating it, so
+    there is no third list to keep equal to this one."""
+    _, private = app_snapshot(str(page_dir))
+
+    assert set(private["textBlocks"].split(",")) == TEXT_BLOCK_TAGS
 
 
 def test_mcp_write_requires_attempt_identity(page_dir):

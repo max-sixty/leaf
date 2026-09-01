@@ -62,6 +62,20 @@ text anchors before storing them, so fallback clients do not create weaker
 durable anchors. Served runtime anchors keep the browser reading that already
 resolved them; only the snapshot endpoint requests file-side capture.
 
+The app reads a passage and resolves nothing. Its quote comes from the rendered
+document's own text nodes, with one space wherever the enclosing text block
+changes; the tag vocabulary for that arrives in the tool result as `textBlocks`,
+so the app keeps no list of its own. A selection's `toString()` gives back the
+host's paint instead of the page's words — the theme uppercases a table header
+and an eyebrow, and a `<br>` breaks a run the version holds unbroken — and an
+anchor written from it names a passage no reading of the file can find. An
+element anchor names an element of the page, and the app's own shell stands on
+the same composed path wearing ids that belong to no version. Everything after
+that is the gate's. It writes the neighbours that tell two copies apart, and
+refuses a quote repeated without unique context rather than reading document
+order as identity. The app shows that refusal with the reader's draft still in
+the box.
+
 The resource is self-contained, runs no authored code, and declares no network
 domains. It does not implement package actions. The old single-choice
 `lf-options` projector is deliberately absent: a fixed shape was a second Leaf
@@ -76,6 +90,7 @@ turn. `leaf codex start <page>` remains the authoritative return carrier. Its
 detached adapter waits on the same log, queues an exact persisted batch into the
 same Codex task, and acknowledges only after durable queue acceptance.
 
-The complete and snapshot resources are tracked bundles generated from
-`scripts/mcp-app/` by `scripts/vendor.py mcp-app`; do not patch the generated HTML
-under `assets/vendor/` directly.
+The complete-page resource is a tracked bundle generated from `scripts/mcp-app/`
+by `scripts/vendor.py mcp-app`; do not patch the generated HTML under
+`assets/vendor/` directly. The snapshot resource is authored by hand as one
+self-contained asset, `assets/mcp-app.html`.

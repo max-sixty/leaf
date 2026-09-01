@@ -102,9 +102,10 @@ title and lede before it, and put the current workstream first: ordering makes i
 the default for a reader with no saved panel or reading position. Remove earlier
 runs when the current work no longer depends on them. If their context is still
 needed, keep only that context in a collapsed `<details>` inside the relevant
-tab. A saved panel or restored position takes precedence. Threads, asks,
-versions, and sign-off still cover the whole page, so none of that runtime chrome
-belongs inside a tab.
+tab, and keep with it any passage whose id anchors an open thread or holds a
+standing decision. A saved panel or restored position takes precedence. Threads,
+asks, versions, and sign-off still cover the whole page, so none of that runtime
+chrome belongs inside a tab.
 
 ## Reading cost
 

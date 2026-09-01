@@ -146,7 +146,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     errors = watched(page)
     page.on("requestfailed", lambda request: errors.append(f"unfetched {request.url}"))
     page.goto(out.as_uri(), wait_until="load")
-    expect(page.get_by_role("heading", name="Per-token rate limits")).to_be_visible()
+    expect(page.get_by_role("heading", name="Unified diff in the switch picker")).to_be_visible()
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0

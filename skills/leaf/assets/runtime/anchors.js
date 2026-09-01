@@ -11,6 +11,7 @@ import { moveScrollerBy } from "./scrolling.js";
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
+export const navigateToDatum = (...args) => publishedAnchors.navigateToDatum(...args);
 // Anchors are shallow records of primitive coordinates. Compare the complete records:
 // reading only the left operand's keys made a whole-visual anchor equal the part anchor
 // that extended it, but not the other way around.
@@ -34,6 +35,7 @@ export function createAnchors(dependencies) {
     aimBox,
     aimIsOn,
     aimedItem,
+    announce,
     anchorLabel,
     anchorsReady,
     bareReaction,
@@ -99,6 +101,87 @@ export function createAnchors(dependencies) {
   // carries no quote, the subtree a candidate has to sit inside when it does, and the holder
   // of the line saying a passage carries a comment are all this question.
   const sectionOf = (anchor) => (anchor.section ? elementById(anchor.section) : null);
+
+  function currentDatums(source, key) {
+    if (!source?.id) return [];
+    return pageQueryAll(DATUM).filter(
+      (datum) =>
+        containsAcross(source, datum) &&
+        datum.dataset.lfProjection === source.id &&
+        datum.dataset.lfDatum === key,
+    );
+  }
+
+  const currentDatum = (source, key) => {
+    const matches = currentDatums(source, key);
+    return matches.length === 1 ? matches[0] : null;
+  };
+
+  function suppliedDatum(source, key) {
+    const supplied = source?.lfDataDatum?.(key);
+    return supplied instanceof Element &&
+      containsAcross(source, supplied) &&
+      supplied.dataset.lfProjection === source.id
+      ? supplied
+      : null;
+  }
+
+  function referencedProjection(owner, attribute) {
+    if (!(owner instanceof Element))
+      throw new TypeError("navigateToDatum owner must be an element");
+    if (
+      typeof attribute !== "string" ||
+      !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)
+    )
+      throw new TypeError(
+        `navigateToDatum ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
+      );
+    const id = owner.getAttribute(attribute);
+    return id ? elementById(id) : null;
+  }
+
+  async function navigateToDatum(
+    owner,
+    attribute,
+    key,
+    { success = "", missing = "" } = {},
+  ) {
+    if (typeof key !== "string" || !key)
+      throw new TypeError("navigateToDatum key must be a non-empty string");
+    let source = referencedProjection(owner, attribute);
+    if (!source) {
+      if (missing) announce(missing);
+      return false;
+    }
+
+    // Give a lazy or filtered projection the first chance to make this key reachable.
+    // A datum may already exist in a subtree hidden by a widget-owned filter, which core
+    // cannot infer from DOM geometry without taking ownership of that widget's state.
+    const hydration = source.lfRevealDatum?.(key);
+    if (hydration?.then) await hydration;
+    source = referencedProjection(owner, attribute);
+    if (!source) {
+      if (missing) announce(missing);
+      return false;
+    }
+    const destination = currentDatum(source, key) ?? suppliedDatum(source, key);
+
+    const url = new URL(window.location.href);
+    url.hash = source.id;
+    history.pushState(null, "", url);
+    if (!destination) {
+      scrollToElement(source, scrollBehavior(), "start");
+      if (missing) announce(missing);
+      return false;
+    }
+
+    reveal(destination);
+    const disclosure = closestAcross(destination, "details");
+    disclosure?.querySelector(":scope > summary")?.focus({ preventScroll: true });
+    scrollToElement(destination);
+    if (success) announce(success);
+    return true;
+  }
 
   // A generated picture part keeps two identities. The authored widget is its semantic
   // seat; the module supplies only the current box that one stable authored token paints.
@@ -466,14 +549,7 @@ export function createAnchors(dependencies) {
     // while outlining nothing.
     if (anchor.datum) {
       const source = sectionOf(anchor);
-      const datum = source
-        ? pageQueryAll(DATUM).filter(
-            (el) =>
-              containsAcross(source, el) &&
-              el.dataset.lfProjection === anchor.section &&
-              el.dataset.lfDatum === anchor.datum,
-          )
-        : [];
+      const datum = currentDatums(source, anchor.datum);
       // A projection/key pair identifies exactly one current fact. Disappearance detaches;
       // duplicates refuse to guess. Where its old display text still stands, mark those
       // exact words. Where the value changed, outline the same datum whole instead of
@@ -1120,24 +1196,19 @@ export function createAnchors(dependencies) {
   // makes the target's box visible in both axes, then glides the exact mark to the centre
   // of the region that holds it. No transient effect waits on that motion or survives it
   // as separate state.
-  function scrollToThread(id) {
+  function scrollToThread(id, datumReady = false) {
     const thread = buildThreads().find((candidate) => candidate.root.id === id);
     const anchor = thread?.root.anchor;
-    if (anchor?.datum) {
+    if (anchor?.datum && !datumReady) {
       const source = sectionOf(anchor);
-      const exact = source
-        ? pageQueryAll(DATUM).some(
-            (datum) =>
-              containsAcross(source, datum) &&
-              datum.dataset.lfProjection === anchor.section &&
-              datum.dataset.lfDatum === anchor.datum,
-          )
-        : false;
-      const hydration = !exact && source?.lfRevealDatum?.(anchor.datum);
+      // The line may already exist under a widget-owned filter. Core asks the owner to
+      // reveal the semantic key before it reads the painted mark, just as cross-widget
+      // datum travel does; DOM presence alone cannot prove reachability.
+      const hydration = source?.lfRevealDatum?.(anchor.datum);
       if (hydration?.then) {
         hydration.then(() => {
           paintAnchors();
-          scrollToThread(id);
+          scrollToThread(id, true);
         });
         return;
       }
@@ -1337,6 +1408,7 @@ export function createAnchors(dependencies) {
     isItem,
     itemAt,
     itemWord,
+    navigateToDatum,
     itemSays,
     aimTargetAt,
     aimTargets,

@@ -440,10 +440,10 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 
 
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
-    """A drag around a target opens the immediate field without deadening its Buttons.
+    """A drag around a target offers Comment without deadening its Buttons.
 
-    Focus collapses the browser's native selection, so the captured passage must remain
-    durable while the pointer path through `…` and a direct keyboard action both work."""
+    The browser's native selection remains available while the pointer path through `…`
+    and a direct keyboard action both work."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
@@ -455,7 +455,7 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         steps=16,
     )
     assert "Refill" in pending_text(page)
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
     item.locator(":scope > .lf-margin-more").click()
@@ -659,8 +659,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     drag must stay in one rendered block; matching endpoints around a nested paragraph
     do not make the intervening blocks one sentence.
 
-    The reads use Leaf's pending highlight because focus moves into the immediate
-    comment field and therefore collapses the browser's native selection."""
+    The reads use Leaf's pending highlight, the durable form of the native selection."""
     page, errors = open_page(
         browser,
         serve(
@@ -696,7 +695,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         return page.evaluate(mid, {"root": root, "word": word, "into": into})
 
     def captured():
-        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_be_visible()
         quoted = composer_quote(page)["text"]
         return quoted[1:-1]
 
@@ -755,6 +754,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     }""")
     page.keyboard.press("Shift")
     assert captured() == "ragra"
+    page.locator("#t").click()
 
     page.evaluate("""() => {
         const n = document.querySelector('#p').firstChild;
@@ -2241,6 +2241,7 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
         const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
         await new Promise(r => setTimeout(r, 40));
+        fab.focus();
         document.querySelector('.lf-composer textarea').value = 'is this idempotent?';
         document.querySelector('.lf-composer textarea')
             .dispatchEvent(new Event('input', {bubbles: true}));
@@ -2436,7 +2437,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
         steps=12,
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
 
     # The mark under the open composer is the selection, both ends of it — and on the
@@ -2495,7 +2496,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 
     page.keyboard.press("ControlOrMeta+a")
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     painted = page.evaluate(
         "() => [...(CSS.highlights.get('lf-pending') ?? [])]"
@@ -2538,6 +2539,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         const fab = document.querySelector('.lf-fab-input');
         if (fab.style.display !== 'block') return 'no button';
         await new Promise(r => setTimeout(r, 40));
+        fab.focus();
         const box = document.querySelector('.lf-composer textarea');
         box.value = 'does this hold?';
         box.dispatchEvent(new Event('input', {bubbles: true}));
@@ -3342,17 +3344,21 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     added.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
-    page.locator(".lf-composer textarea").fill("Review the whole added line.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.locator(".lf-fab-input").fill("Review the whole added line.")
+    page.keyboard.press("Enter")
     round_trip(page)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
+    search = page.locator("#patch .lf-diff-search")
+    search.fill("nothing-matches")
+    expect(added).to_be_hidden()
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
     whole_line.click()
+    expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
@@ -3394,9 +3400,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "endsAtTokenStart": True,
     }, selected
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-fab").click()
-    page.locator(".lf-composer textarea").fill("Review this expression.")
-    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    page.locator(".lf-fab-input").fill("Review this expression.")
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
         "app.py · new line 2 · “request.token.id”"

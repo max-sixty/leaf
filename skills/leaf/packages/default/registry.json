@@ -532,7 +532,7 @@
     "x-upgrade": false
   },
   "lf-diff": {
-    "description": "A unified diff rendered by Pierre with native per-file collapse, old/new line numbers, full add/delete line backgrounds, brighter inline word changes, visible but unselectable +/− indicators, and per-file +/− counts. Line numbers and indicators stay outside copied and commented source text. Add `collapsed` when every file should start closed, especially for a large patch; a comment or navigation target still opens the containing file. Bind `source` to a page-owned unified-diff feed and use `snapshot` for an immutable capture; each rendered line then becomes a commentable datum keyed by file path, old/new side, and source line. The feed may hold patch text or, for large reviews, a `files` manifest whose path-keyed `patch` fields Leaf delivers only when their files open. The bound form is `<lf-diff id=\"patch\" source=\"pr-patch\"><pre></pre></lf-diff>`; the empty `<pre>` preserves the shared data-body shape and its content is ignored. With no source, the diff verbatim inside its <pre>, at column 0, remains the authored fallback. Every changed file needs at least one `@@` hunk header, whose old and new counts must match the following lines exactly. A path-only rename is the only supported hunkless entry and appears as one old → new row; write that block as exactly four lines: `diff --git`, `similarity index 100%`, `rename from`, and `rename to`, with the same non-empty old and new paths in the header and rename lines. A rename with changes uses the normal disclosure labeled with its new path. Binary, mode-only, empty added/deleted, and copy entries are unsupported, so state those changes in prose rather than mixing them into the diff; for an edited copy destination, omit the copy metadata and provide its textual hunks. Context lines keep their leading space; encode a context line with nothing after that prefix as &amp;#32; so HTML parsing preserves it. HTML-escape an inline body — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt; — or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
+    "description": "A unified diff rendered by Pierre with native per-file collapse, file filtering, durable reviewed marks, next-unreviewed navigation, old/new line numbers, full add/delete line backgrounds, brighter inline word changes, visible but unselectable +/− indicators, and per-file +/− counts. Line numbers and indicators stay outside copied and commented source text. A reviewed mark is an explicit reader action folded by file path; filtering is temporary and never hides files from print or export. Add `collapsed` when every file should start closed, especially for a large patch; a comment or navigation target still opens the containing file and clears a filter that hid it. Bind `source` to a page-owned unified-diff feed and use `snapshot` for an immutable capture; each rendered line then becomes a commentable datum keyed by file path, old/new side, and source line. The feed may hold patch text or, for large reviews, a `files` manifest whose path-keyed `patch` fields Leaf delivers only when their files open. The bound form is `<lf-diff id=\"patch\" source=\"pr-patch\"><pre></pre></lf-diff>`; the empty `<pre>` preserves the shared data-body shape and its content is ignored. With no source, the diff verbatim inside its <pre>, at column 0, remains the authored fallback. Every changed file needs at least one `@@` hunk header, whose old and new counts must match the following lines exactly. A path-only rename is the only supported hunkless entry and appears as one old → new row; write that block as exactly four lines: `diff --git`, `similarity index 100%`, `rename from`, and `rename to`, with the same non-empty old and new paths in the header and rename lines. A rename with changes uses the normal disclosure labeled with its new path. Binary, mode-only, empty added/deleted, and copy entries are unsupported, so state those changes in prose rather than mixing them into the diff; for an edited copy destination, omit the copy metadata and provide its textual hunks. Context lines keep their leading space; encode a context line with nothing after that prefix as &amp;#32; so HTML parsing preserves it. HTML-escape an inline body — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt; — or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
     "type": "object",
     "properties": {
       "id": {
@@ -566,6 +566,29 @@
         "contract": "unified-diff",
         "source": "source",
         "snapshot": "snapshot"
+      }
+    },
+    "x-state": {
+      "review": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reviewed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "file",
+            "reviewed"
+          ],
+          "additionalProperties": false
+        },
+        "facet": "review",
+        "unit": "file"
       }
     },
     "x-upgrade": true,
@@ -835,7 +858,7 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Workstreams on one page: use one family when broad context branches into focused work. Keep the shared title and lede before it, put the current stream first, and keep earlier context intact in a sibling panel so its stable ids retain their comments and decisions. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained sub-context with its own prose and widgets, while Threads, Decisions, versions, and sign-off remain global. Find-in-page, decision travel, and comment-anchor jumps open the owning tab. Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
+    "description": "Workstreams on one page: use one family when several are live at once. Keep the shared title and lede before it, put the current stream first, and remove an earlier run once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained sub-context with its own prose and widgets, while Threads, Decisions, versions, and sign-off remain global. Find-in-page, decision travel, and comment-anchor jumps open the owning tab. Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
     "type": "object",
     "properties": {
       "id": {

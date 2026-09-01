@@ -24,13 +24,15 @@ export function createAcknowledgments(dependencies) {
 
   // One retained node follows one reader move through every semantic phase. Only a
   // phase/detail change touches its live region; the heartbeat updates the separate
-  // clock without making a screen reader repeat the state every two seconds.
+  // clock without making a screen reader repeat the state every two seconds. A phase
+  // change is a change of words and paint and nothing else: motion here would answer
+  // a question the reader already asked, and an animation the line wore would replay
+  // on any move the heartbeat made (below).
   function paintReceipt(host, receipt, before, wanted) {
     if (!host) return;
     let line = [...host.children].find(
       (child) => child.matches(".lf-receipt") && child.dataset.receiptId === receipt.id,
     );
-    const created = !line;
     if (!line) {
       line = el("div", "lf-receipt lf-ui");
       line.dataset.lfGen = "1";
@@ -41,21 +43,20 @@ export function createAcknowledgments(dependencies) {
       state.setAttribute("aria-atomic", "true");
       line.append(state, el("time"));
     }
+    // `before` names the slot the line belongs in by the node standing there now, and
+    // for an event-backed line that node is the line itself once it has been placed.
+    // Inserting a node before itself is a move that changes nothing, but the platform
+    // still takes it out of the document and puts it back — cancelling and restarting
+    // every animation it wears, and re-announcing its live region — so a line already
+    // in its slot is left where it stands.
     const next = before ?? null;
-    if (line.parentElement !== host || line.nextSibling !== next)
+    if (next !== line && (line.parentElement !== host || line.nextSibling !== next))
       host.insertBefore(line, next);
     wanted.add(line);
 
     const state = line.querySelector(":scope > .lf-receipt-state");
-    const previous = line.dataset.phase;
     const semantic = phaseText(receipt);
     if (state.textContent !== semantic) state.textContent = semantic;
-    if (!created && previous && previous !== `${receipt.phase}:${semantic}`) {
-      line.classList.remove("lf-receipt-change");
-      void line.offsetWidth;
-      line.classList.add("lf-receipt-change");
-    }
-    line.dataset.phase = `${receipt.phase}:${semantic}`;
     line.classList.toggle("is-active", receipt.phase === "active");
 
     let quiet = line.querySelector(":scope > .lf-receipt-quiet");

@@ -214,7 +214,7 @@ def state(dir: str) -> None:
 
 @cli.group(short_help="Set, capture, or clear page-bound external data.")
 def data() -> None:
-    """Manage current values and immutable text captures."""
+    """Manage current values and immutable file captures."""
 
 
 @data.command("set", short_help="Replace one bound source value.")
@@ -242,27 +242,41 @@ def data_set(dir: str, source: str, input_file, capture_label: str | None) -> No
     cmd_data_set(resolve_dir(dir), source, value, capture_label)
 
 
-@data.command("capture", short_help="Capture a bound UTF-8 text source.")
+@data.command("capture", short_help="Capture a bound UTF-8 file.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 @click.option(
-    "--text-file",
+    "--file",
+    "input_file",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
     metavar="PATH",
-    help="UTF-8 text file to capture",
+    help="UTF-8 file to capture",
+)
+@click.option(
+    "--format",
+    "capture_format",
+    type=click.Choice(["text", "unified-diff"]),
+    default="text",
+    show_default=True,
+    help="transform applied before capture",
 )
 @click.option(
     "--lines",
     metavar="START:END",
-    help="one-based inclusive line range",
+    help="one-based inclusive range for text captures",
 )
 @click.option("--label", help="display label (default: file name)")
 def data_capture(
-    dir: str, source: str, text_file: Path, lines: str | None, label: str | None
+    dir: str,
+    source: str,
+    input_file: Path,
+    capture_format: str,
+    lines: str | None,
+    label: str | None,
 ) -> None:
-    """Capture LF-normalized text as SOURCE's current value and a snapshot."""
-    cmd_data_capture(resolve_dir(dir), source, text_file, lines, label)
+    """Capture FILE as SOURCE's current value and an immutable snapshot."""
+    cmd_data_capture(resolve_dir(dir), source, input_file, lines, label, capture_format)
 
 
 @data.command("clear", short_help="Clear current and unreferenced captures.")

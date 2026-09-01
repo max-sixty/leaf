@@ -47,7 +47,6 @@ from render_support import (
     _until,
     actions,
     compare_with,
-    composer_quote,
     leaf_page,
     live_url,
     open_page,
@@ -339,6 +338,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         """
 <h1>Migration plan for the readers already in flight</h1>
 <style>html { scroll-behavior: smooth; }</style>
+<div id="orientation" style="height: 420px"></div>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
 <section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p>Take a snapshot.</p></section>
 <div style="height: 90px"></div>
@@ -368,7 +368,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
-    expect(toc).to_have_css("position", "static")
+    expect(toc).to_have_css("position", "fixed")
     expect(page.locator("aside.sidebar")).to_have_css("position", "sticky")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
@@ -384,7 +384,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     }
     nav_box = nav.bounding_box()
     assert nav_box is not None
+    assert 23 <= nav_box["x"] <= 25
+    assert 64 <= nav_box["y"] <= 68
     assert nav_box["height"] >= 790, f"the reading map used only {nav_box['height']}px"
+    assert abs(nav_box["y"] + nav_box["height"] - 876) <= 1
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
         """items => items.map(item => {
           const style = getComputedStyle(item, '::before');
@@ -458,8 +461,16 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert revealed_boxes == hidden_boxes
 
-    # The sticky sidebar keeps a wheel over the document in the native scroll chain. The
-    # rail stays put while the page moves beneath it.
+    # The viewport rail stays put through the whole document, including where its
+    # authored sidebar has not reached the sticky edge yet and where main ends.
+    for position in (0, 750, 10_000):
+        page.evaluate(
+            "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})",
+            position,
+        )
+        assert nav.bounding_box() == nav_box
+
+    # A wheel over the rail stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     page.mouse.move(nav_box["x"] + nav_box["width"] / 2, nav_box["y"] + 300)
     page.mouse.wheel(0, 260)
@@ -502,13 +513,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
     after_navigation = nav.bounding_box()
-    sidebar_after_navigation = page.locator("aside.sidebar").bounding_box()
     assert after_navigation is not None
-    assert sidebar_after_navigation is not None
-    assert abs(after_navigation["y"] - sidebar_after_navigation["y"]) <= 1
-    assert 64 <= after_navigation["y"] <= 68, (
-        "the contents rail did not dock with its sticky sidebar"
-    )
+    assert after_navigation == nav_box, "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
 
     # The lens is the viewport's position, not a destination travelling toward it.
@@ -2347,8 +2353,8 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     box = intro.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    assert "signed-cookie" in composer_quote(page)["text"]
+    expect(page.locator("#lf-composer-quote")).to_contain_text("signed-cookie")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     # Put it down again, so what follows is a rise and not a leftover.
     page.locator("#h").click()
     expect(page.locator(".lf-fab-input")).to_be_hidden()

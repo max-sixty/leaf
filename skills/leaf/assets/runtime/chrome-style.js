@@ -154,10 +154,14 @@ export function chromeStyle({
   body[data-lf-sizing] { transition: none; }
   /* A tray that takes its room out of the page takes it the same way as the right panel:
      a body margin narrows and moves the layout shell while page-attached chrome keeps the
-     document origin above it. showTray states which tray is up; STRIP_TRAYS states which
-     trays claim this room. */
+     document origin above it. The inset gives viewport-fixed page furniture that same
+     left edge. showTray states which tray is up; STRIP_TRAYS states which trays claim
+     this room. */
   @media screen and (not ${TRAY_COVERING}) {
-    ${STRIP_TRAY_RULE} { margin-left: var(${TRAY_PROP}); }
+    ${STRIP_TRAY_RULE} {
+      --lf-shell-inset-left: var(${TRAY_PROP});
+      margin-left: var(${TRAY_PROP});
+    }
   }
   @media screen and ${TRAY_COVERING} {
     :where(html:not(.lf-copy)):has(${STRIP_TRAY_RULE}) { overflow-y: hidden; }

@@ -20,6 +20,7 @@ from .registry.storage import layer_metadata
 from .server import (
     host_key,
     lifetime_note,
+    loopback_note,
     page_access,
     page_url,
     running_server,
@@ -95,9 +96,13 @@ def startup_note(page_dir: Path) -> str:
     # exists to expose look current merely because a newer client inspected it.
     runtime = service.get("runtime") or {}
     fingerprint = layer.get("fingerprint") or "unidentified"
+    # After the lifetime line, not before: a served subprocess's first line of
+    # stderr is the lifetime, and readers of that handshake take exactly one.
     return "\n".join(
-        (
+        line
+        for line in (
             lifetime_note(page_dir),
+            loopback_note(page_dir),
             f"page: {page_dir}",
             f"layer: {fingerprint} ({_provenance_label(layer.get('producer', {}))})",
             (
@@ -105,6 +110,7 @@ def startup_note(page_dir: Path) -> str:
                 f"({_provenance_label(runtime)})"
             ),
         )
+        if line
     )
 
 

@@ -2140,10 +2140,7 @@ const COMPOSER = {
       does: "Close the composer, keeping the draft",
       line: "close — draft kept",
       promoteEscape: false,
-      run: () => {
-        hideComposer();
-        showFab(null);
-      },
+      run: dismissFab,
     },
   ],
 };
@@ -3391,6 +3388,7 @@ anchorRuntime = createAnchors({
   aimBox,
   aimIsOn,
   aimedItem,
+  announce,
   anchorLabel,
   anchorsReady: () => anchoringReady,
   bareReaction: (t) => conversationRuntime.bareReaction(t),

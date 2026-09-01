@@ -643,27 +643,39 @@ ${MARK_RULES}
         calc(14px + var(--lf-safe-left));
       background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
     .lf-banner-status, .lf-banner-actions { display: flex; align-items: center; gap: 10px; }
-    .lf-banner-status { flex: 0 1 max-content; min-width: 24px; }
-    /* The actions are their own shelf whenever the status and available destinations no
-       longer share the row. The DOM puts each edge's control nearest the panel it opens:
-       Threads leads the covering shelf, while All leaves leads the wide row beside its
-       left-hand tray. Keyboard focus and a horizontal gesture can bring every later
-       address wholly on screen without widening the document. Usually there is nothing
-       to scroll, so the wide arrangement keeps its ordinary single-row reading. Four
-       pixels around the contents belong to the controls'
-       outset focus ring; without them the shelf solved reachability by clipping the sign
-       that a keyboard reader had reached anything. One extra inline pixel covers
-       fractional layout at the integer scroll extent. The shelf takes its contents'
-       intrinsic room before the status sentence, then grows through any remaining room:
-       All leaves spends that slack and stays at the left edge, while the other addresses
-       remain against the right edge. If even the controls do not fit, the shelf caps one
-       gap after the status floor and scrolls itself. Safe alignment falls back to that
-       scrollable start rather than stranding its first control offscreen. */
-    .lf-banner-actions { flex: 1 0 max-content; min-width: 0;
-      max-width: calc(100% - 34px); justify-content: safe flex-end; overflow-x: auto;
-      overscroll-behavior-inline: contain; scrollbar-width: none; padding: 4px 5px; }
-    .lf-banner-actions > .lf-others { margin-inline-end: auto; }
-    .lf-banner-actions::-webkit-scrollbar { display: none; }
+    /* The sentence wins the row. It takes whatever the addresses leave and keeps a floor
+       of its own below that, which is what the shelf's cap on the next rule states from
+       the other end. Growing into free space rather than reserving its own words is what
+       keeps the row still: a status ageing from "is working" to "last checked in" is a
+       longer sentence in a box that has not changed size, so nothing beside it moves. */
+    .lf-banner-status { flex: 1 1 auto; min-width: 0; }
+    /* The addresses take the room the sentence's floor leaves them, and whatever does not
+       fit that cap folds into the shelf's own menu (foldShelf). So the row sheds
+       addresses before the status sheds words, and it sheds them into somewhere rather
+       than off an edge: there is no strip here to scroll, and no address reachable only
+       by discovering that there is.
+
+       The floor is stated in the row's own characters rather than in pixels, so it says
+       the same thing after a type token moves — three numbers stood along this row once
+       and all three quietly stopped covering the day --t-5 went from 13.5px to 14px.
+       Thirty-four of them is the two lines the longest sentence the banner writes needs,
+       which is the offline one, with the mark and the gap beside it. A floor generous
+       enough to hold that sentence on one line would be paid for in addresses folded
+       away at widths that had room for them; two lines is what readable means here.
+
+       The row does not shrink. A flexible one gives up room in the same breath the
+       sentence does, so a row already folded to its floor goes on clipping while the
+       sentence beside it has room to spare — the cap, not the shrink, is what decides
+       who yields, and the fold is what the row yields with.
+
+       The row packs against its end, so a control changing size moves itself and
+       whatever stands before it while everything after it keeps its place. Safe
+       alignment is what keeps that true while a fold is still being measured: an
+       overflowing end-packed row hangs off its start edge, where nothing can see it.
+       Four pixels around the contents belong to the controls' outset focus ring. */
+    .lf-banner-actions { flex: 0 0 auto; min-width: 0;
+      max-width: calc(100% - 34ch); justify-content: safe flex-end; overflow: hidden;
+      padding: 4px 5px; }
     /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
        mask is the page's actual vendored mark, so a project that replaces icon.svg does
        not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -683,11 +695,53 @@ ${MARK_RULES}
       cursor: pointer; }
     .lf-preview:hover { border-color: var(--accent); color: var(--ink); }
     .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    /* Two lines, because one was not enough for the sentences the banner actually writes:
+       the offline line is eighty-four characters and a single row of them ellipsized at
+       "Server offline — reconnectin…", which is a status readout that has stopped saying
+       what to do about it. The clamp is what keeps a runaway detail from growing the
+       banner instead; the title carries the whole line either way. */
+    .lf-status-text { color: var(--ink-2); min-width: 0; overflow: hidden;
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      line-height: 1.35; }
     .lf-status-text .lf-age { color: var(--muted); }
-    /* All leaves spends the shelf's slack; the remaining controls stay packed against
-       the right edge. That decides who pays for a control changing size: it moves itself
-       and the controls to its left, while everything to its right keeps its place. Three
+    /* The door onto the folded addresses. It stands where they would have: at the row's
+       start, so the menu's contents read straight on into the row's and the two are one
+       order rather than two to keep in step. */
+    .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
+    /* The row's own .lf-btn rule states a display, and an author's display outranks the
+       UA's for [hidden], so a door with nothing behind it goes on standing there. Said
+       here for the same reason the page map says it: hidden is a display of its own. */
+    .lf-banner-more[hidden] { display: none; }
+    .lf-banner-more[data-lf-news] { border-color: var(--accent); color: var(--accent); }
+    /* Anchored under its own press, and every side it does not name said out loud. The
+       popover UA rule is inset: 0 with margin: auto, so a rule that states only top and
+       left leaves bottom and right at zero with automatic margins to resolve the
+       contradiction — which centres the menu in the window, nowhere near the button it
+       hangs off. */
+    .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
+      top: calc(anchor(bottom) + 6px); left: anchor(left);
+      right: auto; bottom: auto; margin: 0; z-index: 8950;
+      display: none; flex-direction: column; align-items: stretch; gap: 1px;
+      min-width: max(anchor-size(width), 180px);
+      max-width: calc(100vw - 16px);
+      max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
+      overscroll-behavior: contain;
+      background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
+    .lf-banner-menu:popover-open { display: flex; }
+    /* A folded address is the same control, so it keeps its own paint and states its own
+       words; what the menu decides is that it reads as a row rather than as a chip. It
+       does not state display: whether an address is drawn at all belongs to the address,
+       and a rule here stating it for the whole menu would put a control the page has
+       taken away — the map above 900, a chip with no news — into the list as a blank. */
+    .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
+      background: none; text-align: left; }
+    .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
+    /* The addresses stay packed against the row's end. That decides who pays for a
+       control changing size: it moves itself and the controls to its left, while
+       everything to its right keeps its place. It is also what the fold rests on — the
+       widest a control may ever say is the width it already holds, so the fold's answer
+       does not turn over on a count gaining a digit. Three
        of these rewrite their own words —
        "✓ Version approved" is narrower than "Approve version", and two of them count something
        that gains a digit — so each holds room for the widest it may say, taken from the
@@ -1472,33 +1526,33 @@ ${MARK_RULES}
       padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
       background: var(--accent); color: var(--paper); }
     .lf-inspect.lf-shown { display: block; }
-    /* On a phone the banner is a status shelf, not a cropped desktop row. The status
-       gets a quiet first line and the action row scrolls independently underneath it;
-       the two actions that complete the feedback loop are ordered first, so no hidden
-       overflow has to be discovered before a reader can comment or approve. */
+    /* On a phone the banner is a status line with the page's addresses under it, not a
+       cropped desktop row. The status gets the first line to itself, so the addresses
+       have the whole width to fit in; what still does not fit folds into the same menu it
+       folds into on a desk. One row of addresses, in the row's one order, at every width
+       — the reader who learned this banner on a laptop finds it here.
+
+       The status keeps to one line in its own 36px row. Two would be a row that changes
+       height as a sentence ages, which moves every address under it for no gesture; the
+       whole line is a press away in the title, as the wide row's runaway detail is. */
     @media screen and ${COVERING} {
       .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
         grid-template-rows: 36px minmax(0, 1fr); gap: 0;
         padding: var(--lf-safe-top) 0 0; }
       .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
           calc(14px + var(--lf-safe-left)); gap: 9px; }
+      .lf-status-text { -webkit-line-clamp: 1; }
       .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
         justify-content: flex-start;
-        scroll-padding-inline: calc(10px + var(--lf-safe-left));
         padding: 4px calc(10px + var(--lf-safe-right)) 4px
           calc(10px + var(--lf-safe-left)); gap: 3px; }
-      .lf-banner-actions > .lf-others { margin-inline-end: 0; }
-      /* A shelf-wide display states the box of every control it reaches, including the
+      /* A row-wide display states the box of every control it reaches, including the
          ones the page has taken away: hidden is a display of its own, and a rule that
-         states display without excluding it puts an absent control back on the shelf.
+         states display without excluding it puts an absent control back on the row.
          Centring is for the controls that are there. */
       .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
         align-items: center; justify-content: center; }
       .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 6px; }
-      /* A pinned wide row reserves its future Latest address so publication cannot move
-         controls. The phone shelf starts at the primary controls, so an unseen slot there
-         is only blank scrolling; collapse it until the news itself is present. */
-      .lf-latest-chip:not(.lf-news-shown) { display: none !important; }
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.

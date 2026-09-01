@@ -348,6 +348,13 @@ export function relabel(node, label, { says } = {}) {
 // asks again the first time there is a box. A floor of zero is not a missing
 // measurement to look at; it is the control holding no room at all.
 export function reserve(control, labels) {
+  // Standing the control out of flow hides it, and hiding a focused element takes the
+  // focus off it — onto body, silently, a frame after the reader put it here. The
+  // fitting is synchronous and invisible, and losing the reader's place is not part of
+  // what it was asked to do. Renewing the banner's reservations across a breakpoint is
+  // where this shows: a reader holding one address crosses 900px and is standing on
+  // nothing.
+  const held = document.activeElement === control;
   const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {
     minWidth: "0",
@@ -364,4 +371,6 @@ export function reserve(control, labels) {
   control.replaceChildren(...stood.nodes);
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
+  if (held && document.activeElement !== control)
+    control.focus({ preventScroll: true });
 }

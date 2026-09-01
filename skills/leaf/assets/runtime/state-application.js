@@ -43,6 +43,7 @@ export function createStateApplication(dependencies) {
     revisionDocument,
     runtime,
     sameLayer,
+    sayLine,
     setPanel,
     showComparison,
     showNews,
@@ -357,7 +358,13 @@ export function createStateApplication(dependencies) {
       else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
       stateSignoff(getSignoffDeclared());
       restoreClaimState();
-      if (willActivate) location.reload();
+      // A version the page could not show, and the reader is left looking at the one it
+      // was leaving. Say what the reload is for before making it: a tab that reloads
+      // itself in silence reads as the page having lost their place for no reason.
+      if (willActivate) {
+        sayLine("Couldn't show that version — reloading this page.");
+        location.reload();
+      }
       throw error;
     }
     if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;

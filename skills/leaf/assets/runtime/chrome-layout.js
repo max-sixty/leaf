@@ -45,6 +45,7 @@ export function createChromeLayout({
   currentTray,
   dockSeats,
   focused,
+  foldShelf,
   keylineEl,
   pageShifted,
   paintHere,
@@ -126,6 +127,11 @@ export function createChromeLayout({
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
   function syncLayout() {
+    // How many of the banner's addresses stand on its row is a reservation taken from the
+    // row's current box, so it belongs here with the rest of them and it goes first: what
+    // it decides is the banner's own contents, which nothing below reads. The banner is
+    // fixed, so a fold cannot resize the boxes this function is watching.
+    foldShelf();
     const panelBeside = panelOpen && !panelCovers();
     // What a covering sheet keeps standing at its foot: the composer, and the page's own
     // reaction strip above it once the registry offers one. Measured as the one box that

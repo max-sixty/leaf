@@ -68,9 +68,11 @@ subscriptions;
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, version preparation,
 state commit, projection, notification, outbox accounting, and rollback;
-`runtime/banner.js` owns banner wording, tone, and tab-icon paint;
-`runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
-overflow travel, and the banner's touch bridge to the document scroller;
+`runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
+status kind that has changed;
+`runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
+the fold that decides which of the banner's addresses stand on its row and which
+stand in its menu;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
@@ -1304,8 +1306,14 @@ possible words are available.
 
 Generated rows that switch views keep the same outer box. Controls may give up
 ink while retaining their cells. A status item that can appear later reserves
-its place for the page's life. When a row runs out of room, the leftmost
-status-like item may yield its own width so controls to its right remain fixed.
+its place for the page's life. When a row runs out of room it gives up whole
+controls before it gives up any control's words, and it gives them up to
+somewhere a reader can still reach: the banner's row folds the addresses it
+cannot hold into one menu (`foldShelf`) rather than clipping them or scrolling
+them off its own edge, and its status sentence keeps a floor stated in the row's
+own characters so a crowded row can never cut it. The row reads in one order at
+every width, and a control the fold has taken is still at its place in that
+order.
 
 `syncLayout` derives only floating chrome placement and reservations from current
 chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size

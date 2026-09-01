@@ -372,6 +372,7 @@ const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
 const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient({
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
+  sayLine: (...args) => sayLine(...args),
 });
 configureDataReporting(reportPageError);
 const { pointerAt } = createPointer();
@@ -704,9 +705,15 @@ const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");
 bannerStatus.append(dot, statusText);
-const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
-  el,
-});
+const {
+  bannerActions,
+  foldShelf,
+  overflowBtn,
+  overflowMenu,
+  reserveNewsSlot,
+  showNews,
+  unfoldShelf,
+} = createBannerShelf({ el, paintHere: () => paintHere() });
 // The hidden pinned slot carries representative words as well as a measured width: an
 // empty button is shorter, so its first real label would still move vertically.
 const latestChip = el(
@@ -719,6 +726,11 @@ const latestChip = el(
 // two rows that make it rather than typed out beside them.
 latestChip.dataset.lfKeyTitle = "Open the current page";
 latestChip.title = latestChip.dataset.lfKeyTitle;
+// The one address on this row whose arrival a reader must not miss: what they are reading
+// has been replaced. Every other address is standing information, and being behind the
+// row's menu costs it nothing; this one is news, so the menu's door says so while it
+// holds it (see paintDoor).
+latestChip.dataset.lfUrgent = "1";
 if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
@@ -815,39 +827,42 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-// Seed the invariant middle once; arrangeBannerControls moves the two edge families
+// Seed the invariant middle once; arrangeBannerControls puts the two edge families
 // around it and later preserves any registry-declared controls added among these three.
 bannerActions.append(latestChip, decisionsBtn, versionBtn);
-// On a wide row, an edge's address sits at that edge: All leaves is the first control
-// beside the tray it opens on the left, and Threads (plus approval) finishes beside
-// the panel it opens on the right. A covering shelf instead begins with the primary
-// Threads loop, keeping it in the first phone view. This is DOM order rather than CSS
-// `order`, so the tab route says the same thing the row draws. Reordering existing nodes
-// can briefly drop native focus; put it back without moving the page, then make its new
-// shelf position wholly visible.
+// One order, at every width. An edge's address sits at that edge: All leaves is the first
+// address beside the tray it opens on the left, and approval and Threads finish beside the
+// panel they open on the right. The row used to turn round at the covering breakpoint,
+// which carried Threads from one end of the banner to the other and swapped the page's one
+// committing press across it — so a reader who learned this row on a laptop had to learn
+// it again on a phone, and a press they were reaching for was somewhere else. What a
+// narrow window changes now is how many of these addresses stand on the row at once; the
+// rest fold into the row's own menu, in this same order (`foldShelf`).
+//
+// This is DOM order rather than CSS `order`, so the tab route says the same thing the row
+// draws. Reordering existing nodes can briefly drop native focus; put it back without
+// moving the page, and hand it to the menu's door where the fold has taken the address
+// the reader was standing on.
 function arrangeBannerControls() {
-  const focused = bannerActions.contains(document.activeElement)
-    ? document.activeElement
-    : null;
+  const focused = document.activeElement;
   const edges = new Set([toggleBtn, approveBtn, othersBtn]);
-  // Registry-declared blanket answers can join the middle of this shelf after boot.
-  // Preserve every such control in its standing relative order while moving only the
-  // edge-owned addresses; a breakpoint must not strand a later extension at an edge.
-  const middle = [...bannerActions.children].filter((control) => !edges.has(control));
-  const controls = commentsEdge.over.matches
-    ? [toggleBtn, ...(signoff ? [approveBtn] : []), ...middle, othersBtn]
-    : [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
+  // Registry-declared blanket answers can join the middle of this row after boot, and a
+  // folded address is still on it. Preserve every such control in its standing relative
+  // order while moving only the edge-owned addresses.
+  const middle = [...overflowMenu.children, ...bannerActions.children].filter(
+    (control) => control !== overflowBtn && !edges.has(control),
+  );
+  const controls = [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
   bannerActions.append(...controls);
-  if (focused && controls.includes(focused)) {
-    focused.focus({ preventScroll: true });
-    revealFocus(focused);
-    // A MediaQueryList change can arrive before its new grid geometry is observable.
-    // Reveal once more in the first frame painted with that geometry; keep the identity
-    // check so a user who has moved focus meanwhile is never pulled back.
-    requestAnimationFrame(() => {
-      if (document.activeElement === focused) revealFocus(focused);
+  foldShelf();
+  if (
+    focused?.isConnected &&
+    controls.includes(focused) &&
+    document.activeElement !== focused
+  )
+    (overflowMenu.contains(focused) ? overflowBtn : focused).focus({
+      preventScroll: true,
     });
-  }
 }
 arrangeBannerControls();
 banner.append(bannerStatus, bannerActions);
@@ -1076,6 +1091,7 @@ for (const [part, id] of [
 const chromeRoot = el("div", "lf-chrome");
 chromeRoot.append(
   banner,
+  overflowMenu,
   versionMenu,
   othersPanel,
   decisionsPanel,
@@ -1095,26 +1111,26 @@ chromeRoot.append(
 document.body.append(chromeRoot);
 // The controls that rewrite their own words hold the widest of them, measured in the
 // face and padding the banner is using now (see the stylesheet's banner comment). The
-// covering shelf deliberately spends less horizontal padding than the wide row, so its
+// covering row deliberately spends less horizontal padding than the wide one, so its
 // media-query transition has to renew these measurements in both directions; an inline
 // minimum measured once on a desk would otherwise make that responsive padding inert.
 // The counters hold the widest they reach anywhere below a thousand, so no count they
 // write can move them — a page with a thousand open threads, or a machine with a thousand
 // live pages, is not one anyone hands a user.
+//
+// Every address stands on the row while this runs. A control measures its own words in
+// its own live face, and inside the shut menu the fold may have put it in there is no
+// box to measure: every word comes back zero and the floor with it. The fold is asked
+// again at the end, against the reservations this just took.
 function reserveBannerControls() {
+  unfoldShelf();
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  // News keeps one readable address while it changes words. The action row itself owns
-  // overflow now, so no control has to collapse into an illegible pressure release. The
-  // covering rule fully removes an unseen slot, including from measurement, so lend it
-  // the shown class for this synchronous, invisible reading and put its actual state
-  // straight back.
-  const latestWasShown = latestChip.classList.contains("lf-news-shown");
-  latestChip.classList.add("lf-news-shown");
+  // News keeps one readable address while it changes words. The row folds rather than
+  // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [
     "New page available → open v999",
     "Latest edit couldn't be shown",
   ]);
-  latestChip.classList.toggle("lf-news-shown", latestWasShown);
   reserve(versionBtn, [
     versionLabel(false),
     versionLabel(true),
@@ -1127,12 +1143,24 @@ function reserveBannerControls() {
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
   reserve(decisionsBtn, ["Asks (999)"]);
   reserve(othersBtn, ["All leaves (999)"]);
+  foldShelf();
 }
+let reservedCovering = commentsEdge.over.matches;
 reserveBannerControls();
-commentsEdge.over.addEventListener("change", () => {
-  arrangeBannerControls();
+// The reservations are measured in the padding the current breakpoint gives the row's
+// controls, and the fold reads them to decide what the row can hold — so they have to be
+// this breakpoint's before anything is measured against them. A crossing is two events, a
+// resize and a media query change, and the platform does not order them against each
+// other: a fold running on the resize measured the narrow row against the widths the
+// window it had just left reserved, folded an address the narrow row had room for, handed
+// the reader the door it went behind, and then had the renewal behind it take that door
+// away with the reader still standing on it. Hung off the geometry writer instead, the
+// renewal is always the crossing's first act, whichever event arrives first.
+function currentBannerReservations() {
+  if (reservedCovering === commentsEdge.over.matches) return;
+  reservedCovering = commentsEdge.over.matches;
   reserveBannerControls();
-});
+}
 // ---------- state ----------
 
 // Until the first state answer, [] means "not read", not "no comments". Keep that
@@ -1159,6 +1187,10 @@ chromeLayout = createChromeLayout({
   currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
   focused,
+  foldShelf: () => {
+    currentBannerReservations();
+    foldShelf();
+  },
   keylineEl,
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
@@ -2944,9 +2976,10 @@ const {
 });
 const { droppedAt, presented } = createPresence();
 
-const { loadIcon, renderStatus, toneFor } = createBanner({
+const { loadIcon, renderStatus, sayLine, toneFor } = createBanner({
   agentName,
   ago,
+  announce,
   dot,
   el,
   presented,
@@ -3451,7 +3484,6 @@ livingMargin = createLivingMargin({
   anchorLabel,
   acknowledgments: () => runtime.browser?.acknowledgments ?? [],
   announce,
-  approveBtn,
   blockAt,
   chromeRoot,
   claimState: workClaimState,
@@ -3465,6 +3497,7 @@ livingMargin = createLivingMargin({
   el,
   elementById,
   focused,
+  foldShelf,
   goToDecision,
   inChrome,
   itemSays,
@@ -3484,7 +3517,6 @@ livingMargin = createLivingMargin({
   stateProjection,
   threadPanel: panel,
   threads: () => conversationRuntime.threadList,
-  toggleBtn,
   updateSequence,
   versionBtn,
   waitingForPickupSince,
@@ -3571,6 +3603,7 @@ stateApplication = createStateApplication({
   revisionDocument,
   runtime,
   sameLayer,
+  sayLine,
   setPanel,
   showComparison,
   showNews,

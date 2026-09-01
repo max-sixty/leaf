@@ -209,7 +209,6 @@ export function createLivingMargin(dependencies) {
     anchorLabel,
     acknowledgments,
     announce,
-    approveBtn,
     blockAt,
     chromeRoot,
     claimState,
@@ -223,6 +222,7 @@ export function createLivingMargin(dependencies) {
     el,
     elementById,
     focused,
+    foldShelf,
     goToDecision,
     inChrome,
     itemSays,
@@ -242,7 +242,6 @@ export function createLivingMargin(dependencies) {
     stateProjection,
     threadPanel,
     threads,
-    toggleBtn,
     updateSequence,
     versionBtn,
     waitingForPickupSince,
@@ -273,17 +272,11 @@ export function createLivingMargin(dependencies) {
   mapButton.type = "button";
   mapButton.hidden = true;
   mapButton.title = "Open the page map";
-  function placeMapButton() {
-    if (compact.matches)
-      (approveBtn.isConnected ? approveBtn : toggleBtn).after(mapButton);
-    else versionBtn.before(mapButton);
-  }
   function changePosture() {
     const marginHeld =
       toolbar.contains(document.activeElement) ||
       preview.contains(document.activeElement);
     const sheetHeld = sheet.contains(document.activeElement);
-    placeMapButton();
     if (compact.matches && preview.matches(":popover-open")) closePreview(false);
     if (compact.matches && marginHeld) requestAnimationFrame(() => focusMapControl());
     if (!compact.matches && sheet.open) {
@@ -293,7 +286,14 @@ export function createLivingMargin(dependencies) {
     }
     render();
   }
-  placeMapButton();
+  // One seat in the banner's one order, taken once: the map stands with the page's other
+  // destinations, just before the version chooser. It used to take the far side of
+  // approval under the compact query and be re-placed on every crossing of it, which was
+  // the same address at two different places on one row — and, because a blanket answer
+  // that had arrived in between claims that same seat, the seat it landed in depended on
+  // which way the reader had last crossed 900px. Placed at build, before any of them.
+  versionBtn.before(mapButton);
+  foldShelf();
   compact.addEventListener("change", changePosture);
 
   const preview = el("aside", "lf-ui lf-margin-preview");

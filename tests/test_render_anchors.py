@@ -1,4 +1,4 @@
-"""Selection, passage, syntax, and version-navigation tests."""
+"""Selection, passage, syntax, and version-travel tests."""
 
 import json
 import re

@@ -162,16 +162,17 @@ tree. Pull requests run the same gate in CI. CI adds the complete nightly suite
 after main moves.
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
-widget change. Run `/ui-sweep` and inspect a composed page for any user-visible
-layer change; a green suite does not judge visual quality.
+widget change. For a user-visible layer change, an `/ui-sweep` and a look at a
+composed page are worth the time; a green suite does not judge visual quality.
 
 Hand off a visible change with the smallest artifact that proves it. For an
 example, `scripts/preview.py [example] --export` prints a standalone HTML file
 for static rendering; `scripts/preview.py [example]` serves an interactive
 preview while its process runs. Build a behavioral prototype in its owning code
-path, then serve an example that reaches it. A static change needs one sentence
-and an `lf-shot` before/after from the same fixture, viewport, and state. Add
-another state or width only when the first comparison cannot show the behavior.
+path, then serve an example that reaches it. One sentence and an `lf-shot`
+before/after is the usual artifact for a static change; take the before and after
+from the same fixture, viewport, and state, and add another state or width only
+when the first comparison cannot show the behavior.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
 `main`. Landing requires the user's authorization. For a local merge, if a newer

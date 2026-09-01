@@ -2290,6 +2290,14 @@ tray row travels through the same decision-arrival function as `a` and `A`, so t
 panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
+An arrival stands the reader on the decision, which is the element the scroll has just
+aligned and the one the ring names; its controls are the next Tab stops, a stop at
+`tabindex: -1` keeping its place in document order. Landing the answering control
+instead puts them as far down the decision as its context and evidence are long, off
+the screen the same gesture arranged. A decision a page styles boxless has nothing to
+stand on and keeps the control as its landing. A widget rebuilt under a reader is not
+an arrival and hands back the control they were working (`standOn`).
+
 A request decision is answered at acceptance rather than by replayable widget state. Its
 pending lifecycle therefore leaves the reader's list immediately and hands the next
 word to the host; a terminal failure returns it, while success keeps it closed. Page

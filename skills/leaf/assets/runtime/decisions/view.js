@@ -366,7 +366,8 @@ export function createDecisionView({
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.decision);
     // A control-less request can borrow its own tab stop while the broader x-decision
     // region wears the ring. Keep that stop until the reader leaves the region.
-    if (decisionLent !== (here && decisionSource(here))) lend(null);
+    const holder = here && decisionSource(here);
+    if (decisionLent && decisionLent !== here && decisionLent !== holder) lend(null);
     for (const marked of wearing)
       marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
   }
@@ -415,13 +416,18 @@ export function createDecisionView({
     });
     return dir > 0 ? (reach[0] ?? decisions[0]) : (reach.at(-1) ?? decisions.at(-1));
   }
-  // Where the reader stands when they are put on a decision: the control that works it —
-  // one inside the decision, or one the widget hoisted into the margin and pointed back at
-  // it — or the decision itself, lent a tab stop where it holds nothing to work. Named
-  // because two presses put a reader on a decision and one of them is not a walk: a widget
-  // rebuilt under the reader (rebuild) has to hand back the place they were standing,
-  // and a second answer to "where is that" would drift from this one the first time the
-  // control rule changed.
+  // Putting the reader back on the control they were working when a widget rebuilt itself
+  // underneath them (rebuild): the control that works this decision — one inside it, or
+  // one the widget hoisted into the margin and pointed back at it — or the decision
+  // itself, lent a tab stop where it holds nothing to work.
+  //
+  // This is not where an arrival lands, and the two parted when the scroll and the focus
+  // were measured against each other. Arrival puts the decision's opening at the top of
+  // the window, and the first control that answers it is as far down the decision as its
+  // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
+  // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
+  // the reader was told to look at one thing and stood on another, off the bottom of the
+  // screen, and their next Enter would have worked a control they could not see.
   function standOn(el) {
     const source = decisionSource(el);
     const control =
@@ -429,6 +435,27 @@ export function createDecisionView({
       document.querySelector(`[${DECISION_ROW}="${source.id}"] ${DECISION_CONTROL}`);
     if (!control) lend(source);
     (control ?? source).focus({ preventScroll: true });
+  }
+  // Where an arrival lands: on the decision, which is what the scroll has just brought to
+  // the top of the window and what the ring is about to name. Its controls are then the
+  // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
+  // keeps its place in document order and everything inside a decision comes after it.
+  //
+  // What this costs is one press: a mark's own digit row is declared on the mark
+  // (lf-options), so `1` answers the question after Tab rather than on the frame the
+  // reader arrives. That is the right way round — the addresses are painted down the
+  // options, and a reader who cannot see them has no use for them.
+  function arriveAt(decision) {
+    decision.focus({ preventScroll: true });
+    if (decision.matches(":focus")) return;
+    lend(decision);
+    decision.focus({ preventScroll: true });
+    if (decision.matches(":focus")) return;
+    // A decision the page styles boxless generates nothing to stand on, and a lent stop
+    // does not change that. There the control that answers it is the only place the
+    // reader can be, which is where every arrival used to land.
+    lend(null);
+    standOn(decision);
   }
 
   // Standing on one decision: what d and D do once they have decided which, and what a press on
@@ -453,7 +480,7 @@ export function createDecisionView({
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
-    standOn(next);
+    arriveAt(next);
     // A page Decision starts below the banner so its context comes before its control. A
     // thread Decision is in the panel's own list, whose arrival stays centred in that region.
     // One travel for both, because which box it moves is now the travel's own question

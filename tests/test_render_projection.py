@@ -1047,13 +1047,25 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     accent, with nothing saying the two rectangles meant one thing.
 
     A joined options control is the one shape that draws the band somewhere else: it is
-    already a framed box, so a ring around the decision outside it would read as a second
-    border that comes and goes, and the exact row the keyboard is on carries it instead.
-    Which row, in the same band — one ring still meaning one thing."""
+    already a framed box, so a ring around the decision *and* one inside it would read as
+    a second border that comes and goes, and while the reader is in the control the exact
+    row the keyboard is on carries the band alone. Which row, in the same band — one ring
+    still meaning one thing. An arrival is the other side of that: it stands the reader on
+    the decision rather than in the control, so there the decision's own ring is the one."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("a")
     expect(question).to_have_attribute("data-lf-decision", "1")
+    arrival_ring = question.evaluate(RING)
+    assert arrival_ring == [
+        "solid",
+        "2px",
+        token_colour(page, "--accent"),
+    ], f"the decision the walk stood the reader on is not ringed: {arrival_ring}"
+
+    # One press in, and the band moves to the row rather than doubling: the frame is the
+    # control, and a ring around it as well would come and go with the question.
+    page.keyboard.press("Tab")
     assert question.evaluate(RING)[0] == "none", (
         "the decision drew its own ring around a control that is already a frame: "
         f"{question.evaluate(RING)}"
@@ -1065,14 +1077,19 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         token_colour(page, "--accent"),
     ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
-    # A suggestion hangs its ✓ Accept out in the page margin and the focus lands on
-    # it, so this arrival paints two marks for one fact — the ring on the change, the
-    # focus band on the pill deciding it — and they had better be one band. The pill's
-    # comes from the runtime's own .lf-pill rule, which every press in that margin
-    # wears: the suggestion family spelled its own once, which is a family stating a
-    # fact about a shape the runtime owns.
+    # A suggestion hangs its ✓ Accept out in the page margin, so a reader working one has
+    # two marks for one fact — the ring on the change, the focus band on the pill deciding
+    # it — and they had better be one band. The pill's comes from the runtime's own
+    # .lf-pill rule, which every press in that margin wears: the suggestion family spelled
+    # its own once, which is a family stating a fact about a shape the runtime owns.
+    #
+    # Reached with real presses, because :focus-visible answers the input device and a
+    # control focused from script wears no ring for any reading to compare.
     page.keyboard.press("a")
     accept = page.locator(".lf-sug-accept")
+    accept.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(accept).to_be_focused()
     # A decision that is not a joined control wears the ring itself, and it is the band
     # the row above wore: the two shapes say one thing about the reader.
@@ -3338,6 +3355,9 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator(".lf-panel")).to_be_visible()
+    # The arrival stands on the question's own region; its picks are the next Tab stops.
+    expect(page.locator("#tq-one-decision")).to_be_focused()
+    page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
     reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose textarea")

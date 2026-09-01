@@ -1668,6 +1668,8 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-decisions-row")).to_be_focused()
     page.keyboard.press("Enter")
+    expect(page.locator("#only-decision")).to_be_focused()
+    page.keyboard.press("Tab")
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)

@@ -107,11 +107,57 @@ function themeCss(base = "", dark = "") {
 function pageCss(leaf) {
   return `${themeCss(leaf.theme, leaf.darkTheme)}
     ${(leaf.authoredCss || "").replaceAll(":root", ":host")}
-    :host { display: block; color-scheme: light dark; }
+    :host {
+      display: block !important;
+      position: relative !important;
+      inset: auto !important;
+      z-index: 0 !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      height: auto !important;
+      margin: 0 !important;
+      overflow: clip !important;
+      contain: layout paint style !important;
+      isolation: isolate !important;
+      transform: none !important;
+      color-scheme: light dark;
+    }
     main { box-sizing: border-box; min-height: 160px; padding-block: 24px 70px; }
     [data-lf-gen], .lf-ui { display: none !important; }
-    button, input, select, textarea { pointer-events: none; }
+    a, area, form, button, input, select, textarea {
+      pointer-events: none !important;
+    }
   `;
+}
+
+function containSnapshotHost() {
+  const properties = {
+    display: "block",
+    position: "relative",
+    inset: "auto",
+    "z-index": "0",
+    width: "auto",
+    "min-width": "0",
+    "max-width": "100%",
+    height: "auto",
+    margin: "0",
+    overflow: "clip",
+    contain: "layout paint style",
+    isolation: "isolate",
+    transform: "none",
+    translate: "none",
+    rotate: "none",
+    scale: "none",
+    filter: "none",
+    "backdrop-filter": "none",
+    perspective: "none",
+    "box-shadow": "none",
+    outline: "none",
+    "mix-blend-mode": "normal",
+  };
+  for (const [name, value] of Object.entries(properties))
+    pageHost.style.setProperty(name, value, "important");
 }
 
 function cleanDocument(html) {
@@ -120,12 +166,32 @@ function cleanDocument(html) {
   const fragment = document.createElement("template");
   fragment.innerHTML = source ? source.innerHTML : "";
   fragment.content
-    .querySelectorAll("script,link,iframe,object,embed")
+    .querySelectorAll("script,style,link,iframe,object,embed,base,meta")
     .forEach((node) => node.remove());
   const safeAttribute = (node, attr) => {
-    if (attr.name.toLowerCase().startsWith("on")) node.removeAttribute(attr.name);
+    const name = attr.name.toLowerCase();
     if (
-      ["href", "src", "xlink:href"].includes(attr.name.toLowerCase()) &&
+      name.startsWith("on") ||
+      name === "contenteditable" ||
+      name === "autofocus" ||
+      name === "srcdoc" ||
+      name === "target" ||
+      name === "formtarget" ||
+      name === "action" ||
+      name === "formaction" ||
+      name === "form" ||
+      name === "ping" ||
+      name === "download"
+    ) {
+      node.removeAttribute(attr.name);
+      return;
+    }
+    if (node.matches("a,area") && ["href", "xlink:href"].includes(name)) {
+      node.removeAttribute(attr.name);
+      return;
+    }
+    if (
+      ["href", "src", "xlink:href"].includes(name) &&
       /^\s*javascript:/i.test(attr.value)
     ) {
       node.removeAttribute(attr.name);
@@ -209,6 +275,7 @@ function waitForPageReady(state, url) {
 function renderPage(state) {
   if (state.format !== PAGE_FORMAT || state.mode !== "page")
     throw new Error("Leaf returned an invalid complete-page payload");
+  pageHost.removeAttribute("style");
   current = state;
   currentMode = "page";
   fullRoute = {
@@ -286,6 +353,7 @@ function renderSnapshot(state) {
   style.dataset.leafTheme = "";
   style.textContent = pageCss(state);
   shadow.replaceChildren(style, cleanDocument(state.document));
+  containSnapshotHost();
   resetComposer();
   showStatus(
     supportsServerTools()
@@ -401,6 +469,17 @@ app.onteardown = async () => {
   frame.src = "about:blank";
   return {};
 };
+
+function preventSnapshotNavigation(event) {
+  if (currentMode !== "snapshot") return;
+  const navigationTarget = event
+    .composedPath()
+    .find((node) => node?.matches?.("a,area,form"));
+  if (navigationTarget) event.preventDefault();
+}
+
+for (const name of ["click", "auxclick", "submit"])
+  pageHost.addEventListener(name, preventSnapshotNavigation, { capture: true });
 
 pageHost.addEventListener("mouseup", () => {
   if (currentMode !== "snapshot") return;

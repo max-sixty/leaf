@@ -88,15 +88,20 @@ a compact vocabulary projector. It renders inert authored markup and theme
 rules, supports page, element, and passage comments, and offers the ordinary
 browser route when one exists. `leaf_snapshot_refresh` is app-only and read-only.
 `leaf_snapshot_apply_event` is the only write-annotated MCP tool because it
-durably appends a reader comment.
+durably appends a reader comment. Its server boundary admits only `comment`
+events before delegating to the shared event endpoint; app-only visibility and
+the browser bundle are not write authorization for any other registry kind.
 
 The append gate canonicalizes abbreviated text anchors before storing them, so
 fallback clients do not create weaker durable anchors. Served runtime anchors
 keep the browser reading that already resolved them; only the snapshot endpoint
 requests file-side capture. Snapshot mode runs no authored code and does not
-implement package actions. The old single-choice `lf-options` projector is
-deliberately absent: a fixed shape was a second Leaf interface and understated
-what the complete route can carry.
+implement package actions. It removes authored navigation, editing, and form
+targets, cancels composed link and form defaults, and applies containment rules
+after authored CSS so snapshot content cannot replace the app document or cover
+its controls. The old single-choice `lf-options` projector is deliberately
+absent: a fixed shape was a second Leaf interface and understated what the
+complete route can carry.
 
 ## Return and wake
 

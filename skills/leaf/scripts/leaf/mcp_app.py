@@ -110,8 +110,19 @@ def result_for_page(page: str, *, message: str | None = None) -> CallToolResult:
 
 
 def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolResult:
-    page_dir = resolve_page(page)
     candidate = copy.deepcopy(event)
+    if candidate.get("kind") != "comment":
+        return CallToolResult(
+            content=[
+                TextContent(
+                    type="text",
+                    text="Leaf snapshot feedback accepts only comment events.",
+                )
+            ],
+            structuredContent={"ok": False, "status": 400},
+            isError=True,
+        )
+    page_dir = resolve_page(page)
     if not candidate.get("attempt"):
         return CallToolResult(
             content=[

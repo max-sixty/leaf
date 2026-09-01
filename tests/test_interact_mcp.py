@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
 from leaf import event_log as events_model
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
 from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
@@ -47,6 +48,20 @@ def test_mcp_write_requires_attempt_identity(page_dir):
 
     assert result.is_error is True
     assert "attempt id" in result.content[0].text
+    assert events_model.read_events(page_dir) == []
+
+
+@pytest.mark.parametrize("kind", ["action", "request"])
+def test_mcp_snapshot_write_rejects_non_comment_event_kinds(page_dir, kind):
+    result = apply_event(
+        str(page_dir),
+        {"kind": kind, "revision": 1, "attempt": f"mcp-{kind}-one-1"},
+        1,
+    )
+
+    assert result.is_error is True
+    assert result.structured_content == {"ok": False, "status": 400}
+    assert "accepts only comment events" in result.content[0].text
     assert events_model.read_events(page_dir) == []
 
 
@@ -170,6 +185,61 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
     assert "document" not in result.structured_content
     assert "inline_url" in result.meta["leaf"]
     assert "inline_url" not in result.structured_content
+
+
+def test_stdio_snapshot_write_boundary_accepts_only_comments(page_dir):
+    async def exchange():
+        parameters = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "leaf", "mcp"],
+            env=dict(os.environ),
+        )
+        async with (
+            stdio_client(parameters) as (reader, writer),
+            ClientSession(reader, writer) as session,
+        ):
+            await session.initialize()
+            rejected = [
+                await session.call_tool(
+                    "leaf_snapshot_apply_event",
+                    {
+                        "page": str(page_dir),
+                        "view_revision": 1,
+                        "event": {
+                            "kind": kind,
+                            "revision": 1,
+                            "attempt": f"stdio-{kind}-one-1",
+                        },
+                    },
+                )
+                for kind in ("action", "request")
+            ]
+            accepted = await session.call_tool(
+                "leaf_snapshot_apply_event",
+                {
+                    "page": str(page_dir),
+                    "view_revision": 1,
+                    "event": {
+                        "kind": "comment",
+                        "revision": 1,
+                        "text": "Keep the write boundary narrow.",
+                        "attempt": "stdio-comment-one-1",
+                    },
+                },
+            )
+            return rejected, accepted
+
+    rejected, accepted = asyncio.run(exchange())
+
+    assert all(result.is_error is True for result in rejected)
+    assert all(
+        "accepts only comment events" in result.content[0].text for result in rejected
+    )
+    assert accepted.is_error is False
+    assert accepted.structured_content["accepted"]["kind"] == "comment"
+    assert [event["kind"] for event in events_model.read_events(page_dir)] == [
+        "comment"
+    ]
 
 
 def test_stdio_presentation_tools_explain_a_stale_page_layer(page_dir):

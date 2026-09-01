@@ -8,6 +8,8 @@ HOST = """<!doctype html>
 window.calls = [];
 window.currentLeaf = null;
 window.failContextClear = false;
+window.holdNextMessage = false;
+window.heldMessage = null;
 window.hostCapabilities = {openLinks: {}, serverTools: {}};
 const answer = (target, id, result) => target.postMessage(
   {jsonrpc: "2.0", id, result}, "*"
@@ -15,6 +17,11 @@ const answer = (target, id, result) => target.postMessage(
 const refuse = (target, id, message) => target.postMessage(
   {jsonrpc: "2.0", id, error: {code: -32000, message}}, "*"
 );
+window.releaseMessage = () => {
+  const held = window.heldMessage;
+  window.heldMessage = null;
+  if (held) answer(held.target, held.id, {});
+};
 const toolResult = (leaf) => ({
   content: [{type: "text", text: "Leaf result"}],
   structuredContent: {page: leaf.page, revision: leaf.revision},
@@ -65,6 +72,16 @@ window.addEventListener("message", (event) => {
       refuse(event.source, message.id, "Context clear denied");
       return;
     }
+    if (message.method === "ui/message" &&
+        !Array.isArray(message.params.content)) {
+      refuse(event.source, message.id, "Message content must be an array");
+      return;
+    }
+    if (message.method === "ui/message" && window.holdNextMessage) {
+      window.holdNextMessage = false;
+      window.heldMessage = {target: event.source, id: message.id};
+      return;
+    }
     answer(event.source, message.id, {});
     return;
   }
@@ -109,9 +126,24 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
 
         app.locator("#comment-page").click()
         app.locator("#comment").fill("Explain the migration boundary.")
+        page.evaluate("window.holdNextMessage = true")
         app.locator("#send").click()
         page.wait_for_function(
             "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
+        )
+        calls = page.evaluate("window.calls")
+        assert not [
+            call
+            for call in calls
+            if call["method"] == "tools/call"
+            and call["params"]["name"] == "leaf_delivery_ack"
+        ]
+        page.evaluate("window.releaseMessage()")
+        page.wait_for_function(
+            """() => window.calls.filter(call =>
+              call.method === 'tools/call' &&
+              call.params.name === 'leaf_delivery_ack'
+            ).length === 1"""
         )
 
         app.evaluate(
@@ -208,6 +240,8 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
         ]
         assert len(context_updates) == 4
         assert context_updates[-1]["params"] == {"content": []}
+        messages = [call for call in calls if call["method"] == "ui/message"]
+        assert all(isinstance(call["params"]["content"], list) for call in messages)
         assert "Feedback sent to Codex" in app.locator("#status").text_content()
 
         assert app.locator("#browser").inner_text() == "Full page"
@@ -220,8 +254,8 @@ def test_mcp_app_renders_general_and_anchored_feedback_and_hands_it_off(
             for call in page.evaluate("window.calls")
             if call["method"] == "ui/message"
         ][-1]
-        assert "active widget controls" in full_page["params"]["content"]["text"]
-        assert str(page_dir) in full_page["params"]["content"]["text"]
+        assert "active widget controls" in full_page["params"]["content"][0]["text"]
+        assert str(page_dir) in full_page["params"]["content"][0]["text"]
         assert "Asked Codex to open" in app.locator("#status").text_content()
 
         page.emulate_media(media="print")

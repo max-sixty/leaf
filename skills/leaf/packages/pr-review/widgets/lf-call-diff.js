@@ -187,9 +187,10 @@ function renderLine(record, prior, owner) {
   setText(location, record.location);
   location.hidden = !record.location;
   // The header row names no location, so its anchor is hidden — and an `href` on a
-  // hidden anchor is a way in that leads nowhere. It answered the scroll sweep's
-  // question, "is there a way into this box?", for a box whose words run off the side,
-  // so a copy shipped it with no keyboard route at all.
+  // hidden anchor is a way in that leads nowhere. Worse, `reachScrollers` reads a
+  // candidate for a focusable descendant before granting the stop, and a hidden
+  // `a[href]` is one: the header's own words run off the side, and the live page
+  // answered "there is already a way in here" with a link nobody can reach.
   if (record.location && !owner.preparingExport) {
     location.href = `#${owner.getAttribute("diff")}`;
     location.onclick = async (event) => {

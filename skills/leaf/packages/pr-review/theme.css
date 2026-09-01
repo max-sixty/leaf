@@ -460,10 +460,6 @@ lf-call-diff {
     background: transparent;
   }
 
-  .lf-call-toggle {
-    display: none;
-  }
-
   .lf-call-group:not([open]) > .lf-call-group-body {
     display: block;
   }

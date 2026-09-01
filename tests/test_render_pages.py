@@ -2175,11 +2175,18 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
             - parseFloat(style.marginBottom) - box.height - offset;
           const at = Math.round((stands + carried) / 2);
           scroller.scrollTo(0, at);
-          return at;
+          return { at, stands, carried };
         }"""
     )
+    # The stretch has to exist before a point halfway along it says anything. A page
+    # too short to lift the box off where it was authored parks the scroll behind
+    # `stands`, and the ring assertion below would then report a position rather than
+    # the page that made it meaningless.
+    assert parked["carried"] > parked["stands"], (
+        f"the page is too short for the sidebar to stand on its own offset: {parked}"
+    )
     page.wait_for_function(
-        "at => document.scrollingElement.scrollTop >= at - 1", arg=parked
+        "at => document.scrollingElement.scrollTop >= at - 1", arg=parked["at"]
     )
     stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
     assert 64 <= stuck <= 68, (

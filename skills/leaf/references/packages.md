@@ -39,11 +39,22 @@ An explicit directory keeps a contribution separately owned and selectable. `.le
 is the project package and `~/.config/leaf` is the user package. Inside a repository
 dedicated to one package, use `.` as the package path.
 
-Leaf also ships optional packages that select by bare name:
+Leaf also ships optional packages that select by bare name. `command-hub` adds
+multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief with a
+safe Markdown description and compact checks table, plus a data-backed unified call
+diff:
 
 ```bash
 leaf page init --package command-hub PAGE
+leaf page init --package pr-review PAGE
 ```
+
+`lf-call-diff` binds a captured `text-document` containing CallDiff-style plain text.
+The analysis host owns that source; the widget keeps unchanged tree items beside
+additions and removals, folds the result by changed root, and projects every row as a
+commentable datum. Its required `diff` target turns source coordinates into navigation
+to matching lines in the exact patch. For a large repository, capture one affected file
+or entry point per source rather than one unbounded call graph.
 
 ## Package contract
 
@@ -327,12 +338,15 @@ complete snapshot using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
+leaf data set PAGE release-ci --file signed-build-state.json --capture-label "release candidate"
 leaf data capture PAGE release-notes --text-file CHANGELOG.md --lines 20:44
 leaf data clear PAGE release-ci
 ```
 
-`data set` validates before replacing the source atomically. A rejected value leaves
-the prior revision untouched. Source revisions and event sequences are independent:
+`data set` validates before replacing the source atomically. Add `--capture-label` when
+that structured value should also be retained as an immutable snapshot; `data capture`
+is the UTF-8 text-file convenience for the same lifecycle. A rejected value leaves the
+prior revision untouched. Source revisions and event sequences are independent:
 an old poll may contain new data, and a new event response may contain old data, so
 neither orders the other.
 
@@ -356,6 +370,38 @@ discover the ids, contracts, widgets, and documents it needs without parsing mar
 Every source value goes to every reader of the page, including fields a module does not
 paint. Do not put credentials or private host state in it.
 
+A contract whose values contain large independently useful payloads may declare a
+`fragments` coordinate: the top-level array field, each item's unique key field, and the
+payload field. `data.json` still keeps and validates the complete value. `/api/state`
+sends the array as a lightweight manifest with that payload field omitted; a widget uses
+`loadDataFragment(element, input, key)` to fetch one payload from the exact data revision
+and optional snapshot it already accepted. A stale revision is refused instead of
+combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
+thousands of files without transferring or rendering every patch first.
+
+```json
+{
+  "fragments": { "items": "files", "key": "key", "value": "patch" },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string" },
+            "patch": { "type": "string" }
+          },
+          "required": ["key", "patch"]
+        }
+      }
+    },
+    "required": ["files"]
+  }
+}
+```
+
 A module subscribes through its own input declaration:
 
 ```js
@@ -365,7 +411,9 @@ this.stopWatching = watchData(this, "builds", (snapshot) => {
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{contract, updated, value}`. A selected capture additionally carries
+clone of `{contract, revision, updated, value}`. `revision` is the data revision that
+wrote that source value, so a renderer can distinguish two writes even when their wall
+clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when Leaf asks subscribers to restate its
 view. Return the cleanup function from the element's disconnect path. The callback must
@@ -378,7 +426,16 @@ non-empty string for the logical datum; `render` receives
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose, reconciles their order, and keeps comments attached by the
 projection/key pair even when a refresh replaces the text nodes. Export keeps the last
-rendering as a labelled snapshot and drops the code that could refresh it.
+rendering as a labelled snapshot and drops the code that could refresh it. A renderer
+that owns a nested layout passes `{nested: true}` and returns its existing descendants;
+Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
+should name a projected datum with a human coordinate; the stable key remains opaque to
+the runtime. If a `watchData` callback renders asynchronously, return that promise so
+Leaf does not publish the source revision as ready before the projection settles. A
+rejection is reported as that subscriber's page error; it does not make later state
+reads repeat the same page-wide failure. A rejection from the callback's first run is
+stronger: Leaf drops that subscription, so the callback is not asked to restate again
+until the element is reconnected.
 
 ## Seeing it
 

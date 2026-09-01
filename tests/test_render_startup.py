@@ -2806,6 +2806,11 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         """async () => {
           const {watchData} = await import('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
+          let currentRevision = null;
+          const stopCurrent = watchData(widget, 'rows', snapshot => {
+            currentRevision = snapshot?.revision ?? null;
+          });
+          stopCurrent();
           widget.removeAttribute('source');
           let unbound = 'not-called';
           const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
@@ -2832,10 +2837,11 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
             message = error.message;
           }
           document.dispatchEvent(new Event('lf-data'));
-          return {unbound, absent, captured, failedCalls, message};
+          return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )
     assert result == {
+        "currentRevision": 1,
         "unbound": None,
         "absent": None,
         "captured": [None, None],
@@ -2843,6 +2849,122 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "message": "mount failed",
     }
     assert errors == []
+    page.close()
+
+
+def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser, serve):
+    """Each data notification owns the revision it dispatched.
+
+    Two async subscriber deliveries overlap. Releasing the older one after newer data
+    was accepted must not stamp that newer revision while its own delivery is still held;
+    render checks and presentation use the stamp as proof that every subscriber is done.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const releases = new Map();
+          const stop = watchData(widget, 'rows', snapshot => {
+            const value = snapshot?.value?.[0]?.value;
+            if (!value?.startsWith('Held')) return;
+            return new Promise(resolve => releases.set(value, resolve));
+          });
+          const waitFor = async value => {
+            while (!releases.has(value))
+              await new Promise(resolve => setTimeout(resolve, 0));
+          };
+          const dataAt = (revision, value) => ({
+            ...structuredClone(runtime.data),
+            revision,
+            sources: {
+              ...structuredClone(runtime.data.sources),
+              deployments: {
+                ...structuredClone(runtime.data.sources.deployments),
+                revision,
+                value: [{key: 'api', value}],
+              },
+            },
+          });
+          const before = document.body.getAttribute('data-lf-data-revision');
+          const olderRevision = runtime.data.revision + 1;
+          acceptData(dataAt(olderRevision, 'Held older'));
+          const older = notifyDataSubscribers();
+          await waitFor('Held older');
+          const newerRevision = olderRevision + 1;
+          acceptData(dataAt(newerRevision, 'Held newer'));
+          const newer = notifyDataSubscribers();
+          await waitFor('Held newer');
+
+          releases.get('Held older')();
+          await older;
+          const afterOlder = document.body.getAttribute('data-lf-data-revision');
+          releases.get('Held newer')();
+          await newer;
+          const afterNewer = document.body.getAttribute('data-lf-data-revision');
+          stop();
+          return {before, afterOlder, afterNewer, newerRevision};
+        }"""
+    )
+    assert result["afterOlder"] == result["before"], result
+    assert result["afterNewer"] == str(result["newerRevision"]), result
+    assert errors == []
+    page.close()
+
+
+def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
+    """The data stamp proves that every asynchronous subscriber has settled.
+
+    A rejected mount removes its listener and a later rejected update is reported at
+    that subscriber's boundary. Neither turns every subsequent poll into the same
+    page-wide read failure or prevents the accepted revision becoming ready.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const before = document.body.getAttribute('data-lf-data-revision');
+          let mountDeliveries = 0;
+          const stopMount = watchData(widget, 'rows', () => {
+            mountDeliveries += 1;
+            return Promise.reject(new Error('mount projection failed'));
+          });
+          await notifyDataSubscribers();
+          await notifyDataSubscribers();
+          stopMount();
+          const afterMount = document.body.getAttribute('data-lf-data-revision');
+
+          let deliveries = 0;
+          const stopUpdate = watchData(widget, 'rows', () => {
+            deliveries += 1;
+            if (deliveries > 1)
+              return Promise.reject(new Error('update projection failed'));
+          });
+          const revision = runtime.data.revision + 1;
+          acceptData({...structuredClone(runtime.data), revision});
+          await notifyDataSubscribers();
+          stopUpdate();
+          return {
+            before,
+            mountDeliveries,
+            afterMount,
+            afterUpdate: document.body.getAttribute('data-lf-data-revision'),
+            revision,
+          };
+        }"""
+    )
+    assert result["mountDeliveries"] == 1, result
+    assert result["afterMount"] == result["before"], result
+    assert result["afterUpdate"] == str(result["revision"]), result
+    assert (
+        sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
+    )
+    assert any("data subscriber failed: update projection failed" in e for e in errors)
     page.close()
 
 

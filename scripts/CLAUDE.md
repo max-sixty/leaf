@@ -41,7 +41,7 @@ pinned version sits in one table there, and the six divide by whether upstream's
 published file is already loadable:
 
 - Copies, where it is, so vendoring is three values: `marked`, the Markdown
-  renderer for thread messages; `mermaid`, the diagram renderer `lf-diagram`
+  renderer for runtime-supplied text; `mermaid`, the diagram renderer `lf-diagram`
   draws with, taken as the IIFE build because the widget loads it through a
   `<script src>` tag rather than importing it; and `sortable`, the drag library
   `lf-board` moves cards with.

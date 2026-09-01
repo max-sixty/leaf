@@ -114,6 +114,7 @@ def build_data() -> dict:
     """Compose the package sources needed by the examples embedded in the corpus."""
     sources = {}
     captures = {}
+    imports = {}
     for stem, _ in TABS:
         companion = EXAMPLES_DIR / f"{stem}.data.json"
         if not companion.exists():
@@ -125,11 +126,19 @@ def build_data() -> dict:
                     f"corpus examples contribute conflicting data capture {name!r}"
                 )
             captures[name] = spec
+        for name, spec in document.pop("$imports", {}).items():
+            if name in imports and imports[name] != spec:
+                sys.exit(f"corpus examples contribute conflicting data import {name!r}")
+            imports[name] = spec
         for name, value in document.items():
             if name in sources and sources[name] != value:
                 sys.exit(f"corpus examples contribute conflicting data source {name!r}")
             sources[name] = value
-    return ({"$captures": captures} if captures else {}) | sources
+    return (
+        ({"$imports": imports} if imports else {})
+        | ({"$captures": captures} if captures else {})
+        | sources
+    )
 
 
 def main() -> None:

@@ -227,7 +227,11 @@ def data() -> None:
     default="-",
     help="JSON value to read (default: stdin)",
 )
-def data_set(dir: str, source: str, input_file) -> None:
+@click.option(
+    "--capture-label",
+    help="also retain this value as an immutable snapshot with the given label",
+)
+def data_set(dir: str, source: str, input_file, capture_label: str | None) -> None:
     """Validate and replace SOURCE with one complete JSON value."""
     try:
         value = json.load(input_file)
@@ -235,7 +239,7 @@ def data_set(dir: str, source: str, input_file) -> None:
         raise click.ClickException(
             f"invalid JSON ({error.msg}, line {error.lineno})"
         ) from error
-    cmd_data_set(resolve_dir(dir), source, value)
+    cmd_data_set(resolve_dir(dir), source, value, capture_label)
 
 
 @data.command("capture", short_help="Capture a bound UTF-8 text source.")

@@ -273,14 +273,10 @@ def publish_pages(out: Path, env: dict) -> None:
             data_file.unlink(missing_ok=True)
             for operation in data_operations(source):
                 if operation["kind"] == "set":
-                    leaf(
-                        env,
-                        "data",
-                        "set",
-                        str(page),
-                        operation["source"],
-                        input_text=json.dumps(operation["value"]),
-                    )
+                    args = ["data", "set", str(page), operation["source"]]
+                    if operation["capture_label"] is not None:
+                        args.extend(("--capture-label", operation["capture_label"]))
+                    leaf(env, *args, input_text=json.dumps(operation["value"]))
                     continue
                 args = [
                     "data",

@@ -389,11 +389,9 @@ export function createPassages(dependencies) {
   };
 
   // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
-  // widget rather than the thing in it, and each root answers for its own. Asked only where
-  // the question is which element exactly the pointer is over (markAt, deciding which of
-  // several marks it touched). Where the question is which *item* the reader is aiming at,
-  // the host is the right answer and this is the wrong helper: aiming at a diff means the
-  // diff, whose rows are nothing anyone can anchor on (aimedItem).
+  // widget rather than the thing in it, and each root answers for its own. Mark hit testing
+  // and item aim both use this exact reading, so a projected datum inside a declared shadow
+  // tree can outrank its host.
   const elementFromPointAcross = (x, y) => {
     let el = document.elementFromPoint(x, y);
     while (el?.shadowRoot) {

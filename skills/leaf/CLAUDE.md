@@ -73,6 +73,7 @@ state commit, projection, notification, outbox accounting, and rollback;
 overflow travel, and the banner's touch bridge to the document scroller;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
+`runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
@@ -829,15 +830,20 @@ minimum obligations:
   travel geometry. The render gate refuses either missing method.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
-  receives the prior node so unchanged controls and selections can remain in place.
+  receives the prior node so unchanged controls and selections can remain in place. A
+  renderer that owns a nested layout passes `{nested: true}` and returns each existing
+  descendant; `projectData` then owns the labels without moving those nodes. Pass
+  `labelOf` when generic chrome should name a datum in human terms instead of exposing
+  its stable key.
 - Declare each external input through the widget's `x-data`, then subscribe with
   `watchData(widget, input, callback)`. The authored source attribute is the page's
   binding; the named contract is the input's meaning. An optional declared snapshot
   attribute selects an immutable capture, while its absence follows the replaceable
   current value. Treat the delivered envelope as complete, render `null` as absence,
-  and dispose the watcher when the element disconnects. The watcher captures both
-  authored selectors at subscription; mutating a live attribute cannot rebind it. A
-  module does not fetch or retain a second copy.
+  return an asynchronous render promise so the page's data-readiness stamp waits for
+  the projection, and dispose the watcher when the element disconnects. The watcher
+  captures both authored selectors at subscription; mutating a live attribute cannot
+  rebind it. A module does not fetch or retain a second copy.
 - Keep durable standalone state in serializable HTML attributes. Export removes
   scripts and handlers.
 - Remove hoisted chrome in `disconnectedCallback` when a reconstruction replaces
@@ -901,8 +907,11 @@ The page has three kinds of visible words:
 The last kind is a projection, not another source of truth. An id-bearing element in
 the version is its seat. `projectData(seat, records, keyOf, render)` owns that seat's
 children, labels each rendered element with the seat id (`data-lf-projection`) and its
-record's stable key (`data-lf-datum`), and marks it generated. Records remain the
-caller's input; the DOM never becomes another record store.
+record's stable key (`data-lf-datum`), and marks it generated. With `{nested: true}` it
+labels descendants a renderer already placed without reconciling their layout. An
+optional `labelOf(record, index)` supplies the human coordinate thread chrome reads;
+core never interprets the opaque key. Records remain the caller's input; the DOM never
+becomes another record store.
 
 Where records come from outside the document, their authority is `data.json`: one
 page-owned store with a replaceable current value and retained immutable captures.

@@ -2448,6 +2448,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     first = data_model.read_data(page_dir)
     assert first["revision"] == 1
     assert first["sources"]["deployments"]["contract"] == "deployment-rows"
+    assert first["sources"]["deployments"]["revision"] == 1
     assert first["sources"]["deployments"]["value"] == ["api", "worker"]
     assert standing["data"] == {"file": "data.json", "revision": 1}
     assert "sources" not in standing["data"]
@@ -2600,6 +2601,43 @@ def test_a_document_cannot_select_a_missing_data_snapshot(page_dir):
     assert result.exit_code != 0
     assert "selects snapshot '17'" in result.output
     assert "data.json does not contain it" in result.output
+
+
+def test_data_set_can_capture_a_structured_value(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "builds",
+        {"type": "object"},
+        contract="build-map",
+        snapshot=True,
+    )
+    payload = tmp_path / "builds.json"
+    payload.write_text('{"main":"passing"}')
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "data",
+            "set",
+            str(page_dir),
+            "builds",
+            "--file",
+            str(payload),
+            "--capture-label",
+            "release candidate",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "captured data source 'builds' at revision 1" in result.output
+    source = data_model.read_data(page_dir)["sources"]["builds"]
+    assert source["revision"] == 1
+    assert source["value"] == {"main": "passing"}
+    assert source["snapshots"]["1"] == {
+        "updated": source["updated"],
+        "value": {"main": "passing"},
+        "label": "release candidate",
+    }
 
 
 def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_dir):
@@ -2904,7 +2942,8 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         (
             (
                 '{"revision":1,"sources":{"builds":{"contract":"build-map",'
-                '"updated":"2026-08-25T12:00:00-07:00","value":NaN}}}'
+                '"revision":1,"updated":"2026-08-25T12:00:00-07:00",'
+                '"value":NaN}}}'
             ),
             "value is not JSON",
         ),

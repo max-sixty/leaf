@@ -19,6 +19,7 @@ from render_support import (
     BARE_IDENTIFIERS_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
+    CODE_PAGE,
     COLORED_CODE_PAGE,
     COMMAND_HUB_PACKAGE,
     CUSTOM_WIDGET_PAGE,
@@ -1910,6 +1911,13 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         "a widget that renders the page's words into a shadow root renders code the "
         f"reader still has to read — {shadowed}"
     )
+    default_shadow = SHADOW_CODE_PAGE.replace(
+        "<style>:root { --syn-comment: #1c1b18; }</style>\n", ""
+    )
+    assert render_gate_model.render_version(browser, serve(default_shadow)) == [], (
+        "the shipped dark comment ink has to clear the semantic add-line tint; a large "
+        "real patch put enough comments on that surface to expose the previous 4.4:1"
+    )
     assert render_gate_model.render_version(browser, serve(FLAT_SHADOW_PAGE)) == [], (
         "with the box's own surface flattened, what is behind the comment is the "
         "page's paper — which is above the host, and reached by climbing out of the "
@@ -2109,6 +2117,21 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         f"shows {t['drawn'] + t['margin']:g}px {t['edge']} its <{t['child']}>"
         for t in trapped
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
+    """A line note may be the framed pre's last child. Its bottom margin then belongs
+    inside the code frame just as it does between lines; leaving the rendered pre
+    unmarked made the page gate report the layer's own six-pixel reservation."""
+    page, errors = open_page(browser, serve(CODE_PAGE.replace('at="2"', 'at="4"')))
+    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    assert not [
+        finding
+        for finding in trapped
+        if finding["tag"] == "pre" and not finding["chrome"]
+    ], trapped
     assert errors == []
     page.close()
 

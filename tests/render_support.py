@@ -234,6 +234,7 @@ from render_cases_navigation import (
     painted,
     pending_text,
     standing_mark,
+    wait_for_pending_mark,
     wait_hovered,
     wait_standing,
 )
@@ -653,6 +654,7 @@ __all__ = (
     "trial_family",
     "undo",
     "unfolded_button",
+    "wait_for_pending_mark",
     "wait_for_revision",
     "wait_hovered",
     "wait_standing",

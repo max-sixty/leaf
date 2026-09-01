@@ -151,6 +151,25 @@ def pending_text(page):
     return painted(page, "lf-pending")
 
 
+def wait_for_pending_mark(page):
+    """Wait until the open composer's own passage is painted: the ranges over its words,
+    or the outline on the element it named.
+
+    Not `CSS.highlights.get('lf-pending')`. The anchor pass registers that name on every
+    run, empty ranges and all, so the registry holds it from the page's first pass and a
+    wait on the key alone returns before the composer has painted anything — a read behind
+    it takes the frame before the press, which is an unmarked page.
+
+    Either form of paint satisfies it, because which one the composer chose is what the
+    callers assert. Waiting for the ranges alone would spend the whole timeout on a
+    composer that took the element anchor, and report the wrong-anchor result as a wait
+    that ran out rather than the assertion written to name it."""
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0"
+        " || document.querySelector('.lf-mark-el.lf-pending') !== null"
+    )
+
+
 def mark_point(page, name, index=0):
     """A point inside a painted range, for a real mouse press. A highlight is not an
     element, so there is nothing for a locator to click.

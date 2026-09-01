@@ -329,7 +329,6 @@ def test_server_round_trip(server, page_dir):
     marker = (
         b'<meta name="lf-revision" data-lf-runtime content="2">'
         b'<meta name="lf-version" data-lf-runtime content="1">'
-        b'<meta name="lf-authored-current" data-lf-runtime>'
     )
     assert marker in body
     assert (
@@ -556,26 +555,10 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
     marker = (
         '<meta name="lf-revision" data-lf-runtime content="1">'
         '<meta name="lf-version" data-lf-runtime content="1">'
-        '<meta name="lf-authored-current" data-lf-runtime>'
     )
     assert body == source.replace(script, marker + script)
     # The old splice corrupted this tag while leaving the page renderable.
     assert '<link rel="stylesheet" href="/theme.css">' in body
-
-
-def test_only_context_events_can_mark_the_authored_document_current():
-    """Unknown or state-bearing events retain the replay-before-paint boundary."""
-    contextual = [
-        {"kind": kind}
-        for kind in ("note", "comment", "reply", "edit", "resolve", "unresolve")
-    ]
-    assert http_model.authored_document_is_current(contextual)
-    assert not http_model.authored_document_is_current(
-        [*contextual, {"kind": "action"}]
-    )
-    assert not http_model.authored_document_is_current(
-        [*contextual, {"kind": "future-state"}]
-    )
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(

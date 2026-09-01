@@ -237,7 +237,9 @@ def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
     return None
 
 
-def _service_record(access: dict, httpd, standing: bool, claimed: bool) -> dict:
+def _service_record(
+    access: dict, httpd, standing: bool, claimed: bool, runtime: dict
+) -> dict:
     """The durable desired state for a newly bound server."""
     lifetime = (
         "standing"
@@ -250,7 +252,7 @@ def _service_record(access: dict, httpd, standing: bool, claimed: bool) -> dict:
         "port": httpd.server_address[1],
         "enabled": True,
         "lifetime": lifetime,
-        "runtime": payload_provenance(include_path=True),
+        "runtime": runtime,
     }
 
 
@@ -270,6 +272,7 @@ def cmd_serve(
     require_cross_process_locking()
     lease = None
     httpd = None
+    runtime = payload_provenance(include_path=True)
     with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
         service = read_json(page_dir / "service.json")
         claimed = _serve_claim(page_dir, page, service, standing, revive)
@@ -284,7 +287,7 @@ def cmd_serve(
         if lease is None:
             return
         httpd = _bind_server(page_dir, access, token, ports, lease)
-        service = _service_record(access, httpd, standing, claimed)
+        service = _service_record(access, httpd, standing, claimed, runtime)
         write_json(page_dir / "service.json", service)
         url = page_url(service["host"], service["port"], token)
 

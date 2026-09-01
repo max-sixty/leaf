@@ -12,9 +12,7 @@ const authoredAttributes = (root) =>
 const versionedHeadNode = (node) =>
   !(
     node.localName === "meta" &&
-    ["lf-revision", "lf-version", "lf-authored-current"].includes(
-      node.getAttribute("name"),
-    ) &&
+    ["lf-revision", "lf-version"].includes(node.getAttribute("name")) &&
     node.hasAttribute("data-lf-runtime")
   ) &&
   (node.localName === "title" ||

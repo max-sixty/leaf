@@ -127,7 +127,6 @@ Options:
 Commands:
   guidance  List or print composed guidance by audience.
   init      Create or re-vendor a page directory.
-  layer     Compare the vendored layer with this Leaf.
   media     Add images and print their page paths.
   state     Print where the page stands, as JSON.
 """,
@@ -606,23 +605,14 @@ def test_init_vendors_the_layer(page_dir):
     }
 
 
-def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(
-    tmp_path, monkeypatch
-):
+def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     """The stable identity follows bytes while generation still invalidates old tabs."""
-    monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert first_init.exit_code == 0, first_init.output
     first = interact_files.read_json(page / "registry.json")["$layer"]
-
-    current = runner.invoke(cli_model.cli, ["page", "layer", str(page)])
-    assert current.exit_code == 0, current.output
-    comparison = json.loads(current.output)
-    assert comparison["status"] == "current"
-    assert comparison["vendored"]["fingerprint"] == first["fingerprint"]
-    assert comparison["current"]["producer"]["path"] == str(PLUGIN_ROOT)
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", first["fingerprint"])
 
     state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
     assert state.exit_code == 0, state.output
@@ -634,17 +624,65 @@ def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(
     assert second["fingerprint"] == first["fingerprint"]
     assert second["generation"] != first["generation"]
 
-    project = tmp_path / ".leaf"
-    project.mkdir()
-    (project / "theme.css").write_text("body { --preview-probe: 1; }\n")
-    changed = runner.invoke(cli_model.cli, ["page", "layer", str(page)])
-    assert changed.exit_code == 1, changed.output
-    changed_comparison = json.loads(changed.output)
-    assert changed_comparison["status"] == "different"
-    assert (
-        changed_comparison["current"]["fingerprint"]
-        != changed_comparison["vendored"]["fingerprint"]
+
+def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index(
+    tmp_path, monkeypatch
+):
+    """An enclosing repo is not the payload, and reading the payload leaves Git alone."""
+
+    def git(repo, *args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+
+    outer = tmp_path / "outer"
+    plugin = outer / "installed" / "leaf"
+    plugin.mkdir(parents=True)
+    git(outer, "init")
+    (outer / "tracked").write_text("outer\n")
+    git(outer, "add", "tracked")
+    git(
+        outer,
+        "-c",
+        "user.name=Leaf Test",
+        "-c",
+        "user.email=leaf@example.test",
+        "commit",
+        "-m",
+        "outer",
     )
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", plugin)
+    assert layer_model.payload_provenance() == {}
+
+    git(plugin, "init")
+    payload = plugin / "payload"
+    payload.write_text("first\n")
+    git(plugin, "add", "payload")
+    git(
+        plugin,
+        "-c",
+        "user.name=Leaf Test",
+        "-c",
+        "user.email=leaf@example.test",
+        "commit",
+        "-m",
+        "plugin",
+    )
+    payload.write_text("changed\n")
+    index = plugin / ".git" / "index"
+    before = index.stat().st_mtime_ns
+
+    provenance = layer_model.payload_provenance(include_path=True)
+
+    assert provenance == {
+        "path": str(plugin),
+        "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "dirty": True,
+    }
+    assert index.stat().st_mtime_ns == before
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):

@@ -302,61 +302,44 @@ body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        container: lf-shell / inline-size; }
  /* The document arrives with authored initial state while the log may already hold
- * another one. When the server's transaction-consistent log contains an event that can
- * replace authored state, the theme holds its canonical main from stylesheet parse and
- * leaf.js releases it only after the first poll has replayed the log or said the server
- * is offline. A runtime marker lifts only the paint hold when the log contains nothing
- * but conversation and version context: the authored document is already current, so it
- * is useful immediately while widgets and discussion progressively arrive. Visibility
- * keeps a held page out of the accessibility and hit-test trees, opacity closes the paint
- * boundary under descendants that explicitly make themselves visible, and interactivity
- * makes every not-yet-presented page inert even if a descendant opts back into focus or
- * pointer handling. These declarations preserve every box: replay measures the page it
- * will reveal rather than a display:none document with no geometry.
+ * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
+ * after the first poll has either replayed the log or said the server is offline, so a
+ * version navigation never presents the old decision for one fetch-width and then
+ * replaces it. Visibility keeps the ordinary case out of the accessibility and hit-test
+ * trees, opacity closes the paint boundary under descendants that explicitly make
+ * themselves visible, and interactivity makes the whole flat-tree subtree inert even if
+ * one of those descendants opts back into focus or pointer handling. All three preserve
+ * every box: replay measures the page it will reveal rather than a display:none document
+ * with no geometry.
  *
  * The canonical module tag opts a live page into the hold as soon as the stylesheet can
  * paint. The static showcase sets data-lf-eager in its published HTML: its immutable
  * authored document remains ordinary readable HTML while illustrative state, widgets,
  * and controls progressively arrive. Runtime chrome is deliberately outside main, so
  * Threads remains usable on a held live page. A scriptless rendering stays ordinary
- * prose. A live module that fails before reading a state-changing log leaves a fixed
- * recovery message rather than unread authored decisions; a response known to have only
- * contextual history degrades to readable, inert authored HTML. Screen only: paper and
- * an exported copy carry no live log to wait for. */
+ * prose, while a live module that fails before reading the log leaves a fixed recovery
+ * message rather than unread authored decisions. Screen only: paper and an exported copy
+ * carry no live log to wait for. */
 /* The anonymous layer is first in the merged theme, so its important declarations
    outrank every later layer and unlayered stylesheet declaration without reserving a
    named layer custom CSS could append to. Inline importance ranks higher still, so the
    version gate refuses it on the properties that protect visibility below. */
 @layer {
   @media screen {
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"]):not(
-        :has(> head > meta[name="lf-authored-current"][data-lf-runtime])
-      )
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main,
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"]):not(
-        :has(> head > meta[name="lf-authored-current"][data-lf-runtime])
-      )
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main * {
       visibility: hidden !important;
       opacity: 0 !important;
-    }
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main,
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main * {
       transition: none !important;
       interactivity: inert !important;
       pointer-events: none !important;
     }
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"]):not(
-        :has(> head > meta[name="lf-authored-current"][data-lf-runtime])
-      )
+    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main *::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
-    }
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main *::backdrop {
       transition: none !important;
       pointer-events: none !important;
     }
@@ -371,9 +354,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
   }
 }
 @media screen {
-  html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"]):not(
-      :has(> head > meta[name="lf-authored-current"][data-lf-runtime])
-    )
+  html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
     body:not([data-lf-presented])::after {
     content: "Applying current decisions\2026  If this stays, reload the page.";
     visibility: visible;

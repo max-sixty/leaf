@@ -106,13 +106,11 @@ seeds when it is handed an example rather than markup, and sets the cursor past
 the seed as `preview.py` does. One sweep opts out and says why: the anchor sweep
 writes its own anchors and compares the whole painted mark against exactly
 those, so a seeded thread's mark would read there as text the page never named.
-`ship-review.jsonl` and `postmortem.jsonl` are such logs today, and a reader meets
-them on their published examples as much as under `scripts/preview.py` — the
-published pages are served rather than exported, so the log reaches the browser
-there through the session running in the reader's own tab. Postmortem deliberately
-carries only conversation context: its authored document can paint while that
-thread progressively arrives. Ship review also carries an action, so its authored
-decision remains behind replay's presentation gate.
+`ship-review.jsonl` is the one such log today, and a reader meets it on
+<https://leaf.page/examples/ship-review/> as much as under
+`scripts/preview.py ship-review` — the published pages are served rather than
+exported, so the log reaches the browser there through the session running in the
+reader's own tab.
 
 External data is the other companion state. An example that binds a widget input to a
 source ships `<stem>.data.json`, mapping each page-owned source id to its complete

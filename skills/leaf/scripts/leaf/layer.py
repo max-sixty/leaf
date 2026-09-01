@@ -256,21 +256,25 @@ def layer_fingerprint(composition: LayerComposition) -> str:
 def payload_provenance(*, include_path: bool = False) -> dict:
     """Describe the Leaf payload that is running this command, when Git can."""
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
+    git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
     try:
-        commit = subprocess.run(
-            ["git", "-C", str(PLUGIN_ROOT), "rev-parse", "--short=12", "HEAD"],
+        identity = subprocess.run(
+            [*git, "rev-parse", "--show-toplevel", "--short=12", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
         )
     except OSError:
         return provenance
-    if commit.returncode != 0:
+    if identity.returncode != 0:
         return provenance
-    provenance["commit"] = commit.stdout.strip()
+    lines = identity.stdout.splitlines()
+    if len(lines) != 2 or Path(lines[0]).resolve() != PLUGIN_ROOT.resolve():
+        return provenance
+    provenance["commit"] = lines[1]
     try:
         dirty = subprocess.run(
-            ["git", "-C", str(PLUGIN_ROOT), "status", "--porcelain"],
+            [*git, "status", "--porcelain"],
             capture_output=True,
             text=True,
             check=False,

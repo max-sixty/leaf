@@ -34,38 +34,10 @@ from .layer import (
 from .leases import init_lock_path, lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_projection
-from .registry.storage import layer_metadata
 from .schema import DATA_FILE, LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
 from .service import PageTransaction, claim_path
 from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_seats
-
-
-def cmd_layer(page_dir: Path) -> bool:
-    """Compare a page's vendored bytes with the layer this Leaf would install."""
-    vendored = layer_metadata(page_dir)
-    selected = tuple(vendored["packages"])
-    composition = compose_layer(checked_layer_inputs(layer_inputs(selected)))
-    current = {
-        "fingerprint": layer_fingerprint(composition),
-        "packages": list(selected),
-        "producer": payload_provenance(include_path=True),
-    }
-    matches = vendored["fingerprint"] == current["fingerprint"]
-    result = {
-        "page": str(page_dir),
-        "vendored": vendored,
-        "current": current,
-        "status": (
-            "current"
-            if matches
-            else "unidentified"
-            if vendored["fingerprint"] is None
-            else "different"
-        ),
-    }
-    print(json.dumps(result, indent=2))
-    return matches
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:

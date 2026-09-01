@@ -58,29 +58,8 @@ ALIVE_S = 5.0
 # seconds is the staleness the poll gave every fact, so it is the staleness these keep.
 PRESENCE_S = 2.0
 
-# These events add conversation or version context without changing the authored
-# decision state in ``main``.  The server has the transaction-consistent log in hand
-# while it writes the document, so it can let that already-current HTML paint without
-# making the browser wait for a projection merely to prove that nothing replaces it.
-# This is deliberately a whitelist: a new event kind keeps the full presentation gate
-# until its effect has been classified here.
-PROGRESSIVE_EVENT_KINDS = frozenset(
-    {"comment", "reply", "edit", "resolve", "unresolve", "note"}
-)
 
-
-def authored_document_is_current(events: list[dict]) -> bool:
-    """Whether replay cannot replace any authored decision in the served document."""
-    return all(event.get("kind") in PROGRESSIVE_EVENT_KINDS for event in events)
-
-
-def runtime_document(
-    source: str,
-    revision: int,
-    version: int | None = None,
-    *,
-    authored_current: bool = False,
-) -> bytes:
+def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
     """Inject the exact immutable identity beside the canonical runtime script."""
     parsed = parse_structure(source)
     scripts = [
@@ -92,18 +71,10 @@ def runtime_document(
         raise ValueError("document has no canonical script")
     line, column = scripts[0]["position"]
     offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
-    markers = (
-        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        + (
-            f'<meta name="lf-version" data-lf-runtime content="{version}">'
-            if version is not None
-            else ""
-        )
-        + (
-            '<meta name="lf-authored-current" data-lf-runtime>'
-            if authored_current
-            else ""
-        )
+    markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
+        f'<meta name="lf-version" data-lf-runtime content="{version}">'
+        if version is not None
+        else ""
     )
     return (source[:offset] + markers + source[offset:]).encode()
 
@@ -434,12 +405,7 @@ class Handler(BaseHTTPRequestHandler):
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
         try:
-            projected = runtime_document(
-                source,
-                revision,
-                version,
-                authored_current=authored_document_is_current(events),
-            )
+            projected = runtime_document(source, revision, version)
         except ValueError as error:
             self._json({"error": str(error)}, 500)
             return
@@ -460,12 +426,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(
                 200,
                 "text/html; charset=utf-8",
-                runtime_document(
-                    source,
-                    mapping[version],
-                    version,
-                    authored_current=authored_document_is_current(events),
-                ),
+                runtime_document(source, mapping[version], version),
             )
             return True
         if path.startswith("/revisions/"):

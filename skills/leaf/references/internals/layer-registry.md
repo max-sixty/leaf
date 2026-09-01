@@ -32,12 +32,8 @@ successful init records two deliberately different identities under `$layer`:
   guidance bytes have the same fingerprint across repeated vendoring. `producer`
   records the Git commit and dirty bit when the payload came from a checkout.
 
-`leaf page layer PAGE` compares that stable identity with the layer the running
-Leaf would vendor, reports both producers, and exits nonzero when they differ. It
-does not mutate the page: an immutable page must never silently acquire a new
-runtime while diagnosing which one it already carries. `registry.json` remains the
-source of truth for the current custom vocabulary and its explanations; this
-contract does not mirror that inventory.
+`registry.json` remains the source of truth for the current custom vocabulary and
+its explanations; this contract does not mirror that inventory.
 
 Within a registry-validated action detail, a string or list of strings may point
 at existing ids inside the sending widget. A state verb that creates authored

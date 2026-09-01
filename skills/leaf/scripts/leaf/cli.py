@@ -35,7 +35,7 @@ from leaf.service import (
 from leaf.session import cmd_ack, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
 from leaf.validation.command import cmd_check
-from leaf.vendoring import cmd_init, cmd_layer
+from leaf.vendoring import cmd_init
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -210,18 +210,6 @@ def state(dir: str) -> None:
     current thread state, versions, presence, and external-data bindings plus the
     canonical files holding source and values."""
     cmd_page_state(resolve_dir(dir))
-
-
-@page.command(short_help="Compare the vendored layer with this Leaf.")
-@click.argument("dir", metavar="PAGE")
-def layer(dir: str) -> None:
-    """Print the vendored and current layer identities as JSON.
-
-    Exits with status 1 when the bytes differ or an older page has no stable
-    fingerprint. The command does not re-vendor the page.
-    """
-    if not cmd_layer(resolve_dir(dir)):
-        raise SystemExit(1)
 
 
 @cli.group(short_help="Set, capture, or clear page-bound external data.")

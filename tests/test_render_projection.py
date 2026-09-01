@@ -281,7 +281,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "1 changed root · 1 added · 0 removed · 2 items"
     )
     # The counts are this widget's account of the tree, not words the page holds:
-    # data-lf-gen is what keeps a drag across them from quoting text no markup has.
+    # data-lf-gen is what keeps them out of the version diff, which parses the base.
     expect(widget.locator(".lf-call-summary")).to_have_attribute("data-lf-gen", "1")
     expect(widget.locator(".lf-call-group-count")).to_have_attribute("data-lf-gen", "1")
     group = widget.locator(":scope > .lf-call-group")

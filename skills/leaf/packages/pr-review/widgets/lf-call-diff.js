@@ -110,8 +110,9 @@ function updateDisclosureControl(owner) {
 function buildToolbar(owner) {
   const toolbar = make("div", "lf-call-tools");
   // The counts this widget writes are an account of the tree, not words the page holds,
-  // so `data-lf-gen` keeps them out of a passage — the marker `lf-diff` gives its own
-  // injected stat. Not `.lf-ui`, whose chrome face would race `.lf-call-summary`'s own.
+  // so `data-lf-gen` takes them out of the version diff and makes each its own passage
+  // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
+  // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = make("p", "lf-call-summary");
   summary.dataset.lfGen = "1";
   // `offer`, not a bare button: the disclosure control is chrome this widget injected

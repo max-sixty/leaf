@@ -121,12 +121,9 @@ def test_the_pages_link_the_theme_the_site_serves(site):
     served = (site / "theme.css").read_text()
     # Every half the site's own layer composes, read off examples/layer.json rather
     # than listed, so a package added there is covered without a second edit here.
-    halves = [
-        root / "theme.css"
-        for root in SHIPPED_PACKAGES
-        if (root / "theme.css").is_file()
-    ]
-    assert len(halves) > 3, halves
+    halves = [root / "theme.css" for root in SHIPPED_PACKAGES]
+    missing = [source.parent.name for source in halves if not source.is_file()]
+    assert missing == [], f"shipped roots without a theme half: {missing}"
     for source in halves:
         assert source.read_text().rstrip() in served, (
             f"the theme the site serves is missing {source.parent.name}'s half"

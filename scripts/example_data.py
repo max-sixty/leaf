@@ -22,6 +22,14 @@ def example_versions(source: Path) -> list[Path]:
         (source.parent / "versions").glob(f"{source.stem}.v*.html"),
         key=lambda path: int(PRIOR_VERSION.search(path.stem).group(1)),
     )
+    # The published number is the position in this list, so a gap in the file names
+    # would renumber every later version without a word; refuse it instead.
+    numbers = [int(PRIOR_VERSION.search(path.stem).group(1)) for path in priors]
+    if numbers != list(range(1, len(numbers) + 1)):
+        raise ValueError(
+            f"{source.name}: prior versions must run v1 to v{len(numbers)} without "
+            f"a gap, found {numbers}"
+        )
     return [*priors, source]
 
 

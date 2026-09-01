@@ -15,9 +15,10 @@ serves every part of that; the one thing it hasn't got is the process behind /ap
 where a page's absolute /theme.css and /leaf.js resolve, and puts each example at its
 own examples/<name>/versions/, which is where the runtime reads a version number from.
 An example that ships a prior version publishes every one of them, so the chooser on
-the published page travels and marks the same way the served page's does. The published root wears `data-lf-eager`, so the shipped theme can paint the
-authored page before this site's JavaScript arrives without changing that rule for a
-served Leaf page. What answers the three paths is `docs/session.js`, loaded in front of
+the published page travels and marks the same way the served page's does. The
+published root wears `data-lf-eager`, so the shipped theme can paint the authored
+page before this site's JavaScript arrives without changing that rule for a served
+Leaf page. What answers the three paths is `docs/session.js`, loaded in front of
 the runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on
 the page is then the shipped one, working — the banner, the thread panel, a board that
 takes a drag and holds it. The half no host can supply is the agent at the other end:

@@ -231,15 +231,7 @@ def headless_shell():
         check=True,
     )
     chromium = Path(read.stdout.strip())
-    # Found by name rather than by depth: a macOS build sits inside a `.app` bundle, so
-    # the executable is three levels further down than the plain `chrome-linux/chrome`
-    # this once counted back from.
-    installed = next(
-        (p for p in chromium.parents if p.name.startswith("chromium-")), None
-    )
-    if installed is None:
-        raise AssertionError(f"{chromium} is not under a Playwright chromium build")
-    root, build = installed.parent, installed.name.split("-", 1)[1]
+    root, build = chromium.parents[2], chromium.parents[1].name.rsplit("-", 1)[1]
     shell = root / f"chromium_headless_shell-{build}"
     for candidate in (*sorted(shell.glob("*/chrome-headless-shell*")), chromium):
         if candidate.is_file():

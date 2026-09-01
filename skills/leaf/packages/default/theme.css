@@ -1577,11 +1577,13 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
 .lf-diff-filtered { display: none !important; }
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
 .lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+                                                        --lf-here-ring: diff-tools;
                                                         outline-offset: 1px; }
 /* The review press rides the file's own summary row, inside the box that clips it, so
    it takes the inset the summary below takes and not the toolbar's outward gap: drawn
    outward its lower run fell past the bottom the details clips at. */
 .lf-diff-review:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+                                            --lf-here-ring: diff-review;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing

@@ -21,18 +21,30 @@ registry="<page>/registry.json"
 jq 'keys' "$registry"
 ```
 
-Then read the complete entries for the widgets and `$` facts the page will use:
+For a tag whose shape the page is copying, the worked example and the attribute
+schema are enough to write the markup, at a fraction of the reading cost. Ask for
+a group's parent and child together, because the parent's example is the one that
+shows both:
+
+```bash
+registry="<page>/registry.json"
+jq '{"lf-options": .["lf-options"], "lf-option": .["lf-option"]}
+    | map_values({"x-example", properties, required})' "$registry"
+```
+
+Read the complete entry wherever the page does more than the example shows, and
+for every `$` fact:
 
 ```bash
 registry="<page>/registry.json"
 jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
 ```
 
-Each selected entry owns its purpose and instructions in `description`, along with
-its example, attributes, content and parent rules, and behavioral contracts.
-Package-defined tags and `$` facts join the same key list.
-`leaf page guidance <page>` lists the composed guidance audiences; read `author`
-when it is present.
+The field the short query leaves out is `description`, and it carries what no
+schema can state: what may go inside the tag, what the widget does when the
+reader acts on it, and how to word the question it puts. Package-defined tags and
+`$` facts join the same key list. `leaf page guidance <page>` lists the composed
+guidance audiences; read `author` when it is present.
 
 ## Document scaffold
 
@@ -58,7 +70,8 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
 
 ## Theme and vocabulary
 
-Write semantic HTML and use the registry's class idioms. The vendored theme owns
+Write semantic HTML and use the class idioms the registry lists under `$idioms`,
+where each one comes with the markup it is written as. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
 

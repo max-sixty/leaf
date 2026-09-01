@@ -1300,6 +1300,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         [
             "reply",
+            "--json",
             str(page_dir),
             "--to",
             reader["id"],

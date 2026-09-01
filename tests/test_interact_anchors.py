@@ -635,7 +635,15 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         CliRunner()
         .invoke(
             cli_model.cli,
-            ["reply", str(page_dir), "--to", root["id"], "--text", "fixed in v2"],
+            [
+                "reply",
+                "--json",
+                str(page_dir),
+                "--to",
+                root["id"],
+                "--text",
+                "fixed in v2",
+            ],
         )
         .output
     )

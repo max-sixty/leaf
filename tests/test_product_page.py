@@ -79,15 +79,29 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     validation_model.validate_registry_examples(registry, "package tutorial")
 
 
-def test_how_it_works_quotes_the_real_check_success_line(page_dir):
+def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
+    """Both lines the transcript shows an agent, taken from the commands themselves.
+
+    A shown line is a promise about what the reader will see. The changelog is the
+    page's own, so the stamp line is generated here with the transcript's text
+    rather than pattern-matched — a renamed field or a changed separator has to be
+    written into the page before this passes again.
+    """
     checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
     success = next(
         line for line in checked.output.splitlines() if line.startswith("✓ index.html:")
     )
 
+    changelog = "Two ways to shed load — which?"
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", changelog]
+    )
+    assert stamped.exit_code == 0, stamped.output
+
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
     assert success in transcript
+    assert stamped.output.strip() in transcript
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

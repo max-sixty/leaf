@@ -310,7 +310,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     (page_dir / "index.html").write_text(baseline)
     first = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "baseline"],
+        ["version", "stamp", "--json", str(page_dir), "--text", "baseline"],
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
@@ -334,7 +334,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     second = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "corrected"],
+        ["version", "stamp", "--json", str(page_dir), "--text", "corrected"],
     )
     assert second.exit_code == 0, second.output
     stamped = json.loads(second.output)

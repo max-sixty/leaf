@@ -6,7 +6,11 @@ from .event_log import read_events
 from .events import awaits_agent, build_threads, seat_root, spoken_turns
 from .leases import adapter_is_live
 from .passages import active_enclosing
-from .schema import ACK_BATCH_INSTRUCTION, ANSWER_DECISION_INSTRUCTION
+from .schema import (
+    ACK_BATCH_INSTRUCTION,
+    ANSWER_DECISION_INSTRUCTION,
+    PREVIEW_FILE,
+)
 from .served_state.page import full_state
 from .service import PageTransaction, owned_pages, unacknowledged
 
@@ -151,7 +155,23 @@ def unattended_pages(session_id: str) -> list:
                     f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
                     + remedy
                 )
-            elif state["status"]["state"] != "idle":
+            # Nothing is owed and nothing is listening. That is a debt on a page
+            # handed to a reader, and a developer preview is not one: the same
+            # `preview.json` the browser chrome reads to label it a preview says
+            # the page is a rendering of a tracked example, put up to be looked
+            # at. A session inspecting a dozen slots would otherwise carry a
+            # dozen copies of this one line into every turn. The two clauses that
+            # answer for a real reader stay above it, so a gesture on a preview
+            # still arrives — this exempts the housekeeping, not the reader.
+            #
+            # Presence, not `server.preview_metadata`: that reader is the serve
+            # path's gate and exits the process on a file it will not accept,
+            # which here — inside a guard that fails open by saying nothing —
+            # would stand the whole hook down over every page this session holds.
+            elif (
+                state["status"]["state"] != "idle"
+                and not (page_dir / PREVIEW_FILE).exists()
+            ):
                 if codex and state["listening"]:
                     page_reasons.append(
                         f"{page_dir}: the Codex page is still live. Keep this turn "

@@ -1,6 +1,5 @@
 """Stamping immutable public versions from the mutable source."""
 
-import json
 import sys
 from pathlib import Path
 
@@ -173,9 +172,8 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
 
 
 @contract_writer
-def cmd_stamp(page_dir: Path, text, completes: tuple[str, ...] = ()) -> None:
+def cmd_stamp(page_dir: Path, text, completes: tuple[str, ...] = ()) -> dict:
     """Stamp the exact current source as the next immutable public version."""
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
-        accepted = _stamp_locked(page_dir, page, body, completes)
-    print(json.dumps(accepted, ensure_ascii=False))
+        return _stamp_locked(page_dir, page, body, completes)

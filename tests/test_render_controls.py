@@ -1047,9 +1047,15 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
 
         page.locator(".lf-threads-toggle").tap()
         panel_settled(page)
+        # The key line is not among them: a touch device has no keyboard to advertise, so
+        # the whole line stands down and takes its More control with it. That control used
+        # to be half of what this counted, and the sheet's own foot is the honest other
+        # half — a Send a finger presses, where More was a keyboard's way into a keyboard
+        # reference.
+        expect(page.locator(".lf-keyline")).to_be_hidden()
         compact = page.locator(
             ".lf-panel .lf-react:visible, .lf-panel-head .lf-btn:visible, "
-            ".lf-key-more:visible"
+            ".lf-panel-foot .lf-btn:visible"
         )
         assert compact.count() >= 2, (
             "the covering panel exposed no compact touch controls"

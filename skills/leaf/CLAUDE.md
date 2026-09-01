@@ -2255,9 +2255,15 @@ upgrade.
 The key line is short help, not the keyboard reference. It walks outward from the
 reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
 the first live row, then a promotable Escape or the next row; rows declaring
-`linePriority: persistent` remain beside that context. An active chord instead shows
-every live row in its scope, so computed bindings, ranges, and capability filtering are
-the same ones dispatch and the reference use. Each destination row keeps its complete
+`linePriority: persistent` remain beside that context. At rest on the page that is `c`
+and `r`, the two presses that say something back, beside the More control. Search, item
+selection and reading-page movement are ordinary rows ranked below them, named by the
+shelf and the reference: a glance that spends its room on ways of finding something to
+act on never names the act, and scrolling is the one capability no page has to
+advertise. Ranking is a row's place in its scope, so moving the row is how the line's
+order changes. An active chord instead shows every live row in its scope, so computed
+bindings, ranges, and capability filtering are the same ones dispatch and the reference
+use. Each destination row keeps its complete
 chord: already pressed keys take the accent face and pending keys keep the ordinary face.
 Changing progress changes only those faces, not the sequence's keys or geometry. A mode's
 Escape or back row remains a separate control rather than appearing as a destination
@@ -2269,7 +2275,16 @@ The compact line wraps when persistent or chord rows need the room. Ordinary hin
 yield from the end to stay within two rows, but persistent rows and active chord rows do
 not. The interactive More control stays before persistent hints, so a wider face wraps a
 visual fact rather than moving a compact target down beside page or panel furniture.
-`syncLayout` reserves the rendered height in each scroll region.
+
+`syncLayout` reserves the line's whole footprint in each scroll region: the band from
+its top to the foot of the window, so its height, its own inset, a covering sheet's lift
+and the device's safe area are one measurement off the rendered box rather than four
+numbers to keep in step. A coarse pointer is drawn no line at all — there is no keyboard
+to advertise, and every hint would name a key the reader cannot press — so the footprint
+is zero and nothing reserves room for it. The line and its chips take no pointer events;
+the More control does, because it is the only pointer route to the reference and so to
+the character-shortcut preference, which cannot be made to depend on the character key
+it turns off.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two

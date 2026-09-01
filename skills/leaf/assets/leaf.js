@@ -145,7 +145,8 @@
  *
  * What a key would do right now is state the user can read, not recall. The quiet fixed key
  * line starts with the first live row of the innermost scope, then a promotable Escape or
- * the next row, and retains registry rows marked persistent. An active chord shows every
+ * the next row, and retains registry rows marked persistent — on the page at rest, `c` and
+ * `r`, the two presses that say something back. An active chord shows every
  * live row in its scope, including computed ranges. `? more` unfolds up to two rows of the
  * remaining current commands; `? all shortcuts` opens the complete reference, grouped by
  * scope and searchable by key, action, or scope. The hint chips are aria-hidden: they are
@@ -2616,19 +2617,15 @@ const REFERENCE = {
 };
 const PAGE = {
   rows: [
-    PAGE_SEARCH,
-    {
-      id: "selection.open",
-      keys: ["s"],
-      does: "Select a visible item by hint",
-      line: "select item",
-      // Once a target is in hand, its actions own the two short-line slots. Escape clears
-      // it, while this projection-only gate leaves s live to replace the target and keeps
-      // that capability in the complete reference.
-      lineWhen: () => !hasCapturedTarget(),
-      when: () => anchoringReady,
-      run: startSelecting,
-    },
+    // The two presses that say something back, first, because the resting line is the
+    // only sentence a reader who has not pressed anything yet will read. It used to open
+    // `/ search page · s select item`, which are both ways of *finding* a thing to act on
+    // and so named no act at all: a page whose whole point is the remark it carries never
+    // said the word "comment" until the reader pressed `?`. The captured-target case had
+    // already worked this out for itself — `s` steps off the line and BACK_OUT gives up
+    // its promotion so that `c` and `r` own the two slots on the thing just chosen — and
+    // this is that same ranking with nothing chosen. Finding is still a press away;
+    // saying something was three.
     {
       id: "comment.create",
       keys: ["c"],
@@ -2666,6 +2663,22 @@ const PAGE = {
       line: "react",
       when: () => reactionTokens().length > 0 && (anchoringReady || !pageSelection()),
       run: () => setReact(true),
+    },
+    // Then the two ways of choosing what to say it about. They are one press from the
+    // shelf and named in full by the reference, which is where a capability the reader
+    // has not asked for yet belongs.
+    PAGE_SEARCH,
+    {
+      id: "selection.open",
+      keys: ["s"],
+      does: "Select a visible item by hint",
+      line: "select item",
+      // Once a target is in hand, its actions own the two short-line slots. Escape clears
+      // it, while this projection-only gate leaves s live to replace the target and keeps
+      // that capability in the complete reference.
+      lineWhen: () => !hasCapturedTarget(),
+      when: () => anchoringReady,
+      run: startSelecting,
     },
     {
       id: "thread.walk",
@@ -2722,7 +2735,12 @@ const PAGE = {
       ],
       does: "Move 60% of a page down or up",
       line: "page down / up",
-      linePriority: "persistent",
+      // An ordinary row, ranked where it stands. It was the one persistent declaration in
+      // the runtime, which spent a third of the resting line restating what every reader
+      // already does with a wheel, a trackpad or the space bar — and spent it on every
+      // page, in every scope, beside whatever the reader was actually doing. Scrolling is
+      // the one capability no page has to advertise. The shelf and the reference still
+      // name it, which is where a key the reader has not asked after belongs.
       repeat: true,
       run: (binding) => stepPage(binding === "d" ? 0.6 : -0.6),
     },

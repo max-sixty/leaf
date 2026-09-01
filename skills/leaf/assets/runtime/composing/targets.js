@@ -50,7 +50,16 @@ export function createTargetSelection({
 
   const clips = () => new Map();
   const covered = () => banner.getBoundingClientRect().bottom;
-  const bottomCovered = () => keyline.getBoundingClientRect().top;
+  // Where the page stops being reachable at the foot: the key line's top, or the window's
+  // own foot when no line is drawn. The banner above is always rendered and the line is
+  // not — a coarse pointer is shown none, and an empty one takes itself down — so a zero
+  // box read as a top of 0 says the whole window is covered, and `visible` then answers
+  // false for every box on screen. That is `s` naming no items and `/` painting no match,
+  // with nothing on screen saying why.
+  const bottomCovered = () => {
+    const line = keyline.getBoundingClientRect();
+    return line.height ? line.top : innerHeight;
+  };
   const visible = (box) =>
     box &&
     (box.width ?? box.right - box.left) > 0 &&

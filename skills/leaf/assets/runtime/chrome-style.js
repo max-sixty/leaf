@@ -1395,14 +1395,15 @@ ${MARK_RULES}
       .lf-page-map-action:focus-visible {
         outline: 2px solid Highlight; }
     }
-    /* The key line: a contextual shortlist plus persistent rows, rendered from the
+    /* The key line: two contextual hints and the More control, rendered from the
        register the dispatcher walks (see the module docstring). A chord shows its whole
        live scope; More unfolds the remaining current register before it opens the complete
        reference. Each hint is the eye's copy of facts spoken elsewhere and stays
        aria-hidden; More is a real control.
        syncLayout keeps the line out of a side-by-side thread panel and lifts it over a
-       covering one, while body reserves its height so the document's last lines never
-       end under it. Overflow remains a backstop for a window too narrow to hold even
+       covering one, while the chrome root reserves the line's whole footprint — the band
+       from its top to the foot of the window — so the document's last lines never end
+       under it. Overflow remains a backstop for a window too narrow to hold even
        the short line. */
     .lf-keyline { position: fixed; left: calc(18px + var(--lf-safe-left));
       bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
@@ -1415,6 +1416,19 @@ ${MARK_RULES}
     .lf-keyline[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
       row-gap: 6px; align-items: baseline; }
     .lf-keyline:empty { display: none; }
+    /* A touch device has no keyboard to advertise, so the line has nothing to say and
+       stands down whole rather than shrinking. Every hint on it names a key the reader
+       cannot press, and the box they cost stands over the words and the controls of a
+       page whose window is the smallest one there is.
+       It takes the More control with it, and that is the cost rather than an oversight:
+       More is the only pointer route to the reference, so a tablet with a keyboard
+       attached reaches the reference by the question-mark key, and a reader who has also
+       turned character shortcuts off reaches it from a fine pointer or not at all.
+       Every reader of the line's box asks whether there is one — syncLayout for the room
+       it reserves, targets for how far down the page is reachable, the address chips and
+       the floats for what they must not stand on. A zero box is the same state the empty
+       rule above has always had, so none of them is new. */
+    @media (pointer: coarse) { .lf-keyline { display: none; } }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
     .lf-keyline .lf-key[hidden] { display: none; }
     .lf-keyline .lf-chord-control { margin-inline-start: 4px;

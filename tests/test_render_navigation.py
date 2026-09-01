@@ -3889,6 +3889,7 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     page, errors = open_page(browser, serve(INLINE_PAGE))
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
     page.keyboard.press("c")
     expect(box).to_be_focused()
@@ -4011,6 +4012,7 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
         steps=12,
     )
     field = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
@@ -4044,6 +4046,8 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
         steps=12,
     )
     fab = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(fab).not_to_be_focused()
     page.keyboard.press("c")
     expect(fab).to_be_focused()
     page.keyboard.press("c")
@@ -4098,6 +4102,8 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     )
     composer = page.locator(".lf-composer")
     field = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
     send = composer.locator(".lf-composer-row .primary")

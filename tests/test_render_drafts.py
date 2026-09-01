@@ -940,8 +940,8 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     # The reader picks out their next passage while the first send is still in the wire.
     page.locator("#p2").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -975,12 +975,13 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     original = "These words belong to the first passage."
 
     page.locator("#p1").click(click_count=3)
+    expect(field).to_be_visible()
     expect(field).not_to_be_focused()
     field.fill(original)
 
     page.locator("#p2").click(click_count=3)
-    expect(field).not_to_be_focused()
     expect(field).to_have_value("")
+    expect(field).not_to_be_focused()
     assert (
         page.evaluate(
             """() => Object.keys(localStorage)
@@ -990,8 +991,8 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     )
 
     page.locator("#p1").click(click_count=3)
-    expect(field).not_to_be_focused()
     expect(field).to_have_value(original)
+    expect(field).not_to_be_focused()
     assert errors == []
     page.close()
 

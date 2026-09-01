@@ -170,6 +170,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose = page.locator("#prose")
     prose.select_text()
     field = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()

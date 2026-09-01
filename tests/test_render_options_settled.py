@@ -115,8 +115,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     box = title.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_have_text("“Settled: Lax cookie”")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
     expect(page.locator("#opt-strict")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_visible()

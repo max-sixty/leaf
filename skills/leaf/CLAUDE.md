@@ -2565,9 +2565,9 @@ The selection composer keeps its passage painted after an explicit Comment gestu
 focus into the textarea. Automatic passage selection leaves the native selection in place.
 Its `.lf-composer` wrapper contributes state and draft machinery through
 `display: contents`; only `.lf-fab-input` draws. `showComposer` states the whole visible
-and focus outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`. Outside clicks
-and Escape hide without discarding words. A successful send or an explicit draft close
-discards the local record.
+outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`; `openComposer`'s `focus`
+option decides focus independently. Outside clicks and Escape hide without discarding
+words. A successful send or an explicit draft close discards the local record.
 
 An accepted anchored comment opens its inline thread. When the reserved margin is too
 narrow, that thread may cover the page in its bounded card; it does not substitute the

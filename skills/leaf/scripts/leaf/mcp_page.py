@@ -15,6 +15,7 @@ from .event_endpoint import EventEndpoint
 from .files import revision_path
 from .hosting import server_at
 from .http import Handler
+from .registry.contract import RegistryError
 from .registry.storage import layer_metadata
 from .schema import ASSETS
 from .served_state.service import PageStateService
@@ -207,25 +208,41 @@ def resolve_page(page: str | Path) -> Path:
     return page_dir
 
 
-def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
-    """Return a model-sized summary and the app-private canonical page address."""
-    page_dir = resolve_page(page)
-    state = PageStateService(
-        page_dir,
-        layer_identity=layer_metadata(page_dir),
-        preview=preview_metadata(page_dir),
-    ).page_state()
+def unpresentable_layer_error(page_dir: Path, detail: str) -> ToolError:
+    """Explain a page layer that the MCP presentation boundary cannot read."""
+    message = (
+        f"{page_dir} cannot be presented with its vendored layer: {detail.rstrip('.')}"
+    )
+    if "leaf page init" not in detail:
+        message += f". Run `leaf page init {page_dir}` to re-vendor the page"
+    return ToolError(f"{message}.")
+
+
+def require_active_revision(page_dir: Path, state: dict) -> dict:
+    """Return the active revision or explain the source the page still needs."""
     active = state.get("active")
     if active is None:
         raise ToolError(
             f"{page_dir} has no active revision; write a valid index.html first"
         )
+    return active
+
+
+def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
+    """Return a model-sized summary and the app-private canonical page address."""
+    page_dir = resolve_page(page)
+    try:
+        state = PageStateService(
+            page_dir,
+            layer_identity=layer_metadata(page_dir),
+            preview=preview_metadata(page_dir),
+        ).page_state()
+    except RegistryError as error:
+        raise unpresentable_layer_error(page_dir, str(error)) from error
+    active = require_active_revision(page_dir, state)
     if state["browser"] is None:
         detail = state["source_error"] or "the page registry cannot be projected"
-        raise ToolError(
-            f"{page_dir} cannot be presented with its vendored layer: {detail}. "
-            f"Run `leaf page init {page_dir}` to re-vendor the page."
-        )
+        raise unpresentable_layer_error(page_dir, detail)
     server = running_server(page_dir) or {}
     source = revision_path(page_dir, active["revision"]).read_text(encoding="utf-8")
     title = parse_structure(source).title.strip() or page_dir.name
@@ -238,9 +255,13 @@ def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
         "event_seq": state["browser"]["basis"]["through_seq"],
         "source_error": state["source_error"],
     }
+    try:
+        inline_url = pages.open(page_dir)
+    except RegistryError as error:
+        raise unpresentable_layer_error(page_dir, str(error)) from error
     private = {
         **summary,
-        "inline_url": pages.open(page_dir),
+        "inline_url": inline_url,
         "browser_url": server.get("url"),
         "message": (
             "Opening the last valid revision; the current authored source is invalid."

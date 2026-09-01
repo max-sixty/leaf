@@ -3,14 +3,19 @@
 import copy
 from pathlib import Path
 
-from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 from tinycss2 import parse_stylesheet, serialize
 
 from .event_endpoint import EventEndpoint
 from .exporting import inline_assets, inline_css_assets
 from .files import revision_path
-from .mcp_page import PAGE_APP_RESOURCE
+from .mcp_page import (
+    PAGE_APP_RESOURCE,
+    require_active_revision,
+    resolve_page,
+    unpresentable_layer_error,
+)
+from .registry.contract import RegistryError
 from .registry.storage import layer_generation
 from .served_state.service import PageStateService
 from .structure import parse_structure
@@ -38,33 +43,20 @@ def split_theme(theme: str) -> tuple[str, str]:
     return "".join(base), "".join(dark)
 
 
-def resolve_page(page: str) -> Path:
-    page_dir = Path(page).expanduser().resolve()
-    if not (page_dir / "comments.jsonl").is_file():
-        raise ValueError(
-            f"{page_dir} is not an initialized Leaf page; run `leaf page init` first"
-        )
-    return page_dir
-
-
 def state_service(page_dir: Path) -> PageStateService:
     return PageStateService(page_dir)
 
 
 def app_snapshot(page: str) -> tuple[dict, dict]:
     page_dir = resolve_page(page)
-    state = state_service(page_dir).page_state()
-    active = state.get("active")
-    if active is None:
-        raise ValueError(
-            f"{page_dir} has no active revision; write a valid index.html first"
-        )
+    try:
+        state = state_service(page_dir).page_state()
+    except RegistryError as error:
+        raise unpresentable_layer_error(page_dir, str(error)) from error
+    active = require_active_revision(page_dir, state)
     if state["browser"] is None:
         detail = state["source_error"] or "the page registry cannot be projected"
-        raise ToolError(
-            f"{page_dir} cannot be presented with its vendored layer: {detail}. "
-            f"Run `leaf page init {page_dir}` to re-vendor the page."
-        )
+        raise unpresentable_layer_error(page_dir, detail)
     revision = active["revision"]
     source = revision_path(page_dir, revision).read_text(encoding="utf-8")
     parsed = parse_structure(source)

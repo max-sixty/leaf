@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -271,3 +272,80 @@ def test_stdio_presentation_tools_explain_a_stale_page_layer(page_dir):
         assert "cannot be presented with its vendored layer" in result.content[0].text
         assert "kind `pickup`" in result.content[0].text
         assert f"leaf page init {page_dir}" in result.content[0].text
+
+
+def test_stdio_presentation_tools_explain_every_page_precondition(page_dir, tmp_path):
+    uninitialized = tmp_path / "uninitialized"
+    uninitialized.mkdir()
+
+    no_active = tmp_path / "no-active"
+    shutil.copytree(page_dir, no_active)
+    (no_active / "index.html").unlink()
+    for revision in (no_active / "revisions").glob("*.html"):
+        revision.unlink()
+
+    missing_registry = tmp_path / "missing-registry"
+    shutil.copytree(page_dir, missing_registry)
+    (missing_registry / "registry.json").unlink()
+
+    malformed_registry = tmp_path / "malformed-registry"
+    shutil.copytree(page_dir, malformed_registry)
+    (malformed_registry / "registry.json").write_text("{not json")
+
+    cases = {
+        "uninitialized": (
+            uninitialized,
+            ["not an initialized Leaf page", "leaf page init"],
+        ),
+        "no_active": (
+            no_active,
+            ["has no active revision", "write a valid index.html first"],
+        ),
+        "missing_registry": (
+            missing_registry,
+            ["cannot be presented with its vendored layer", "registry.json"],
+        ),
+        "malformed_registry": (
+            malformed_registry,
+            ["cannot be presented with its vendored layer", "invalid JSON"],
+        ),
+    }
+
+    async def exchange():
+        parameters = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "leaf", "mcp"],
+            env=dict(os.environ),
+        )
+        async with (
+            stdio_client(parameters) as (reader, writer),
+            ClientSession(reader, writer) as session,
+        ):
+            await session.initialize()
+            return {
+                name: [
+                    await session.call_tool(tool, {"page": str(path)})
+                    for tool in ("leaf_present", "leaf_present_snapshot")
+                ]
+                for name, (path, _) in cases.items()
+            }
+
+    results = asyncio.run(exchange())
+
+    for name, (path, expected) in cases.items():
+        details = []
+        for tool, result in zip(
+            ("leaf_present", "leaf_present_snapshot"), results[name], strict=True
+        ):
+            assert result.is_error is True
+            message = result.content[0].text
+            prefix = f"Error executing tool {tool}: "
+            assert message.startswith(prefix)
+            details.append(message.removeprefix(prefix))
+            assert str(path) in message
+            assert "UnexpectedToolError" not in message
+            for phrase in expected:
+                assert phrase in message
+            if "registry" in name:
+                assert "leaf page init" in message
+        assert details[0] == details[1]

@@ -25,9 +25,10 @@ Its CSP is the superset required by those two modes: no connect or resource
 domains, and the exact process page origin as its sole frame domain. Snapshot
 mode does not use that frame capability.
 
-Both presentation tools require the page's vendored registry to project under
-the current layer. A stale layer is a readable tool refusal naming `leaf page
-init`, not a server fault.
+Both presentation tools return readable tool refusals for an uninitialized
+page, a page with no active revision, and a missing, malformed, or stale vendored
+registry. Layer failures name `leaf page init`; they do not surface as server
+faults.
 
 ## Complete page
 

@@ -317,6 +317,7 @@ export function createLivingMargin(dependencies) {
   let pinnedKey = null;
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
+  let restoringOptionsFocus = false;
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
@@ -822,6 +823,28 @@ export function createLivingMargin(dependencies) {
     return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
   }
 
+  function clusterButtons(host) {
+    if (!host) return [];
+    return [...host.querySelectorAll(".lf-margin-action")].filter(
+      (button) =>
+        !button.disabled &&
+        button.getAttribute("aria-disabled") !== "true" &&
+        button.checkVisibility(),
+    );
+  }
+
+  function stepClusterButtons(binding) {
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    const buttons = clusterButtons(host);
+    const at = buttons.indexOf(active);
+    if (at < 0 || buttons.length < 2) return;
+    const direction = binding === "ArrowRight" ? 1 : -1;
+    buttons[(at + direction + buttons.length) % buttons.length].focus({
+      preventScroll: true,
+    });
+  }
+
   function openPageMapItem(item) {
     const entry = item?.lfEntry;
     if (!entry?.target) return;
@@ -847,7 +870,11 @@ export function createLivingMargin(dependencies) {
     action?.focus({ preventScroll: true });
   }
 
-  function setOptionsOpen(entry, open, { returnFocus = false } = {}) {
+  function setOptionsOpen(
+    entry,
+    open,
+    { returnFocus = false, focusOption = null } = {},
+  ) {
     const previousKey = expandedOptionsKey;
     const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
     const nextKey = open ? (entry?.key ?? null) : null;
@@ -859,7 +886,21 @@ export function createLivingMargin(dependencies) {
       document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
     if (returnFocus && previousKey) {
       const more = moreButtons.get(previousKey);
-      if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
+      if (more?.isConnected && !more.hidden) {
+        restoringOptionsFocus = true;
+        try {
+          more.focus({ preventScroll: true });
+        } finally {
+          restoringOptionsFocus = false;
+        }
+      }
+    } else if (focusOption && nextKey) {
+      const choices = clusterButtons(optionGroups.get(nextKey));
+      const fallback = clusterButtons(hosts.get(nextKey));
+      const next =
+        (focusOption === "last" ? choices.at(-1) : choices[0]) ??
+        (focusOption === "last" ? fallback.at(-1) : fallback[0]);
+      next?.focus({ preventScroll: true });
     }
   }
 
@@ -867,7 +908,9 @@ export function createLivingMargin(dependencies) {
     render();
     const entry = pageMapEntries.find((candidate) => candidate.target === target);
     const more = entry && moreButtons.get(entry.key);
-    if (!entry || !more || more.hidden) return false;
+    if (!entry || !more) return false;
+    if (expandedOptionsKey === entry.key) return true;
+    if (more.hidden) return false;
     setOptionsOpen(entry, true);
     return true;
   }
@@ -961,11 +1004,27 @@ export function createLivingMargin(dependencies) {
 
   const marginKeys = [
     {
+      id: "margin.buttons",
+      keys: ["ArrowLeft", "ArrowRight"],
+      does: "Move through the Buttons on this target",
+      line: "move through Buttons",
+      repeat: true,
+      when: () => {
+        const active = focused();
+        const host = closestAcross(active, "[data-lf-margin-for]");
+        return (
+          active?.matches?.(".lf-margin-action") && clusterButtons(host).length > 1
+        );
+      },
+      run: stepClusterButtons,
+    },
+    {
       id: "margin.walk",
       keys: ["ArrowUp", "ArrowDown"],
       does: "Walk the visible page-map markers",
       line: "walk the page map",
       repeat: true,
+      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
       run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
     },
     {
@@ -973,6 +1032,7 @@ export function createLivingMargin(dependencies) {
       keys: ["Home"],
       does: "First visible page-map marker",
       line: "first marker",
+      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
       run: () => walkMarkers(0, "first"),
     },
     {
@@ -980,6 +1040,7 @@ export function createLivingMargin(dependencies) {
       keys: ["End"],
       does: "Last visible page-map marker",
       line: "last marker",
+      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
       run: () => walkMarkers(0, "last"),
     },
   ];
@@ -1149,23 +1210,23 @@ export function createLivingMargin(dependencies) {
       if (host.children[position] !== child)
         host.insertBefore(child, host.children[position] ?? null);
     });
-    more.hidden = !optionsOffered(entry, primary);
-    if (more.hidden && expandedOptionsKey === entry.key) expandedOptionsKey = null;
+    const hasOptions = optionsOffered(entry, primary);
+    if (!hasOptions && expandedOptionsKey === entry.key) expandedOptionsKey = null;
+    const optionsOpen = hasOptions && expandedOptionsKey === entry.key;
+    more.hidden = !hasOptions || optionsOpen;
     more.lfEntry = entry;
     more.setAttribute("aria-label", `More options for ${entry.title}`);
     more.setAttribute("aria-expanded", String(expandedOptionsKey === entry.key));
     host.toggleAttribute("data-lf-options-open", expandedOptionsKey === entry.key);
     syncOptionGroup(options, entry, primary);
     const lostOptionFocus = focusedOption && !options.contains(document.activeElement);
-    if (more.hidden && (document.activeElement === more || lostOptionFocus)) {
+    if (!hasOptions && (document.activeElement === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else (destination ?? document.body).focus({ preventScroll: true });
     } else if (lostOptionFocus) {
-      const next = [...options.querySelectorAll("button:not([disabled])")].find(
-        (button) => button.checkVisibility(),
-      );
-      (next ?? more).focus({ preventScroll: true });
+      const next = clusterButtons(options)[0] ?? clusterButtons(host)[0];
+      (next ?? document.body).focus({ preventScroll: true });
     }
     return primary;
   }
@@ -1302,7 +1363,7 @@ export function createLivingMargin(dependencies) {
           host,
           "In the page map",
           marginKeys,
-          () => document.activeElement === marker && visibleRows().length > 0,
+          () => visibleRows().length > 0 || clusterButtons(host).length > 1,
         );
         host.lfEntry = entry;
         rows.set(entry.key, marker);
@@ -1317,8 +1378,27 @@ export function createLivingMargin(dependencies) {
         options.setAttribute("role", "group");
         more.setAttribute("aria-controls", options.id);
         more.onclick = () => {
-          setOptionsOpen(more.lfEntry, expandedOptionsKey !== more.lfEntry.key);
+          const open = expandedOptionsKey !== more.lfEntry.key;
+          setOptionsOpen(more.lfEntry, open, {
+            focusOption: open ? "first" : null,
+          });
         };
+        host.addEventListener("focusin", (event) => {
+          const control = event.target.closest?.(".lf-margin-action");
+          if (
+            restoringOptionsFocus ||
+            !control ||
+            !host.contains(control) ||
+            !control.matches(":focus-visible")
+          )
+            return;
+          const current = host.lfEntry;
+          const primary = current && choosePrimary(current);
+          if (!current || !optionsOffered(current, primary)) return;
+          setOptionsOpen(current, true, {
+            focusOption: control === more ? "last" : null,
+          });
+        });
         // Contributed primaries remain the owner's real control, so they do not pass
         // through the generated marker/proxy activation paths below. Close any unfolded
         // choices at the cluster boundary before that owner handles its press.

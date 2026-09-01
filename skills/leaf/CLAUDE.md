@@ -1364,6 +1364,12 @@ disclosure Button. `…` appears only when the cluster has secondary controls,
 information beside a direct action, or temporary communication choices. A target
 with one unambiguous control therefore gets one Button, not a row of variants.
 
+Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
+replaces `…` with every available peer, and Left/Right wrap through those visible
+Buttons. A pointer press on `…` makes the same replacement and lands on the first
+revealed Button. Folding restores `…` and returns focus to it. The cluster uses this
+one expansion state for both routes; focus does not create a parallel presentation.
+
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an

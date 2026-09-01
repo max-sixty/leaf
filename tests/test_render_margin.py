@@ -103,6 +103,15 @@ ACTION_PAGE = SUGGESTION_PAGE.replace(
 <div style="height: 500px" aria-hidden="true"></div>
     </section></main>""",
 )
+BUTTON_KEYBOARD_PAGE = SUGGESTION_PAGE.replace(
+    '<p id="replace">',
+    '<a id="before-buttons" href="#replace">Before Buttons</a><p id="replace">',
+    1,
+).replace(
+    '<p id="insert">',
+    '<a id="after-buttons" href="#insert">After Buttons</a><p id="insert">',
+    1,
+)
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
 PAGE_MAP_PAGE = leaf_page(
     "Twelve Page-map locations",
@@ -226,6 +235,57 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
     page.close()
 
 
+def test_tab_into_a_button_cluster_replaces_ellipsis_with_all_buttons(browser, serve):
+    """Keyboard arrival expands one target's peers instead of focusing its overflow."""
+    page, errors = open_page(browser, serve(BUTTON_KEYBOARD_PAGE))
+    resized(page, 1440, 900)
+    page.locator("#before-buttons").focus()
+
+    page.keyboard.press("Tab")
+
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    accept = item.get_by_role("button", name=re.compile(r"Accept"))
+    expect(accept).to_be_focused()
+    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    expect(item.locator(":scope > .lf-margin-options")).to_be_visible()
+    reject = item.get_by_role("button", name=re.compile(r"Reject"))
+    expect(reject).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(reject).to_be_focused()
+    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    expect(item.locator(":scope > .lf-margin-more")).to_be_focused()
+    page.locator("#after-buttons").focus()
+    page.keyboard.press("Shift+Tab")
+    expect(
+        item.locator(":scope > .lf-margin-options .lf-margin-action:visible").last
+    ).to_be_focused()
+    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
+    """Horizontal arrows move between the peer Buttons revealed on keyboard entry."""
+    page, errors = open_page(browser, serve(BUTTON_KEYBOARD_PAGE))
+    resized(page, 1440, 900)
+    page.locator("#before-buttons").focus()
+    page.keyboard.press("Tab")
+
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    accept = item.get_by_role("button", name=re.compile(r"Accept"))
+    reject = item.get_by_role("button", name=re.compile(r"Reject"))
+    expect(accept).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(reject).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(accept).to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
 def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The page map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
@@ -292,7 +352,9 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(options).to_be_visible()
     expect(preview).to_be_hidden()
     expect(more).to_have_attribute("aria-expanded", "true")
-    expect(more).to_be_focused()
+    expect(more).to_be_hidden()
+    reject = options.get_by_role("button", name=re.compile(r"Reject"))
+    expect(reject).to_be_focused()
     expect(page.locator(".lf-keyline")).to_contain_text("close options")
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -305,10 +367,8 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
     more.click()
-    reject = options.get_by_role("button", name=re.compile(r"Reject"))
     expect(reject).to_be_visible()
     expect(options.get_by_role("button", name=re.compile(r"Ask for"))).to_be_visible()
-    page.keyboard.press("Tab")
     expect(reject).to_be_focused()
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -509,7 +569,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(
         draft_item.locator(".lf-margin-options .lf-margin-reactions .lf-react:visible")
     ).to_have_count(6)
-    expect(draft_item.locator(":scope > .lf-margin-more")).to_be_visible()
+    expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
     # On a narrow screen each item docks directly after the rendered block that owns its
     # target. It does not join every other action at the end of their common section, and
@@ -609,8 +669,24 @@ def test_secondary_button_proxies_preserve_disabled_and_focus_contract(browser, 
         """() => {
           const fixture = window.lfButtonFixture;
           fixture.backup.hidden = true;
-          fixture.locked.hidden = true;
           fixture.details.hidden = true;
+          fixture.registration.update({immediate: true});
+        }"""
+    )
+    expect(options.get_by_role("button", name="Locked")).to_be_visible()
+    expect(more).to_be_hidden()
+    expect(primary).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(more).to_be_focused()
+    more.click()
+    expect(options.get_by_role("button", name="Locked")).to_be_visible()
+    expect(primary).to_be_focused()
+
+    page.evaluate(
+        """() => {
+          const fixture = window.lfButtonFixture;
+          fixture.locked.hidden = true;
           fixture.registration.update({immediate: true});
         }"""
     )
@@ -979,7 +1055,6 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.evaluate("() => document.activeElement.matches('.lf-margin-marker')")
     assert page.locator(":focus").get_attribute("aria-label") != held
 
-    more.click()
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
     outcome = options.get_by_role("button", name=re.compile(r"Outcome for"))

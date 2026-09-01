@@ -12,6 +12,45 @@
         "schema": {
           "type": "string"
         }
+      },
+      "unified-diff": {
+        "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
+        "fragments": {
+          "items": "files",
+          "key": "key",
+          "value": "patch"
+        },
+        "schema": {
+          "type": ["string", "object"],
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string", "minLength": 1 },
+                  "path": { "type": "string", "minLength": 1 },
+                  "previousPath": { "type": "string", "minLength": 1 },
+                  "kind": { "enum": ["patch", "rename"] },
+                  "additions": { "type": "integer", "minimum": 0 },
+                  "deletions": { "type": "integer", "minimum": 0 },
+                  "patch": { "type": "string", "minLength": 1 }
+                },
+                "required": [
+                  "key",
+                  "path",
+                  "kind",
+                  "additions",
+                  "deletions",
+                  "patch"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["files"],
+          "additionalProperties": false
+        }
       }
     }
   },
@@ -493,19 +532,42 @@
     "x-upgrade": false
   },
   "lf-diff": {
-    "description": "A unified diff rendered by Pierre with native per-file collapse, full add/delete line backgrounds, brighter inline word changes, visible but unselectable +/− indicators, and per-file +/− counts. Selecting a source line therefore copies only its code. The body is data: the diff verbatim inside its <pre>, at column 0. Every changed file needs at least one `@@` hunk header, whose old and new counts must match the following lines exactly. A path-only rename is the only supported hunkless entry and appears as one old → new row; write that block as exactly four lines: `diff --git`, `similarity index 100%`, `rename from`, and `rename to`, with the same non-empty old and new paths in the header and rename lines. A rename with changes uses the normal disclosure labeled with its new path. Binary, mode-only, empty added/deleted, and copy entries are unsupported, so state those changes in prose rather than mixing them into the diff; for an edited copy destination, omit the copy metadata and provide its textual hunks. Context lines keep their leading space; encode a context line with nothing after that prefix as &amp;#32; so HTML parsing preserves it. HTML-escape the body — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt; — or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
+    "description": "A unified diff rendered by Pierre with native per-file collapse, old/new line numbers, full add/delete line backgrounds, brighter inline word changes, visible but unselectable +/− indicators, and per-file +/− counts. Line numbers and indicators stay outside copied and commented source text. Add `collapsed` when every file should start closed, especially for a large patch; a comment or navigation target still opens the containing file. Bind `source` to a page-owned unified-diff feed and use `snapshot` for an immutable capture; each rendered line then becomes a commentable datum keyed by file path, old/new side, and source line. The feed may hold patch text or, for large reviews, a `files` manifest whose path-keyed `patch` fields Leaf delivers only when their files open. The bound form is `<lf-diff id=\"patch\" source=\"pr-patch\"><pre></pre></lf-diff>`; the empty `<pre>` preserves the shared data-body shape and its content is ignored. With no source, the diff verbatim inside its <pre>, at column 0, remains the authored fallback. Every changed file needs at least one `@@` hunk header, whose old and new counts must match the following lines exactly. A path-only rename is the only supported hunkless entry and appears as one old → new row; write that block as exactly four lines: `diff --git`, `similarity index 100%`, `rename from`, and `rename to`, with the same non-empty old and new paths in the header and rename lines. A rename with changes uses the normal disclosure labeled with its new path. Binary, mode-only, empty added/deleted, and copy entries are unsupported, so state those changes in prose rather than mixing them into the diff; for an edited copy destination, omit the copy metadata and provide its textual hunks. Context lines keep their leading space; encode a context line with nothing after that prefix as &amp;#32; so HTML parsing preserves it. HTML-escape an inline body — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt; — or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "snapshot": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      },
+      "collapsed": {
+        "type": "boolean"
       }
     },
     "required": [
       "id"
     ],
+    "dependentRequired": {
+      "snapshot": [
+        "source"
+      ]
+    },
     "additionalProperties": false,
     "x-content": "data",
+    "x-data": {
+      "document": {
+        "contract": "unified-diff",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
+    },
     "x-upgrade": true,
     "x-shadow": true,
     "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"

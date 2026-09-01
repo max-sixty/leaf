@@ -1315,7 +1315,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     forced-color-adjust: none; background: Highlight;
   }
 }
-.lf-toc-target { display: block; width: 1px; height: 1px; margin-bottom: -1px; }
+.lf-toc-target { display: block; width: 1px; height: 0; }
 
 /* lf-decision: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
@@ -1625,7 +1625,7 @@ lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
 lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
 
 /* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
-lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
+lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; --lf-frame: 1; }
 lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The same max-content floor as the shadow slice's line spans: an hi range's tint has

@@ -51,11 +51,16 @@ A page directory holds:
                          inlining; inlining was never available
     comments.jsonl       append-only event log; an event's seq is its line number (1-based)
     data.json            explicit authority for page-bound sources: each record keeps
-                         its contract identity, may have a replaceable current value,
-                         and may retain immutable text captures selected by document
+                         its contract identity, may have a replaceable current value
+                         with the data revision that wrote it,
+                         and may retain immutable captures selected by document
                          versions or frozen threads. Initialized as the empty revision
                          0 store. Agent page state names this file and its revision but
-                         does not copy its values.
+                         does not copy its values. Browser state normally carries the
+                         validated values; for a contract-declared fragment field it
+                         carries only the surrounding manifest, and `/api/data` reads
+                         one keyed payload from this same revision on demand. No split
+                         payload becomes a second authority.
     status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it

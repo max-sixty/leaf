@@ -468,6 +468,14 @@ does not itself change, a test whose subject is what a press does *within* it wa
 other fact of that press, and its bug-back is run more than once: a wait that is sometimes
 real looks exactly like a wait that is.
 
+A container the runtime keeps whether or not it holds anything is that surface too, and
+the highlight registry is the one this suite reaches for. Every anchor pass calls
+`CSS.highlights.set` for each of its names, empty ranges included, so
+`CSS.highlights.get('lf-pending')` is truthy from the page's first pass and a wait on the
+key alone returns before the composer has marked a thing. Wait on what the pass put in it
+— `(CSS.highlights.get(name)?.size ?? 0) > 0`, or `wait_for_pending_mark` where either a
+painted range or an element outline is a landing — never on the name being there.
+
 A retrying assertion that a paint has *not* happened is the same trap wearing the other
 sign, and it is worse, because retrying is what usually rescues a reader from it. A
 positive assertion polls until the frame arrives; a negative one is satisfied by the

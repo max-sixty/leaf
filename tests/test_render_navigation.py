@@ -51,6 +51,7 @@ from render_support import (
     stamp_version_file,
     standing_mark,
     told,
+    wait_for_pending_mark,
     wait_for_revision,
     wait_hovered,
     wait_standing,
@@ -483,7 +484,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
     page.locator(".lf-fab-input").click()
-    page.wait_for_function("() => CSS.highlights.get('lf-pending')")
+    wait_for_pending_mark(page)
     assert chrome not in pending_text(page), (
         f"the highlight painted the widget's own {chrome!r} control along with the passage"
     )
@@ -524,7 +525,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     y = cap["y"] + cap["height"] / 2
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab-input").click()
-    page.wait_for_function("() => CSS.highlights.get('lf-pending')")
+    wait_for_pending_mark(page)
     assert "specimen" in pending_text(page), (
         "the click's visual find outranked the selection the drag made"
     )

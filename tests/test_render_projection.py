@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -16,7 +17,7 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_source_server
+from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_support import (
@@ -88,6 +89,302 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
+    authored = leaf_page(
+        "pull request brief",
+        """
+<h1 id="title">Review packet</h1>
+<p id="agent-summary">The reviewer found one changed request path.</p>
+<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>
+""",
+    )
+    url = serve(authored, packages=("pr-review",))
+    record = {
+        "repository": "acme/leaf",
+        "number": 1842,
+        "title": "Preserve request identity through retries",
+        "author": "mara",
+        "base": "main",
+        "head": "retry-ledger",
+        "revision": "8f3b2cd",
+        "status": "open",
+        "description": (
+            "**Retries** now retain the accepted request id.\n\n"
+            "This keeps receipts attached after a lost response and preserves "
+            "`Vec<T>` exactly; see the [retry notes](https://example.com/retry).\n\n"
+            "> Reviewed against the retry ledger.\n\n"
+            "Unsafe destinations stay words: [script](javascript:alert(1)), "
+            "[inline data](data:text/html,boom), [local file](file:///tmp/secret), "
+            "and [custom handler](editor://open/project).\n\n"
+            '<span id="external-html">Raw HTML stays text.</span>'
+        ),
+        "observedAt": "2026-08-30T16:12:00-07:00",
+        "diff": {"files": 4, "additions": 86, "deletions": 19, "commits": 3},
+        "checks": {"Browser contract": "running", "Unit suite": "passed"},
+    }
+    data_model.cmd_data_set(serve.page_dir, "pr-1842", record)
+    page, errors = open_page(browser, url)
+    widget = page.locator("#reviewed-pr")
+    card = widget.locator(":scope > .lf-pr-card")
+
+    expect(card).to_have_attribute("data-lf-projection", "reviewed-pr")
+    expect(card).to_have_attribute("data-lf-datum", "acme/leaf#1842")
+    expect(card).to_contain_text("acme/leaf · PR #1842")
+    expect(card).to_contain_text("Preserve request identity through retries")
+    expect(card).to_contain_text("Opened by mara")
+    expect(card).to_contain_text("main → retry-ledger · revision 8f3b2cd")
+    expect(card.locator(".lf-pr-description-label")).to_have_text(
+        "Author's description"
+    )
+    description = card.locator(".lf-pr-description-body")
+    expect(description.locator("strong")).to_have_text("Retries")
+    expect(description.locator("code")).to_have_text("Vec<T>")
+    expect(description.get_by_role("link", name="retry notes")).to_have_attribute(
+        "target",
+        "_blank",
+    )
+    expect(description.locator("blockquote")).to_contain_text(
+        "Reviewed against the retry ledger."
+    )
+    expect(description).to_contain_text(
+        '<span id="external-html">Raw HTML stays text.</span>'
+    )
+    expect(description.locator("#external-html")).to_have_count(0)
+    expect(
+        description.locator(
+            'a[href^="javascript:"], a[href^="data:"], '
+            'a[href^="file:"], a[href^="editor:"]'
+        )
+    ).to_have_count(0)
+    expect(description).to_contain_text(
+        "Unsafe destinations stay words: script, inline data, local file, "
+        "and custom handler."
+    )
+    expect(card.locator("table.lf-pr-check-table")).to_have_count(1)
+    expect(
+        card.locator(".lf-pr-check-name", has_text="Browser contract")
+    ).to_have_js_property(
+        "scope",
+        "row",
+    )
+    expect(card.locator(".lf-pr-check", has_text="Browser contract")).to_contain_text(
+        "running"
+    )
+    expect(card.locator(".lf-pr-check", has_text="Unit suite")).to_contain_text(
+        "passed"
+    )
+    expect(page.locator("#agent-summary")).to_have_text(
+        "The reviewer found one changed request path."
+    )
+    assert (
+        card.evaluate("el => getComputedStyle(el).getPropertyValue('--lf-frame')")
+        == "1"
+    )
+
+    selected = card.locator(".lf-pr-description-body").evaluate(
+        """body => {
+          const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+          const phrase = 'accepted request id';
+          let text = walker.nextNode();
+          while (text && !text.data.includes(phrase)) text = walker.nextNode();
+          if (!text) throw new Error(`missing ${phrase}`);
+          const start = text.data.indexOf(phrase);
+          const range = document.createRange();
+          range.setStart(text, start);
+          range.setEnd(text, start + phrase.length);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          body.closest('.lf-pr-card').__reviewIdentity = true;
+          return selection.toString();
+        }"""
+    )
+    assert selected == "accepted request id"
+
+    changed = record | {
+        "observedAt": "2026-08-30T16:18:00-07:00",
+        "diff": {"files": 5, "additions": 91, "deletions": 19, "commits": 4},
+        "checks": {"Browser contract": "passed", "Unit suite": "passed"},
+    }
+    data_model.cmd_data_set(serve.page_dir, "pr-1842", changed)
+    told(page)
+    expect(card.locator(".lf-pr-fact", has_text="Files")).to_contain_text("5")
+    expect(card.locator(".lf-pr-check", has_text="Browser contract")).to_contain_text(
+        "passed"
+    )
+    assert card.evaluate("el => el.__reviewIdentity") is True
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    page.emulate_media(media="print")
+    expect(card.locator(".lf-pr-description-body")).to_be_visible()
+    page.emulate_media(media="screen")
+    assert errors == []
+    page.close()
+
+
+def test_call_diff_projects_stable_commentable_rows(browser, serve):
+    authored = leaf_page(
+        "call diff",
+        """
+<h1 id="title">Request call change</h1>
+<pre id="code-surface">reference code surface</pre>
+<lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
+<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
+""",
+    )
+    url = serve(authored, packages=("pr-review",))
+    call_diff = """calldiff diff main → feature
+
+  Limiter.bucket_key(self, request)  gateway/limits.py:38
++ └─ if request.token  gateway/limits.py:39
+"""
+    patch = """diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -38,2 +38,4 @@ class Limiter:
+-    def bucket_key(self, request):
+-        return request.remote_addr
++    def bucket_key(self, request):
++        if request.token:
++            return f"tok:{request.token.id}"
++        return f"ip:{request.remote_addr}"
+"""
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "gateway/limits.py",
+                    "path": "gateway/limits.py",
+                    "kind": "patch",
+                    "additions": 4,
+                    "deletions": 2,
+                    "patch": patch,
+                }
+            ]
+        },
+    )
+    page, errors = open_page(browser, url)
+    widget = page.locator("#request-calls")
+    lines = widget.locator(".lf-call-line")
+
+    expect(lines).to_have_count(3)
+    expect(widget.locator(".lf-call-summary")).to_have_text(
+        "1 changed root · 1 added · 0 removed · 2 items"
+    )
+    group = widget.locator(":scope > .lf-call-group")
+    expect(group).to_have_count(1)
+    assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
+        "#code-surface"
+    ).evaluate("el => getComputedStyle(el).backgroundColor")
+    expect(group.locator(":scope > summary")).to_have_count(1)
+    expect(group).not_to_have_attribute("open", "")
+    widget.locator(".lf-call-toggle").click()
+    expect(group).to_have_attribute("open", "")
+    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
+    expect(lines.nth(0)).to_have_attribute("data-meta", "")
+    expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
+        "calldiff diff main → feature"
+    )
+    expect(lines.nth(1)).to_have_attribute("data-root", "")
+    expect(lines.nth(1)).to_have_attribute("data-lf-projection", "request-calls")
+    expect(lines.nth(1)).to_have_attribute("data-lf-datum", re.compile(r".+"))
+    expect(lines.nth(2)).to_have_attribute("data-status", "added")
+    expect(lines.nth(2).locator(".lf-call-marker")).to_have_text("+")
+    expect(lines.nth(2)).to_have_attribute(
+        "data-lf-datum-label",
+        "added call-tree item └─ if request.token at gateway/limits.py:39",
+    )
+    expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
+        "gateway/limits.py:39"
+    )
+    assert (
+        lines.nth(2)
+        .locator(".lf-call-marker")
+        .evaluate("el => getComputedStyle(el).userSelect")
+        == "none"
+    )
+
+    selected = (
+        lines.nth(2)
+        .locator(".lf-call-body")
+        .evaluate(
+            """body => {
+          const range = document.createRange();
+          range.selectNodeContents(body);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          body.closest('.lf-call-line').__callIdentity = true;
+          return selection.toString();
+        }"""
+        )
+    )
+    assert selected == "└─ if request.token"
+
+    updated = call_diff.replace(
+        "calldiff diff main → feature", "calldiff diff main → feature-2"
+    )
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
+    told(page)
+    expect(group).to_have_attribute("open", "")
+    expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
+        "gateway/limits.py:39"
+    )
+    assert lines.nth(2).evaluate("el => el.__callIdentity") is True
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(page.locator("#patch [data-line-type]")).to_have_count(0)
+    lines.nth(2).locator(".lf-call-location").click()
+    expect(page).to_have_url(re.compile(r"#patch$"))
+    added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",39]\']')
+    expect(added).to_be_in_viewport()
+    assert page.evaluate(
+        "() => document.querySelector('#patch').shadowRoot.activeElement"
+        ".matches('summary')"
+    )
+
+    page.evaluate("() => getSelection().removeAllRanges()")
+    lines.nth(2).click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.locator(".lf-composer textarea").fill("Review this added call.")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
+        "§ added call-tree item └─ if request.token at gateway/limits.py:39"
+    )
+
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "the first line must be a CallDiff diff header"
+    )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → feature\n+ └─ orphan()  gateway/limits.py:39",
+    )
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "line 2 appears before a changed root"
+    )
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
@@ -1467,7 +1764,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with preview_source_server(d, contradicted.encode(), 4) as preview_url:
+    with preview_server(d, contradicted.encode(), 4) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
@@ -2617,6 +2914,16 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     expect(link).to_have_attribute("target", "_blank")
     expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
     expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(
+        body.locator(
+            'a[href^="javascript:"], a[href^="data:"], '
+            'a[href^="file:"], a[href^="editor:"]'
+        )
+    ).to_have_count(0)
+    expect(body).to_contain_text(
+        "Unsafe destinations stay words: script, inline data, local file, "
+        "and custom handler."
+    )
     # The paragraph's asterisks are gone from the words, not merely hidden, and the
     # raw tag's characters are still among them: what the user can select is what
     # the message says.

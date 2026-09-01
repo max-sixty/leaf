@@ -82,8 +82,8 @@ export function createStateApplication(dependencies) {
     // not one total order: a response with an older event tail may still carry the newest
     // data. Accept that component before the event gate, and never move either one backward.
     const dataChanged = acceptData(state.data);
-    const notifyChangedData = () => {
-      if (dataChanged) notifyDataSubscribers();
+    const notifyChangedData = async () => {
+      if (dataChanged) await notifyDataSubscribers();
     };
     const nextEvents = state.events;
     const nextBrowser = state.browser;
@@ -97,7 +97,7 @@ export function createStateApplication(dependencies) {
     if (takenBefore(state)) {
       const activation = currentActivation();
       if (activation) await activation;
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     // A POST's answer and a read can cross. The log is append-only, so a response
@@ -108,7 +108,7 @@ export function createStateApplication(dependencies) {
     if (eventSeq < runtime.lastEventSeq) {
       const activation = currentActivation();
       if (activation) await activation;
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     // Polls and POST answers may overlap. A document activation is the one state read
@@ -118,7 +118,7 @@ export function createStateApplication(dependencies) {
     let activationInFlight = currentActivation();
     if (activationInFlight) await activationInFlight;
     if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     const targetRevision = state.active?.revision ?? null;
@@ -127,7 +127,7 @@ export function createStateApplication(dependencies) {
     if (LIVE_ROOT && runtime.currentRevision === null)
       throw new TypeError("the live document has no lf-revision marker");
     if (runtime.active && targetRevision < runtime.active.revision) {
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     const wantsActivation =
@@ -160,7 +160,7 @@ export function createStateApplication(dependencies) {
       );
     await Promise.all(preparations);
     if (wantsActivation && incoming === null && !incomingFailed) {
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     // The preparation above yields. A newer response may have completed while this one was
@@ -170,11 +170,11 @@ export function createStateApplication(dependencies) {
     activationInFlight = currentActivation();
     if (activationInFlight) await activationInFlight;
     if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     if (runtime.active && targetRevision < runtime.active.revision) {
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     const willActivate =
@@ -192,7 +192,7 @@ export function createStateApplication(dependencies) {
     // now, and that answer projects it.
     const showing = willActivate ? targetRevision : runtime.currentRevision;
     if (!nextBrowser.views?.[String(showing)]) {
-      notifyChangedData();
+      await notifyChangedData();
       return;
     }
     const prior = {
@@ -295,7 +295,7 @@ export function createStateApplication(dependencies) {
       // not grow: applyAction may have deferred while a user was typing, then become
       // applicable on the next poll after they close the editor.
       document.dispatchEvent(new Event("lf-actions"));
-      notifyDataSubscribers();
+      await notifyDataSubscribers();
     };
     try {
       if (willActivate) {

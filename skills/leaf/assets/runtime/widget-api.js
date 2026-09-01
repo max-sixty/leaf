@@ -10,6 +10,7 @@ export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
 export { marginAction, registerMarginItem } from "./living-margin.js";
+export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { scrollerFor } from "./navigation.js";
 export { pageScroller } from "./scrolling.js";
 export { announce, toast } from "./notifications.js";
@@ -29,7 +30,7 @@ export { ago, quietSince } from "./presence.js";
 export { shallowSigs, standingState } from "./projection.js";
 export { shadowStage } from "./shadow.js";
 export { agentName, revisionLabel } from "./context.js";
-export { watchData } from "./data.js";
+export { loadDataFragment, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,
@@ -47,7 +48,13 @@ export {
 export { quietWord } from "./presentation.js";
 export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";
-export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";
+export {
+  highlightBlocks,
+  langForPath,
+  synNodes,
+  syntax,
+  tokenLines,
+} from "./syntax.js";
 export { dataBody, failSoft, once, settle } from "./widget-upgrade.js";
 export {
   actionSequence,

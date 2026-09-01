@@ -1,0 +1,35 @@
+calldiff diff d4de46b5db84ca3e34b1dce1a70e7601a4087937 → 9ca8f78b3a44fd43451de777ca00616147b11789
+
+  compute_combined_diff(branch, head, worktree_path, repo)  src/summary.rs:228
+  ├─ new String()  src/summary.rs:234
+  ├─ new String()  src/summary.rs:235
+  ├─ as_deref()  src/summary.rs:239
+  ├─ repo.default_branch()  src/summary.rs:239
+  ├─ Some()  src/summary.rs:239
+  ├─ if !is_default_branch && let Some(spec) = repo.branch_diff_spec(head)  src/summary.rs:240
++    ├─ repo.prepare_diff()  src/summary.rs:245
++    ├─ cloned()  src/summary.rs:245
++    ├─ iter()  src/summary.rs:245
+     ├─ run_branch_diff()  src/summary.rs:253
+     └─ run_branch_diff()  src/summary.rs:254
+  ├─ if let Some(wt_path) = worktree_path  src/summary.rs:258
+-    ├─ to_string()  src/summary.rs:261
+-    ├─ wt_path.display()  src/summary.rs:261
+-    ├─ if let Ok(wt_stat) = repo.run_command(&["-C", &path, "diff", "HEAD", "--stat"]) && !wt_stat.trim().is_empty()  src/summary.rs:262-263
+-       └─ stat.push_str()  src/summary.rs:265
+-    ├─ wt_diff_args.extend()  src/summary.rs:268
+-    ├─ wt_diff_args.extend()  src/summary.rs:269
+-    ├─ if let Ok(wt_diff) = repo.run_command(&wt_diff_args) && !wt_diff.trim().is_empty()  src/summary.rs:270-271
+-       └─ diff.push_str()  src/summary.rs:273
++    ├─ prepare_diff(diff, stat)  src/summary.rs:259
++    ├─ repo.worktree_at()  src/summary.rs:259
++    ├─ if let Ok(wt_stat) = prepared.capture(["--stat"]) && !wt_stat.trim().is_empty()  src/summary.rs:260-261
++       └─ stat.push_str()  src/summary.rs:263
++    └─ if let Ok(wt_diff) = prepared.capture_with_git_options(DIFF_PREFIX_OVERRIDES, std::iter::empty::<&str>()) && !wt_diff.trim().is_empty()  src/summary.rs:265-267
++       └─ diff.push_str()  src/summary.rs:269
+  ├─ if diff.trim().is_empty()  src/summary.rs:273
+  └─ Some()  src/summary.rs:277
+cta:
+  description: "Suggested command:"
+  commands[1]{command,description}:
+    calldiff tree --entry compute_combined_diff,View full call tree for compute_combined_diff

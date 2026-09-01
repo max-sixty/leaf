@@ -65,13 +65,13 @@ def seed_data(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
     """Apply each page-bound data operation shipped beside an example."""
     for operation in data_operations(source):
         if operation["kind"] == "set":
+            args = ["data", "set", str(page), operation["source"]]
+            if operation["capture_label"] is not None:
+                args.extend(("--capture-label", operation["capture_label"]))
             leaf(
                 launcher,
                 runtime,
-                "data",
-                "set",
-                str(page),
-                operation["source"],
+                *args,
                 input_text=json.dumps(operation["value"]),
             )
             continue

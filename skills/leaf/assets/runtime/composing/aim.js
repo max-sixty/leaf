@@ -4,6 +4,7 @@ export function createAim({
   designIsOn,
   designPress,
   designTarget,
+  elementFromPointAcross,
   inChrome,
   openOnDesign,
   pointerAt,
@@ -48,7 +49,7 @@ export function createAim({
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
-    const at = document.elementFromPoint(pointer.x, pointer.y);
+    const at = elementFromPointAcross(pointer.x, pointer.y);
     if (!at || inChrome(at)) return null;
     return aimTargetAt(at);
   }

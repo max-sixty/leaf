@@ -191,6 +191,12 @@ export function createSelectionCapture({
     const first = origin[lo];
     const last = origin[hi - 1];
     if (!first || !last) return [lo, hi];
+    // Sentence punctuation is prose structure. In code, the same glyphs are syntax:
+    // the closing brace and quote after a selected interpolation are not part of the
+    // expression the reader selected. Token highlighting makes that boundary especially
+    // visible by putting the delimiters in their own text nodes, but the semantic answer
+    // is the same for plain and highlighted code.
+    if (closestAcross(first.node, "pre,code")) return [lo, hi];
 
     const belongs = (part) => sameRun(first, part);
     if (!belongs(last) || fences.some((f) => f > lo && f < hi)) return [lo, hi];

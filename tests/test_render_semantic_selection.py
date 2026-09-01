@@ -248,6 +248,38 @@ def test_nested_item_hints_show_containment_without_covering_each_other(browser,
     page.close()
 
 
+def test_identical_nested_item_hints_choose_the_innermost_target(browser, serve):
+    """A transparent wrapper and its only child can describe one visible box. The
+    chooser names that box once and agrees with direct aiming by selecting the child."""
+    html = leaf_page(
+        "identical nested targets",
+        '<section id="outer"><div id="inner">One visible box.</div></section>',
+        head="<style>section, div { margin: 0; }</style>",
+    )
+    page, errors = open_page(browser, serve(html))
+    geometry = page.evaluate(
+        """() => ['outer', 'inner'].map(id => {
+          const { left, top, right, bottom } =
+            document.getElementById(id).getBoundingClientRect();
+          return { left, top, right, bottom };
+        })"""
+    )
+    assert all(
+        abs(geometry[0][edge] - geometry[1][edge]) < 0.5
+        for edge in ("left", "top", "right", "bottom")
+    ), geometry
+
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(1)
+    page.keyboard.type(hints.get_attribute("data-lf-target"))
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(DRAFT_MARK) == "inner"
+    assert errors == []
+    page.close()
+
+
 def test_selection_hints_name_only_items_shown_by_a_disclosure(browser, serve):
     """A shut disclosure keeps its own hint but not hints for its contents. The same
     rule applies after a prefix narrows the open disclosure's map."""
@@ -589,6 +621,58 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     expect(page.locator(".lf-keyline")).not_to_contain_text("select target")
     page.keyboard.press("Enter")
     assert page.evaluate("() => getSelection().toString()") == ""
+    assert errors == []
+    page.close()
+
+
+def test_scrolling_item_hints_does_not_measure_hidden_targets(browser, serve):
+    """A smooth scroll repositions the small visible map and refreshes its membership
+    once at rest; targets inside a closed disclosure never incur geometry reads."""
+    hidden_count = 1000
+    hidden = "".join(f'<span id="hidden-{i}">{i}</span>' for i in range(hidden_count))
+    html = leaf_page(
+        "hidden hint targets",
+        f"""
+<h1 id="title">Visible targets</h1>
+<div id="contents" style="display: contents"><p>A boxless visible target.</p></div>
+<details id="evidence">
+  <summary>Hidden targets</summary>
+  {hidden}
+</details>
+<div style="height: 1200px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(3)
+
+    page.evaluate(
+        """() => {
+          const originalRect = Element.prototype.getBoundingClientRect;
+          const originalVisibility = Element.prototype.checkVisibility;
+          let rectReads = 0;
+          let visibilityReads = 0;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            rectReads += 1;
+            return originalRect.apply(this, args);
+          };
+          Element.prototype.checkVisibility = function (...args) {
+            visibilityReads += 1;
+            return originalVisibility.apply(this, args);
+          };
+          addEventListener('scrollend', () => requestAnimationFrame(() => {
+            window.lfHintScrollReads = {rectReads, visibilityReads};
+            Element.prototype.getBoundingClientRect = originalRect;
+            Element.prototype.checkVisibility = originalVisibility;
+          }), {capture: true, once: true});
+          document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
+        }"""
+    )
+    page.wait_for_function("() => window.lfHintScrollReads")
+    reads = page.evaluate("() => window.lfHintScrollReads")
+
+    assert reads["rectReads"] < hidden_count, reads
+    assert reads["visibilityReads"] < hidden_count * 3, reads
     assert errors == []
     page.close()
 

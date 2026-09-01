@@ -1316,7 +1316,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     forced-color-adjust: none; background: Highlight;
   }
 }
-.lf-toc-target { display: block; width: 1px; height: 1px; margin-bottom: -1px; }
+.lf-toc-target { display: block; width: 1px; height: 0; }
 
 /* lf-decision: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the

@@ -85,7 +85,9 @@ page width.
 
 ## Stable anchors
 
-Give every section, major block, and widget item a stable, meaningful `id`.
+Give each section, major block, and widget item a stable, meaningful `id` at the
+tightest semantic boundary a reader can distinguish. Where a sole child fills a
+transparent wrapper, let the child carry the pair's one id.
 Threads and reading position attach to those ids across versions. Keep an id
 where its passage survives, and stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for

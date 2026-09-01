@@ -1481,6 +1481,12 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     page.locator(".lf-composer textarea").fill("how long does it sit here")
     page.keyboard.press("Enter")
     round_trip(page)
+    # The trip ends when the page has heard back what it sent, which is before it has
+    # drawn what came back. Applying the comment repaints this diagram's marks and hangs
+    # its note on the element, and that repaint takes an open response surface down with
+    # it — so an aim placed in the gap opens a composer the arriving comment then closes.
+    # The note is the projection landing, and every later aim is on a settled page.
+    expect(page.locator("#life > .lf-mark-note")).to_have_count(1)
 
     # A box inside the composite state, declared in its own right.
     aim(page.locator('#life g[id*="state-Build-"]'))

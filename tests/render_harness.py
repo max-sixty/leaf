@@ -1455,8 +1455,16 @@ def resized(page, width, height):
     page.evaluate(ONE_FRAME)
 
 
-def hold_selection(page, start, end, steps=8):
+def hold_selection(page, start, end, steps=8, frame_the_press=False):
     """Drag a selection without releasing, pressing on a whole pixel.
+
+    `frame_the_press` lets the frame the press itself schedules land before the drag
+    begins, which is the ordering a loaded machine gives every drag and an idle one
+    gives almost none. Without it a surface repainted inside the press is read as
+    following the drag whenever the round trips outrun the frame, and as stale
+    whenever they do not — a coin toss written as an assertion. State it wherever the
+    read is of something the press repaints, so the drag is the only thing the read
+    can be about.
 
     A fractional start point loses the selection outright wherever it and its own
     floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
@@ -1472,6 +1480,8 @@ def hold_selection(page, start, end, steps=8):
     moves the selection a character."""
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
+    if frame_the_press:
+        page.evaluate(RENDERED)
     page.mouse.move(end[0], end[1], steps=steps)
 
 

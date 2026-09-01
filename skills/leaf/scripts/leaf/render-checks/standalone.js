@@ -111,7 +111,7 @@ export function bake() {
   //
   // It keeps what it still has, which is why `--rail` is not on this list and must
   // not be added to it. The rail is the width of the margin a suggestion's controls
-  // stand in, and a decided change keeps that control — the record of what was
+  // stand in, and a decided change keeps that row's receipt — the record of what was
   // decided is the whole reason the margin was reserved. Cleared, the copy reads its
   // room off the viewport, knows nothing of the row still sitting in the margin, and
   // spends the surplus on the free side: the exported board stood 35px outside the
@@ -174,10 +174,10 @@ export function bake() {
   // out or the next one's. The author's roles are untouched, being on the author's
   // elements: a board's columns stay a list of cards to a screen reader.
   //
-  // The box a press hung in goes with it. A suggestion's control row is nothing but its
-  // two controls, and left standing it still claims the rail the page reserves for it
-  // (--rail) — a margin held open for controls that are no longer there. Asked of what
-  // each removal empties rather than of an empty box, since a widget's own empty box is
+  // The box a press hung in goes with it when that is all it held. A pending suggestion's
+  // row is nothing but its two controls; a decided one also holds the visible receipt
+  // the copy must keep. Asked of what each removal empties rather than of an empty box,
+  // since a widget's own empty box is
   // a real thing: that row hangs off an anchor span which takes no space and says
   // nothing, and `anchor(top)` is measured from it.
   // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
@@ -224,8 +224,8 @@ export function bake() {
   // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
   // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
   // to take away. Matched on the bare attribute this loop removed the box outright, with
-  // whatever the copy keeps still inside it: the "✓ Accepted" a decided change speaks
-  // through went out with the row it stood in, and the rail the copy holds open for that
+  // whatever the copy keeps still inside it: the "Accepted" receipt a decided change
+  // speaks through went out with the row it stood in, and the rail the copy holds open for that
   // record had nothing left to show. What empties a box is the walk below, which is the
   // reading that was already right.
   const browserControl =

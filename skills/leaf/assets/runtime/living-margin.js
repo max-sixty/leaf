@@ -26,7 +26,6 @@ const KINDS = {
 // reconnect while a live version replaces the authored document.
 const offeredItems = new Set();
 const offerListeners = new Set();
-const ACTION_COLLAPSE = new Set(["auto", "always"]);
 const ACTION_TONES = new Set(["neutral", "positive", "negative"]);
 const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options"]);
 
@@ -35,28 +34,28 @@ const changedOffers = () => {
 };
 
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
-// their verbs and events; the margin owns the behavior, anatomy, and collapse policy
-// that make the controls one family. The visible word remains in the DOM when it is
-// collapsed, so the same control can expand again without being rebuilt and its
-// accessible name never changes.
+// their verbs and events; the margin owns the behavior and anatomy that make the
+// controls one family. The visible word remains in the DOM as a transient label, so
+// every Button keeps one circular fitting and one stable accessible name. Native
+// `title` bubbles would repeat that label on a different timer and with a different
+// face, so this anatomy owns the only visual tooltip too.
 export function marginAction(
   control,
-  { glyph, label, behavior = "action", collapse = "auto", tone = "neutral" },
+  { glyph, label, behavior = "action", tone = "neutral" },
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin action needs an Element control");
   if (!String(glyph ?? "").trim()) throw new TypeError("A margin action needs a glyph");
   if (!String(label ?? "").trim()) throw new TypeError("A margin action needs a label");
-  if (!ACTION_COLLAPSE.has(collapse))
-    throw new TypeError(`Unknown margin-action collapse: ${collapse}`);
   if (!ACTION_TONES.has(tone))
     throw new TypeError(`Unknown margin-action tone: ${tone}`);
   if (!ACTION_BEHAVIORS.has(behavior))
     throw new TypeError(`Unknown margin-action behavior: ${behavior}`);
+  const labelText = String(label);
 
   control.classList.add("lf-margin-action");
+  control.removeAttribute("title");
   control.dataset.lfBehavior = behavior;
-  control.dataset.lfCollapse = collapse;
   control.dataset.lfTone = tone;
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
@@ -74,9 +73,11 @@ export function marginAction(
   spaceNode.setAttribute("aria-hidden", "true");
   spaceNode.textContent = " ";
   labelNode.className = "lf-margin-action-label";
-  labelNode.textContent = label;
+  labelNode.textContent =
+    behavior === "action" || labelText.endsWith("…") ? labelText : `${labelText}…`;
   control.replaceChildren(glyphNode, spaceNode, labelNode);
-  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  if (!control.hasAttribute("aria-label"))
+    control.setAttribute("aria-label", labelText);
   return control;
 }
 
@@ -347,10 +348,33 @@ export function createLivingMargin(dependencies) {
     ...standingAfterOffers(entry),
   ];
   const directControls = (entry) => directOffers(entry).flatMap(controlsOf);
-  const controlShownByOwner = (control) =>
-    !control.hidden && getComputedStyle(control).visibility !== "hidden";
+  const controlsShownByOwner = (controls) => {
+    // The margin hides non-primary controls with `display: none`, so ask how this
+    // batch paints while exempt from that rule. Write every exemption before the first
+    // style read: alternating an attribute write and getComputedStyle would recalculate
+    // the whole page once per Button. Contributor-owned `display` and `visibility`
+    // still apply — including the retired half of a settled pair.
+    const wasPrimary = controls.map((control) =>
+      control.hasAttribute("data-lf-button-primary"),
+    );
+    for (const control of controls) control.setAttribute("data-lf-button-primary", "");
+    let shown;
+    try {
+      shown = controls.filter((control) => {
+        const style = getComputedStyle(control);
+        return (
+          !control.hidden && style.display !== "none" && style.visibility !== "hidden"
+        );
+      });
+    } finally {
+      controls.forEach((control, index) =>
+        control.toggleAttribute("data-lf-button-primary", wasPrimary[index]),
+      );
+    }
+    return shown;
+  };
   function choosePrimary(entry) {
-    const controls = directControls(entry).filter(controlShownByOwner);
+    const controls = controlsShownByOwner(directControls(entry));
     return controls[0] ?? null;
   }
   function syncControlRoles(entry) {
@@ -401,8 +425,8 @@ export function createLivingMargin(dependencies) {
     return choice ? (readingButtons.get(readingKey(entry, choice)) ?? null) : null;
   }
   const secondaryControls = (entry, primary) =>
-    directControls(entry).filter(
-      (control) => control !== primary && controlShownByOwner(control),
+    controlsShownByOwner(directControls(entry)).filter(
+      (control) => control !== primary,
     );
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
     entry.offers.filter(
@@ -739,30 +763,6 @@ export function createLivingMargin(dependencies) {
       },
       shown: (target) =>
         Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
-      condense: (item, column, room) => {
-        if (!item.querySelector('[data-lf-collapse="auto"]')) return false;
-        const parts = [...item.children].filter((part) => part.checkVisibility());
-        if (!parts.length) return false;
-        const style = getComputedStyle(item);
-        const gap = parseFloat(style.columnGap || style.gap) || 0;
-        const natural =
-          parts.reduce((total, part) => {
-            const partStyle = getComputedStyle(part);
-            return (
-              total +
-              part.getBoundingClientRect().width +
-              (parseFloat(partStyle.marginLeft) || 0) +
-              (parseFloat(partStyle.marginRight) || 0)
-            );
-          }, 0) +
-          gap * (parts.length - 1) +
-          (parseFloat(style.paddingLeft) || 0) +
-          (parseFloat(style.paddingRight) || 0);
-        const available = compact.matches
-          ? column.width
-          : Math.max(0, room - item.getBoundingClientRect().left);
-        return natural > available + 0.5;
-      },
       // Compact mode has no page rail. Dock every contributed item even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
@@ -994,13 +994,8 @@ export function createLivingMargin(dependencies) {
       glyph: face.symbol,
       label,
       behavior: "disclosure",
-      collapse: "always",
     });
     row.setAttribute("aria-label", markerName(entry, index, anchored));
-    row.title =
-      markerCount === 1 && choice.items[0].acknowledgmentFace
-        ? choice.text
-        : `${face.label}${markerCount > 1 ? `s (${markerCount})` : ""}`;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     if (markerCount > 1) {
@@ -1070,7 +1065,6 @@ export function createLivingMargin(dependencies) {
       if (value == null) node.removeAttribute(attribute);
       else node.setAttribute(attribute, value);
     }
-    node.title = control.title;
     node.onclick = () => {
       setOptionsOpen(entry, false, { returnFocus: true });
       control.click();
@@ -1102,10 +1096,6 @@ export function createLivingMargin(dependencies) {
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
-    node.title = choice.items
-      .map((item) => item.text)
-      .filter(Boolean)
-      .join(" · ");
     if (count > 1) {
       const badge = el("span", "lf-margin-count");
       badge.setAttribute("aria-hidden", "true");
@@ -1298,7 +1288,6 @@ export function createLivingMargin(dependencies) {
           glyph: "·",
           label: "Open page details",
           behavior: "disclosure",
-          collapse: "always",
         });
         marker.onclick = () => {
           const choice = primaryReading(marker.lfEntry);
@@ -1321,7 +1310,6 @@ export function createLivingMargin(dependencies) {
           glyph: "…",
           label: "More options",
           behavior: "options",
-          collapse: "always",
         });
         options = el("div", "lf-margin-options");
         options.id = `lf-margin-options-${++optionsOrdinal}`;

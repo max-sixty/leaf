@@ -1075,7 +1075,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
 def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     """A copy has no panel and no session, which is what makes reading its own window
     honest — but it does have one piece of the live page's furniture left. A decided
-    change keeps the control that says so, because that record is what the margin was
+    change keeps the visible receipt that says so, because that record is what the margin was
     reserved for, so the rail is still held open in the file while the room read off the
     viewport knows nothing about it. The exported board stood 35px into that rail at a
     laptop's width and 47px at a narrow one.
@@ -1113,9 +1113,10 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     fit = page.evaluate(RAIL_FIT)
     rows = page.locator(".lf-sug-actions").count()
     assert rows == 1 and fit["rail"] != "0px", (
-        "the decided control and its rail must survive into the copy, or the fault this "
+        "the decided receipt and its rail must survive into the copy, or the fault this "
         f"is about cannot arise — rows {rows}, rail {fit['rail']}"
     )
+    expect(page.locator(".lf-sug-receipt")).to_have_text("Accepted")
     assert fit["past"] <= 1, (
         f"the copied board stands {fit['past']:.0f}px outside the page's own box, having "
         f"been given a room that did not know about the rail: {fit['widget']:.0f}px of "

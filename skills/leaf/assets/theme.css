@@ -1233,7 +1233,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * ✓/✗ row hanging on the change's own line says it, and this word stays clipped for
  * whoever is listening. A copy has no row — export strips a control the page doesn't
  * speak through, and a pending one says nothing yet, so it goes whole — which left the
- * two states saying opposite amounts there: a decided change keeps its "✓ Accepted", a
+ * two states saying opposite amounts there: a decided change keeps its "Accepted", a
  * pending one kept nothing, and a struck red paragraph with an empty margin beside it
  * is exactly what a deletion looks like once it has happened. The word #voice already
  * writes is what the copy shows instead, so nothing new is drawn and both readings of
@@ -1269,19 +1269,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-/* Decided. The control the user pressed states the outcome where it stood, in the
- * common action type's outcome colour; its pair stops showing without giving up its
- * room, so the one line a press must not disturb is the line the press leaves exactly
- * as it found it.
- * The past tense grows into room the control reserved from its own decided word as the
- * row was built (lf-suggestion.js), which is why the word can change without the box
- * doing the same.
+/* Decided. The surviving circle keeps the outcome glyph and its common action colour;
+ * the past tense is a persistent receipt beside it. A tooltip is discovery chrome, not
+ * a place for document state: the receipt is visible and selectable, and survives a
+ * standalone copy after its inert Button is stripped.
  *
- * visibility, not display: the room is the point. It also takes the hidden control out
- * of the tab order and out of the accessibility tree, which is what a press nobody can
- * make any more should be. */
+ * The losing control leaves the row. Accept is the primary gesture and therefore stays
+ * under the hand that pressed it; Reject is reached through `…`, so its proxy has
+ * already folded away before the real control becomes the surviving first circle. */
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { visibility: hidden; }
+.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { display: none; }
+.lf-sug-actions[data-lf-outcome] .lf-margin-action-label { display: none; }
+.lf-sug-receipt { color: var(--ink-2); font-weight: 600; }
+.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-receipt { color: var(--ok-ink); }
+.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-receipt { color: var(--danger-ink); }
 
 /* The living margin is a retained projection with one cluster per page target. Its
  * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
@@ -1309,24 +1310,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
 .lf-margin-item.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
-/* Collapse is part of the exported page vocabulary as well as live chrome. A standing
- * reaction keeps its word in the DOM for its accessible name, while the static page
- * continues to paint the glyph-only receipt the reader saw. */
-.lf-margin-action[data-lf-collapse="always"] > :is(.lf-margin-action-space,
-    .lf-margin-action-label),
-.lf-margin-item.lf-condensed
-  .lf-margin-action[data-lf-collapse="auto"] > :is(.lf-margin-action-space,
-    .lf-margin-action-label) { display: none; }
+/* A static copy keeps a standing reaction's word in the DOM for its accessible name,
+ * while painting the same circular, glyph-only receipt as the live page. The scoped
+ * runtime style turns the label into transient hover and focus chrome. */
+.lf-margin-action > :is(.lf-margin-action-space, .lf-margin-action-label) {
+  display: none;
+}
 .lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-reactions > .lf-react-trigger { display: none; }
 .lf-margin-reactions > .lf-react-palette { display: inline-flex; align-items: center;
     gap: 4px; flex-wrap: nowrap; }
 .lf-margin-reactions .lf-react[aria-busy="true"] { opacity: .55; }
-.lf-margin-marker { position: relative; width: 34px; padding: 3px 5px;
-    gap: 0; color: var(--muted); pointer-events: auto; }
+.lf-margin-marker { color: var(--muted); pointer-events: auto; }
 .lf-margin-reading-option { position: relative; }
-.lf-margin-more { width: 30px; padding-inline: 0; letter-spacing: .04em; }
+.lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
 .lf-margin-marker:is(:hover, :focus-visible, [aria-expanded="true"]),
 .lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
@@ -1353,7 +1351,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * runtime's old cramped veto asked, and the answer moves with the panel by design. */
 @media screen and (min-width: 900px) {
   body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
-    /* The 34px marker hangs 22px off the column and its complete host keeps the
+    /* The 32px marker hangs 22px off the column and its complete host keeps the
        shared focus-ring room at the outer edge. Claim all three, or opening a side
        panel leaves that last band past body's room and the layout hides the marker.
        Both this claim and the wider card claim below hold their condition in :where(),
@@ -1361,7 +1359,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
        which is what says the card wins where a thread needs it. Counted instead, this
        condition names one more compound than the card's, so it outranked the card and a
        page with a thread on it kept the narrow rail. */
-    --claim-map: calc(56px + var(--here-ring-room));
+    --claim-map: calc(54px + var(--here-ring-room));
   }
   main:has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);
@@ -1396,7 +1394,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }
-  .lf-margin-marker, .lf-margin-more { width: 44px; min-height: 44px; }
 }
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }

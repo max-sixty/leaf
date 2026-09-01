@@ -1739,11 +1739,6 @@ export function createLivingMargin(dependencies) {
     paintKeys();
   });
   document.addEventListener("lf-actions", render);
-  // TODO(2026-08-31): Reconcile this provisional acknowledgment-to-Button adapter
-  // with the in-flight Target Button implementation before their combined changes
-  // land. The canonical acknowledgment projection and page-edge placement remain the
-  // contract; only this presentation seam should follow the final Button API.
-  document.addEventListener("lf-acknowledgments", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
   offerListeners.add(render);

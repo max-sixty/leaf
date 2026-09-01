@@ -7,7 +7,12 @@ from pathlib import Path
 
 from leaf.data import read_data
 from leaf.event_log import read_events
-from leaf.files import published_versions, version_name
+from leaf.files import (
+    published_versions,
+    version_name,
+    version_path,
+    version_revisions,
+)
 from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
 from leaf.render_gate.preview import preview_server
 from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
@@ -131,7 +136,8 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
             "or, from a checkout,\n"
             "  bin/leaf version export <page> -o <file>"
         )
-    published = published_versions(page_dir, read_events(page_dir))
+    events = read_events(page_dir)
+    published = published_versions(page_dir, events)
     if not published:
         sys.exit(
             f"{page_dir} has no stamped version to export; "
@@ -144,8 +150,13 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
             + ", ".join(f"v{v}" for v in published)
         )
     name = version_name(version)
+    revision = version_revisions(events)[version]
+    source = version_path(page_dir, version).read_bytes()
 
-    with preview(page_dir, version) as url, sync_playwright() as p:
+    with (
+        preview(page_dir, source, revision, version=version) as url,
+        sync_playwright() as p,
+    ):
         try:
             browser = p.chromium.launch(channel="chrome")
         except PlaywrightError as e:

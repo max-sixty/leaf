@@ -15,7 +15,6 @@ from .event_log import read_events
 from .files import (
     latest_revision,
     list_revisions,
-    list_versions,
     published_versions,
     revision_num,
     revision_path,
@@ -86,20 +85,7 @@ class Handler(BaseHTTPRequestHandler):
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
-    # The legacy stamped-version preview widens the public version window for one
-    # render process. Exact mutable-source previews use `preview_source` instead.
-    # Every server a user reaches exposes noted versions only.
-    preview_upto = None
     preview_source = None
-
-    def versions_live(self, events):
-        if self.preview_upto is None:
-            return published_versions(self.page_dir, events)
-        return [
-            version
-            for version in list_versions(self.page_dir)
-            if version <= self.preview_upto
-        ]
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -215,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Before the word goes out, so a listener that has heard the first
                 # one is a browser the page already counts as holding it open.
                 if (
-                    self.preview_upto is None
+                    self.preview_source is None
                     and time.time() - getattr(cls, "viewed_at", 0) > 30
                 ):
                     cls.viewed_at = time.time()
@@ -376,7 +362,7 @@ class Handler(BaseHTTPRequestHandler):
             events = read_events(self.page_dir)
             revision = self.preview_source["active"]["revision"]
             source = self.preview_source["data"].decode("utf-8")
-            version = None
+            version = self.preview_source["active"]["version"]
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir, page.events)
@@ -400,7 +386,10 @@ class Handler(BaseHTTPRequestHandler):
             version = version_num(Path(path).name)
             events = read_events(self.page_dir)
             mapping = version_revisions(events)
-            if version not in self.versions_live(events) or version not in mapping:
+            if (
+                version not in published_versions(self.page_dir, events)
+                or version not in mapping
+            ):
                 self._json(
                     {"error": "not stamped yet; run `leaf version stamp` first"},
                     404,
@@ -491,7 +480,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         # Preview requests have passed authentication and body preparation, so
         # their refusal can name the attempt without writing to the real log.
-        if self.preview_upto is not None or self.preview_source is not None:
+        if self.preview_source is not None:
             self._refuse("the preview server is read-only", 403)
             return
         current_layer = self.layer
@@ -522,7 +511,6 @@ class Handler(BaseHTTPRequestHandler):
 def handler_for(
     page_dir: Path,
     token: str,
-    preview_upto=None,
     preview_source=None,
     protocol_version="HTTP/1.0",
 ):
@@ -536,7 +524,6 @@ def handler_for(
         {
             "page_dir": page_dir,
             "token": token,
-            "preview_upto": preview_upto,
             "preview_source": preview_source,
             "protocol_version": protocol_version,
             "event_endpoint": EventEndpoint(page_dir),

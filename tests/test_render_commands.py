@@ -12,7 +12,6 @@ from conftest import LEAF_COMMAND
 from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
@@ -466,13 +465,26 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     all, and what is left to lose is the gesture: the direct native checkbox and its CSS
     target must survive. A copy that dropped either would keep every frame and every word
     and answer no click on the image."""
-    url = serve(
+    serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
 
     standalone = tmp_path / "standalone.html"
-    standalone.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    exported = subprocess.run(
+        [
+            *LEAF_COMMAND,
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(standalone),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert exported.returncode == 0, exported.stdout + exported.stderr
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0

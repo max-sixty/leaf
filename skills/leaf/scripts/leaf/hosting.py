@@ -291,8 +291,11 @@ def cmd_serve(
         write_json(page_dir / "service.json", service)
         url = page_url(service["host"], service["port"], token)
 
-    print(url, flush=True)
+    # The detached parent reads the URL as the successful-start handshake and
+    # then closes these private pipes. Finish the note first, so that handshake
+    # also means this child has no output left to lose.
     print(startup_note(page_dir), file=sys.stderr, flush=True)
+    print(url, flush=True)
     threading.Thread(
         target=stop_when_service_ends,
         args=(page_dir,),
@@ -347,9 +350,10 @@ def start_server(
         start_new_session=True,
     )
     # The child's own handshake, rather than a deadline over a file that may or
-    # may not appear inside it: the service prints the URL once it holds the
-    # record and the port, and otherwise exits having named its own reason — a
-    # stale bind, a taken port, a flag the running server contradicts.
+    # may not appear inside it: the service prints the URL after it holds the
+    # record and the port and finishes its startup note, and otherwise exits
+    # having named its own reason — a stale bind, a taken port, a flag the
+    # running server contradicts.
     url = child.stdout.readline().strip()
     if not url:
         print(

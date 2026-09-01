@@ -2528,8 +2528,19 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
+    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     preview = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN, preview_upto=1)
+        ("127.0.0.1", 0),
+        http_model.handler_for(
+            page_dir,
+            TOKEN,
+            preview_source={
+                "data": files_model.revision_path(
+                    page_dir, active["revision"]
+                ).read_bytes(),
+                "active": active,
+            },
+        ),
     )
     thread = threading.Thread(target=preview.serve_forever, daemon=True)
     thread.start()

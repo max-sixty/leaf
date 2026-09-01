@@ -3,37 +3,28 @@
 import sys
 from pathlib import Path
 
-from leaf.files import version_name
-
-from .preview import preview_server, preview_source_server
+from .preview import preview_server
 from .version import render_version
 
 
 def render_check(
     page_dir: Path,
-    version: int | None = None,
+    source: bytes,
+    revision: int,
     *,
-    source: bytes | None = None,
-    revision: int | None = None,
     preview=None,
     render=None,
     transition_held: bool = False,
 ) -> int:
-    """Serve the page directory to the machine's installed Chrome and run the
-    render invariants on this version.
+    """Serve candidate source to the machine's installed Chrome and run the
+    render invariants on it.
 
     Playwright is the gate's own extra, not the payload's: declaring it in
     `pyproject.toml` would put its wheel in every `server run`, `leaf wait`, and
     `version stamp`, so the import happens here and its absence names the
     invocation that supplies it. Chrome is part of this gate: if it cannot
     launch, the gate fails."""
-    if source is not None and revision is None:
-        raise ValueError("a source preview needs its candidate revision")
-    preview = (
-        (preview_source_server if source is not None else preview_server)
-        if preview is None
-        else preview
-    )
+    preview = preview_server if preview is None else preview
     render = render_version if render is None else render
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -47,12 +38,8 @@ def render_check(
             file=sys.stderr,
         )
         return 1
-    name = "index.html" if source is not None else version_name(version)
-    preview_args = (
-        (page_dir, source, revision) if source is not None else (page_dir, version)
-    )
     with (
-        preview(*preview_args, transition_held=transition_held) as url,
+        preview(page_dir, source, revision, transition_held=transition_held) as url,
         sync_playwright() as p,
     ):
         try:
@@ -69,12 +56,15 @@ def render_check(
         finally:
             browser.close()
     if failures:
-        print(f"✗ {name}: renders broken — {len(failures)} issue(s)", file=sys.stderr)
+        print(
+            f"✗ index.html: renders broken — {len(failures)} issue(s)",
+            file=sys.stderr,
+        )
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
     print(
-        f"✓ {name}: renders clean in Chrome, light and dark — no console errors, "
+        "✓ index.html: renders clean in Chrome, light and dark — no console errors, "
         "every widget takes space, no words on top of other words, code that reads "
         "against the block it is on, boxes showing the inset they draw, nothing past the "
         "column, no sideways scroll"

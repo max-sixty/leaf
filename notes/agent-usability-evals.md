@@ -159,6 +159,10 @@ Start with three fixture families:
    Ask for the current truth and the next action. Score the answer and the files
    it reads.
 
+`ask-placement-eval/` is one authoring case already runnable: it pastes two
+wordings of the ask guidance into a prompt with three subjects and scores where
+each ask lands.
+
 Pair and interleave the authoring arms with the same model and settings. Count a
 run only when the model call completes. The first run of each case is for fixing
 the fixture and scorer; retain a case only after its expected answer is

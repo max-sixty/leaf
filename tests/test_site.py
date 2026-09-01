@@ -283,7 +283,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(example_url(hosted, "pr-walkthrough"), wait_until="commit")
-        expect(page.locator("h1")).to_have_text("Per-token rate limits")
+        expect(page.locator("h1")).to_have_text("Unified diff in the switch picker")
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"

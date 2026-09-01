@@ -5,12 +5,18 @@ registry entries for the exact widget contracts.
 
 ## Asks and sign-off
 
-Make the ask self-contained: put each alternative's title, case, and
-decision-relevant evidence or preview inside the option itself. Use a short
-option that points elsewhere only to select among sections or work items that
-already exist independently of the decision; do not create separate sections
-to hold an ask's alternatives. Allow multiple picks only when several options
-may stand.
+Put each ask where the reader has just read what it turns on, and let the page
+go on explaining after it. That point is the paragraph, list item, table, or
+chart that makes the question answerable. An ask about one item of a list
+follows that item, and an ask that turns on a claim follows the claim rather
+than the backing collapsed under it. Only an ask that turns on the whole page
+comes last.
+
+Each option carries its own title, case, and decision-relevant evidence or
+preview. Use a short option that points elsewhere only to select among sections
+or work items that already exist independently of the decision; do not create
+separate sections to hold an ask's alternatives. Allow multiple picks only when
+several options may stand.
 
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all

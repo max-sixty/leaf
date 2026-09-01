@@ -2809,6 +2809,63 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
 
 
+def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
+    page_dir, monkeypatch
+):
+    """A session remote from its user need not have arrived over SSH — a
+    scheduler, a daemon, a detached job all derive loopback — so the note says
+    what the address is rather than leaving the user to report a dead link."""
+    monkeypatch.delenv("SSH_CONNECTION", raising=False)
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        assert "loopback bind: this URL opens only from a browser on this machine" in (
+            started.output
+        )
+        assert "--host NAME" in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
+    monkeypatch.delenv("SSH_CONNECTION", raising=False)
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli,
+        ["server", "start", "--standing", "--host", "localhost", str(page_dir)],
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        assert "loopback bind" not in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_the_loopback_line_follows_the_lifetime_line(page_dir):
+    """`interact_support` reads one line of a served subprocess's stderr and
+    expects the lifetime there, so the loopback line lands after it."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "::1",
+            "bind": "::1",
+            "port": 41234,
+            "enabled": False,
+            "lifetime": "standing",
+        },
+    )
+
+    lines = hosting_model.startup_note(page_dir).splitlines()
+
+    assert lines[0].startswith("standing server:")
+    assert lines[1].startswith("loopback bind:")
+
+
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     runner = CliRunner()
     started = runner.invoke(

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -188,15 +189,22 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert render_gate_model.render_version(browser, url) == []
 
 
-def test_check_render_refuses_what_only_a_browser_can_see(serve):
+def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
     """`version check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
     unstamped — refusing it before `version stamp` names it is the gate's whole job,
-    so the preview server has to expose the exact candidate without activating it."""
+    so the preview server has to expose the exact candidate without activating it.
+
+    Twice over the clean source, once through each browser a host can supply: the
+    installed Chrome the default channel finds, and the executable
+    LEAF_BROWSER_EXECUTABLE names. The default arm states the empty value rather
+    than inheriting whatever the developer or the job exported, since a set variable
+    would otherwise turn the channel this arm exists to cover into a second run of
+    the other one."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate(*args):
+    def gate(*args, executable=""):
         return subprocess.run(
             [
                 *LEAF_COMMAND,
@@ -209,11 +217,16 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
+            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
         )
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
     assert "renders clean" in ok.stdout
+
+    named = gate(executable=headless_shell)
+    assert named.returncode == 0, named.stderr
+    assert "renders clean" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -225,8 +238,57 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert "scrolls sideways" in broken.stderr
 
 
-def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
-    """Exercise the copied artifact a host installs, never an import from this checkout."""
+def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
+    """LEAF_BROWSER_EXECUTABLE is the whole of what a host says about its browser, so
+    a value naming no browser has to come back as that variable and that value rather
+    than as Chrome, which the host never asked for. Both user-path launches answer for
+    it, and they have to move together: `serving-pages.md` names export as the fallback
+    for when no network route reaches the page, so a host whose browser cannot launch
+    loses the page twice over."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    missing = tmp_path / "not-a-browser"
+    named = os.environ | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
+
+    checked = subprocess.run(
+        [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=named,
+    )
+    assert checked.returncode == 1, checked.stdout + checked.stderr
+    assert (
+        "LEAF_BROWSER_EXECUTABLE" in checked.stderr and str(missing) in checked.stderr
+    )
+    assert "Chrome did not launch" not in checked.stderr
+
+    exported = subprocess.run(
+        [
+            *LEAF_COMMAND,
+            "version",
+            "export",
+            str(d),
+            "--out",
+            str(tmp_path / "standalone.html"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=named,
+    )
+    assert exported.returncode == 1, exported.stdout + exported.stderr
+    assert (
+        "LEAF_BROWSER_EXECUTABLE" in exported.stderr and str(missing) in exported.stderr
+    )
+    assert "export needs Chrome" not in exported.stderr
+
+
+def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
+    """Exercise the copied artifact a host installs, never an import from this checkout.
+
+    Its browser gate runs on both of the browsers a host can supply, since the install
+    is where a host with a Chromium and no Chrome meets it."""
     root = Path(__file__).parent.parent
     installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
@@ -265,15 +327,17 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
     )
     assert stamp.returncode == 0, stamp.stderr
 
-    rendered = subprocess.run(
-        [launcher, "version", "check", page_dir, "--render"],
-        cwd=elsewhere,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert rendered.returncode == 0, rendered.stderr
-    assert "renders clean" in rendered.stdout
+    for executable in ("", headless_shell):
+        rendered = subprocess.run(
+            [launcher, "version", "check", page_dir, "--render"],
+            cwd=elsewhere,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+        assert rendered.returncode == 0, rendered.stderr
+        assert "renders clean" in rendered.stdout
 
 
 def test_render_reports_a_word_the_printed_page_loses(browser, serve):
@@ -443,7 +507,9 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
     page.close()
 
 
-def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
+def test_a_shot_still_flips_with_every_script_removed(
+    browser, serve, tmp_path, headless_shell
+):
     """Which is the whole reason the target is a native checkbox. A copy is the
     rendered DOM with the scripts dropped and every press a handler answered taken out
     with them — the upgrade has already run, so the frames are there, and this switch
@@ -470,21 +536,32 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
 
+    def export(out, executable=""):
+        return subprocess.run(
+            [
+                *LEAF_COMMAND,
+                "version",
+                "export",
+                str(serve.page_dir),
+                "--out",
+                str(out),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+
     standalone = tmp_path / "standalone.html"
-    exported = subprocess.run(
-        [
-            *LEAF_COMMAND,
-            "version",
-            "export",
-            str(serve.page_dir),
-            "--out",
-            str(standalone),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    exported = export(standalone)
     assert exported.returncode == 0, exported.stdout + exported.stderr
+
+    # The same copy through the browser a host names instead. A file is all this arm
+    # needs from it: what a copy has to keep is the subject below, on the Chrome arm.
+    named = tmp_path / "named.html"
+    from_named = export(named, executable=headless_shell)
+    assert from_named.returncode == 0, from_named.stdout + from_named.stderr
+    assert named.stat().st_size > 0
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
@@ -725,7 +802,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     ], found
 
 
-def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
+def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
     """`leaf` is what the skill hands an agent, so the shim's own resolution
     is load-bearing: it names the payload project from its own location rather
     than letting uv find whatever project the cwd sits in. Running it from an
@@ -742,13 +819,15 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
     )
 
     shim = Path(__file__).parent.parent / "bin" / "leaf"
-    run = subprocess.run(
-        [str(shim), "version", "check", str(d), "--render"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert run.returncode == 1, run.stdout + run.stderr
-    # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-    assert "failed soft" in run.stderr and "Parse error" in run.stderr
+    for executable in ("", headless_shell):
+        run = subprocess.run(
+            [str(shim), "version", "check", str(d), "--render"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+        assert run.returncode == 1, run.stdout + run.stderr
+        # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
+        assert "failed soft" in run.stderr and "Parse error" in run.stderr

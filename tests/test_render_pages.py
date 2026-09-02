@@ -8,10 +8,12 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
+from leaf import events as conversation_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.passages import enclosing_ids
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
@@ -160,16 +162,45 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
 
         page, errors = open_page(browser, url)
-        # A reaction nobody has answered is a mark and not a thread: its anchor paints
-        # through its own registry entry and a glyph seated at its block, and it takes
-        # no card. Split here so each half is read against the paint it owes.
-        answered = {e["parent"] for e in events if e.get("parent")}
+        logged = events_model.read_events(serve.page_dir)
+        previous = set()
+        for event in logged:
+            references = [
+                event[key]
+                for key in ("parent", "undoes", "message", "request")
+                if key in event
+            ] + event.get("events", [])
+            assert set(references) <= previous, (
+                f"{example.stem}: {event['id']} refers to missing earlier events: "
+                f"{set(references) - previous}"
+            )
+            assert event["id"] not in previous, (
+                f"{example.stem}: duplicate {event['id']}"
+            )
+            previous.add(event["id"])
+        assert {event["id"] for event in events} <= previous
+        # Read standing roots through the same fold as the page. A resolved root keeps
+        # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
+        threads = conversation_model.build_threads(
+            logged, enclosing_ids(example.read_text())
+        )
         reacted = [
-            e
-            for e in events
-            if e["kind"] == "comment" and e.get("token") and e["id"] not in answered
+            thread["root"]
+            for thread in threads.values()
+            if conversation_model.bare_reaction(thread)
+            and not thread["resolved"]
+            and thread["root"].get("anchor")
         ]
-        anchored = [e for e in events if e.get("anchor") and e not in reacted]
+        conversations = [
+            thread
+            for thread in threads.values()
+            if not conversation_model.bare_reaction(thread)
+        ]
+        anchored = [
+            thread["root"]
+            for thread in conversations
+            if not thread["resolved"] and thread["root"].get("anchor")
+        ]
         # The thread node first, because it arrives whether or not the quote found a
         # home — a stranded one renders wearing `detached`. Waiting on the mark here
         # instead spends the whole timeout on exactly the failure this gate is for
@@ -179,17 +210,58 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # also paints a mark. Counting threads against the anchored ones would red
         # this gate the day a seed carries a general comment, which is a thing a page
         # may hold.
-        expect(page.locator(".lf-thread")).to_have_count(
-            len([e for e in events if e["kind"] == "comment" and not e.get("token")])
-        )
+        expect(page.locator(".lf-thread")).to_have_count(len(conversations))
+        open_targets = {event["anchor"]["section"] for event in anchored}
+        for thread in conversations:
+            if not thread["resolved"]:
+                continue
+            card = page.locator(f'.lf-thread[data-id="{thread["root"]["id"]}"]')
+            expect(
+                card.get_by_role(
+                    "button", name="Reopen", exact=True, include_hidden=True
+                )
+            ).to_have_count(1)
+            anchor = thread["root"].get("anchor")
+            if anchor and anchor["section"] not in open_targets:
+                item = page.locator(f'[data-lf-margin-for="{anchor["section"]}"]')
+                expect(
+                    item.locator(
+                        '.lf-margin-marker[data-lf-kinds~="comment"], '
+                        '[data-lf-button-key="reading:threads"]'
+                    )
+                ).to_have_count(0)
         for reaction in reacted:
             glyph = page.locator(
                 f'.lf-reacts > .lf-react-mark[data-event="{reaction["id"]}"]'
             )
-            expect(glyph).to_be_visible()
+            expect(glyph).to_have_count(1)
             expect(glyph.locator("..")).to_have_attribute(
                 "data-lf-for", reaction["anchor"]["section"]
             )
+            # A crowded target may expose this exact reaction through overflow. Follow
+            # its visible route rather than requiring every fitting to stand at rest.
+            item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
+            visible = item.locator(
+                f'[data-lf-button-key="take-back:{reaction["id"]}"]:visible, '
+                f'[data-lf-button-key="take-back:{reaction["id"]}:proxy"]:visible'
+            )
+            more = item.locator(":scope > .lf-margin-more")
+            if not visible.count() and more.is_visible():
+                more.click()
+                expect(item).to_have_attribute("data-lf-options-open", "")
+            if visible.count():
+                expect(visible).to_be_visible()
+            else:
+                item.locator(".lf-margin-spill").click()
+                sheet = page.get_by_role("dialog", name="Page map", exact=True)
+                expect(
+                    sheet.locator(
+                        f'[data-lf-map-button$=":take-back:{reaction["id"]}"], '
+                        f'[data-lf-map-button$=":take-back:{reaction["id"]}:proxy"]'
+                    )
+                ).to_be_visible()
+                page.keyboard.press("Escape")
+                expect(sheet).to_be_hidden()
             if reaction["anchor"].get("quote"):
                 painted = re.sub(
                     r"\s",

@@ -18,8 +18,7 @@ EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 # Order is editorial: move from a focused choice through evidence and live work to the
-# specialized command surface, then end on the two reviews that ship a conversation —
-# one compact, one that was revised because of it.
+# specialized command surface and two conversation reviews, then the Button sampler.
 TABS = [
     ("design-decision", "Decision"),
     ("heat-loss", "Heat"),
@@ -31,6 +30,7 @@ TABS = [
     ("command-hub", "Command"),
     ("ship-review", "Ship review"),
     ("log-retention", "Retention"),
+    ("button-gallery", "Buttons"),
 ]
 
 HEAD = """\

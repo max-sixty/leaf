@@ -7,11 +7,14 @@ from axe_playwright_python.sync_playwright import Axe
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
+    BOTH_STAMPS,
     DECISION_PAGE,
     EXAMPLES,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
+    _traffic,
+    _until,
     compare_with,
     key_line,
     leaf_page,
@@ -131,6 +134,77 @@ PAGE_MAP_EVENTS = [
     }
     for n in range(1, 13)
 ]
+
+
+@pytest.mark.parametrize("width", [1440, 700, 390])
+def test_the_button_gallery_keeps_its_real_actions_reachable(browser, serve, width):
+    """The shipped sampler stays usable after edits, verdicts, and dense overflow."""
+    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
+    page, errors = open_page(browser, serve(example))
+    resized(page, width, 900)
+
+    for target, outcome, receipt in (
+        ("bg-replace", "accept", "Accepted"),
+        ("bg-insert", "reject", "Rejected"),
+        ("bg-delete", "accept", "Accepted"),
+    ):
+        item = page.locator(f'[data-lf-margin-for="{target}"]')
+        controls = page.locator(f'.lf-sug-actions[data-lf-for="{target}"]')
+        item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
+        round_trip(page)
+        expect(controls.locator(".lf-sug-receipt")).to_have_text(receipt)
+        controls.get_by_role("button", name=re.compile("^Undo ")).click()
+        round_trip(page)
+        expect(
+            item.get_by_role("button", name=re.compile("^Accept the "))
+        ).to_be_visible()
+        expect(
+            item.get_by_role("button", name=re.compile("^Reject the "))
+        ).to_be_visible()
+
+    draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
+    draft_item.locator(".lf-draft-pencil").click()
+    editor = page.locator("#bg-draft textarea")
+    body = "The workshop moved outdoors.\nBring a folding chair."
+    editor.fill(body)
+    page.locator("#bg-editing-guide").click()
+    expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
+    expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(draft_item.locator(".lf-margin-more")).to_be_hidden()
+    draft_item.get_by_role("button", name="Save", exact=True).click()
+    round_trip(page)
+    expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
+    page.reload(wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
+
+    crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
+    expect(crowded.locator(".lf-margin-action:visible")).to_have_count(2)
+    crowded.locator(".lf-margin-more").click()
+    expect(crowded.locator(".lf-margin-action:visible")).to_have_count(6)
+    spill = crowded.locator(".lf-margin-spill")
+    spill.click()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    reaction = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("token") == "this"
+        and event.get("anchor", {}).get("section") == "bg-crowded"
+    )
+    take_back = sheet.locator(
+        f'[data-lf-map-button$=":take-back:{reaction["id"]}:proxy"]'
+    )
+    expect(take_back).to_have_attribute("aria-label", "this — take it back")
+    sends = _traffic(page).sends
+    take_back.click()
+    _until(page, lambda traffic: traffic.sends > sends, "withdrew the spilled reaction")
+    round_trip(page)
+    expect(sheet).to_be_hidden()
+    expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
+    last = events_model.read_events(serve.page_dir)[-1]
+    assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
+    assert errors == []
+    page.close()
 
 
 def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
@@ -550,9 +624,11 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         )
         for control in (accept, edit, more)
     ]
-    assert borders == [["2px"] * 4, ["1px"] * 4, ["1px"] * 4], (
-        "the whole ring no longer distinguishes immediate actions from context"
-    )
+    assert borders == [
+        ["2px"] * 4,
+        ["1px"] * 4,
+        ["1px"] * 4,
+    ], "the whole ring no longer distinguishes immediate actions from context"
     border_colors = [
         control.evaluate("el => getComputedStyle(el).borderTopColor")
         for control in (accept, edit, more)

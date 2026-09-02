@@ -21,6 +21,7 @@ import { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { notice } from "./notifications.js";
 import {
+  authored,
   closestAcross,
   containsAcross,
   inChrome,
@@ -613,6 +614,7 @@ export function createVersion({
   function diffBlocks(root) {
     const pairs = [];
     const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
+    const authoredHere = authored(root);
     for (const b of root.querySelectorAll(blocks)) {
       if (inChrome(b) || b.closest(opaque)) continue;
       if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
@@ -634,7 +636,7 @@ export function createVersion({
     // so text can't compare — but a widget the base didn't have still marks.
     for (const w of root.querySelectorAll(opaque)) {
       // parentElement, not w itself: an svg a widget rendered stays its widget's.
-      if (inChrome(w) || w.parentElement?.closest(opaque)) continue;
+      if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
       const entry = registry[w.localName] ?? {};
       // A data selection is authored semantics even though the generated children
       // of an upgraded widget are opaque to comparison.

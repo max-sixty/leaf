@@ -1169,6 +1169,10 @@ room as `--lf-float-w` and `--lf-float-h`; the bar is capped by it and the field
 `--lf-response-room` excludes its neighboring controls. The field's scroll extent
 supplies its desired height without temporarily resizing it and losing the reader's
 scroll position. When the target fills the viewport, the viewport still caps the field.
+When a covering panel leaves no usable band for the response bar, placement withdraws
+it without discarding its draft. If the disappearing bar held focus, the visible
+Threads list takes it; an unrelated focused control keeps it. A partially exposed
+page remains interactive whenever the bar fits its actual remaining room.
 Enter sends and Shift-Enter
 inserts a newline. Tab changes the same bar into Comment, Suggest when the anchor is a
 quote, and the layer's reaction tokens. `.lf-response-control` keeps the field and every

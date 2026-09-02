@@ -13,6 +13,7 @@ from playwright.sync_api import expect
 from render_support import (
     COVERED_TOP,
     EDGES,
+    EXAMPLES,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -20,6 +21,8 @@ from render_support import (
     LONG_PAGE,
     PANEL_PAGE,
     RENDERED,
+    _traffic,
+    _until,
     draw_edge,
     edge_settled,
     in_threads_scrollport,
@@ -944,6 +947,78 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(page.locator(".lf-details")).to_have_count(0)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
+@pytest.mark.parametrize("destination", ["stay", "page", "other-thread"])
+def test_a_thread_completion_keeps_the_readers_later_destination(
+    browser, serve, request, kind, destination
+):
+    """A held thread operation may land only while its original intent still stands."""
+    gallery = next(path for path in EXAMPLES if path.stem == "button-gallery")
+    page, errors = open_page(browser, serve(gallery))
+    resized(page, 390, 700)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = {
+        event["anchor"]["section"]: event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and "token" not in event
+    }
+    root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    if kind == "unresolve":
+        page.locator(".lf-details summary").click()
+    elif kind == "reply":
+        thread.locator("textarea").fill("A reply whose delivery is held.")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    def release():
+        while held:
+            held.pop(0).continue_()
+        if not page.is_closed():
+            page.unroute("**/api/event")
+
+    request.addfinalizer(release)
+    before = _traffic(page).sends
+    thread.get_by_role(
+        "button",
+        name={"unresolve": "Reopen", "resolve": "Resolve", "reply": "Send"}[kind],
+        exact=True,
+    ).click()
+    _until(page, lambda traffic: traffic.sends > before, "held the thread operation")
+
+    later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
+    changes = page.locator("#bg-history summary")
+    if destination == "page":
+        page.get_by_role("button", name="Close threads", exact=True).click()
+        changes.click()
+    elif destination == "other-thread":
+        later.click()
+        later.fill("The reader is working here now.")
+
+    release()
+    round_trip(page)
+    told(page)
+    page.wait_for_function(RENDERED)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == kind
+    if destination == "page":
+        assert not page.get_by_role("dialog").is_visible()
+        expect(changes).to_be_focused()
+        expect(page.locator("#bg-history details")).to_have_attribute("open", "")
+    elif destination == "other-thread":
+        expect(later).to_be_focused()
+        expect(later).to_have_value("The reader is working here now.")
+    elif kind == "reply":
+        expect(thread.locator("textarea")).to_be_focused()
+    elif kind == "unresolve":
+        expect(thread).to_be_focused()
+    else:
+        expect(page.locator(".lf-threads > .lf-thread").first).to_be_focused()
     assert errors == []
     page.close()
 

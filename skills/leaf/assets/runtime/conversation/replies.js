@@ -59,7 +59,7 @@ export function createReplies({
   // reveal a sent message immediately; textual views receive it through reconciliation.
   // Everything else — persistence, mirroring, the wire event and focus landing — is the
   // thread's and is stated once.
-  function wireReply(t, input, send, { landed } = {}) {
+  function wireReply(t, input, send, { retainLanding, landed } = {}) {
     const draftCtx = "reply:" + t.root.id;
     input[REPLY_DRAFT_CONTEXT] = draftCtx;
     input.value = loadDraft(draftCtx) ?? "";
@@ -76,8 +76,9 @@ export function createReplies({
         tellDraft(draftCtx, v);
       },
       send: async (text, raw) => {
+        const mayLand = retainLanding?.();
         const sent = await sendReply(t, text, raw, () => input.value === raw);
-        if (!sent) return;
+        if (!sent || (mayLand && !mayLand())) return;
         landed?.(sent);
         landTyping(input);
       },

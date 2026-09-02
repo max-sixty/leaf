@@ -2618,6 +2618,75 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page.close()
 
 
+def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
+    browser, serve
+):
+    """Opaque graphics use the same authoredness boundary as compared prose."""
+    first = leaf_page(
+        "Graphics in a revision",
+        """
+        <h1>Route review</h1>
+        <p id="route">The route crosses the park.</p>
+        <lf-suggestion id="departure">
+          <lf-old>Leave at nine.</lf-old><lf-new>Leave at ten.</lf-new>
+        </lf-suggestion>
+        <svg id="old-map" viewBox="0 0 20 20" width="40" height="40">
+          <path d="M2 2L18 18" />
+        </svg>
+        <lf-decoration id="decoration"></lf-decoration>
+        """,
+    )
+    second = first.replace("crosses the park", "follows the river").replace(
+        "</main>",
+        """<svg id="new-map" viewBox="0 0 20 20" width="40" height="40">
+          <circle cx="10" cy="10" r="6" />
+        </svg></main>""",
+    )
+    url = serve(
+        first,
+        layer_registry={
+            "lf-decoration": {
+                "description": "Generated prose and a graphic with its own marker.",
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+                },
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "prose",
+                "x-upgrade": True,
+                "x-example": '<lf-decoration id="decoration"></lf-decoration>',
+            }
+        },
+        layer_widgets={
+            "lf-decoration.js": """
+                import {once} from '/runtime/widget-api.js';
+                customElements.define('lf-decoration', class extends HTMLElement {
+                  connectedCallback() {
+                    if (!once(this)) return;
+                    this.innerHTML = `
+                      <p data-lf-gen>Generated caption.</p>
+                      <svg id="decoration-icon" data-lf-gen viewBox="0 0 20 20"
+                           width="40" height="40"><path d="M2 18L18 2" /></svg>`;
+                  }
+                });
+            """
+        },
+    )
+    _publish(serve.page_dir, 2, second, "New route and map")
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    assert page.locator("main .lf-margin-action-icon").count() >= 2
+    expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
+
+    compare_with(page, 1)
+    expect(page.locator("#route")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    assert page.eval_on_selector_all(
+        ".lf-ins-block", "els => els.map(e => e.id).sort()"
+    ) == ["new-map", "route"]
+    assert errors == []
+    page.close()
+
+
 def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     """A version stays an integer from the server through runtime state; only the
     picker and URL boundary render its file name. Order the versions by those names

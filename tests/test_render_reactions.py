@@ -11,6 +11,7 @@ from playwright.sync_api import expect
 from render_cases_navigation import pending_text
 from render_harness import leaf_page
 from render_support import (
+    BOTH_STAMPS,
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
     PROPOSED_PAGE,
@@ -870,6 +871,81 @@ def test_the_response_field_grows_as_a_rounded_rectangle_and_leaves_the_ellipsis
         wide,
         bounds,
     )  # the field gave the room
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("covered_width", [390, 450])
+def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
+    browser, serve, covered_width
+):
+    """A covered composer cannot retain an invisible typing destination.
+
+    The panel can leave a usable page strip, no strip, or less room than the response
+    controls occupy. Resizing through those postures preserves the draft, withdraws its
+    unavailable surface, and hands the keyboard to the visible conversation workspace.
+    """
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    initial_events = events_model.read_events(serve.page_dir)
+    resized(page, 700, 900)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page)
+    field = page.locator(".lf-fab-input")
+    bar = page.locator(".lf-fab-bar")
+
+    def enter_passage():
+        box = page.locator("#how-cap").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 6),
+            (box["x"] + 190, box["y"] + 6),
+        )
+        expect(field).to_be_visible()
+        field.click()
+        expect(field).to_be_focused()
+
+    enter_passage()
+    draft = "Keep this unsent review attached to the capped store."
+    field.fill(draft)
+    bounds = bar.bounding_box()
+    panel = page.locator(".lf-panel").bounding_box()
+    assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
+
+    # Retiring a background draft must not interrupt an unrelated typing surface.
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.focus()
+    resized(page, covered_width, 900)
+    expect(bar).to_be_hidden()
+    expect(search).to_be_focused()
+    resized(page, 700, 900)
+    enter_passage()
+    expect(field).to_have_value(draft)
+
+    resized(page, covered_width, 900)
+    expect(bar).to_be_hidden()
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.insert_text("Invisible typing must not change the draft.")
+    expect(field).to_have_value(draft)
+    assert events_model.read_events(serve.page_dir) == initial_events
+
+    # A fresh reading proves the text survived in the draft store, rather than merely
+    # remaining in the hidden textarea. The same passage regains it when room returns.
+    resized(page, 700, 900)
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(field).to_be_visible()
+    expect(field).to_have_value(draft)
+    page.keyboard.press("Escape")
+    expect(bar).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    enter_passage()
+    expect(field).to_have_value(draft)
+    bounds = bar.bounding_box()
+    panel = page.locator(".lf-panel").bounding_box()
+    assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
+    field.press("End")
+    field.press_sequentially(" It is visible again.")
+    expect(field).to_have_value(draft + " It is visible again.")
     assert errors == []
     page.close()
 

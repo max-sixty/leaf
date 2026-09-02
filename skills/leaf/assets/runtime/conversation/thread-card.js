@@ -14,6 +14,7 @@ export function createThreadCards(dependencies) {
     post,
     PRESS,
     reachedForWords,
+    retainPanelLanding,
     revealThread,
     scrollToThread,
     setPanel,
@@ -97,6 +98,7 @@ export function createThreadCards(dependencies) {
       const send = el("button", "lf-btn primary lf-thread-send", "Send");
       row.append(input);
       wireReply(t, input, send, {
+        retainLanding: retainPanelLanding,
         landed: (sent) => revealThread(sent.id),
       });
       const actions = el("div", "lf-thread-actions");
@@ -113,6 +115,7 @@ export function createThreadCards(dependencies) {
       // send that failed, where the press must stay pressable; where it went through,
       // the fold has made the whole node inert and there is nothing to re-enable into.
       resolve.onclick = async () => {
+        const mayLand = retainPanelLanding();
         const at = openThreads().indexOf(div);
         resolve.disabled = true;
         paintKeys();
@@ -122,8 +125,10 @@ export function createThreadCards(dependencies) {
           resolve.disabled = false;
           paintKeys();
         }
-        const kept = openThreads();
-        (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
+        if (mayLand()) {
+          const kept = openThreads();
+          (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
+        }
       };
       keys(resolve, "On a thread's Resolve button", [
         {
@@ -151,6 +156,7 @@ export function createThreadCards(dependencies) {
       }
       const reopen = el("button", "lf-reopen lf-thread-action", "Reopen");
       reopen.onclick = async () => {
+        const mayLand = retainPanelLanding();
         reopen.disabled = true;
         paintKeys();
         try {
@@ -159,10 +165,7 @@ export function createThreadCards(dependencies) {
           reopen.disabled = false;
           paintKeys();
         }
-        threadsBox
-          .querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`)
-          ?.focus({ preventScroll: true });
-        showThread(t.root.id);
+        if (mayLand()) showThread(t.root.id);
       };
       keys(reopen, "On a resolved thread", [
         {

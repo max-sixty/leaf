@@ -1584,12 +1584,12 @@ open panel waits for the body's strip motion before choosing the card posture. W
 document cannot leave the card room beside its Button, the press opens the full Threads
 surface instead.
 
-A page holding a tag whose registry entry declares `x-state` or `x-work` may grow a
-page-edge Button, so it reserves the rail at load and never gives it back. The runtime
-states that reservation as `data-lf-rail` on the root, and the cascade spends it there;
-neither reads what is standing in the margin, because a row's placement depends on the
-strip it would be answering about. A page that declares nothing still reserves on its
-first marker.
+Every live page may grow a page-edge Button — an anchored comment can arrive on one
+made entirely of prose — so the living margin reserves the rail as it is built and
+never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
+and the cascade spends it there; neither reads what is standing in the margin, because
+a row's placement depends on the strip it would be answering about. A copy takes no
+gestures, so the bake drops the reservation unless a margin item survived into the file.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail claim is
 the widest stable contribution seen over a floor of the generated marker's own fitting,

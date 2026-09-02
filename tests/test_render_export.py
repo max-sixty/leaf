@@ -351,17 +351,33 @@ def test_an_exported_page_fixture_stands_on_its_own(
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
-        // A page gives up a CSS shell claim for what it hangs in the margin, and a
-        // copy keeps only the claims whose residents came with it: a suggestion's
-        // controls are gone from a file that can decide nothing, and its rail with
-        // them, while sidenotes are the page's own words and stand in a copy exactly
-        // as they stand on screen. So the reading is not that the column is centred —
-        // a page carrying notes is deliberately not — but that no strip is held open
-        // for nothing. The strip is a reservation, not the resident's box: a narrow
-        // rail sits just outside the shifted column rather than in the outermost
-        // reserved pixels. Resolve its length, then ask whether one of the layer's
-        // right-margin residents actually survived the bake.
+        // A page gives up a CSS shell claim for what it hangs in the margin, and
+        // a copy keeps only the strips whose residents came with it: a suggestion's
+        // controls are gone from a file that can decide nothing, and its rail with them,
+        // while sidenotes are the page's own words and stand in a copy exactly as they
+        // stand on screen. So the reading is not that the column is centred — a page
+        // carrying notes is deliberately not — but that no strip is held open for
+        // nothing. Resolve the shell's custom-property lengths through a probe, then
+        // ask whether anything is actually standing in each claimed band.
+        //
+        // The bands stand against the column's own edges and not against the page's.
+        // A strip is what main gives up beside itself and the shift then re-centres
+        // what is left, so on a window wider than the column plus its strips the
+        // leftover room sits outside both — and a reading taken from body's edges
+        // asks about that leftover instead, which is nobody's claim and always empty.
+        //
+        // And it is put to the residents that make the claim rather than to everything
+        // under main. A widget asking for width is drawn past the column by design and
+        // lands in the band beside it while claiming nothing, so a reading satisfied by
+        // any overlap at all answered for a board or a diagram on three of the five
+        // copies that hold a strip: the strip could have been held open for nothing and
+        // the band still read as occupied. The claimants are the ones the cascade names
+        // — aside.sidebar writes --strip-l, while aside.sidenote and the living
+        // margin's items write --claim-note, --claim-rail, and --claim-map. A copy
+        // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
+        // furniture is outside the corpus this runs over.
         empty: ((main) => {
+            const box = main.getBoundingClientRect();
             const length = (name) => {
                 const probe = document.createElement('i');
                 probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
@@ -371,16 +387,15 @@ def test_an_exported_page_fixture_stands_on_its_own(
                 return width;
             };
             const left = length('--strip-l'), right = length('--strip-r');
-            const column = main.getBoundingClientRect();
-            const rightResident = [...main.querySelectorAll(
-                '.lf-margin-item, aside.sidenote')]
+            const residents = 'aside.sidebar, aside.sidenote, .lf-margin-item';
+            const held = (lo, hi) => hi - lo > 1
+                && ![...document.querySelectorAll(residents)]
                 .some(el => { const r = el.getBoundingClientRect();
                               return el.checkVisibility() && r.width > 1
-                                     && r.height > 1 && r.left >= column.right - 1; });
+                                     && r.left < hi - 1 && r.right > lo + 1; });
             return [
-                // A copy's sidebar returns to flow, so no left-margin form survives.
-                left > 1 && 'left',
-                right > 1 && !rightResident && 'right',
+                held(box.left - left, box.left) && 'left',
+                held(box.right, box.right + right) && 'right',
             ].filter(Boolean);
         })(document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]

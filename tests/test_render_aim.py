@@ -37,6 +37,7 @@ from render_support import (
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
     aim_targets,
+    banner_address,
     draw_edge,
     edge_settled,
     geometry,
@@ -517,7 +518,10 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 560, 900)
-    page.locator(".lf-decisions").click()
+    # A window this narrow folds the row's destinations into the banner's one menu, so
+    # the address is asked for where the page has put it rather than where a wider
+    # window would have left it.
+    banner_address(page, ".lf-decisions").click()
     edge_settled(page, EDGES[1])
     tray = page.locator(".lf-decisions-panel")
     expect(tray).to_be_visible()

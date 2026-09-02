@@ -1871,6 +1871,13 @@ of rows applies and which platform keys that context claims. The dispatcher,
 key line, `?` reference, control tooltips, and announcements are projections of
 those objects.
 
+Treat that register as a product grammar, not a collection of locally convenient
+shortcuts. Before adding or changing a binding, survey the complete register for
+meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
+Document every inconsistency the survey exposes in the task handoff. If the rules
+here do not settle one, escalate it to the user before choosing locally; the
+absence of a dispatch conflict does not make a binding precise.
+
 Binding spelling is canonical: modifiers are ordered `Mod`, `Alt`, `Shift`, and
 single-letter keys are lowercase. A produced punctuation glyph carries no Shift
 prefix because the keyboard layout owns that modifier. Validate that form when a
@@ -1884,21 +1891,37 @@ is therefore as deep as the way in, and the reader walks it back without having
 counted: three presses in, three Escapes out, each giving up the press that
 earned it.
 
-A press that opens a surface and then steps into something inside it pushes two
-layers at once, and Escape can only hand one of them back. The reader reads that
-as Escape not undoing what the key did, and no surface can tell them otherwise,
-because what the key line promises is one press. Where a press looks like it
-wants two layers, the second layer earns a key of its own — usually the same
-letter again, from the scope the first press stood up. That press is the
-reader's own next step rather than a toll, and the layer it leaves between is
-where the surface's own keys become reachable at all. `c` into the thread panel
-and then its box is that shape, and the paragraphs above own the detail.
+A command that enters a temporary surface declares one `returnFrame`. The dispatcher
+captures the reader's exact focus or reading block before it runs, and pushes the frame
+only after the declared layer is active. Escape closes that frame and restores the
+captured place. The command may reveal containing chrome and focus its destination in
+one transaction: `c` from the page opens and focuses the page-comment box, and its one
+Escape closes that whole entry because the panel is the box's container, not a second
+destination the reader requested.
+
+A frame is active only while its owning surface still stands and the reader remains in
+the layer it entered. A latent filter value or mode flag is not enough: closing a panel or
+leaving a widget must retire its frame so core Escape cannot advertise or mutate hidden
+state elsewhere on the page.
+
+Two independently requested entries remain two frames. `g T` enters the Threads list;
+`c` from that list enters its page-comment box. Two Escapes return first to the list and
+then to the exact place and workspace `g T` displaced. A filter or other state entered
+inside a surface gets its own frame or its control's own nearer Escape step. Never infer
+the inverse of a keyboard entry from whatever panels happen to be open afterwards.
+
+A bounded mode may instead own its complete entry, nesting, cancellation, and origin
+machine inside the one scope that claims the keyboard while it stands. Help, the `g`
+address window, item selection, page search, and reactions use that form. Such a mode does
+not also push a command frame. What is forbidden is the middle state: opening with an
+ordinary `run`, then asking a shared scene inspection or unrelated outer scope to guess
+what Escape should restore.
 
 Landing focus in what a press opened is arrival, not a second layer: a tray on
-its first row, the versions menu on a version, the panel on its list. The second
-layer is a box the surface does not shadow — the reference's search box is inside
-a surface too, and what keeps it one layer is `HELP` standing nearer with a claim
-over the whole keyboard, so the box's letters were never the page's to take back.
+its first row, the versions menu on a version, the panel on its list, or the comment
+box `c` named. A later command into a different mode is another layer. The reference's
+search box is part of its one complete mode because `HELP` owns the whole keyboard while
+it stands; its letters were never the page's to take back.
 
 The rule holds for a sequence as much as for a surface, where the stack it is
 about is the reader's rather than the dispatcher's. The address chord arms on
@@ -1959,12 +1982,12 @@ browser Selection from the active match. Escape returns to the surface that open
 the page after a direct `/`, or the visible hints after `s` then `/`. The mode keeps `?`
 available and claims the rest of the page's keyboard while it stands.
 
-`rung()` has a single `panelOpen` branch, and that is the rule rather than a
-looseness in it: a surface and where the reader stands in it are one layer. The
-panel's list and the thread `t` walks to are the same rung, which is why `c` from
-either of them is the box — the box being the layer below. So the click that
-opened the panel is the press one Escape gives back, whichever of its contents
-the reader walked to first.
+The return stack records entry history; `rung()` is only the fallback for state reached
+without a registered entry, such as a pointer-opened panel or focus the reader moved by
+ordinary traversal. A keyboard command with `returnFrame` never asks `rung()` to guess
+its inverse. Moving within an entered surface—`t` walking from the Threads list to a
+thread, for example—does not push another frame, so Escape still returns through the
+entry that opened the surface.
 
 The register owns capabilities, not controls. Every capability the chrome offers
 has a row, and each control that reaches one names its key through `also`; a
@@ -1995,10 +2018,16 @@ native Enter or Space, while the Ask-local list gives it a contextual number. In
 a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
+`c` is reserved for commenting. Enter keeps native activation or the focused control's
+local continuation. On an option mark, Enter means “write another option”: it extends the
+answer currently being edited and returns to that same mark with Escape. Using `c` there
+would conflate changing the option set with opening a conversation about it; the existing
+page `c` remains the latter.
+
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
-way this press will go, and Escape takes the mode off through the rung ladder
-rather than through a second binding of its own.
+way this press will go. When turning it on is an entry, its `returnFrame` states
+Escape's inverse rather than a second row guessing from the resulting scene.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
 the presses whose subject is the page: `/` searches its text, `s` names its visible
@@ -2011,49 +2040,36 @@ on: `w` narrows the thread panel's list and `/` searches it, and both live in
 `PANEL`. The page's alphabet is small and every letter spent there is spent on
 every page, so a letter earns page scope only by acting on the page.
 
-A surface may also hold the next step of a page key, which is the third row in
-`PANEL` and the one exception the rule has: the page's `c` lands the reader on
-the comment list and the panel's `c` puts them in its box. The letter is the
-same because the intent is, one scope in — as `g` names a document list and then
-a member of it — and the inner row stands down wherever the page's own key has a
-nearer
-answer, so the two never offer the reader a choice about which one runs.
+A surface may also hold the contextual form of a page intent. `c` always means
+comment; its destination follows what the reader is standing on. From the Threads
+list the panel row enters the page-comment box. Everywhere the page has a nearer
+answer—a selection, item, or conversation—the page row enters that box instead.
+The rows are mutually exclusive, so the register never asks the reader to choose
+between two meanings for `c`.
 
-A scope's rows act on contents the reader is looking at rather than standing in,
-which is why they can be sorted by surface at all. One press is not like that:
-`c` follows the reader, and what it means is whatever they are standing in.
+That the page row reaches into Threads is not an exception. Page scope already crosses
+there: `t`/`T` can land on cards in Threads, and `a`/`A` can land on an ask an agent
+sent inside a thread. A page key that takes the reader somewhere owes them an answer
+once they are standing there. The destination, label, command, and return frame all
+come from `commentDestination`, so the same contextual reading governs every projection.
 
-That it reaches into the panel is not an exception. Page scope already crosses
-there: `t`/`T` can land on cards in Threads, and `a`/`A` can land on an ask an
-agent sent inside a thread. A page key that takes the reader somewhere owes them
-an answer once they are standing there.
-Rescoping `c` per surface would not even buy the tidiness it looks like — the
-reader stands in one place at a time, so it is several rows spelling one key,
-each live exactly where the others are not.
-
-Its destination is the anchor the 💬 carries, then the open thread the reader is
+The destination is the anchor the 💬 carries, then the open thread the reader is
 in or the single inline thread held by a pressed Page-map marker, then the item they are
-standing in, and, when none of those is in hand, the conversation itself.
+standing in, and, when none of those is in hand, the page-comment box.
 `commentDestination` decides it once and states the
-sentence, the key line and the press together, so the reference, the line and
-what happens cannot come to spell it differently. The pointer's answers outrank
+sentence, return frame, key line and press together, so the reference, the line,
+what happens, and the way back cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader
 said. `standingItem` and `standingConversation` are what "standing" means here,
 and **Standing somewhere** below owns that reading.
 
-The last of the four names the room rather than a box in it, and is the one place
-a surface holds a `c` of its own. It is not a second reading of the page's key
-but the same intent one scope further in, the way `g` names a list and then a
-member of it: the page's `c` opens the panel and stands the reader on its list,
-and the panel's `c` puts them in the general box. Landing straight in that box is
-what it replaced, and that box is the one place in the panel where the panel's own
-letters are all shadowed — the typing scope claims a letter first — so the press
-that promised the comments left `w` and `/` unreachable until the reader pressed
-Escape. The panel's row is not the several-rows-one-key shape either, because it
-stands down wherever the page's key has the nearer answer: a live 💬, or the
-conversation the reader is standing in, whose own box `Enter` already reaches.
-A resolved thread offers no box, so the row answers there and the general
-box is the honest destination.
+The page-comment box lives in the Threads panel, but entering it does not mean “open
+Threads”: `g T` owns that destination and lands on the list where `w` and `/` remain
+reachable. `c` opens the panel only as the implementation container its requested box
+needs, focuses the cursor immediately, and records the prior workspace in one frame.
+Escape therefore returns directly to the exact prior control or reading place. From an
+already-entered Threads list, `c` adds one nested frame and Escape returns to that list.
+A resolved thread has no reply box, so the general box is the honest contextual answer.
 
 The item's box is the composer, on the item, and not a widget's own conversation
 seat even where it has one. `openOnItem` writes the anchor `renderConversations`
@@ -2088,6 +2104,14 @@ A row has these meanings:
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
   platform's own on a link, or one another scope's row already runs.
+- `returnFrame`, when the result enters a temporary layer, returns its `active`, `close`,
+  `does`, and `line` contract. The dispatcher captures the origin before `run`, validates
+  the descriptor, and pushes it only if the layer is active afterwards. Do not call the
+  return stack from a command or restore focus in the command's close path; declaring the
+  frame is what makes keyboard invocation and reference invocation obey the same stack.
+  A command surface that already displaced the reader, such as the modal reference, passes
+  its saved origin into dispatcher invocation instead of letting a closing implementation
+  control become the origin.
 - `native: true` performs `run` without preventing the platform default. Use it
   when Leaf must change state before the browser completes the same press, not
   to leave an otherwise owned press half-handled. It still follows the ordinary
@@ -2138,37 +2162,34 @@ newlines, or caret keys from it.
 
 One box inside another scope states only what it does differently. The find box
 registers its Escape and Enter on the exact input element, so those rows stand
-before `TYPING`; the general text-entry claim then stands before any ancestor
-widget, and ancestor scopes still stand before unrelated core modes. Escape lets
-the narrowing go, and the box on the press after that. One press is one rung there
-as everywhere else.
+before the command return frame; that frame stands before `TYPING`, and the general
+text-entry claim stands before any ancestor widget. Escape therefore lets a live query
+go, then leaves the box through the `/` frame, then leaves the panel through its entry
+frame. A plain composer with no control-specific Escape goes directly through the
+command frame instead of paying a generic “leave the textarea” step the entry never made.
 
-A box hands the reader back to the conversation it is written in, which is the
-rung `c` came down. `backFromBox` climbs `SAYS_IN` from the box where
-`standingConversation` climbs it from where the reader stands, so the press in
-and the press out name one element and one word — "comment on the thread" going
-in, "back to thread" coming out. The panel's general box has no conversation and
-lands on the list. A page-owned first-message seat has no standing place of its
-own; a widget control that explicitly enters its box supplies both the return
-control and the caller-owned word for that route through `landInConversation`.
-A visit reached by Tab supplies neither and leaves the page's own "let go"
-standing. Asking whether the container can take focus is what keeps every other
-route a relation rather than a list of containers that happen to be focusable.
+A keyboard-entered box hands the reader back through its captured return frame.
+`boxReturnFrame` and `standingConversation` climb the same conversation relation, so
+“comment on the thread” going in and “back to thread” coming out name one element.
+The panel's general box returns to the Threads list when it was entered there, and to
+the prior page place and workspace when page `c` entered it directly. `backFromBox`
+remains the fallback for Tab or pointer arrival, where no keyboard entry exists to
+restore. A page-owned first-message seat has no standing place of its own; a widget
+control that explicitly enters its box supplies the caller-owned return target through
+`landInConversation`.
 
-A key may repeat across nesting scopes to mean the same intent one scope further
-in. `c` reads that way: from
-the page it goes to the comments and stands the reader on the list, and from
-inside the panel it opens the general box. A landing is chosen for the keys it
-leaves live — the general box shadows every letter the panel's own scope binds,
-so landing there would have made `w` and `/` cost an Escape first. Put the reader
-where the surface's keys answer and let a second press take them into the box.
-Where a box has a key that reaches it, the box says so itself through its
-placeholder `address`, which is what a screen reader hears.
+A key may repeat across nesting scopes to mean the same intent in context. `c` reads
+that way: from the page it enters the nearest comment box; from the Threads list it
+enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
+Threads as a navigable surface and leaves `w` and `/` live. Where a box has a key that
+reaches it, the box says so itself through its placeholder `address`, which is what a
+screen reader hears.
 
 A true mode may own the keyboard. An armed address chord and the open reference
 claim the relevant keys through their scope. A longer-lived menu keeps the
-reference available through `allButTheReference`. Closing an overlay restores
-focus to `helpFrom` so the reader returns to the control that opened it. A modal
+reference available through `allButTheReference`. Closing the reference restores
+the shared captured `helpOrigin`, so the reader returns to the control or reading
+place that opened it. A modal
 dialog clears the top layer's auto popovers on its way in, so the reference notes
 the ones it was opened over and stands them back up before that restore — the
 overlay that says what a menu's keys are cannot be what takes the menu away. It
@@ -2176,11 +2197,12 @@ stands each one back up from that layer's own invoker — `lfInvoker`, the link 
 layer declares because the platform's own runs one way only — so the layer's way
 out survives the round trip too.
 
-Escape is an ordinary binding in the register for Leaf-owned modes. The innermost scope that binds it
-owns one unwind step. A control-specific Escape, panel dismissal, decision release,
-and return to the page cannot cascade from one keypress. A scope does not need a
-private `keydown` listener or hand-written `preventDefault` to protect that
-contract.
+Escape is an ordinary binding in the register for Leaf-owned modes. A focused control's
+specific inner step stands first, the latest active command return frame next, then the
+generic text and containing scopes. The innermost live row owns exactly one unwind step.
+A query clear, box return, panel dismissal, decision release, and return to the page
+cannot cascade from one keypress. A scope does not need a private `keydown` listener or
+hand-written `preventDefault` to protect that contract.
 
 Auto popovers and modal dialogs are the platform's modes. While one is the active top
 layer, the page rung stands down and browser Escape closes it; Leaf updates from the
@@ -2379,13 +2401,15 @@ that names it. A control that itself stands under a fixed bar is not a finding �
 that is a fact about where it was put — and neither is a box too tall for the
 region it is in.
 
-`rung` and `letGo` put focus on `body` when the reader leaves chrome or releases
-a decision. `body` has a tab stop because a short page may not become focusable from
-overflow alone. Focus rather than blur hands Space, PageDown, arrows, Home, and
-End back to the page's actual scroll box. `letGo` also runs synchronously during
-module evaluation so a fresh page accepts native scrolling before asynchronous
-upgrade, without stealing focus from a control the reader reaches during that
-upgrade.
+`restoreReturnPlace` restores the exact connected control a command displaced. When
+the reader had no control focused it restores the captured reading block without
+leaving that block as an artificial activation target; if neither survives, it focuses
+`body`. Pointer and ordinary-traversal fallbacks use `rung` and `letGo` for that last
+case. `body` has a tab stop because a short page may not become focusable from overflow
+alone. Focus rather than blur hands Space, PageDown, arrows, Home, and End back to the
+page's actual scroll box. `letGo` also runs synchronously during module evaluation so a
+fresh page accepts native scrolling before asynchronous upgrade, without stealing focus
+from a control the reader reaches during that upgrade.
 
 ### The key line and reference
 
@@ -2505,6 +2529,13 @@ document because its rows leave the page. The asks tray takes a strip because
 its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
+Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
+`g L` may exchange a standing panel or tray for another; their return frame restores
+that prior workspace and re-resolves its semantic row when reconciliation rebuilt it.
+`g M` uses the same frame for the Page-map rail or compact sheet. Direct destinations
+therefore restore both exact standing and workspace state rather than merely focusing
+the destination's banner control after closing it.
+
 `restoreTray` runs after all declarations exist and after the first projection
 can populate state-dependent rows. It calls its supplied `beforeOpen` policy to
 retire Threads, then presents the remembered tray directly without replaying
@@ -2587,6 +2618,8 @@ place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
 An edge is one place, so the second key completes the route; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
+Completing a direct destination exchanges the transient chord for one return frame;
+Escape restores the exact standing and workspace captured before `g` armed.
 `DIRECT_DESTINATIONS` is the direct-destination vocabulary. Each entry declares its
 mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
 vocabulary. Each entry declares:

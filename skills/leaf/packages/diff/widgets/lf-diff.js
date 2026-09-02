@@ -7,6 +7,7 @@ import {
   announce,
   dataBody,
   failSoft,
+  focused,
   inChrome,
   keys,
   langForPath,
@@ -473,6 +474,34 @@ customElements.define(
               keys: ["/"],
               does: "Filter the files in this diff",
               line: "filter files",
+              returnFrame: () => ({
+                active: () => {
+                  const search = this.reviewTools?.search;
+                  const held = focused();
+                  const inDiff =
+                    this.contains(held) || Boolean(this.shadowRoot?.contains(held));
+                  return Boolean(
+                    search &&
+                    inDiff &&
+                    (search.value || this.reviewTools.node.contains(held)),
+                  );
+                },
+                close: () => {
+                  const search = this.reviewTools?.search;
+                  if (search?.value) {
+                    this.clearFilter();
+                    search.focus({ preventScroll: true });
+                    return false;
+                  }
+                  search?.blur();
+                },
+                does: () =>
+                  this.reviewTools?.search.value
+                    ? "Show every file again"
+                    : "Leave the diff filter",
+                line: () =>
+                  this.reviewTools?.search.value ? "show all files" : "back",
+              }),
               run: () => this.reviewTools?.search.focus(),
             },
             {

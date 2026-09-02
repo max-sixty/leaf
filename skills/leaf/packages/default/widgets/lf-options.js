@@ -101,6 +101,7 @@ import {
   actionAvailable,
   actionStands,
   conversationInput,
+  focused,
   inChrome,
   keys,
   landInConversation,
@@ -383,6 +384,18 @@ customElements.define(
           {
             ...WRITE_ANOTHER,
             when: () => Boolean(this.#words()),
+            returnFrame: () => {
+              const box = this.#words();
+              const layer = this.#addition.input
+                ? box?.closest("form")
+                : box?.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
+              return {
+                active: () => Boolean(layer?.contains(focused())),
+                close: () => box?.blur(),
+                does: "Return to the option",
+                line: "back to option",
+              };
+            },
             run: () => {
               if (this.#addition.input) this.#addition.input.focus();
               else

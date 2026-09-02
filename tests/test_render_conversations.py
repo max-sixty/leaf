@@ -872,7 +872,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
 
     page, errors = open_page(browser, url)
     # Slash belongs to the nearest search scope. Out on the prose it opens page search;
-    # Escape returns to the prose, and `c` is the route into the panel, where the same
+    # Escape returns to the prose, and `g T` is the route into the panel, where the same
     # press opens that list's own search instead. Read the two landings against each other.
     #
     # A plain paragraph rather than the body's own middle, which is a widget on this
@@ -887,7 +887,8 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-panel")).not_to_be_visible()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("/")
@@ -957,15 +958,16 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("w")
     expect(page.locator(".lf-panel")).not_to_be_visible()
 
-    # `c` stands the reader on the list, where the key is live and the line says so.
+    # `g T` stands the reader on the list, where the key is live and the line says so.
     # The control names it, off the row, so the two cannot come to spell it differently.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
     expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
-    # A second `c` is the general box, and there `w` is a character like any other —
+    # `c` from that list enters the general box, and there `w` is a character like any other —
     # the typing scope claims what types one, so the row stands down and the line drops
     # it. Escape backs out onto the list and it is live again. Both directions, because
     # a key that were live in the box would type nothing and read as a dead keyboard.
@@ -980,6 +982,21 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+
+    # Closing the owning surface retires both its narrowing frame and the g T frame below
+    # it. The narrowing itself stays set for a later reopen, but Escape on the page must
+    # neither advertise nor mutate a filter the reader cannot see.
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, False)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("show all")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    page.keyboard.press("w")
+    page.keyboard.press("w")
 
     # Answering the agent's comment takes it out of the reader's list and hands the
     # next word to the agent.
@@ -1003,6 +1020,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
+
     assert errors == []
     page.close()
 
@@ -2857,7 +2875,8 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         # typed its keys into the box, which is exactly what the non-vacuity check at the
         # end caught: thirty-two landings asserted, none of them on a thread.
         page.evaluate("() => document.activeElement?.blur()")
-        page.keyboard.press("c")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
         expect(page.locator(".lf-threads")).to_be_focused()
         walked, faults = 0, []
         for key in ("t",) * threads + ("Shift+t",) * threads:
@@ -3532,7 +3551,8 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         # into it as characters. COVERED_TOP answers null for a focus outside the list,
         # so every one of those landings agreed with the invariant by never being asked.
         page.evaluate("() => document.activeElement?.blur()")
-        page.keyboard.press("c")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
         expect(page.locator(".lf-threads")).to_be_focused()
         faults = []
         for key in ("t",) * 8 + ("Shift+t",) * 8:
@@ -3558,16 +3578,14 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     browser, serve
 ):
     """The two contextual chips the line paints for a reader standing on the list have
-    to be the keys that act on the list, and nothing else: the line is two chips and the
-    More control, so a row in front of these is a row instead of them.
+    to be its exact way back and its first local action: the line is two chips and the
+    More control, so an unrelated row in front of these is a row instead of them.
 
-    `c` brought them here so that `w` and `/` would be live — the general box is where
-    the typing scope claims every letter, which is the whole reason the press stops at
-    the list. This is the one focus position where those two rows can hold a chip at
-    all: inside a thread `THREAD` is nearer, inside a box `TYPING` claims the letters,
-    and outside the panel this scope is not standing. So a row in front of them here
-    spends the slot the landing exists to fill, which is what the panel's own `c` did
-    until it was moved to the end of the scope.
+    `g T` brought them here, so its return frame leads and `w` is the first local action.
+    The general box is where the typing scope claims every letter, which is the whole
+    reason the press stops at the list. Inside a thread `THREAD` is nearer, inside a box
+    `TYPING` claims the letters, and outside the panel this scope is not standing. So an
+    unrelated row in front of them here spends the slot the landing exists to fill.
 
     Read off `:not([hidden])`, because `renderLine` leaves every live row in the DOM and
     hides the ones it has no room to paint. `to_contain_text` on the line therefore
@@ -3594,14 +3612,15 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
 
     page, errors = open_page(browser, url)
     page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
-    # The list's own key leads: something is waiting, so `w` is live and nearest.
-    expect(shown.nth(0)).to_contain_text("waiting on you")
-    expect(shown.nth(1)).to_contain_text("close threads")
+    # The entry's exact inverse leads, then the list's first local key.
+    expect(shown.nth(0)).to_contain_text("back")
+    expect(shown.nth(1)).to_contain_text("waiting on you")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

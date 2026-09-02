@@ -1324,6 +1324,11 @@ export function createLivingMargin(dependencies) {
     return mapButton;
   }
 
+  const pageMapIsActive = () => sheet.open || availableRows().includes(focused());
+  function leavePageMap() {
+    if (sheet.open) sheet.close();
+  }
+
   function focusMapControl(entry = null) {
     const marker = entry ? rows.get(entry.key) : null;
     if (marker?.isConnected && marker.checkVisibility()) {
@@ -2701,11 +2706,13 @@ export function createLivingMargin(dependencies) {
     },
     closePreview: () => closePreview(false),
     enterPageMap,
+    leavePageMap,
     focusForNavigation,
     keyboardRung,
     marginTargetAt,
     openButtonOptions,
     openInlineThread,
+    pageMapIsActive,
     presentedControl,
     render,
   };

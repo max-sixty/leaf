@@ -312,10 +312,11 @@ export function dress(root) {
 // missing from that exclusion list is a change the author never made. Written before the
 // modules import, because the first two decide the box each module renders into and the
 // third decides what may be drawn as pressable while they do. It lands a registry fetch
-// after the first paint, and nothing is on screen in between to get wrong: the document
-// waits behind the presentation gate (theme.css) and a message body cannot render before
-// the registry is read. The root is marked alongside its descendants: a rebuild is handed a clone of the widget itself, and
-// the fact is that widget's own.
+// after the first authored paint: the document is already useful, and these declarations
+// progressively specialize its widget layout before those widgets upgrade. A message
+// body cannot render before the registry is read. The root is marked alongside its
+// descendants: a rebuild is handed a clone of the widget itself, and the fact is that
+// widget's own.
 //
 // What separates the two tables is where each fact holds. x-inline is true of the element
 // wherever it renders, a thread's message included, or a chip-led comparison quoted into

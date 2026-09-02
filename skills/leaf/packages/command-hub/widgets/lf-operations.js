@@ -7,6 +7,7 @@ import {
   once,
   quoted,
   registerDecisionActions,
+  requestAvailable,
   sendRequest,
   watchRequestLifecycle,
 } from "/runtime/widget-api.js";
@@ -40,11 +41,12 @@ function paint(holder, lifecycle) {
   const { request, receipt } = lifecycle.latest ?? {};
   const locked = holder._sending || lifecycle.phase !== "ready";
   for (const option of children(holder)) {
+    const available = !locked && requestAvailable(holder, option.getAttribute("verb"));
     const selected = request?.action === option.getAttribute("verb");
     option.toggleAttribute("data-lf-requested", selected);
     const control = option.querySelector(":scope > .lf-operation-press");
-    control.setAttribute("aria-disabled", String(locked));
-    control.tabIndex = locked ? -1 : 0;
+    control.setAttribute("aria-disabled", String(!available));
+    control.tabIndex = available ? 0 : -1;
   }
   statusLine(holder, request, receipt);
   holder._decisionActions?.update();
@@ -65,7 +67,12 @@ customElements.define(
           const control = offer("button", "lf-operation-press", "Do this");
           control.setAttribute("aria-label", title(option));
           control.onclick = async () => {
-            if (this._sending || this._lifecycle.phase !== "ready") return;
+            if (
+              this._sending ||
+              this._lifecycle.phase !== "ready" ||
+              !requestAvailable(this, option.getAttribute("verb"))
+            )
+              return;
             this._sending = true;
             paint(this, this._lifecycle);
             const accepted = await sendRequest(this, option.getAttribute("verb"), {

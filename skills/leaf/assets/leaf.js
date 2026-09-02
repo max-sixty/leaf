@@ -3671,9 +3671,9 @@ createArrangements({
 // uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
 // still does, since Space on a button presses it rather than scrolling the document.
 //
-// Here rather than in the start block below, which runs asynchronous upgrades with the
-// chrome clickable throughout: a reader who took a control in that window would have it
-// taken back off them. Main is withheld from paint, and body can name the page now.
+// Here rather than in the start block below, which runs asynchronous upgrades while the
+// authored document is already readable: body can name the page now, and stateful widget
+// controls remain unavailable until presentPage crosses their semantic boundary.
 letGo();
 const { landArrival, savedView } = installArrival({
   fragmentId,
@@ -3684,18 +3684,31 @@ const { landArrival, savedView } = installArrival({
 const savedComposer = selectionComposerRuntime.pendingComposer();
 
 // ---------- start ----------
-// One positive fact for the one presentation boundary. Success has applied the log;
-// an unavailable first poll has painted the offline status and deliberately hands the
-// authored page back. A caught startup failure cannot make that promise, so it leaves
-// the fixed recovery surface in place rather than exposing decisions it never read. A fast
-// answer releases before the delayed waiting surface can paint; a slower answer releases
-// as soon as replay commits, so the explanation never holds a ready page behind it.
+// One positive fact for the semantic-interaction boundary. Authored HTML already paints.
+// Success has applied the log; an unavailable first poll has painted the offline status
+// and deliberately lets the authored state accept durable interaction. A caught startup
+// failure cannot make either promise, so controls and top-layer UI remain unavailable.
 function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
-  // Repaint state-dependent chrome in this same task. The presentation attribute opens
-  // the gate, replay is already complete, and no frame can expose the authored count or
-  // an empty persisted tray between those facts.
+  // Anchors are durable coordinates, so their pass and every route that can mint one
+  // begin only after replay has reconciled the authored document. An early native text
+  // selection can then resolve against the standing DOM, while a retired passage cannot
+  // leave a composer carrying its authored words.
+  anchoringReady = true;
+  paintAnchors();
+  updateFab();
+  paintHere();
+  landArrival();
+  if (savedView && savedView.revision < runtime.currentRevision)
+    notice(`Updated to ${runtime.currentLabel}`);
+  if (savedComposer)
+    openComposer(savedComposer.anchor, savedComposer.text, {
+      suggest: Boolean(savedComposer.suggest),
+      about: savedComposer.about ?? null,
+    });
+  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
+  // is already complete, so the presented attribute opens interaction on the state it names.
   restoreTray();
   showNews(othersBtn, leavesOffered());
   paintKeys();
@@ -3705,9 +3718,9 @@ function presentPage() {
 }
 
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
-// never top-level await: boot first publishes every factory-built owner capability, then
-// imports the behavior modules that consume the public facade.
+// positions are re-found in the enhanced, replayed DOM rather than authored markup. An
+// async function, never top-level await: boot first publishes every factory-built owner
+// capability, then imports the behavior modules that consume the public facade.
 async function startPage() {
   const [upgraded] = await Promise.all([
     upgradeWidgets(),
@@ -3725,18 +3738,6 @@ async function startPage() {
   captureAuthoredFacets();
   buildBulkAnswers();
   syncDecisions();
-  anchoringReady = true;
-  paintAnchors(); // an early general post may already have loaded anchored threads
-  updateFab(); // an early selection is now read from the fully upgraded page
-  paintHere(); // c is live again, whether or not that selection raised the button
-  landArrival();
-  if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
-  if (savedComposer)
-    openComposer(savedComposer.anchor, savedComposer.text, {
-      suggest: Boolean(savedComposer.suggest),
-      about: savedComposer.about ?? null,
-    });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and
@@ -3752,9 +3753,8 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
-  // The boundary itself must fail visibly. The fixed recovery surface stays in front:
-  // this failure happened before the log was read, so the authored decisions underneath
-  // are not an honest page to release.
+  // The boundary itself must fail visibly. Authored HTML remains readable, while the
+  // status names the fault and the absent presented stamp keeps durable controls closed.
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

@@ -15,6 +15,7 @@
  * target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
+  actionAvailable,
   actionStands,
   alignText,
   FOLD_MS,
@@ -171,7 +172,10 @@ customElements.define(
       );
       this.#offer();
       watchActions(this, null, () => {
-        if (!this.dataset.lfState) return;
+        if (!this.dataset.lfState) {
+          this.#paintAvailability();
+          return;
+        }
         this.#renderControls();
         this.#margin?.update();
       });
@@ -264,8 +268,18 @@ customElements.define(
         "aria-label",
         `${kind === "accept" ? "Accept" : "Reject"} the suggested change: ${change}`,
       );
-      btn.setAttribute("aria-disabled", String(state === "busy"));
     }
+
+    #paintAvailability = () => {
+      for (const btn of [this.#accept, this.#reject]) {
+        const available = !this.#deciding && actionAvailable(this, verb(btn));
+        const disabled = String(!available);
+        if (btn.getAttribute("aria-disabled") !== disabled)
+          btn.setAttribute("aria-disabled", disabled);
+        const tabIndex = available ? 0 : -1;
+        if (btn.tabIndex !== tabIndex) btn.tabIndex = tabIndex;
+      }
+    };
 
     #utilityButton({ key, icon, label, tone = "neutral", role, press }) {
       const button = marginAction(offer("button", ""), {
@@ -348,6 +362,7 @@ customElements.define(
       for (const button of [this.#accept, this.#reject]) {
         this.#name(button, state, change);
       }
+      this.#paintAvailability();
       this.#replaceControls(this.#accept, this.#reject);
     }
 
@@ -394,6 +409,7 @@ customElements.define(
     // decides which gestures wait, and what waiting costs, are in CLAUDE.md.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
+      if (!actionAvailable(this, outcome)) return Promise.resolve(false);
       // The decided state used to be this guard on its own, written in the frame of
       // the press. It now lands when the log takes the decision, and the gap between
       // press and answer is exactly wide enough for a second press to make a second

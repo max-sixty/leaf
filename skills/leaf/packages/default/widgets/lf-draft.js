@@ -81,6 +81,7 @@
  */
 import {
   DISCLOSE,
+  actionAvailable,
   dataBody,
   once,
   offer,
@@ -168,6 +169,7 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) {
         this.#offer();
+        this.#paintAvailability();
         return;
       }
 
@@ -202,7 +204,9 @@ customElements.define(
         "edit",
         "edit",
         "Edit",
-        () => this.#open(),
+        () => {
+          if (actionAvailable(this, "edit")) this.#open();
+        },
         "neutral",
         "disclosure",
         "primary",
@@ -277,6 +281,7 @@ customElements.define(
         if (ev.detail === 0 || ev.button !== 0 || ev.target.closest("[data-lf-offer]"))
           return;
         if (reachedForWords(this)) return;
+        if (!actionAvailable(this, "edit")) return;
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 
@@ -372,7 +377,15 @@ customElements.define(
       this.#save.setAttribute("aria-label", this.#failed ? "Retry" : "Save");
       marginActionState(this.#cancel, this.#failed ? "failed" : "engaged");
       marginActionState(this.#pencil, this.#sending ? "busy" : "idle");
-      this.#pencil.setAttribute("aria-disabled", String(this.#sending));
+      const available = actionAvailable(this, "edit");
+      this.#pencil.setAttribute("aria-disabled", String(this.#sending || !available));
+      this.#pencil.tabIndex = this.#sending || !available ? -1 : 0;
+      this.#save.setAttribute("aria-disabled", String(!available));
+      this.#save.tabIndex = available ? 0 : -1;
+      for (const restore of this.querySelectorAll(".lf-draft-restore")) {
+        restore.setAttribute("aria-disabled", String(!available));
+        restore.tabIndex = available ? 0 : -1;
+      }
       if (this.#failed && this.#ta) {
         this.#failureReceipt ??= document.createElement("span");
         this.#failureReceipt.className = "lf-margin-receipt";
@@ -386,6 +399,10 @@ customElements.define(
       this.#margin?.update();
       this.#decisionActions?.update();
     }
+
+    #paintAvailability = () => {
+      if (this.#pencil) this.#paintButtons();
+    };
 
     #delta(before, after, cache = true) {
       const line = document.createElement("div");
@@ -432,6 +449,7 @@ customElements.define(
     }
 
     #renderHistory(actions) {
+      this.#paintAvailability();
       if (this.#sending) return;
       const standing = this.#body.textContent;
       const key = JSON.stringify([
@@ -506,6 +524,7 @@ customElements.define(
     }
 
     async #restore(text, label) {
+      if (!actionAvailable(this, "edit")) return;
       if (this.#sending) {
         notice("Wait for the current edit to finish sending");
         return;
@@ -600,6 +619,7 @@ customElements.define(
 
     async #commit() {
       if (!this.#ta || this.#sending) return;
+      if (!actionAvailable(this, "edit")) return;
       const text = this.#ta.value;
       if (text === this.#body.textContent) {
         this.#close(true);

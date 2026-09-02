@@ -1,0 +1,20 @@
+{"kind":"comment","author":"claude","agent":"Codex","revision":1,"text":"Gallery conversation: should the practice exercise come before lunch? Try replying here; the agenda is fictional.","anchor":{"section":"bg-thread-text","quote":"The sample agenda has room for one more topic.","prefix":"n existing conversation.","suffix":"Open the speech-bubble B"},"id":"2be2443f0bb6cc49fc86b52f340e6073","ts":"2026-09-02T00:12:33-07:00"}
+{"kind":"comment","author":"claude","agent":"Codex","revision":1,"text":"Gallery conversation: can the facilitator show a map?","anchor":{"section":"bg-resolved-text","quote":"The room has a projector.","prefix":"A resolved conversation.","suffix":"Its earlier question is "},"id":"bab3cdfcfb8c02aacbb27da731de947a","ts":"2026-09-02T00:12:33-07:00"}
+{"kind":"comment","author":"claude","agent":"Codex","revision":1,"text":"Gallery conversation: which space is easier to find? This thread shares its target with the verdict and reaction Buttons.","anchor":{"section":"bg-crowded"},"id":"a554d5e884abffdb6494a2fb90b0634f","ts":"2026-09-02T00:12:33-07:00"}
+{"kind":"reply","author":"claude","agent":"Codex","parent":"bab3cdfcfb8c02aacbb27da731de947a","text":"Yes. This sample answer closes the question; reopen it to try the resolved-thread controls.","id":"83c4cc0bc4433af2b0aadd2e034a6c46","ts":"2026-09-02T00:13:01-07:00"}
+{"kind":"resolve","author":"claude","agent":"Codex","parent":"bab3cdfcfb8c02aacbb27da731de947a","id":"0a3570ceeb3630d5b3ef5a6c87cdf9cb","ts":"2026-09-02T00:13:02-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"ok","anchor":{"section":"bg-react-ok"},"id":"80001234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"ok","anchor":{"section":"bg-crowded"},"id":"80011234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"no","anchor":{"section":"bg-react-no"},"id":"80101234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"no","anchor":{"section":"bg-crowded"},"id":"80111234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"lost","anchor":{"section":"bg-react-lost"},"id":"80201234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"lost","anchor":{"section":"bg-crowded"},"id":"80211234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"cut","anchor":{"section":"bg-react-cut"},"id":"80301234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"cut","anchor":{"section":"bg-crowded"},"id":"80311234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"more","anchor":{"section":"bg-react-more"},"id":"80401234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"more","anchor":{"section":"bg-crowded"},"id":"80411234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"this","anchor":{"section":"bg-react-this"},"id":"80501234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"comment","author":"user","revision":1,"token":"this","anchor":{"section":"bg-crowded"},"id":"80511234","ts":"2026-09-02T00:13:00-07:00"}
+{"kind":"action","author":"user","revision":1,"widget":"bg-history","action":"edit","detail":{"text":"The sample workshop is in the green room."},"id":"80ed1234","ts":"2026-09-02T00:13:05-07:00"}
+{"kind":"action","author":"user","revision":1,"widget":"bg-outcome","action":"choose","detail":{"options":["bg-outcome-desk"]},"generated":[],"id":"80ce1234","ts":"2026-09-02T00:13:06-07:00"}
+{"kind":"pickup","author":"page","events":["80ed1234","80ce1234"],"id":"80ce5678","ts":"2026-09-02T00:13:07-07:00"}

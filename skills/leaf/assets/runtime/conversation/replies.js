@@ -77,11 +77,12 @@ export function createReplies({
         tellDraft(draftCtx, v);
       },
       send: async (text, raw) => {
-        // A reader can scroll away without moving keyboard focus. A later gesture
-        // withdraws this send's continuation, while its draft and delivery still settle.
+        // Scrolling away or leaving the window can keep the old editor's focus. Both
+        // withdraw this send's continuation, while its draft and delivery still settle.
         const continuation = new AbortController();
         const listening = { capture: true, passive: true, signal: continuation.signal };
         const leave = () => continuation.abort();
+        addEventListener("blur", leave, { signal: continuation.signal });
         document.addEventListener("wheel", leave, listening);
         document.addEventListener("touchmove", leave, listening);
         document.addEventListener(

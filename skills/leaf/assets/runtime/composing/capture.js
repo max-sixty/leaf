@@ -107,13 +107,8 @@ export function createSelectionCapture({
   // Typing in another box after the send began is the same later gesture. sentFrom
   // distinguishes the box that launched the send from a different live text control.
   //
-  // A box is the whole of it, which is why this is named for typing rather than for
-  // focus. The panel's other two landings — a resolve and a reopen, each behind a round
-  // trip of its own — put the reader on a thread node instead, and Chrome collapses the
-  // selection for a landing that takes a caret, not a control as such — a button and a
-  // select leave it standing, and so does a `tabindex="-1"` div. Same
-  // shape, then, and not the same steal: those two keep the standing place a control
-  // that folds away with its thread owes the reader.
+  // This predicate protects typing and selection. Panel completions also retain their
+  // landing intent across the send, so later navigation cancels their reveal or focus.
   function mayLandTyping(box, sentFrom = box) {
     const standing = focused();
     return (

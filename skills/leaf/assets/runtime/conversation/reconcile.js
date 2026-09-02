@@ -225,8 +225,9 @@ export function createConversation(dependencies) {
     renderPanel,
     threadsBox,
   });
-  const { showThread } = createPanelLanding({
+  const { retainPanelLanding, showThread } = createPanelLanding({
     finishFold: folding.finishFold,
+    panelIsOpen,
     reachedForWords,
     setPanel,
     threadsBox,
@@ -242,7 +243,6 @@ export function createConversation(dependencies) {
   const cards = createThreadCards({
     anchorLabel,
     el,
-    focused,
     isMarked,
     keys,
     msgNode,
@@ -253,6 +253,7 @@ export function createConversation(dependencies) {
     placedAt,
     PRESS,
     reachedForWords,
+    retainPanelLanding,
     scrollToThread,
     setPanel,
     settlementControl,

@@ -1316,6 +1316,7 @@ const {
   paintStanding: paintReactionStanding,
   panel,
   panelCovers,
+  panelList: threadsBox,
   pointerAt,
   reactionContextContains: (node) => reactionContextContains(node),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),

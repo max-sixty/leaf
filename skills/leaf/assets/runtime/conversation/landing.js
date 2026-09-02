@@ -93,11 +93,30 @@ export function createConversationLanding({ scrollToThread }) {
 
 export function createPanelLanding({
   finishFold,
+  panelIsOpen,
   reachedForWords,
   setPanel,
   threadsBox,
   widen,
 }) {
+  // A completion may navigate only until the reader's next gesture or focus moves
+  // elsewhere. Replacing its control can drop focus to body without a new intent.
+  let landingIntent = 0;
+  const leaveLanding = () => landingIntent++;
+  for (const type of ["pointerdown", "keydown", "input", "wheel"])
+    addEventListener(type, leaveLanding, { capture: true, passive: true });
+  addEventListener("blur", leaveLanding);
+  const retainPanelLanding = (source) => {
+    const intent = landingIntent;
+    return () => {
+      const at = focused();
+      return (
+        panelIsOpen() &&
+        intent === landingIntent &&
+        (at === document.body || at === threadsBox || source.contains(at))
+      );
+    };
+  };
   // Landing belongs to the list, not to whatever moved the focus. The list already says
   // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
   // heading and for a ring — and every route that could reach a thread was scrolling it
@@ -205,5 +224,5 @@ export function createPanelLanding({
     setTimeout(() => thread.classList.remove("flash"), 1300);
   }
 
-  return { showThread };
+  return { retainPanelLanding, showThread };
 }

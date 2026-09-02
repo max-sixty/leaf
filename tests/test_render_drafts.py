@@ -824,13 +824,14 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
 
 @pytest.mark.parametrize("same_thread", [False, True])
 def test_a_held_reply_send_leaves_a_later_reply_box_focused(
-    browser, serve, same_thread
+    held_events, serve, same_thread
 ):
     """A later draft keeps its focus and remains visible when a reply arrives.
 
     The long sent message tests reflow above a draft in the same card; the distant
     card tests a reader who has moved to another conversation.
     """
+    browser, held = held_events
     page, errors = open_page(browser, serve(LONG_PAGE, comments=8))
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
@@ -842,8 +843,6 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
     first.fill("\n\n".join(["The first reply is in flight."] * 15))
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
         "button", name="Send", exact=True
     ).click()
@@ -855,7 +854,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     expect(later).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(
@@ -869,8 +868,9 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
 
 
 @pytest.mark.parametrize("continue_inline", [False, True])
-def test_a_held_reply_send_leaves_the_panel_closed(browser, serve, continue_inline):
+def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_inline):
     """Closing Threads during delivery is later than sending the reply."""
+    browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
@@ -890,8 +890,6 @@ def test_a_held_reply_send_leaves_the_panel_closed(browser, serve, continue_inli
     thread = page.locator(".lf-threads > .lf-thread")
     reply = thread.locator("textarea")
     reply.fill("Send this while I return to reading.")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     thread.get_by_role("button", name="Send", exact=True).click()
     _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
 
@@ -906,7 +904,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(browser, serve, continue_inli
         inline.fill(newer)
         inline.evaluate("box => box.setSelectionRange(9, 9)")
         expect(reply).to_have_value(newer)
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(reply).to_have_value(newer if continue_inline else "")
@@ -924,8 +922,9 @@ def test_a_held_reply_send_leaves_the_panel_closed(browser, serve, continue_inli
     page.close()
 
 
-def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
+def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     """A wheel can move the reading place while leaving the old reply focused."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
@@ -935,8 +934,6 @@ def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
     later = threads.last
     reply = first.locator("textarea")
     reply.fill("A reply whose delivery is slow.")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
 
@@ -949,7 +946,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
     expect(reply).to_be_focused()
     before = later.evaluate("node => node.getBoundingClientRect().top")
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(reply).to_have_value("")
@@ -1092,7 +1089,9 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     page.close()
 
 
-def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, serve):
+def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
+    held_events, serve
+):
     """A comment's send must not take a newer passage selection with its focus handoff.
 
     The newer selection remains native and keeps its response field available while the
@@ -1101,14 +1100,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     Held rather than raced: the window is one request's flight, and a machine quick
     enough closes it before the next gesture. A loaded CI runner is not, and it said so
     as a 💬 that never came up for the passage picked out after a send."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.locator("#p1").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
@@ -1118,7 +1116,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     expect(page.locator(".lf-fab-input")).to_have_value("")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -1895,20 +1893,19 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     assert again_errors == []
 
 
-def test_a_held_selection_comment_preserves_a_newer_exact_draft(browser, serve):
+def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):
     """A selection send owns one serialized composer generation, not its box."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(LONG_PAGE))
     old = "The selected passage needs this first comment."
     newer = "  A newer selection comment remains in the composer.  "
     compose(page, "#p3", old)
     box = page.locator(".lf-composer textarea")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
     box.fill(newer)
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-composer")).to_be_visible()

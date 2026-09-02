@@ -44,6 +44,22 @@ gate on the maintainer's machine. The complete nightly suite first runs after
 main moves on either path, so a red `ci` on main is already affecting whoever
 pulls next. Treat it as live.
 
+## Push the fix before the long verify
+
+Verification here outlasts what a session can safely hold. The complete
+`--run-nightly` suite takes 30 to 90 minutes, and a session can end inside that
+window on the account's session ceiling rather than on anything the run
+controls — when it does, an uncommitted working tree is the entire loss and the
+next session starts the same diagnosis from nothing. `tests/CLAUDE.md` names a
+smaller handover bar: the failing test's complete browser file and the everyday
+suite. Reach that bar, commit, push, open the PR, and let the PR's own `ci` run
+the rest — a red check on an open PR is a follow-up, while an unpushed fix is
+not recoverable.
+
+Waiting on a background suite is the same trade. `until ! pgrep -x pytest; do
+sleep 20; done` spends a turn every ten minutes when the tool timeout kills the
+wait, and reports nothing the PR's `ci` would not.
+
 ## Reading a red suite
 
 Nearly every test drives a real browser, so a red run has more ways to be

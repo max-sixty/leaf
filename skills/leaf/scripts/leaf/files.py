@@ -1,4 +1,4 @@
-"""Mutable source and immutable revision and version paths."""
+"""Mutable source, immutable revisions, and public version addresses."""
 
 import hashlib
 import json
@@ -12,7 +12,7 @@ from pathlib import Path
 from .locations import path_location
 
 # The name an atomic write stages under, beside its target, for the moment before the
-# rename (`write_files` below). A reader of the directory looks past it: it is not yet
+# rename (`replace_files` below). A reader of the directory looks past it: it is not yet
 # any file the page has, and a look that counted it would see the page move twice for
 # a write that moved it once.
 STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
@@ -48,21 +48,6 @@ def version_num(name: str) -> int:
 
 def version_name(version: int) -> str:
     return f"v{version}.html"
-
-
-def version_path(page_dir: Path, version: int) -> Path:
-    return page_dir / "versions" / version_name(version)
-
-
-def list_versions(page_dir: Path) -> list:
-    versions_dir = page_dir / "versions"
-    if not versions_dir.exists():
-        return []
-    return sorted(
-        version_num(p.name)
-        for p in versions_dir.iterdir()
-        if p.is_file() and VERSION_FILE.fullmatch(p.name)
-    )
 
 
 def revision_num(name: str) -> int:
@@ -147,7 +132,7 @@ def stamped_version(events: list, revision: int) -> int | None:
 
 
 def version_descriptors(page_dir: Path, events: list) -> list[dict]:
-    """The public stamps whose note and immutable copy both exist."""
+    """The public stamps whose note names an existing immutable revision."""
     mappings = version_revisions(events)
     revisions = set(list_revisions(page_dir))
     return [
@@ -157,7 +142,7 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
             "url": f"/versions/{version_name(version)}",
         }
         for version in sorted(mappings)
-        if version_path(page_dir, version).is_file() and mappings[version] in revisions
+        if mappings[version] in revisions
     ]
 
 
@@ -200,9 +185,8 @@ def revision_label(events: list, revision: int) -> str:
 
 
 def published_versions(page_dir: Path, events: list) -> list:
-    """Stamped versions: those whose immutable file and `note` both exist."""
-    noted = {e["version"] for e in events if e["kind"] == "note"}
-    return [version for version in list_versions(page_dir) if version in noted]
+    """Public versions whose stamp and mapped immutable revision both exist."""
+    return [item["version"] for item in version_descriptors(page_dir, events)]
 
 
 def latest_published(page_dir: Path, events: list) -> int:
@@ -221,7 +205,7 @@ def read_json(path: Path):
 
 
 def replace_files(files: list) -> None:
-    """Stage every (path, bytes, follow_symlink) write before replacing targets."""
+    """Durably stage every write before replacing its target."""
     staged = []
     targets = [
         path.resolve() if follow_symlink and path.is_symlink() else path
@@ -255,13 +239,21 @@ def replace_files(files: list) -> None:
             staged.append((tmp, target))
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
-            if follow_symlink or not path.is_symlink():
-                try:
-                    tmp.chmod(target.stat().st_mode & 0o777)
-                except FileNotFoundError:
-                    pass  # no target to preserve a mode from
+                if follow_symlink or not path.is_symlink():
+                    try:
+                        os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
+                    except FileNotFoundError:
+                        pass  # no target to preserve a mode from
+                stream.flush()
+                os.fsync(stream.fileno())
         for tmp, target in staged:
             os.replace(tmp, target)
+        for parent in {target.parent for target in targets}:
+            fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
     finally:
         for tmp, _ in staged:
             tmp.unlink(missing_ok=True)

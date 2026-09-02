@@ -1,9 +1,17 @@
-import { shownBox } from "../geometry.js";
+import { shownBox, shownRect } from "../geometry.js";
+import {
+  createAddressPlacement,
+  MAX_NUMBERED_ADDRESSES,
+} from "../keyboard/address-placement.js";
+import { bindings } from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
+import { decisionActions, watchDecisionActions } from "./actions.js";
 
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
+  actionLayer,
+  actionReachable,
   scrollBehavior,
   announce,
   decisionEntry,
@@ -19,9 +27,11 @@ export function createDecisionView({
   el,
   elementById,
   focusForNavigation,
+  focused,
   inChrome,
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,
@@ -30,6 +40,7 @@ export function createDecisionView({
   paintKeys,
   PRESS,
   panelIsOpen,
+  presentedActionControl,
   readableDestination,
   registry,
   reserve,
@@ -350,6 +361,117 @@ export function createDecisionView({
       ) ?? null
     );
   }
+
+  // The Ask-local numeric map. The widget contributes the exact controls that work its
+  // decision source; this view owns only their stable addresses while semantic focus is
+  // on the Ask itself. Once Tab enters a control, the widget's nearer scope and native
+  // keys take over. The deep focus reading matters for a shadow widget: document focus is
+  // retargeted to its host, but a control inside it is still not the Ask itself.
+  function actionDecision() {
+    const decision = standingIn();
+    return decision && focused() === decision ? decision : null;
+  }
+  const availableActions = () => {
+    const decision = actionDecision();
+    if (!decision) return [];
+    return decisionActions(decisionSource(decision))
+      .filter(
+        ({ control }) =>
+          control.isConnected &&
+          !control.matches(":disabled") &&
+          control.getAttribute("aria-disabled") !== "true" &&
+          control.getAttribute("aria-busy") !== "true",
+      )
+      .slice(0, MAX_NUMBERED_ADDRESSES);
+  };
+  const actionBindings = () => availableActions().map((_, index) => String(index + 1));
+  const actionLabels = () => availableActions().map(({ label }) => label);
+  const actionRow = {
+    id: "decision.activate-nth",
+    keys: actionBindings,
+    label: () => {
+      const count = actionBindings().length;
+      return count > 1 ? `1–${count}` : "1";
+    },
+    does: () =>
+      `Activate an action in this Ask: ${actionLabels()
+        .map((label, index) => `${index + 1} ${label}`)
+        .join("; ")}`,
+    line: () => actionLabels().join(" / "),
+    when: () => availableActions().length > 0,
+    run: (binding) => availableActions()[Number(binding) - 1]?.control.click(),
+  };
+
+  // The chips are an eye's projection of the same row. A widget that already owns an
+  // address face lends that face and its exact placement; other actions get chrome at
+  // the visible Button's corner. Off-screen actions keep their working address and name
+  // on the key line but wear no chip. A nearer keyboard layer suppresses both the row and
+  // these chips through actionReachable, so a digit never stays painted after a chord,
+  // text box, or modal has taken it.
+  const wornAddresses = new Map();
+  function restoreAddress(address, { display, priority }) {
+    address.removeAttribute("data-lf-ask-address");
+    if (display) address.style.setProperty("display", display, priority);
+    else address.style.removeProperty("display");
+  }
+  function clearWornAddresses() {
+    for (const [address, previous] of wornAddresses) restoreAddress(address, previous);
+    wornAddresses.clear();
+  }
+  function paintActionAddresses() {
+    clearWornAddresses();
+    const actions = availableActions();
+    if (!actionReachable() || !bindings(actionRow).length) {
+      actionLayer.replaceChildren();
+      return;
+    }
+    const placement = createAddressPlacement({
+      banner,
+      keylineEl,
+      startsAt: shownRect,
+    });
+
+    // Reuse a widget's page-local address where it has one. Besides preserving the
+    // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
+    // the fixed key line above it. Hide a face that has no clear visible box, just as the
+    // general address pass drops a route chip where the screen cannot say it safely.
+    for (const { address } of actions) {
+      if (!address?.isConnected) continue;
+      const previous = {
+        display: address.style.getPropertyValue("display"),
+        priority: address.style.getPropertyPriority("display"),
+      };
+      address.setAttribute("data-lf-ask-address", "");
+      address.style.setProperty("display", "block", "important");
+      const box = address.checkVisibility() && placement.visibleBox(address);
+      if (!placement.reserve(box)) {
+        restoreAddress(address, previous);
+        continue;
+      }
+      wornAddresses.set(address, previous);
+    }
+
+    const chips = [];
+    for (const [index, { control, address }] of actions.entries()) {
+      if (address) continue;
+      const presented = presentedActionControl(control);
+      if (!presented.checkVisibility()) continue;
+      const box = placement.visibleBox(presented);
+      if (!box) continue;
+      const chip = el("span", "lf-address lf-ask-address", String(index + 1));
+      chip.setAttribute("aria-hidden", "true");
+      chip.style.left = `${box.left}px`;
+      chip.style.top = `${box.top}px`;
+      chips.push(chip);
+    }
+    placement.paint(actionLayer, chips);
+  }
+  watchDecisionActions(() => paintKeys());
+  addEventListener("scroll", () => actionReachable() && paintHere(), {
+    capture: true,
+    passive: true,
+  });
+  addEventListener("resize", () => actionReachable() && paintHere());
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and a decision
@@ -399,6 +521,7 @@ export function createDecisionView({
     if (decisionLent && decisionLent !== here && decisionLent !== holder) lend(null);
     for (const marked of wearing)
       marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
+    paintActionAddresses();
   }
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
@@ -470,10 +593,9 @@ export function createDecisionView({
   // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
   // keeps its place in document order and everything inside a decision comes after it.
   //
-  // What this costs is one press: a mark's own digit row is declared on the mark
-  // (lf-options), so `1` answers the question after Tab rather than on the frame the
-  // reader arrives. That is the right way round — the addresses are painted down the
-  // options, and a reader who cannot see them has no use for them.
+  // The decision remains the semantic focus. Its widget-contributed actions are already
+  // directly addressable there; Tab is the complementary path into the widget's own
+  // local scope for walking or inspecting its controls.
   function arriveAt(decision) {
     decision.focus({ preventScroll: true });
     if (decision.matches(":focus")) return;
@@ -668,6 +790,7 @@ export function createDecisionView({
   return {
     DECISION_CONTROL,
     DECISION_ROW,
+    actionRow,
     decisionPlace,
     buildBulkAnswers,
     goToDecision,

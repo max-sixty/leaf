@@ -9,8 +9,8 @@ from render_harness import (
 )
 
 # ---------- anchors written without a browser ----------
-# `leaf comment` writes an anchor by reading the version file; the runtime
-# resolves it against the DOM that file becomes. Nothing static can check that those
+# `leaf comment` writes an anchor by reading the mapped revision; the runtime
+# resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
 # once the page is loaded.

@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.files import read_json
+from leaf.schema import EVENTS_FILE
 
 try:
     import fcntl
@@ -34,11 +35,11 @@ def flocked(path: Path):
     to them, since the files themselves are replaced by rename and a lock on a
     replaced inode holds nothing."""
     require_cross_process_locking()
-    # comments.jsonl is the successful-init marker as well as a lease. A
+    # The event log is the successful-init marker as well as a lease. A
     # transaction racing page deletion must not recreate it and turn a deleted
     # directory back into an initialized page. Purpose locks are disposable and
     # may be minted on first use.
-    mode = "r+b" if path.name == "comments.jsonl" else "a+b"
+    mode = "r+b" if path.name == EVENTS_FILE else "a+b"
     with open(path, mode) as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         yield f
@@ -160,7 +161,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
 
 def append_event(page_dir: Path, event: dict) -> dict:
     # This low-level fixture seam can start a log in an existing directory.
-    log = page_dir / "comments.jsonl"
+    log = page_dir / EVENTS_FILE
     with open(log, "a", encoding="utf-8"):
         pass
     with flocked(log) as f:
@@ -201,7 +202,7 @@ def _parse_events(data: bytes) -> list[dict]:
 
 
 def read_events(page_dir: Path) -> list:
-    path = page_dir / "comments.jsonl"
+    path = page_dir / EVENTS_FILE
     if not path.exists():
         return []
     return _parse_events(path.read_bytes())

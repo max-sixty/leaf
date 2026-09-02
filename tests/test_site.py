@@ -172,9 +172,9 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
         # somewhere to travel; the index forwards to the newest of them.
         for number, authored in enumerate(example_versions(source), start=1):
             version = site / "examples" / source.stem / "versions" / f"v{number}.html"
-            assert version.read_text() == site_build.eager_example(
-                authored.read_text()
-            ), f"{authored.name} changed beyond the static showcase's root marker"
+            assert version.read_text() == authored.read_text(), (
+                f"{authored.name} changed while it was published"
+            )
         newest = site_build.newest_version(source)
         index = site / "examples" / source.stem / "index.html"
         assert f"versions/{newest}" in index.read_text()
@@ -207,8 +207,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
 ):
     """Every authored example appears once as a real preview and a standalone route.
 
-    The absence checks are held by positive populations: nine catalog entries, nine
-    loaded images, and the independently derived authored files. A vanished catalog
+    The absence checks are held by positive populations: catalog entries, loaded
+    images, and the independently derived authored files. A vanished catalog
     cannot pass merely because it also contains no iframe or tab widget.
     """
     expected = {source.stem for source in authored_examples()}
@@ -250,7 +250,10 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             ]
 
         assert page.locator("iframe, lf-tabs").count() == 0
-        assert not (site / "examples" / "corpus").exists()
+        published = {
+            path.name for path in (site / "examples").iterdir() if path.is_dir()
+        }
+        assert published == expected
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -297,7 +300,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
     page.route("**/data.json", lambda route: seeds.append(route))
-    page.route("**/comments.jsonl", lambda route: seeds.append(route))
+    page.route("**/events.jsonl", lambda route: seeds.append(route))
 
     try:
         with page.expect_request("**/leaf.js"):
@@ -306,7 +309,6 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"
-        assert page.locator("html").get_attribute("data-lf-eager") == ""
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
@@ -359,7 +361,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             # If /leaf.js never started, do not let releasing it create new held seed
             # requests after the cleanup snapshot below.
             page.unroute("**/data.json")
-            page.unroute("**/comments.jsonl")
+            page.unroute("**/events.jsonl")
         for route in boot:
             route.continue_()
         for route in seeds:

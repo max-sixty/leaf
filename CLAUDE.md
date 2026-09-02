@@ -104,9 +104,10 @@ gestures. Page-widget state is bounded by document version; widgets frozen into
 thread markup use the conversation window.
 
 The page directory is the durable record and deployment unit. `index.html` is
-mutable author source; revisions and stamped versions are immutable. The event
-log is append-only, while `data.json` is the explicit replace-in-place authority
-for typed external data. A source id keeps one contract for the page's lifetime.
+mutable author source; revisions are immutable, and append-only notes bind public
+versions to them. The event log is append-only, while `data.json` is the explicit
+replace-in-place authority for typed external data. A source id keeps one contract
+for the page's lifetime.
 `skills/leaf/references/internals/page-storage.md` defines the complete
 layout.
 
@@ -146,9 +147,8 @@ Before finishing a feature:
 - Keep the implementation, tests, and any owning protocol or reference aligned.
 - Give every action a keyboard route. Chords keep actions reachable without spending a
   page-level binding on each one.
-- Make the feature appear in at least one authored page under `examples/`.
-  Implementing or changing it includes adding or updating a source example and
-  regenerating the derived corpus.
+- Follow `examples/CLAUDE.md`'s page-fixture rules when adding or changing a feature,
+  and regenerate the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the routed reference that owns the workflow.
 - Update any public docs or generated outputs the feature affects.

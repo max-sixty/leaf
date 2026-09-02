@@ -290,17 +290,20 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — one Tab past where `a` lands — ↑/↓ walk the options clamping at the
-    ends, a digit picks outright, and each option wears its digit only while a mark holds
-    keyboard focus, so nothing appears on a page nobody is answering."""
+    """At Ask focus a digit picks outright; one Tab enters marks, where ↑/↓ walk the
+    options clamping at the ends. Each option wears its digit while the Ask or one of
+    its marks holds keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
-    nums = page.locator("#live-question .lf-address")
+    nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
-    # The arrival stands on the decision; its marks are the next Tab stops.
-    expect(nums.first).to_be_hidden()
+    # The arrival stands on the decision, which wears its options' digits; the marks
+    # are the next Tab stops.
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
@@ -2944,7 +2947,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
-    (d / "versions" / "v2.html").write_text(without_passage)
+    (d / ".fixture-versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)
     details.evaluate("el => { el.open = true; }")
@@ -4828,7 +4831,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
-    (d / "versions" / "v2.html").write_text(NOTED_PAGE)
+    (d / ".fixture-versions" / "v2.html").write_text(NOTED_PAGE)
     stamp_version_file(d, 2, "two")
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)

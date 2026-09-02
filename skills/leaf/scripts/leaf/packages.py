@@ -23,6 +23,7 @@ from .locations import (
 from .schema import (
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
+    EVENTS_FILE,
     KERNEL,
     PACKAGE_DIRS,
     PACKAGE_FILES,
@@ -83,10 +84,10 @@ def initialized_page_owning(path: Path):
     resolved = path.resolve()
     at = path_location(resolved)
     for root in (resolved, *resolved.parents):
-        # Runtime state is disposable and regenerated; it cannot identify the
-        # page whose owned paths this gate protects.
+        # The append-only event log is the successful-init marker. Disposable
+        # runtime state cannot identify the page whose owned paths this gate protects.
         if not (
-            (root / "versions").is_dir()
+            (root / EVENTS_FILE).is_file()
             and all((root / name).is_file() for name in VENDORED_FILES)
             and all((root / name).is_dir() for name in BROWSER_DIRS)
         ):

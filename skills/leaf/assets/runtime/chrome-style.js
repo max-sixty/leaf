@@ -1597,6 +1597,9 @@ ${MARK_RULES}
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -100%); }
+    /* Ask addresses sit on the answer control's upper-left corner. Unlike a route name
+       above prose, the single digit is a local label for the Button it touches. */
+    .lf-ask-addresses > .lf-ask-address { transform: translate(-50%, -50%); }
     .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
       border: 0; background: transparent; }
     /* Item selection borrows the address chip's face but not its meaning. These hints are

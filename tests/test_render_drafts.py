@@ -132,7 +132,7 @@ def test_page_round_trip(browser, serve):
     round_trip(page)
 
     # Claude ships v2 with the passage moved; the page follows on its next poll.
-    (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
     stamp_version_file(d, 2, "moved")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
@@ -157,7 +157,7 @@ def test_page_round_trip(browser, serve):
     # The trail those gestures left, exactly — kinds, authorship (the server
     # stamps browser events `user`), the anchor, and the move's placement.
     events = [
-        json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
+        json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
     assert [(e["kind"], e["author"], e["revision"]) for e in events] == [
         ("note", "claude", 1),
@@ -403,7 +403,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
     stamp_version_file(d, 2, "v2")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
@@ -443,7 +443,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     events = [
         json.loads(line)
-        for line in (d / "comments.jsonl").read_text().splitlines()
+        for line in (d / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert events[-1]["action"] == "edit"
@@ -499,7 +499,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     )
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
@@ -610,7 +610,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
 
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [edited]
@@ -1067,7 +1067,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     v2 = NOTED_PAGE.replace(
         "A short second passage.", "A revised short second passage."
     )
-    (d / "versions" / "v2.html").write_text(v2)
+    (d / ".fixture-versions" / "v2.html").write_text(v2)
     stamp_version_file(d, 2, "v2")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
@@ -1078,7 +1078,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
     )
-    (d / "versions" / "v3.html").write_text(v3)
+    (d / ".fixture-versions" / "v3.html").write_text(v3)
     stamp_version_file(d, 3, "v3")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
@@ -2095,7 +2095,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [
@@ -2137,7 +2137,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     d = serve.page_dir
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
         if version == 2:
-            (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+            (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
             stamp_version_file(d, 2, "v2")
         events_model.append_event(
             d,
@@ -2221,7 +2221,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     # And the agent answers with a version that carries neither — the page generator
     # emitting its own idea of the board and the draft, as one did for five
     # versions running.
-    (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
     stamp_version_file(d, 2, "v2")
 
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
@@ -2235,7 +2235,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 
 
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
-    """`leaf comment` reads the version file plus the log; the user's tab reads
+    """`leaf comment` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
@@ -2322,7 +2322,7 @@ def test_registered_control_keys_activate_once(browser, serve):
     round_trip(page)
     sent = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
     ]
     assert [e for e in sent if e.get("action") == "choose"] != [], (
         "the first press sent nothing, so the repeats below had nothing to duplicate"

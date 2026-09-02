@@ -53,7 +53,7 @@ const sessionReady = Promise.all([
   realFetch("../data.json")
     .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
     .catch(() => ({ revision: 0, sources: {} })),
-  realFetch("../comments.jsonl")
+  realFetch("../events.jsonl")
     .then((response) => (response.ok ? response.text() : ""))
     .catch(() => "")
     .then((text) =>

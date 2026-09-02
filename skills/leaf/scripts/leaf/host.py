@@ -104,7 +104,7 @@ def config_home() -> Path:
 def state_home() -> Path:
     """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
     directories by convention, claims/ the last claimant of every known page,
-    sessions/ the live watcher leases, init/ the stable per-path creation
+    sessions/ the live watcher leases, page-locks/ the stable per-path transition
     leases, and access.json the one key every page here is served with
     (`host_key`). State, not config:
     claim records carry pids and absolute paths, while page service records

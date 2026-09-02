@@ -770,8 +770,7 @@ export function createProjection(runtime, dependencies) {
         );
       }
       renderQuiet(document.body);
-      paintPending();
-      projection = stateProjection();
+      paintPending(projection);
       document.body.setAttribute(
         PAGE_PAINT_ATTRIBUTE.applied,
         String(projectionCoverage(projection)),
@@ -801,14 +800,13 @@ export function createProjection(runtime, dependencies) {
   // state back to the author. A decided suggestion has no record form to agree
   // with (honoring retires the wrapper), so it stays marked while the wrapper
   // stands.
-  function paintPending() {
+  function paintPending(projection) {
     const marks = new Map(
       [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
         attr,
         new Set(),
       ]),
     );
-    const projection = stateProjection();
     for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;

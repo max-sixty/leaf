@@ -1922,8 +1922,9 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. `d` and `u` move down and up by 60% of the reading page,
-leaving native Space free for the platform and focused controls. Other letters come
+is often repeated or held. `j`/`k` scroll down/up by 60 pixels; `d`/`u` move 60% of
+the reading page. Both follow the active region, share a quick glide, and jump under
+reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader, while direct
 destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
 Threads, Asks, and All leaves, and `g M` enters the Page map at its roving marker.
@@ -1940,7 +1941,7 @@ rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
 the presses whose subject is the page: `/` searches its text, `s` names its visible
-items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `d`/`u` move its
+items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
 reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own

@@ -92,8 +92,8 @@
  * wheel/touch input, history restoration, and browser chrome therefore share the same
  * reading position; auxiliary workspaces keep their own nested scrollports. Runtime
  * reading position goes through pageScroller.
- * The page binds `d` and `u` to move 60% of the visible page down and up at the browser's
- * own paging pace through whichever of the two regions the reader's own scrolling moves.
+ * The page binds `j`/`k` to 60-pixel steps and `d`/`u` to 60% of the visible page,
+ * through whichever region the reader is working in. Both share the same quick glide.
  * Space and the platform's remaining scroll keys keep their native meaning, including in
  * focused controls.
  *
@@ -1959,24 +1959,30 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
-  createNavigation({
-    BANNER_CLEAR,
-    reducedMotion,
-    scrollBehavior,
-    inChrome: (node) => inChrome(node),
-    inPanel,
-    openOnItem,
-    openThreads,
-    pageScroller,
-    panelCovers,
-    panelIsOpen,
-    scrollToElement,
-    scrollToThread,
-    setPanel,
-    shownRect,
-    threadsBox,
-  });
+const {
+  commentOnItem,
+  glideTo,
+  placeThreadEdge,
+  seenScroller,
+  stepReading,
+  stepThread,
+} = createNavigation({
+  BANNER_CLEAR,
+  reducedMotion,
+  scrollBehavior,
+  inChrome: (node) => inChrome(node),
+  inPanel,
+  openOnItem,
+  openThreads,
+  pageScroller,
+  panelCovers,
+  panelIsOpen,
+  scrollToElement,
+  scrollToThread,
+  setPanel,
+  shownRect,
+  threadsBox,
+});
 
 const landInThreadReply = (thread) =>
   landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
@@ -2756,7 +2762,29 @@ const PAGE = {
       // the one capability no page has to advertise. The shelf and the reference still
       // name it, which is where a key the reader has not asked after belongs.
       repeat: true,
-      run: (binding) => stepPage(binding === "d" ? 0.6 : -0.6),
+      run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
+    },
+    {
+      id: "scroll.move",
+      keys: ["j", "k"],
+      routes: [
+        {
+          id: "scroll.down",
+          binding: "j",
+          does: "Scroll down a little",
+          line: "scroll down",
+        },
+        {
+          id: "scroll.up",
+          binding: "k",
+          does: "Scroll up a little",
+          line: "scroll up",
+        },
+      ],
+      does: "Scroll down or up a little",
+      line: "scroll down / up",
+      repeat: true,
+      run: (binding) => stepReading(binding === "j" ? 60 : -60, "pixel"),
     },
     {
       // The last thing the reader did to this page, put back. Its own key rather

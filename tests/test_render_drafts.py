@@ -2302,11 +2302,10 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     page.close()
 
 
-def test_the_reading_page_keys_step_with_overlap(browser, serve):
-    """d and u move 60% of the visible page — clientHeight less what
-    scroll-padding-top declares covered by the fixed banner — at the pace of the
-    browser's own paging keys, the runtime driving the motion itself (stepPage says
-    why). The page sets scroll-behavior: smooth on the box, as an authored page may —
+@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
+def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
+    """d/u move 60% of the visible page; j/k take small steps through the same glide.
+    The page sets scroll-behavior: smooth on the box, as an authored page may —
     a step whose writes ride that rule instead of stating `instant` never lands.
 
     Every phase waits on its destination, never on scrollend or a timer: the glide
@@ -2325,9 +2324,13 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     Pressing on at the foot moves nothing and banks nothing, so u from there
     is one step back."""
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+    step = (
+        60
+        if down == "j"
+        else page.evaluate(
+            "() => (document.scrollingElement.clientHeight"
+            " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+        )
     )
     assert page.evaluate(
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
@@ -2335,18 +2338,21 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     # A callback's frame timestamp may predate performance.now() in the key handler.
     # Make that browser timing deterministic: a negative first fraction used to write
     # above the page, get clamped to zero, then cancel the glide as if the reader moved.
-    page.evaluate("""() => {
+    page.evaluate(
+        """down => {
       const raf = requestAnimationFrame;
       let stale = false;
       addEventListener('keydown', event => {
-        if (event.key === 'd') stale = true;
+        if (event.key === down) stale = true;
       }, {capture: true});
       window.requestAnimationFrame = callback => {
         const firstAfterPress = stale;
         stale = false;
         return raf(now => callback(firstAfterPress ? -1 : now));
       };
-    }""")
+    }""",
+        down,
+    )
 
     def rests_at(act, expected):
         """Position after `act`, awaited at `expected` and handed to the assertion:
@@ -2363,24 +2369,25 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
             pass
         return page.evaluate("() => document.scrollingElement.scrollTop")
 
-    assert rests_at(lambda: page.keyboard.press("d"), step) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press(down), step) == pytest.approx(
         step, abs=1
     )
 
     def twice():
-        page.keyboard.press("d")
-        page.keyboard.press("d")
+        page.keyboard.down(down)
+        page.keyboard.down(down)  # a held key emits a repeated keydown
+        page.keyboard.up(down)
 
     assert rests_at(twice, step * 3) == pytest.approx(step * 3, abs=1), (
         "the second press measured from the glide in flight, so the two together "
-        "moved less than the page they promised"
+        "moved less than their full distance"
     )
-    assert rests_at(lambda: page.keyboard.press("u"), step * 2) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press(up), step * 2) == pytest.approx(
         step * 2, abs=1
     )
 
     def taken():
-        page.keyboard.press("d")
+        page.keyboard.press(down)
         page.evaluate(
             "() => document.scrollingElement.scrollTo({top: 400, behavior: 'instant'})"
         )
@@ -2388,7 +2395,7 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
         "the glide pressed on to its goal after the reader took the box"
     )
-    assert rests_at(lambda: page.keyboard.press("d"), 400 + step) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press(down), 400 + step) == pytest.approx(
         400 + step, abs=1
     ), (
         "the press after the reader took the box measured from the goal the taking "
@@ -2405,11 +2412,11 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
         foot,
     ) == pytest.approx(foot, abs=1)
     for _ in range(4):
-        page.keyboard.press("d")  # nothing left to move, and nothing banked either
-    assert rests_at(lambda: page.keyboard.press("u"), foot - step) == pytest.approx(
+        page.keyboard.press(down)  # nothing left to move, and nothing banked either
+    assert rests_at(lambda: page.keyboard.press(up), foot - step) == pytest.approx(
         foot - step, abs=1
     ), (
-        "presses at the foot of the page ran the destination past it, and u spent "
+        "presses at the foot of the page ran the destination past it, and reversing spent "
         "itself paying that back"
     )
     assert errors == []
@@ -2421,7 +2428,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     box clamps nothing: d may not paint the page above where the press found it. A rAF
     tick carries its frame's own start, so a press handled inside a frame already under
     way is stamped after the tick it schedules, and an ease reading that as elapsed time
-    walks back out through its own start (stepPage says the rest). At the ends of the box
+    walks back out through its own start (stepReading says the rest). At the ends of the box
     that write is one the box clamps, and what the clamp does to the press is a resting
     position the test above reads; in the middle every write lands, the glide arrives
     exactly where it promised, and the reader is thrown up to most of a page the wrong
@@ -2471,24 +2478,28 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     page.close()
 
 
-def test_the_reading_page_keys_jump_under_reduced_motion(browser, serve):
-    """d moves through a page with enough overlap to keep the prior lines in view;
-    u makes the same step upward. Under reduced motion both jump."""
+@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
+def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
+    """Both reading distances jump immediately under reduced motion."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
         color_scheme="light",
         reduced_motion="reduce",
     )
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+    step = (
+        60
+        if down == "j"
+        else page.evaluate(
+            "() => (document.scrollingElement.clientHeight"
+            " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+        )
     )
-    page.keyboard.press("d")
+    page.keyboard.press(down)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
-    ), "d had not moved 60% of the visible page when the press returned"
-    page.keyboard.press("u")
+    ), "the step had not reached its destination when the press returned"
+    page.keyboard.press(up)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         0, abs=1
     )

@@ -2768,7 +2768,17 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    expect(page.locator(".lf-version")).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # A keyboard-opened popover returns to the real origin, not to the chooser used as
+    # its implementation door.
+    origin = page.locator("h1")
+    origin.evaluate("node => node.tabIndex = -1")
+    origin.focus()
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(origin).to_be_focused()
 
     # The pointer's door reaches the same layer, and the same key ends it.
     page.locator(".lf-version").click()

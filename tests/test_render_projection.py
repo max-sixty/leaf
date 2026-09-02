@@ -543,6 +543,32 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(summaries.nth(2)).to_be_hidden()
     expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
 
+    # The frame belongs to the diff, not to the query value globally. Leaving the widget
+    # retires it: Escape over page prose must not clear a hidden filter or pull focus back.
+    page.locator("#title").click()
+    expect(search).not_to_be_focused()
+    page.keyboard.press("Escape")
+    expect(search).to_have_value("second")
+    expect(search).not_to_be_focused()
+
+    # Filtering is a nested state of the one / entry: the first Escape clears it, and
+    # the second restores the file header that opened the field.
+    summaries.nth(1).focus()
+    page.keyboard.press("/")
+    expect(search).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
+    expect(summaries).to_have_count(3)
+    for index in range(3):
+        expect(summaries.nth(index)).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(summaries.nth(1)).to_be_focused()
+
+    page.keyboard.press("/")
+    search.fill("second")
+    expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
+
     summaries.nth(1).focus()
     page.keyboard.press("Alt+ArrowDown")
     expect(summaries.nth(1)).to_be_focused()
@@ -2525,7 +2551,7 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
         "the refusal is still a property name, which reads as leaf being broken: "
         + refusal
     )
-    assert page.evaluate("() => document.body.dataset.lfUpgraded") is None, (
+    assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
     page.close()
@@ -3524,7 +3550,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
+    expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
 
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
     # own frame whole. Drawn by the lower neighbour instead, the divider recolored the

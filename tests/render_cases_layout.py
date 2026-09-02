@@ -1128,6 +1128,7 @@ def live_leaf(tmp_path, monkeypatch):
         d = host_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
+        (d / ".fixture-versions").mkdir()
         (d / ".fixture-versions" / "v1.html").write_text(
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
         )

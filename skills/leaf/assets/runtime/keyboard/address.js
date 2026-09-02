@@ -15,6 +15,7 @@ export function createAddress({
   claimsEsc,
   el,
   enterPageMap,
+  leavePageMap,
   focused,
   focusedThread,
   fragmentId,
@@ -31,12 +32,17 @@ export function createAddress({
   pageParts,
   paintHere,
   panelCovers,
+  panelIsOpen,
+  pageMapIsActive,
   placeThreadEdge,
   resolveAnchor,
   saying,
   seenScroller,
   setPanel,
   showTray,
+  currentTray,
+  workspaceState,
+  restoreWorkspace,
   startsAt,
   scrollToElement,
   threadsBox,
@@ -145,6 +151,7 @@ export function createAddress({
         setPanel(true);
         threadsBox.focus({ preventScroll: true });
       },
+      active: panelIsOpen,
     },
     {
       id: "navigation.panel.decisions",
@@ -156,6 +163,7 @@ export function createAddress({
         showTray("decisions");
         (decisionRows()[0] ?? decisionsPanel).focus({ preventScroll: true });
       },
+      active: () => currentTray() === "decisions",
     },
     {
       id: "navigation.panel.leaves",
@@ -167,6 +175,7 @@ export function createAddress({
         showTray("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
+      active: () => currentTray() === "leaves",
     },
     {
       id: "navigation.page-map",
@@ -175,6 +184,8 @@ export function createAddress({
       line: "Page map",
       when: () => true,
       go: enterPageMap,
+      active: pageMapIsActive,
+      close: leavePageMap,
     },
   ];
   const ADDRESSES = [
@@ -431,6 +442,18 @@ export function createAddress({
         does: destination.does,
         line: destination.line,
         when: () => !aimedList && destination.when(),
+        returnFrame: () => {
+          const workspace = workspaceState();
+          return {
+            active: destination.active,
+            close: () => {
+              destination.close?.();
+              return restoreWorkspace(workspace);
+            },
+            does: `Return from ${destination.line}`,
+            line: "back",
+          };
+        },
         run: () => {
           setChord(false);
           destination.go();
@@ -489,10 +512,9 @@ export function createAddress({
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
         // inside it. The complete routes stay fixed while that letter turns pressed, so one
-        // Escape gives the letter back and the next closes the window. It took both at once,
-        // which is the same drift `c` had at the panel: a reader who had narrowed to the
-        // wrong list wanted the other one, and cancelling put them back on the page, pressing
-        // `g` again to reach a window that had been standing the whole time.
+        // Escape gives the letter back and the next closes the window. Collapsing both at
+        // once stranded a reader who had narrowed to the wrong list back on the page, making
+        // them press `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
         chordControl: true,
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),

@@ -1415,6 +1415,16 @@ the page map sheet — keep `showModal()` and the backdrop that comes with it. O
 `<dialog>` runs the browser's focusing steps at either spelling, so a caller that means
 to leave the reader where they were has to put the focus back.
 
+Closing is not the mirror of that. The platform hides the dialog and restores focus at
+once but hands `close` to a task of its own, so a reader who leaves a surface and
+returns to it in the same breath — Esc off an overflow route and straight back onto the
+control that named it — is standing in the next opening before the first one's close
+arrives. A handler that tears down the opening's state therefore reads whether the
+dialog is open again and gives that reopening its state back rather than taking it: a
+`close` overtaken by a reopen has nothing left to close. The state a late close would
+have cleared is what the surface is read by, and losing it is silent — the sheet still
+stands, still says its name, and the next press inside it means something else.
+
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every
@@ -1588,6 +1598,14 @@ top-level block. At compact widths it returns the host to flow immediately after
 target's rendered text block (or the target itself). Adding another target action must
 not add another absolute row, control type, or rail measurement.
 
+Each render reads once which contributed controls paint, and it does not take that
+reading on paper. Print takes every injected control out of the page, so the reading
+comes back empty there and folds every cluster to nothing — the medium written down as
+the page's state, standing on screen after the print preview closes. A render asked for
+while `print` matches is refused whole and taken once the screen is back. It is the
+thread list's head-room rule on the layer's other measuring surface: a reading taken
+where the box is `display: none` is not a measurement.
+
 That ordered target collection is the Page map's complete location count. A location's
 disclosure Button announces its position in the collection, while `g m` and the banner's
 Map control both open the same complete sheet. The collection is not a numbered address
@@ -1597,9 +1615,9 @@ and role order, plus readings that have no direct control. An offered reading th
 describes its owner's controls is omitted there rather than becoming a parallel “open
 action” beside the real verbs. Ordinary entry focuses the sheet's filter, so a large map
 is searchable by Button name, concise target name, or the visible passage containing
-that target without tabbing through every preceding action.
-A spill opens this complete sheet focused on the first
-control the compact cluster omitted; it does not make a smaller overflow-only menu.
+that target without tabbing through every preceding action. A spill opens this complete
+sheet focused on the first control the compact cluster omitted; it does not make a
+smaller overflow-only menu.
 
 Live reconciliation retains the DOM identity of each surviving Button and each of its
 hit-tested descendants, including a count badge. State-feed refreshes can arrive between

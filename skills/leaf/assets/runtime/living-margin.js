@@ -1863,7 +1863,22 @@ export function createLivingMargin(dependencies) {
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
+  // Paper is not a posture this can be read in. Print hides every injected control
+  // (`[data-lf-offer]` in the chrome stylesheet's print block) and the living margin
+  // with it, so the one contributor-visibility reading a render is built on comes back
+  // empty: every cluster folds to nothing, and what has been written down is the medium
+  // rather than the page. Nobody sees it on the sheet, where the margin does not print
+  // at all, but the fold outlives the print preview and stands on screen until the next
+  // render repairs it. It is the panel's head-room rule on the other surface that
+  // measures: a reading taken where the box is `display: none` is not a measurement. So
+  // a render asked for on paper is refused whole and taken once the screen is back.
+  const onPaper = matchMedia("print");
+  onPaper.addEventListener("change", () => {
+    if (!onPaper.matches) render();
+  });
+
   function render() {
+    if (onPaper.matches) return;
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewButton;
     transferThreadFocus = false;
@@ -2568,13 +2583,20 @@ export function createLivingMargin(dependencies) {
   sheetSearch.addEventListener("input", filterSheet);
   sheet.addEventListener("close", () => {
     const from = sheetFrom;
+    const activated = sheetActivation;
+    sheetActivation = false;
+    // A dialog delivers `close` in a task of its own, so a reader who reopens the sheet
+    // in the same breath — Esc off the overflow route and straight back onto the Button
+    // that named it — is standing in the next opening by the time this arrives. That
+    // opening owns the return route and the target the retained context is read from
+    // (buttonContextContains), so a late close must not take either with it: cleared,
+    // the reopened sheet stops counting as its target's own surface and the next press
+    // inside it stands the reaction down instead of sending it.
+    if (sheet.open) return;
     sheetFrom = null;
     sheetTarget = null;
     paintKeys();
-    if (sheetActivation) {
-      sheetActivation = false;
-      return;
-    }
+    if (activated) return;
     if (from?.isConnected && from.checkVisibility())
       from.focus({ preventScroll: true });
     else focusMapControl();

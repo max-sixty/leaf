@@ -55,6 +55,13 @@ COMMENT_ON_SUGGESTION = {
     "text": "Check this wording before accepting it.",
     "anchor": {"section": "sug-refill"},
 }
+COMMENT_ON_SECOND_SUGGESTION = {
+    "kind": "comment",
+    "author": "agent",
+    "revision": 1,
+    "text": "This one can wait for the autumn order.",
+    "anchor": {"section": "sug-thistle"},
+}
 
 
 def test_margin_layout_batches_the_composed_page_without_refolding_controls(
@@ -907,6 +914,48 @@ def test_settling_a_secondary_button_exposes_its_lifecycle(browser, serve):
     expect(
         item.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     ).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+CLUSTER_SHAPE = """() => [...document.querySelectorAll('.lf-margin-item')].map(
+  (host) => [
+    host.dataset.lfMarginFor,
+    host.querySelectorAll('.lf-margin-action').length,
+    Boolean(host.querySelector('.lf-margin-options')?.hidden),
+  ])"""
+
+
+def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
+    """Paper takes every injected control out of the page, so the one
+    contributor-visibility reading a margin render is built on comes back empty there
+    and folds every cluster to nothing. That is a reading of the medium rather than of
+    the page: news arriving while the reader stands in the print preview leaves the
+    Buttons where they were, and reaches them when the screen comes back.
+
+    The shape is read as markup rather than as visibility, because on paper nothing in
+    the margin is visible either way; what the fold does is empty the option group and
+    take the Buttons out of the host."""
+    page, errors = open_page(
+        browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    standing = page.evaluate(CLUSTER_SHAPE)
+    assert [host for host in standing if host[1] > 1], (
+        f"no cluster here holds the Buttons a paper reading would fold away: {standing}"
+    )
+
+    page.emulate_media(media="print")
+    events_model.append_event(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
+    told(page)
+    assert page.evaluate(CLUSTER_SHAPE) == standing
+
+    page.emulate_media(media="screen")
+    thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
+    expect(thistle.locator(".lf-margin-marker")).to_have_attribute(
+        "aria-label", re.compile(r"^Thread, ")
+    )
     assert errors == []
     page.close()
 

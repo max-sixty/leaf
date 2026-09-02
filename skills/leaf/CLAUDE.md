@@ -2266,8 +2266,7 @@ upgrade.
 
 The key line is short help, not the keyboard reference. It walks outward from the
 reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
-the first live row, then a promotable Escape or the next row; rows declaring
-`linePriority: persistent` remain beside that context. At rest on the page that is `c`
+the first live row, then a promotable Escape or the next row. At rest on the page that is `c`
 and `r`, the two presses that say something back, beside the More control. Search, item
 selection and reading-page movement are ordinary rows ranked below them, named by the
 shelf and the reference: a glance that spends its room on ways of finding something to
@@ -2283,10 +2282,9 @@ chord. `lineWhen` may hide only an ordinary hint without changing the command's 
 or its place in the reference. Hint chips are `aria-hidden` because placeholders and live
 announcements carry the same facts for assistive technology.
 
-The compact line wraps when persistent or chord rows need the room. Ordinary hints may
-yield from the end to stay within two rows, but persistent rows and active chord rows do
-not. The interactive More control stays before persistent hints, so a wider face wraps a
-visual fact rather than moving a compact target down beside page or panel furniture.
+The compact line wraps when chord rows need the room. Ordinary hints yield from the
+end on a window too narrow for them, but active chord rows do not; More is the one
+control that always survives.
 
 `syncLayout` reserves the line's whole footprint in each scroll region: the band from
 its top to the foot of the window, so its height, its own inset, a covering sheet's lift

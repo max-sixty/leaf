@@ -440,9 +440,8 @@ function receiveState(...args) {
 //           overlay and never promised as the next press — F7, ⌥ click, a press on a
 //           draft's own box.
 //   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
-//           never changes whether the command dispatches or appears in the reference.
-//   linePriority — `persistent` keeps an essential row beside the contextual shortlist.
-//           An active chord shows every live row regardless of either line projection field.
+//           never changes whether the command dispatches or appears in the reference,
+//           and an active chord shows every live row regardless of it.
 //   promoteEscape — whether an Escape row takes the line's second visible slot. On by
 //           default; a local action that happens to clear state can leave the slot to the
 //           next action on that state.

@@ -14,7 +14,7 @@ Run the same compact ask after invoking npm from inside the pinned reference clo
 - UI: disposable `ui://` HTML resource
 - Return path: `callServerTool` → Leaf `EventEndpoint`
 - Supported ask: one current page-scoped, single-choice `lf-options` decision
-- Durable authority: authored revision plus `comments.jsonl`
+- Durable authority: authored revision plus `events.jsonl`
 - Reference host: ext-apps commit `10195ad91851502134930e9b80ec2c04e277a720`
 - Authored fixture: `examples/design-decision.html`
 

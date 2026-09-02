@@ -64,10 +64,10 @@
  * messages and replies, and lf-draft actions.
  *
  * Versions: the live page at `/` follows the active working revision in the same document.
- * It fetches each immutable revision file, upgrades and replays it behind a view-transition
+ * It fetches each mapped immutable revision, upgrades and replays it behind a view-transition
  * boundary, then restores the reader's semantic landmark. Stamping that revision changes
  * its label without replacing the document. Picking a stamped version leaves the live page
- * for that immutable version URL, which stays pinned. One control on the bar holds all of
+ * for that virtual version URL, which stays pinned. One control on the bar holds all of
  * it — the revision being read, the stamped versions, and the press on an older one that
  * marks that change on the page.
  *
@@ -92,8 +92,8 @@
  * wheel/touch input, history restoration, and browser chrome therefore share the same
  * reading position; auxiliary workspaces keep their own nested scrollports. Runtime
  * reading position goes through pageScroller.
- * The page binds `d` and `u` to move 60% of the visible page down and up at the browser's
- * own paging pace through whichever of the two regions the reader's own scrolling moves.
+ * The page binds `j`/`k` to 60-pixel steps and `d`/`u` to 60% of the visible page,
+ * through whichever region the reader is working in. Both share the same quick glide.
  * Space and the platform's remaining scroll keys keep their native meaning, including in
  * focused controls.
  *
@@ -1047,6 +1047,11 @@ legendRoot.setAttribute("aria-hidden", "true");
 // so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
+// Numeric actions for the Ask the reader is standing in. These share the address face
+// but not the g chord's lifecycle: the decision view paints them whenever its semantic
+// focus and the dispatch stack leave the digit row reachable.
+const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
+decisionActionLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
 // the platform's rather than a keyboard mode's imitation of one.
@@ -1096,6 +1101,7 @@ chromeRoot.append(
   panel,
   legendRoot,
   addressLayer,
+  decisionActionLayer,
   selectionLayer,
   selectionSearch,
   aimBox,
@@ -1899,9 +1905,13 @@ const { decisionEntry, isAwaiting, projectedParent, unansweredDecisions } =
     tagsDeclaring,
   });
 
+// Dispatch is composed after the page table. Until then the decision view can paint its
+// ring but has no complete scope stack from which to claim that a digit is reachable.
+let decisionActionReachable = () => false;
 const {
   DECISION_CONTROL,
   DECISION_ROW,
+  actionRow,
   decisionPlace,
   buildBulkAnswers,
   goToDecision,
@@ -1915,6 +1925,8 @@ const {
   syncDecisions,
 } = createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
+  actionLayer: decisionActionLayer,
+  actionReachable: () => decisionActionReachable(),
   scrollBehavior,
   documentFocused,
   announce,
@@ -1933,9 +1945,11 @@ const {
     if (livingMargin) livingMargin.focusForNavigation(control);
     else control.focus({ preventScroll: true });
   },
+  focused,
   inChrome: (node) => inChrome(node),
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,
@@ -1944,6 +1958,8 @@ const {
   paintKeys,
   PRESS,
   panelIsOpen,
+  presentedActionControl: (control) =>
+    livingMargin?.presentedControl(control) ?? control,
   readableDestination: (...args) => readableDestination(...args),
   registry,
   reserve,
@@ -1958,24 +1974,30 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
-  createNavigation({
-    BANNER_CLEAR,
-    reducedMotion,
-    scrollBehavior,
-    inChrome: (node) => inChrome(node),
-    inPanel,
-    openOnItem,
-    openThreads,
-    pageScroller,
-    panelCovers,
-    panelIsOpen,
-    scrollToElement,
-    scrollToThread,
-    setPanel,
-    shownRect,
-    threadsBox,
-  });
+const {
+  commentOnItem,
+  glideTo,
+  placeThreadEdge,
+  seenScroller,
+  stepReading,
+  stepThread,
+} = createNavigation({
+  BANNER_CLEAR,
+  reducedMotion,
+  scrollBehavior,
+  inChrome: (node) => inChrome(node),
+  inPanel,
+  openOnItem,
+  openThreads,
+  pageScroller,
+  panelCovers,
+  panelIsOpen,
+  scrollToElement,
+  scrollToThread,
+  setPanel,
+  shownRect,
+  threadsBox,
+});
 
 const landInThreadReply = (thread) =>
   landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
@@ -2628,6 +2650,7 @@ const REFERENCE = {
 };
 const PAGE = {
   rows: [
+    actionRow,
     // The two presses that say something back, first, because the resting line is the
     // only sentence a reader who has not pressed anything yet will read. It used to open
     // `/ search page · s select item`, which are both ways of *finding* a thing to act on
@@ -2760,7 +2783,29 @@ const PAGE = {
       // the one capability no page has to advertise. The shelf and the reference still
       // name it, which is where a key the reader has not asked after belongs.
       repeat: true,
-      run: (binding) => stepPage(binding === "d" ? 0.6 : -0.6),
+      run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
+    },
+    {
+      id: "scroll.move",
+      keys: ["j", "k"],
+      routes: [
+        {
+          id: "scroll.down",
+          binding: "j",
+          does: "Scroll down a little",
+          line: "scroll down",
+        },
+        {
+          id: "scroll.up",
+          binding: "k",
+          does: "Scroll up a little",
+          line: "scroll up",
+        },
+      ],
+      does: "Scroll down or up a little",
+      line: "scroll down / up",
+      repeat: true,
+      run: (binding) => stepReading(binding === "j" ? 60 : -60, "pixel"),
     },
     {
       // The last thing the reader did to this page, put back. Its own key rather
@@ -2921,6 +2966,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   takesLetters,
   TYPING,
 });
+decisionActionReachable = () => availableCommands().has(actionRow.id);
 const reference = createReference({
   byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
@@ -3235,6 +3281,7 @@ const runtimeProjection = createProjection(runtime, {
   PAGE_PAINT_ATTRIBUTES,
   agentName,
   answeredContext,
+  authored,
   decisionEntry,
   containsAcross,
   dress,
@@ -3351,6 +3398,7 @@ conversationRuntime = createConversation({
   loadDraft,
   markDeclared,
   matchesWhen,
+  mayLandTyping,
   mirrorDraft,
   motion,
   needsBtn,
@@ -3629,9 +3677,9 @@ createArrangements({
 // uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
 // still does, since Space on a button presses it rather than scrolling the document.
 //
-// Here rather than in the start block below, which runs asynchronous upgrades with the
-// chrome clickable throughout: a reader who took a control in that window would have it
-// taken back off them. Main is withheld from paint, and body can name the page now.
+// Here rather than in the start block below, which runs asynchronous upgrades while the
+// authored document is already readable: body can name the page now, and stateful widget
+// controls remain unavailable until presentPage crosses their semantic boundary.
 letGo();
 const { landArrival, savedView } = installArrival({
   fragmentId,
@@ -3642,18 +3690,31 @@ const { landArrival, savedView } = installArrival({
 const savedComposer = selectionComposerRuntime.pendingComposer();
 
 // ---------- start ----------
-// One positive fact for the one presentation boundary. Success has applied the log;
-// an unavailable first poll has painted the offline status and deliberately hands the
-// authored page back. A caught startup failure cannot make that promise, so it leaves
-// the fixed recovery surface in place rather than exposing decisions it never read. A fast
-// answer releases before the delayed waiting surface can paint; a slower answer releases
-// as soon as replay commits, so the explanation never holds a ready page behind it.
+// One positive fact for the semantic-interaction boundary. Authored HTML already paints.
+// Success has applied the log; an unavailable first poll has painted the offline status
+// and deliberately lets the authored state accept durable interaction. A caught startup
+// failure cannot make either promise, so controls and top-layer UI remain unavailable.
 function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
-  // Repaint state-dependent chrome in this same task. The presentation attribute opens
-  // the gate, replay is already complete, and no frame can expose the authored count or
-  // an empty persisted tray between those facts.
+  // Anchors are durable coordinates, so their pass and every route that can mint one
+  // begin only after replay has reconciled the authored document. An early native text
+  // selection can then resolve against the standing DOM, while a retired passage cannot
+  // leave a composer carrying its authored words.
+  anchoringReady = true;
+  paintAnchors();
+  updateFab();
+  paintHere();
+  landArrival();
+  if (savedView && savedView.revision < runtime.currentRevision)
+    notice(`Updated to ${runtime.currentLabel}`);
+  if (savedComposer)
+    openComposer(savedComposer.anchor, savedComposer.text, {
+      suggest: Boolean(savedComposer.suggest),
+      about: savedComposer.about ?? null,
+    });
+  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
+  // is already complete, so the presented attribute opens interaction on the state it names.
   restoreTray();
   showNews(othersBtn, leavesOffered());
   paintKeys();
@@ -3663,9 +3724,9 @@ function presentPage() {
 }
 
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
-// never top-level await: boot first publishes every factory-built owner capability, then
-// imports the behavior modules that consume the public facade.
+// positions are re-found in the enhanced, replayed DOM rather than authored markup. An
+// async function, never top-level await: boot first publishes every factory-built owner
+// capability, then imports the behavior modules that consume the public facade.
 async function startPage() {
   const [upgraded] = await Promise.all([
     upgradeWidgets(),
@@ -3683,18 +3744,6 @@ async function startPage() {
   captureAuthoredFacets();
   buildBulkAnswers();
   syncDecisions();
-  anchoringReady = true;
-  paintAnchors(); // an early general post may already have loaded anchored threads
-  updateFab(); // an early selection is now read from the fully upgraded page
-  paintHere(); // c is live again, whether or not that selection raised the button
-  landArrival();
-  if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
-  if (savedComposer)
-    openComposer(savedComposer.anchor, savedComposer.text, {
-      suggest: Boolean(savedComposer.suggest),
-      about: savedComposer.about ?? null,
-    });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and
@@ -3710,9 +3759,8 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
-  // The boundary itself must fail visibly. The fixed recovery surface stays in front:
-  // this failure happened before the log was read, so the authored decisions underneath
-  // are not an honest page to release.
+  // The boundary itself must fail visibly. Authored HTML remains readable, while the
+  // status names the fault and the absent presented stamp keeps durable controls closed.
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

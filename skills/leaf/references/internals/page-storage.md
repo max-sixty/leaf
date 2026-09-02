@@ -11,11 +11,11 @@ A page directory holds:
                          A changed valid source becomes the next revision; identical
                          bytes reuse the existing one. The live root follows the
                          active revision.
-    versions/v1.html…    immutable stamped checkpoints written by `version stamp`.
-                         A note maps each public version to the exact revision it
-                         stamped. A pinned `/versions/vN.html` therefore never moves,
-                         even while later source saves become live. Leaf alone writes
-                         both immutable directories.
+    /versions/v1.html…   virtual public addresses. Each `note` event maps a version to
+                         its immutable revision, and the server renders that revision
+                         at the stable version URL. No second HTML copy is stored.
+                         A pinned version therefore never moves while later source saves
+                         become live.
     leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
@@ -50,7 +50,7 @@ A page directory holds:
                          copy that `version check` walks and a browser reloads.
                          So the transport was never an optimisation over
                          inlining; inlining was never available
-    comments.jsonl       append-only event log; an event's seq is its line number (1-based)
+    events.jsonl         append-only event log; an event's seq is its line number (1-based)
     data.json            explicit authority for page-bound sources: each record keeps
                          its contract identity, may have a replaceable current value
                          with the data revision that wrote it,
@@ -71,7 +71,7 @@ A page directory holds:
                          private records become canonical claim updates, which
                          their local receipts show beside the page-wide banner
                          (`leaf status … --on`). Delivery pickup never writes
-                         this file; it is a page-owned event in comments.jsonl
+                         this file; it is a page-owned event in events.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all

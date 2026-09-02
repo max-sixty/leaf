@@ -49,7 +49,8 @@ export function createOutbox(runtime, dependencies) {
   // Modules use it to paint controls and guard gestures; sendAction asks it again at the
   // common browser door. POST interprets the same x-state declaration under the append
   // lock, because this tab's projection may be stale rather than authoritative.
-  const actionAvailable = (el, action) => !quoted(el) && actionMatches(el, action);
+  const actionAvailable = (el, action) =>
+    runtime.statePhase !== "waiting" && !quoted(el) && actionMatches(el, action);
 
   async function sendAction(el, action, detail, { attempt } = {}) {
     // The exhibit rule enforced at the layer's own door, not left to each module
@@ -63,7 +64,9 @@ export function createOutbox(runtime, dependencies) {
       );
       return null;
     }
-    if (!actionMatches(el, action)) return null;
+    // Modules ask the same predicate before optimistic paint. Repeat it at the common
+    // door so authored HTML cannot post while the first state projection is pending.
+    if (!actionAvailable(el, action)) return null;
     const spec = registry[el.localName]["x-state"][action];
     const creates = spec.creates;
     const generated = creates ? Object.keys(detail[creates.field] ?? {}).sort() : null;
@@ -102,7 +105,7 @@ export function createOutbox(runtime, dependencies) {
   }
 
   // Returns the event the server minted — the id is the sender's only handle on the
-  // thread or message it just created, which is what revealThread is handed — or null
+  // thread or message it just created, which is what showThread is handed — or null
   // when the server definitively refused it. Every event carries one browser-minted
   // attempt, so a lost answer is retried without becoming a second gesture.
   //

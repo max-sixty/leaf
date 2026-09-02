@@ -1,4 +1,5 @@
 import { labelOf, spell } from "./bindings.js";
+import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { focusDestination } from "../widget-elements.js";
@@ -224,8 +225,7 @@ export function createAddress({
   ];
   // A list's addressable members, and the range its label names. Nine is the whole numbered
   // vocabulary: every member has one digit, every digit completes immediately, and every
-  // consumer below reads this same prefix rather than applying its own cap.
-  const MAX_NUMBERED_ADDRESSES = 9;
+  // numeric consumer reads this same prefix rather than applying its own cap.
   const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
   // How far the chord has come: `g`, and the list's letter once one has named a list. The
@@ -299,22 +299,18 @@ export function createAddress({
       addressLayer.replaceChildren();
       return;
     }
+    const placement = createAddressPlacement({ banner, keylineEl, startsAt });
     const chips = [];
-    const clips = new Map();
-    // The banner covers page content without clipping its boxes. Members hidden behind
-    // it have no chip; a partly visible member keeps its chip below the covered edge.
-    const covered = banner.getBoundingClientRect().bottom;
     for (const entry of aimedList ? [aimedList] : ADDRESSES) {
       for (const [i, member] of addressed(entry).entries()) {
-        const r = startsAt(member, clips);
-        if (!r || r.bottom <= covered) continue;
+        const r = placement.visibleBox(member);
+        if (!r) continue;
         const chip = addressChip(entry, i + 1);
         chip.style.left = `${r.left}px`;
         chip.style.top = `${r.top}px`;
         chips.push(chip);
       }
     }
-    addressLayer.replaceChildren(...chips);
     // A chip that lands on one already drawn is taken down. Two addressable things can start
     // within a chip's width of each other — footnote markers in a row, a link that is the
     // whole of a summary — and stacked chips do not read as two: the one underneath shows an
@@ -329,32 +325,8 @@ export function createAddress({
     // Clamp each complete face before checking collisions: bringing a chip on screen
     // can move it onto its neighbour. Measure every face before moving or removing one.
     // The key line reserves its own box first, so the chips cannot cover their legend.
-    const right = document.documentElement.clientWidth;
-    const bottom = document.documentElement.clientHeight;
-    const kept = [keylineEl.getBoundingClientRect()];
-    const measured = chips.map((chip) => [chip, chip.getBoundingClientRect()]);
-    for (const [chip, start] of measured) {
-      const box = new DOMRect(
-        Math.max(0, Math.min(start.left, right - start.width)),
-        Math.max(covered, Math.min(start.top, bottom - start.height)),
-        start.width,
-        start.height,
-      );
-      if (kept.some((standing) => overlaps(box, standing))) chip.remove();
-      else {
-        chip.style.left = `${box.left + box.width / 2}px`;
-        chip.style.top = `${box.bottom}px`;
-        kept.push(box);
-      }
-    }
+    placement.paint(addressLayer, chips);
   }
-  // Whether two boxes share any pixel. Touching edges do not, so two chips laid exactly a
-  // chip's width apart sit side by side rather than one of them being taken down. That
-  // boundary is the chip's own width and moves with it — the face is a little wider than it
-  // was — so what survives a crowded line is a fact about the face rather than a constant,
-  // and a page whose members used to clear it by a pixel is not promised to now.
-  const overlaps = (a, b) =>
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   // A page that moves under an armed window moves the boxes the chips were placed from, so
   // the chips follow it rather than standing where the page used to be. Capture, because the
   // panel's list and a board's own overflow scroll in boxes of their own and a scroll event

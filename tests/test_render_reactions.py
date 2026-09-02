@@ -12,7 +12,7 @@ from render_cases_navigation import pending_text
 from render_harness import leaf_page
 from render_support import (
     BOTH_STAMPS,
-    EXAMPLES,
+    FEATURE_GALLERY,
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
     PROPOSED_PAGE,
@@ -270,8 +270,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
 
 def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
     """The shortcut line never advertises digits behind a still-collapsed ellipsis."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     settled = page.locator(
         '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="ok"]'
     )

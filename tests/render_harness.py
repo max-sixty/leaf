@@ -3,9 +3,9 @@
 check is static — it parses the file and validates the vocabulary. Everything
 downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
-there are invisible to a linter. This suite drives the shipped examples through
-Playwright's pinned Chromium headless shell and asserts the handful of things
-that were each, at some point, wrong:
+there are invisible to a linter. This suite drives the shipped examples and
+developer feature gallery through Playwright's pinned Chromium headless shell and
+asserts the handful of things that were each, at some point, wrong:
 
   - a widget that upgrades into a box of no size (lf-tabs marked itself with a
     class the runtime's chrome had already claimed for its visually-hidden live
@@ -62,13 +62,17 @@ ROOT = Path(__file__).parent.parent
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
+FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
+assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
 # The inputs scripts/corpus.py composes. The corpus is a generated presentation of
-# these pages, not another author source; tests that exercise authored content use
-# this set while tests of the corpus's own rendering or export keep EXAMPLES.
-SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
-assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated corpus beside the source examples"
+# the public pages plus the feature gallery, not another author source. Every authored-
+# content sweep uses this source set, while public-site tests read the top-level glob.
+PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
+assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
+    "expected exactly one generated corpus beside the public examples"
 )
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
+PAGE_FIXTURES = (*EXAMPLES, FEATURE_GALLERY)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -112,8 +116,8 @@ def stamp_page(
 
 
 def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
-    """Migrate a fixture-authored vN file through the real stamp boundary."""
-    path = files_model.version_path(page_dir, version)
+    """Move a fixture-authored candidate through the real stamp boundary."""
+    path = page_dir / ".fixture-versions" / f"v{version}.html"
     html = path.read_text(encoding="utf-8")
     path.unlink()
     note = stamp_page(page_dir, html, text)
@@ -403,11 +407,11 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
 
     Handed an example's path rather than its markup, it also lays in the three
     things that example ships beside itself: the media it names, external data,
-    and the event log, where it has one. The log for the same reason `test_examples_pass_check`
-    reads one — a page is what its markup and its standing log make together, and
-    a corpus that reads only the markup is reading half of it. A thread and any
-    widget a message carries exist nowhere else, so without this every sweep is
-    green over a page the reader never gets.
+    and the event log, where it has one. The log for the same reason
+    `test_page_fixtures_pass_check` reads one — a page is what its markup and its
+    standing log make together, and a corpus that reads only the markup is reading
+    half of it. A thread and any widget a message carries exist nowhere else, so
+    without this every sweep is green over a page the reader never gets.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -500,6 +504,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                         operation["label"],
                         operation["format"],
                     )
+        (d / ".fixture-versions").mkdir(exist_ok=True)
         seeded = (
             example and seed_log and (seed := example.with_suffix(".jsonl")).exists()
         )
@@ -511,7 +516,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             assert activated.error is None and activated.revision == number, (
                 activated.error
             )
-            (d / "versions" / f"v{number}.html").write_text(markup)
+            (d / ".fixture-versions" / f"v{number}.html").write_text(markup)
             events_model.append_event(
                 d,
                 {
@@ -911,11 +916,10 @@ def nudge(page_dir):
 
     The page asks for state when its news stream says the page has moved, and the
     stream reads file stamps. A test that wants the page's next ask — to park it, or to
-    watch it refused — used to wait for the poll's timer; now it moves a stamp the state
-    does not read. The versions directory's own clock is one: a state reads the files
-    in it and never the directory's time.
+    watch it refused — used to wait for the poll's timer; now it moves the revisions
+    directory stamp, which the state fingerprint reads without changing page content.
     """
-    os.utime(page_dir / "versions")
+    os.utime(page_dir / "revisions")
 
 
 def ticked(page):

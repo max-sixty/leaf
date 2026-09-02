@@ -25,7 +25,7 @@ adapting it to HTTP for the reference host.
   protocol or stderr contamination.
 - The HTML resource is the committed self-contained app and carries the MCP App
   MIME profile.
-- A second process reconstructs the settled state from `comments.jsonl`.
+- A second process reconstructs the settled state from `events.jsonl`.
 
 ## Findings
 
@@ -39,6 +39,6 @@ the committed bundle (`f8dbab209fb870925c48016c196181ac4cc5cf047d58c070a232aadf1
 The first process opened the design-decision ask and posted `opt-redis` through
 `leaf_post_event`, receiving status 200 and an empty projection at event 1. It
 then exited. The second process independently opened the page at event 1 and
-returned the same empty projection. `comments.jsonl` contained the ordinary
+returned the same empty projection. `events.jsonl` contained the ordinary
 validated `choose` action. No protocol diagnostics contaminated stdout or
 appeared on stderr.

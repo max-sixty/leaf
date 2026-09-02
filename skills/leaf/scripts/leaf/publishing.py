@@ -1,13 +1,11 @@
-"""Stamping immutable public versions from the mutable source."""
+"""Stamping public version mappings from the mutable source."""
 
 import sys
 from pathlib import Path
 
 from leaf.files import (
-    replace_files,
     revision_path,
     stamped_version,
-    version_path,
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
@@ -132,7 +130,6 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     activation = _stamp_activation(page_dir, events)
     revision = activation.revision
     created_revision = revision_path(page_dir, revision) if activation.created else None
-    created_version = None
     committed = False
     try:
         checked, registry, projection, parser, spk = _stamp_reading(events, activation)
@@ -151,12 +148,6 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
 
         notes = [event for event in events if event["kind"] == "note"]
         version = max((event["version"] for event in notes), default=0) + 1
-        created_version = version_path(page_dir, version)
-        # A crash before the note may leave an unnoted file. The note is the
-        # commit marker, so that orphan is safe to regenerate under this lease.
-        created_version.unlink(missing_ok=True)
-        replace_files([(created_version, checked.data, False)])
-
         event = _stamp_event(
             body, version, revision, parser, settled_reports, completed
         )
@@ -164,16 +155,13 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
         committed = True
         return accepted
     finally:
-        if not committed:
-            if created_version is not None:
-                created_version.unlink(missing_ok=True)
-            if created_revision is not None:
-                created_revision.unlink(missing_ok=True)
+        if not committed and created_revision is not None:
+            created_revision.unlink(missing_ok=True)
 
 
 @contract_writer
 def cmd_stamp(page_dir: Path, text, completes: tuple[str, ...] = ()) -> dict:
-    """Stamp the exact current source as the next immutable public version."""
+    """Map the exact current source to the next public version."""
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         return _stamp_locked(page_dir, page, body, completes)

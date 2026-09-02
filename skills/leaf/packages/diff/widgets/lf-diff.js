@@ -3,6 +3,7 @@
  * same rendered lines support selection anchors and script-free export. */
 import {
   DISCLOSE,
+  actionAvailable,
   announce,
   dataBody,
   failSoft,
@@ -397,6 +398,8 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     connectedCallback() {
+      document.removeEventListener("lf-actions", this.paintReviewAvailability);
+      document.addEventListener("lf-actions", this.paintReviewAvailability);
       if (this.stopWatching) return;
       // A page diff's file header pins under the banner; one an agent sent in a reply
       // scrolls inside the panel's own list, whose pinned slot already belongs to the
@@ -514,6 +517,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      document.removeEventListener("lf-actions", this.paintReviewAvailability);
       this.rendering = (this.rendering ?? 0) + 1;
       this.stopWatching?.();
       this.stopWatching = null;
@@ -846,6 +850,7 @@ customElements.define(
 
     attachReview(entry) {
       entry.review = reviewButton(entry, (target, reviewed) => {
+        if (!actionAvailable(this, "review")) return;
         this.setReviewed(target, reviewed);
         sendAction(this, "review", {
           file: target.record.path,
@@ -860,7 +865,15 @@ customElements.define(
       });
       entry.node.prepend(entry.review);
       this.setReviewed(entry, false, { repaint: false });
+      this.paintReviewAvailability();
     }
+
+    paintReviewAvailability = () => {
+      const available = actionAvailable(this, "review");
+      for (const entry of this.fileEntries ?? [])
+        if (entry.review instanceof HTMLButtonElement)
+          entry.review.disabled = !available;
+    };
 
     setReviewed(entry, reviewed, { repaint = true } = {}) {
       if (!entry) return;

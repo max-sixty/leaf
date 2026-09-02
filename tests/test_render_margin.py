@@ -10,6 +10,7 @@ from render_support import (
     BOTH_STAMPS,
     DECISION_PAGE,
     EXAMPLES,
+    FEATURE_GALLERY,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
@@ -268,8 +269,7 @@ def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
 @pytest.mark.parametrize("width", [1440, 390])
 def test_dense_gallery_labels_cover_no_neighboring_button(browser, serve, width):
     """Every label in a tightly stacked real cluster finds a clear side."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
     page.locator("#bg-neighbors").scroll_into_view_if_needed()
     for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
@@ -394,11 +394,53 @@ PAGE_MAP_EVENTS = [
 ]
 
 
+@pytest.mark.parametrize("width", [1200, 390])
+def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
+    browser, serve, width
+):
+    """A secondary action's visible proxy gets its canonical Ask address."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, width, 900)
+    margins_laid_out(page)
+
+    page.keyboard.press("a")
+    expect(page.locator("#bg-replace")).to_be_focused()
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
+    geometry = page.evaluate(
+        """() => {
+          const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
+          const boxes = (nodes) => nodes.map((node) => {
+            const box = node.getBoundingClientRect();
+            return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+          });
+          const controls = [...item.querySelectorAll('button')].filter((button) => {
+            const box = button.getBoundingClientRect();
+            return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
+          });
+          return {
+            controls: controls.map((control) => {
+              const box = control.getBoundingClientRect();
+              return {x: box.left, y: box.top};
+            }),
+            chips: boxes([...document.querySelectorAll(
+              '.lf-ask-addresses > .lf-ask-address'
+            )]),
+          };
+        }"""
+    )
+    assert len(geometry["controls"]) == len(geometry["chips"]) == 2, geometry
+    for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
+        assert abs(control["x"] - chip["x"]) <= 2, geometry
+        assert abs(control["y"] - chip["y"]) <= 2, geometry
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
-def test_the_button_gallery_keeps_its_real_actions_reachable(browser, serve, width):
-    """The shipped sampler stays usable after edits, verdicts, and dense overflow."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
+    """The developer sampler stays usable after edits, verdicts, and dense overflow."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
     for target, outcome, receipt in (
@@ -465,8 +507,7 @@ def test_the_button_gallery_keeps_its_real_actions_reachable(browser, serve, wid
 
 def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve):
     """Each Button promise and the live example that keeps it share one section."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
@@ -687,8 +728,7 @@ def test_g_m_opens_the_complete_page_map_beyond_nine_locations(browser, serve):
 
 def test_g_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve):
     """Late action-only targets keep their verbs in the complete Page map."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     page.evaluate(
         """() => {
@@ -2272,8 +2312,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
         "iOS reconnect stall"
     )
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
-    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
-    expect(thread.locator(".lf-conversation-open")).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name="Open interactive reply in Threads")
+    ).to_have_count(1)
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -2337,10 +2378,16 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     marker.click()
     expect(preview).to_be_visible()
 
-    page.locator(".lf-threads-toggle").click()
+    page.keyboard.press("Shift+Tab")
+    expect(
+        thread.get_by_role("button", name="Open interactive reply in Threads")
+    ).to_be_focused()
+    page.keyboard.press("Enter")
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator("#off-slip")).to_be_in_viewport()
+    expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     marker.focus()
@@ -2689,8 +2736,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 
 def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
     """A modal returns to the visible door that exposed its folded Map address."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     more = page.get_by_role("button", name="More page addresses", exact=True)
     more.click()

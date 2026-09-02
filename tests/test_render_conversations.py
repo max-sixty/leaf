@@ -15,7 +15,7 @@ from render_support import (
     COVERED_TOP,
     DECISION_PAGE,
     EDGES,
-    EXAMPLES,
+    FEATURE_GALLERY,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -45,6 +45,40 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+@pytest.mark.parametrize("resolved", [False, True])
+def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved):
+    """A direct reply link opens the destination even inside the resolved disclosure."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-decision id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Put the mounts back</lf-option>'
+        '<lf-option id="camera">Install the camera</lf-option>'
+        "</lf-options></lf-decision>",
+    )
+    if resolved:
+        events_model.append_event(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+        )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-conversation-open").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread).to_be_visible()
+    expect(thread.locator("#first-job")).to_be_in_viewport()
+    expect(thread.locator(".lf-msg").last).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#mounts [role=checkbox]")).to_be_focused()
+    assert errors == []
+    page.close()
 
 
 @pytest.mark.parametrize("response", ["reply", "version"])
@@ -1159,8 +1193,7 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
 ):
     """A held thread operation may land only while its original intent still stands."""
     browser, held = held_events
-    gallery = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(gallery))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1792,6 +1825,41 @@ def test_an_external_resolution_leaves_the_reader_on_the_thread_list(browser, se
 
     page.evaluate("() => window.__lfHeld.forEach((motion) => motion.finish())")
     expect(going).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
+    """A direct jump uses the resolved card, even before its outgoing fold ends."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Pick the first job.",
+        '<lf-decision id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Mounts</lf-option>'
+        '<lf-option id="camera">Camera</lf-option>'
+        "</lf-options></lf-decision>",
+    )
+    page, errors = open_page(browser, url, init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    inline.get_by_role("button", name="Resolve", exact=True).click()
+    round_trip(page)
+    expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
+
+    inline.get_by_role("button", name="Open interactive reply in Threads").click()
+    expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
+    message = page.locator(f'.lf-details[open] .lf-msg[data-mid="{reply["id"]}"]')
+    expect(message).to_be_focused()
+    expect(message.locator("#first-job")).to_be_in_viewport()
+    # Its old animation completion must leave the canonical revealed card standing.
+    page.evaluate("window.__lfHeld.forEach(animation => animation.finish())")
+    expect(message).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -2715,7 +2783,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "text": "the later plain reply",
         },
     )
-    log = d / "comments.jsonl"
+    log = d / "events.jsonl"
     lines = log.read_text(encoding="utf-8").split("\n")
     torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
     lines[torn] = lines[torn][: len(lines[torn]) // 2]

@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 
 const [pageDir, results] = process.argv.slice(2);
 const events = async () =>
-  (await fs.readFile(path.join(pageDir, "comments.jsonl"), "utf8"))
+  (await fs.readFile(path.join(pageDir, "events.jsonl"), "utf8"))
     .trim()
     .split("\n")
     .filter(Boolean)

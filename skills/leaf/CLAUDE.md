@@ -33,7 +33,9 @@ and page-error channel;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
 `runtime/decisions/model.js` owns request discovery and folding;
-`runtime/decisions/view.js` owns decision chrome, marking, and the decision walk;
+`runtime/decisions/actions.js` owns widgets' exact ordered action contribution;
+`runtime/decisions/view.js` owns decision chrome, marking, the decision walk, and
+Ask-local numeric action projection;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
@@ -155,7 +157,7 @@ Each mutable fact has one writer:
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
-| version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
+| version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateVersion` advances `currentVersion`; a public version address derives the version number from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
@@ -169,7 +171,7 @@ Each mutable fact has one writer:
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
-| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -182,10 +184,14 @@ but callers do not read the rendering to recover it. For example,
 does not remember where a decision walk last landed.
 
 `PAGE_PAINT_ATTRIBUTE` is the runtime's one list of attributes it may paint on
-authored elements. `shallowSigs` excludes exactly those attributes. A widget's
-own `data-lf-*` state remains visible to replay and to the render gate. Add a
-runtime-authored attribute to `PAGE_PAINT_ATTRIBUTE` when its writer is added;
-do not broaden the exclusion to every `data-lf-*` attribute.
+authored elements. `shallowSigs` excludes exactly those attributes and reads only
+id-bearing elements accepted by the bounded `authored` predicate. Generated elements
+are absent; generated parents and siblings contribute neither the `in=` id nor sibling
+position. An authored widget inside conversation chrome remains visible because its
+widget frame bounds that predicate. A widget's own `data-lf-*` state remains visible to
+replay and to the render gate. Add a runtime-authored attribute to
+`PAGE_PAINT_ATTRIBUTE` when its writer is added; do not broaden the exclusion to every
+`data-lf-*` attribute.
 
 Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
@@ -247,8 +253,8 @@ The state read overlaps those upgrades, but its answer stays buffered until both
 captures have established the authored initial condition.
 
 The served page root is a stable live document. Its first response projects the
-latest immutable version and carries a runtime-only version marker. On a later
-state read, `versionDocument` fetches the next immutable file in the background.
+latest immutable revision and carries a runtime-only version marker. On a later
+state read, `versionDocument` fetches the next mapped revision in the background.
 `activateVersion` replaces the authored head declarations, root attributes, and
 `body > main`; runs the same fence, clone, dressing, settlement, and authored-facet
 passes as startup; reconciles the log; and restores the semantic reading landmark
@@ -281,7 +287,8 @@ the vendored layer in turn:
 - `data-lf-applied` is the event coverage of the last complete semantic
   projection committed to the DOM.
 - `data-lf-presented` means the initial authoritative projection, or the
-  deliberate offline authored fallback, has crossed the presentation boundary.
+  deliberate offline authored fallback, has crossed the semantic-interaction
+  boundary.
 
 Do not merge these stamps. A document can finish upgrading while its first state
 read is pending, or the answer can wait unapplied while upgrades finish. A
@@ -289,19 +296,26 @@ projection can commit while finite reconciliation animations are still settling.
 Any consumer that reads final boxes waits for upgraded, applied, presented, and
 no finite animation reported by `moving`.
 
-The presentation gate hides the authored `main` and makes it inert until the first
-state read has either applied or established that the server is unavailable. The
-static showcase's build sets `data-lf-eager`, which lifts the gate whole, leaving its
-immutable authored document as ordinary readable HTML while its illustrative session,
-widgets, and controls progressively arrive. Fixed recovery chrome remains usable while
-a live page waits.
+Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
+and layout remain usable while widgets upgrade and the first state read is pending.
+`data-lf-presented` does not release paint: it releases recorded widget actions and
+authored top-layer UI once the first state read has either applied or established that
+the server is unavailable. Modules must consult `actionAvailable` or
+`requestAvailable` before optimistic mutation as well as before sending; their common
+send doors repeat the check. Fixed status and unanchored discussion chrome remain usable
+while a live page waits; selecting a passage does not raise the anchored composer until
+the passage has survived the first projection.
 `showModal()` calls from authored main are temporarily represented as measurable
 non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
 reconciled branch remains visible. This prevents a modal's top-layer inertness from
-disabling the recovery chrome.
+disabling the recovery chrome. `showPopover()` opens natively so the widget can observe
+and cancel it through `:popover-open`; the startup stylesheet withholds its top-layer
+paint and interaction, and `presentPage` closes any open popover whose reconciled branch
+is no longer visible.
 
-`presentPage` owns the one transition from arrival to live presentation. Motion
-helpers and the stylesheet collapse arrival animations until that boundary.
+`presentPage` owns the one transition from arrival to stateful interaction. Motion
+helpers and the stylesheet collapse arrival animations until that boundary, and the
+stylesheet withholds only dialogs and popovers rather than the authored document.
 After it, a state change may animate only where motion helps the reader follow a
 change. A failed startup does not stamp the page presented as if it had read the
 log.
@@ -311,11 +325,12 @@ log.
 there are no comments. A restored or newly opened panel keeps its general
 composer usable and shows a loading state until that distinction resolves.
 
-A failed fetch is a complete offline answer for presentation: the authored page
-is honest when no log can be reached, so fixed status chrome reports the loss and
-the page may appear. A successful response with malformed state is not an
+A failed fetch is a complete offline answer for interaction: the authored page
+is the best state available when no log can be reached, so fixed status chrome reports
+the loss and its controls may activate. A successful response with malformed state is not an
 offline answer. Parsing or rendering errors pass to the recovery boundary and
-leave the candidate sequence unresolved.
+leave the candidate sequence unresolved; authored content stays readable while
+state-dependent controls remain unavailable.
 
 `reportPageError` is the common runtime error surface. A widget failure may
 `failSoft` its own element so the rest of the page and Threads remain usable,
@@ -952,7 +967,7 @@ Neither command appends an event or runs package code, and capture stores no sou
 path. Each stored source retains its contract even after clear, so re-vendoring never has
 to infer meaning from a source's spelling.
 
-A source id keeps that contract across every immutable version and widget frozen into
+A source id keeps that contract across every stamped version and widget frozen into
 a thread. Bindings without a snapshot selector read current; durable documents may
 select a retained capture. Clearing removes current and unreferenced captures but never
 releases the id for a new meaning. Re-vendoring must preserve the page-lifetime binding
@@ -1602,12 +1617,12 @@ open panel waits for the body's strip motion before choosing the card posture. W
 document cannot leave the card room beside its Button, the press opens the full Threads
 surface instead.
 
-A page holding a tag whose registry entry declares `x-state` or `x-work` may grow a
-page-edge Button, so it reserves the rail at load and never gives it back. The runtime
-states that reservation as `data-lf-rail` on the root, and the cascade spends it there;
-neither reads what is standing in the margin, because a row's placement depends on the
-strip it would be answering about. A page that declares nothing still reserves on its
-first marker.
+Every live page may grow a page-edge Button — an anchored comment can arrive on one
+made entirely of prose — so the living margin reserves the rail as it is built and
+never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
+and the cascade spends it there; neither reads what is standing in the margin, because
+a row's placement depends on the strip it would be answering about. A copy takes no
+gestures, so the bake drops the reservation unless a margin item survived into the file.
 
 `margin-layout` places, packs, docks, and measures the complete host. Its rail claim is
 the widest stable contribution seen over a floor of the generated marker's own fitting,
@@ -1947,14 +1962,19 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. `d` and `u` move down and up by 60% of the reading page,
-leaving native Space free for the platform and focused controls. Other letters come
+is often repeated or held. While the Ask itself holds semantic focus, its widget's
+ordered actions take `1`–`9`; the core projects that exact list into the key line and
+visible control chips, while Tab enters the widget's own local scopes. `j`/`k` scroll
+down/up by 60 pixels; `d`/`u` move 60% of
+the reading page. Both follow the active region, share a quick glide, and jump under
+reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader, while direct
 destinations use a mnemonic after `g`: `g T`, `g A`, and `g L` go to Threads, Asks,
 and All leaves, and `g m` opens the complete Page map. A key spelling something nothing
 on screen says is a key nobody reaches for twice.
-Approval spends no page letter: its visible button is in the Tab order and takes native
-Enter or Space. In particular, a conditional chord mnemonic must not share its final key
+Approval spends no fixed page letter: its visible button stays in the Tab order and takes
+native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
+a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
@@ -1964,7 +1984,7 @@ rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
 the presses whose subject is the page: `/` searches its text, `s` names its visible
-items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `d`/`u` move its
+items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
 reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
@@ -2451,11 +2471,11 @@ version menu defers activation and leaves the newest-version chip visible. Endin
 the composition releases the version on the next heartbeat; pressing the chip is
 an explicit override and still keeps the live address. `goActive` is the one door
 for that in-place newest-version request and for the way back to the live address
-from a pinned document; `goVersion` is the door to an older immutable version.
+from a pinned document; `goVersion` is the door to an older public version.
 
 An older version is historical rather than live: choosing one navigates to its
-immutable file with `?pin`, and it stays at `currentVersion` while offering the
-newest-version chip. The view record carries reading position and the decision-walk
+virtual version address with `?pin`, and it stays at `currentVersion` while offering
+the newest-version chip. The view record carries reading position and the decision-walk
 landmark across that document navigation. Focus and a selection do not cross to a
 new document. On live activation, runtime-chrome nodes and their focus survive;
 authored-main nodes are replaced, so the semantic landmark—not a DOM node—is the
@@ -2483,8 +2503,9 @@ panel and directional walk agree about focus, reveal, arrival placement, and
 `landed`.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
-aligned and the one the ring names; its controls are the next Tab stops, a stop at
-`tabindex: -1` keeping its place in document order. Landing the answering control
+aligned and the one the ring names. The widget's contributed actions are addressable
+there as `1`–`9`; its controls remain the next Tab stops, a stop at `tabindex: -1`
+keeping its place in document order. Landing the answering control
 instead puts them as far down the decision as its context and evidence are long, off
 the screen the same gesture arranged. A decision a page styles boxless has nothing to
 stand on and keeps the control as its landing. A widget rebuilt under a reader is not
@@ -2775,25 +2796,24 @@ Neither is stored. A remembered narrowing greets a returning reader with part of
 a conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the
 page restores; a look at a list is not one.
 
-`revealThread` and `showThread` are two asks, not one with a flag.
-`revealThread` confirms something the reader was already watching — a reply
-landing in a thread in front of them — and takes the list as it stands.
-`showThread` insists: a press out on the page or in a message knows nothing of
-the narrowing it would be asking past, and a comment the reader has just written
-cannot vanish into a narrowing it does not match, so the narrowing goes instead.
-It focuses the reply box, or the card when the thread is resolved, before
-`revealThread` places it. A thread too tall for its scrollport reveals its reply
-area. The explicit `t`/`T` walk remains on cards; Enter starts a reply and Escape
-returns to the card. A general-comment send keeps focus in its originating box.
-A reveal that widened for a reply would take the reader's narrowing away for
-having been used, which is how the waiting-on-you list is emptied.
+`showThread` reveals a directly requested thread or message. It clears a narrowing
+that hides the destination and finishes an outgoing resolution fold before opening
+the resolved disclosure. A thread opens in its reply box, or on its card when
+resolved; a message takes focus at its own words so Tab reaches its controls.
+A thread too tall for its scrollport reveals its reply area. The explicit `t`/`T`
+walk remains on cards; Enter starts a reply and Escape returns to the card.
+
+A reply send keeps its editor and actions visible only while the reader remains
+there. Moving to another input, closing the panel, or scrolling away relinquishes
+that continuation. The send preserves the panel's narrowing. A general-comment
+send keeps focus in its originating box.
 
 Messages render from Markdown after escaping raw HTML. Literal text such as a
 generic type remains text and cannot inject markup. Interactive event `markup`
 has a different door: only the CLI can write it after validating against the
 vendored registry, while the browser event schema refuses it. A widget in that
 markup is instantiated once in the panel; inline conversation seats show a
-textual projection rather than copying interactive ids.
+textual projection with a link to that reply's controls in Threads.
 
 An agent message edit is a later event folded onto the original message id. The
 panel and an inline conversation update the existing message node and show
@@ -2954,7 +2974,7 @@ The live-page scrolling and chrome reservations stay under the live guard. A
 copy with no panel uses an ordinary centered document and must not retain room
 for absent runtime furniture.
 
-`test_an_exported_example_stands_on_its_own` strips scripts, opens the copy, and
+`test_an_exported_page_fixture_stands_on_its_own` strips scripts, opens the copy, and
 asks what still looks actionable. Keep that end-to-end test general rather than
 asserting one widget's exported implementation.
 
@@ -3022,7 +3042,8 @@ Named journey tests retain behaviors that a generic render reading cannot drive:
   covers rejection against authoritative history plus later local overlays.
 - `test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order` covers a
   deferred editor correction.
-- `test_first_replay_is_the_pages_first_presentation` covers the presentation
+- `test_authored_page_paints_but_durable_controls_wait_for_first_replay` covers
+  the split between immediate authored paint and the later semantic-interaction
   boundary rather than only the two readiness stamps.
 
 Keep causal fixtures narrow, but retain a distinct case when only a real gesture,

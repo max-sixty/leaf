@@ -1287,6 +1287,15 @@ export function createLivingMargin(dependencies) {
     }
   }
 
+  // A contributed control remains the action's canonical target even when the margin
+  // presents its secondary through a proxy in the unfolded cluster. Geometry belongs to
+  // what the reader can see; dispatch still belongs to the original control.
+  function presentedControl(control) {
+    if (control.checkVisibility()) return control;
+    const proxy = controlProxies.get(control);
+    return proxy?.checkVisibility() ? proxy : control;
+  }
+
   function openButtonOptions(target) {
     render();
     const entry = pageMapEntries.find((candidate) => candidate.target === target);
@@ -2675,6 +2684,7 @@ export function createLivingMargin(dependencies) {
     marginTargetAt,
     openButtonOptions,
     openInlineThread,
+    presentedControl,
     render,
   };
 }

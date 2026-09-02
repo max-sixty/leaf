@@ -997,7 +997,7 @@ def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
 
 
 def test_the_decision_walk_keeps_its_place_when_a_version_lands(browser, serve):
-    """An immutable version follows by navigation, and the reader's place rides across.
+    """A stamped version follows by navigation, and the reader's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the reader was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
@@ -1460,7 +1460,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
 
 def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
-    """The immutable file and its state must describe the DOM in one reading.
+    """The mapped revision and its state must describe the DOM in one reading.
 
     Hold the first projected base after the server has answered it, advance the open
     page with a report, and then deliver that stale base. The comparison asks again at
@@ -1970,7 +1970,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     nothing printed, which is the one failure a user cannot tell from slowness: the
     gate stopping is loud, and the gate never stopping looks like a slow machine.
 
-    Stalled on the previous version's file, because the page never asks for that one
+    Stalled on the previous version's address, because the page never asks for that one
     itself — a path the runtime fetches on load would wedge the navigation instead,
     and the gate would report the banner it never saw rather than the read it never
     got. The deadline is shortened here for the same reason every wait in this suite
@@ -1980,8 +1980,9 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
+    (d / ".fixture-versions").mkdir()
     for n in (1, 2):
-        (d / "versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
+        (d / ".fixture-versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
         stamp_version_file(d, n, "t")
 
     asked = threading.Event()
@@ -2040,7 +2041,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         )
 
     def stamp(n, html):
-        (d / "versions" / f"v{n}.html").write_text(html)
+        (d / ".fixture-versions" / f"v{n}.html").write_text(html)
         stamp_version_file(d, n, "t")
         return url.replace("v1.html", f"v{n}.html")
 
@@ -2072,7 +2073,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     vocabulary has nothing to do — a card placed where it already is, a pick set to
     what it already holds, a body assigned the words it already reads.
 
-    The corpus cannot say this on its own: `test_example_renders` serves every example
+    The corpus cannot say this on its own: `test_page_fixture_renders` serves every page
     under a log holding one note, so the fold is empty there and the reading passes
     without applying anything. This page is the log the examples haven't got, and the
     floor is that the standing state covers every verb the registry declares — a verb
@@ -2620,8 +2621,8 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
     """A widget may use the runtime's namespace for state without making that state
     runtime paint. Replaying a suggestion changes only data-lf-state on its authored
-    element, so the replay record must name it; data-lf-pending on the same element is
-    the runtime's own annotation and must not change the signature."""
+    element, so the replay record must name it; runtime attributes and generated chrome
+    must not change the signature."""
     url = serve(SUGGESTION_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -2661,19 +2662,38 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         const { shallowSigs } = await import("/runtime/widget-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
-        root.innerHTML = '<i id="lf-runtime"></i>' +
-            '<div id="first"><b id="nested"></b></div>' +
+        root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
+            '<div class="lf-ui" id="runtime-control"></div>' +
+            '<div class="lf-ui" id="runtime-parent">' +
+                '<lf-options id="thread-widget"></lf-options></div>' +
             '<i></i><div id="second"></div>';
         const before = Object.fromEntries(shallowSigs(root));
+        root.insertBefore(document.createElement("i"), root.firstElementChild);
+        root.querySelector("#runtime-parent").id = "replacement-runtime-parent";
+        root.querySelector("#runtime-control").replaceWith(
+            Object.assign(document.createElement("div"), {
+                className: "lf-ui",
+                id: "replacement-runtime-control",
+            }),
+        );
+        const painted = Object.fromEntries(shallowSigs(root));
         root.prepend(root.lastElementChild);
         const moved = Object.fromEntries(shallowSigs(root));
-        return { before, moved };
+        return { before, painted, moved };
     }""")
     assert positions == {
         "before": {
             "signature-root": "DIV [id=signature-root] in=#-1",
             "first": "DIV [id=first] in=signature-root#0",
             "nested": "B [id=nested] in=first#0",
+            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
+            "second": "DIV [id=second] in=signature-root#1",
+        },
+        "painted": {
+            "signature-root": "DIV [id=signature-root] in=#-1",
+            "first": "DIV [id=first] in=signature-root#0",
+            "nested": "B [id=nested] in=first#0",
+            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
             "second": "DIV [id=second] in=signature-root#1",
         },
         "moved": {
@@ -2681,6 +2701,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
             "second": "DIV [id=second] in=signature-root#0",
             "first": "DIV [id=first] in=signature-root#1",
             "nested": "B [id=nested] in=first#0",
+            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
         },
     }
     assert errors == []
@@ -2751,7 +2772,7 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     honored = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    (d / "versions" / "v2.html").write_text(honored)
+    (d / ".fixture-versions" / "v2.html").write_text(honored)
     stamp_version_file(d, 2, "t")
     third, third_errors = open_page(browser, url.replace("v1.html", "v2.html"))
     expect(third.locator("#col-done #card-importer")).to_be_visible()
@@ -3412,7 +3433,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     one no version will ever hold (an honored suggestion, whose id the honoring
     version dropped) rather than one to look for again on the next poll. Its authored
     record is banked while the reply body is still detached, so withdrawing the action
-    restores that baseline without a version file for the chrome widget."""
+    restores that baseline without authored version markup for the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -4147,6 +4168,33 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
         "aria-disabled", "false"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, serve):
+    source = leaf_page(
+        "Request action address",
+        """<lf-command id="hub"><lf-task id="goal" status="active">
+<strong>Goal</strong>
+<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
+  <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
+</lf-agent>
+<lf-decision id="command-decision"><h2>Recover this work</h2>
+  <lf-operations id="commands" target="goal" worker="worker" worktree="tree">
+    <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
+  </lf-operations>
+</lf-decision></lf-task></lf-command>""",
+    )
+    page, errors = open_page(browser, serve(source))
+
+    page.keyboard.press("a")
+    expect(page.locator("#command-decision")).to_be_focused()
+    assert "1\nRestart" in key_line(page)
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
+
     assert errors == []
     page.close()
 
@@ -4920,7 +4968,7 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
     url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, live_url(url))
     page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
-    (serve.page_dir / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
     stamp_version_file(serve.page_dir, 2, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")

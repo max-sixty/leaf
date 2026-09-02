@@ -63,6 +63,14 @@ leaf bug costs a turn nothing. Unacknowledged events are the one
 thing `leaf status <page> idle` can't close over: idling is how a leaf ends, and
 one can't end on comments nobody read.
 
+Only a page handed to a reader owes a watcher, so the unwatched clause passes
+over a page carrying `preview.json` — a developer preview, put up to be looked
+at. Nothing else about that page changes: a delivery it has not taken, or a
+comment nobody answered, is reported as on any other. It reads the file's
+presence rather than the serve path's validating reader, because this guard fails
+open by saying nothing, and an exit inside it would take every page the session
+holds down without a word.
+
 A session's leaves cost it one long-running carrier between them, and that
 carrier is separate from the page server. Claude Code uses a sequence of direct
 watchers: `leaf wait` exits to put a batch in model context, then `leaf ack`

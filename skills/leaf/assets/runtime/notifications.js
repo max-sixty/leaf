@@ -28,9 +28,9 @@ export function createNotifications({ liveEl, noticeEl }) {
   function notice(msg) {
     announce(msg);
     noticeEl.textContent = msg;
-    // The line it stands in for is one of the two things on the row that give up width
-    // when it runs out (see the theme), so what a narrow window clips is a hover away,
-    // as the line's own words are.
+    // The line it stands in for is the one thing on the row that gives up width when it
+    // runs out — the addresses fold instead (see the theme) — so what a narrow window
+    // clips is a hover away, as the line's own words are.
     noticeEl.title = msg;
     noticeEl.classList.add("show");
     clearTimeout(noticeTimer);

@@ -432,9 +432,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     first."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
 
-    line = page.locator(".lf-keyline")
-    expect(line).to_contain_text("search page")
-    expect(line).to_contain_text("select item")
+    # Both keys are named in the reference below rather than on the resting line, which
+    # spends its two chips on the presses that say something back. `to_contain_text` here
+    # would have read the register anyway — renderLine leaves every live row in the DOM.
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")

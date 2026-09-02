@@ -9,9 +9,18 @@ import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
   [...document.querySelectorAll(".lf-error")].map((el) => el.textContent.trim());
+// A widget this page uses whose module never defined its element. The page's own
+// occurrences are the population, because a page imports the modules its markup asks for
+// and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
+// every tag the page simply does not contain. `document`, not `main`, so a widget frozen
+// into an agent's reply answers here too. That a declared module exists at all is a layer
+// fact and `package check` holds it; this is the page's half.
 export const missingUpgrades = (widgets) =>
   Object.entries(widgets)
-    .filter(([tag, entry]) => entry["x-upgrade"] && !customElements.get(tag))
+    .filter(
+      ([tag, entry]) =>
+        entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
+    )
     .map(([tag]) => tag);
 export const missingVisualProviders = (widgets) =>
   Object.entries(widgets)

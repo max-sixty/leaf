@@ -281,10 +281,6 @@ export function checked(rows, where) {
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,
       );
-    if (row.linePriority != null && row.linePriority !== "persistent")
-      throw new Error(
-        `leaf: row ${i} of ${where} has unknown key-line priority ${String(row.linePriority)}`,
-      );
     if (row.chordControl != null && row.chordControl !== true)
       throw new Error(
         `leaf: row ${i} of ${where} has invalid chord-control presentation ${String(row.chordControl)}`,

@@ -264,6 +264,105 @@ def test_hidden_hook_remains_callable():
     assert result.output == ""
 
 
+def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
+    """Silence cannot tell an agent a no-op from a call that landed.
+
+    The four here are the ones that used to answer with nothing or with a raw
+    event: an audience list on a layer that declares none, a status transition, a
+    stamp, and a reply. `--json` keeps the event where a caller wants to read a
+    field out of it, so the sentence is what a bare call gets.
+
+    The default layer declares no guidance audiences, which is why the page is
+    built here rather than taken from the packaged fixture.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page_dir = tmp_path / "page"
+    # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page_dir)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    (page_dir / "index.html").write_text(PAGE)
+
+    audiences = runner.invoke(cli_model.cli, ["page", "guidance", str(page_dir)])
+    assert audiences.exit_code == 0, audiences.output
+    assert audiences.output == "no guidance audiences\n"
+
+    stamped = runner.invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "first cut"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    assert stamped.output == "stamped v1 — first cut\n"
+
+    as_json = runner.invoke(
+        cli_model.cli,
+        ["version", "stamp", "--json", str(page_dir), "--text", "again"],
+    )
+    assert as_json.exit_code != 0  # nothing changed, so there is no second version
+    assert "already stamped as v1" in as_json.output
+
+    waiting = runner.invoke(
+        cli_model.cli, ["status", str(page_dir), "waiting", "pick a storage engine"]
+    )
+    assert waiting.exit_code == 0, waiting.output
+    assert waiting.output == "waiting — pick a storage engine\n"
+
+    bare = runner.invoke(cli_model.cli, ["status", str(page_dir), "waiting"])
+    assert bare.exit_code == 0, bare.output
+    assert bare.output == "waiting\n"
+
+    opened = runner.invoke(
+        cli_model.cli, ["comment", str(page_dir), "--text", "which store?"]
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)["id"]
+
+    replied = runner.invoke(
+        cli_model.cli, ["reply", str(page_dir), "--to", root, "--text", "sqlite"]
+    )
+    assert replied.exit_code == 0, replied.output
+    assert replied.output == f"replied in {root}\n"
+
+    # A reply under the reply still names the thread, not the message answered.
+    followed = runner.invoke(
+        cli_model.cli,
+        ["reply", "--json", str(page_dir), "--to", root, "--text", "and wal mode"],
+    )
+    assert followed.exit_code == 0, followed.output
+    under = runner.invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            json.loads(followed.output)["id"],
+            "--text",
+            "with a checkpoint",
+        ],
+    )
+    assert under.exit_code == 0, under.output
+    assert under.output == f"replied in {root}\n"
+
+    working = runner.invoke(
+        cli_model.cli,
+        ["status", str(page_dir), "working", "reading the traces", "--on", root],
+    )
+    assert working.exit_code == 0, working.output
+    assert working.output == f"working on {root} — reading the traces\n"
+
+    # `idle` reaches the status write by its own route, so the subject a claim
+    # needs is refused before either route runs. Otherwise the line reports a
+    # claim the page never took.
+    for refused_state in ("waiting", "idle"):
+        refused = runner.invoke(
+            cli_model.cli,
+            ["status", str(page_dir), refused_state, "done", "--on", root],
+        )
+        assert refused.exit_code != 0, refused.output
+        assert "use it with `working`" in refused.output
+
+
 def test_init_help_names_the_source_revision_and_version_layout():
     result = CliRunner().invoke(
         cli_model.cli,
@@ -2656,7 +2755,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
     assert plain_audiences.exit_code == 0, plain_audiences.output
-    assert plain_audiences.output == ""
+    assert plain_audiences.output == "no guidance audiences\n"
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(command), "coordinator"]

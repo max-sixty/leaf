@@ -331,17 +331,19 @@ def test_a_live_pick_is_a_quiet_check_and_remains_pressable(browser, serve):
 
 
 def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, serve):
-    """Decision arrival leaves both answer paths one press away.
+    """From the option mark, both answer paths are one press away.
 
-    The walk lands on an option mark so the group's own scope can answer the next key.
-    A digit chooses its listed option; Enter steps into the field for the option the
-    author did not list. Without that second binding, reaching the field costs one Tab
-    per listed option even though the Decision is already selected.
+    The walk stands the reader on the decision and its marks are the next Tab stops; from
+    a mark the group's own scope answers the next key. A digit chooses its listed option;
+    Enter steps into the field for the option the author did not list. Without that
+    second binding, reaching the field costs one Tab per listed option even though the
+    Decision is already selected.
     """
     url = serve(DECISION_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
 
     page.keyboard.press("a")
+    page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
@@ -370,6 +372,7 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
 
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
+    page.keyboard.press("Tab")
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
@@ -427,7 +430,10 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert width == ring, (
         f"the resting mark carries more than its ring: {width} vs {ring}"
     )
-    assert drawn == "hidden", "the ring is drawn on a card the group already speaks for"
+    assert drawn == "visible", (
+        "the resting mark draws nothing, so a card group is blank paper until the "
+        "reader presses one to find out it takes an answer"
+    )
 
     # And a reader arriving by keyboard can see the exact row they landed on. The
     # permanent group frame stays put, the Decision's external location band stands
@@ -846,13 +852,15 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     Two things the lint cannot see. A resting mark shows no word in either form, because
     an offer states nothing a reader could disagree with — and what a *picked* mark says
     has to survive that, since it is the page's only statement of where the pick sits.
-    What differs is the dot: a row draws one and a single-pick card does not. A card
-    gives it up because the state has the whole cell to live in, while a row's is a
-    column at the line's end with room reserved for it by name, so a row that stopped
-    drawing there would end in a blank the width of the word it isn't saying. Both are
-    asked here, since either could be the theme forgetting a rule rather than each form
-    answering for itself. (What a card under `multiple` does instead is the next test's:
-    that one is arity's, not the form's.) And a row's name is
+    The dot is the other half, and it is the half both forms have to answer the same way:
+    a row draws one and so does a card, at the same size and on the same side of the
+    option, so a reader meeting a question they have not met before learns one thing
+    rather than one per form. The card used to give it up, on the argument that the
+    group's own frame already said a pick was on offer; measured on the shipped pages
+    that made a card group blank paper at rest. Both are asked here, since either could
+    be the theme forgetting a rule rather than each form answering for itself. (What
+    `multiple` adds on top is the next test's: that one is arity's, not the form's.) And
+    a row's name is
     what the author wrote in it: the mark that lands inside the row once it is picked is
     the page speaking (`says`) and must stay out of the row's own name (`wrote`), or a
     question answered reads its answer back as part of what was asked."""
@@ -906,16 +914,25 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert ref.get_attribute("href") == "#sec-mounts"
     assert page.locator("#job-camera .lf-ref").count() == 0
 
-    # No open mark says its word, in either form. The dot is where they part: a row's is
-    # drawn and a single-pick card's is not, which is each form answering for the room it
-    # reserved rather than one rule going missing. (Arity moves this too, which is why the
-    # card side is read off `#bracket` rather than off the `multiple` card group beside it.)
+    # No open mark says its word, in either form, and both draw their dot. The form is
+    # what moves the mark's placement, not whether it exists: the reader gets the same
+    # 11px ring in the same ink whichever shape the content gave the group, which is the
+    # whole of what makes it one widget to learn. (Arity is read off `#bracket` against
+    # the `multiple` card group beside it in the next test; here both forms are single.)
     hidden = "el => getComputedStyle(el).fontSize"
     dot = "el => getComputedStyle(el, '::before').visibility"
+    edge = """el => { const s = getComputedStyle(el, '::before');
+                      return [s.borderTopWidth, s.borderTopColor, s.width]; }"""
     assert page.locator("#job-mounts .lf-pick").evaluate(hidden) == "0px"
     assert page.locator("#br-steel .lf-pick").evaluate(hidden) == "0px"
     assert page.locator("#job-mounts .lf-pick").evaluate(dot) == "visible"
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible"
+    assert page.locator("#job-mounts .lf-pick").evaluate(edge) == page.locator(
+        "#br-steel .lf-pick"
+    ).evaluate(edge), (
+        "the two forms draw the resting mark at different weights or sizes, so one "
+        "widget asks its question two ways"
+    )
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)
@@ -952,9 +969,8 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     rules here were the list form's once, on the reading that a `multiple` group is a
     list of slots; `multiple` is orthogonal to which form a group takes, so a titled
     group asking "which of these" inherited neither and offered the reader nothing to
-    count. Hence the second half: an unticked box is a fact about that option, not the
-    group's offer said again, so it draws under `multiple` where a single-pick card —
-    whose state has the whole cell to live in — gives it up.
+    count. Hence the second half: every unticked box draws, in either arity and either
+    form, because a corner can only say how many where there is a mark to put it on.
 
     And the shape is paint inside a box that does not change, so neither arity is a
     pixel wider than the other and every room already reserved still covers."""
@@ -974,15 +990,23 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     # card group it shares an arity with, against the card group it shares a form with.
     assert page.locator("#job-mounts .lf-pick").evaluate(corner) == many
 
-    # An unticked slot is that option's own state under `multiple`, so the box draws with
-    # nothing in it — the reader counts what is left to take. A single-pick card has no
-    # such second question and keeps giving its box up.
+    # An unticked box draws in both arities, and it is answering a different question in
+    # each: under `multiple` it is that option's own state, so the reader counts what is
+    # left to take; under single-pick it is simply that there is somewhere here to put an
+    # answer. The corner above is what separates the two, and it can only separate marks
+    # that are both on screen — a single-pick card used to give its box up on the
+    # argument that the group's frame already said a pick was on offer, which left the
+    # shipped pages standing as blank paper at rest beside row groups drawing a full
+    # column of rings for the same question.
     dot = "el => getComputedStyle(el, '::before').visibility"
     assert page.locator("#tl-clamp .lf-pick").evaluate(dot) == "visible", (
         "a card group asking 'which of these' draws no empty boxes, so the reader has "
         "nothing to count and no sign a second pick is on offer"
     )
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible", (
+        "a card group asking 'which one' draws no box, so nothing at rest says the "
+        "option can be taken"
+    )
 
     # Paint, not metrics: the mark's box is the same in both arities, which is what lets
     # the row form's reserved column and the card's reserved strip stand unchanged.
@@ -1149,24 +1173,52 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     be handed to whichever part of the apparatus came first, so the column was a fact
     about the `for` reference and a row with no block to name parked its mark wherever
     its label ended. And a chip an option says (`risk`) went in last of all, past the
-    mark that ends the line. `#jobs` carries both against rows that carry neither, which
-    is where either reads worst — rows lined up and one hanging mid-sentence — and a
-    group of rows naming nothing is what the shipped examples haven't got, which is why
-    the form shipped the first way.
+    mark. `#jobs` carries both against rows that carry neither, which is where either
+    reads worst — rows lined up and one hanging mid-sentence — and a group of rows naming
+    nothing is what the shipped examples haven't got, which is why the form shipped the
+    first way.
 
-    Each mark is read against the end of its own row rather than against its
-    neighbours', so the column and its place are one reading: the rows are all one
-    width, and a mark that is not at its line's end is not in the column either."""
+    The column is the row's leading edge, which is a change from the line's end and the
+    reason is distance rather than alignment: both ends give a straight column, and the
+    trailing one put it as far from the words it answers for as the row is wide — ~620px
+    in a full-width group, so reading a row and reading whether it was taken were two
+    separate looks. It is also the side a card's mark has always stood on, so the widget
+    now asks its question one way in both forms.
+
+    The mark stands out of flow in a column the group reserves, not in a cell of the
+    row's own table, and that is what makes the column a column: a cell takes its width
+    from what its row happens to hold, so a row naming no block comes out eight pixels off
+    its neighbours and carries whatever stands beside it along. At the line's end that
+    raggedness was the marks'; at the line's start it would be the labels', which is the
+    edge the reader actually runs their eye down."""
     page, errors = open_page(browser, serve(DECISION_PAGE))
-    ends = """() => [...document.querySelectorAll('#jobs > lf-option')].map(o => {
-                const style = getComputedStyle(o);
-                const inset = parseFloat(style.paddingRight) + parseFloat(style.borderSpacing);
-                const m = o.querySelector('.lf-pick').getBoundingClientRect();
-                return m.right - (o.getBoundingClientRect().right - inset);
-              })"""
-    assert page.evaluate(ends) == [0, 0, 0], (
-        "a row's mark hangs where its label happened to end, or behind something the row "
-        "said after it, so the group offers the reader no column of dots to aim down"
+    # Where the ring is painted, and where the row's first authored word is, both against
+    # the group. Read as a pair because either alone can be satisfied by the wrong thing:
+    # a constant column proves nothing if it is past the words, and being left of the
+    # words proves nothing if each row picks its own place.
+    read = """() => {
+                const group = document.querySelector('#jobs').getBoundingClientRect();
+                return [...document.querySelectorAll('#jobs > lf-option')].map((o) => {
+                  const mark = o.querySelector(':scope > .lf-pick');
+                  const walk = document.createTreeWalker(o, NodeFilter.SHOW_TEXT);
+                  let node = walk.nextNode();
+                  while (node && (!node.data.trim()
+                         || node.parentElement.closest('[data-lf-gen]')))
+                    node = walk.nextNode();
+                  const range = document.createRange();
+                  range.setStart(node, 0); range.setEnd(node, 1);
+                  return [Math.round(mark.getBoundingClientRect().left - group.left),
+                          Math.round(range.getBoundingClientRect().left - group.left)];
+                });
+              }"""
+    seen = page.evaluate(read)
+    columns = {mark for mark, _word in seen}
+    assert len(columns) == 1, (
+        f"a row's mark hangs where its own row put it rather than in one column the "
+        f"reader can aim down: {seen}"
+    )
+    assert all(mark < word for mark, word in seen), (
+        f"a row's mark stands past the words it answers for: {seen}"
     )
     assert errors == []
     page.close()
@@ -1224,23 +1276,27 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
-    """A chip is the page's words and the apparatus after it is the module's, so the
+    """A chip is the page's words and the apparatus around it is the module's, so the
     reader — and the file's reading of that same version — find the chip inside the
-    row's own words rather than past the mark that ends the line.
+    row's own words rather than out among the row's machinery.
 
     The rule was written against an attribute rendered by `x-says`, where the edge a
     pseudo-element would have taken stops being the element's own words the moment a
     module injects chrome, and appending put the page's words on the far side of it.
     A chip is authored markup now, written before the title, so it cannot land there by
     construction — which is the stronger form of the same guarantee, and this holds the
-    outcome rather than the mechanism that used to threaten it."""
+    outcome rather than the mechanism that used to threaten it.
+
+    The mark leads the row and the `for` reference ends it, so the words are what stands
+    between them, and the chip is read against both edges rather than against whichever
+    one the apparatus happened to be on."""
     page, errors = open_page(browser, serve(DECISION_PAGE))
     chip = page.locator("#job-heater > lf-chip")
     expect(chip).to_have_text("reversible")
-    expect(page.locator("#job-heater > .lf-pick:last-child")).to_have_count(1)
     ref = page.locator("#job-heater .lf-ref").bounding_box()
-    assert chip.bounding_box()["x"] < ref["x"], (
-        "the chip stands before the row's apparatus"
+    mark = page.locator("#job-heater > .lf-pick").bounding_box()
+    assert mark["x"] < chip.bounding_box()["x"] < ref["x"], (
+        "the chip stands outside the row's own words rather than among them"
     )
     assert errors == []
     page.close()
@@ -1397,7 +1453,9 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
     expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
-    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("✓")
+    expect(receipt.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "sent"
+    )
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
     expect(page.locator("#jobs > .lf-receipt")).to_have_count(0)
     receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
@@ -1417,7 +1475,9 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     assert active.exit_code == 0, active.output
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
-    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(receipt.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
@@ -1429,7 +1489,9 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     stamp_page(d, unrelated, "Checked the surrounding plan")
     wait_for_revision(page, 2)
-    expect(receipt.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(receipt.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
@@ -1596,7 +1658,9 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
     expect(card_button).to_have_attribute("data-lf-kinds", "activity")
-    expect(card_button.locator(".lf-margin-action-glyph")).to_have_text("●")
+    expect(card_button.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
     expect(card_button).to_have_attribute(
         "aria-label", re.compile("checking the shard")
     )
@@ -1763,7 +1827,7 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
     )
     expect(work_button).to_have_css("display", "flex")
     expect(work_button).to_have_css("border-radius", "50%")
-    expect(work_button).to_have_css("min-height", "32px")
+    expect(work_button).to_have_css("height", "32px")
     assert errors == []
     page.close()
 

@@ -13,7 +13,16 @@ ORPHAN_GRACE_SECS = 1
 # carry (`undo_error`): a token is a mark rather than speech, and while nothing
 # has answered it the mark is one press from off the page, which is what makes
 # it cheap. Nor is an undo itself, which would be a redo.
-UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
+#
+# `done` joins them because approval is the one press on the page with no second
+# step and the heaviest meaning: a reader who meant to press Threads and hit the
+# button beside it had signed the work off, and nothing on the page or in the log
+# would take it back. It is a mark rather than speech by the same reading a
+# reaction is — the agent is told the version is approved, not told something,
+# and the withdrawal is the whole of the correction. A request is still not
+# undoable, and for the reason it never was: its effect may be out of the page
+# before the receipt is.
+UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 ANSWER_DECISION_INSTRUCTION = (
     "`leaf page state <page>` lists each thread's current state, and "

@@ -1,7 +1,8 @@
 # Serving pages
 
-Read this for an exported deliverable, an unreachable URL, `--host`, a standing
-page, re-vendoring, or a page previously owned by another session.
+Read this for the first handoff, an exported deliverable, an unreachable URL,
+`--host`, a standing page, re-vendoring, or a page previously owned by another
+session.
 
 ## Exported files
 

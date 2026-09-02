@@ -1794,11 +1794,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Target actions are contributed outside the chrome scope and share one complete
         # item. These names are the deliberate document-level half of that seam.
         "lf-margin-item",
+        "lf-margin-options",
         "lf-margin-contribution",
         "lf-margin-action",
         "lf-margin-action-glyph",
+        "lf-margin-action-icon",
         "lf-margin-action-space",
         "lf-margin-action-label",
+        "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",
@@ -3215,7 +3218,8 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     browser, serve
 ):
     """The two contextual chips the line paints for a reader standing on the list have
-    to be the keys that act on the list; persistent page movement remains beside them.
+    to be the keys that act on the list, and nothing else: the line is two chips and the
+    More control, so a row in front of these is a row instead of them.
 
     `c` brought them here so that `w` and `/` would be live — the general box is where
     the typing scope claims every letter, which is the whole reason the press stops at
@@ -3254,11 +3258,10 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(page.locator(".lf-threads")).to_be_focused()
 
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(3)
+    expect(shown).to_have_count(2)
     # The list's own key leads: something is waiting, so `w` is live and nearest.
     expect(shown.nth(0)).to_contain_text("waiting on you")
     expect(shown.nth(1)).to_contain_text("close threads")
-    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

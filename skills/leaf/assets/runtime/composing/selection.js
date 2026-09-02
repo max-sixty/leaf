@@ -23,6 +23,7 @@ export function createSelectionComposer(runtime, dependencies) {
     paintAnchors,
     paintHere,
     post,
+    refreshFab,
     saveDraft,
     sendDraft,
     showFab,
@@ -96,6 +97,7 @@ export function createSelectionComposer(runtime, dependencies) {
     sendBtn: composerSend,
     sendKey: "Enter",
     save: saveComposerDraft,
+    layout: refreshFab,
     send: async (text, raw) => {
       const anchor = structuredClone(pendingAnchor);
       const ctx = composerCtx(anchor);

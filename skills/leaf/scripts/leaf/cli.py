@@ -8,7 +8,14 @@ import click
 
 from leaf.agent_state import cmd_page_state
 from leaf.codex import cmd_codex_start, run_adapter
-from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
+from leaf.conversation import (
+    cmd_comment,
+    cmd_edit,
+    cmd_reply,
+    cmd_report,
+    cmd_resolve,
+    thread_of,
+)
 from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_decisions
@@ -32,7 +39,7 @@ from leaf.service import (
     take_page_claim,
     unacknowledged,
 )
-from leaf.session import cmd_ack, cmd_status, cmd_wait
+from leaf.session import check_local_claim, cmd_ack, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
 from leaf.validation.command import cmd_check
 from leaf.vendoring import cmd_init
@@ -316,7 +323,8 @@ def check(dir: str, render: bool) -> None:
     metavar="WIDGET",
     help="active widget work this version completes (repeatable)",
 )
-def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the note event instead")
+def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> None:
     """Stamp PAGE/index.html with a changelog.
 
     Checks the exact source first, then records it as the next public version. Repeat
@@ -324,7 +332,11 @@ def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
     widget claim otherwise survives unrelated versions, and a version cannot
     silently remove its page target.
     """
-    cmd_stamp(resolve_dir(dir), text, completes)
+    accepted = cmd_stamp(resolve_dir(dir), text, completes)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"stamped v{accepted['version']} — {accepted['text']}")
 
 
 @version.command(short_help="Export a stamped version to one HTML file.")
@@ -446,6 +458,13 @@ def stop(dir: str) -> None:
     print(cmd_stop(resolve_dir(dir)))
 
 
+def _status_line(state: str, detail: str, on: str | None) -> str:
+    """Read the transition back, so a silent success cannot pass for a no-op."""
+    subject = f" on {on}" if on else ""
+    said = f" — {detail}" if detail else ""
+    return f"{state}{subject}{said}"
+
+
 @cli.command(short_help="Set the agent's banner state.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
@@ -475,6 +494,11 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     quiet after about a quarter of an hour — on the banner and each local line.
     """
     page_dir = resolve_dir(dir)
+    # Ahead of the branch below, which reaches `set_status` without passing the
+    # subject: refused here, `idle --on` cannot be reported back as a claim the
+    # page never took.
+    if on is not None:
+        check_local_claim(state, detail)
     # Idling over an event nobody has answered ends the leaf on a user still
     # owed one — unread, or read and left. The watcher's whole batch, not the
     # reader-facing count, so a worker's report cannot be left standing as
@@ -483,6 +507,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     # arriving or an acknowledgement advancing the cursor.
     if state != "idle":
         cmd_status(page_dir, state, detail, on=on)
+        click.echo(_status_line(state, detail, on))
         return
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -508,6 +533,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
                 + ANSWER_DECISION_INSTRUCTION
             )
         page.set_status(state, detail)
+    click.echo(_status_line(state, detail, on))
 
 
 @cli.command(
@@ -565,26 +591,36 @@ def comment(
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
 @click.option("--awaits", is_flag=True, help="mark this reply as waiting on the reader")
-def reply(dir: str, to: str, text: str, markup: str, awaits: bool) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
+def reply(
+    dir: str, to: str, text: str, markup: str, awaits: bool, as_json: bool
+) -> None:
     """Post a threaded reply as the agent (--text or stdin)."""
-    print(
-        json.dumps(
-            cmd_reply(resolve_dir(dir), to, text, markup, awaits), ensure_ascii=False
-        )
-    )
+    page_dir = resolve_dir(dir)
+    accepted = cmd_reply(page_dir, to, text, markup, awaits)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"replied in {thread_of(page_dir, accepted['id'])}")
 
 
 @cli.command(short_help="Edit one of this agent session's messages.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to edit")
 @click.option("--text", help="replacement text (default: stdin)")
-def edit(dir: str, to: str, text: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the edit event instead")
+def edit(dir: str, to: str, text: str, as_json: bool) -> None:
     """Replace the visible text of an agent-authored comment or reply.
 
     The original and every revision remain in the append-only event log. Frozen
     widget markup is not editable.
     """
-    print(json.dumps(cmd_edit(resolve_dir(dir), to, text), ensure_ascii=False))
+    page_dir = resolve_dir(dir)
+    accepted = cmd_edit(page_dir, to, text)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"edited {to} in {thread_of(page_dir, to)}")
 
 
 @cli.command(short_help="Close a thread as the agent.")

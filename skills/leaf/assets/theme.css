@@ -42,6 +42,13 @@
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
+  /* The smallest box the layer offers a reader to aim at, on either axis. One token
+     rather than a number in each rule, and one token rather than two floors and a media
+     query in each of them: what changes between a mouse and a finger is this length and
+     nothing else, so the query belongs here where it is asked once. A control that has
+     to be a fixed size under a finger — a margin action, the key line's More — still
+     says so where it is written; this is the floor, not the size. */
+  --aim-floor: 24px;
   /* A fast first presentation never paints the waiting explanation. */
   --lf-presentation-delay: 300ms;
   /* --rail has no authored value: the shared margin measures its widest target item
@@ -61,6 +68,15 @@
   /* A page thread uses a wider reading card than an authored sidenote. The margin
      includes the marker and the gutter between it and the 460px conversation. */
   --thread-card: 460px;
+  /* The narrowest that card is still a conversation. The card's width is whatever room
+     is left to the right of the marker it is measured from, and a page whose margin is
+     narrower than this has no margin to draw a thread in: the card comes off the marker
+     and stands over the page rather than shrinking to a column a word wide. 320px is
+     what the margin's other card already stands at, so the floor is the narrowest
+     reading surface this layer ships rather than a second opinion about one. The rule
+     that spends it is beside .lf-margin-preview, and placeThreadPreview reads it to
+     decide where the card can still be placed beside its source. */
+  --thread-card-floor: 320px;
   --thread-margin: 520px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader
@@ -97,6 +113,21 @@
 
   --card: #fffefb;   /* raised surfaces: cards, panels, controls */
   --field: #f4f1e8;  /* tinted fields: details, callouts, notes */
+  /* The ink every raised surface casts its shadow in. One per scheme, because the two
+     grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
+     only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
+     the same declaration over the dark paper lifts 1.4 — which is a drop shadow that is
+     in the stylesheet and not on the screen. Nine of the layer's twelve were written that
+     way. The dark value is as far as the medium goes: the paper is already at L* 8.3, so
+     black takes it to 3.0 and no further, and the WCAG ratio is the wrong instrument down
+     there (1.11:1 for an edge the eye reads perfectly well).
+
+     Depth is geometry here and nowhere else. The alphas that were spread .12–.24 across
+     the sites are gone, because a shadow's spread and offset already say how high a thing
+     is and a second dial saying the same thing is a second dial to keep in step: a card
+     in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
+     difference and enough of one. */
+  --shade: rgb(0 0 0 / .14);
   --code-bg: #eeeeeb; --pre-bg: #f5f5f3; --code-chrome: #efefec;
   --code-ink: #262624; --code-muted: #62615d; --code-border: #d6d5d0;
   --chip: #eeeade;   /* neutral chip */
@@ -173,6 +204,10 @@
   --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
   --series-4: #6c489a; --series-5: #8c2d2a;
 }
+/* The other half of --aim-floor, and the whole of what a coarse pointer changes about how
+   small a control may be. Every rule that states the floor reads the token, so a control
+   joins both answers by joining one of them. */
+@media (pointer: coarse) { :root { --aim-floor: 44px; } }
 /* Which here ring this is, said by the rule that draws it. An outline carries no word
    for which of the layer's rules put it there — so a reader that had to know worked it
    back from the selectors, matching the layer's own rules against the document by hand.
@@ -213,6 +248,9 @@
     --accent: #8fb0d8; --ok: #7fb98c;   --warn: #d8a95c;   --danger: #d98b7a;
 
     --card: #201e1a; --field: #232019;
+    /* Four times the light alpha, for a fifth of the effect: 5.3 L* off the paper and
+       7.5 off a card, against the 1.4 the light value bought here. */
+    --shade: rgb(0 0 0 / .55);
     --code-bg: #2b2b29; --pre-bg: #1b1b1a; --code-chrome: #222220;
     --code-ink: #e8e7e3; --code-muted: #9b9992; --code-border: #3b3a37;
     --chip: #2d2922;
@@ -790,6 +828,86 @@ dd { margin: 0 0 8px 0; }
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
   border-radius: 999px; background: var(--chip); color: var(--ink-2); }
 
+/* Pressable, said once per layer, and the pill above is what it is said against. A
+ * chip that opens a section and a badge that counts something were the same object at
+ * rest — one ground, one ink, one corner, one size — and the only page that said which
+ * was which said it in prose. The reader had to press one to find out.
+ *
+ * The marker is the runtime's own, not a new one: `offer` and `selectableOffer` write
+ * data-lf-offer on everything a widget builds to be worked, and three passes already
+ * asked it before this one (print, the drag guard, the render gate). So the hand, the ground under the
+ * aim, and the here ring are stated once against that attribute rather than restated by
+ * each widget's rules — which is what makes them a layer fact. A widget family that
+ * joins tomorrow wears all three with its entry and its module, having written no CSS,
+ * and a family that wants its own says so in its own theme rules, which come after this
+ * file in the merged sheet and outrank it at equal specificity.
+ *
+ * .tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
+ * is the line the rule draws — not "does this look like a control" but "did a widget
+ * build this to be worked", which is a fact the runtime holds rather than a judgement
+ * a stylesheet re-makes.
+ *
+ * The ground and not the ink, because ink is what a widget spends on its own meaning:
+ * an operation's press is inked by whether it is live, a pick's mark by whether it is
+ * taken. A wash toward the ink leaves both of those readable and reads the same way on
+ * the paper-white palette and the dark one — the joined option group's own answer to
+ * this question, arrived at there for the same reason (packages/default/theme.css).
+ *
+ * An inset shadow rather than a background, because it composes instead of competing.
+ * `background` is the one property a control's own dress is written in, and every layer
+ * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
+ * both. A shared rule setting `background` has to out-specify all of them to be seen and
+ * then wins against the ones that should have won — the aim wash landed on nothing at
+ * all against `.lf-command-facts > [role="button"]`, which ties it exactly. The shadow is
+ * painted over whatever fill the control wears, so the chip keeps its ground, the .lf-btn
+ * keeps its swap, and both deepen by the same amount under the pointer. It is inset, so
+ * it paints inside the padding box, follows the corner the control already has, and adds
+ * nothing outside a rectangle the movement tests are watching.
+ *
+ * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
+ * for "there is nothing left to do here", and it is stated with the hand it withdraws so
+ * the two cannot come apart: a one-shot request that had been answered still wore the
+ * full-strength border of a live one and differed only in ink, which greyscale drops and
+ * a reader scanning a column of eight of them never sees. Chrome's own .lf-btn says the
+ * same pair for the same reason (chrome-style.js); this reaches the controls that are
+ * not one.
+ *
+ * The ring is the fallback rather than the rule: every control with a ring of its own
+ * outranks this, and what is left is the controls that were wearing the platform's
+ * outline or, where a widget had restyled them, nothing at all. Named like every other
+ * ring the layer draws, so the corpus floor can credit it (--lf-here-ring, above).
+ *
+ * Every rule here is written to be outranked. The value guard sits in :where() so it
+ * costs nothing, which leaves each rule at the weight of the thing it is answering — the
+ * ring at a plain attribute and a state, so lf-option's own pick ring and chrome's .lf-btn
+ * ring both still win and keep their names. A floor is only a floor if what is built on
+ * it comes out on top.
+ *
+ * The value and not the bare attribute, because `offer` writes two different facts into
+ * one dataset key: "button" for a press it built, the role for a `selectableOffer`, and
+ * the empty string for everything else it makes — the draft's controls row, its history
+ * disclosure, its edit box, a generated form. Those are chrome a widget injected, not
+ * things to press, and the bare attribute put the hand on a textarea and a wrapper div.
+ * The distinction is the one `offer` already draws; this reads it rather than keeping a
+ * list of the tags and roles that count, so a role a widget reaches for next year is a
+ * pressable the day its module names it.
+ *
+ * Inside the shadow markers, because a widget declaring x-shadow builds its controls in
+ * a tree the document's stylesheet does not reach, and a floor that stopped at the light
+ * DOM would be a floor the newest kind of widget is the one to fall through. The slice is
+ * copied into each declared root rather than moved out of this file, so one statement
+ * dresses both sides and there is no second copy to drift. */
+/* lf-shadow:start */
+[data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
+[data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
+  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
+[data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
+  cursor: default; opacity: .55; }
+[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--here-ring); --lf-here-ring: pressable;
+  outline-offset: var(--here-ring-gap); }
+/* lf-shadow:end */
+
 /* ---------- class idioms ---------- */
 
 .eyebrow { font-size: var(--t-6); letter-spacing: .1em; text-transform: uppercase;
@@ -1013,13 +1131,31 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         background: var(--accent); color: var(--card); font-size: 12px;
                         font-weight: 600; display: grid; place-items: center; }
 
-/* Something a version restated: it rewrote words the user had decided on, so
+/* The three durable-state bands below are the whole of what says a decision has moved
+   without the reader touching it, and each is the only carrier of its own fact. They were
+   washed toward the paper — 40%, 50% and 55% of their token — which put them at 1.94:1,
+   1.98:1 and 1.94:1 against the light paper: under the 3:1 a band drawn instead of a word
+   has to clear, and a band nobody sees is a state nobody has been told about. Each is
+   mixed to that floor instead, with room: 3.59:1, 3.37:1 and 3.25:1 light, 4.51:1, 5.64:1
+   and 7.15:1 dark.
+
+   Three percentages rather than one, because the three tokens sit at different luminance
+   against the same paper and a shared percentage would buy each of them a different
+   visibility — the fault this is fixing. Light is the binding scheme for all three.
+
+   None of them goes to the token whole, and that is the accent's constraint speaking for
+   all three: a restated band at 2px solid --accent is the here ring, glyph for glyph, and
+   the layer's ring reading tells one outline from another by its resolved colour
+   (test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines). A band that became
+   the ring would be credited as one on a box the keyboard can never light.
+
+   Something a version restated: it rewrote words the user had decided on, so
    the runtime dropped what they recorded and is asking again. Without the tint,
    a decision undone looks exactly like one never made — the user would find
    it by rereading sixty drafts. Why it was undone belongs in the changelog note,
    where a version explains itself. The runtime sets this, from the log; the
    author's word is `restated` on the element. */
-[data-lf-restated] { outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+[data-lf-restated] { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
                      outline-offset: 3px; border-radius: 2px; }
 
 /* Something decided and not yet honored: the user's recorded state differs
@@ -1029,7 +1165,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    clears the moment a version carries the decision or a retraction hands the
    state back. Green, the user's color: their decision stands here in
    replay, not yet in the page's own words. */
-[data-lf-pending] { outline: 2px solid color-mix(in srgb, var(--ok) 50%, transparent);
+[data-lf-pending] { outline: 2px solid color-mix(in srgb, var(--ok) 82%, transparent);
                     outline-offset: 3px; border-radius: 2px; }
 
 /* A worker's standing report: this element's state arrived through the log
@@ -1039,7 +1175,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    (the note's `settles` targets of kind `report`). The runtime sets this from the log; the
    answering version's word is `overruled` on the element, or simply writing
    the reported state. */
-[data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 55%, transparent);
+[data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 92%, transparent);
                      outline-offset: 3px; border-radius: 2px; }
 
 /* The shared boxes of a registry-declared widget conversation. The widget places it. */
@@ -1268,20 +1404,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-/* Decided. The surviving circle keeps the outcome glyph and its common action colour;
- * the past tense is a persistent receipt beside it. A tooltip is discovery chrome, not
- * a place for document state: the receipt is visible and selectable, and survives a
- * standalone copy after its inert Button is stripped.
- *
- * The losing control leaves the row. The contribution declares that this surviving
- * control represents the outcome, so the margin does not add a second generated
- * outcome Button; focus continuity moves from a retired proxy to this real control. */
-.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { display: none; }
-.lf-sug-actions[data-lf-outcome] .lf-margin-action-label { display: none; }
+/* A settled suggestion keeps state as visible, selectable receipt text. Its circle is
+ * Undo, so it remains a genuine action; failure uses the same receipt anatomy beside
+ * Retry and Cancel. Generated controls disappear from static export while the receipt
+ * remains ordinary document text. */
 .lf-sug-receipt { color: var(--ink-2); font-weight: 600; }
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-receipt { color: var(--ok-ink); }
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-receipt { color: var(--danger-ink); }
+.lf-sug-actions[data-lf-margin-receipt="failed"] .lf-sug-receipt { color: var(--danger-ink); }
 
 /* The living margin is a retained projection with one cluster per page target. Its
  * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
@@ -1293,6 +1423,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+.lf-margin-item::before { content: ""; position: absolute; right: 100%; top: 16px;
+    width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
+    pointer-events: none; }
+.lf-margin-item:is(:hover, :focus-within)::before { opacity: 1; }
 .lf-margin-item.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box
@@ -1305,6 +1439,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * the whole width of a line the reader is trying to select in (pointer-events above). */
 .lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
+.lf-margin-item.lf-docked::before { display: none; }
+.lf-margin-item.lf-docked .lf-margin-action > .lf-margin-action-label {
+    inset-inline: 0 auto;
+}
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
@@ -1349,19 +1487,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * queries: those ask how much room is left beside the panel, which is the question the
  * runtime's old cramped veto asked, and the answer moves with the panel by design. */
 @media screen and (min-width: 900px) {
-  body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
-    /* The 32px marker hangs 22px off the column and its complete host keeps the
-       shared focus-ring room at the outer edge. Claim all three, or opening a side
-       panel leaves that last band past body's room and the layout hides the marker.
-       Both this claim and the wider card claim below hold their condition in :where(),
-       so the two carry the same specificity and document order decides between them —
-       which is what says the card wins where a thread needs it. Counted instead, this
-       condition names one more compound than the card's, so it outranked the card and a
-       page with a thread on it kept the narrow rail. */
-    --claim-map: calc(54px + var(--here-ring-room));
-  }
-  main:has(.lf-margin-item[data-lf-claims-rail]) {
-    --claim-rail: var(--rail, 54px);
+  :root[data-lf-rail] main {
+    /* The floor is the generated marker: 32px of glyph hanging 22px off the column,
+       with the shared focus-ring room at the outer edge. Claim all three, or opening a
+       side panel leaves that last band past body's room and the layout hides the
+       marker. Over that floor stands the widest stable contribution the shared layout
+       has measured, which is wider wherever a contributed control takes the marker's
+       place. What the condition reads is stated with the rest of the claim below. */
+    --claim-rail: max(calc(54px + var(--here-ring-room)), var(--rail, 0px));
   }
 }
 @media screen {
@@ -1396,17 +1529,37 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }
+  /* A shut disclosure on paper is a summary and a stub: the words are in the document,
+     nothing on the sheet says they are there, and there is no press to open them with.
+     Six of them printed that way on the corpus, one of them holding 3270px of an exact
+     source. The layer already takes this line for the other two ways a page puts
+     content behind a gesture — a settled group's cards and an inactive tab both print
+     open (packages/default) — and <details> was the one that was missed.
+
+     `::details-content` is what the browser hides the body with, so it is what says
+     otherwise; the marker goes because paper has nothing to turn. A page that means a
+     disclosure to stay shut on paper says so in its own stylesheet, at a weight this
+     does not contest. */
+  details:not([open])::details-content { content-visibility: visible; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
 }
-/* A page carrying a target item reserves the widest stable width the shared layout has
- * measured, rather than hanging durable apparatus in accidental leftover space. The
- * claim is monotonic for the page's life: settling an action cannot move the column under
- * the reader. Temporary reaction choices borrow the available RHS and dock the complete
- * item if they do not fit; they do not enlarge this claim. Below the breakpoint the whole
- * item docks into flow.
+/* A page that can grow a page-edge Button reserves this strip at load. The runtime says
+ * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
+ * in accidental leftover space and the reader never buys the room for it with a gesture.
+ * The claim's width is the widest stable width the shared layout has measured, over a
+ * floor of the generated marker's own fitting, and it is monotonic for the page's life:
+ * neither settling an action nor taking it back moves the column under the reader.
+ * Temporary reaction choices borrow the available RHS and dock the complete item if they
+ * do not fit; they do not enlarge this claim. Below the breakpoint the whole item docks
+ * into flow.
  *
  * This is a claim rather than the strip itself because a sidenote may claim the same side;
- * body spends the wider claim, not their sum. Presence is the pre-layout condition: asking
- * whether the item docked would feed the reservation decision back into itself. */
+ * body spends the wider claim, not their sum. The condition is what the page declares,
+ * because both readings of the margin's own contents fail. Asking whether an item docked
+ * feeds the reservation decision back into itself. Asking whether an item stands there at
+ * all put the reflow on the gesture that raised the first one, and a second reflow on the
+ * gesture that took it back. */
 @media screen and (min-width: 900px) {
   /* And the right margin is spoken for where a row hangs in it, so a wide widget level
      with one grows to the left alone. The row hangs 22px off the column and the strip is

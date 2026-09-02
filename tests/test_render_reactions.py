@@ -13,8 +13,12 @@ from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
+    PROPOSED_PAGE,
+    RENDERED,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
+    _traffic,
+    _until,
     key_line,
     open_page,
     panel_comment,
@@ -38,6 +42,12 @@ PAINTED = """() => ({
     .map(m => [m.parentElement.dataset.lfFor, m.dataset.token]),
   outlined: [...document.querySelectorAll('.lf-react-el')].map(el => el.id),
 })"""
+
+MARGIN_STATE_WITNESS = """button => {
+  const mark = getComputedStyle(button, '::after');
+  return mark.content === '\"\"' && parseFloat(mark.width) > 0
+    && parseFloat(mark.height) > 0 && mark.backgroundColor !== 'rgba(0, 0, 0, 0)';
+}"""
 
 
 def select_paragraph(page, selector):
@@ -93,6 +103,7 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
+    rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     events_model.append_event(
         serve.page_dir,
         {
@@ -111,9 +122,13 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
         )
         == column
     )
-    expect(page.locator(".lf-reacts").locator("xpath=..")).not_to_have_attribute(
-        "data-lf-claims-rail", ""
-    )
+    # The page reserves its strip at load, so the column standing still says only that
+    # the reading found room in what was already claimed. The claim itself not growing
+    # is the other half, and it is what "without claiming space" means.
+    assert (
+        page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
+        == rail
+    ), "a passive reading widened the page rail"
     assert errors == []
     page.close()
 
@@ -148,8 +163,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
         "aria-label", re.compile(r"^Comment")
     )
     expect(
-        bar.locator(":scope > .lf-react-trigger .lf-response-action-glyph")
-    ).to_have_text("…")
+        bar.locator(':scope > .lf-react-trigger svg[data-lf-icon="more"]')
+    ).to_be_visible()
     expect(bar.locator(".lf-react-trigger")).to_have_attribute(
         "aria-label", "Show other responses"
     )
@@ -169,6 +184,13 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(surface.locator(".lf-fab")).to_be_focused()
+    for control, icon in [(".lf-fab", "comment"), (".lf-fab-suggest", "edit")]:
+        face = surface.locator(f'{control} > svg[data-lf-icon="{icon}"]')
+        expect(face).to_be_visible()
+        expect(face).to_have_attribute("aria-hidden", "true")
+        assert face.evaluate(
+            "el => getComputedStyle(el).stroke === getComputedStyle(el).color"
+        )
 
     surface.locator('.lf-react[data-token="cut"]').click()
     round_trip(page)
@@ -244,6 +266,89 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.close()
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
+    """A standing reaction keeps neutral furniture and a witness distinct from hover."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reaction selection",
+                '<lf-draft id="draft"><pre>A passage to react to.</pre></lf-draft>',
+            )
+        ),
+    )
+    page.emulate_media(color_scheme=scheme)
+    resized(page, 1440, 900)
+    read = """button => {
+      const face = getComputedStyle(button);
+      return {ink: face.color, ring: face.borderTopColor, fill: face.backgroundColor};
+    }"""
+
+    def assert_selected_face(reaction, reopen, witness):
+        expect(reaction).to_be_visible()
+        expect(reaction).to_have_attribute("aria-pressed", "false")
+        page.mouse.move(0, 0)
+        resting = reaction.evaluate(read)
+        assert reaction.evaluate(witness) is False
+        reaction.hover()
+        neutral_hover = reaction.evaluate(read)
+        assert neutral_hover["ink"] == resting["ink"]
+        assert neutral_hover["ring"] == resting["ring"]
+        assert reaction.evaluate(witness) is False
+        reaction.click()
+        round_trip(page)
+        reopen()
+        expect(reaction).to_be_visible()
+        expect(reaction).to_have_attribute("aria-pressed", "true")
+        page.mouse.move(0, 0)
+        selected = {**resting, "fill": neutral_hover["fill"]}
+        assert reaction.evaluate(read) == selected
+        assert reaction.evaluate(witness) is True
+        reaction.hover()
+        assert reaction.evaluate(read) == selected
+        assert reaction.evaluate(witness) is True
+        reaction.click()
+        round_trip(page)
+        reopen()
+        expect(reaction).to_be_visible()
+        expect(reaction).to_have_attribute("aria-pressed", "false")
+        page.mouse.move(0, 0)
+        assert reaction.evaluate(read) == resting
+        assert reaction.evaluate(witness) is False
+
+    item = page.locator('.lf-margin-item[data-lf-margin-for="draft"]')
+
+    def open_margin_reactions():
+        item.get_by_role("button", name="Edit draft", exact=True).focus()
+        page.keyboard.press("r")
+        expect(item.locator(".lf-margin-reactions")).to_be_visible()
+
+    open_margin_reactions()
+    assert_selected_face(
+        item.locator('.lf-react[data-token="ok"]'),
+        open_margin_reactions,
+        MARGIN_STATE_WITNESS,
+    )
+    page.keyboard.press("Escape")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    strip = page.locator(".lf-page-strip")
+
+    def open_page_reactions():
+        strip.locator(".lf-react-trigger").click()
+        expect(strip.locator(".lf-react:visible")).to_have_count(6)
+
+    open_page_reactions()
+    assert_selected_face(
+        strip.locator('.lf-react[data-token="ok"]'),
+        open_page_reactions,
+        "button => button.querySelector('.lf-react-word').checkVisibility()",
+    )
+    assert errors == []
+    page.close()
+
+
 def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
     browser, serve
 ):
@@ -266,7 +371,8 @@ def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
             center: Math.round(box.y + box.height / 2), parent: bar.parentElement.className,
             label: bar.getAttribute('aria-label'), fontFamily: style.fontFamily,
             fontSize: style.fontSize, fontWeight: style.fontWeight,
-            height: Math.round(box.height), borderRadius: style.borderRadius,
+            height: Math.round(box.height),
+            borderRadius: Math.min(parseFloat(style.borderRadius), box.height / 2),
             borderTopWidth: style.borderTopWidth, borderTopStyle: style.borderTopStyle,
             backgroundColor: style.backgroundColor, paddingTop: style.paddingTop,
             paddingBottom: style.paddingBottom, borderColor: style.borderTopColor,
@@ -311,7 +417,9 @@ def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
             centers: [...new Set(controls.map(control => { const box = control.getBoundingClientRect();
               return Math.round(box.y + box.height / 2); }))],
             heights: [...new Set(controls.map(control => Math.round(control.getBoundingClientRect().height)))],
-            radii: [...new Set(controls.map(control => getComputedStyle(control).borderRadius))],
+            radii: [...new Set(controls.map(control => Math.min(
+              parseFloat(getComputedStyle(control).borderRadius),
+              control.getBoundingClientRect().height / 2)))],
             backgrounds: [...new Set(controls.map(control => getComputedStyle(control).backgroundColor))],
             weights: [...new Set(controls.map(control => getComputedStyle(control).fontWeight))],
             families: [...new Set(controls.map(control => getComputedStyle(control).fontFamily))],
@@ -435,6 +543,98 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     page.close()
 
 
+@pytest.mark.parametrize("width", [1440, 390])
+@pytest.mark.parametrize("opener", ["click", "keyboard"])
+def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
+    browser, serve, width, opener
+):
+    """Overflow belongs to the response interaction, but its dialog owns native keys.
+
+    Escape closes only that layer and returns to its exact Button. A later selection
+    presses the original reaction with its anchor intact, whether reached by mouse or
+    by the cluster's complete keyboard walk.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, width, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(".lf-sug-accept").focus()
+    page.keyboard.press("r")
+    spill = item.locator(".lf-margin-spill")
+    expect(spill).to_be_visible()
+    if opener == "click":
+        spill.click()
+    else:
+        page.keyboard.press("ArrowLeft")
+        expect(spill).to_be_focused()
+        page.keyboard.press("Enter")
+
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+    first = sheet.locator("[data-lf-map-button]").nth(0)
+    second = sheet.locator("[data-lf-map-button]").nth(1)
+    expect(first).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(second).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(first).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(sheet).to_be_hidden()
+    expect(spill).to_be_focused()
+    expect(item.locator(".lf-margin-reactions")).to_be_visible()
+
+    page.keyboard.press("Enter")
+    expect(sheet).to_be_visible()
+    expect(first).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(second).to_be_focused()
+    token = second.get_attribute("aria-label").split(" — ")[0]
+    sends = _traffic(page).sends
+    if opener == "click":
+        second.click()
+    else:
+        page.keyboard.press("Enter")
+    # Page map forwards the press on the next frame; there is no trip to await yet.
+    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["token"], sent["anchor"]) == (
+        "comment",
+        token,
+        {"section": "sug-refill"},
+    )
+    expect(sheet).to_be_hidden()
+    expect(item.locator(".lf-margin-reactions")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    ("target", "action"), [("sug-insert", "reject"), ("sug-delete", "accept")]
+)
+def test_deciding_a_reaction_target_releases_its_temporary_choices(
+    browser, serve, target, action
+):
+    """A target's own action can retire its words without leaving a reaction mode."""
+    page, errors = open_page(browser, serve(PROPOSED_PAGE))
+    item = page.locator(f'[data-lf-margin-for="{target}"]')
+    item.locator(".lf-sug-accept").focus()
+    page.keyboard.press("r")
+    expect(item.locator(".lf-margin-reactions")).to_be_visible()
+    decision = item.get_by_role(
+        "button", name=re.compile(f"^{action.capitalize()} the suggested change:")
+    )
+    decision.focus()
+    expect(decision).to_be_focused()
+    page.keyboard.press("Enter")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["widget"], sent["action"]) == ("action", target, action)
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     browser, serve
 ):
@@ -446,7 +646,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     of the disarm alone took away a layer the gesture had never put on, from a reader
     working in the panel with their own `…` open out on the page."""
     url = serve(SUGGESTION_PAGE)
-    root = panel_comment(serve.page_dir, "Why thistle?", {"section": "insert"})
+    root = panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
     reply = events_model.append_event(
         serve.page_dir,
         {
@@ -460,11 +660,10 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    unfolded = page.locator("[data-lf-options-open]")
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     more = item.locator(":scope > .lf-margin-more")
     more.click()
-    expect(unfolded).to_have_count(1)
+    expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The reader's own fold, and a reaction on a reply whose surface is that reply's
     # strip: the disarm has no fold of its own to put back and must leave theirs alone.
@@ -473,7 +672,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
     page.keyboard.press("Escape")
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
-    expect(unfolded).to_have_count(1)
+    expect(item).to_have_attribute("data-lf-options-open", "")
 
     # Nor does the raise that finds the fold already open: standing the choices in a
     # cluster the reader unfolded for themselves borrows it, and `openButtonOptions` is
@@ -485,7 +684,6 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.evaluate("() => document.body.focus()")
     page.keyboard.press("r")
     expect(page.locator(".lf-margin-reactions")).to_be_visible()
-    expect(unfolded).to_have_count(1)
     expect(item).to_have_attribute("data-lf-options-open", "")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
@@ -494,7 +692,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     # The raise that does unfold a cluster to stand its choices in still folds it back.
     item.locator(".lf-margin-options .lf-margin-action:visible").first.focus()
     page.keyboard.press("Escape")
-    expect(unfolded).to_have_count(0)
+    expect(more).to_be_visible()
     select_paragraph(page, "#replace")
     # The bar standing is the selection's arrival: the anchor `r` reads is captured on
     # the frame that raises it, and a press before then has no reaction target at all.
@@ -503,25 +701,21 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.keyboard.press("r")
     surface = page.locator(".lf-margin-reactions")
     expect(surface).to_have_class(re.compile("lf-react-open"))
-    expect(unfolded).to_have_count(1)
     page.keyboard.press("Escape")
     expect(surface).to_have_count(0)
-    expect(unfolded).to_have_count(0)
+    expect(more).to_be_visible()
     assert errors == []
     page.close()
 
 
 def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser, serve):
-    """The Escape rung folds from inside the cluster, so it can put the reader back on
-    the `…` they opened it with. The put-down has no such standing: it runs on every
-    disarm, from wherever the reader happens to be, so claiming the focus as well threw
-    them out onto a cluster they had already left — and a press already on its way
-    landed on a Button they were not standing on."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    unfolded = page.locator("[data-lf-options-open]")
+    """Disarming a response does not redirect focus or a press to its former target."""
+    url = serve(SUGGESTION_PAGE)
+    panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
+    page, errors = open_page(browser, url)
     refill = page.locator('[data-lf-margin-for="sug-refill"]')
     thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
-    thistle_more = thistle.locator(":scope > .lf-margin-more")
+    thistle_accept = thistle.locator(".lf-sug-accept")
 
     def raise_choices_on_refill():
         page.keyboard.type(hint_code(page, "#sug-refill", 10))
@@ -531,23 +725,27 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
         expect(page.locator(".lf-margin-reactions")).to_be_visible()
         expect(refill).to_have_attribute("data-lf-options-open", "")
 
-    # Standing on another cluster's `…` when the chord is disarmed: the choices go, the
-    # fold the raise opened goes back, and the reader is left where they were standing.
+    # The choices go when the reader leaves for another target, without pulling focus
+    # back to the cluster whose temporary responses are being removed.
     raise_choices_on_refill()
-    thistle_more.focus()
+    thistle_accept.focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
-    expect(unfolded).to_have_count(0)
-    expect(thistle_more).to_be_focused()
+    expect(refill.locator(".lf-margin-more")).to_be_visible()
+    expect(thistle_accept).to_be_focused()
 
-    # And the press that does the disarming reaches the Button it was aimed at. Enter on
-    # that same `…` disarms first; a fold-back that moved focus would land the activation
-    # on the other cluster instead, opening the fold the reader had just closed.
+    # A subsequent activation reaches the newly focused target, never the target whose
+    # reaction surface has just disappeared.
     raise_choices_on_refill()
-    thistle_more.focus()
+    thistle_accept.focus()
     page.keyboard.press("Enter")
-    expect(unfolded).to_have_count(1)
-    expect(thistle).to_have_attribute("data-lf-options-open", "")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["widget"], sent["action"]) == (
+        "action",
+        "sug-thistle",
+        "accept",
+    )
     assert errors == []
     page.close()
 
@@ -579,6 +777,104 @@ def test_the_in_place_response_bar_stays_inside_a_narrow_screen(browser, serve, 
     resized(page, 1280, 900)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+# The field's box, with its corner as the platform draws it: the specified radius clamped
+# to the box's own half-sides, so a "pill" 999px reads as half the height here. `over` is
+# how far that corner's arc reaches over the first line's opening: at the line's top edge
+# the arc is `r - sqrt(r² - (r - y)²)` in from the side, and the first glyph starts at the
+# border plus the padding, so a positive number says the arc is over the letter.
+FIELD_BOX = """(t) => {
+  const cs = getComputedStyle(t);
+  const w = t.offsetWidth, h = t.offsetHeight;
+  const r = Math.min(parseFloat(cs.borderRadius), h / 2, w / 2);
+  const y = parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
+  const inset = parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+  const intrusion = y < r ? r - Math.sqrt(r * r - (r - y) * (r - y)) : 0;
+  return {w, h, r, over: intrusion - inset, scrolls: t.scrollHeight > t.clientHeight + 1};
+}"""
+
+# The band a float may stand in, in viewport terms: below the banner, above the foot,
+# inside the gutters. What `place` clamps against, read off the page's own chrome.
+FLOAT_ROOM = """() => {
+  const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+  return {top: Math.max(48, banner.bottom + 6), bottom: innerHeight - 8,
+          right: Math.min(innerWidth, document.body.getBoundingClientRect().right) - 8};
+}"""
+
+
+def test_the_response_field_grows_as_a_rounded_rectangle_and_leaves_the_ellipsis_room(
+    browser, serve
+):
+    """A one-line note is a pill. A longer one widens before it wraps, grows down as far
+    as the room the placement states — a note of a dozen lines shows them all, and only
+    one taller than the band below the banner scrolls, standing inside that band — and
+    the corner it keeps through all of that is the pill's own, half the resting height,
+    rather than half of whatever the box has become: at five lines a proportional corner
+    was a 48px arc over the first line's opening and the last line's close. On a narrow
+    screen the same room caps the bar and the field is what gives, so the ellipsis beside
+    it keeps its room."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    select_paragraph(page, "#how-store")
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    rest = field.evaluate(FIELD_BOX)
+    assert rest["r"] == rest["h"] / 2 and rest["over"] < 0, rest  # a pill, glyph clear
+
+    field.fill("one\ntwo\nthree\nfour\nfive")
+    tall = field.evaluate(FIELD_BOX)
+    assert tall["h"] > rest["h"] and tall["w"] == rest["w"], (rest, tall)
+    assert tall["over"] < 0, (rest, tall)  # the corner is not over the first line
+    assert tall["r"] == rest["r"], (rest, tall)  # it stayed the pill's, not the box's
+
+    field.fill("\n".join(f"line {n}" for n in range(1, 15)))
+    shown = field.evaluate(FIELD_BOX)
+    assert shown["h"] > tall["h"] and not shown["scrolls"], (tall, shown)
+
+    field.fill("\n".join(f"line {n}" for n in range(1, 80)))
+    page.evaluate(RENDERED)  # placeFab answers the input a frame later
+    room = page.evaluate(FLOAT_ROOM)
+    bounds = bar.bounding_box()
+    assert field.evaluate(FIELD_BOX)["scrolls"], bounds
+    assert bounds and room["top"] <= bounds["y"], (room, bounds)
+    assert bounds["y"] + bounds["height"] <= room["bottom"], (room, bounds)
+
+    field.fill(
+        "This paragraph reads well, but the second sentence assumes the reader already "
+        "knows what the earlier decision was. Could we link it, or restate it in a clause?"
+    )
+    page.evaluate(RENDERED)
+    wide = field.evaluate(FIELD_BOX)
+    assert wide["w"] > rest["w"] and wide["h"] > rest["h"], (
+        rest,
+        wide,
+    )  # wider, wrapped
+    assert wide["over"] < 0 and wide["r"] == rest["r"], (rest, wide)
+    bounds = bar.bounding_box()
+    assert bounds and bounds["x"] + bounds["width"] <= room["right"], (room, bounds)
+    page.keyboard.press("Escape")
+
+    resized(page, 390, 900)
+    select_paragraph(page, "#how-cap")
+    expect(field).to_be_visible()
+    field.click()
+    field.fill(
+        "This paragraph reads well, but the second sentence assumes the reader already "
+        "knows what the earlier decision was."
+    )
+    page.evaluate(RENDERED)  # placeFab answers the input a frame later
+    bounds = bar.bounding_box()
+    trigger = bar.locator(".lf-react-trigger").bounding_box()
+    assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
+    assert trigger and trigger["x"] + trigger["width"] <= 382, (bounds, trigger)
+    assert field.evaluate(FIELD_BOX)["w"] < wide["w"], (
+        wide,
+        bounds,
+    )  # the field gave the room
     assert errors == []
     page.close()
 
@@ -1464,9 +1760,10 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
                        m.getAttribute('aria-label'), m.getAttribute('tabindex')]),
         })"""
     )
-    assert copy == {"washed": ["every edit"], "glyph": [["−", "img", "cut", None]]}, (
-        copy
-    )
+    assert copy == {
+        "washed": ["every edit"],
+        "glyph": [["−", "img", "cut", None]],
+    }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the
     # pointer rather than standing on the page is invisible to it. A receipt in a file
@@ -1475,7 +1772,9 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
+    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
+    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
     assert errors == []
     page.close()

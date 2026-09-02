@@ -30,6 +30,18 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   display: inline-block; margin-left: 1px; border-radius: 3px;
   color: var(--accent); font-size: .72em; line-height: 1;
   vertical-align: super; cursor: help;
+  position: relative;
+}
+/* The glyph is six pixels wide and stands in a line of prose, so its box cannot be the
+ * thing a reader aims at: growing it to a usable size would open the line it is set in,
+ * which is the one thing a mark this small must not do. The aim is a box of its own,
+ * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
+ * it belongs to, which costs nothing, because hovering that same phrase already reveals
+ * the same explanation. */
+.lf-gloss-mark::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: var(--aim-floor); height: var(--aim-floor);
+  transform: translate(-50%, -50%);
 }
 .lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
@@ -42,7 +54,7 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   margin: 8px 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 14%, transparent);
+  box-shadow: 0 10px 28px var(--shade);
   font-family: var(--serif); font-size: var(--t-5); line-height: 1.45;
   text-align: left; white-space: normal;
   overflow-wrap: anywhere;
@@ -354,7 +366,7 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
     lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
                          > lf-option:hover {
                            transform: translateY(-1px);
-                           --lf-lift: 0 3px 10px rgba(0, 0, 0, .14); }
+                           --lf-lift: 0 3px 10px var(--shade); }
   }
  }
 }
@@ -639,27 +651,25 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * that floor. Both said apparatus, of the one cell in the group that takes an answer
      * the author didn't think of — sunk into a band below the answers, held 18px short of
      * the column every word around it opens at, dressed as the machinery a reader skips. */
-    /* On a single-pick card the mark keeps its box and stops drawing. The room stays
-     * reserved, so a pick still moves nothing; the ring is the weaker of two ways to say
-     * the same thing now that the group's shape says it, and one mechanism per guarantee
-     * means the weaker one goes.
+    /* The single-pick card used to give its mark up: the room stayed reserved, the ring
+     * stopped drawing, and the argument was that the group's shape already said a pick
+     * was on offer, so the weaker of two ways to say one thing could go.
      *
-     * A card can give it up because the state has the whole cell to live in — the fill and
-     * the rail are the card. A row's cell is one line, and its mark is a column at the
-     * line's end that the form reserves room for by name (the list rules below): stop
-     * drawing there and the reservation is a hole rather than padding, with every row
-     * ending in a wide blank where the ticks were. So the ring stays in the list.
+     * It was the wrong one of the two to weigh. A group's shape says the group takes an
+     * answer; a mark says *this* is one of the places the answer can go, and it says it
+     * where the reader is looking rather than at the frame around everything. Measured on
+     * the shipped pages, that left a card group standing as blank paper at rest — an 11px
+     * box with no border and no fill against the option's own ground — while the row form
+     * beside it drew a column of rings for the same question. Two forms of one widget,
+     * two answers to "can I press this", and the reader who guessed wrong found out by
+     * pressing.
      *
-     * And it stays under `multiple`, in either form, because there the empty box is not
-     * the offer repeated — it is the slot's own state, and the group's shape cannot stand
-     * in for it. One cell filled says "this one" whichever question was asked; three
-     * unticked boxes beside it are what say the other two are still yours to take, and how
-     * many you may. This rule read the ring's second job as the list form's, which was the
-     * list form having got there first: `multiple` is orthogonal to which form a group
-     * takes, so a card group that asked "which of these" drew no box anywhere and offered
-     * the reader nothing to count. */
-    &:not([multiple]) > lf-option:not([chosen]):has(> strong) > .lf-pick::before {
-                     visibility: hidden; }
+     * So the mark draws in every form and either arity, and the ring's own resting edge
+     * (--border-2, the base rule above) is what it draws. The room was always reserved,
+     * so nothing moves; what changes is that the reservation now has the mark in it.
+     * `multiple` keeps the second job it always had here — three unticked boxes beside a
+     * ticked one are what say how many are still yours to take — and single-pick keeps
+     * the first, which is simply that there is something here to take. */
     /* The joined control owns focus at row scale. The mark's generic ring stays off and
      * the exact option row draws one inset keyboard ring below; pointer focus draws none.
      * This leaves the permanent group frame as a frame rather than surrounding it with a
@@ -708,43 +718,69 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
  }
 }
 html.lf-copy lf-options > .lf-another { display: none; }
-/* The row form: a list, so it reads like one. Every row opens at the same column with
- * what the reader is choosing between, and the apparatus — the block it is about, the
- * mark — runs to the line's end. Leading with the mark cost exactly that alignment: a
- * picked row's mark is wider than an open one's by the word it says, so the labels came
- * out ragged and the eye had nothing straight to run down.
+/* The row form: a list, so it reads like one. Every row opens at the same column, the
+ * mark leads it, and the apparatus that is about somewhere else — the block reference —
+ * runs to the line's end.
  *
- * A table, because a row is a run of prose with apparatus after it, and the anonymous cell
- * a table puts around that run is the only box the words can have while the markup stays
- * the author's. Laid out as flex items they had none: every stretch of a label was an item
- * of its own, so an inline <code> mid-label came out with the row's own 8px gap either
- * side of it and without the space that was written there — a flex item's edge whitespace
- * is trimmed, and the gap had been standing in for it on every label that was one run.
+ * Leading with the mark cost that alignment once: a picked row's mark was wider than an
+ * open one's by the word it said, so the labels came out ragged and the eye had nothing
+ * straight to run down. That is no longer a fact about the mark. Its word is zero-sized
+ * in every state and every form (the base rules above), so the box is 11px whether the
+ * row is taken or open, and a column of them is exactly the straight edge the labels
+ * were moved to the front for. What the trailing column cost instead was the answer to
+ * "which of these did I take": in a full-width group the ticks stood ~620px from the
+ * words they belong to, far enough that reading a row and reading its state were two
+ * separate looks.
  *
- * An open mark shows its dot and not its word, which is now every form's rule rather than
- * this one's. The row form got there first and then argued the wrong reason for keeping the
- * word on a card — that a card has no dots beside it to say it — when a choose group has
- * two to five cards and every one carries a mark. The column was there; it was weak, spread
- * down a tall card, and the answer to that is to strengthen it.
+ * A table, because a row is a run of prose with apparatus either side of it, and the
+ * anonymous cell a table puts around that run is the only box the words can have while the
+ * markup stays the author's. Laid out as flex items they had none: every stretch of a label
+ * was an item of its own, so an inline <code> mid-label came out with the row's own 8px gap
+ * either side of it and without the space that was written there — a flex item's edge
+ * whitespace is trimmed, and the gap had been standing in for it on every label that was
+ * one run.
  *
- * The dot itself is the row's and not the card's, and the reason is this form's own
- * apparatus rather than anything about offers: a row reserves a column of room for its
- * mark by name below, so a mark that stopped drawing would leave a blank the width of the
- * word it isn't saying at the end of every line. A card's mark stands in padding, where
- * drawing nothing reads as padding. Both are stated where the joined group is (above).
+ * An open mark shows its dot and not its word, which is every form's rule rather than this
+ * one's. The row form got there first and then argued the wrong reason for keeping the word
+ * on a card — that a card has no dots beside it to say it — when a choose group has two to
+ * five cards and every one carries a mark. The column was there; it was weak, spread down a
+ * tall card, and the answer to that is to strengthen it, which is what both forms now do.
  *
- * The width is stated as the whole box, because another rule pads this one: a row fills
- * its cell to put the mark at the line's end, and a live choose group then takes 30px
- * off the same box for the keyboard address (above). Counted outside the 100%, those
- * 30px carried every row past the group, which clips itself. What went was the last
- * 30px of each line, and that is where the mark stands: the word came out mid-letter,
- * the chosen option lost its tick, and the open ones lost the box to tick. Four of the
- * examples shipped a question that way. A card is laid out at its own width and absorbs
- * the same padding without being told. */
+ * The width is stated as the whole box, because another rule pads this one: a row fills its
+ * cell, and a live choose group then takes 30px off the same box for the keyboard address
+ * (above). Counted outside the 100%, those 30px carried every row past the group, which
+ * clips itself, and what went was the last 30px of each line — at the time the column the
+ * mark stood in, so the word came out mid-letter, the chosen option lost its tick, and the
+ * open ones lost the box to tick. Four of the examples shipped a question that way. The
+ * mark leads the row now and is out of that column's way, but the overflow it was the
+ * symptom of is not: what the last 30px holds today is the block reference, and a row
+ * running past its group still clips. A card is laid out at its own width and absorbs the
+ * same padding without being told. */
 lf-options:not(:has(> lf-option > strong)) > lf-option {
+                     position: relative;
                      display: table; width: 100%; box-sizing: border-box;
                      border-spacing: var(--sp-2) 0;
                      padding: 5px 0; --lf-frame: 1; }
+/* The mark's own column, and every child of the group opens after it — the options and
+ * the cell the reader writes their own option in alike, because the one thing that makes
+ * a list of answers readable is that they all start at the same place.
+ *
+ * Beside the keyboard address rather than sharing its column: a card is tall enough to
+ * hold both in one gutter at different heights, and a row is one line. So the row form
+ * adds its own 17px to whatever column the group already opens on, and the mark stands
+ * in the room that widening made.
+ *
+ * Stated twice because the two cases carry different weight, and the group's own column
+ * is set at a weight the form has to clear: a live choose group states
+ * --lf-address-col on every child, so the form's addition has to outrank that rather
+ * than be reset by it. Without `choose` there is no address column and the mark's is
+ * the whole of it. */
+lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+                     --lf-pick-col: 17px;
+                     padding-inline-start: var(--lf-pick-col); }
+lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+                     > :is(lf-option, .lf-another) {
+                     padding-inline-start: calc(var(--lf-address-col) + var(--lf-pick-col)); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
  * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
@@ -790,18 +826,27 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * down with it. The mark turns that from tidiness into a rule — its dot is out of flow
  * and centred on the row (below), so a word left on the baseline of a two-line label
  * sat a line above the tick it belongs to. */
-lf-options:not(:has(> lf-option > strong)) > lf-option > :is(.lf-ref, .lf-pick) {
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-ref {
                      display: table-cell; width: 0; white-space: nowrap;
                      vertical-align: middle; }
-/* The mark reserves only the compact check/ring column. Its accessible status word is
- * zero-sized, so choosing a row never moves the § reference or changes the row's width.
- * The mark stays centred on wrapped labels and remains the row's last apparatus cell. */
+/* The mark stands in that column rather than in the table, which is the same answer a
+ * card's mark has always had and it is here for the reason the form's own comment above
+ * gives twice over: a cell takes its width from what the row happens to hold, so a row
+ * naming no block came out eight pixels off its neighbours and carried whatever stood
+ * beside it along. As a cell at the line's end that raggedness was the marks'; as a cell
+ * at the line's start it was the labels', which is worse, because the labels are what the
+ * reader runs their eye down. Out of flow it is neither: the column is the group's, the
+ * mark is in it, and the words open at one place on every row.
+ *
+ * Centred on the row and not on its first line, which is the answer the digit column
+ * below gives for the same reason — a label long enough to wrap carries its apparatus
+ * down with it, and a word left on the baseline of a two-line label would sit a line
+ * above the tick it belongs to. The height is stated because an absolute box given both
+ * offsets and no height stretches to fill them. */
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
-                     position: relative; box-sizing: border-box;
-                     min-width: 17px;
-                     padding-right: 17px; text-align: right; }
-lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick::before {
-                     position: absolute; right: 0; top: 0; bottom: 0; margin: auto 0; }
+                     position: absolute;
+                     inset-inline-start: var(--lf-address-col, 0px);
+                     top: 0; bottom: 0; margin: auto 0; height: 11px; }
 /* And the digit at the other end of the row takes the same answer, for the same reason: a
  * row is the words in it, so a mark that belongs to the row is centred on the box they
  * fill, and that stays true whatever size they are set at. It is the row and not the first
@@ -834,6 +879,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-address {
  * a button is worth showing only where something will answer it. */
 lf-options[settled] > .lf-settled {
               display: none; width: 100%; align-items: baseline;
+              min-height: var(--aim-floor);
               gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 7px 12px;
               font-weight: 600; text-align: left;
               background: var(--field); cursor: pointer;
@@ -1019,6 +1065,7 @@ lf-card > strong { display: block; margin: 0 0 2px; }
    sets a line of its own, and this glyph wants none. */
 lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           padding: 8px 10px; cursor: grab;
+          min-height: var(--aim-floor); min-width: var(--aim-floor);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
@@ -1034,10 +1081,10 @@ lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-rin
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
-lf-card.lf-lift { box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
+lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
 lf-card.lf-inhand { opacity: 1; cursor: grabbing;
-                    box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
+                    box-shadow: 0 8px 24px var(--shade); }
 /* lf-tabs / lf-tab: parallel workstreams, one panel on screen at a time. The
  * strip is generated by the upgrade; which tab is open is the reader's view
  * state, so everything here is presentation. On a live page the strip is a
@@ -1056,8 +1103,17 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 .lf-tabstrip { display: none; flex-wrap: wrap; gap: 2px;
                border-bottom: 1px solid var(--border-2); }
 .lf-tabstrip .lf-tab-btn { padding: 5px 7px 7px;
+               min-height: var(--aim-floor); min-width: var(--aim-floor);
+               display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
 .lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
+/* A tab is a span the module gives a role and a tab stop to, so the only mark it wore
+ * for the keyboard was the platform's own — beside a strip whose every other control
+ * wears the layer's band, which reads as the walk leaving the page. Inset, because the
+ * button's foot is on the strip's rule and an outset band would be drawn over it. */
+.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
+               outline: var(--here-ring); --lf-here-ring: tab-btn;
+               outline-offset: calc(-1 * var(--here-ring-w)); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
 .lf-tabstrip .lf-tab-btn > [data-lf-said] {
@@ -1167,9 +1223,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
  * receives the revealing gesture, then the links become pointer targets when that fade
  * is complete; an unseen label cannot navigate on the gesture that discovers it.
  *
- * The start row repeats the page title only in that map. It is still navigation
- * apparatus, so weight and ink distinguish it within the same sans voice as the section
- * labels. Their common inset then reads as one route rather than two typographic systems.
+ * The start row repeats the page title in that map, and on paper, where the outline is
+ * the one reading of the route and keeps every word the map says; the open outline on
+ * screen sits under the title and leaves it out. It is still navigation apparatus, so
+ * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Every knot stays on the same spine, and every
  * label is limited to two lines so an unusually discursive heading does not take over the
  * map.
@@ -1188,6 +1245,7 @@ lf-toc .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
                          font-size: var(--t-6); font-weight: 650;
                          letter-spacing: .08em; text-transform: uppercase; }
 lf-toc .lf-toc-start, lf-toc .lf-toc-window { display: none; }
+@media print { lf-toc .lf-toc-start { display: block; } }
 lf-toc ol { list-style: none; margin: 0; padding: 0; }
 lf-toc li { --lf-toc-indent: 0px; margin: 0 0 0 var(--lf-toc-indent); }
 lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
@@ -1258,7 +1316,6 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       opacity: var(--lf-toc-label-opacity); pointer-events: none;
       transition: color .12s ease-out, opacity .24s ease-out;
     }
-    lf-toc .lf-toc-start a::before { content: attr(data-lf-label); }
     lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                              line-height: 1.2; max-height: 2.4em; }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }
@@ -1594,9 +1651,9 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
 }
 
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
-   "editable"; the ✎ button is the accessible door (double-click is the fast path) and
-   sharpens on hover or focus. Newlines in a draft are content, so the body preserves
-   them. An edited-but-unhonored draft wears the runtime's data-lf-pending mark,
+   "editable" and sharpens under the pointer, because the box is the door a press opens
+   (lf-draft.js); the ✎ button is the door the keyboard uses. Newlines in a draft are
+   content, so the body preserves them. An edited-but-unhonored draft wears the runtime's data-lf-pending mark,
    the same green every decided-and-unhonored widget wears. Unupgraded, the same
    box shows raw text.
 
@@ -1605,7 +1662,7 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    the edit box drops everything the runtime's general textarea rule adds around text
    that would move it: the padding and border shifted the words 9px right and 6px down,
    the 64px floor stretched a two-line draft, and inline-block layout left a baseline
-   gap under it. So a double-clicked word stays under the pointer, which is what makes
+   gap under it. So the word under the press stays under the pointer, which is what makes
    the gesture worth aiming. field-sizing (that same rule) does the growing, so the box
    is as tall as its text and no taller — what read mode showed. The affordance moves to
    the host, since a border on the textarea is a border read mode hasn't got: the dashed
@@ -1616,7 +1673,7 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    while editing, all three the same button, so the row's height is the same in either
    view and nothing under the pointer moves. It cost the ✎ its floating corner. An
    absolute corner costs no height, but then the row replacing it does, and the box grew
-   36px the instant a double-click landed — a gesture aimed at a word, answered by the
+   36px the instant a press landed — a gesture aimed at a word, answered by the
    whole block changing shape. The text got the corner's 40px gutter back.
 
    The box being open is a fact about the screen, so the whole swap is scoped to it and
@@ -1636,8 +1693,8 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
 .lf-draft-pencil { opacity: 1; }
 /* The one control whose face is deliberately the document's: the box shows the page's
-   words in the page's serif, or the double-clicked word reflows under the pointer the
-   moment the box opens. Stated unlayered, so it outranks the runtime's layered
+   words in the page's serif, or the word under the press reflows out from under the
+   pointer the moment the box opens. Stated unlayered, so it outranks the runtime's layered
    UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
            font: inherit; min-height: 0; max-height: none; overflow: hidden; }
@@ -1645,6 +1702,13 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
 .lf-draft-controls, .lf-draft-history { display: none; }
 @media screen {
   html:not(.lf-copy) {
+    /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
+       edge it already wears to say "editable" sharpens under the aim, the way the
+       layer's own pressables warm their ground. Not the ground here — the reader is
+       about to type on it, and the words have to stay the page's words while they
+       decide. A quoted draft is an exhibit with no door and gets none of this. */
+    lf-draft:not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
+               border-color: var(--muted); }
     lf-draft:has(.lf-draft-edit) { border-style: solid;
                border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
                box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }

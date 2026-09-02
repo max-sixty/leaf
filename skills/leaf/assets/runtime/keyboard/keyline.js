@@ -27,8 +27,8 @@ export function createKeyline({
 }) {
   // ---------- the key line ----------
   // What the next press does, walked outward from where the reader stands. Locality supplies
-  // the ordinary shortlist: the same innermost-first scope order the dispatcher uses, with
-  // rows the register marks persistent retained beside it. An active chord is already a
+  // the ordinary shortlist: the same innermost-first scope order the dispatcher uses. An
+  // active chord is already a
   // compact reference to one mode, so every live row in that scope is shown. More unfolds the
   // remaining ordinary scene before opening the complete reference.
   //
@@ -96,11 +96,8 @@ export function createKeyline({
       .find(
         (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false,
       );
-    const persistent = candidates.filter((row) => row.linePriority === "persistent");
     const short = new Set(
-      [first, wayOut ?? candidates.find((row) => row !== first), ...persistent].filter(
-        Boolean,
-      ),
+      [first, wayOut ?? candidates.find((row) => row !== first)].filter(Boolean),
     );
     const tail = withoutReference.includes(backRow) ? backRow : null;
     return { candidates, referenceAt, short, tail };
@@ -150,8 +147,8 @@ export function createKeyline({
     const complete = completeLine(scopes, candidates);
     const shown = complete?.rows ?? short;
     keylineEl.dataset.lfExpanded = String(shelf);
-    keylineEl.dataset.lfWrap = String(shelf || Boolean(complete) || shown.size > 2);
-    // Keep the two contextual hints together before persistent rows on the ordinary line.
+    keylineEl.dataset.lfWrap = String(shelf || Boolean(complete));
+    // Keep the two contextual hints together at the front of the ordinary line.
     // The shelf and a chord retain registry order because each is a fuller reading of one
     // scene rather than a ranked shortlist.
     const projected =
@@ -160,18 +157,10 @@ export function createKeyline({
         : [...shown, ...candidates.filter((row) => !shown.has(row))];
     const projectedRows = projected.filter((row) => !shelf || row !== tail);
     const referenceRows = referenceAt === -1 ? [] : [referenceRow];
-    // In the ordinary line, keep the interactive disclosure with the contextual
-    // shortlist and let non-interactive persistent facts wrap after it. A wider system
+    // The interactive disclosure stays with the contextual shortlist. A wider system
     // font must not push More onto a lower row beside a page or panel control, where two
     // compact targets would no longer have the 24px separation either one owes.
-    const ordered =
-      shelf || complete
-        ? [...projectedRows, ...referenceRows]
-        : [
-            ...projectedRows.filter((row) => row.linePriority !== "persistent"),
-            ...referenceRows,
-            ...projectedRows.filter((row) => row.linePriority === "persistent"),
-          ];
+    const ordered = [...projectedRows, ...referenceRows];
     // Read where it is painted, like every other cell. Every destination keeps its complete
     // chord while the reader advances through it: completed keys change face, but no key is
     // added, removed, or moved. A chord control such as Escape is a way out of the mode, not
@@ -220,12 +209,6 @@ export function createKeyline({
     if (reference.open) keylineMore.remove();
     else if (!seated) keylineEl.append(keylineMore);
 
-    // More is a real target while persistent hints are facts. Keep the target before those
-    // hints so a wider face wraps the fact, not the target, down beside page furniture.
-    if (!shelf && !complete && !reference.open)
-      for (const { row, span } of drawn)
-        if (row.linePriority === "persistent") keylineEl.append(span);
-
     if (shelf && tail) {
       const steps = rowSteps(tail);
       chip(steps, word(tail.line), neutralStates(steps), true);
@@ -258,21 +241,6 @@ export function createKeyline({
     // A chord is the complete menu of the mode it names. Its live rows wrap rather than
     // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
     if (complete) return;
-    // Persistent rows stay on the ordinary line through contextual changes. When those
-    // extra hints wrap past the line's two-row bound, yield only ordinary rows, from the
-    // lowest-ranked one back toward the first.
-    if (shown.size > 2) {
-      const removable = drawn
-        .filter(({ row, span }) => !span.hidden && row.linePriority !== "persistent")
-        .map(({ span }) => span)
-        .toReversed();
-      while (
-        (rowsUsed() > 2 || keylineEl.scrollWidth > keylineEl.clientWidth) &&
-        removable.length
-      )
-        removable.shift().hidden = true;
-      return;
-    }
     // On a window narrower than those two
     // computed sentences, yield the lower-ranked hint and then the first; More is the one
     // control that always survives. At most two layouts are spent, independent of the size

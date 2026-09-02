@@ -145,7 +145,8 @@
  *
  * What a key would do right now is state the user can read, not recall. The quiet fixed key
  * line starts with the first live row of the innermost scope, then a promotable Escape or
- * the next row, and retains registry rows marked persistent. An active chord shows every
+ * the next row, and retains registry rows marked persistent — on the page at rest, `c` and
+ * `r`, the two presses that say something back. An active chord shows every
  * live row in its scope, including computed ranges. `? more` unfolds up to two rows of the
  * remaining current commands; `? all shortcuts` opens the complete reference, grouped by
  * scope and searchable by key, action, or scope. The hint chips are aria-hidden: they are
@@ -319,7 +320,7 @@ import {
   renderSaid,
   watchExternalLinks,
 } from "./runtime/presentation.js";
-import { reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
+import { FOCUSABLE, reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
 import { pageScroller } from "./runtime/scrolling.js";
 import {
   matchesWhen,
@@ -363,6 +364,7 @@ const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
 const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient({
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
+  sayLine: (...args) => sayLine(...args),
 });
 configureDataReporting(reportPageError);
 const { pointerAt } = createPointer();
@@ -425,12 +427,11 @@ function receiveState(...args) {
 //           A row with no `run` may carry one all the same, since a press can be real and
 //           immediate without being the runtime's: Enter opens the focused leaf because
 //           the row is a link. What carries no word is reference, named in the "?"
-//           overlay and never promised as the next press — F7, ⌥ click, a draft's
-//           double-click.
+//           overlay and never promised as the next press — F7, ⌥ click, a press on a
+//           draft's own box.
 //   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
-//           never changes whether the command dispatches or appears in the reference.
-//   linePriority — `persistent` keeps an essential row beside the contextual shortlist.
-//           An active chord shows every live row regardless of either line projection field.
+//           never changes whether the command dispatches or appears in the reference,
+//           and an active chord shows every live row regardless of it.
 //   promoteEscape — whether an Escape row takes the line's second visible slot. On by
 //           default; a local action that happens to clear state can leave the slot to the
 //           next action on that state.
@@ -546,14 +547,19 @@ function reveal(el) {
 }
 
 let anchoringReady = false;
-const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWidgets } =
-  createWidgetLoader({
-    buildReactBar: (...args) => buildReactBar(...args),
-    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
-    reportPageError,
-    revealLayer,
-    sameLayer,
-  });
+const {
+  importWidgets,
+  opaquePassageParts,
+  opaquePassageRoots,
+  rememberPassageParts,
+  upgradeWidgets,
+} = createWidgetLoader({
+  buildReactBar: (...args) => buildReactBar(...args),
+  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  reportPageError,
+  revealLayer,
+  sameLayer,
+});
 
 // ---------- comment layer ----------
 
@@ -693,9 +699,15 @@ const statusText = el("span", "lf-status-text", "Connecting…");
 const noticeEl = el("span", "lf-ui lf-notice");
 const bannerStatus = el("div", "lf-banner-status");
 bannerStatus.append(dot, statusText, noticeEl);
-const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
-  el,
-});
+const {
+  bannerActions,
+  foldShelf,
+  overflowBtn,
+  overflowMenu,
+  reserveNewsSlot,
+  showNews,
+  unfoldShelf,
+} = createBannerShelf({ el, paintHere: () => paintHere() });
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
   decisionRows,
@@ -759,13 +771,13 @@ const {
   CHOOSER,
   NEWEST,
   VERSIONS,
-  blocksOnScreen,
   closeVersionMenu,
   comparisonBase,
   comparisonChanges,
   installArrival,
   latestChip,
   prepareActivation,
+  readingBlock,
   renderVersions,
   versionBtn,
   versionLabels,
@@ -780,6 +792,7 @@ const {
   el,
   elementById: (...args) => elementById(...args),
   focused,
+  importWidgets,
   landedAt: (...args) => landedAt(...args),
   midComposition: () => midComposition(),
   pageText: (...args) => pageText(...args),
@@ -804,7 +817,6 @@ const {
   stateSignoff,
   style,
   syncLayout,
-  textBlockSelector: () => TEXT_BLOCK,
 });
 const toggleBtn = el("button", "lf-btn lf-threads-toggle", "Threads");
 toggleBtn.title = "Show or hide the thread panel";
@@ -815,39 +827,42 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-// Seed the invariant middle once; arrangeBannerControls moves the two edge families
+// Seed the invariant middle once; arrangeBannerControls puts the two edge families
 // around it and later preserves any registry-declared controls added among these three.
 bannerActions.append(latestChip, decisionsBtn, versionBtn);
-// On a wide row, an edge's address sits at that edge: All leaves is the first control
-// beside the tray it opens on the left, and Threads (plus approval) finishes beside
-// the panel it opens on the right. A covering shelf instead begins with the primary
-// Threads loop, keeping it in the first phone view. This is DOM order rather than CSS
-// `order`, so the tab route says the same thing the row draws. Reordering existing nodes
-// can briefly drop native focus; put it back without moving the page, then make its new
-// shelf position wholly visible.
+// One order, at every width. An edge's address sits at that edge: All leaves is the first
+// address beside the tray it opens on the left, and approval and Threads finish beside the
+// panel they open on the right. The row used to turn round at the covering breakpoint,
+// which carried Threads from one end of the banner to the other and swapped the page's one
+// committing press across it — so a reader who learned this row on a laptop had to learn
+// it again on a phone, and a press they were reaching for was somewhere else. What a
+// narrow window changes now is how many of these addresses stand on the row at once; the
+// rest fold into the row's own menu, in this same order (`foldShelf`).
+//
+// This is DOM order rather than CSS `order`, so the tab route says the same thing the row
+// draws. Reordering existing nodes can briefly drop native focus; put it back without
+// moving the page, and hand it to the menu's door where the fold has taken the address
+// the reader was standing on.
 function arrangeBannerControls() {
-  const focused = bannerActions.contains(document.activeElement)
-    ? document.activeElement
-    : null;
+  const focused = document.activeElement;
   const edges = new Set([toggleBtn, approveBtn, othersBtn]);
-  // Registry-declared blanket answers can join the middle of this shelf after boot.
-  // Preserve every such control in its standing relative order while moving only the
-  // edge-owned addresses; a breakpoint must not strand a later extension at an edge.
-  const middle = [...bannerActions.children].filter((control) => !edges.has(control));
-  const controls = commentsEdge.over.matches
-    ? [toggleBtn, ...(signoff ? [approveBtn] : []), ...middle, othersBtn]
-    : [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
+  // Registry-declared blanket answers can join the middle of this row after boot, and a
+  // folded address is still on it. Preserve every such control in its standing relative
+  // order while moving only the edge-owned addresses.
+  const middle = [...overflowMenu.children, ...bannerActions.children].filter(
+    (control) => control !== overflowBtn && !edges.has(control),
+  );
+  const controls = [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
   bannerActions.append(...controls);
-  if (focused && controls.includes(focused)) {
-    focused.focus({ preventScroll: true });
-    revealFocus(focused);
-    // A MediaQueryList change can arrive before its new grid geometry is observable.
-    // Reveal once more in the first frame painted with that geometry; keep the identity
-    // check so a user who has moved focus meanwhile is never pulled back.
-    requestAnimationFrame(() => {
-      if (document.activeElement === focused) revealFocus(focused);
+  foldShelf();
+  if (
+    focused?.isConnected &&
+    controls.includes(focused) &&
+    document.activeElement !== focused
+  )
+    (overflowMenu.contains(focused) ? overflowBtn : focused).focus({
+      preventScroll: true,
     });
-  }
 }
 arrangeBannerControls();
 banner.append(bannerStatus, bannerActions);
@@ -947,7 +962,7 @@ fabInput.autocomplete = "off";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(el("button", "lf-ui lf-fab"), {
-  glyph: "💬",
+  icon: "comment",
   label: "Comment",
   behavior: "disclosure",
 });
@@ -1075,6 +1090,7 @@ for (const [part, id] of [
 const chromeRoot = el("div", "lf-chrome");
 chromeRoot.append(
   banner,
+  overflowMenu,
   versionMenu,
   othersPanel,
   decisionsPanel,
@@ -1090,40 +1106,82 @@ chromeRoot.append(
   keylineEl,
   inspectEl,
 );
+// The chrome follows `main` in the document, which is right for reading and wrong for
+// reaching: nothing stood between the top of the page and the banner but the whole page,
+// and the top of the page is where a keyboard reader's next Tab starts whenever they are
+// holding no control. So one stop stands in front of everything, the way a skip link
+// always has.
+//
+// Prepended to the body rather than put in the chrome, because tab order is document
+// order and the chrome is last; there is no `tabindex` that would buy this and no reason
+// to want one. It carries the offer marker `offer` writes, so paper drops it with every
+// other injected control and a copy takes it out with the layer it points at. It takes no
+// row in the register either: a control is a route to a capability rather than a
+// capability of its own, and this one's whole design is to be the first thing a reader
+// finds without having been told about it.
+// Which control it lands is decided by the press taking, not by a reading of whether the
+// control looks available. The banner's controls are conditional in several ways at once
+// — Leaves is absent where the machine has one leaf, Asks where the page waits on
+// nobody, the newest-version chip is drawn only while there is a newer version, and
+// sign-off is disabled until the page is presented — and each of those makes focus
+// silently do nothing rather than fail. So the walk asks the browser the only question
+// that matters here, whether the reader ended up on it, and the banner itself is the
+// answer when none of them will have them.
+const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
+skipToChrome.onclick = () => {
+  for (const control of banner.querySelectorAll(FOCUSABLE)) {
+    control.focus({ preventScroll: true });
+    if (control.matches(":focus")) return;
+  }
+  focusDestination(banner);
+};
+document.body.prepend(skipToChrome);
 document.body.append(chromeRoot);
 // The controls that rewrite their own words hold the widest of them, measured in the
 // face and padding the banner is using now (see the stylesheet's banner comment). The
-// covering shelf deliberately spends less horizontal padding than the wide row, so its
+// covering row deliberately spends less horizontal padding than the wide one, so its
 // media-query transition has to renew these measurements in both directions; an inline
 // minimum measured once on a desk would otherwise make that responsive padding inert.
 // The counters hold the widest they reach anywhere below a thousand, so no count they
 // write can move them — a page with a thousand open threads, or a machine with a thousand
 // live pages, is not one anyone hands a user.
+//
+// Every address stands on the row while this runs. A control measures its own words in
+// its own live face, and inside the shut menu the fold may have put it in there is no
+// box to measure: every word comes back zero and the floor with it. The fold is asked
+// again at the end, against the reservations this just took.
 function reserveBannerControls() {
+  unfoldShelf();
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  // News keeps one readable address while it changes words. The action row itself owns
-  // overflow now, so no control has to collapse into an illegible pressure release. The
-  // covering rule fully removes an unseen slot, including from measurement, so lend it
-  // the shown class for this synchronous, invisible reading and put its actual state
-  // straight back.
-  const latestWasShown = latestChip.classList.contains("lf-news-shown");
-  latestChip.classList.add("lf-news-shown");
+  // News keeps one readable address while it changes words. The row folds rather than
+  // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [
     "New page available → open v999",
     "Latest edit couldn't be shown",
   ]);
-  latestChip.classList.toggle("lf-news-shown", latestWasShown);
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
   reserve(decisionsBtn, ["Asks (999/999)"]);
   reserve(othersBtn, ["All leaves (999)"]);
+  foldShelf();
 }
+let reservedCovering = commentsEdge.over.matches;
 reserveBannerControls();
-commentsEdge.over.addEventListener("change", () => {
-  arrangeBannerControls();
+// The reservations are measured in the padding the current breakpoint gives the row's
+// controls, and the fold reads them to decide what the row can hold — so they have to be
+// this breakpoint's before anything is measured against them. A crossing is two events, a
+// resize and a media query change, and the platform does not order them against each
+// other: a fold running on the resize measured the narrow row against the widths the
+// window it had just left reserved, folded an address the narrow row had room for, handed
+// the reader the door it went behind, and then had the renewal behind it take that door
+// away with the reader still standing on it. Hung off the geometry writer instead, the
+// renewal is always the crossing's first act, whichever event arrives first.
+function currentBannerReservations() {
+  if (reservedCovering === commentsEdge.over.matches) return;
+  reservedCovering = commentsEdge.over.matches;
   reserveBannerControls();
-});
+}
 // ---------- state ----------
 
 // Until the first state answer, [] means "not read", not "no comments". Keep that
@@ -1150,6 +1208,10 @@ chromeLayout = createChromeLayout({
   currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
   focused,
+  foldShelf: () => {
+    currentBannerReservations();
+    foldShelf();
+  },
   keylineEl,
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
@@ -1206,7 +1268,6 @@ const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection
 const {
   BANNER_CLEAR,
   activateVisual,
-  beside,
   dismissFab,
   fabAnchorAt,
   fabOptionsAvailable,
@@ -1215,7 +1276,6 @@ const {
   focusFabComment,
   focusTargetComment,
   openOnItem,
-  placeClear,
   refreshFab,
   selectResponseTarget,
   showFab,
@@ -1257,6 +1317,7 @@ const {
   panel,
   panelCovers,
   pointerAt,
+  reactionContextContains: (node) => reactionContextContains(node),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
   resolveAnchor: (...args) => resolveAnchor(...args),
@@ -1330,6 +1391,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   paintAnchors,
   paintHere,
   post,
+  refreshFab,
   saveDraft,
   sendDraft,
   showFab,
@@ -1436,6 +1498,14 @@ function paintApproval() {
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
   approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
+  // The word and the title turn over together. The title read "Approve this work; the
+  // page stays open for follow-up" whether or not the work had been approved, so the one
+  // surface that could have told a reader what pressing it would do next went on
+  // describing a press they had already made. Approved, it says the state and the way
+  // out of it, which is `z` like every other reader gesture.
+  approveBtn.title = approved
+    ? "Approved. Press z to take it back while it is still your last gesture"
+    : "Approve this work; the page stays open for follow-up";
   paintHere();
 }
 approveBtn.onclick = async () => {
@@ -1599,7 +1669,10 @@ const commentDestination = () => {
   // shape of every other way in: a scope names its keys, and typing is a scope you enter.
   return {
     does: "Go to the threads",
-    line: "threads",
+    // Not "threads": that is the t/T walk's word on the same line, and the two are
+    // different capabilities — one goes to the room, the other steps through what is in
+    // it. A line printing one word twice leaves the keycaps to say which is which.
+    line: "go to threads",
     go: () => {
       setPanel(true);
       threadsBox.focus({ preventScroll: true });
@@ -1851,7 +1924,7 @@ const {
   decisionsOffered,
   decisionsPanel,
   banner,
-  blocksOnScreen,
+  readingBlock,
   closeTray: () => showTray(null),
   el,
   elementById: (...args) => elementById(...args),
@@ -1870,6 +1943,7 @@ const {
   paintKeys,
   PRESS,
   panelIsOpen,
+  readableDestination: (...args) => readableDestination(...args),
   registry,
   reserve,
   reveal,
@@ -1980,6 +2054,7 @@ const {
   buildReactBar,
   buildReactSurface,
   isReactArmed,
+  reactionContextContains,
   reactionTokens,
   sendReaction,
   setReact,
@@ -1991,6 +2066,9 @@ const {
   PRESS,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
+  buttonChoices: (target) => livingMargin?.buttonChoices(target) ?? [],
+  buttonContextContains: (target, node) =>
+    livingMargin?.buttonContextContains(target, node) ?? false,
   claimsEsc,
   currentRevision: () => runtime.currentRevision,
   cut: (...args) => cut(...args),
@@ -2551,19 +2629,15 @@ const REFERENCE = {
 };
 const PAGE = {
   rows: [
-    PAGE_SEARCH,
-    {
-      id: "selection.open",
-      keys: ["s"],
-      does: "Select a visible item by hint",
-      line: "select item",
-      // Once a target is in hand, its actions own the two short-line slots. Escape clears
-      // it, while this projection-only gate leaves s live to replace the target and keeps
-      // that capability in the complete reference.
-      lineWhen: () => !hasCapturedTarget(),
-      when: () => anchoringReady,
-      run: startSelecting,
-    },
+    // The two presses that say something back, first, because the resting line is the
+    // only sentence a reader who has not pressed anything yet will read. It used to open
+    // `/ search page · s select item`, which are both ways of *finding* a thing to act on
+    // and so named no act at all: a page whose whole point is the remark it carries never
+    // said the word "comment" until the reader pressed `?`. The captured-target case had
+    // already worked this out for itself — `s` steps off the line and BACK_OUT gives up
+    // its promotion so that `c` and `r` own the two slots on the thing just chosen — and
+    // this is that same ranking with nothing chosen. Finding is still a press away;
+    // saying something was three.
     {
       id: "comment.create",
       keys: ["c"],
@@ -2601,6 +2675,22 @@ const PAGE = {
       line: "react",
       when: () => reactionTokens().length > 0 && (anchoringReady || !pageSelection()),
       run: () => setReact(true),
+    },
+    // Then the two ways of choosing what to say it about. They are one press from the
+    // shelf and named in full by the reference, which is where a capability the reader
+    // has not asked for yet belongs.
+    PAGE_SEARCH,
+    {
+      id: "selection.open",
+      keys: ["s"],
+      does: "Select a visible item by hint",
+      line: "select item",
+      // Once a target is in hand, its actions own the two short-line slots. Escape clears
+      // it, while this projection-only gate leaves s live to replace the target and keeps
+      // that capability in the complete reference.
+      lineWhen: () => !hasCapturedTarget(),
+      when: () => anchoringReady,
+      run: startSelecting,
     },
     {
       id: "thread.walk",
@@ -2657,7 +2747,12 @@ const PAGE = {
       ],
       does: "Move 60% of a page down or up",
       line: "page down / up",
-      linePriority: "persistent",
+      // An ordinary row, ranked where it stands. It was the one persistent declaration in
+      // the runtime, which spent a third of the resting line restating what every reader
+      // already does with a wheel, a trackpad or the space bar — and spent it on every
+      // page, in every scope, beside whatever the reader was actually doing. Scrolling is
+      // the one capability no page has to advertise. The shelf and the reference still
+      // name it, which is where a key the reader has not asked after belongs.
       repeat: true,
       run: (binding) => stepPage(binding === "d" ? 0.6 : -0.6),
     },
@@ -2810,8 +2905,8 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   ELEMENTS,
   focused,
   isChordArmed,
-  isReactArmed,
   paintHere,
+  REACT,
   recoveredLabelFocus,
   SCOPES,
   scopesFor,
@@ -2838,6 +2933,7 @@ const reference = createReference({
   pruneScopedElements,
   reachScrollers,
   readerIn,
+  readingBlock,
   scopeRefs,
   SCOPES,
   setCharacterShortcuts: (on) => {
@@ -2891,9 +2987,10 @@ keyline = createKeyline({
 const { renderLine } = keyline;
 const { droppedAt, presented } = createPresence();
 
-const { loadIcon, renderStatus, toneFor } = createBanner({
+const { loadIcon, renderStatus, sayLine, toneFor } = createBanner({
   agentName,
   ago,
+  announce,
   dot,
   el,
   presented,
@@ -3054,6 +3151,9 @@ function fragmentId(...args) {
 function markAt(...args) {
   return anchorRuntime.markAt(...args);
 }
+function readableDestination(...args) {
+  return anchorRuntime.readableDestination(...args);
+}
 function scrollToElement(...args) {
   return anchorRuntime.scrollToElement(...args);
 }
@@ -3093,7 +3193,6 @@ const {
   DATUM,
   pageWords,
   layerPart,
-  TEXT_BLOCK,
   elementOver,
   under,
   authored,
@@ -3121,6 +3220,7 @@ const {
 } = passageRuntime;
 
 const runtimeProjection = createProjection(runtime, {
+  unaccountedGesture,
   DECISION_ROW,
   COLLAPSE,
   MARKED_ANYWHERE,
@@ -3363,7 +3463,6 @@ livingMargin = createLivingMargin({
   anchorLabel,
   acknowledgments: () => runtime.browser?.acknowledgments ?? [],
   announce,
-  approveBtn,
   blockAt,
   chromeRoot,
   claimState: workClaimState,
@@ -3377,6 +3476,7 @@ livingMargin = createLivingMargin({
   el,
   elementById,
   focused,
+  foldShelf,
   goToDecision,
   inChrome,
   itemSays,
@@ -3396,7 +3496,6 @@ livingMargin = createLivingMargin({
   stateProjection,
   threadPanel: panel,
   threads: () => conversationRuntime.threadList,
-  toggleBtn,
   updateSequence,
   versionBtn,
   waitingForPickupSince,
@@ -3438,6 +3537,7 @@ stateApplication = createStateApplication({
   acceptData,
   accountOutbox,
   getSignoffDeclared: () => signoffDeclared,
+  importWidgets,
   loadMarked,
   notifyDataSubscribers,
   observeServerNow,
@@ -3456,6 +3556,7 @@ stateApplication = createStateApplication({
   renderVersions,
   runtime,
   sameLayer,
+  sayLine,
   notice,
   settleAcceptedDrafts,
   stateSignoff,

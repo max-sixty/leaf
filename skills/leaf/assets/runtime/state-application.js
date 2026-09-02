@@ -22,6 +22,7 @@ export function createStateApplication(dependencies) {
     acceptData,
     accountOutbox,
     getSignoffDeclared,
+    importWidgets,
     loadMarked,
     notifyDataSubscribers,
     observeServerNow,
@@ -40,6 +41,7 @@ export function createStateApplication(dependencies) {
     renderVersions,
     runtime,
     sameLayer,
+    sayLine,
     notice,
     settleAcceptedDrafts,
     stateSignoff,
@@ -47,6 +49,11 @@ export function createStateApplication(dependencies) {
   } = dependencies;
 
   let agentMsgCount = -1;
+  // Which frozen markup has already been read for the modules it needs. A state read
+  // carries the whole log, an event's markup never changes, and the parse is the only
+  // way to know which tags are in it — so each one is read once rather than on every
+  // poll of a conversation that may be full of widgets.
+  const markupRead = new Set();
   // The state read installing a document, while it is. Polls and POST answers may
   // overlap, and a document activation is the one application that cannot safely
   // interleave: a second one would capture or replace the halfway upgraded main. Every
@@ -125,12 +132,25 @@ export function createStateApplication(dependencies) {
     // builds a body, so msgNode stays synchronous. The next authored document, where
     // the state names one the live root can follow, is fetched on the same background
     // stretch rather than making either network trip wait on the other.
-    const [activation] = await Promise.all([
+    const preparations = [
       prepareActivation(state),
       nextEvents.some((e) => e.kind === "comment" || e.kind === "reply")
         ? loadMarked()
         : null,
-    ]);
+    ];
+    // And the modules for the widgets a message carries, on the same stretch and for the
+    // same reason: a reply's frozen markup may hold a tag this document never had, and
+    // buildMsgBody instantiates it synchronously once the panel builds a body.
+    for (const e of nextEvents) {
+      if (!e.markup || markupRead.has(e.id)) continue;
+      markupRead.add(e.id);
+      // Parsed the way buildMsgBody parses it, so the tags found here are the tags that
+      // will stand in the body: an inert template, one fragment at a time.
+      const frozen = document.createElement("template");
+      frozen.innerHTML = e.markup;
+      preparations.push(importWidgets(frozen.content));
+    }
+    const [activation] = await Promise.all(preparations);
     if (activation?.stale) {
       await notifyChangedData();
       return;
@@ -300,7 +320,13 @@ export function createStateApplication(dependencies) {
       else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
       stateSignoff(getSignoffDeclared());
       restoreClaimState();
-      if (willActivate) location.reload();
+      // A version the page could not show, and the reader is left looking at the one it
+      // was leaving. Say what the reload is for before making it: a tab that reloads
+      // itself in silence reads as the page having lost their place for no reason.
+      if (willActivate) {
+        sayLine("Couldn't show that version — reloading this page.");
+        location.reload();
+      }
       throw error;
     }
     if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;

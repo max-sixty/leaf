@@ -1,5 +1,6 @@
 """Selection, passage, syntax, and version-travel tests."""
 
+import io
 import json
 import re
 
@@ -9,6 +10,7 @@ from leaf import anchor_capture as anchor_capture_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
+from PIL import Image
 from playwright.sync_api import expect
 from render_support import (
     ADDRESSED_PAGE,
@@ -365,8 +367,10 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     decisions = page.locator(".lf-decisions")
     expect(decisions).to_have_text("Asks (1)")
     decisions.click()
-    # The row names the broader Decision's opening context now, while the options inside it
-    # still take focus and own the choice.
+    # The row names the broader Decision's opening context now, and the arrival stands the
+    # reader on it — inside a tab the press had to select first. The options it holds own
+    # the choice and follow it in the tab order; where exactly they fall is the arrival's
+    # own test to say (test_an_ask_arrival_starts_with_the_context_that_frames_it).
     hidden_decision = page.locator(
         '.lf-decisions-row[data-lf-at="lp-finance-decision"]'
     )
@@ -374,7 +378,8 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     expect(hidden_decision).to_contain_text("Which cases should the fixture cover?")
     hidden_decision.click()
     expect(finance).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#lp-finance-cases .lf-pick").first).to_be_focused()
+    expect(page.locator("#lp-finance-decision")).to_be_focused()
+    expect(page.locator("#lp-finance-decision #lp-finance-cases")).to_have_count(1)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
@@ -442,7 +447,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
     """A drag around a target offers Comment without deadening its Buttons.
 
-    The browser's native selection remains available while the pointer path through `…`
+    The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
@@ -458,10 +463,8 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
-    item.locator(":scope > .lf-margin-more").click()
-    item.locator(":scope > .lf-margin-options").get_by_role(
-        "button", name=re.compile(r"Reject")
-    ).click()
+    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    item.get_by_role("button", name=re.compile(r"Reject")).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
@@ -488,14 +491,21 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         steps=16,
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    assert page.locator(".lf-fab-bar").evaluate(
-        "el => el.getBoundingClientRect().top"
-    ) > page.locator("[data-lf-for='sug-refill']").evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    ), "the bar never stepped past the row, so standing on no control proves nothing"
+    page.evaluate(RENDERED)  # selection placement reaches the frame before hit testing
+    assert (
+        page.locator("[data-lf-for='sug-refill']").evaluate(
+            "el => el.getBoundingClientRect().left"
+        )
+        >= box["x"] + box["width"]
+    ), "the control must hang beside the selected paragraph"
 
+    # A box that takes no pointer cannot be covered for the pointer, which is the whole
+    # subject here: the skip link rests transparent and inert under the banner and only
+    # becomes a control at all when the keyboard reaches it.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
+        .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-item"))
+                     && c.checkVisibility()
+                     && getComputedStyle(c).pointerEvents !== "none")
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -2703,7 +2713,10 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     # dismissal and so is nobody's row to print; what the two presses above assert is
     # that it lands.
     page.keyboard.press("v")
-    expect(line).to_contain_text("leave versions")
+    # Both ways out, each saying which way it goes: on a one-version menu the reader is
+    # at both boundaries at once and the line prints the pair.
+    expect(line).to_contain_text("leave forward")
+    expect(line).to_contain_text("leave backward")
     expect(line).not_to_contain_text("walk — marking changes")
     expect(line).not_to_contain_text("page down")
     page.keyboard.press("Escape")
@@ -2991,7 +3004,8 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
     expect(comparison).to_be_focused()
     expect(compared.locator(".lf-version-menu")).to_be_visible()
-    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave versions")
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave forward")
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave backward")
     compared.keyboard.press("?")
     compared.keyboard.press("?")
     expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")
@@ -3789,7 +3803,14 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
 
     summary = page.locator("lf-diff summary")
     summary.click()
-    with page.expect_request(lambda request: "/api/data" in request.url):
+    # The response rather than the request, because the count below is the route
+    # handler's and the request event is not that handler. Nothing orders the two, so a
+    # wait on the request can come back with the retry in the wire and `requests` still
+    # at one, which reads as a reopen that fetched nothing. Which way the driver hands
+    # them over is not the page's to state and not this test's to depend on. The
+    # fulfilled response exists only because the handler ran, so it is the fact this
+    # count is made of.
+    with page.expect_response(lambda response: "/api/data" in response.url):
         summary.click()
     assert len(requests) == 2
     assert errors == []
@@ -3845,4 +3866,159 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     expect(row).not_to_have_class(marked)
     expect(row).not_to_contain_text("comment")
     assert not errors, errors
+    page.close()
+
+
+# The runtime's whole visible vocabulary for "somebody has said something about these
+# words". Each is painted through the highlight registry, which styles glyphs and no box,
+# so what it can draw is a wash behind the words and a line under them.
+TEXT_MARKS = ("lf-mark", "lf-react")
+
+# The strip is read under the glyphs rather than across them, because a line and a letter
+# are not told apart by colour: both are ink at the same ratio. Below the baseline the
+# only ink a passage has of its own is its descenders, which are stems — a couple of
+# columns each. A rule drawn there takes half the columns when it is dashed and all of
+# them when it is solid. So the floor sits far above what descenders reach and far below
+# what the thinner of the two lines draws, and the unmarked control below is what says
+# which side of it this page is on.
+LINE_COVERAGE = 0.3
+
+
+def _channel(value):
+    value /= 255
+    return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def _ratio(one, other):
+    seen = [
+        0.2126 * _channel(c[0]) + 0.7152 * _channel(c[1]) + 0.0722 * _channel(c[2])
+        for c in (one, other)
+    ]
+    return (max(seen) + 0.05) / (min(seen) + 0.05)
+
+
+def _line_under(page, box, paper):
+    """How much of the strip under a passage the layer draws at 3:1, and at what ratio.
+
+    Returns `(coverage, ratio)` for the row that covers most of the strip: the share of
+    columns standing at 3:1 or better against the page's own ground, and the weakest ratio
+    among them. A wash is read here too, which is the point — a wash the reader cannot
+    tell from the paper comes back as the coverage it actually has, nought, rather than as
+    an absence with no number attached.
+    """
+    assert page.evaluate("(b) => b.y >= 0 && b.y + b.height <= innerHeight", box), (
+        f"the strip is not wholly on screen ({box}), and a screenshot clip is the "
+        f"viewport's, so the scan would read a truncated image"
+    )
+    strip = Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
+    seen = (0.0, 0.0)
+    for y in range(strip.height):
+        row = [strip.getpixel((x, y)) for x in range(strip.width)]
+        band = [c for c in row if _ratio(c, paper) >= 3.0]
+        if band and len(band) / len(row) > seen[0]:
+            seen = (len(band) / len(row), min(_ratio(c, paper) for c in band))
+    return seen
+
+
+def _under_mark(page, name):
+    """The strip just under the words `name` paints, in viewport coordinates."""
+    box = page.evaluate(
+        """(name) => {
+          const [range] = [...(CSS.highlights.get(name) ?? [])];
+          if (!range) return null;
+          const b = range.getBoundingClientRect();
+          // From two pixels above the text box's foot to eight below it: the line is
+          // drawn from the baseline outward and text-underline-offset carries it past
+          // the rect, while the glyphs themselves are all above this.
+          return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
+                  width: Math.round(b.width), height: 10};
+        }""",
+        name,
+    )
+    assert box and box["width"] > 20, (
+        f"{name} painted no range on this page, so the reading has nothing to answer "
+        f"for: {box}"
+    )
+    return box
+
+
+@pytest.mark.parametrize("scheme", ("light", "dark"))
+def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
+    browser, serve, scheme
+):
+    """A mark on a passage is the reader's whole notice that the words carry something.
+
+    The wash cannot be that notice, and no alpha can make it one: --mark composites to
+    1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
+    any alpha at all — opaque it stands at 1.38:1. So the layer marks words the way it
+    marks elements, with a line: an element anchor wears a --mark-ink hairline at 9:1
+    (.lf-mark-el), and a passage wears the same ink as an underline.
+
+    A reaction had the element half of that pair (.lf-react-el, dashed) and not the text
+    half. On words it was --react alone, 1.08:1 over the light paper — a mark that is in
+    the log and not on the screen. Both names are read here.
+
+    Read off the drawn page rather than off the rules, because what a highlight pseudo is
+    allowed to carry is the browser's to decide and a declaration that stopped applying
+    would say nothing. Both schemes, because the two grounds are far apart and a hue that
+    clears one is no evidence about the other.
+
+    The unmarked paragraph is the control, and it is what makes the floor mean anything:
+    the same strip over words nobody has said anything about has to come back under it,
+    or the reading is answering about descenders and would pass with every line gone.
+    """
+    page, errors = open_page(
+        browser,
+        serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)),
+        color_scheme=scheme,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "ok",
+            "anchor": {"section": "p7", "quote": "Paragraph 7."},
+        },
+    )
+    told(page)
+    for name in TEXT_MARKS:
+        page.wait_for_function(
+            "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
+        )
+    paper = tuple(
+        page.evaluate(
+            "() => getComputedStyle(document.body).backgroundColor"
+            ".match(/\\d+/g).slice(0, 3).map(Number)"
+        )
+    )
+    # Same words, same type, same strip, nothing said about them. "Paragraph 5." carries
+    # the descenders both marked passages carry.
+    quiet = page.evaluate(
+        """() => {
+          const range = new Range();
+          const node = document.getElementById('p5').firstChild;
+          range.setStart(node, 0); range.setEnd(node, 12);
+          const b = range.getBoundingClientRect();
+          return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
+                  width: Math.round(b.width), height: 10};
+        }"""
+    )
+    control, _ = _line_under(page, quiet, paper)
+    assert control < LINE_COVERAGE / 2, (
+        f"unmarked words already fill {control:.0%} of the strip under them in the "
+        f"{scheme} scheme, so this reading cannot tell a line from the page's own ink"
+    )
+    seen = {
+        name: _line_under(page, _under_mark(page, name), paper) for name in TEXT_MARKS
+    }
+    for name, (covered, band) in seen.items():
+        assert covered >= LINE_COVERAGE and band >= 3.0, (
+            f"the {scheme} page draws no line under a {name} passage: {covered:.0%} of "
+            f"the strip at {band:.2f}:1 against its own ground {paper}, where the "
+            f"unmarked control is at {control:.0%}. A marked passage whose only signal "
+            f"is its wash is one the reader never learns is marked. All: {seen}"
+        )
+    assert errors == []
     page.close()

@@ -36,14 +36,25 @@ lf-diff:not(.lf-rendered) > pre {
    looks like. Everything inside the markers is written for the shadow tree — :host is
    the widget element itself — so nothing in here matches anything at document level. */
 /* lf-shadow:start */
+/* `clip` rather than `hidden`, and the difference is the whole of why the file header
+   below can pin. Both clip a rounded corner identically; only `hidden` also makes the
+   box a scroll container, and a sticky child is held by the nearest scrolling ancestor —
+   which would be this box, which never scrolls, so the header stuck to nothing and
+   scrolled away with its rows. */
 :host(.lf-rendered) details,
-:host(.lf-rendered) .lf-diff-rename { margin: 8px 0; padding: 0; overflow: hidden;
+:host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
 :host(.lf-rendered) summary,
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
+/* The press is out of the summary's flow, so that line holds a column open for it and a
+   long path wraps above it rather than running underneath. A copy with no press to make
+   room for takes its ordinary inset back. */
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) summary,
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) .lf-diff-rename {
+                                     padding-right: calc(var(--lf-diff-press) + 18px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
@@ -54,33 +65,91 @@ lf-diff:not(.lf-rendered) > pre {
                   background: var(--pre-bg); color: var(--code-ink); font: inherit; }
 .lf-diff-search::placeholder { color: var(--code-muted); opacity: 1; }
 .lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
+                      white-space: nowrap; cursor: pointer; }
+.lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
 .lf-diff-next, .lf-diff-review { min-height: 30px; padding: 4px 9px;
                                 border: 1px solid var(--code-border);
                                 border-radius: 999px; background: var(--pre-bg);
                                 color: var(--code-ink); font: inherit; cursor: pointer; }
 .lf-diff-next:disabled { opacity: .55; cursor: default; }
-.lf-diff-review { flex: none; min-height: 26px; padding: 2px 8px;
-                  color: var(--code-muted); font-size: var(--t-6); float: right;
-                  margin: -2px 0 -2px 8px; }
+/* The file's row is a disclosure, and a disclosure is a control, so the review press
+   cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
+   line instead: a block in the flow ahead of the row, pushed to the right by its auto
+   margin, with the row pulled back up over it by a top margin that takes back the
+   press's height and the 6px above it, so the row starts where it would without it;
+   that is why the height is stated rather than floored, and why the wrapper carries
+   the file's spacing and is a block context of its own, so those margins meet nothing
+   outside it. The pull is the row's and not the press's because the press pins (below)
+   and a sticky box is held inside its containing block by its margin box: a negative
+   bottom margin on the press lent it 32px of travel past its file, so at every file
+   boundary the header unpinned and the press stayed, over the next file's header and
+   that file's own press. 6px and 11px
+   are the details' 1px border plus that
+   line's own 7px and 10px padding, the top pulled 2px up so the press sits centred on
+   the text beside it. The sans is stated because the host this sits in is set in mono,
+   and one width for both labels is what makes the column the row holds open exact.
+   In the flow rather than absolute because the line pins (below): the summary sticks
+   under the banner while its rows go past, and a box placed against the file's top
+   stayed there and drifted off the header it belongs to, its column empty and the
+   press out of reach for the whole of the file. Positioned, and one level over the
+   pinned summary: that one lifts the header over the rows that pass under it, and
+   lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
+   opened and closed the file instead. */
+.lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
+                --lf-diff-press: 110px; }
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) > :is(details, .lf-diff-rename) {
+                margin-top: -32px; }
+.lf-diff-review, .lf-diff-reviewed { display: block; position: relative; z-index: 3;
+                                     width: fit-content; height: 26px;
+                                     margin: 6px 11px 0 auto;
+                                     font-family: var(--sans); }
+.lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
+                  min-height: 26px; padding: 2px 8px;
+                  color: var(--code-muted); font-size: var(--t-6); }
+.lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }
 .lf-diff-filtered { display: none !important; }
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
+.lf-diff-wrap:is(:focus-visible, .lf-focus-visible),
+.lf-diff-review:is(:focus-visible, .lf-focus-visible),
 .lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
                                                         --lf-here-ring: diff-tools;
                                                         outline-offset: 1px; }
-/* The review press rides the file's own summary row, inside the box that clips it, so
-   it takes the inset the summary below takes and not the toolbar's outward gap: drawn
-   outward its lower run fell past the bottom the details clips at. */
-.lf-diff-review:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                            --lf-here-ring: diff-review;
-                                            outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
 :host(.lf-rendered) summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
+/* The file header pins under the banner while its own rows go past, which is the thread
+   list's answer to the same question — the name of the part you are reading has to be on
+   screen for the whole of it, not only at its start. Forty-six files at thirty-two
+   thousand pixels is that list's four-thousand-pixel run with a nought on it: opening one
+   file and reading down it left nothing on screen saying which file it was.
+   The slot is the banner's own height, said once at :root and inherited through this
+   boundary, so the two edges cannot drift apart. Opaque already (the summary's
+   background), because the rows pass underneath it.
+   Screen only: paper has no banner and no scroll to pin against, and a copy's rows are
+   all on the page at once. And only where the module says the page's own scroller is the
+   one underneath — inside the panel the pinned slot is the run headings', and a diff in a
+   reply scrolls in that list rather than in the document. */
+@media screen {
+  :host(.lf-rendered[data-lf-diff-pinned]) summary { position: sticky;
+                              top: var(--lf-banner-h, 0px); z-index: 2; }
+  /* The press with it, 5px down: its own 6px less the border the summary's box starts
+     inside, which is the distance between the two at rest. */
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-review,
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-reviewed { position: sticky;
+                              top: calc(var(--lf-banner-h, 0px) + 5px); }
+}
+/* The room that header takes, so a landing arrives below it rather than behind it. The
+   document declares its banner through scroll-padding-top; this is the rest of the same
+   sum, measured because a wrapped path makes it a number no stylesheet can work out
+   (paintHeadRoom, lf-diff.js — the thread list writes the same fact under this name for
+   its own pinned headings). */
+:host(.lf-rendered) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path { font-family: var(--mono); font-size: var(--t-6);
@@ -119,6 +188,22 @@ lf-diff:not(.lf-rendered) > pre {
 :host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
                           --lf-here-ring: code-pre-shadow;
                           outline-offset: calc(-1 * var(--here-ring-w)); }
+/* Soft wrap. A diff line is `white-space: pre` and the box it sits in scrolls sideways,
+   so the only way to read the end of a long line is a scrollbar at the foot of the whole
+   file — twenty-four thousand pixels below the line, on the patch this was measured on.
+   Wrapping trades the diff's column alignment for lines that end where the reader can
+   see them, which is why it is the reader's own switch rather than the default.
+   The switch is a checkbox and this is a sibling combinator off it, so the state has one
+   home and a copy with its scripts dropped still works it; the siblings are the file
+   rows, each holding its disclosure and its review press. `anywhere` rather than
+   `break-word`: what runs long in a patch is paths, URLs, minified data and prose in
+   comments, and the first three offer the line box no break opportunity to find.
+   The code box gives up its permanent scrollbar with them, since wrapped rows leave it
+   nothing to scroll. */
+.lf-diff-tools:has(.lf-diff-wrap:checked) ~ .lf-diff-file [data-line] {
+                          white-space: pre-wrap; overflow-wrap: anywhere; }
+.lf-diff-tools:has(.lf-diff-wrap:checked) ~ .lf-diff-file code[data-code] {
+                          overflow-x: auto; }
 /* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
    through its variables above, and keeps its syntax roles readable on the denser one. */
 [data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }
@@ -138,6 +223,22 @@ lf-diff:not(.lf-rendered) > pre {
 [data-lf-syn="ty"] { color: var(--syn-type); }
 @media print {
   .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
+  .lf-diff-file:not(:has([data-lf-said])) summary,
+  .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
+  /* The row's pull (above) takes back the press's height, and the press an unreviewed
+     file's row is pulled over is gone here: a hidden box has no margins, so a pull on
+     the press left with it, but :has() still matches the hidden press, so a pull on the
+     row stayed and drew each file's header 24px inside the file before it, the first
+     32px above the widget. Guarded as the neighbour rule is: no said word, nothing on
+     the sheet to pull over. */
+  .lf-diff-file:not(:has([data-lf-said])) > :is(details, .lf-diff-rename) { margin-top: 0; }
   .lf-diff-filtered { display: block !important; }
+  /* Paper wraps whether or not the switch was on, because a clipped line on screen is a
+     scroll away and a clipped line on paper is gone: forty rows of the walkthrough's
+     patch came out cut, the worst by 744px, and one of them was the key line a reader
+     would have been reading the page to learn. The switch is not on the sheet to press,
+     so the sheet cannot be left holding its answer. */
+  [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
+  code[data-code] { overflow-x: visible !important; }
 }
 /* lf-shadow:end */

@@ -5,8 +5,23 @@ let pending = 0;
 let observer = null;
 let observedColumn = null;
 let claimedRail = 0;
+let railReserved = false;
 
 export const marginColumn = () => document.querySelector("main") || document.body;
+
+// Whether the page takes a margin strip at all, as distinct from how wide the strip is.
+// The width is `--rail` below and only ever grows; this says the page has taken the
+// strip, and once taken it is never given back. Claimed only while something stands in
+// it, the strip arrived with the gesture that raised the first Button and left again
+// with the undo, and each of those moved the readable column under the reader. The
+// cascade reads this attribute rather than asking whether a row is standing, because a
+// row's own placement depends on the strip and a live question about it would feed the
+// reservation back into itself.
+export function reserveRail() {
+  if (railReserved) return;
+  railReserved = true;
+  document.documentElement.setAttribute("data-lf-rail", "");
+}
 
 function scheduleMarginLayout() {
   cancelAnimationFrame(pending);
@@ -96,6 +111,7 @@ export function layoutMarginRows() {
           ? rect.width
           : 0;
     if (!width) continue;
+    reserveRail();
     const margin = parseFloat(getComputedStyle(row).marginLeft) || 0;
     const claim = Math.ceil(width + margin);
     if (claim <= claimedRail) continue;

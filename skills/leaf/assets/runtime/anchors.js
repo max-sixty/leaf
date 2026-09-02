@@ -976,6 +976,7 @@ export function createAnchors(dependencies) {
         record = { seat, roots: [], margin: null };
         reactionSeats.set(at, record);
         record.margin = registerMarginItem({
+          key: "standing-reactions",
           target: at,
           controls: seat,
           items: () =>
@@ -1003,8 +1004,11 @@ export function createAnchors(dependencies) {
         if (!mark) {
           const entry = registry.$reactions.tokens[root.token];
           mark = marginAction(offer("button", "lf-react-mark"), {
+            key: `take-back:${root.id}`,
             glyph: entry?.glyph ?? root.token,
             label: root.token,
+            role: "secondary",
+            state: "settled",
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;
@@ -1144,10 +1148,16 @@ export function createAnchors(dependencies) {
     moveScrollerBy(box, centreBy(el, block, box), behavior);
   }
 
-  // A comment destination already fully visible in its own scroller needs no travel.
-  // Compare its unclipped geometry with what every clipping ancestor actually exposes;
-  // an element can be in the viewport while still hidden behind a nested scroller edge.
-  function readableThreadDestination(where) {
+  // A destination already fully visible in its own scroller needs no travel. Compare its
+  // unclipped geometry with what every clipping ancestor actually exposes; an element can
+  // be in the viewport while still hidden behind a nested scroller edge.
+  //
+  // Named for the question rather than for a caller: the ask walk asks it of a decision
+  // before deciding whether to travel, exactly as thread travel asks it of a passage. A
+  // second copy of it went out with three of these four edges missing, which is a
+  // difference nothing on the page would have shown — a half-cut card reads as readable
+  // when only its foot is compared.
+  function readableDestination(where) {
     const holder =
       where instanceof Range
         ? where.startContainer instanceof Element
@@ -1227,7 +1237,7 @@ export function createAnchors(dependencies) {
       paintAnchors();
       where = marksOf(id)[0] ?? where;
     }
-    if (readableThreadDestination(where)) return;
+    if (readableDestination(where)) return;
     if (!(where instanceof Range)) {
       scrollToElement(where);
       return;
@@ -1424,6 +1434,7 @@ export function createAnchors(dependencies) {
     paintAnchors,
     fragmentId,
     markAt,
+    readableDestination,
     scrollToElement,
     scrollToRange,
     scrollToThread,

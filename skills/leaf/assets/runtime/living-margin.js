@@ -1974,6 +1974,12 @@ export function createLivingMargin(dependencies) {
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
+  // The margin packs its rows a frame after anything moves them — a row registering,
+  // the column resizing under a diagram that finished or a disclosure that opened — and
+  // the card beside a marker was placed once, when it opened. margin-layout.js says when
+  // it has moved the rows, and the card follows in that same frame, so a reader never
+  // sees it standing beside where its marker used to be.
+  document.addEventListener("lf-margin-layout", placeThreadPreview);
   document.addEventListener(
     "pointerdown",
     (event) => {

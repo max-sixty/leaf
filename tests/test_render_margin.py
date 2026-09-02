@@ -2072,6 +2072,55 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     page.close()
 
 
+def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
+    """The card beside a marker follows the marker when the page moves under it.
+
+    A margin row is placed at its target on the next layout pass, and that pass runs
+    whenever the column's size changes — a diagram finishing, an image arriving, a
+    disclosure opening above the marker. The card was placed once, when it opened, so
+    the page moved and the card stood beside where its marker had been. The reflow here
+    is a section growing, which is what every one of those cases is to the margin.
+    """
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    # Where the card is and where its marker would have it: placeThreadPreview's own sum,
+    # centred on the marker and held inside the window under the banner.
+    beside = """() => {
+      const marker = document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]');
+      const card = document.querySelector('.lf-margin-preview');
+      const m = marker.getBoundingClientRect();
+      const c = card.getBoundingClientRect();
+      const bannerBottom = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+      const centred = (m.top + m.bottom - c.height) / 2;
+      return {marker: m.top,
+              want: Math.max(bannerBottom + 8, Math.min(centred, innerHeight - c.height - 8)),
+              placed: parseFloat(card.style.getPropertyValue('--lf-thread-top'))};
+    }"""
+    before = page.evaluate(beside)
+    assert abs(before["placed"] - before["want"]) < 1, before
+
+    page.evaluate(
+        "() => { document.getElementById('sec-mounts').style.paddingBottom = '48px'; }"
+    )
+    page.wait_for_function(
+        """was => document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]')
+                 .getBoundingClientRect().top > was + 40""",
+        arg=before["marker"],
+    )
+    after = page.evaluate(beside)
+    assert after["marker"] > before["marker"] + 40, (before, after)
+    assert abs(after["placed"] - after["want"]) < 1, (before, after)
+
+    assert errors == []
+    page.close()
+
+
 def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(

@@ -24,18 +24,27 @@ check that way; anything needing a browser belongs in `--render`.
 ## Browser validation
 
 `version check --render` adds the browser half, run once before a page's URL is first
-handed over: the exact current source loads in the host's browser (Playwright
-`channel="chrome"`, or the executable `LEAF_BROWSER_EXECUTABLE` names where the host
-has a Chromium rather than an installed Chrome — the caller supplies playwright, which
+handed over: the exact current source loads in the host's browser (whichever
+executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
+Playwright's `channel="chrome"`, else the first browser `PATH` answers with — the
+caller supplies playwright, which
 `bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot reach run
 against it — no console or page errors, no fail-soft error box, every visible
 widget occupies real space, code that reads against the block it is set on, no
 sideways scroll, in both color schemes.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
-end-to-end render-check tests run both launches used here — the installed Chrome
-channel, and the headless shell handed over as a named executable. `version export`
-launches through the same helper, so the two move together.
+end-to-end render-check tests run the launches used here — the installed Chrome
+channel, and the headless shell handed over under each variable that names one —
+and a unit reading covers the PATH search, which is only reached where the channel
+misses. `version export` launches through the same helper, so the two move together.
+
+The one thing export asks of a browser that the render gate does not is its age. The
+copy ends in `root.getHTML({ serializableShadowRoots: true })`, which Chromium grew
+in 125, so a browser older than that draws every render invariant clean and then
+cannot be copied from. `version export` reads `browser.version` before it opens the
+page and refuses below the floor by name, rather than letting the bake fail inside
+the probe and report a probe module it could not load.
 
 ## Passages
 

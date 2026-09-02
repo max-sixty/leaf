@@ -66,8 +66,9 @@ in the README. The dev group — pytest, the accessibility checks, the demo
 recorder's frames — is recorded in that same lock but never installed on a
 host: `bin/leaf` passes `--no-dev`. Playwright is a runtime dependency, since
 the skill's own flow renders pages; browser checks launch the host's installed
-Chrome, or the executable `LEAF_BROWSER_EXECUTABLE` names where the host's browser
-is some other Chromium, and leaf does not download a browser.
+Chrome, else the first browser on `PATH`, or the executable
+`LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, and leaf does not
+download a browser.
 
 `uv` owns `.venv/`; a `.venv` inside an installed copy is uv doing its job, not
 stray state to clean up. Nothing else is written back: no cache leaf keeps for

@@ -5,8 +5,9 @@ runs it in the official reference host, and checks rendering, a saved option,
 an anchored comment, and `ui/message` acceptance. This does not test Codex's
 inline renderer or idle wake-up.
 
-The runner needs Node.js 24+, npm, Git, uv, jq, curl, and an installed Chrome.
-`LEAF_BROWSER_EXECUTABLE` can name another Chromium executable. Initial setup
+The runner needs Node.js 24+, npm, Git, uv, jq, curl, and a browser: an installed
+Chrome, or the first browser on `PATH`. `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or
+`CHROME_BIN` can name another Chromium executable. Initial setup
 downloads the pinned SDK and bundler into `.tmp/`, and the reference host into
 an OS temporary directory. The host's file-serving policy rejects hidden parent
 directories, including `.codex/`; `results/reference-dir.txt` records its location.

@@ -51,8 +51,11 @@ No config or account is required. It needs
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (the plugin is a
 uv project, and the first run syncs its environment through whatever index you have
 already configured), plus a browser on the same machine as the session. Render checks
-and export launch Google Chrome by default; on a host that has another Chromium
-instead, set `LEAF_BROWSER_EXECUTABLE` to that executable's path and both use it.
+and export launch Google Chrome where it is installed, and otherwise the first
+`chromium`, `chromium-browser`, `google-chrome`, or `google-chrome-stable` on `PATH`. To
+name a browser neither route finds, set `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or
+`CHROME_BIN` to its path. Export needs Chromium 125 or later, and says so by name on an
+older one.
 
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is

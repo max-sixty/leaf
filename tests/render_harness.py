@@ -1387,9 +1387,14 @@ def primed(browser, prepare):
 
     `render_version` and `export_page` open their own pages, so a test can otherwise only
     watch them from outside — on the failure list or the copy they return — and can never
-    state the conditions the page meets them under. `new_page` is all either asks of a
-    browser, so a stand-in that makes the page, hands it to `prepare`, and returns it
-    needs no parameter added to production for a caller that is only ever a test.
+    state the conditions the page meets them under. A page and the browser's own version
+    are all either asks of a browser, so a stand-in that makes the page, hands it to
+    `prepare`, returns it, and reports the real browser's age needs no parameter added to
+    production for a caller that is only ever a test. The age is passed through rather
+    than invented, because export refuses a browser too old to serialize shadow roots and
+    a stand-in that answered for that would be answering the question under test. It is
+    read where there is one: `held_stale` wraps a context, which has no version and never
+    reaches the export that reads one.
 
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
@@ -1402,7 +1407,7 @@ def primed(browser, prepare):
         prepare(page)
         return page
 
-    return SimpleNamespace(new_page=new_page)
+    return SimpleNamespace(new_page=new_page, version=getattr(browser, "version", ""))
 
 
 @pytest.fixture

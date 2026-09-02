@@ -14,6 +14,7 @@ from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.render_gate import browser as browser_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
@@ -47,6 +48,17 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def unnamed_browser():
+    """This process's environment with every browser variable cleared, for a child
+    whose subject is the launch a host that named none gets.
+
+    Unnaming means clearing all of them, not leaf's alone: `named_executable` reads
+    three, and empty is none in each. The GitHub runner image really does export
+    CHROME_BIN, so a test that cleared one and inherited the rest would run the named
+    arm twice and never reach the channel it meant to check."""
+    return os.environ | dict.fromkeys(browser_model.VARIABLES, "")
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
@@ -202,18 +214,21 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     unstamped — refusing it before `version stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
-    Twice over the clean source, once through each browser a host can supply: the
-    installed Chrome the default channel finds, and the executable
-    LEAF_BROWSER_EXECUTABLE names. The default arm states the empty value rather
-    than inheriting whatever the developer or the job exported, since a set variable
-    would otherwise turn the channel this arm exists to cover into a second run of
-    the other one. Each arm's success line has to name the browser that drew the
-    page: a clean gate telling a Chromium host that Chrome drew it is the same false
-    claim on the way out that the failure messages stopped making."""
+    Over the clean source once through each browser a host can supply: the installed
+    Chrome the default channel finds, and the executable a browser variable names —
+    leaf's own and one of the two that predate it, since a host that set CHROME_PATH
+    for another tool has named this browser too. The default arm states every
+    variable empty rather than inheriting whatever the developer or the job
+    exported, since a set one would otherwise turn the channel this arm exists to
+    cover into a second run of the other. A runner image really does export
+    CHROME_BIN, so unnaming leaf's alone is not unnaming. Each arm's success line
+    has to name the browser that drew the page: a clean gate telling a Chromium host
+    that Chrome drew it is the same false claim on the way out that the failure
+    messages stopped making."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate(*args, executable=""):
+    def gate(*args, variable=None, executable=""):
         return subprocess.run(
             [
                 *LEAF_COMMAND,
@@ -226,16 +241,17 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
-            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+            env=unnamed_browser() | ({variable: executable} if variable else {}),
         )
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
     assert "renders clean in Chrome" in ok.stdout
 
-    named = gate(executable=headless_shell)
-    assert named.returncode == 0, named.stderr
-    assert f"renders clean in {headless_shell}" in named.stdout
+    for variable in ("LEAF_BROWSER_EXECUTABLE", "CHROME_PATH"):
+        named = gate(variable=variable, executable=headless_shell)
+        assert named.returncode == 0, named.stderr
+        assert f"renders clean in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -248,16 +264,22 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
-    """LEAF_BROWSER_EXECUTABLE is the whole of what a host says about its browser, so
-    a value naming no browser has to come back as that variable and that value rather
+    """A browser variable is the whole of what a host says about its browser, so a
+    value naming no browser has to come back as that variable and that value rather
     than as Chrome, which the host never asked for. Both user-path launches answer for
     it, and they have to move together: `serving-pages.md` names export as the fallback
     for when no network route reaches the page, so a host whose browser cannot launch
-    loses the page twice over."""
+    loses the page twice over.
+
+    Whichever variable the host set is the one the message names. Reporting a
+    CHROME_PATH browser as LEAF_BROWSER_EXECUTABLE's would be a false statement about
+    the host's own configuration, and it points the reader at a variable they never
+    set — so the second half checks the other two by their own names, through the
+    check alone, both launches having already been shown to move together."""
     serve(LONG_PAGE)
     d = serve.page_dir
     missing = tmp_path / "not-a-browser"
-    named = os.environ | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
+    named = unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
 
     checked = subprocess.run(
         [*LEAF_COMMAND, "version", "check", str(d), "--render"],
@@ -291,6 +313,79 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         "LEAF_BROWSER_EXECUTABLE" in exported.stderr and str(missing) in exported.stderr
     )
     assert "export needs Chrome" not in exported.stderr
+
+    for variable in ("CHROME_PATH", "CHROME_BIN"):
+        answered = subprocess.run(
+            [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {variable: str(missing)},
+        )
+        assert answered.returncode == 1, answered.stdout + answered.stderr
+        assert variable in answered.stderr and str(missing) in answered.stderr
+        assert "LEAF_BROWSER_EXECUTABLE" not in answered.stderr
+
+
+def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
+    monkeypatch, tmp_path
+):
+    """With no variable set, PATH is the host's own statement of where its programs
+    are, and a hardcoded candidate list is not: a list needs an entry per
+    distribution and can never name a `/nix/store/<hash>-chromium-*/bin/chromium`.
+
+    It is asked second, after the Chrome channel rather than before it, and that
+    order is the whole of what keeps this from moving a host that works today: a box
+    with both a Google Chrome and a distro Chromium goes on getting the Chrome the
+    channel finds. So the launch is driven twice over one PATH holding one browser —
+    once where the channel answers, once where it raises what Playwright raises on a
+    host with no Chrome installed — and the assertion is the calls that were made,
+    since a test reading only the browser back cannot see which of the two produced
+    it."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    chromium = tmp_path / "bin" / "chromium"
+    chromium.parent.mkdir()
+    chromium.write_text("#!/bin/sh\nexec true\n")
+    chromium.chmod(0o755)
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("PATH", str(chromium.parent))
+
+    calls = []
+
+    class Chromium:
+        def __init__(self, channel_answers):
+            self.channel_answers = channel_answers
+
+        def launch(self, **kwargs):
+            calls.append(kwargs)
+            if "channel" in kwargs and not self.channel_answers:
+                raise PlaywrightError(
+                    "BrowserType.launch: Chromium distribution 'chrome' is not found "
+                    "at /opt/google/chrome/chrome"
+                )
+            return "a browser"
+
+    class Playwright:
+        def __init__(self, channel_answers):
+            self.chromium = Chromium(channel_answers)
+
+    launched, name = browser_model.launch_browser(Playwright(True))
+    assert (launched, name) == ("a browser", "Chrome")
+    assert calls == [{"channel": "chrome"}], "the channel keeps the hosts it has"
+
+    calls.clear()
+    launched, name = browser_model.launch_browser(Playwright(False))
+    assert (launched, name) == ("a browser", str(chromium))
+    assert calls == [{"channel": "chrome"}, {"executable_path": str(chromium)}]
+
+    # And the same reading is what the failed-launch line says, so a host with
+    # neither is told what was looked for rather than named a variable twice.
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert browser_model.discovered_executable() is None
+    hint = browser_model.browser_hint()
+    assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
 
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
@@ -343,7 +438,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
             capture_output=True,
             text=True,
             check=False,
-            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
         )
         assert rendered.returncode == 0, rendered.stderr
         assert "renders clean" in rendered.stdout

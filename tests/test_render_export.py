@@ -358,8 +358,14 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
         // carrying notes is deliberately not — but that no strip is held open for
         // nothing. Resolve the shell's custom-property lengths through a probe, then
         // ask whether anything is actually standing in each claimed band.
-        empty: ((b, main) => {
-            const box = b.getBoundingClientRect();
+        //
+        // The bands stand against the column's own edges and not against the page's.
+        // A strip is what main gives up beside itself and the shift then re-centres
+        // what is left, so on a window wider than the column plus its strips the
+        // leftover room sits outside both — and a reading taken from body's edges
+        // asks about that leftover instead, which is nobody's claim and always empty.
+        empty: ((main) => {
+            const box = main.getBoundingClientRect();
             const length = (name) => {
                 const probe = document.createElement('i');
                 probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
@@ -374,10 +380,10 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
                               return el.checkVisibility() && r.width > 1
                                      && r.left < hi - 1 && r.right > lo + 1; });
             return [
-                held(box.left, box.left + left) && 'left',
-                held(box.right - right, box.right) && 'right',
+                held(box.left - left, box.left) && 'left',
+                held(box.right, box.right + right) && 'right',
             ].filter(Boolean);
-        })(document.body, document.querySelector('main')),
+        })(document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own

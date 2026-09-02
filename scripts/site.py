@@ -26,7 +26,8 @@ and `docs/sitenote.js` says the whole of it in the site's own label above the do
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
-Usage: site.py [--serve]  (writes .tmp/site; --serve keeps a local preview open)
+Usage: uv run scripts/site.py [--serve]
+       (writes .tmp/site; --serve keeps a local preview open)
 """
 
 import json
@@ -382,7 +383,7 @@ def build(out: Path, *, verify_links: bool = True) -> None:
 
 def main() -> None:
     if sys.argv[1:] not in ([], ["--serve"]):
-        sys.exit("usage: site.py [--serve]")
+        sys.exit("usage: uv run scripts/site.py [--serve]")
     build(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
     if sys.argv[1:] == ["--serve"]:

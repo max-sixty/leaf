@@ -98,7 +98,7 @@ contract.
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes. They are live in the visual index at
 <https://leaf.page/examples.html>; every example opens as its own complete page.
-From a checkout, `scripts/site.py --serve` previews that catalog and all its routes;
+From a checkout, `uv run scripts/site.py --serve` previews that catalog and all its routes;
 `scripts/preview.py triage-board` serves one page with the real agent loop behind it.
 Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);

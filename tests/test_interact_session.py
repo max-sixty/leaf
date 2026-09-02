@@ -2148,7 +2148,10 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
     try:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}:
+            if (
+                files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
+                and not codex_model.delivery_path("codex-thread").exists()
+            ):
                 break
             time.sleep(0.05)
         else:
@@ -2157,7 +2160,6 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
         assert [json.loads(line) for line in log.read_text().splitlines()] == [
             ["queue", "--help"]
         ]
-        assert not codex_model.delivery_path("codex-thread").exists()
     finally:
         session_model.cmd_status(page, "idle", "")
         with service_model.PageTransaction(page) as transaction:
@@ -2232,14 +2234,17 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
+            if (
+                files_model.read_json(page / "cursor.json") == {"seq": 1}
+                and not codex_model.delivery_path("codex-thread").exists()
+            ):
                 break
             time.sleep(0.05)
         else:
             record = files_model.read_json(
                 codex_model.adapter_record_path("codex-thread")
             )
-            pytest.fail(f"the adapter did not acknowledge its batch: {record}")
+            pytest.fail(f"the adapter did not finish acknowledging its batch: {record}")
 
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert calls[0] == ["queue", "--help"]
@@ -2265,7 +2270,6 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert "hello adapter" in payload["batch_jsonl"]
         assert str(page) in payload["batch_jsonl"]
         assert len(prompt.encode()) < 4096
-        assert not codex_model.delivery_path("codex-thread").exists()
         assert intent_payload.exists()
         assert codex_model.adapter_is_live("codex-thread")
 

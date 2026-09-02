@@ -49,8 +49,6 @@
      to be a fixed size under a finger — a margin action, the key line's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
-  /* A fast first presentation never paints the waiting explanation. */
-  --lf-presentation-delay: 300ms;
   /* --rail has no authored value: the shared margin measures its widest target item
      after content modules have contributed their controls, then states that width on
      the root. The rule that spends it is beside .lf-margin-item below. */
@@ -340,91 +338,44 @@ body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
- /* The document arrives with authored initial state while the log may already hold
- * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
- * after the first poll has either replayed the log or said the server is offline, so a
- * version navigation never presents the old decision for one fetch-width and then
- * replaces it. Visibility keeps the ordinary case out of the accessibility and hit-test
- * trees, opacity closes the paint boundary under descendants that explicitly make
- * themselves visible, and interactivity makes the whole flat-tree subtree inert even if
- * one of those descendants opts back into focus or pointer handling. All three preserve
- * every box: replay measures the page it will reveal rather than a display:none document
- * with no geometry.
+/* Authored HTML is the page's useful initial condition, so it paints from stylesheet
+ * parse while JavaScript upgrades widgets and reads the standing log. Presentation is a
+ * semantic boundary, not a paint gate: until the first read has applied (or established
+ * the offline fallback), Leaf suppresses arrival transitions and withholds authored
+ * dialogs and popovers. Those top-layer elements can otherwise escape their ancestors'
+ * stacking and inertness; ordinary prose, links, scrolling, and layout stay available.
  *
- * The canonical module tag opts a live page into the hold as soon as the stylesheet can
- * paint. The static showcase sets data-lf-eager in its published HTML: its immutable
- * authored document remains ordinary readable HTML while illustrative state, widgets,
- * and controls progressively arrive. Runtime chrome is deliberately outside main, so
- * Threads remains usable on a held live page. A scriptless rendering stays ordinary
- * prose, while a live module that fails before reading the log leaves a fixed recovery
- * message rather than unread authored decisions. Screen only: paper and an exported copy
- * carry no live log to wait for. */
-/* The anonymous layer is first in the merged theme, so its important declarations
-   outrank every later layer and unlayered stylesheet declaration without reserving a
-   named layer custom CSS could append to. Inline importance ranks higher still, so the
-   version gate refuses it on the properties that protect visibility below. */
+ * The anonymous layer is first in the merged theme, so these important declarations
+ * outrank every later layer and unlayered stylesheet declaration without reserving a
+ * named layer custom CSS could append to. Inline importance ranks higher still, so the
+ * version gate refuses it on the protected top-layer properties below. */
 @layer {
   @media screen {
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]),
+    html:has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main,
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main * {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main *,
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) .lf-ui {
+      transition: none !important;
+    }
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main :is(dialog, [popover]) {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
       interactivity: inert !important;
-      pointer-events: none !important;
     }
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main *::backdrop {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main :is(dialog, [popover])::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
-      pointer-events: none !important;
-    }
-    /* The main gate above stops page transitions. These selectors do the same for the
-       shell and runtime chrome outside main while reader state is restored. */
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]),
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) .lf-ui {
-      transition: none !important;
     }
   }
 }
-@media screen {
-  html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-    body:not([data-lf-presented])::after {
-    content: "Applying current decisions\2026  If this stays, reload the page.";
-    visibility: visible;
-    opacity: 0;
-    animation: lf-presentation-wait 1ms step-start
-      var(--lf-presentation-delay) forwards;
-    position: fixed;
-    inset: var(--lf-banner-h, 0px) 0 0;
-    z-index: 8800;
-    /* This fixed sheet is also the pointer boundary. A descendant can override an
-       inherited visibility or pointer-events value; it cannot paint through its
-       ancestor's opacity or receive a pointer through a higher stacking layer. Leaf's
-       banner and panels stand above it, so discussion remains usable while authored
-       content waits. */
-    pointer-events: auto;
-    display: grid;
-    place-items: center;
-    box-sizing: border-box;
-    padding: 24px;
-    background: var(--paper);
-    color: var(--muted);
-    font: var(--t-5)/1.5 var(--sans);
-    text-align: center;
-  }
-}
- @keyframes lf-presentation-wait {
-  from,
-  to {
-     opacity: 1;
-   }
- }
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.

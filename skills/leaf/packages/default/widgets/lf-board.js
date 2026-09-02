@@ -22,6 +22,7 @@
  * once, as the list's name, rather than twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
+  actionAvailable,
   once,
   offer,
   quoted,
@@ -54,6 +55,11 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) {
+        if (!quoted(this)) {
+          document.removeEventListener("lf-actions", this.#paintAvailability);
+          document.addEventListener("lf-actions", this.#paintAvailability);
+          this.#paintAvailability();
+        }
         this.#observeNames();
         this.#observeMotion();
         return;
@@ -81,6 +87,8 @@ customElements.define(
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
+      document.addEventListener("lf-actions", this.#paintAvailability);
+      this.#paintAvailability();
       this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit and whether the runtime has
@@ -153,6 +161,7 @@ customElements.define(
     // drop a live grab here or it wedges the .lf-dragging gate open — freezing
     // action replay and version-follow.
     disconnectedCallback() {
+      document.removeEventListener("lf-actions", this.#paintAvailability);
       this.#namesObserver?.disconnect();
       this.#namesObserver = null;
       this.#stopMotion?.();
@@ -169,6 +178,17 @@ customElements.define(
           sortable.option("animation", reduced ? 0 : 150);
       });
     }
+
+    #paintAvailability = () => {
+      const available = actionAvailable(this, "move");
+      for (const sortable of this.#sortables) sortable.option("disabled", !available);
+      for (const grip of this.querySelectorAll(
+        ":scope > lf-column > lf-card > .lf-grip",
+      )) {
+        grip.setAttribute("aria-disabled", String(!available));
+        grip.tabIndex = available ? 0 : -1;
+      }
+    };
 
     #observeNames() {
       if (
@@ -213,7 +233,10 @@ customElements.define(
         does: "Grab the card",
         line: "grab the card",
         // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
-        when: () => !held() && !this.classList.contains("lf-dragging"),
+        when: () =>
+          actionAvailable(this, "move") &&
+          !held() &&
+          !this.classList.contains("lf-dragging"),
         run: () => this.#grab(card, grip),
       };
       // The tooltip names the keys the row binds rather than a letter typed beside it: the
@@ -279,6 +302,7 @@ customElements.define(
     }
 
     #grab(card, grip) {
+      if (!actionAvailable(this, "move")) return;
       const from = card.parentElement;
       const cards = this.#cards(from);
       const index = cards.indexOf(card);
@@ -388,6 +412,7 @@ customElements.define(
 
     #sortable(col) {
       const sortable = new Sortable(col, {
+        disabled: !actionAvailable(this, "move"),
         group: `board-${this.id}`, // per board: two boards on a page don't cross-drag
         draggable: "lf-card",
         handle: ".lf-grip",

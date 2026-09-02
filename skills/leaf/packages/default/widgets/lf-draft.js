@@ -248,9 +248,10 @@ customElements.define(
         })),
       );
       // Establish availability before the action watcher makes its first synchronous
-      // reading. Later watcher callbacks run inside `lf-actions`; the margin and Ask
-      // projections listen to that same event after the widgets have painted, so those
-      // callbacks must not fan one shared refresh back out through every draft.
+      // reading, which no longer notifies. Every later transition this paints — failed,
+      // sending, engaged — already runs through a notifying `#paintButtons`, so the
+      // watcher's own callback would fan one shared refresh out through every draft for
+      // a projection none of them changed.
       this.#paintButtons();
       measure(this.#row, () => {
         // The engaged cluster is Save + Cancel; reserve that complete fitting while

@@ -1286,6 +1286,7 @@ def open_page(
     )
     # Before the first navigation, so the count is of everything this page ever asked for.
     page.lf_traffic = Traffic(page)
+    arm_interception(page)
     errors = watched(page)
     # The console's own word for a bad response is "Failed to load resource", which
     # names nothing; carry the status and URL so a failure says what went missing.
@@ -1359,6 +1360,26 @@ def opened_tab(page, press, tries=3, each=10_000):
                     "press stopped leaving a real href, or Chromium holds a target "
                     "Playwright never reported"
                 ) from lost
+
+
+# Chromium arms request interception the first time a page is routed at all, and
+# Playwright's acknowledgement of that registration outruns the arming: a request
+# the page issues in the milliseconds after `page.route` returns reaches the server
+# unintercepted, and Playwright reports no request for it either. A test holding a
+# gesture's POST then watches the send land and the answer settle the draft while
+# its own counters read nothing — the trip it is waiting for never happened on this
+# side. It is the escape `held_events` was written around, and why that fixture
+# routes from navigation onward.
+#
+# So each page arms itself when it is made, on a pattern nothing ever asks for.
+# Nothing is intercepted by it and no request's behavior changes; what changes is
+# that a route registered later — a keystroke before the gesture it holds — only
+# adds a pattern to a list the browser is already consulting.
+NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
+
+
+def arm_interception(page):
+    page.route(NEVER_ASKED_FOR, lambda route: route.abort())
 
 
 def primed(browser, prepare):

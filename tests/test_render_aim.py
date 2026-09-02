@@ -29,6 +29,7 @@ from render_support import (
     PART_DIAGRAM_PAGE,
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
+    RENDERED,
     REPLAYED_PAGE,
     SHIPPED_PACKAGES,
     SPECIMEN_PAGE,
@@ -293,7 +294,10 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     page.close()
 
 
-def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(browser, serve):
+@pytest.mark.parametrize("width", [700, 1440])
+def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
+    browser, serve, width
+):
     """A crowded column is one placement problem, not repeated downward nudges.
 
     On the narrow corpus the old walk moved the field below controls, then the bottom
@@ -303,14 +307,15 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(browser,
         browser,
         serve(next(example for example in EXAMPLES if example.stem == "corpus")),
     )
-    resized(page, 700, 900)
+    resized(page, width, 900)
     page.get_by_role("tab", name="Notes", exact=True).click()
     paragraph = page.locator("#rn-lede")
     paragraph.click(modifiers=["Alt"])
     field = open_compact_comment(page)
     compact_height = field.bounding_box()["height"]
     field.fill(
-        "\n".join(f"Review line {n}: keep this draft intact." for n in range(20))
+        "This longer review paragraph needs room to wrap, and every line must remain "
+        "reachable while the reader moves through the draft. " * 70
     )
     page.wait_for_function(
         """() => {
@@ -328,7 +333,62 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(browser,
               .filter(node => !node.closest('.lf-chrome')).every(clear);
         }"""
     )
-    assert field.bounding_box()["height"] > compact_height * 2
+    # The corpus's nearby controls bound the clear band; growth need not double the
+    # resting height. The field uses that room, then scrolls the rest of the draft.
+    assert field.bounding_box()["height"] > compact_height
+    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
+    scrolled = field.evaluate(
+        "node => { node.scrollTop = node.scrollHeight; return node.scrollTop; }"
+    )
+    assert scrolled > 0
+    # The field's scroll queues placement through the shared captured-scroll listener.
+    # Measuring natural growth must not reset the reader to the first line of the draft.
+    page.evaluate(RENDERED)
+    assert field.evaluate("node => node.scrollTop") == scrolled
+    page.evaluate("() => scrollBy({top: 10, behavior: 'instant'})")
+    page.evaluate(RENDERED)
+    assert page.evaluate("scrollY") > 0
+    after = field.evaluate(
+        "node => [node.scrollTop, node.scrollHeight - node.clientHeight]"
+    )
+    assert after[0] == min(scrolled, after[1])  # only the final room may clamp it
+    assert errors == []
+    page.close()
+
+
+def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
+    browser, serve
+):
+    """Without an adjacent free band, the viewport still bounds the writing surface."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A tall target",
+                '<p id="tall" style="min-height: 150vh; margin: 0">'
+                "A tall paragraph occupies all the available reading space.</p>",
+            )
+        ),
+    )
+    resized(page, 700, 360)
+    page.evaluate("() => scrollBy({top: 80, behavior: 'instant'})")
+    page.evaluate(RENDERED)
+    target = page.locator("#tall")
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 90})
+    field = open_compact_comment(page)
+    field.fill(
+        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
+    )
+    page.evaluate(RENDERED)
+    bounds = target.bounding_box()
+    banner = page.locator(".lf-banner").bounding_box()
+    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    assert bounds["y"] <= ceiling and bounds["y"] + bounds["height"] >= 352, (
+        "the target must fill the available viewport so no adjacent band can fit"
+    )
+    box = field.bounding_box()
+    assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
+    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert errors == []
     page.close()
 

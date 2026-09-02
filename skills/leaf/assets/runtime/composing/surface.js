@@ -76,7 +76,10 @@ export function createSelectionSurface({
   };
   // So the one writer of their position is where the coordinates change space: clamp in
   // the viewport and above any key line it would cross, then store in the document.
-  function place(node, left, top) {
+  // The chosen band also caps the float's height. Width is stated before band selection,
+  // because wrapping determines how much height the contents need.
+  function place(node, left, top, height) {
+    node.style.setProperty("--lf-float-h", `${height}px`);
     const x = leftEdge(node, left);
     const bottom = bottomEdge(x, node.offsetWidth);
     const at = documentPoint(
@@ -105,11 +108,10 @@ export function createSelectionSurface({
   // The response bar carries the anchor its field will submit on, so targeting and typing
   // cannot come to different conclusions about what the reader picked. Visibility is
   // derived from that anchor and never read back off the stylesheet.
-  const beside = (rect) => [rect.right + 6, rect.top - 6];
   // The viewport, the target and the page's controls define one set of free bands.
   // Walking down past controls and then clamping to the viewport could put a growing
   // editor back on its target. Choose a band first; CSS can then size the field to it.
-  function placeClear(node, left, top, target) {
+  function placeClear(node, left, top, target, wantedHeight) {
     const x = leftEdge(node, left);
     const bottom = bottomEdge(x, node.offsetWidth);
     const sharing = [...pageControls().map((c) => c.getBoundingClientRect()), target]
@@ -129,7 +131,7 @@ export function createSelectionSurface({
     const candidates = bands
       .filter((band) => band.bottom - band.top >= minimum)
       .map((band) => {
-        const height = Math.min(node.offsetHeight, band.bottom - band.top);
+        const height = Math.min(wantedHeight, band.bottom - band.top);
         const y = Math.max(band.top, Math.min(top, band.bottom - height));
         const distance = Math.max(target.top - y - height, y - target.bottom, 0);
         return { left: x, top: y, height, room: band.bottom - y, distance };
@@ -144,7 +146,7 @@ export function createSelectionSurface({
           a.distance - b.distance ||
           b.height - a.height ||
           Math.abs(a.top - top) - Math.abs(b.top - top),
-      )[0] ?? { left: x, top, room: node.offsetHeight }
+      )[0] ?? { left: x, top, room: bottom - topEdge() }
     );
   }
   let fabAnchor = null;
@@ -206,14 +208,15 @@ export function createSelectionSurface({
             .filter(Boolean),
         )) ||
       target;
+    fabBar.style.setProperty("--lf-float-w", `${rightEdge() - 8}px`);
     if (composerIsOpen()) {
       // CSS owns content sizing. Geometry contributes only the real room the field
       // can use, including the bar's other controls, before deciding where it stands.
-      fabBar.style.setProperty("--lf-response-room", `${rightEdge() - 8}px`);
-      fabBar.style.removeProperty("--lf-response-height-room");
       const controls = fabBar.offsetWidth - fabInput.offsetWidth;
       const besideRoom = rightEdge() - keepClear.right - 6 - controls;
-      const minimum = parseFloat(getComputedStyle(fabInput).minWidth);
+      const minimum = parseFloat(
+        getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
+      );
       fabBar.style.setProperty(
         "--lf-response-room",
         `${besideRoom >= minimum ? besideRoom : rightEdge() - 8 - controls}px`,
@@ -223,9 +226,17 @@ export function createSelectionSurface({
       keepClear.right + 6 + fabBar.offsetWidth <= rightEdge()
         ? keepClear.right + 6
         : keepClear.right - fabBar.offsetWidth;
-    const at = placeClear(fabBar, left, target.top - 6, keepClear);
-    fabBar.style.setProperty("--lf-response-height-room", `${at.room}px`);
-    place(fabBar, at.left, at.top);
+    // Read the field's scroll extent at its real width, without temporarily enlarging
+    // it in either axis. A temporary enlargement reduces the scroll extent and clamps
+    // scrollTop, so the captured scroll listener would make the last lines unreachable.
+    const wantedHeight = composerIsOpen()
+      ? Math.max(
+          fabBar.offsetHeight,
+          fabInput.scrollHeight + fabInput.offsetHeight - fabInput.clientHeight,
+        )
+      : fabBar.offsetHeight;
+    const at = placeClear(fabBar, left, target.top - 6, keepClear, wantedHeight);
+    place(fabBar, at.left, at.top, at.room);
     return true;
   }
   function showFab(
@@ -392,13 +403,38 @@ export function createSelectionSurface({
   // the capture reads the one the reader is looking at — and only for the primary
   // button, because a right button's release precedes its context menu, and growing the
   // selection there rewrites what Copy was aimed at.
+  //
+  // A queued step belongs to the gesture that queued it, and the next press may begin
+  // before it runs. Then the selection it would act on is not the one it was queued
+  // for: it is the drag under way, and `snapSelection` rewrites that drag mid-gesture.
+  // Chromium does not resume extending a selection it has been handed through
+  // `setBaseAndExtent`, so the pointer's remaining travel is lost and a sweep from
+  // "paragraph" to "carrying" ends up captured as "paragraph" — the reader's own hand
+  // is slow enough that the step always ran first, and a loaded machine hands out that
+  // ordering freely. The press under way owns the selection and queues its own step on
+  // its own release, so standing down here drops no work.
+  //
+  // Which press is under way is asked as "has one begun since this was queued" rather
+  // than as "is one down now". A press whose release never reaches the document — a
+  // handler that stops it, a button let go off-window — leaves a pressed flag standing
+  // for the rest of the page's life, and read here that would put every later selection
+  // out too: the next drag would raise no field and read as a drag that selected
+  // nothing. A count compared against the one this step was queued behind cannot get
+  // stuck, because the step queued by the next release carries the count it finds.
   let selectionUpdate = null;
-  const scheduleSelectionUpdate = () => {
-    if (selectionUpdate) return;
+  let pressesBegun = 0;
+  const deferSelectionUpdate = (update) => {
+    const queuedBehind = pressesBegun;
+    clearTimeout(selectionUpdate);
     selectionUpdate = setTimeout(() => {
       selectionUpdate = null;
-      updateFab();
+      if (pressesBegun !== queuedBehind) return;
+      update();
     });
+  };
+  const scheduleSelectionUpdate = () => {
+    if (selectionUpdate) return;
+    deferSelectionUpdate(updateFab);
   };
   let pointerSelecting = false;
   let selectionChangedDuringPress = false;
@@ -449,6 +485,7 @@ export function createSelectionSurface({
       // Capture the old range before the browser's pointerdown default can collapse it.
       // This is needed when the reader drags across exactly the passage already selected.
       primaryPointerPressed = ev.isPrimary && ev.button === 0;
+      if (primaryPointerPressed) pressesBegun++;
       pointerSelecting = ev.isPrimary && ev.button === 0 && pageWords(ev.target);
       selectionChangedDuringPress = false;
       selectionDragged = false;
@@ -528,9 +565,7 @@ export function createSelectionSurface({
     pointerSelecting = false;
     if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
-    clearTimeout(selectionUpdate);
-    selectionUpdate = setTimeout(() => {
-      selectionUpdate = null;
+    deferSelectionUpdate(() => {
       if (ev.button === 0) snapSelection();
       updateFab();
     });
@@ -649,9 +684,7 @@ export function createSelectionSurface({
         selected?.quote?.length >= MIN_QUOTE
           ? pageRange(selection).cloneRange()
           : selectionRangeDuringPress;
-      clearTimeout(selectionUpdate);
-      selectionUpdate = setTimeout(() => {
-        selectionUpdate = null;
+      deferSelectionUpdate(() => {
         const restored = getSelection();
         restored.removeAllRanges();
         restored.addRange(completed);
@@ -671,7 +704,6 @@ export function createSelectionSurface({
   return {
     BANNER_CLEAR,
     activateVisual,
-    beside,
     dismissFab,
     fabAnchorAt,
     fabOptionsAvailable,
@@ -680,7 +712,6 @@ export function createSelectionSurface({
     focusFabComment,
     openOnItem,
     focusTargetComment,
-    placeClear,
     refreshFab,
     selectResponseTarget,
     showFab,

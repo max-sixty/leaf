@@ -24,6 +24,7 @@ import {
   closestAcross,
   containsAcross,
   inChrome,
+  TEXT_BLOCK,
   textNodesUnder,
   wrote,
 } from "./passages.js";
@@ -101,7 +102,6 @@ export function createVersion({
   stateSignoff,
   style,
   syncLayout,
-  textBlockSelector,
 }) {
   // ---------- the version chooser ----------
   // `runtime.versions` is spliced in place, never reassigned: context's readers hold it.
@@ -565,7 +565,7 @@ export function createVersion({
   // model is prose is a block of the page's prose the same way a paragraph is.
   const diffBlockSel = () =>
     [
-      textBlockSelector(),
+      TEXT_BLOCK,
       "aside",
       ...tagsDeclaring((e) => e["x-parent"] && (e["x-content"] ?? "prose") === "prose"),
       // A verbatim body reaches the reader as its own words, so the widget is a block
@@ -1032,7 +1032,7 @@ export function createVersion({
     // Read the painted edge directly. The declared height may contain a safe-area
     // `calc()`, whose serialized value is not a number even though its box is exact.
     const bannerBottom = banner.getBoundingClientRect().bottom;
-    for (const block of document.querySelectorAll(textBlockSelector())) {
+    for (const block of document.querySelectorAll(TEXT_BLOCK)) {
       // [hidden] needs an explicit skip: hidden="until-found" resolves to
       // content-visibility, under which descendants still report real rects —
       // but what's behind an inactive tab isn't what the reader is reading.

@@ -1161,13 +1161,21 @@ compact `.lf-fab-input` followed by one response ellipsis. An explicit item targ
 and focuses that field immediately. Selecting a passage opens the field without taking
 focus or collapsing the browser selection; the reader can still copy the selection or use
 its native context menu, then enter the field with Comment. The field grows in place and
-never transfers text into a second composer card. Enter sends and Shift-Enter inserts a
-newline. Tab changes the same bar into Comment, Suggest when the anchor is a quote, and
-the layer's reaction tokens. `.lf-response-control` keeps the field and every choice on
-one baseline with one type, border, and elevation; the bar keeps its DOM owner and
-accessible name while its contents change. Comment restores the field and Suggest
-restores it in replacement-text mode. Their structural icons use the same stroked SVG
-vocabulary as Target Buttons; only authored reaction tokens supply text glyphs.
+never transfers text into a second composer card. A one-line note is a pill. A longer one
+widens up to a readable 80ch and then wraps, and grows into the available clear band
+before it scrolls; its corner stays the pill's 16px rather than growing with the box,
+so the corner never reaches over the first or last line. Placement states a float's
+room as `--lf-float-w` and `--lf-float-h`; the bar is capped by it and the field's
+`--lf-response-room` excludes its neighboring controls. The field's scroll extent
+supplies its desired height without temporarily resizing it and losing the reader's
+scroll position. When the target fills the viewport, the viewport still caps the field.
+Enter sends and Shift-Enter
+inserts a newline. Tab changes the same bar into Comment, Suggest when the anchor is a
+quote, and the layer's reaction tokens. `.lf-response-control` keeps the field and every
+choice on one baseline with one type, border, corner, and elevation; the bar keeps its
+DOM owner and accessible name while its contents change. Comment restores the field and
+Suggest restores it in replacement-text mode. Their structural icons use the same
+stroked SVG vocabulary as Target Buttons; only authored reaction tokens supply text glyphs.
 
 `showFab` places the bar; `openComposer` binds its field to the durable draft and takes the
 focus decision. `selectResponseTarget` focuses it for a keyboard item hint, and the ⌥ press
@@ -2386,7 +2394,7 @@ nested in an `x-decision` region, the row names the region: its heading, context
 evidence are the decision the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
 tray row travels through the same decision-arrival function as `a` and `A`, so the
-panel and directional walk agree about focus, reveal, start-aligned scroll, and
+panel and directional walk agree about focus, reveal, arrival placement, and
 `landed`.
 
 A request decision is answered at acceptance rather than by replayable widget state. Its
@@ -2515,6 +2523,31 @@ The banner is an address, not a page position, so its controls do not become the
 walk's origin. `decisionStep` compares document positions rather than incrementing an
 index remembered by the walk. A panel thread walk may use log order because the
 list itself is its complete ordered space.
+
+Arriving at a page decision puts its arrival region's start below the banner, not
+the decision's own top edge. A widget declaring `x-decision` states that region and
+the walk is handed the region rather than the source inside it. Nothing else declares
+one, and an edit to a phrase cannot: what explains it is the sentence it stands in and
+the heading over that. `arrivalRegion` reads that region off the document instead. Its
+candidates are the blocks before the decision whose own parent still contains it — so a
+block wrapped in something the decision stands outside of, another ask or a section of
+its own, is not this decision's context — and of those it takes the last heading, then
+the text block holding the decision or, for a change that is its own block, the nearest
+remaining block before it. The first candidate whose start still leaves the decision's
+foot on screen wins, falling back to the decision itself. That bound is what lets the
+widest candidate go first, and it keeps the region inside one screen without a rule
+about distance. A candidate that paints no box is not a place to arrive at: an element
+generating none measures at the document's origin, which would read as a region at the
+top of the page.
+
+The sweep is the document's own blocks in document order, so a decision staged inside a
+declared shadow tree takes a heading standing over its host but not one inside that
+tree. The travel moves the page's scroller, so the decision's own box is brought into
+view first for the sake of a decision inside a nested scroller, which that placement
+would never reach. A decision whose region already stands clear of the banner, and which
+`readableDestination` reads as unclipped on every edge, is not travelled to at all: the
+press moves the ring and the focus and leaves the page still. A thread decision keeps
+its centred arrival in the panel's own list.
 
 `captureView` stores a passage-based reading landmark, correction within the
 block, and the last decision landmark. `restoreView` resolves the landmark after

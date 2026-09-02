@@ -103,6 +103,16 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <strong>Keep every control row still</strong>
   </lf-task>
 </lf-command>
+<lf-diff id="stable-diff"><pre>
+diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -1,2 +1,3 @@
+ def ceiling(limit, approvals):
+-    return limit
++    # the ceiling doubles per approval
++    return "over" if approvals &gt; 12 else limit
+</pre></lf-diff>
 """,
     head='<meta name="lf-review" content="sign-off">',
 )
@@ -117,11 +127,8 @@ CONTROL_ARCHETYPES = (
         "target": ".lf-signoff",
     },
     {
-        # The cluster's own row, not the contribution's: a target rests with one primary
-        # Button beside `…`, and every other contributed control is folded out of the
-        # rail, so the accept press has no visible control left to hold still. `…` is the
-        # press with neighbours — the primary stands beside it — and unfolding is the one
-        # transition that adds Buttons to the row it is made on.
+        # Accept and Reject share the resting row. A thread adds the third Button that
+        # puts the secondary choices behind `…`; opening it must leave Accept still.
         "name": "margin-action",
         "coverage": ".lf-margin-action",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
@@ -140,6 +147,16 @@ CONTROL_ARCHETYPES = (
         "name": "command-view",
         "coverage": ".lf-command-facts > [role=button]",
         "target": '#stable-command .lf-command-facts > [data-lf-view="running"]',
+    },
+    {
+        # The review press shares its file's summary line without being inside it, since
+        # a disclosure is a control and anything focusable within one is a control nested
+        # in a control. Sharing the line puts it in this sweep: its two labels are
+        # different words of different lengths, and one width for both is what keeps the
+        # summary beside it from reflowing when it is pressed.
+        "name": "diff-review",
+        "coverage": ".lf-diff-review",
+        "target": "#stable-diff .lf-diff-review",
     },
 )
 CONTROL_ROW_PRESS = (
@@ -1204,7 +1221,21 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 )
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
-    page, errors = open_page(browser, serve(CONTROL_STABILITY_PAGE))
+    page, errors = open_page(
+        browser,
+        serve(
+            CONTROL_STABILITY_PAGE,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Does the narrower proof still cover every control?",
+                    "anchor": {"section": "stable-suggestion"},
+                }
+            ],
+        ),
+    )
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])

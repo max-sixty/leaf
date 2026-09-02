@@ -442,7 +442,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
     """A drag around a target offers Comment without deadening its Buttons.
 
-    The browser's native selection remains available while the pointer path through `…`
+    The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     # Across the two paragraphs, so the row deciding the first is inside the selection.
@@ -458,10 +458,8 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
-    item.locator(":scope > .lf-margin-more").click()
-    item.locator(":scope > .lf-margin-options").get_by_role(
-        "button", name=re.compile(r"Reject")
-    ).click()
+    expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
+    item.get_by_role("button", name=re.compile(r"Reject")).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
@@ -488,14 +486,17 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         steps=16,
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    assert page.locator(".lf-fab-bar").evaluate(
-        "el => el.getBoundingClientRect().top"
-    ) > page.locator("[data-lf-for='sug-refill']").evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    ), "the bar never stepped past the row, so standing on no control proves nothing"
+    page.evaluate(RENDERED)  # selection placement reaches the frame before hit testing
+    assert (
+        page.locator("[data-lf-for='sug-refill']").evaluate(
+            "el => el.getBoundingClientRect().left"
+        )
+        >= box["x"] + box["width"]
+    ), "the control must hang beside the selected paragraph"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
+        .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-item"))
+                     && c.checkVisibility())
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -3789,7 +3790,14 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
 
     summary = page.locator("lf-diff summary")
     summary.click()
-    with page.expect_request(lambda request: "/api/data" in request.url):
+    # The response rather than the request, because the count below is the route
+    # handler's and the request event is not that handler. Nothing orders the two, so a
+    # wait on the request can come back with the retry in the wire and `requests` still
+    # at one, which reads as a reopen that fetched nothing. Which way the driver hands
+    # them over is not the page's to state and not this test's to depend on. The
+    # fulfilled response exists only because the handler ran, so it is the fact this
+    # count is made of.
+    with page.expect_response(lambda response: "/api/data" in response.url):
         summary.click()
     assert len(requests) == 2
     assert errors == []

@@ -14,6 +14,7 @@ from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
     PROPOSED_PAGE,
+    RENDERED,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
     _traffic,
@@ -771,6 +772,104 @@ def test_the_in_place_response_bar_stays_inside_a_narrow_screen(browser, serve, 
     resized(page, 1280, 900)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+# The field's box, with its corner as the platform draws it: the specified radius clamped
+# to the box's own half-sides, so a "pill" 999px reads as half the height here. `over` is
+# how far that corner's arc reaches over the first line's opening: at the line's top edge
+# the arc is `r - sqrt(r² - (r - y)²)` in from the side, and the first glyph starts at the
+# border plus the padding, so a positive number says the arc is over the letter.
+FIELD_BOX = """(t) => {
+  const cs = getComputedStyle(t);
+  const w = t.offsetWidth, h = t.offsetHeight;
+  const r = Math.min(parseFloat(cs.borderRadius), h / 2, w / 2);
+  const y = parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
+  const inset = parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+  const intrusion = y < r ? r - Math.sqrt(r * r - (r - y) * (r - y)) : 0;
+  return {w, h, r, over: intrusion - inset, scrolls: t.scrollHeight > t.clientHeight + 1};
+}"""
+
+# The band a float may stand in, in viewport terms: below the banner, above the foot,
+# inside the gutters. What `place` clamps against, read off the page's own chrome.
+FLOAT_ROOM = """() => {
+  const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+  return {top: Math.max(48, banner.bottom + 6), bottom: innerHeight - 8,
+          right: Math.min(innerWidth, document.body.getBoundingClientRect().right) - 8};
+}"""
+
+
+def test_the_response_field_grows_as_a_rounded_rectangle_and_leaves_the_ellipsis_room(
+    browser, serve
+):
+    """A one-line note is a pill. A longer one widens before it wraps, grows down as far
+    as the room the placement states — a note of a dozen lines shows them all, and only
+    one taller than the band below the banner scrolls, standing inside that band — and
+    the corner it keeps through all of that is the pill's own, half the resting height,
+    rather than half of whatever the box has become: at five lines a proportional corner
+    was a 48px arc over the first line's opening and the last line's close. On a narrow
+    screen the same room caps the bar and the field is what gives, so the ellipsis beside
+    it keeps its room."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    select_paragraph(page, "#how-store")
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    rest = field.evaluate(FIELD_BOX)
+    assert rest["r"] == rest["h"] / 2 and rest["over"] < 0, rest  # a pill, glyph clear
+
+    field.fill("one\ntwo\nthree\nfour\nfive")
+    tall = field.evaluate(FIELD_BOX)
+    assert tall["h"] > rest["h"] and tall["w"] == rest["w"], (rest, tall)
+    assert tall["over"] < 0, (rest, tall)  # the corner is not over the first line
+    assert tall["r"] == rest["r"], (rest, tall)  # it stayed the pill's, not the box's
+
+    field.fill("\n".join(f"line {n}" for n in range(1, 15)))
+    shown = field.evaluate(FIELD_BOX)
+    assert shown["h"] > tall["h"] and not shown["scrolls"], (tall, shown)
+
+    field.fill("\n".join(f"line {n}" for n in range(1, 80)))
+    page.evaluate(RENDERED)  # placeFab answers the input a frame later
+    room = page.evaluate(FLOAT_ROOM)
+    bounds = bar.bounding_box()
+    assert field.evaluate(FIELD_BOX)["scrolls"], bounds
+    assert bounds and room["top"] <= bounds["y"], (room, bounds)
+    assert bounds["y"] + bounds["height"] <= room["bottom"], (room, bounds)
+
+    field.fill(
+        "This paragraph reads well, but the second sentence assumes the reader already "
+        "knows what the earlier decision was. Could we link it, or restate it in a clause?"
+    )
+    page.evaluate(RENDERED)
+    wide = field.evaluate(FIELD_BOX)
+    assert wide["w"] > rest["w"] and wide["h"] > rest["h"], (
+        rest,
+        wide,
+    )  # wider, wrapped
+    assert wide["over"] < 0 and wide["r"] == rest["r"], (rest, wide)
+    bounds = bar.bounding_box()
+    assert bounds and bounds["x"] + bounds["width"] <= room["right"], (room, bounds)
+    page.keyboard.press("Escape")
+
+    resized(page, 390, 900)
+    select_paragraph(page, "#how-cap")
+    expect(field).to_be_visible()
+    field.click()
+    field.fill(
+        "This paragraph reads well, but the second sentence assumes the reader already "
+        "knows what the earlier decision was."
+    )
+    page.evaluate(RENDERED)  # placeFab answers the input a frame later
+    bounds = bar.bounding_box()
+    trigger = bar.locator(".lf-react-trigger").bounding_box()
+    assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
+    assert trigger and trigger["x"] + trigger["width"] <= 382, (bounds, trigger)
+    assert field.evaluate(FIELD_BOX)["w"] < wide["w"], (
+        wide,
+        bounds,
+    )  # the field gave the room
     assert errors == []
     page.close()
 

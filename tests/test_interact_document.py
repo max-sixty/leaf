@@ -1671,7 +1671,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
-        serialized = leases_model.lock_is_held(page_dir / "comments.jsonl")
+        serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
             conversation_model.cmd_report,
             page_dir,

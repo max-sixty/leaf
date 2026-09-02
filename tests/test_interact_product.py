@@ -434,7 +434,7 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             # Preview and the published site append this file verbatim. Do the
             # same here: normalizing a stale event contract in the fixture would
             # let the shipped demo fail while its corpus gate stayed green.
-            (d / "comments.jsonl").write_bytes(seed.read_bytes())
+            (d / "events.jsonl").write_bytes(seed.read_bytes())
         # Every authored version, not only the current one. A prior version is markup
         # a builder stamps through the same door, so a fault in one stops preview and
         # the site build — which is a slow way to hear it from this gate.

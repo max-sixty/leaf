@@ -2784,7 +2784,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "text": "the later plain reply",
         },
     )
-    log = d / "comments.jsonl"
+    log = d / "events.jsonl"
     lines = log.read_text(encoding="utf-8").split("\n")
     torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
     lines[torn] = lines[torn][: len(lines[torn]) // 2]

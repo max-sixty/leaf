@@ -8,6 +8,7 @@ from .event_log import read_cursor, read_events
 from .files import latest_revision, list_revisions, read_json
 from .host import state_home
 from .leases import wait_is_live
+from .schema import VIEWED_FILE
 from .server import running_server
 from .service import (
     claim_is_active,
@@ -128,7 +129,7 @@ def presence(page_dir: Path, events: list) -> dict:
         # throttled, while a tab's news stream stands), or None for a page nobody
         # has ever opened — which used to be indistinguishable from one the user
         # studied and left.
-        "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
+        "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
         # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that

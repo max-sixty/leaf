@@ -157,7 +157,7 @@ def test_page_round_trip(browser, serve):
     # The trail those gestures left, exactly — kinds, authorship (the server
     # stamps browser events `user`), the anchor, and the move's placement.
     events = [
-        json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
+        json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
     assert [(e["kind"], e["author"], e["revision"]) for e in events] == [
         ("note", "claude", 1),
@@ -443,7 +443,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     events = [
         json.loads(line)
-        for line in (d / "comments.jsonl").read_text().splitlines()
+        for line in (d / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert events[-1]["action"] == "edit"
@@ -499,7 +499,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     )
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
@@ -610,7 +610,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
 
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [edited]
@@ -2095,7 +2095,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [
@@ -2322,7 +2322,7 @@ def test_registered_control_keys_activate_once(browser, serve):
     round_trip(page)
     sent = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
     ]
     assert [e for e in sent if e.get("action") == "choose"] != [], (
         "the first press sent nothing, so the repeats below had nothing to duplicate"

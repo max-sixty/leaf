@@ -30,6 +30,7 @@ from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
     ANSWER_DECISION_INSTRUCTION,
+    EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
 )
@@ -47,7 +48,7 @@ from leaf.vendoring import cmd_init
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     page_dir = Path(dir_arg).expanduser().resolve()
-    if must_exist and not (page_dir / "comments.jsonl").is_file():
+    if must_exist and not (page_dir / EVENTS_FILE).is_file():
         sys.exit(
             f"{page_dir} is not an initialized page; run `leaf page init` "
             "to vendor the layer"

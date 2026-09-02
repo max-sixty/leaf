@@ -2447,8 +2447,10 @@ separate scroll regions.
 
 One control stands outside it, and it has to: the skip link is the layer's route
 in from the top of the document, and tab order is document order while the
-chrome is last. It is prepended to the body, rests in `.lf-quiet`, and carries
-the offer marker, so paper and a copy drop it with every other injected control.
+chrome is last. It is prepended to the body, rests transparent as the comment
+note does — every reading that asks whether a box is on screen asks
+`opacityProperty` — and carries the offer marker, so paper and a copy drop it
+with every other injected control.
 It takes no register row — a control is a route to a capability rather than a
 capability of its own, and this one's design is to be found by the first Tab
 rather than advertised. Opening or closing one calls its state setter, updates

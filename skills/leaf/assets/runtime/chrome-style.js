@@ -235,25 +235,44 @@ export function chromeStyle({
      sideways to reach it. The scroller answers for it, and the runtime sees to that:
      reachScrollers marks every static box that scrolls, and the theme positions the
      mark ([data-lf-holds]). */
-  .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
+  .lf-quiet, .lf-mark-note, .lf-skip { position: absolute; width: 1px; height: 1px;
     overflow: hidden; user-select: none; -webkit-user-select: none; }
   /* A comment note is also a real button exposed through the accessibility tree. Keep
      its resting box transparent instead of clipping it out of hit testing, so an
      ordinary pointer press reaches the same click handler as Enter. */
-  .lf-mark-note { opacity: 0; }
+  /* Both of these are real buttons standing in the page's own document, so their
+     resting box is transparent rather than clipped out of hit testing: a comment note
+     takes an ordinary pointer press the way Enter takes it, and every reading that asks
+     whether a box is on screen — the control sweeps, covered words, paper — asks the
+     opacity property and answers no for both. Clipped instead, the skip link read as a
+     one-pixel control at the top of the document that the floating comment bar could be
+     standing on. */
+  .lf-mark-note, .lf-skip { opacity: 0; }
+  /* The skip link takes no pointer at rest, which is the whole difference between it and
+     the comment note beside it: that one is a real hit target on purpose, so a press
+     reaches the same handler Enter does, while this one is a keyboard affordance and
+     nothing else. A transparent pixel under the banner that could still receive a click
+     is a control the layer is standing on — which is what the page's own reading of
+     that question said, correctly. */
+  .lf-skip { pointer-events: none; }
   .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
-  /* The skip link (leaf.js says why it stands where it does). It rests in .lf-quiet, the
-     shared clip every word the layer keeps for a listener wears, which is also what the
-     reachability and covered-words readings look past — so the one control standing
-     outside the chrome costs those gates no exception. On focus it takes the same face
-     the two controls below take, in the same place, because a reader who has just pressed
-     Tab from the top of the document is the only one who ever sees it. Outside the scope
-     block because it stands outside the container, which is the whole point of it. */
-  .lf-skip:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
+  /* The skip link (leaf.js says why it stands where it does). It rests transparent, the
+     way the comment note above does and for the same reason, and on focus takes the face
+     the two controls below take, in the same place — a reader who has just pressed Tab
+     from the top of the document is the only one who ever sees it. Outside the scope
+     block because it stands outside the container, which is the whole point of it.
+
+     Its ring insets, which is the rule for a box whose own edge touches something that
+     paints: this one is dropped over whatever the page has under the banner, and an
+     outset band's outer pixels are not the control's to answer for — the layer's ring
+     reading correctly called them a control standing behind the page. */
+  .lf-skip:is(:focus-visible, .lf-focus-visible) { opacity: 1; pointer-events: auto;
+    position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
     overflow: visible; clip-path: none;
-    outline: var(--here-ring); --lf-here-ring: skip; outline-offset: 2px;
+    outline: var(--here-ring); --lf-here-ring: skip;
+    outline-offset: calc(-1 * var(--here-ring-w));
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }

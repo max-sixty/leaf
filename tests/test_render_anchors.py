@@ -367,8 +367,10 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     decisions = page.locator(".lf-decisions")
     expect(decisions).to_have_text("Asks (1)")
     decisions.click()
-    # The row names the broader Decision's opening context now, while the options inside it
-    # still take focus and own the choice.
+    # The row names the broader Decision's opening context now, and the arrival stands the
+    # reader on it — inside a tab the press had to select first. The options it holds own
+    # the choice and follow it in the tab order; where exactly they fall is the arrival's
+    # own test to say (test_an_ask_arrival_starts_with_the_context_that_frames_it).
     hidden_decision = page.locator(
         '.lf-decisions-row[data-lf-at="lp-finance-decision"]'
     )
@@ -376,7 +378,8 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     expect(hidden_decision).to_contain_text("Which cases should the fixture cover?")
     hidden_decision.click()
     expect(finance).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#lp-finance-cases .lf-pick").first).to_be_focused()
+    expect(page.locator("#lp-finance-decision")).to_be_focused()
+    expect(page.locator("#lp-finance-decision #lp-finance-cases")).to_have_count(1)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
@@ -496,8 +499,12 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         "el => el.getBoundingClientRect().bottom"
     ), "the bar never stepped past the row, so standing on no control proves nothing"
 
+    # A box that takes no pointer cannot be covered for the pointer, which is the whole
+    # subject here: the skip link rests transparent and inert under the banner and only
+    # becomes a control at all when the keyboard reaches it.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility())
+        .filter(c => !c.closest(".lf-chrome") && c.checkVisibility()
+                     && getComputedStyle(c).pointerEvents !== "none")
         .filter(c => { const b = c.getBoundingClientRect();
                        const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
@@ -2645,7 +2652,10 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     # dismissal and so is nobody's row to print; what the two presses above assert is
     # that it lands.
     page.keyboard.press("v")
-    expect(line).to_contain_text("leave versions")
+    # Both ways out, each saying which way it goes: on a one-version menu the reader is
+    # at both boundaries at once and the line prints the pair.
+    expect(line).to_contain_text("leave forward")
+    expect(line).to_contain_text("leave backward")
     expect(line).not_to_contain_text("walk — marking changes")
     expect(line).not_to_contain_text("page down")
     page.keyboard.press("Escape")
@@ -2933,7 +2943,8 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
     expect(comparison).to_be_focused()
     expect(compared.locator(".lf-version-menu")).to_be_visible()
-    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave versions")
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave forward")
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave backward")
     compared.keyboard.press("?")
     compared.keyboard.press("?")
     expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")

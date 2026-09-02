@@ -1109,7 +1109,7 @@ chromeRoot.append(
 // silently do nothing rather than fail. So the walk asks the browser the only question
 // that matters here, whether the reader ended up on it, and the banner itself is the
 // answer when none of them will have them.
-const skipToChrome = offer("button", "lf-skip lf-quiet", "Skip to Leaf controls");
+const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
   for (const control of banner.querySelectorAll(FOCUSABLE)) {
     control.focus({ preventScroll: true });

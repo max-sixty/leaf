@@ -168,6 +168,15 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
+A widget that can be an Ask calls `registerDecisionActions(source, read)` once at
+upgrade. `read` returns its current ordered `{control, label}` actions; call the returned
+`update()` after replacing controls or changing their availability. The core gives the
+first nine actions contextual numeric keys and paints chips only on controls currently in
+view. Contribute the controls that actually answer or advance the Ask rather than scanning
+all offered descendants: evidence inside an option is not an answer, and shared-margin
+Buttons may sit outside the source. The control's own click remains the one activation
+path.
+
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through

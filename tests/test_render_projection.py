@@ -4150,6 +4150,33 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     page.close()
 
 
+def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, serve):
+    source = leaf_page(
+        "Request action address",
+        """<lf-command id="hub"><lf-task id="goal" status="active">
+<strong>Goal</strong>
+<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
+  <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
+</lf-agent>
+<lf-decision id="command-decision"><h2>Recover this work</h2>
+  <lf-operations id="commands" target="goal" worker="worker" worktree="tree">
+    <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
+  </lf-operations>
+</lf-decision></lf-task></lf-command>""",
+    )
+    page, errors = open_page(browser, serve(source))
+
+    page.keyboard.press("a")
+    expect(page.locator("#command-decision")).to_be_focused()
+    assert "1\nRestart" in key_line(page)
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
+
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serve):
     """The panel is a second document. Its operation asks while ready, hands the
     turn to the host while pending, returns after failure, and keeps its completed

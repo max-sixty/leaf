@@ -33,7 +33,9 @@ and page-error channel;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
 `runtime/decisions/model.js` owns request discovery and folding;
-`runtime/decisions/view.js` owns decision chrome, marking, and the decision walk;
+`runtime/decisions/actions.js` owns widgets' exact ordered action contribution;
+`runtime/decisions/view.js` owns decision chrome, marking, the decision walk, and
+Ask-local numeric action projection;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
@@ -1922,7 +1924,10 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. `j`/`k` scroll down/up by 60 pixels; `d`/`u` move 60% of
+is often repeated or held. While the Ask itself holds semantic focus, its widget's
+ordered actions take `1`–`9`; the core projects that exact list into the key line and
+visible control chips, while Tab enters the widget's own local scopes. `j`/`k` scroll
+down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader, while direct
@@ -1930,8 +1935,9 @@ destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
 Threads, Asks, and All leaves, and `g M` enters the Page map at its roving marker.
 Where the margin rail has left the compact layout, the same destination opens the complete
 Page-map sheet. A key spelling something nothing on screen says is a key nobody reaches for twice.
-Approval spends no page letter: its visible button is in the Tab order and takes native
-Enter or Space. In particular, a conditional chord mnemonic must not share its final key
+Approval spends no fixed page letter: its visible button stays in the Tab order and takes
+native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
+a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
@@ -2460,8 +2466,9 @@ panel and directional walk agree about focus, reveal, arrival placement, and
 `landed`.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
-aligned and the one the ring names; its controls are the next Tab stops, a stop at
-`tabindex: -1` keeping its place in document order. Landing the answering control
+aligned and the one the ring names. The widget's contributed actions are addressable
+there as `1`–`9; its controls remain the next Tab stops, a stop at `tabindex: -1`
+keeping its place in document order. Landing the answering control
 instead puts them as far down the decision as its context and evidence are long, off
 the screen the same gesture arranged. A decision a page styles boxless has nothing to
 stand on and keeps the control as its landing. A widget rebuilt under a reader is not

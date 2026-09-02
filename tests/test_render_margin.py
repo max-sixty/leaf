@@ -230,6 +230,52 @@ PAGE_MAP_EVENTS = [
 ]
 
 
+@pytest.mark.parametrize("width", [1200, 390])
+def test_ask_addresses_follow_the_button_gallery_s_visible_margin_controls(
+    browser, serve, width
+):
+    """A secondary action's visible proxy gets its canonical Ask address."""
+    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
+    page, errors = open_page(browser, serve(example))
+    resized(page, width, 900)
+    margins_laid_out(page)
+
+    page.keyboard.press("a")
+    expect(page.locator("#bg-replace")).to_be_focused()
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(
+        ["1", "2"]
+    )
+    geometry = page.evaluate(
+        """() => {
+          const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
+          const boxes = (nodes) => nodes.map((node) => {
+            const box = node.getBoundingClientRect();
+            return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+          });
+          const controls = [...item.querySelectorAll('button')].filter((button) => {
+            const box = button.getBoundingClientRect();
+            return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
+          });
+          return {
+            controls: controls.map((control) => {
+              const box = control.getBoundingClientRect();
+              return {x: box.left, y: box.top};
+            }),
+            chips: boxes([...document.querySelectorAll(
+              '.lf-ask-addresses > .lf-ask-address'
+            )]),
+          };
+        }"""
+    )
+    assert len(geometry["controls"]) == len(geometry["chips"]) == 2, geometry
+    for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
+        assert abs(control["x"] - chip["x"]) <= 2, geometry
+        assert abs(control["y"] - chip["y"]) <= 2, geometry
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("width", [1440, 700, 390])
 def test_the_button_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The shipped sampler stays usable after edits, verdicts, and dense overflow."""

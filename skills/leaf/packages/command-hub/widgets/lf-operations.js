@@ -6,6 +6,7 @@ import {
   offer,
   once,
   quoted,
+  registerDecisionActions,
   sendRequest,
   watchRequestLifecycle,
 } from "/runtime/widget-api.js";
@@ -46,6 +47,7 @@ function paint(holder, lifecycle) {
     control.tabIndex = locked ? -1 : 0;
   }
   statusLine(holder, request, receipt);
+  holder._decisionActions?.update();
 }
 
 customElements.define(
@@ -86,6 +88,12 @@ customElements.define(
       if (quoted(this)) return;
       if (!this._stop)
         this._stop = watchRequestLifecycle(this, (lifecycle) => paint(this, lifecycle));
+      this._decisionActions ??= registerDecisionActions(this, () =>
+        children(this).map((option) => ({
+          control: option.querySelector(":scope > .lf-operation-press"),
+          label: title(option),
+        })),
+      );
     }
 
     disconnectedCallback() {

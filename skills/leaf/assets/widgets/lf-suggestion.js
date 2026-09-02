@@ -27,6 +27,7 @@ import {
   quoted,
   relabel,
   renderRetired,
+  registerDecisionActions,
   registerMarginItem,
   says,
   sendAction,
@@ -130,6 +131,7 @@ customElements.define(
     #undo = null;
     #undoing = false;
     #margin = null;
+    #decisionActions = null;
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
@@ -158,6 +160,15 @@ customElements.define(
       this.#accept = this.#button("accept");
       this.#reject = this.#button("reject");
       this.#renderControls();
+      this.#decisionActions = registerDecisionActions(this, () =>
+        [...this.#row.querySelectorAll(":scope > .lf-margin-action")].map(
+          (control) => ({
+            control,
+            label:
+              control.querySelector(":scope > .lf-margin-action-label")?.textContent,
+          }),
+        ),
+      );
       this.#offer();
       watchActions(this, null, () => {
         if (!this.dataset.lfState) return;
@@ -356,6 +367,7 @@ customElements.define(
           .find((node) => node.matches(".lf-margin-action") && node.checkVisibility())
           ?.focus({ preventScroll: true });
       }
+      this.#decisionActions?.update();
     }
 
     // What the change is about, for the button's label and the notice: the

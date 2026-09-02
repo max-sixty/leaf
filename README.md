@@ -44,7 +44,7 @@ Codex opens the full Leaf page in its browser pane, or in a local browser when
 the pane is unavailable. It uses the same theme, package widgets, anchored
 comments, and version travel as Claude Code. A detached adapter delivers page
 input into later turns of the same Codex task; the page directory and
-`comments.jsonl` remain the durable record.
+`events.jsonl` remain the durable record.
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and

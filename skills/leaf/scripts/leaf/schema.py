@@ -467,17 +467,20 @@ MEDIA_TYPES = {
 }
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
+EVENTS_FILE = "events.jsonl"
 PREVIEW_FILE = "preview.json"
+VIEWED_FILE = "viewed.json"
 # One name, because there is one key (`host_key`). Cookies are scoped by host and
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
 KEY_COOKIE = "lf_key"
 PAGE_STATE_FILES = (
-    "comments.jsonl",
+    EVENTS_FILE,
     "status.json",
     DATA_FILE,
     "waiter.lock",
     "cursor.json",
+    VIEWED_FILE,
     "service.json",
     "server.lock",
     PREVIEW_FILE,

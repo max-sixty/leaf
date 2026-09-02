@@ -21,6 +21,7 @@ from leaf.host import (
     state_home,
 )
 from leaf.locations import page_key
+from leaf.schema import EVENTS_FILE
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -65,7 +66,7 @@ class PageTransaction:
 
     def __enter__(self):
         self._events = None
-        self._lock = flocked(self.page_dir / "comments.jsonl")
+        self._lock = flocked(self.page_dir / EVENTS_FILE)
         self._log = self._lock.__enter__()
         return self
 
@@ -256,7 +257,7 @@ def owned_pages(session_id: str | None) -> list:
         for claim in claim_records()
         if claim_is_active(claim)
         and (session_id is None or claim["id"] == session_id)
-        and (Path(claim["page"]) / "comments.jsonl").is_file()
+        and (Path(claim["page"]) / EVENTS_FILE).is_file()
     }
     return sorted(pages, key=str)
 

@@ -3222,7 +3222,7 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     status, body = fetch(server + url)
     assert (status, body) == (200, shot.read_bytes())
     # And nothing else out of the directory: the log is not a served path.
-    assert fetch(server + "/comments.jsonl")[0] == 404
+    assert fetch(server + "/events.jsonl")[0] == 404
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):

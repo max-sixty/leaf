@@ -4,13 +4,14 @@ import hashlib
 from pathlib import Path
 
 from ..files import STAGED, file_stamp
+from ..schema import VIEWED_FILE
 from ..service import claim_path
 
 # The one thing a reading must not be built from. The server writes `viewed.json` for
 # as long as a tab holds the page open, so counting it would make the page's own
 # presence change the page's token: a stream asking "has anything changed?" would be
 # told yes, by its own listener.
-UNWATCHED = frozenset({"viewed.json"})
+UNWATCHED = frozenset({VIEWED_FILE})
 
 
 def page_reading(page_dir: Path) -> str:

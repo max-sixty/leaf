@@ -268,7 +268,7 @@ def publish_pages(out: Path, env: dict) -> None:
                 directory.mkdir(exist_ok=True)
                 for old in directory.iterdir():
                     old.unlink()
-            log = page / "comments.jsonl"
+            log = page / "events.jsonl"
             log.write_text("", encoding="utf-8")
             # The data door validates a source against the page's markup, and the
             # current version is the one that has to bind it, so the newest version
@@ -344,7 +344,7 @@ def publish_pages(out: Path, env: dict) -> None:
             # through /api/state, which is `docs/session.js`'s answer here, so the log
             # is a file beside the versions exactly as it is in a page directory and
             # that file is what the session puts in the runtime's first answer.
-            (published / "comments.jsonl").write_text(seed_text, encoding="utf-8")
+            (published / "events.jsonl").write_text(seed_text, encoding="utf-8")
             (published / "data.json").write_text(
                 data_file.read_text(encoding="utf-8")
                 if data_file.exists()

@@ -17,14 +17,14 @@ Test whether the successful transport probe can become a narrow Leaf primitive w
 - UI: disposable `ui://` HTML resource
 - Return path: `callServerTool` → Leaf `EventEndpoint`
 - Supported ask in this experiment: one current page-scoped `lf-options` decision
-- Durable authority: authored revision plus `comments.jsonl`
+- Durable authority: authored revision plus `events.jsonl`
 - Reference host: ext-apps commit `10195ad91851502134930e9b80ec2c04e277a720`
 - Authored fixture: `examples/design-decision.html`
 
 **Expected outcomes:**
 
 - If the app lists exactly one current ask and posts a schema-valid action, the boundary is narrow enough to productize experimentally.
-- If teardown and a fresh read reconstruct the settled choice from `comments.jsonl`, no second state authority was introduced.
+- If teardown and a fresh read reconstruct the settled choice from `events.jsonl`, no second state authority was introduced.
 - If unsupported or ambiguous decisions return an explicit fallback instead of guessed controls, the compact mode can remain deliberately partial.
 - If the bundled app fits at 420×360 without horizontal overflow and keeps keyboard/focus behavior, the disposable inline surface is viable for small asks.
 - If the app requires loopback network access, the design has accidentally retained the probe's host-specific dependency and should be revised.

@@ -1,10 +1,12 @@
 """CLI, plugin payload, layer, and customization tests."""
 
+import contextlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
@@ -34,6 +36,27 @@ from leaf import locations as interact_locations
 from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
+
+EXPECTED_PAGE_STATE_FILES = (
+    "events.jsonl",
+    "status.json",
+    "data.json",
+    "waiter.lock",
+    "cursor.json",
+    "viewed.json",
+    "service.json",
+    "server.lock",
+    "preview.json",
+)
+EXPECTED_PAGE_DIRECTORIES = (
+    "revisions",
+    "versions",
+    "runtime",
+    "widgets",
+    "vendor",
+    "guidance",
+    "media",
+)
 
 
 @pytest.mark.parametrize(
@@ -1220,18 +1243,7 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
     assert interact_locations.paths_same(upper, lower)
 
 
-@pytest.mark.parametrize(
-    "name",
-    (
-        "comments.jsonl",
-        "status.json",
-        "data.json",
-        "waiter.lock",
-        "cursor.json",
-        "service.json",
-        "server.lock",
-    ),
-)
+@pytest.mark.parametrize("name", EXPECTED_PAGE_STATE_FILES)
 def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
@@ -1242,9 +1254,11 @@ def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     assert packages_model.initialized_page_owning(page / ".leaf" / name) is None
 
 
-@pytest.mark.parametrize(
-    "directory", ("versions", "runtime", "widgets", "vendor", "media")
-)
+def test_page_state_inventory_matches_the_storage_contract():
+    assert schema_model.PAGE_STATE_FILES == EXPECTED_PAGE_STATE_FILES
+
+
+@pytest.mark.parametrize("directory", EXPECTED_PAGE_DIRECTORIES)
 def test_initialized_page_owns_declared_directory_trees(
     tmp_path, monkeypatch, directory
 ):
@@ -1253,7 +1267,12 @@ def test_initialized_page_owns_declared_directory_trees(
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
+    assert (page / directory).is_dir()
     assert packages_model.initialized_page_owning(page / directory / "future") == page
+
+
+def test_page_directory_inventory_matches_the_storage_contract():
+    assert schema_model.PAGE_OWNED_DIRS == EXPECTED_PAGE_DIRECTORIES
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
@@ -1351,6 +1370,61 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     assert list(page.iterdir()) == []
 
 
+def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
+    """One transition lease covers creation before the page log exists."""
+    page = tmp_path / "page"
+    transition = vendoring_model.transition_lock(page)
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    second_waiting = threading.Event()
+    calls = 0
+    errors = []
+    original_init = vendoring_model._init_page
+    original_flocked = vendoring_model.flocked
+
+    def paused_init(page_dir, selected):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            first_entered.set()
+            assert release_first.wait(5)
+        original_init(page_dir, selected)
+
+    @contextlib.contextmanager
+    def observed_flocked(path):
+        if path == transition and threading.current_thread().name == "second-init":
+            second_waiting.set()
+        with original_flocked(path) as held:
+            yield held
+
+    def initialize():
+        try:
+            vendoring_model.cmd_init(page)
+        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+            errors.append(error)
+
+    monkeypatch.setattr(vendoring_model, "_init_page", paused_init)
+    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
+    first = threading.Thread(target=initialize, name="first-init")
+    second = threading.Thread(target=initialize, name="second-init")
+    first.start()
+    try:
+        assert first_entered.wait(5)
+        second.start()
+        assert second_waiting.wait(5)
+        assert calls == 1
+    finally:
+        release_first.set()
+        first.join(timeout=5)
+        if second.ident is not None:
+            second.join(timeout=5)
+
+    assert not first.is_alive() and not second.is_alive()
+    assert errors == []
+    assert calls == 2
+    assert (page / schema_model.EVENTS_FILE).is_file()
+
+
 def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_dir):
     """An external claim does not turn a deleted page back into initialized state."""
     record_claim(page_dir, id="stale-session")
@@ -1380,7 +1454,7 @@ def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
     with pytest.raises(OSError, match="layer commit failed"):
         vendoring_model.cmd_init(page)
 
-    assert not (page / "comments.jsonl").exists()
+    assert not (page / "events.jsonl").exists()
 
 
 def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypatch):
@@ -1445,7 +1519,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     assert (page / "registry.json").read_bytes() == registry_before
 
 
-@pytest.mark.parametrize("sub", ["versions", "runtime", "widgets", "vendor"])
+@pytest.mark.parametrize("sub", EXPECTED_PAGE_DIRECTORIES)
 def test_init_refuses_a_symlinked_page_directory(tmp_path, monkeypatch, sub):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -1505,6 +1579,27 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
         if path.is_file()
     }
     assert after == before
+
+
+@pytest.mark.parametrize("destination", ("revisions", "media"))
+def test_init_refuses_a_package_nested_in_a_page_owned_directory(
+    tmp_path, monkeypatch, destination
+):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    page = tmp_path / "page"
+    package_parent = page / destination
+    package = package_parent / ".leaf"
+    package.mkdir(parents=True)
+    theme = package / "theme.css"
+    theme.write_text(":root { --accent: teal; }\n")
+    monkeypatch.chdir(package_parent)
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+
+    assert result.exit_code != 0
+    assert "overlaps page destination" in result.output
+    assert theme.read_text() == ":root { --accent: teal; }\n"
+    assert not (page / schema_model.EVENTS_FILE).exists()
 
 
 def test_init_refuses_a_case_aliased_source_at_a_page_destination(

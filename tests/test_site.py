@@ -300,7 +300,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
     page.route("**/data.json", lambda route: seeds.append(route))
-    page.route("**/comments.jsonl", lambda route: seeds.append(route))
+    page.route("**/events.jsonl", lambda route: seeds.append(route))
 
     try:
         with page.expect_request("**/leaf.js"):
@@ -362,7 +362,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             # If /leaf.js never started, do not let releasing it create new held seed
             # requests after the cleanup snapshot below.
             page.unroute("**/data.json")
-            page.unroute("**/comments.jsonl")
+            page.unroute("**/events.jsonl")
         for route in boot:
             route.continue_()
         for route in seeds:

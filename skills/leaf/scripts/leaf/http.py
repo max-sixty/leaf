@@ -36,6 +36,7 @@ from .schema import (
     KEY_COOKIE,
     NO_KEY,
     SERVED_PATH,
+    VIEWED_FILE,
 )
 from .served_state import reading as served_reading
 from .served_state.service import PageStateService
@@ -353,7 +354,7 @@ class Handler(BaseHTTPRequestHandler):
                     and time.time() - getattr(cls, "viewed_at", 0) > 30
                 ):
                     cls.viewed_at = time.time()
-                    write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
+                    write_json(self.page_dir / VIEWED_FILE, {"t": cls.viewed_at})
                 if reading != said or now - spoke >= ALIVE_S:
                     self.wfile.write(f"data: {reading}\n\n".encode())
                     said, files_said, spoke = reading, files, now

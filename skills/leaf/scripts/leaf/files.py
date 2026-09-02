@@ -12,7 +12,7 @@ from pathlib import Path
 from .locations import path_location
 
 # The name an atomic write stages under, beside its target, for the moment before the
-# rename (`write_files` below). A reader of the directory looks past it: it is not yet
+# rename (`replace_files` below). A reader of the directory looks past it: it is not yet
 # any file the page has, and a look that counted it would see the page move twice for
 # a write that moved it once.
 STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
@@ -221,7 +221,7 @@ def read_json(path: Path):
 
 
 def replace_files(files: list) -> None:
-    """Stage every (path, bytes, follow_symlink) write before replacing targets."""
+    """Durably stage every write before replacing its target."""
     staged = []
     targets = [
         path.resolve() if follow_symlink and path.is_symlink() else path
@@ -255,13 +255,21 @@ def replace_files(files: list) -> None:
             staged.append((tmp, target))
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
-            if follow_symlink or not path.is_symlink():
-                try:
-                    tmp.chmod(target.stat().st_mode & 0o777)
-                except FileNotFoundError:
-                    pass  # no target to preserve a mode from
+                if follow_symlink or not path.is_symlink():
+                    try:
+                        os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
+                    except FileNotFoundError:
+                        pass  # no target to preserve a mode from
+                stream.flush()
+                os.fsync(stream.fileno())
         for tmp, target in staged:
             os.replace(tmp, target)
+        for parent in {target.parent for target in targets}:
+            fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
     finally:
         for tmp, _ in staged:
             tmp.unlink(missing_ok=True)

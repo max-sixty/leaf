@@ -106,7 +106,7 @@ def seed_log(source: Path, page: Path) -> None:
     seed = source.with_suffix(".jsonl")
     if not seed.exists():
         return
-    with (page / "comments.jsonl").open("a", encoding="utf-8") as f:
+    with (page / "events.jsonl").open("a", encoding="utf-8") as f:
         f.write(seed.read_text(encoding="utf-8"))
 
 
@@ -124,7 +124,7 @@ def acknowledge_log(source: Path, page: Path) -> None:
     # An event's seq is its line number, so the last line's number is the cursor.
     # Split on the writer's own separator, never splitlines(), whose wider class
     # reads a U+2028 inside a comment's text as a break.
-    log = (page / "comments.jsonl").read_text(encoding="utf-8")
+    log = (page / "events.jsonl").read_text(encoding="utf-8")
     lines = [n for n in log.split("\n") if n.strip()]
     (page / "cursor.json").write_text(
         json.dumps({"seq": len(lines)}) + "\n", encoding="utf-8"

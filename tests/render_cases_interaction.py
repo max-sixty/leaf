@@ -228,7 +228,7 @@ SEATED_QUESTION_PAGE = leaf_page(
 def sent_events(page_dir):
     return [
         json.loads(line)
-        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (page_dir / "events.jsonl").read_text().splitlines()
     ]
 
 
@@ -954,7 +954,7 @@ def backdate_note(page_dir, version, hours):
     the version asserting it landed, and a version minted seconds ago cannot exercise
     it — so the log, which is a plain file the writer owns, is rewritten rather than
     waited out."""
-    path = page_dir / "comments.jsonl"
+    path = page_dir / "events.jsonl"
     when = (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )

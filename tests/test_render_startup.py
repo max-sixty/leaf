@@ -1397,7 +1397,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     events = [
-        json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
+        json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
     accept = next(e for e in events if e.get("kind") == "action")
     assert accept["action"] == "accept" and accept["detail"] == {"resolves": "c1"}

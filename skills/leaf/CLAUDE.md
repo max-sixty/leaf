@@ -1463,7 +1463,11 @@ Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
 rings, fills, and state marks keep their shared neutral treatment. State has a
 separate small corner mark: a dot for engaged, an open moving ring for busy (static
 under reduced motion), a diamond for failed, and a square for settled. Busy also sets
-`aria-busy="true"`; failure and settlement need visible words, not color or shape alone.
+`aria-busy="true"`; failed and settled action receipts need visible words, not color
+or shape alone. Standing reactions reuse the settled square in their margin palette
+and seated marks, so they remain distinct from hover without changing the shared
+ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
+withdrawing a token returns its palette Button to idle.
 `marginActionState(control, state)` changes that axis without changing the verb, ring,
 or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
 emoji and font-dependent symbols are not structural icons. Reaction glyphs are content

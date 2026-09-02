@@ -42,6 +42,12 @@ PAINTED = """() => ({
   outlined: [...document.querySelectorAll('.lf-react-el')].map(el => el.id),
 })"""
 
+MARGIN_STATE_WITNESS = """button => {
+  const mark = getComputedStyle(button, '::after');
+  return mark.content === '\"\"' && parseFloat(mark.width) > 0
+    && parseFloat(mark.height) > 0 && mark.backgroundColor !== 'rgba(0, 0, 0, 0)';
+}"""
+
 
 def select_paragraph(page, selector):
     """Drag across most of one paragraph, the way the anchor tests do."""
@@ -256,7 +262,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
-    """A standing reaction keeps the shared ring and ink, with a neutral selected fill."""
+    """A standing reaction keeps neutral furniture and a witness distinct from hover."""
     page, errors = open_page(
         browser,
         serve(
@@ -273,15 +279,17 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
       return {ink: face.color, ring: face.borderTopColor, fill: face.backgroundColor};
     }"""
 
-    def assert_selected_face(reaction, reopen):
+    def assert_selected_face(reaction, reopen, witness):
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         resting = reaction.evaluate(read)
+        assert reaction.evaluate(witness) is False
         reaction.hover()
         neutral_hover = reaction.evaluate(read)
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
+        assert reaction.evaluate(witness) is False
         reaction.click()
         round_trip(page)
         reopen()
@@ -290,8 +298,10 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         page.mouse.move(0, 0)
         selected = {**resting, "fill": neutral_hover["fill"]}
         assert reaction.evaluate(read) == selected
+        assert reaction.evaluate(witness) is True
         reaction.hover()
         assert reaction.evaluate(read) == selected
+        assert reaction.evaluate(witness) is True
         reaction.click()
         round_trip(page)
         reopen()
@@ -299,6 +309,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         assert reaction.evaluate(read) == resting
+        assert reaction.evaluate(witness) is False
 
     item = page.locator('.lf-margin-item[data-lf-margin-for="draft"]')
 
@@ -309,7 +320,9 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 
     open_margin_reactions()
     assert_selected_face(
-        item.locator('.lf-react[data-token="ok"]'), open_margin_reactions
+        item.locator('.lf-react[data-token="ok"]'),
+        open_margin_reactions,
+        MARGIN_STATE_WITNESS,
     )
     page.keyboard.press("Escape")
     page.locator(".lf-threads-toggle").click()
@@ -322,7 +335,9 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 
     open_page_reactions()
     assert_selected_face(
-        strip.locator('.lf-react[data-token="ok"]'), open_page_reactions
+        strip.locator('.lf-react[data-token="ok"]'),
+        open_page_reactions,
+        "button => button.querySelector('.lf-react-word').checkVisibility()",
     )
     assert errors == []
     page.close()
@@ -1653,7 +1668,9 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
+    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
+    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
     assert errors == []
     page.close()

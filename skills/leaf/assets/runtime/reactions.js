@@ -1,4 +1,9 @@
-import { iconElement, marginAction, registerMarginItem } from "./living-margin.js";
+import {
+  iconElement,
+  marginAction,
+  marginActionState,
+  registerMarginItem,
+} from "./living-margin.js";
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
@@ -34,14 +39,16 @@ export function responseAction(
   return control;
 }
 
-// Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
-// carrying the event a second press takes back. The reaction rides the pill rather than
-// a map beside it, so a reconcile that keeps the node keeps the fact with it.
+// Standing tokens wear their word in strips and the settled witness in margin circles.
+// Both carry the event a second press takes back. The reaction rides the pill rather
+// than a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
   const by = new Map(standing.map((x) => [x.token, x]));
   for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
     const on = by.get(pill.dataset.token) ?? null;
     pill.setAttribute("aria-pressed", on ? "true" : "false");
+    if (pill.classList.contains("lf-margin-action"))
+      marginActionState(pill, on ? "settled" : "idle");
     pill.lfReaction = on;
   }
 }

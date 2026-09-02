@@ -1,3 +1,5 @@
+import { landInConversation, SAY_BOX } from "./landing.js";
+
 /* Textual conversation views rendered outside the retained Threads list. */
 export function createInlineConversations({
   ago,
@@ -75,8 +77,6 @@ export function createInlineConversations({
     );
     let tail;
     if (t.resolved) {
-      const compose = thread.querySelector(":scope > .lf-say");
-      if (compose?.contains(focused())) thread.focus({ preventScroll: true });
       tail = thread.querySelector(":scope > .lf-conversation-resolved");
       const settledBy =
         t.resolved.author === "claude"
@@ -84,17 +84,7 @@ export function createInlineConversations({
           : "✓ Resolved";
       if (!tail) {
         tail = offer("div", "lf-conversation-resolved");
-        tail.append(
-          el("span"),
-          settlementControl(t, {
-            prepareLanding: () => () => {
-              if (focused() === document.body || thread.contains(focused()))
-                thread.querySelector(":scope > .lf-say textarea")?.focus({
-                  preventScroll: true,
-                });
-            },
-          }),
-        );
+        tail.append(el("span"), settlementControl(t));
       }
       if (tail.firstChild.textContent !== settledBy)
         tail.firstChild.textContent = settledBy;
@@ -128,11 +118,17 @@ export function createInlineConversations({
       if (receipt) placed.add(receipt);
       return receipt ? [message, receipt] : [message];
     });
+    const standing = focused();
+    const heldFocus = thread.contains(standing);
     setChildren(thread, [
       ...messageRows,
       ...receipts.filter((receipt) => !placed.has(receipt)),
       ...(tail ? [tail] : []),
     ]);
+    // Settlement replaces the focused controls in either tail shape. Transfer only
+    // that removed focus; a later gesture elsewhere remains where the reader put it.
+    if (heldFocus && !thread.contains(standing))
+      landInConversation(thread.querySelector(SAY_BOX) ?? thread);
     return thread;
   }
 

@@ -128,18 +128,19 @@ export function createSelectionComposer(runtime, dependencies) {
         if (inFlight === flight) inFlight = null;
       }
       if (!sent) return;
-      // A later edit is still the reader's standing gesture. The earlier comment may
-      // render in another conversation view, but it may not close or move the composer
-      // holding that edit.
-      if (composerEpoch !== flight.epoch || loadDraft(ctx) !== null) return;
       let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
-      const shouldLand = mayLandTyping(reply, composerInput);
+      // A later draft or selection keeps its focus. The accepted comment still belongs
+      // in an open panel, including when revealing it must widen the panel's filter.
+      const shouldLand =
+        composerEpoch === flight.epoch &&
+        loadDraft(ctx) === null &&
+        mayLandTyping(reply, composerInput);
       // Continue in the surface already in use. Closing an open panel here reflows the
       // passage just as the reader's comment moves across it to a new floating card.
       const inlineReply =
         shouldLand && !panelIsOpen() ? openInlineThread(sent.id) : null;
       reply = inlineReply ?? reply;
-      if (!inlineReply && shouldLand) {
+      if (!inlineReply && (shouldLand || panelIsOpen())) {
         showThread(sent.id, { stand: shouldLand });
         reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       }

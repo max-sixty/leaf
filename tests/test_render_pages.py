@@ -22,6 +22,7 @@ from render_support import (
     BOTH_STAMPS,
     BROKEN_DIAGRAM_PAGE,
     CHROME_ROOM,
+    CORPUS_SOURCES,
     DIAGRAM_AND_RAIL_PAGE,
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
@@ -44,7 +45,6 @@ from render_support import (
     RAIL_FIT,
     REPLY_HOST_PAGE,
     ROOM_GEOMETRY,
-    SOURCE_EXAMPLES,
     TOKEN,
     TWIN_V1,
     TWIN_V2,
@@ -465,8 +465,8 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     )
 
 
-@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
-def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, example):
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, source):
     """The claim `leaf comment` makes is that a quote read out of the version file
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
@@ -480,12 +480,12 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     # every example that ever ships one would read as painting text it does not
     # name. The seeded anchor has its own reader in
     # test_a_shipped_log_opens_its_example_on_a_live_thread.
-    html = example.read_text()
-    url = serve(example, seed_log=False)
+    html = source.read_text()
+    url = serve(source, seed_log=False)
     d = serve.page_dir
     anchors = written_anchors(d, html)
     assert len(anchors) >= 10, (
-        f"only {len(anchors)} anchors over {example.stem}; sweep too thin"
+        f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )
     for i, (_, anchor) in enumerate(anchors):
         events_model.append_event(
@@ -507,7 +507,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
         ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
     )
     assert detached == [], (
-        f"{len(detached)} anchors resolved to nothing in {example.stem}: {detached}"
+        f"{len(detached)} anchors resolved to nothing in {source.stem}: {detached}"
     )
     # And that the homes are the right ones. Painted in thread order, one range per
     # segment, so the passages concatenate: whitespace aside, because a quote's is
@@ -521,7 +521,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
         ),
     )
     wanted = re.sub(r"\s", "", "".join(quote for quote, _ in anchors))
-    assert painted == wanted, f"anchors in {example.stem} painted text they don't name"
+    assert painted == wanted, f"anchors in {source.stem} painted text they don't name"
     assert errors == []
     page.close()
 

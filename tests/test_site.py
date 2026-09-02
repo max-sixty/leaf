@@ -207,8 +207,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
 ):
     """Every authored example appears once as a real preview and a standalone route.
 
-    The absence checks are held by positive populations: nine catalog entries, nine
-    loaded images, and the independently derived authored files. A vanished catalog
+    The absence checks are held by positive populations: catalog entries, loaded
+    images, and the independently derived authored files. A vanished catalog
     cannot pass merely because it also contains no iframe or tab widget.
     """
     expected = {source.stem for source in authored_examples()}
@@ -250,7 +250,10 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             ]
 
         assert page.locator("iframe, lf-tabs").count() == 0
-        assert not (site / "examples" / "corpus").exists()
+        published = {
+            path.name for path in (site / "examples").iterdir() if path.is_dir()
+        }
+        assert published == expected
         assert not errors, errors[:3]
     finally:
         page.close()

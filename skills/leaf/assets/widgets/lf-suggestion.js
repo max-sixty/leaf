@@ -15,6 +15,7 @@
  * target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
+  actionAvailable,
   actionStands,
   alignText,
   FOLD_MS,
@@ -160,7 +161,6 @@ customElements.define(
       this.#renderControls();
       this.#offer();
       watchActions(this, null, () => {
-        if (!this.dataset.lfState) return;
         this.#renderControls();
         this.#margin?.update();
       });
@@ -253,7 +253,10 @@ customElements.define(
         "aria-label",
         `${kind === "accept" ? "Accept" : "Reject"} the suggested change: ${change}`,
       );
-      btn.setAttribute("aria-disabled", String(state === "busy"));
+      btn.setAttribute(
+        "aria-disabled",
+        String(state === "busy" || !actionAvailable(this, kind)),
+      );
     }
 
     #utilityButton({ key, icon, label, tone = "neutral", role, press }) {
@@ -382,6 +385,7 @@ customElements.define(
     // decides which gestures wait, and what waiting costs, are in CLAUDE.md.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
+      if (!actionAvailable(this, outcome)) return Promise.resolve(false);
       // The decided state used to be this guard on its own, written in the frame of
       // the press. It now lands when the log takes the decision, and the gap between
       // press and answer is exactly wide enough for a second press to make a second

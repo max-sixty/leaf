@@ -550,6 +550,12 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         expect(choice).to_have_attribute("aria-disabled", "true")
         choice.dispatch_event("click")
         expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
+        suggestion_accept = page.locator(
+            ".lf-sug-actions[data-lf-for='sug']"
+        ).get_by_role("button", name=re.compile("^Accept the suggested change"))
+        expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
+        suggestion_accept.dispatch_event("click")
+        expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
         assert posts == [], "a durable action posted before the first state projection"
         authored_note = page.locator("#startup-note .lf-draft-body")
         expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")

@@ -478,10 +478,17 @@ export function createDecisionView({
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
     // paragraph before the change fits every time, and the press then scrolls the page up
     // by the banner's clearance instead of travelling to the ask.
+    // A region also has to begin at or above the change: it is the run-up to it, and one
+    // starting below would be a region the change is not in. Document order alone does
+    // not promise that — a preceding block can be painted lower — and the span such a
+    // region measures is negative, which fits every screen there is.
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
-      return start.height > 0 && shownBox(decision).bottom - start.top <= room;
+      const target = shownBox(decision);
+      return (
+        start.height > 0 && start.top <= target.top && target.bottom - start.top <= room
+      );
     };
     // The blocks before this one that are about the same part of the document: the two
     // stand under one container, which is what "the heading over this" means and is the
@@ -498,21 +505,41 @@ export function createDecisionView({
     // heading and the nearest block both rest on. `pageQueryAll` would reach a widget's
     // declared shadow tree as well, and it concatenates each root's answer rather than
     // composing one order, so the last heading it reported could be from another tree
-    // entirely — a worse answer than the one this misses. What crossing is worth having
-    // is on the containment side, where `containsAcross` lets a decision staged inside a
-    // shadow tree still take the heading standing over its host.
+    // entirely — a worse answer than the one this misses. The crossing worth having is
+    // on the two questions asked of each block: `containsAcross` for the container, and
+    // the host climb below for the order, which together let a decision staged inside a
+    // shadow tree take the heading standing over its host.
     //
     // `hidden` goes with `inChrome`: content-visibility leaves real rects behind, so a
     // block behind a shut disclosure otherwise measures like one the reader can see.
-    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
-      (block) =>
+    //
+    // Order is asked of the decision as the block's own tree sees it, which for a
+    // decision staged in a shadow tree is its host and not the decision. Two nodes in
+    // different roots are DISCONNECTED, and the direction bit that comes with it is
+    // arbitrary-but-consistent rather than positional: Chrome answers PRECEDING for every
+    // block in the document, whichever side of the host it stands. Asked straight, the
+    // filter therefore kept the blocks after such a decision too, and the last heading in
+    // the container won — the wrong-question arrival this bound exists to remove, in the
+    // one shape the crossing above was written to serve.
+    const seenBy = (block) => {
+      const root = block.getRootNode();
+      let node = decision;
+      while (node && node.getRootNode() !== root)
+        node = node.getRootNode().host ?? null;
+      return node;
+    };
+    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
+      const from = seenBy(block);
+      return (
+        from &&
         !inChrome(block) &&
         !block.closest("[hidden]") &&
         !containsAcross(block, decision) &&
         block.parentElement &&
         containsAcross(block.parentElement, decision) &&
-        decision.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING,
-    );
+        from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
+      );
+    });
     const heading = before.findLast((block) => block.matches(HEADING));
     return (
       [heading, closestAcross(decision, TEXT_BLOCK) ?? before.at(-1)].find(fits) ??

@@ -147,12 +147,12 @@ v2 (latest), and a banner reading 'Claude awaits'."
           </li>
           <li id="loop-wake">
             <strong>Your comment reaches the session.</strong> On Claude Code, a
-            background <code>leaf wait</code> wakes or joins the agent. On Codex, an
-            opt-in watcher task can hold that wait and forward the transport-neutral
-            batch into the page's task as a background follow-up; without one, the
-            page's task keeps its own handover turn active. Either loop acknowledges
-            only after a complete, untruncated batch has reached its next durable step,
-            so "printed" cannot masquerade as "seen".
+            background <code>leaf wait</code> wakes or joins the agent. On Codex, a
+            detached adapter holds that wait and queues the complete batch into a later
+            turn of the same task, without a separate watcher task or a handover turn
+            kept active. Either loop acknowledges only after a complete, untruncated
+            batch has reached its next durable step, so "printed" cannot masquerade as
+            "seen".
           </li>
           <li id="loop-revise">
             <strong>A revision ships.</strong> Versions are immutable, each with a

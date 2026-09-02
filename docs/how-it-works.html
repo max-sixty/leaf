@@ -252,13 +252,13 @@ $ leaf ack ./review 3</code></pre>
           The hosts carry that context through different loops. On Claude Code,
           <code>leaf wait</code> is a background task whose completion joins the same
           queue as a terminal message: an idle session takes it as a new turn, and a
-          working one folds it in between tool calls. On Codex, an experimental bundled
-          MCP App can put a compact review directly in the task. Its comments pass
-          through the same validator and log, then the app sends the complete pending
-          batch as a follow-up turn. Where a Codex build does not render MCP Apps — or
-          the reader needs the full widget runtime — the loopback browser stays the
-          surface and a detached adapter queues that same batch into the task. The
-          transport changes; the page, event identities, and delivery contract do not.
+          working one folds it in between tool calls. On Codex, the full Leaf page opens
+          in the browser pane, or a local browser when the pane is unavailable. A
+          detached adapter queues the complete pending batch into the same task. The
+          experimental inline MCP App uses that adapter too; its own
+          <code>ui/message</code> response is not a delivery receipt. Comments from
+          either surface pass through the same validator and log. The presentation
+          changes; the page, event identities, and delivery contract do not.
         </p>
         <p id="wait-ack">
           The wait owner acknowledges a complete, untruncated JSON batch only after it

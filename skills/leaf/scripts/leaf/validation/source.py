@@ -207,7 +207,7 @@ def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
         if (page_dir / "theme.css").exists()
         else ""
     )
-    errors = css_syntax_errors(parser.css, "page <style>")
+    errors = list(css_syntax_errors(parser.css, "page <style>"))
     for number, style in enumerate(parser.inline_styles, 1):
         errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
     errors.extend(css_syntax_errors(theme_css, "theme.css"))

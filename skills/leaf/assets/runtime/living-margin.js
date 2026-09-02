@@ -355,16 +355,19 @@ export function createLivingMargin(dependencies) {
   nav.append(toolbar);
   chromeRoot.append(nav);
 
-  function placeMargin(
+  function measureMargin(
     columnRect = document.querySelector("main")?.getBoundingClientRect(),
   ) {
     const main = document.querySelector("main");
     if (!main || !columnRect) return;
     const at = documentPoint(columnRect.left, columnRect.top);
-    nav.style.left = `${at.left}px`;
-    nav.style.top = `${at.top}px`;
-    nav.style.width = `${columnRect.width}px`;
-    nav.style.height = `${main.scrollHeight}px`;
+    const height = main.scrollHeight;
+    return () => {
+      nav.style.left = `${at.left}px`;
+      nav.style.top = `${at.top}px`;
+      nav.style.width = `${columnRect.width}px`;
+      nav.style.height = `${height}px`;
+    };
   }
 
   const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
@@ -572,10 +575,10 @@ export function createLivingMargin(dependencies) {
     return shown;
   };
   function choosePrimary(entry) {
-    const shown = new Set(controlsShownByOwner(directControls(entry)));
     return (
-      directControlRecords(entry).find(({ control }) => shown.has(control))?.control ??
-      null
+      directControlRecords(entry).find(({ control }) =>
+        entry.shownControls.has(control),
+      )?.control ?? null
     );
   }
   function syncControlRoles(entry) {
@@ -628,12 +631,9 @@ export function createLivingMargin(dependencies) {
     return choice ? (readingButtons.get(readingKey(entry, choice)) ?? null) : null;
   }
   const secondaryControls = (entry, primary) =>
-    (() => {
-      const shown = new Set(controlsShownByOwner(directControls(entry)));
-      return directControlRecords(entry)
-        .map(({ control }) => control)
-        .filter((control) => control !== primary && shown.has(control));
-    })();
+    directControls(entry).filter(
+      (control) => control !== primary && entry.shownControls.has(control),
+    );
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
     entry.offers
       .filter(
@@ -648,7 +648,10 @@ export function createLivingMargin(dependencies) {
     const generated = secondaryReadings(entry, primary).length;
     const contributed = secondaryControls(entry, primary).length;
     const after = afterOffers(entry, { claimedOnly }).reduce(
-      (count, offered) => count + controlsShownByOwner(controlsOf(offered)).length,
+      (count, offered) =>
+        count +
+        controlsOf(offered).filter((control) => entry.shownControls.has(control))
+          .length,
       0,
     );
     if (claimedOnly && !entry.offers.some((offered) => offered.claim)) return generated;
@@ -1038,8 +1041,12 @@ export function createLivingMargin(dependencies) {
       place: (item, column) => {
         const target = item.lfEntry?.target;
         if (!target) return;
-        if (nav.contains(item)) placeMargin(column);
-        item.style.top = `${Math.max(0, shownBox(target).top - column.top)}px`;
+        const place = nav.contains(item) ? measureMargin(column) : null;
+        const top = Math.max(0, shownBox(target).top - column.top);
+        return () => {
+          place?.();
+          item.style.top = `${top}px`;
+        };
       },
     };
   }
@@ -1489,7 +1496,8 @@ export function createLivingMargin(dependencies) {
         readingOptionNode(entry, choice),
       ),
       ...afterOffers(entry).flatMap((offered) =>
-        controlsShownByOwner(controlsOf(offered))
+        controlsOf(offered)
+          .filter((control) => entry.shownControls.has(control))
           .map((control) => ({ control, offered }))
           .sort(compareControlRecords)
           .map(({ control }) => control),
@@ -1721,9 +1729,18 @@ export function createLivingMargin(dependencies) {
     transferThreadFocus = false;
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
-    placeMargin(main?.getBoundingClientRect());
+    measureMargin(main?.getBoundingClientRect())?.();
     syncInlineOffers();
     pageMapEntries = collectEntries().filter((entry) => entry.target);
+    // Read contributor visibility once for the whole render, before folding any
+    // controls. Placement and option counts share this reading; probing again
+    // temporarily unfolds controls and forces style/layout work for every row.
+    const shownControls = new Set(
+      controlsShownByOwner([
+        ...new Set(pageMapEntries.flatMap((entry) => entry.offers.flatMap(controlsOf))),
+      ]),
+    );
+    for (const entry of pageMapEntries) entry.shownControls = shownControls;
     const live = new Set(pageMapEntries.map((entry) => entry.key));
     const liveReadingKeys = new Set(
       pageMapEntries.flatMap((entry) =>

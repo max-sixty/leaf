@@ -61,6 +61,99 @@ def address_span(count):
     return f"1–{capped}" if capped > 1 else "1"
 
 
+def test_margin_layout_batches_the_composed_page_without_refolding_controls(
+    browser, serve
+):
+    """Layout work is bounded by phases, not the number of contributed controls.
+
+    The corpus used to force 26 layouts and 44 style recalculations per unchanged
+    pass (about 45 ms in local Chrome). Count the browser's work rather than time;
+    the contributor's primary/overflow state must also remain untouched.
+    """
+    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
+    page, errors = open_page(browser, serve(corpus))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    assert page.locator(".lf-margin-item").count() >= 15
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    reading = page.evaluate(
+        """async () => {
+          const {layoutMarginRows} = await import('/runtime/margin-layout.js');
+          const rows = [...document.querySelectorAll('.lf-margin-item')];
+          const boxes = () => rows.map(row => {
+            const {x, y, width, height} = row.getBoundingClientRect();
+            return {x, y, width, height};
+          });
+          const before = boxes();
+          const observer = new MutationObserver(() => {});
+          observer.observe(document.body, {subtree: true, attributes: true,
+            attributeFilter: ['data-lf-button-primary', 'data-lf-button-overflow']});
+          for (let i = 0; i < 5; i++) layoutMarginRows();
+          const mutations = observer.takeRecords().length;
+          observer.disconnect();
+          return {before, after: boxes(), mutations};
+        }"""
+    )
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    assert reading["mutations"] == 0
+    assert reading["after"] == reading["before"]
+    work = {
+        name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
+    }
+    assert all(count <= 30 for count in work.values()), work
+    assert errors == []
+    page.close()
+
+
+def test_a_docked_cluster_keeps_later_margin_buttons_beside_their_targets(
+    browser, serve
+):
+    """Docking adds page height; later hanging Buttons use that final flow."""
+    fixture = leaf_page(
+        "Mixed margin postures",
+        '<p id="first">First target</p><p id="second">Second target</p>',
+    )
+    page, errors = open_page(browser, serve(fixture))
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          for (const [id, count] of [['first', 6], ['second', 1]]) {
+            const controls = document.createElement('span');
+            for (let i = 0; i < count; i++) controls.append(
+              marginAction(offer('button', ''), {
+                key: `action-${i}`, icon: 'dot', label: `Action ${i} for ${id}`,
+                role: i ? 'secondary' : 'primary'
+              })
+            );
+            registerMarginItem({key: id, target: document.getElementById(id), controls,
+              claim: false, state: count > 1 ? 'engaged' : 'idle'});
+          }
+        }"""
+    )
+    first = page.locator('[data-lf-margin-for="first"]')
+    second = page.locator('[data-lf-margin-for="second"]')
+    for width in (1440, 1000, 1440):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        assert ("lf-docked" in first.get_attribute("class")) == (width == 1000)
+        expect(second).not_to_have_class(re.compile(r"\blf-docked\b"))
+        assert second.bounding_box()["y"] == pytest.approx(
+            page.locator("#second").bounding_box()["y"], abs=1
+        )
+    assert errors == []
+    page.close()
+
+
 def expect_page_map_address(page, count, pressed):
     key_line(page)
     hint = page.locator(PAGE_MAP_ITEM_HINT)

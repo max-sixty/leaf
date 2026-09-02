@@ -482,8 +482,8 @@ The reader's design mode (`i` in the browser) posts a comment about the layer ra
 than the page: `"about": "layer"`, anchored on the element they clicked or the words they
 selected. The anchor's `section` is a widget's id, or the id of a runtime part —
 `lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
-`lf-composer`, `lf-comment-button` (the margin's 💬), `lf-keyline`, `lf-help` — and
-`part` names the control the click landed on, where it landed on one (`✓ Accept`,
+`lf-composer`, `lf-comment-button` (the margin's Comment Button), `lf-keyline`, `lf-help` — and
+`part` names the control the click landed on, where it landed on one (`Accept`,
 `Threads (2)`).
 
 ```json

@@ -1,4 +1,9 @@
-import { marginAction, registerMarginItem } from "./living-margin.js";
+import {
+  iconElement,
+  marginAction,
+  marginActionState,
+  registerMarginItem,
+} from "./living-margin.js";
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
@@ -6,18 +11,22 @@ import { marginAction, registerMarginItem } from "./living-margin.js";
 // change vocabulary without each inventing a button shape.
 export function responseAction(
   control,
-  { glyph, label, behavior = "action", collapse = false },
+  { glyph = null, icon = null, label, behavior = "action", collapse = false },
 ) {
+  if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
+    throw new TypeError("A response action needs exactly one glyph or icon");
   control.classList.add("lf-response-control", "lf-response-action");
   control.dataset.lfBehavior = behavior;
   control.toggleAttribute("data-lf-collapse", collapse);
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
-  const glyphNode = document.createElement("span");
-  glyphNode.className = "lf-response-action-glyph";
-  glyphNode.setAttribute("aria-hidden", "true");
-  glyphNode.textContent = glyph;
+  const glyphNode = icon ? iconElement(icon) : document.createElement("span");
+  if (!icon) {
+    glyphNode.className = "lf-response-action-glyph";
+    glyphNode.setAttribute("aria-hidden", "true");
+    glyphNode.textContent = glyph;
+  }
   const spaceNode = document.createElement("span");
   spaceNode.className = "lf-response-action-space";
   spaceNode.setAttribute("aria-hidden", "true");
@@ -30,14 +39,16 @@ export function responseAction(
   return control;
 }
 
-// Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
-// carrying the event a second press takes back. The reaction rides the pill rather than
-// a map beside it, so a reconcile that keeps the node keeps the fact with it.
+// Standing tokens wear their word in strips and the settled witness in margin circles.
+// Both carry the event a second press takes back. The reaction rides the pill rather
+// than a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
   const by = new Map(standing.map((x) => [x.token, x]));
   for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
     const on = by.get(pill.dataset.token) ?? null;
     pill.setAttribute("aria-pressed", on ? "true" : "false");
+    if (pill.classList.contains("lf-margin-action"))
+      marginActionState(pill, on ? "settled" : "idle");
     pill.lfReaction = on;
   }
 }
@@ -48,6 +59,8 @@ export function createReactions({
   PRESS,
   anchorLabel,
   announce,
+  buttonChoices,
+  buttonContextContains,
   claimsEsc,
   currentRevision,
   cut,
@@ -89,15 +102,22 @@ export function createReactions({
   // while the token stands on its target, so a closed surface keeps the reader's marks
   // without offering the whole vocabulary. Digits remain keyboard accelerators without
   // changing the shape of every pill.
-  function reactPill(name, entry, pressed, { margin = false, response = false } = {}) {
+  function reactPill(
+    name,
+    entry,
+    pressed,
+    { margin = false, response = false, ordinal = 0 } = {},
+  ) {
     const pill = offer("button", `${margin || response ? "" : "lf-pill "}lf-react`);
     const meaning = `${name} — ${entry.means}`;
     pill.dataset.token = name;
     if (margin) {
       pill.setAttribute("aria-label", meaning);
       marginAction(pill, {
+        key: `reaction:${String(ordinal).padStart(4, "0")}:${name}`,
         glyph: entry.glyph,
         label: meaning,
+        role: "secondary",
       });
     } else {
       pill.title = meaning;
@@ -140,7 +160,7 @@ export function createReactions({
     );
     if (floatingResponses)
       responseAction(trigger, {
-        glyph: "…",
+        icon: "more",
         label: "Other responses",
         behavior: "options",
         collapse: true,
@@ -154,11 +174,12 @@ export function createReactions({
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", label);
     trigger.setAttribute("aria-controls", palette.id);
-    for (const [name, entry] of reactionTokens())
+    for (const [ordinal, [name, entry]] of reactionTokens().entries())
       palette.append(
         reactPill(name, entry, pressed, {
           margin: marginActions,
           response: responseActions,
+          ordinal,
         }),
       );
     surface.append(trigger, palette);
@@ -176,7 +197,7 @@ export function createReactions({
 
   function buildReactBar() {
     const fabSuggest = responseAction(offer("button", "lf-fab-suggest"), {
-      glyph: "✎",
+      icon: "edit",
       label: "Suggest",
       behavior: "disclosure",
     });
@@ -197,9 +218,11 @@ export function createReactions({
     marginSurface.setAttribute("role", "group");
     marginSurface.setAttribute("aria-label", "Other responses");
     marginSuggest = marginAction(offer("button", "lf-fab-suggest"), {
-      glyph: "✎",
+      key: "suggest",
+      icon: "edit",
       label: "Suggest",
       behavior: "disclosure",
+      role: "secondary",
     });
     marginSuggest.onclick = () => {
       if (!fabAnchorAt()?.quote || designIsOn()) return;
@@ -207,9 +230,11 @@ export function createReactions({
       suggestHere();
     };
     const marginComment = marginAction(offer("button", "lf-fab"), {
-      glyph: "💬",
+      key: "comment",
+      icon: "comment",
       label: "Comment",
       behavior: "disclosure",
+      role: "primary",
     });
     marginComment.onclick = () => {
       setReact(false);
@@ -299,6 +324,7 @@ export function createReactions({
         .filter(Boolean),
     );
     marginOffer = registerMarginItem({
+      key: "responses",
       target,
       controls: marginSurface,
       side: "after",
@@ -445,6 +471,7 @@ export function createReactions({
 
   function responseChoices(surface) {
     if (!surface) return [];
+    if (surface === marginSurface) return buttonChoices(fabTargetAt());
     return [
       ...surface.querySelectorAll(
         ":scope > .lf-response-action, :scope > .lf-margin-action, :scope > .lf-react-palette > .lf-react",
@@ -474,7 +501,9 @@ export function createReactions({
 
   const REACT = {
     title: "With response choices open",
-    at: () => reactArmed,
+    // A modal may expose overflow from this same response interaction. Its native
+    // focus walk and Escape own the keyboard until it closes; keep the anchor alive.
+    at: () => reactArmed && !document.querySelector("dialog:modal"),
     claims: EVERYTHING,
     rows: [
       {
@@ -515,12 +544,7 @@ export function createReactions({
         keys: PRESS,
         does: "Use the focused response",
         line: "choose",
-        when: () =>
-          Boolean(
-            focused()?.matches?.(".lf-react-palette .lf-react") ||
-            focused()?.matches?.(".lf-margin-reactions > .lf-margin-action") ||
-            focused()?.matches?.(".lf-fab-bar > .lf-response-action"),
-          ),
+        when: () => responseChoices(reactSurface).includes(focused()),
         run: () => focused()?.click(),
       },
       {
@@ -553,6 +577,10 @@ export function createReactions({
     buildReactBar,
     buildReactSurface,
     isReactArmed: () => reactArmed,
+    reactionContextContains: (node) =>
+      reactArmed &&
+      reactSurface === marginSurface &&
+      buttonContextContains(fabTargetAt(), node),
     reactionTokens,
     sendReaction,
     setReact,

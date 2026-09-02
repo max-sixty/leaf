@@ -35,6 +35,7 @@ export function createSelectionSurface({
   panelCovers,
   paintStanding,
   pointerAt,
+  reactionContextContains,
   reactionsOn,
   referenceIsOpen,
   resolveAnchor,
@@ -65,20 +66,22 @@ export function createSelectionSurface({
   const BANNER_CLEAR = 48;
   const topEdge = () =>
     Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
+  const leftEdge = (node, left) =>
+    Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
+  const bottomEdge = (left, width) => {
+    const keyline = keylineEl.getBoundingClientRect();
+    return keyline.height && left < keyline.right && left + width > keyline.left
+      ? keyline.top - 8
+      : innerHeight - 8;
+  };
   // So the one writer of their position is where the coordinates change space: clamp in
   // the viewport and above any key line it would cross, then store in the document.
-  // The same writer states the room a float has — the band between the gutters and
-  // between the banner and the viewport's foot — as custom properties on the float, so
-  // its stylesheet can let it grow with its contents up to that room and no further. The
-  // room is stated before the float is measured, since it decides the measurement.
-  function place(node, left, top) {
-    node.style.setProperty("--lf-float-w", `${rightEdge() - 8}px`);
-    node.style.setProperty("--lf-float-h", `${innerHeight - 8 - topEdge()}px`);
-    const x = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
-    const keyline = keylineEl.getBoundingClientRect();
-    const overlapsKeyline =
-      keyline.height && x < keyline.right && x + node.offsetWidth > keyline.left;
-    const bottom = overlapsKeyline ? keyline.top - 8 : innerHeight - 8;
+  // The chosen band also caps the float's height. Width is stated before band selection,
+  // because wrapping determines how much height the contents need.
+  function place(node, left, top, height) {
+    node.style.setProperty("--lf-float-h", `${height}px`);
+    const x = leftEdge(node, left);
+    const bottom = bottomEdge(x, node.offsetWidth);
     const at = documentPoint(
       x,
       Math.max(topEdge(), Math.min(top, bottom - node.offsetHeight)),
@@ -105,30 +108,46 @@ export function createSelectionSurface({
   // The response bar carries the anchor its field will submit on, so targeting and typing
   // cannot come to different conclusions about what the reader picked. Visibility is
   // derived from that anchor and never read back off the stylesheet.
-  const beside = (rect) => [rect.right + 6, rect.top - 6];
-  // A float has one more thing to stay clear of: a control standing on the page. The
-  // response bar floats and those controls do not. A selection runs to the column's
-  // right edge on any line it fills, so `beside` puts the field in the margin — which is
-  // also where a suggestion can hang the row deciding the change that selection covered.
-  //
-  // Down, and past each in turn, because the margin runs down the page: clearing one row
-  // can land on the next, and walking a sorted list is the step the rows themselves take to
-  // nudge apart. place()'s clamp still has the last word, so a float with nowhere left to
-  // go keeps the best spot rather than leaving the screen.
-  function placeClear(node, left, top) {
-    place(node, left, top);
-    const box = node.getBoundingClientRect();
-    const sharing = pageControls()
-      .map((c) => c.getBoundingClientRect())
-      // Keep the same small gutter sideways that the walk leaves below a row. A
-      // one-glyph difference between system fonts must not decide whether two
-      // controls almost touch or the float steps clear.
-      .filter((r) => r.width && r.left < box.right + 6 && box.left < r.right + 6)
+  // The viewport, the target and the page's controls define one set of free bands.
+  // Walking down past controls and then clamping to the viewport could put a growing
+  // editor back on its target. Choose a band first; CSS can then size the field to it.
+  function placeClear(node, left, top, target, wantedHeight) {
+    const x = leftEdge(node, left);
+    const bottom = bottomEdge(x, node.offsetWidth);
+    const sharing = [...pageControls().map((c) => c.getBoundingClientRect()), target]
+      .filter((r) => r.width && r.left < x + node.offsetWidth + 6 && x < r.right + 6)
       .sort((a, b) => a.top - b.top);
-    let y = box.top;
-    for (const r of sharing)
-      if (r.top < y + box.height && y < r.bottom) y = r.bottom + 6;
-    if (y !== box.top) place(node, left, y);
+    const bands = [];
+    let start = topEdge();
+    for (const r of sharing) {
+      const end = Math.min(bottom, r.top - 6);
+      if (end > start) bands.push({ top: start, bottom: end });
+      start = Math.max(start, r.bottom + 6);
+    }
+    if (start < bottom) bands.push({ top: start, bottom });
+    const minimum = composerIsOpen()
+      ? parseFloat(getComputedStyle(fabInput).minHeight)
+      : node.offsetHeight;
+    const candidates = bands
+      .filter((band) => band.bottom - band.top >= minimum)
+      .map((band) => {
+        const height = Math.min(wantedHeight, band.bottom - band.top);
+        const y = Math.max(band.top, Math.min(top, band.bottom - height));
+        const distance = Math.max(target.top - y - height, y - target.bottom, 0);
+        return { left: x, top: y, height, room: band.bottom - y, distance };
+      });
+    // Stay associated with the target, then keep as much writing visible as that band
+    // allows. A distant gap is not a better seat just because it is taller. A target
+    // filling the entire viewport leaves no free band, so the ordinary viewport clamp
+    // remains the last resort.
+    return (
+      candidates.sort(
+        (a, b) =>
+          a.distance - b.distance ||
+          b.height - a.height ||
+          Math.abs(a.top - top) - Math.abs(b.top - top),
+      )[0] ?? { left: x, top, room: bottom - topEdge() }
+    );
   }
   let fabAnchor = null;
   let fabOrigin = null;
@@ -174,22 +193,50 @@ export function createSelectionSurface({
         .filter(Boolean),
     );
   }
-  // The bar stands beside its target where there is room and above it where clamping
-  // would otherwise cover the thing that says what the actions are about.
+  // The passage remains the exact anchor, but its containing paragraph is not spare
+  // space: a short selection cannot lend the words after it to the response field.
+  // Keep the bar beside that whole block, or above/below it when the rail is too narrow.
   function placeFab(target = anchorBox(fabAnchor)) {
     if (!fabAnchor || !target) return false;
-    placeClear(fabBar, ...beside(target));
-    const box = fabBar.getBoundingClientRect();
-    if (
-      box.left < target.right &&
-      box.right > target.left &&
-      box.top < target.bottom &&
-      box.bottom > target.top
-    ) {
-      const above = target.top - box.height - 6;
-      const top = above >= topEdge() ? above : target.bottom + 6;
-      placeClear(fabBar, target.right - box.width, top);
+    const block = fabAnchor.quote && fabTargetAt();
+    const clips = new Map();
+    const keepClear =
+      (block &&
+        union(
+          shownParts(block)
+            .map((part) => shownRect(part, clips))
+            .filter(Boolean),
+        )) ||
+      target;
+    fabBar.style.setProperty("--lf-float-w", `${rightEdge() - 8}px`);
+    if (composerIsOpen()) {
+      // CSS owns content sizing. Geometry contributes only the real room the field
+      // can use, including the bar's other controls, before deciding where it stands.
+      const controls = fabBar.offsetWidth - fabInput.offsetWidth;
+      const besideRoom = rightEdge() - keepClear.right - 6 - controls;
+      const minimum = parseFloat(
+        getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
+      );
+      fabBar.style.setProperty(
+        "--lf-response-room",
+        `${besideRoom >= minimum ? besideRoom : rightEdge() - 8 - controls}px`,
+      );
     }
+    const left =
+      keepClear.right + 6 + fabBar.offsetWidth <= rightEdge()
+        ? keepClear.right + 6
+        : keepClear.right - fabBar.offsetWidth;
+    // Read the field's scroll extent at its real width, without temporarily enlarging
+    // it in either axis. A temporary enlargement reduces the scroll extent and clamps
+    // scrollTop, so the captured scroll listener would make the last lines unreachable.
+    const wantedHeight = composerIsOpen()
+      ? Math.max(
+          fabBar.offsetHeight,
+          fabInput.scrollHeight + fabInput.offsetHeight - fabInput.clientHeight,
+        )
+      : fabBar.offsetHeight;
+    const at = placeClear(fabBar, left, target.top - 6, keepClear, wantedHeight);
+    place(fabBar, at.left, at.top, at.room);
     return true;
   }
   function showFab(
@@ -218,7 +265,7 @@ export function createSelectionSurface({
     if (responses) responses.hidden = !fabAnchor || !hasOtherResponses(fabAnchor);
     // Comment returns from the bar's choice state to this same field. At rest the input
     // itself is the comment affordance.
-    fab.style.display = fabAnchor ? "block" : "none";
+    fab.style.display = fabAnchor ? "" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
       fabBar.setAttribute("aria-label", label ? `Respond to ${label}` : "Respond");
@@ -317,7 +364,6 @@ export function createSelectionSurface({
   function showFabOptions() {
     fabBar.querySelector(":scope > .lf-react-trigger")?.click();
   }
-  fabInput.addEventListener("input", () => requestAnimationFrame(() => placeFab()));
   // The response field follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
   // the one the reader sees while storing the one the document holds lets a two-character
@@ -552,7 +598,11 @@ export function createSelectionSurface({
       !fabAnchor?.quote &&
       fabAnchor?.section === visual.id &&
       fabAnchor?.visual === visual.part?.part;
-    if (!sameVisual && !target.closest?.(".lf-react-surface, .lf-composer")) {
+    if (
+      !sameVisual &&
+      !target.closest?.(".lf-react-surface, .lf-composer") &&
+      !reactionContextContains(target)
+    ) {
       if (composerIsOpen()) hideComposer();
       showFab(null, null, { returnFocus: "page" });
       // The armed react press goes with the bar it was armed on.
@@ -654,7 +704,6 @@ export function createSelectionSurface({
   return {
     BANNER_CLEAR,
     activateVisual,
-    beside,
     dismissFab,
     fabAnchorAt,
     fabOptionsAvailable,
@@ -663,7 +712,6 @@ export function createSelectionSurface({
     focusFabComment,
     openOnItem,
     focusTargetComment,
-    placeClear,
     refreshFab,
     selectResponseTarget,
     showFab,

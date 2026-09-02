@@ -9,7 +9,11 @@ export { conversationInput, landInConversation } from "./conversation/landing.js
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
-export { marginAction, registerMarginItem } from "./living-margin.js";
+export {
+  marginAction,
+  marginActionState,
+  registerMarginItem,
+} from "./living-margin.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { scrollerFor } from "./navigation.js";
 export { pageScroller } from "./scrolling.js";
@@ -27,7 +31,7 @@ export {
   wrote,
 } from "./passages.js";
 export { ago, quietSince } from "./presence.js";
-export { shallowSigs, standingState } from "./projection.js";
+export { shallowSigs, standingState, undoableAction, withdraw } from "./projection.js";
 export { shadowStage } from "./shadow.js";
 export { agentName, revisionLabel } from "./context.js";
 export { loadDataFragment, watchData } from "./data.js";

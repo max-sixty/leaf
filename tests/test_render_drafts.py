@@ -483,7 +483,10 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft).to_have_attribute("aria-busy", "true")
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == sent
 
-    draft_controls(page).locator(".lf-draft-pencil").click()
+    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_disabled()
+    draft_controls(page).locator(".lf-draft-pencil").evaluate(
+        "button => button.click()"
+    )
     expect(draft.locator("textarea")).to_have_count(0)
     expect(page.locator(".lf-notice")).to_contain_text("Wait for the current edit")
 
@@ -504,6 +507,54 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     assert errors == []
+    page.close()
+
+
+def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
+    browser, serve
+):
+    """Failure is an editable state, with Retry and Cancel at the same target."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    draft = page.locator("#draft-ops")
+    draft.locator(".lf-draft-body").dblclick()
+    editor = draft.locator("textarea")
+    editor.fill("Keep these unsent words.")
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    draft_controls(page).get_by_role("button", name="Save", exact=True).click()
+    item = page.locator('[data-lf-margin-for="draft-ops"]')
+    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
+    expect(item).to_have_attribute("data-lf-state", "failed")
+    expect(editor).to_have_value("Keep these unsent words.")
+    expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.locator(".lf-margin-more")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    editor.fill("Keep the revised unsent words.")
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(item).to_have_attribute("data-lf-state", "engaged")
+    item.get_by_role("button", name="Save", exact=True).click()
+    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
+    page.unroute("**/api/event")
+    item.get_by_role("button", name="Retry", exact=True).click()
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text(
+        "Keep the revised unsent words."
+    )
+    edits = [
+        event for event in sent_events(serve.page_dir) if event.get("action") == "edit"
+    ]
+    assert [event["detail"] for event in edits] == [
+        {"text": "Keep the revised unsent words."}
+    ]
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -1787,11 +1838,13 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     compose(first, "#p3", opened)
     compose(second, "#p3")
     expect(second.locator(".lf-composer textarea")).to_have_value(opened)
+    height = "ta => Math.round(ta.getBoundingClientRect().height)"
+    compact_height = second.locator(".lf-composer textarea").evaluate(height)
 
     grown = opened + "\n\n" + "And the one after it says the same thing again. " * 4
     first.locator(".lf-composer textarea").fill(grown)
     expect(second.locator(".lf-composer textarea")).to_have_value(grown)
-    height = "ta => Math.round(ta.getBoundingClientRect().height)"
+    assert first.locator(".lf-composer textarea").evaluate(height) > compact_height
     assert second.locator(".lf-composer textarea").evaluate(height) == first.locator(
         ".lf-composer textarea"
     ).evaluate(height), (
@@ -1802,6 +1855,7 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     first.locator(".lf-composer textarea").fill("")
     expect(second.locator(".lf-composer textarea")).to_have_value("")
     expect(second.locator(".lf-composer")).to_be_visible()
+    assert second.locator(".lf-composer textarea").evaluate(height) == compact_height
 
     sent = "The point is buried, and the paragraph after it repeats it."
     first.locator(".lf-composer textarea").fill(sent)

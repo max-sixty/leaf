@@ -1162,15 +1162,20 @@ and focuses that field immediately. Selecting a passage opens the field without 
 focus or collapsing the browser selection; the reader can still copy the selection or use
 its native context menu, then enter the field with Comment. The field grows in place and
 never transfers text into a second composer card. A one-line note is a pill. A longer one
-widens to a readable 80ch and then wraps, and grows down as far as the room below the
-banner before it scrolls; its corner stays the pill's 16px rather than growing with the
-box, so the corner never reaches over the first or last line. `place` states a float's
-room as `--lf-float-w` and `--lf-float-h`, the bar's width is capped by it, and the field
-is the part that shrinks. Enter sends and Shift-Enter inserts a newline. Tab changes the same bar into Comment, Suggest when the
-anchor is a quote, and the layer's reaction tokens. `.lf-response-control` keeps the
-field and every choice on one baseline with one type, border, corner, and elevation; the
-bar keeps its DOM owner and accessible name while its contents change. Comment restores
-the field and Suggest restores it in replacement-text mode.
+widens up to a readable 80ch and then wraps, and grows into the available clear band
+before it scrolls; its corner stays the pill's 16px rather than growing with the box,
+so the corner never reaches over the first or last line. Placement states a float's
+room as `--lf-float-w` and `--lf-float-h`; the bar is capped by it and the field's
+`--lf-response-room` excludes its neighboring controls. The field's scroll extent
+supplies its desired height without temporarily resizing it and losing the reader's
+scroll position. When the target fills the viewport, the viewport still caps the field.
+Enter sends and Shift-Enter
+inserts a newline. Tab changes the same bar into Comment, Suggest when the anchor is a
+quote, and the layer's reaction tokens. `.lf-response-control` keeps the field and every
+choice on one baseline with one type, border, corner, and elevation; the bar keeps its
+DOM owner and accessible name while its contents change. Comment restores the field and
+Suggest restores it in replacement-text mode. Their structural icons use the same
+stroked SVG vocabulary as Target Buttons; only authored reaction tokens supply text glyphs.
 
 `showFab` places the bar; `openComposer` binds its field to the durable draft and takes the
 focus decision. `selectResponseTarget` focuses it for a keyboard item hint, and the ⌥ press
@@ -1185,8 +1190,12 @@ and dock with it when necessary; they do not claim permanent rail width. A threa
 With none of those targets, it shows “Select something to react to” and opens
 nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
 comment box. `REACT` claims the keyboard while a list is open. Arrow keys wrap through
-every choice in the row, including Comment and Suggest when the target offers them;
-Tab and Shift-Tab follow that same order.
+every visible Button in the target's shared cluster, including its primary actions and
+Page-map overflow; floating and message-local rows walk their own choices. Tab and
+Shift-Tab follow that same order. The Page-map dialog remains part of the response's
+target context but owns its native keyboard walk and Escape while open. Closing it
+restores its exact opener; selecting overflow presses the original Button before its
+temporary target is released.
 Enter or Space presses the focused choice, digits remain optional reaction accelerators
 in declaration order, and a stray key closes the list before keeping its ordinary meaning.
 
@@ -1278,9 +1287,11 @@ focus end with the release. It
 does not suppress a press merely because an older selection contains the control or
 because the pointer landed beside selected text.
 
-`placeClear` moves floating controls away from selectable or interactive content
-they would cover. It reads the general `data-lf-offer` marker, not a list of
-widget controls.
+`placeClear` fits the response bar into a free band bounded by the viewport,
+its target, and controls carrying `data-lf-offer`. A quoted passage keeps its
+whole paragraph clear. Placement prioritizes proximity to the target, then
+visible writing space; geometry supplies CSS room constraints, while CSS owns
+the field's content sizing.
 
 ## Layout and motion
 
@@ -1384,23 +1395,27 @@ single place for controls the reader can use on the target, communications they 
 start about it, and standing information such as comment threads, decisions,
 outcomes, changes, or agent activity.
 
-At rest a cluster shows at most one primary Button. A content contribution with an
-available primary action wins that place; its other controls move under the adjacent
-`…` Button. With no contributed control, standing information supplies a generated
-disclosure Button. `…` appears only when the cluster has secondary controls,
-information beside a direct action, or temporary communication choices. A target
-with one unambiguous control therefore gets one Button, not a row of variants.
+At rest a cluster has a two-Button budget: the primary and one peer, or the primary
+and `…` when there are at least two peers. Hiding one peer costs the same fitting as
+showing it and adds a press, so it is not overflow. With no contributed control,
+standing information supplies the primary disclosure Button.
 
-An engaged contribution shows its complete peer set instead. Engagement is the
+The expanded budget is six fittings, including the primary. A larger set shows four
+peers and a final Page-map Button whose label gives the remaining count. That opens
+the existing Page map at the first excess action; every excess control has its own
+named row which performs that exact action. Do not grow another popover for overflow.
+The same limit and exact-action route apply when the cluster docks on a narrow screen.
+
+An engaged contribution exposes its peers within that budget. Engagement is the
 owner's semantic interaction state, not DOM focus: an open editor, for example, keeps
 Save and Cancel exposed until either action ends the edit, even if focus moves within
 the document. An unsettled reader action engages the whole target in the same way,
-keeping its delivery lifecycle and every remaining peer visible until the handoff
-settles. An engaged set has no `…`; it cannot hide an action or status needed to
-understand, complete, or leave the interaction that is already under way.
+keeping its delivery lifecycle visible until the handoff settles. An engaged set has
+no `…`; completion and escape actions take the first fittings, so the density limit
+cannot hide the way to finish or leave the active interaction.
 
 Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
-replaces `…` with every available peer, and Left/Right wrap through those visible
+replaces `…` with the expanded set, and Left/Right wrap through those visible
 Buttons. A pointer press on `…` makes the same replacement and lands on the first
 revealed Button. Escape folds that temporary expansion, restores `…`, and returns
 focus to it; moving focus or the pointer outside folds without taking focus. None of
@@ -1421,16 +1436,20 @@ peer. A standalone page-widget claim gets an **Active** Button directly. When no
 the full thread panel or a widget frozen into conversation chrome—the compact
 `.lf-receipt` remains the local fallback.
 
-Content modules contribute through `registerMarginItem`; they own their verbs and
-events, never placement or control styling. An `engaged` reading keeps the owner's
-complete control set exposed. A contribution item that sets `represents` and names its
+Content modules contribute through `registerMarginItem({key, target, controls, state,
+...})`; they own their verbs and events, never placement or control styling. `key` is
+stable within a target. `state` is a value or live reading of `idle`, `engaged`, `busy`,
+`failed`, or `settled`; active states keep the owner's peers exposed. A contribution
+item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
 Every press in a contribution is built with
-`marginAction(control, {glyph, label, behavior, tone})`. That is the one RHS control
+`marginAction(control, {key, icon, label, behavior, tone, role, state})`; an authored
+reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
-the promise before the press:
+the promise before the press. Behavior, tone, and state are independent axes: never
+use a heavier border to mean positive, busy, selected, or complete.
 
 - `action` has a uniformly heavier ring, carries an imperative verb, and performs its
   effect immediately;
@@ -1439,14 +1458,46 @@ the promise before the press:
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
   place.
 
-Ring weight carries that distinction without changing shape or adding a chevron. A lone
-non-thread informational Button reveals its target directly. Each additional
-non-thread reading gets its own peer Button under `…`; pressing one reveals that
+Ring weight carries that distinction; the shape and soft border color stay shared,
+with no chevron. A lone non-thread informational Button reveals its target directly.
+Each additional non-thread reading gets its own peer Button under `…`; pressing one reveals that
 reading directly rather than collecting readings in a card. All threads at one target
 share one Thread Button and one conversation card. That card opens only on a press,
 never merely on focus or hover; when the document cannot leave it room beside the
 source, the same press opens the full Threads surface. The thread card is the only
 generated contextual pane, not a generic container for alternatives.
+
+Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
+rings, fills, and state marks keep their shared neutral treatment. State has a
+separate small corner mark: a dot for engaged, an open moving ring for busy (static
+under reduced motion), a diamond for failed, and a square for settled. Busy also sets
+`aria-busy="true"`; failed and settled action receipts need visible words, not color
+or shape alone. Standing reactions reuse the settled square in their margin palette
+and seated marks, so they remain distinct from hover without changing the shared
+ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
+withdrawing a token returns its palette Button to idle.
+`marginActionState(control, state)` changes that axis without changing the verb, ring,
+or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
+emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
+declared by the layer and retain their declared vocabulary order.
+
+Ordering is semantic, not registration or DOM order. Active contributors rank failed,
+busy, then engaged; ordinary contributors follow. Within that order, roles rank
+`complete`, `escape`, `primary`, `secondary`, `reading`, then `overflow`. Stable
+contributor and control keys break ties. The primary is the first available contributed
+control; generated readings follow direct controls, and a temporary communication
+palette keeps its own keyed order after those readings. Reordering a module's setup
+must not move an unrelated action into the primary fitting.
+
+A failed mutation leaves **Failed · Retry · Cancel** at its target. Retry makes a new
+attempt only after a definitive refusal; an ambiguous transport result stays busy
+while the outbox retries the same attempt. Details is a disclosure only when there is
+useful detail to show. An editor retains the user's text; typing again returns from
+failed to engaged. Reversible actions normally act immediately and offer Undo, which
+withdraws the named logged gesture under the same authored-version, replayability,
+and pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
+effect, not routine Save or Accept. Settled outcomes are visible receipt text beside
+an active Undo or context disclosure: never leave an inert Button-shaped status.
 
 The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
 over an unfolded `…` group, Escape closes the card first and folds the secondary Buttons
@@ -1465,6 +1516,11 @@ keyboard focus without changing the cluster's geometry; an open disclosure keeps
 label visible. Labels for `disclosure` and `options` end in an ellipsis, while immediate
 action labels do not. The complete word remains in the DOM and the accessible name
 never changes.
+
+Hover or focus on any fitting illuminates its exact target, including a cluster
+displaced by packing. Labels stay inside the viewport without moving the fitting.
+Dense and narrow-screen tests must exercise that association and activate an excess
+action through Page map; counting hidden DOM nodes is not evidence of reachability.
 
 The living margin groups contributions and state readings by exact target identity,
 chooses the primary, and owns the generated disclosure and `…` Buttons plus the
@@ -2646,8 +2702,10 @@ version, but a fragment target may not.
 keep the send button and placeholder current, and prevent parallel sends of one local
 surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer passes
 `Enter`, leaving Shift-Enter to the textarea's native newline. The stylesheet owns
-textarea growth through `field-sizing: content`. Script does not measure or set textarea
-height; `place` states the room a float has, and the stylesheet caps growth against it.
+textarea growth through `field-sizing: content`, within the room supplied by floating
+placement. Script does not derive textarea height from its text. `wireInput`'s sync
+refreshes the composer's placement for typed and programmatic edits alike, including
+drafts mirrored from another tab.
 
 The selection composer keeps its passage painted after an explicit Comment gesture moves
 focus into the textarea. Automatic passage selection leaves the native selection in place.

@@ -1794,11 +1794,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Target actions are contributed outside the chrome scope and share one complete
         # item. These names are the deliberate document-level half of that seam.
         "lf-margin-item",
+        "lf-margin-options",
         "lf-margin-contribution",
         "lf-margin-action",
         "lf-margin-action-glyph",
+        "lf-margin-action-icon",
         "lf-margin-action-space",
         "lf-margin-action-label",
+        "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",

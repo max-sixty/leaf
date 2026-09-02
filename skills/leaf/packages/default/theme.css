@@ -1223,9 +1223,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
  * gesture, then the links become pointer targets when that fade is complete; an unseen
  * label cannot navigate on the gesture that discovers it.
  *
- * The start row repeats the page title only in that map. It is still navigation
- * apparatus, so weight and ink distinguish it within the same sans voice as the section
- * labels. Their common inset then reads as one route rather than two typographic systems.
+ * The start row repeats the page title in that map, and on paper, where the outline is
+ * the one reading of the route and keeps every word the map says; the open outline on
+ * screen sits under the title and leaves it out. It is still navigation apparatus, so
+ * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Every knot stays on the same spine, and every
  * label is limited to two lines so an unusually discursive heading does not take over the
  * map.
@@ -1244,6 +1245,7 @@ lf-toc .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
                          font-size: var(--t-6); font-weight: 650;
                          letter-spacing: .08em; text-transform: uppercase; }
 lf-toc .lf-toc-start, lf-toc .lf-toc-window { display: none; }
+@media print { lf-toc .lf-toc-start { display: block; } }
 lf-toc ol { list-style: none; margin: 0; padding: 0; }
 lf-toc li { --lf-toc-indent: 0px; margin: 0 0 0 var(--lf-toc-indent); }
 lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }

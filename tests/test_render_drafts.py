@@ -40,6 +40,7 @@ from render_support import (
     painted,
     panel_settled,
     pending_text,
+    primed,
     refuse,
     resized,
     round_trip,
@@ -51,6 +52,26 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+@pytest.fixture
+def held_composer_send(browser, request):
+    """The page starts under interception, before any request can bypass the hold."""
+    held = []
+
+    def prepare(page):
+        page.route("**/api/event", lambda route: held.append(route))
+
+        def release():
+            if page.is_closed():
+                return
+            while held:
+                held.pop(0).continue_()
+            page.unroute("**/api/event")
+
+        request.addfinalizer(release)
+
+    return primed(browser, prepare), held
 
 
 def draft_controls(page, draft_id="draft-ops"):
@@ -981,7 +1002,9 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     page.close()
 
 
-def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, serve):
+def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
+    held_composer_send, serve
+):
     """A comment's send must not take a newer passage selection with its focus handoff.
 
     The newer selection remains native and keeps its response field available while the
@@ -990,14 +1013,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     Held rather than raced: the window is one request's flight, and a machine quick
     enough closes it before the next gesture. A loaded CI runner is not, and it said so
     as a 💬 that never came up for the passage picked out after a send."""
+    browser, held = held_composer_send
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.locator("#p1").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
@@ -1007,7 +1029,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     expect(page.locator(".lf-fab-input")).to_have_value("")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -1784,20 +1806,21 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     assert again_errors == []
 
 
-def test_a_held_selection_comment_preserves_a_newer_exact_draft(browser, serve):
+def test_a_held_selection_comment_preserves_a_newer_exact_draft(
+    held_composer_send, serve
+):
     """A selection send owns one serialized composer generation, not its box."""
+    browser, held = held_composer_send
     page, errors = open_page(browser, serve(LONG_PAGE))
     old = "The selected passage needs this first comment."
     newer = "  A newer selection comment remains in the composer.  "
     compose(page, "#p3", old)
     box = page.locator(".lf-composer textarea")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
     box.fill(newer)
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-composer")).to_be_visible()

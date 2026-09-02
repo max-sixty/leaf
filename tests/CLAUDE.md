@@ -561,6 +561,11 @@ and Playwright reported none of the lost ones. Reach for a repeat only with that
 evidence in hand — the browser's own record showing the subject did its part — and
 say so where the repeat is written.
 
+Install a hold on the page's first POST through `primed` too. Enabling interception
+on an already-running Chromium page can let that POST reach the server without a
+route callback or Playwright request event. A hold installed before navigation keeps
+the test's premise intact without retrying the reader's gesture.
+
 A handler that appends a route to `held` has established only that the browser made
 the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a
 request event, or another fact named by the handler. Some resources are requested

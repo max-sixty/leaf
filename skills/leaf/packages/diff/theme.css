@@ -44,6 +44,12 @@ lf-diff:not(.lf-rendered) > pre {
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
+/* The press is out of the summary's flow, so that line holds a column open for it and a
+   long path wraps above it rather than running underneath. A copy with no press to make
+   room for takes its ordinary inset back. */
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) summary,
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) .lf-diff-rename {
+                                     padding-right: calc(var(--lf-diff-press) + 18px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
@@ -59,22 +65,27 @@ lf-diff:not(.lf-rendered) > pre {
                                 border-radius: 999px; background: var(--pre-bg);
                                 color: var(--code-ink); font: inherit; cursor: pointer; }
 .lf-diff-next:disabled { opacity: .55; cursor: default; }
-.lf-diff-review { flex: none; min-height: 26px; padding: 2px 8px;
-                  color: var(--code-muted); font-size: var(--t-6); float: right;
-                  margin: -2px 0 -2px 8px; }
+/* The file's row is a disclosure, and a disclosure is a control, so the review press
+   cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
+   line instead: 6px and 11px are the details' 1px border plus that line's own 7px and
+   10px padding, the top pulled 2px up so the press sits centred on the text beside it.
+   The sans is stated because the host this sits in is set in mono, and one width for
+   both labels is what makes the column the row holds open exact. */
+.lf-diff-file { position: relative; --lf-diff-press: 110px; }
+.lf-diff-review, .lf-diff-reviewed { position: absolute; top: 6px; right: 11px;
+                                     font-family: var(--sans); }
+.lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
+                  min-height: 26px; padding: 2px 8px;
+                  color: var(--code-muted); font-size: var(--t-6); }
+.lf-diff-reviewed { font-size: var(--t-5); }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }
 .lf-diff-filtered { display: none !important; }
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
+.lf-diff-review:is(:focus-visible, .lf-focus-visible),
 .lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
                                                         --lf-here-ring: diff-tools;
                                                         outline-offset: 1px; }
-/* The review press rides the file's own summary row, inside the box that clips it, so
-   it takes the inset the summary below takes and not the toolbar's outward gap: drawn
-   outward its lower run fell past the bottom the details clips at. */
-.lf-diff-review:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                            --lf-here-ring: diff-review;
-                                            outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
@@ -138,6 +149,8 @@ lf-diff:not(.lf-rendered) > pre {
 [data-lf-syn="ty"] { color: var(--syn-type); }
 @media print {
   .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
+  .lf-diff-file:not(:has([data-lf-said])) summary,
+  .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
   .lf-diff-filtered { display: block !important; }
 }
 /* lf-shadow:end */

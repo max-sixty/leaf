@@ -3789,7 +3789,14 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
 
     summary = page.locator("lf-diff summary")
     summary.click()
-    with page.expect_request(lambda request: "/api/data" in request.url):
+    # The response rather than the request, because the count below is the route
+    # handler's and the request event is not that handler. Nothing orders the two, so a
+    # wait on the request can come back with the retry in the wire and `requests` still
+    # at one, which reads as a reopen that fetched nothing. Which way the driver hands
+    # them over is not the page's to state and not this test's to depend on. The
+    # fulfilled response exists only because the handler ran, so it is the fact this
+    # count is made of.
+    with page.expect_response(lambda response: "/api/data" in response.url):
         summary.click()
     assert len(requests) == 2
     assert errors == []

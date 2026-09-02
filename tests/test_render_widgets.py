@@ -11,6 +11,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
     BAD_CHART_PAGE,
     BOARD_PAGE,
@@ -2253,6 +2254,59 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
         "starts on the question they are not being asked"
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
+    assert errors == []
+    page.close()
+
+
+def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
+    """The arrival places a region out on the page; the ask may be in a box of its own.
+
+    The placement moves whichever scroller the region belongs to, and for a region on
+    the page that is never the card's. So the ask's own box comes into view first, which
+    is the one pass that moves a nested scroller. Handing the placement the region alone
+    left the ask unscrolled in its card, with the ring and the focus on a control the
+    reader could not see — and the walk's next press repeated the same non-arrival.
+    """
+    page, errors = open_page(browser, serve(ASK_IN_A_CARD_PAGE))
+    resized(page, 900, 500)
+
+    # The card hides the ask to begin with, or the reveal has nothing to do — and the
+    # region really is outside the card, or the region's own reveal would scroll the card
+    # whatever the arrival did, and a green result would say nothing about it.
+    assert page.evaluate(
+        """() => {
+          const card = document.getElementById('ac-card');
+          const box = document.getElementById('ac-sug').getBoundingClientRect();
+          const inside = card.querySelector(
+            'p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary');
+          return card.scrollHeight > card.clientHeight &&
+                 box.top > card.getBoundingClientRect().bottom &&
+                 !(inside && !inside.closest('lf-suggestion'));
+        }"""
+    ), "the fixture's card either shows the change already or holds a block before it"
+
+    page.keyboard.press("a")
+    expect(page.locator("[data-lf-for='ac-sug'] .lf-sug-accept")).to_be_focused()
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    seen = page.evaluate(
+        """() => {
+          const box = document.getElementById('ac-sug').getBoundingClientRect();
+          const card = document.getElementById('ac-card').getBoundingClientRect();
+          const view = document.scrollingElement.clientHeight;
+          return {
+            insideCard: box.top >= card.top - 0.5 && box.bottom <= card.bottom + 0.5,
+            onScreen: box.top >= 0 && box.bottom <= view,
+          };
+        }"""
+    )
+    assert seen["insideCard"], (
+        "the change is still outside its card's own band, so the card was never scrolled"
+    )
+    # Where the card's own top ends up is not promised: the region can be a block inside
+    # the card, and placing that at the banner takes the card's top edge above it. What
+    # is promised is the change, in the window and in its card's band at once.
+    assert seen["onScreen"], "the change is in its card's band but off the window"
     assert errors == []
     page.close()
 

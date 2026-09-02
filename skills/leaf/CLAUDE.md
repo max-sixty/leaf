@@ -1576,6 +1576,14 @@ top-level block. At compact widths it returns the host to flow immediately after
 target's rendered text block (or the target itself). Adding another target action must
 not add another absolute row, control type, or rail measurement.
 
+Each render reads once which contributed controls paint, and it does not take that
+reading on paper. Print takes every injected control out of the page, so the reading
+comes back empty there and folds every cluster to nothing — the medium written down as
+the page's state, standing on screen after the print preview closes. A render asked for
+while `print` matches is refused whole and taken once the screen is back. It is the
+thread list's head-room rule on the layer's other measuring surface: a reading taken
+where the box is `display: none` is not a measurement.
+
 That ordered target collection is the Page map's complete location count and the source
 for the `g m` address list. A location's disclosure Button announces its position in
 the complete collection. The numbered chord exposes the collection's first nine

@@ -52,13 +52,17 @@ window on the account's session ceiling rather than on anything the run
 controls — when it does, an uncommitted working tree is the entire loss and the
 next session starts the same diagnosis from nothing. `tests/CLAUDE.md` names a
 smaller handover bar: the failing test's complete browser file and the everyday
-suite. Reach that bar, commit, push, open the PR, and let the PR's own `ci` run
-the rest — a red check on an open PR is a follow-up, while an unpushed fix is
-not recoverable.
+suite. Reach that bar, commit, push, and open the PR. The PR's `ci` repeats the
+everyday suite and no more — `--run-nightly` first runs after main moves — so
+the push hands over an unfinished verify rather than delegating it. That is the
+repo's ordinary landing bar, the one `wt merge` gates on, and an unpushed fix is
+not recoverable while a fix on an open PR is.
 
 Waiting on a background suite is the same trade. `until ! pgrep -x pytest; do
 sleep 20; done` spends a turn every ten minutes when the tool timeout kills the
-wait, and reports nothing the PR's `ci` would not.
+wait, and a session that ends mid-wait keeps neither the result nor the fix.
+Push first; run the nightly suite afterwards if the session still has room, and
+report what it says on the PR.
 
 ## Reading a red suite
 

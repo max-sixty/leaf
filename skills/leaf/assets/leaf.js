@@ -3781,7 +3781,12 @@ function presentPage() {
   // selection can then resolve against the standing DOM, while a retired passage cannot
   // leave a composer carrying its authored words.
   anchoringReady = true;
-  paintAnchors();
+  try {
+    paintAnchors();
+  } catch (error) {
+    anchoringReady = false;
+    throw error;
+  }
   // The stamp is the promise that every semantic prerequisite above succeeded, not merely
   // that presentation was attempted. Keep it absent when a malformed widget makes the
   // anchor reading fail, so durable controls remain withheld on that partial page.

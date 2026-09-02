@@ -278,7 +278,10 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page_dir = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page_dir)]
+    )
     assert initialized.exit_code == 0, initialized.output
     (page_dir / "index.html").write_text(PAGE)
 

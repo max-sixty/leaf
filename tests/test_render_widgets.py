@@ -3796,6 +3796,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
             "quote": _DIFF_TAIL,
         }
     ), anchors
+    assert errors == []
 
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):

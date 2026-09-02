@@ -271,7 +271,7 @@ export function chromeStyle({
   /* State has its own small lower-right witness. It changes neither the Button's ring
      nor its tone: engaged is a dot, busy is a moving open ring, failed is a diamond,
      and settled is a square. */
-  .lf-margin-action[data-lf-state]:not([data-lf-state="idle"])::after {
+  .lf-margin-action:where([data-lf-state]:not([data-lf-state="idle"]))::after {
     content: ""; position: absolute; z-index: 2; inline-size: 6px; block-size: 6px;
     inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
     border: 1px solid var(--paper); background: currentColor; border-radius: 50%;

@@ -366,11 +366,11 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_button_tone_colors_only_the_icon(browser, serve, scheme):
-    """Semantic tone never recolors the shared ring, fill, or state mark."""
+    """State keeps its distinct shape; tone never recolors the shell or state mark."""
     page, errors = open_page(
         browser, serve(leaf_page("Button tones", '<p id="target">A shared target</p>'))
     )
-    page.emulate_media(color_scheme=scheme)
+    page.emulate_media(color_scheme=scheme, reduced_motion="reduce")
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
@@ -405,6 +405,9 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
                 face.outlineColor, face.outlineStyle, face.outlineWidth],
         mark: mark.content === 'none' ? null :
           [mark.color, mark.borderTopColor, mark.backgroundColor],
+        shape: mark.content === 'none' ? null :
+          [mark.width, mark.height, mark.borderRadius,
+           mark.transform !== 'none', mark.borderRightWidth],
         icon: getComputedStyle(button.querySelector('svg')).color
       };
     }"""
@@ -414,7 +417,14 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         assert readings[0]["mark"] == readings[1]["mark"] == readings[2]["mark"]
         assert len({reading["icon"] for reading in readings}) == 3
 
-    for state in ("idle", "engaged", "busy", "failed", "settled"):
+    shapes = {
+        "idle": None,
+        "engaged": ["6px", "6px", "50%", False, "1px"],
+        "busy": ["8px", "8px", "50%", False, "2px"],
+        "failed": ["6px", "6px", "1px", True, "1px"],
+        "settled": ["6px", "6px", "1px", False, "1px"],
+    }
+    for state, shape in shapes.items():
         page.evaluate("state => window.setToneState(state)", state)
         for button in buttons:
             expect(button).to_have_attribute("data-lf-state", state)
@@ -422,6 +432,7 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         assert all(
             (reading["mark"] is None) == (state == "idle") for reading in readings
         )
+        assert [reading["shape"] for reading in readings] == [shape] * len(buttons)
         assert_icon_only(readings)
 
     page.evaluate("() => window.setToneState('idle')")

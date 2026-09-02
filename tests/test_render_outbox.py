@@ -1698,7 +1698,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/3)")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "the rebuilt change hung a second row beside the one it replaced"
     )

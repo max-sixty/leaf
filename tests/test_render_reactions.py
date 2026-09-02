@@ -16,6 +16,8 @@ from render_support import (
     PROPOSED_PAGE,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
+    _traffic,
+    _until,
     key_line,
     open_page,
     panel_comment,
@@ -565,10 +567,13 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
     page.keyboard.press("Tab")
     expect(second).to_be_focused()
     token = second.get_attribute("aria-label").split(" — ")[0]
+    sends = _traffic(page).sends
     if opener == "click":
         second.click()
     else:
         page.keyboard.press("Enter")
+    # Page map forwards the press on the next frame; there is no trip to await yet.
+    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (

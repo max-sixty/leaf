@@ -1,5 +1,5 @@
-import { shownBox, shownRect } from "../geometry.js";
-import { closestAcross, TEXT_BLOCK } from "../passages.js";
+import { shownBox } from "../geometry.js";
+import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
 
 export function createDecisionView({
@@ -30,6 +30,7 @@ export function createDecisionView({
   paintKeys,
   PRESS,
   panelIsOpen,
+  readableDestination,
   registry,
   reserve,
   reveal,
@@ -449,8 +450,16 @@ export function createDecisionView({
   function arrivalRegion(decision, box) {
     if (registry[decision.localName]?.["x-decision"]) return decision;
     const room = shownBox(box).height - clearanceOf(box);
-    const fits = (region) =>
-      region && shownBox(decision).bottom - shownBox(region).top <= room;
+    // A region has to be somewhere the reader can be taken. An element generating no box
+    // measures (0,0) at the document's origin, which is not a degenerate answer but a
+    // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
+    // paragraph before the change fits every time, and the press then scrolls the page up
+    // by the banner's clearance instead of travelling to the ask.
+    const fits = (region) => {
+      if (!region) return false;
+      const start = shownBox(region);
+      return start.height > 0 && shownBox(decision).bottom - start.top <= room;
+    };
     // The blocks before this one that are about the same part of the document: the two
     // stand under one container, which is what "the heading over this" means and is the
     // whole of the bound the search needs. Without it the nearest preceding heading can
@@ -462,11 +471,23 @@ export function createDecisionView({
     // An ancestor both contains and precedes, so the block holding an inline change is
     // asked for by name and excluded here — or the walk backwards would stop at the
     // sentence the change is already inside and call it the one before.
+    // The document's own blocks, in document order, which is what picking the last
+    // heading and the nearest block both rest on. `pageQueryAll` would reach a widget's
+    // declared shadow tree as well, and it concatenates each root's answer rather than
+    // composing one order, so the last heading it reported could be from another tree
+    // entirely — a worse answer than the one this misses. What crossing is worth having
+    // is on the containment side, where `containsAcross` lets a decision staged inside a
+    // shadow tree still take the heading standing over its host.
+    //
+    // `hidden` goes with `inChrome`: content-visibility leaves real rects behind, so a
+    // block behind a shut disclosure otherwise measures like one the reader can see.
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
       (block) =>
         !inChrome(block) &&
-        !block.contains(decision) &&
-        block.parentElement?.contains(decision) &&
+        !block.closest("[hidden]") &&
+        !containsAcross(block, decision) &&
+        block.parentElement &&
+        containsAcross(block.parentElement, decision) &&
         decision.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING,
     );
     const heading = before.findLast((block) => block.matches(HEADING));
@@ -480,19 +501,15 @@ export function createDecisionView({
   // leaves the page where it stands: they can see the ask and the words around it, and
   // scrolling to rebuild a view they are already looking at is motion that says nothing.
   //
-  // What the page shows of the decision, not what its own box claims — the reading
-  // commentOnItem makes before it travels, and for the same reason: a decision clipped
-  // away inside a board's own scroller is not in front of the reader for having a box that
-  // falls inside the window.
+  // Whether the decision itself is readable is `readableDestination`'s question, asked of
+  // every edge through whatever clips it — a decision half cut off by a board's own
+  // scroller is not in front of the reader for having a box inside the window. This adds
+  // the one thing that reading cannot know: the arrival is the region's start, so the
+  // start has to be standing clear of the banner too.
   function framed(region, decision, box) {
-    const view = shownBox(box);
-    const seen = shownRect(decision, new Map());
-    const foot = shownBox(decision).bottom;
-    return Boolean(
-      seen &&
-      Math.abs(seen.bottom - foot) <= 0.5 &&
-      shownBox(region).top >= view.top + clearanceOf(box) &&
-      foot <= view.bottom,
+    return (
+      readableDestination(decision) &&
+      shownBox(region).top >= shownBox(box).top + clearanceOf(box)
     );
   }
 
@@ -531,8 +548,17 @@ export function createDecisionView({
     if (inChrome(next)) scrollToElement(next, scrollBehavior(), "center");
     else {
       const region = arrivalRegion(next, pageScroller);
-      if (!framed(region, next, pageScroller))
+      if (!framed(region, next, pageScroller)) {
+        // The decision's own box first, which is the only pass that moves a scroller
+        // other than the page's: the placement below moves whichever box scrolls the
+        // region, and for a region out on the page that is never the board's own
+        // scroller. Handing that placement the region alone left a decision inside a
+        // card unscrolled in its card, with the ring and the focus on a control the
+        // reader could not see. `nearest` is a request to reveal only, which is exactly
+        // what this needs and what the placement then builds on.
+        scrollToElement(next, "instant", "nearest");
         scrollToElement(region, scrollBehavior(), "start");
+      }
     }
     announce(`${decisions.indexOf(next) + 1} of ${decisions.length} waiting on you`);
   }

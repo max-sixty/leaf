@@ -2461,15 +2461,26 @@ Arriving at a page decision puts its arrival region's start below the banner, no
 the decision's own top edge. A widget declaring `x-decision` states that region and
 the walk is handed the region rather than the source inside it. Nothing else declares
 one, and an edit to a phrase cannot: what explains it is the sentence it stands in and
-the heading over that. `arrivalRegion` reads that region off the document instead —
-the nearest preceding heading sharing a container with the decision, then the text
-block holding it or, for a change that is its own block, the block before it — and
-takes the first candidate whose start still leaves the decision's foot on screen,
-falling back to the decision itself. That bound is what lets the widest candidate go
-first, and it keeps the region inside one screen without a rule about distance. A
-decision whose region already stands clear of the banner with its foot in view is not
-travelled to: the press moves the ring and the focus and leaves the page still. A
-thread decision keeps its centred arrival in the panel's own list.
+the heading over that. `arrivalRegion` reads that region off the document instead. Its
+candidates are the blocks before the decision whose own parent still contains it — so a
+block wrapped in something the decision stands outside of, another ask or a section of
+its own, is not this decision's context — and of those it takes the last heading, then
+the text block holding the decision or, for a change that is its own block, the nearest
+remaining block before it. The first candidate whose start still leaves the decision's
+foot on screen wins, falling back to the decision itself. That bound is what lets the
+widest candidate go first, and it keeps the region inside one screen without a rule
+about distance. A candidate that paints no box is not a place to arrive at: an element
+generating none measures at the document's origin, which would read as a region at the
+top of the page.
+
+The sweep is the document's own blocks in document order, so a decision staged inside a
+declared shadow tree takes a heading standing over its host but not one inside that
+tree. The travel moves the page's scroller, so the decision's own box is brought into
+view first for the sake of a decision inside a nested scroller, which that placement
+would never reach. A decision whose region already stands clear of the banner, and which
+`readableDestination` reads as unclipped on every edge, is not travelled to at all: the
+press moves the ring and the focus and leaves the page still. A thread decision keeps
+its centred arrival in the panel's own list.
 
 `captureView` stores a passage-based reading landmark, correction within the
 block, and the last decision landmark. `restoreView` resolves the landmark after

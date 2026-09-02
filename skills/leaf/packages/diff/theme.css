@@ -225,6 +225,13 @@ lf-diff:not(.lf-rendered) > pre {
   .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
   .lf-diff-file:not(:has([data-lf-said])) summary,
   .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
+  /* The row's pull (above) takes back the press's height, and the press an unreviewed
+     file's row is pulled over is gone here: a hidden box has no margins, so a pull on
+     the press left with it, but :has() still matches the hidden press, so a pull on the
+     row stayed and drew each file's header 24px inside the file before it, the first
+     32px above the widget. Guarded as the neighbour rule is: no said word, nothing on
+     the sheet to pull over. */
+  .lf-diff-file:not(:has([data-lf-said])) > :is(details, .lf-diff-rename) { margin-top: 0; }
   .lf-diff-filtered { display: block !important; }
   /* Paper wraps whether or not the switch was on, because a clipped line on screen is a
      scroll away and a clipped line on paper is gone: forty rows of the walkthrough's

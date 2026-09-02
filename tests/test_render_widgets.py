@@ -33,6 +33,7 @@ from render_support import (
     DIFF_CLIPPING,
     DIFF_LANDING,
     DIFF_PRESS,
+    DIFF_ROW_PLACEMENT,
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
@@ -3825,12 +3826,24 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
         "them"
     )
 
+    # Paper also takes the "Mark reviewed" press off each file, and the row it stood ahead
+    # of is pulled back up over where it was: with the press gone the pull has nothing to
+    # take back, and it drew every file's header 24px inside the file before it. The row
+    # starts at its wrapper's top in both media, which is where it would with no press.
+    placed = page.evaluate(DIFF_ROW_PLACEMENT)
+    assert placed["files"] == 2 and (placed["lift"], placed["drop"]) == (0, 0), (
+        f"a file's row does not start where its wrapper does: {placed}"
+    )
     page.emulate_media(media="print")
     printed = page.evaluate(DIFF_CLIPPING)
+    on_paper = page.evaluate(DIFF_ROW_PLACEMENT)
     page.emulate_media(media="screen")
     assert printed["rows"] == cut["rows"], (printed, cut)
     assert printed["cut"] == 0, (
         f"the switch is off and paper cannot press it, so this text is gone: {printed}"
+    )
+    assert (on_paper["lift"], on_paper["drop"]) == (0, 0), (
+        f"on paper a file's row is drawn above its own wrapper: {on_paper}"
     )
     assert errors == []
     page.close()

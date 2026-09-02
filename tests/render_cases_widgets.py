@@ -562,6 +562,21 @@ DIFF_CLIPPING = """() => {
                : null };
 }"""
 
+# Where each file's row starts against its own wrapper. The review press stands ahead of
+# the row and the row is pulled back up over it, so the row starts where it would with no
+# press at all — zero — on screen, and on paper, where an unreviewed press is not drawn
+# and there is nothing for the pull to take back.
+DIFF_ROW_PLACEMENT = """() => {
+    const root = document.querySelector('lf-diff').shadowRoot;
+    const files = [...root.querySelectorAll('.lf-diff-file')];
+    const lifts = files.map((file) => {
+        const row = file.querySelector(':scope > details, :scope > .lf-diff-rename');
+        return Math.round(row.getBoundingClientRect().top
+                          - file.getBoundingClientRect().top);
+    });
+    return { files: files.length, lift: Math.min(...lifts), drop: Math.max(...lifts) };
+}"""
+
 # Where the file the reader is in says its name, against the bar it has to clear, and
 # where the keyboard just landed. One pass, because every number here means something only
 # against the others. With nothing focused it answers for the first file, so the same

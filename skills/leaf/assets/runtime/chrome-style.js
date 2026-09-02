@@ -282,8 +282,7 @@ export function chromeStyle({
      through marginAction(); this declaration owns every visual and interactive
      constant that makes unlike verbs read as one family. */
   .lf-margin-action {
-    position: relative; box-sizing: border-box; width: 32px; min-width: 32px;
-    height: 32px; min-height: 32px; padding: 0;
+    position: relative; box-sizing: border-box; width: 32px; height: 32px; padding: 0;
     border: 1px solid var(--border-2); border-radius: 50%;
     background: var(--paper); color: var(--ink-2); flex: 0 0 auto;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;

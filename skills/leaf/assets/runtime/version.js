@@ -938,11 +938,6 @@ export function createVersion({
     const view = captureView();
     const standing = captureStanding();
     const source = doc.querySelector("body > main");
-    // Step 4 of the startup order, at the boundary that runs the same passes: this
-    // version may introduce a tag the standing document never carried, and insertion is
-    // where its connectedCallback runs. Awaited here, before anything is torn down, so
-    // the page the reader is still looking at is whole for the length of the import.
-    await importWidgets(source);
     const fresh = document.importNode(source, true);
     revisionDocuments.delete(revision.revision);
     const settlingFrom = settling.length;
@@ -1010,6 +1005,13 @@ export function createVersion({
       return null;
     }
     if (doc === null) return { stale: true };
+    // Step 4 of the startup order, at the boundary that runs the same passes: this
+    // version may introduce a tag the standing document never carried, and insertion is
+    // where its connectedCallback runs. Fetched here, on the same background stretch as
+    // the document itself, so the install below spends none of its view transition on a
+    // module fetch and the page the reader is still looking at is whole for the length
+    // of the import. activateRevision has no other caller, so this is the one import.
+    await importWidgets(doc.querySelector("body > main"));
     return {
       stale: false,
       activates: () =>

@@ -1161,18 +1161,10 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
   lf-tabs.lf-rendered > lf-tab { content-visibility: visible !important; }
 }
 
-/* lf-shot: a before/after pair of screenshots, one on screen at a time. Both
- * frames occupy the same grid cell, so the box is the taller of the two and
- * flipping between them moves nothing under it — which is the whole point, the
- * change being the only thing that shifts. The target is the frame: one transparent
- * checkbox fills it and its instruction row, so a click works the native control exactly
- * where the pointer rests. That avoids the look away and re-aim a switch under the image
- * charged every alternation. The state is a checkbox and one :has(:checked) rule, so it
- * needs no script — which is what keeps it flipping in an exported copy, where every
- * handler has gone and `version export` leaves a control the browser drives alone
- * for exactly this. Print shows both frames stacked, since paper has nothing to
- * press — the checkbox and the switch row drop with the other offers and the captions,
- * which are the only words saying which frame is which, stay. */
+/* lf-shot: both frames share one grid cell sized by the taller image, so a flip
+ * moves nothing below it. The transparent native checkbox covers only the frame;
+ * the shared margin Button supplies the visible control. CSS owns image visibility,
+ * keeping image clicks and Space live in script-free exports. Print stacks both. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
     border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden;
@@ -1186,25 +1178,12 @@ lf-shot .lf-shotcap { position: absolute; top: 6px; left: 6px;
     font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
     padding: 2px 7px; border-radius: 999px; background: var(--veil);
     border: 1px solid var(--rule); color: var(--muted); }
-/* The native checkbox covers both grid rows rather than being activated through a label
-   elsewhere in the layout. That keeps focus — and therefore the viewport — exactly at
-   the point the reader clicked. It carries no ink of its own: the cursor and words below
-   say the image is live without drawing over the change. */
-lf-shot > input.lf-shotflip { grid-area: 1 / 1 / 3 / 2; z-index: 2;
+/* The image is itself the native target, so a click never forwards focus to a
+   distant label or control and scrolls a tall comparison out from under the reader. */
+lf-shot > input.lf-shotflip { grid-area: 1 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-lf-shot .lf-shotpick { grid-area: 2 / 1; display: flex;
-    align-items: center; margin-top: var(--sp-2); font-size: var(--t-5);
-    color: var(--muted); }
-lf-shot .lf-shotpick label { display: inline-flex; gap: 5px; align-items: center;
-    cursor: pointer; }
-lf-shot .lf-shotpick label::before { content: ""; display: inline-grid; place-items: center;
-    box-sizing: border-box; width: 13px; height: 13px; flex: none;
-    border: 1px solid var(--border-2); border-radius: 2px; background: var(--card); }
-lf-shot:has(> input.lf-shotflip:checked) .lf-shotpick label::before { content: "✓";
-    border-color: var(--accent); background: var(--accent); color: var(--paper);
-    font-size: 10px; line-height: 1; }
 lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotframe { outline: var(--here-ring);
     --lf-here-ring: shot-frame; outline-offset: 1px; }
 

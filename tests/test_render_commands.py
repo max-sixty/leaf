@@ -378,16 +378,11 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
 
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """The comparison lf-shot makes is a flip: two registered frames in one grid cell,
-    one of them showing. What the gate covers on the way past is the rest of the
-    widget's bargain — the captions naming each frame are the page's words and stay
-    selectable, the switch is chrome and takes no space in the user's reading, and
-    a printed copy keeps both frames and both captions.
+    """Image clicks and the target's Button flip the same fixed frame.
 
-    The image is the target, so both presses land on one point and the pointer never
-    moves: a comparison is many alternations, and the whole worth of a flip is that
-    the eye can hold still through them. Pressing the switch instead would assert the
-    state swaps while saying nothing about what it costs to swap it."""
+    Repeated presses keep their target and focus. The Button names the next frame
+    after either route and answers both native activation keys. The render gate
+    also checks selectable captions and the two-frame print view."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -411,39 +406,54 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert shown_frames(page) == ["before"]
-    # The visible instruction sits under the same native overlay. A repeated held press
-    # there keeps both focus and the screenshot key line stable too.
-    text_label = page.locator("lf-shot .lf-shotpick label")
-    label_bounds = text_label.bounding_box()
-    assert label_bounds is not None
-    text_at = (
-        label_bounds["x"] + label_bounds["width"] - 2,
-        label_bounds["y"] + label_bounds["height"] / 2,
+    button = page.get_by_role("button", name="Show after — the navigation rail")
+    expect(page.locator(".lf-margin-item").filter(has=button)).to_be_visible()
+    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "compare-before"
     )
-    assert box.evaluate(
-        "(control, point) => document.elementFromPoint(...point) === control",
-        text_at,
+    button_bounds = button.bounding_box()
+    assert button_bounds is not None
+    button_at = (
+        button_bounds["x"] + button_bounds["width"] / 2,
+        button_bounds["y"] + button_bounds["height"] / 2,
     )
-    page.mouse.move(*text_at)
-    page.mouse.down()
-    expect(box).to_be_focused()
-    assert "show after" in key_line(page)
-    page.mouse.up()
+    page.mouse.click(*button_at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
-    # The same full target is the keyboard's native handle.
+    button = page.get_by_role("button", name="Show before — the navigation rail")
+    expect(button).to_be_focused()
+    assert "show before" in key_line(page)
+    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "compare-after"
+    )
+    assert button.bounding_box() == button_bounds
+    page.mouse.down()
+    expect(button).to_be_focused()
+    page.mouse.up()
+    assert shown_frames(page) == ["before"]
+    page.keyboard.press("Enter")
+    assert shown_frames(page) == ["after"]
+    page.keyboard.press("Space")
+    assert shown_frames(page) == ["before"]
+
+    # Image activation updates the Button too; Space still works at the image.
+    page.mouse.click(*at)
+    expect(
+        page.get_by_role("button", name="Show before — the navigation rail")
+    ).to_be_visible()
     box.focus()
     page.keyboard.press(" ")
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
+    expect(
+        page.get_by_role("button", name="Show after — the navigation rail")
+    ).to_be_visible()
     assert errors == []
     page.close()
 
 
 def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
-    """A tall comparison may put its instruction row more than a viewport below the
-    point being inspected. Both the image and that row are the native checkbox itself,
-    so a click changes state without label activation focusing some distant box and
-    centring it in the viewport. The same causal gesture is checked on a desk and phone."""
+    """Clicking a tall comparison must not focus a remote control and scroll away
+    from the image. The same causal gesture is checked on a desk and phone."""
     before = solid_png(390, 844, (232, 226, 213))
     after = solid_png(390, 844, (214, 226, 235))
     url = serve(
@@ -453,10 +463,9 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
     page, errors = open_page(browser, url)
     box = page.locator("lf-shot > input.lf-shotflip")
     expect(box).to_have_accessible_name(
-        "flip — or click the image — the navigation rail"
+        "Compare before and after — the navigation rail"
     )
     frame = page.locator('lf-shot .lf-shotframe[data-lf-state="before"]')
-    row = page.locator("lf-shot .lf-shotpick")
 
     for width in (1200, 390):
         resized(page, width, 900)
@@ -477,34 +486,6 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         was_checked = box.is_checked()
         scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*image_point)
-        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
-        assert box.is_checked() is not was_checked
-        assert (
-            abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
-            <= 1
-        )
-
-        # Put the instruction just inside the viewport, then remove the focus left by
-        # the image gesture. An implementation covering only the image would route this
-        # press through the label to a remote checkbox and reproduce the same jump.
-        page.evaluate(
-            """() => { document.activeElement.blur();
-                       const r = document.querySelector('lf-shot .lf-shotpick')
-                                         .getBoundingClientRect();
-                       document.scrollingElement.scrollBy(0, r.bottom - innerHeight + 60); }"""
-        )
-        row_point = row.evaluate(
-            "el => { const r = el.getBoundingClientRect();"
-            "        return [r.left + 10, r.top + r.height / 2]; }"
-        )
-        assert page.evaluate(
-            "([x, y]) => document.elementFromPoint(x, y) === "
-            "document.querySelector('lf-shot > input.lf-shotflip')",
-            row_point,
-        )
-        was_checked = box.is_checked()
-        scroll_before = page.evaluate("document.scrollingElement.scrollTop")
-        page.mouse.click(*row_point)
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert box.is_checked() is not was_checked
         assert (
@@ -577,6 +558,8 @@ def test_a_shot_still_flips_with_every_script_removed(
     assert shown_frames(loose) == ["before"]
     loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
+    loose.keyboard.press("Space")
+    assert shown_frames(loose) == ["before"]
     loose.close()
 
 

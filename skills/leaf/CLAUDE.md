@@ -1535,8 +1535,8 @@ on.
 Every Button rests as a circle. Its label appears as transient chrome on hover or
 keyboard focus without changing the cluster's geometry; an open disclosure keeps its
 label visible. Labels for `disclosure` and `options` end in an ellipsis, while immediate
-action labels do not. The complete word remains in the DOM and the accessible name
-never changes.
+action labels do not. The complete label remains in the DOM, and its accessible name
+tracks the action.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it

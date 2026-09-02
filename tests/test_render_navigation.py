@@ -290,17 +290,18 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — one Tab past where `a` lands — ↑/↓ walk the options clamping at the
-    ends, a digit picks outright, and each option wears its digit only while a mark holds
-    keyboard focus, so nothing appears on a page nobody is answering."""
+    """At Ask focus a digit picks outright; one Tab enters marks, where ↑/↓ walk the
+    options clamping at the ends. Each option wears its digit while the Ask or one of
+    its marks holds keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
-    nums = page.locator("#live-question .lf-address")
+    nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
-    # The arrival stands on the decision; its marks are the next Tab stops.
-    expect(nums.first).to_be_hidden()
+    # The arrival stands on the decision, which wears its options' digits; the marks
+    # are the next Tab stops.
+    expect(nums).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()

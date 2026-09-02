@@ -7,9 +7,9 @@ payload, and payload and example links point into the checkout — so publishing
 those substitutions plus the files the paths then name. An example keeps its authored
 document unchanged, so the files in the tree remain the specimens of the theme.
 
-The examples are the files in the tree too, and they are live. A leaf page is a
-directory — the vendored layer at a root, the versions under it — and a static host
-serves every part of that; the one thing it hasn't got is the process behind /api/state,
+The examples are the files in the tree too, and they are live. A static build
+materializes the version addresses that Leaf's live server resolves from revision
+records; the one thing it hasn't got is the process behind /api/state,
 /api/event, and /api/news. So the build lays one vendored layer at the site's root,
 where a page's absolute /theme.css and /leaf.js resolve, and puts each example at its
 own examples/<name>/versions/, which is where the runtime reads a version number from.
@@ -26,7 +26,8 @@ and `docs/sitenote.js` says the whole of it in the site's own label above the do
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
-Usage: site.py [--serve]  (writes .tmp/site; --serve keeps a local preview open)
+Usage: uv run scripts/site.py [--serve]
+       (writes .tmp/site; --serve keeps a local preview open)
 """
 
 import json
@@ -43,6 +44,8 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from example_data import data_operations, example_versions
+from leaf.event_log import read_events
+from leaf.files import revision_path, version_revisions
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
@@ -240,19 +243,17 @@ def publish_pages(out: Path, env: dict) -> None:
         # can't answer — and from there it is published with everything else below.
         shutil.copytree(EXAMPLES / "media", page / "media", dirs_exist_ok=True)
         for item in sorted(page.iterdir()):
-            if item.name == "versions":
-                continue  # each example is its own, below
             target = out / (RUNTIME if item.name == "leaf.js" else item.name)
             (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
 
         for source in example_sources():
             # The temporary page is reused only for its vendored layer. Reset its
             # authored history so every independently published example starts at
-            # r1/v1, then let the real stamp boundary create both immutable files.
-            for directory in (page / "revisions", page / "versions"):
-                directory.mkdir(exist_ok=True)
-                for old in directory.iterdir():
-                    old.unlink()
+            # r1/v1, then let the real stamp boundary create the immutable revisions.
+            revisions = page / "revisions"
+            revisions.mkdir(exist_ok=True)
+            for old in revisions.iterdir():
+                old.unlink()
             log = page / "events.jsonl"
             log.write_text("", encoding="utf-8")
             # The data door validates a source against the page's markup, and the
@@ -318,18 +319,21 @@ def publish_pages(out: Path, env: dict) -> None:
                         event_log.write(seed_text)
             published = out / "examples" / source.stem
             (published / "versions").mkdir(parents=True)
-            for version in sorted((page / "versions").iterdir()):
-                (published / "versions" / version.name).write_text(
-                    version.read_text(encoding="utf-8"),
+            for version, revision in sorted(
+                version_revisions(read_events(page)).items()
+            ):
+                markup = revision_path(page, revision).read_text(encoding="utf-8")
+                (published / "versions" / f"v{version}.html").write_text(
+                    markup,
                     encoding="utf-8",
                 )
             (published / "index.html").write_text(
                 REDIRECT.format(name=newest_version(source)), encoding="utf-8"
             )
             # The thread the page opens on. A served page hands its log to the browser
-            # through /api/state, which is `docs/session.js`'s answer here, so the log
-            # is a file beside the versions exactly as it is in a page directory and
-            # that file is what the session puts in the runtime's first answer.
+            # through /api/state, which is `docs/session.js`'s answer here. The static
+            # output keeps that seed beside its materialized version addresses, and the
+            # session puts it in the runtime's first answer.
             (published / "events.jsonl").write_text(seed_text, encoding="utf-8")
             (published / "data.json").write_text(
                 data_file.read_text(encoding="utf-8")
@@ -379,7 +383,7 @@ def build(out: Path, *, verify_links: bool = True) -> None:
 
 def main() -> None:
     if sys.argv[1:] not in ([], ["--serve"]):
-        sys.exit("usage: site.py [--serve]")
+        sys.exit("usage: uv run scripts/site.py [--serve]")
     build(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
     if sys.argv[1:] == ["--serve"]:

@@ -64,10 +64,10 @@
  * messages and replies, and lf-draft actions.
  *
  * Versions: the live page at `/` follows the active working revision in the same document.
- * It fetches each immutable revision file, upgrades and replays it behind a view-transition
+ * It fetches each mapped immutable revision, upgrades and replays it behind a view-transition
  * boundary, then restores the reader's semantic landmark. Stamping that revision changes
  * its label without replacing the document. Picking a stamped version leaves the live page
- * for that immutable version URL, which stays pinned. One control on the bar holds all of
+ * for that virtual version URL, which stays pinned. One control on the bar holds all of
  * it — the revision being read, the stamped versions, and the press on an older one that
  * marks that change on the page.
  *

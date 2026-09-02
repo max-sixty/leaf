@@ -1540,7 +1540,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(diagram.locator(":scope > .lf-mark-note")).to_have_count(1)
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
-    (serve.page_dir / "versions" / "v2.html").write_text(PART_DIAGRAM_V2)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(PART_DIAGRAM_V2)
     stamp_version_file(serve.page_dir, 2, "reordered")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
@@ -1714,7 +1714,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # v2 inserts a state above Queued, so Mermaid mints it a new id. The mark follows
     # the authored token to whatever box that version draws for it.
     drawn_in_v1 = state.get_attribute("id")
-    (serve.page_dir / "versions" / "v2.html").write_text(TYPED_PARTS_V2)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(TYPED_PARTS_V2)
     stamp_version_file(serve.page_dir, 2, "one state earlier")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")

@@ -62,12 +62,12 @@ export function createProjection(runtime, dependencies) {
   // and place among its authored id-bearing kin. Generated chrome is deliberately
   // absent. Text is deliberately absent — words are the
   // static gate's subject (restatement_errors); this is the rest, the state no
-  // version file can speak. What the runtime itself paints onto page elements —
+  // authored document can speak. What the runtime itself paints onto page elements —
   // exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
   // and looking away from them keeps a reading taken from the live DOM equal to
   // one taken from the file without hiding a widget's own data-lf state. Diffed around each replay batch to
-  // record what replay wrote, and imported by version check --render to read the version
-  // files with the same eyes, so the two readings cannot drift.
+  // record what replay wrote, and imported by version check --render to read version
+  // documents with the same eyes, so the two readings cannot drift.
   function shallowSigs(root) {
     const sigs = new Map();
     const siblingPositions = new Map();

@@ -9,8 +9,8 @@ from leaf.data import read_data
 from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
+    revision_path,
     version_name,
-    version_path,
     version_revisions,
 )
 from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
@@ -163,7 +163,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
         )
     name = version_name(version)
     revision = version_revisions(events)[version]
-    source = version_path(page_dir, version).read_bytes()
+    source = revision_path(page_dir, revision).read_bytes()
 
     with (
         preview(page_dir, source, revision, version=version) as url,

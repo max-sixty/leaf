@@ -2871,7 +2871,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     # had the blocks in question.
     expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
 
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         CONVERSATION_DIFF_PAGE.replace(
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>',
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>\n'

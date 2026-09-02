@@ -84,8 +84,8 @@ events, CSS selectors, or tag names.
 
 The page directory and append-only log are the authorities described in the
 root instructions. A derived reading is not another store. Preserve atomic file
-writes, immutable revision and version files, and the existing lock boundaries
-when adding a command.
+writes, immutable revision files, event-backed public version aliases, and the
+existing lock boundaries when adding a command.
 
 The registry is the common contract with the browser. Server-side event gates,
 state folds, package checks, markup validation, and agent queries consume its

@@ -387,7 +387,7 @@ revision. A widget without its snapshot attribute follows the current value; a w
 never stored or sent to readers.
 
 A source id keeps one contract for the lifetime of the page. Documents without a
-snapshot selection share the page's current value; immutable versions and widgets
+snapshot selection share the page's current value; stamped versions and widgets
 frozen into threads may instead select a retained capture. `data clear` removes the
 current value and unreferenced captures, but keeps captures selected by those durable
 documents and a contract-only tombstone that never releases the source id for a new

@@ -11,11 +11,11 @@ A page directory holds:
                          A changed valid source becomes the next revision; identical
                          bytes reuse the existing one. The live root follows the
                          active revision.
-    versions/v1.html…    immutable stamped checkpoints written by `version stamp`.
-                         A note maps each public version to the exact revision it
-                         stamped. A pinned `/versions/vN.html` therefore never moves,
-                         even while later source saves become live. Leaf alone writes
-                         both immutable directories.
+    /versions/v1.html…   virtual public addresses. Each `note` event maps a version to
+                         its immutable revision, and the server renders that revision
+                         at the stable version URL. No second HTML copy is stored.
+                         A pinned version therefore never moves while later source saves
+                         become live.
     leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the

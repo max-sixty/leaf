@@ -157,7 +157,7 @@ Each mutable fact has one writer:
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
-| version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
+| version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateVersion` advances `currentVersion`; a public version address derives the version number from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
@@ -253,8 +253,8 @@ The state read overlaps those upgrades, but its answer stays buffered until both
 captures have established the authored initial condition.
 
 The served page root is a stable live document. Its first response projects the
-latest immutable version and carries a runtime-only version marker. On a later
-state read, `versionDocument` fetches the next immutable file in the background.
+latest immutable revision and carries a runtime-only version marker. On a later
+state read, `versionDocument` fetches the next mapped revision in the background.
 `activateVersion` replaces the authored head declarations, root attributes, and
 `body > main`; runs the same fence, clone, dressing, settlement, and authored-facet
 passes as startup; reconciles the log; and restores the semantic reading landmark
@@ -967,7 +967,7 @@ Neither command appends an event or runs package code, and capture stores no sou
 path. Each stored source retains its contract even after clear, so re-vendoring never has
 to infer meaning from a source's spelling.
 
-A source id keeps that contract across every immutable version and widget frozen into
+A source id keeps that contract across every stamped version and widget frozen into
 a thread. Bindings without a snapshot selector read current; durable documents may
 select a retained capture. Clearing removes current and unreferenced captures but never
 releases the id for a new meaning. Re-vendoring must preserve the page-lifetime binding
@@ -2447,11 +2447,11 @@ version menu defers activation and leaves the newest-version chip visible. Endin
 the composition releases the version on the next heartbeat; pressing the chip is
 an explicit override and still keeps the live address. `goActive` is the one door
 for that in-place newest-version request and for the way back to the live address
-from a pinned document; `goVersion` is the door to an older immutable version.
+from a pinned document; `goVersion` is the door to an older public version.
 
 An older version is historical rather than live: choosing one navigates to its
-immutable file with `?pin`, and it stays at `currentVersion` while offering the
-newest-version chip. The view record carries reading position and the decision-walk
+virtual version address with `?pin`, and it stays at `currentVersion` while offering
+the newest-version chip. The view record carries reading position and the decision-walk
 landmark across that document navigation. Focus and a selection do not cross to a
 new document. On live activation, runtime-chrome nodes and their focus survive;
 authored-main nodes are replaced, so the semantic landmark—not a DOM node—is the

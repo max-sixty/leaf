@@ -486,9 +486,10 @@ PAGE_STATE_FILES = (
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *PACKAGE_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", "versions", *PACKAGE_DIRS, MEDIA_DIR)
-# What the server exposes from a page directory: the browser layer, media, and
-# versions. Agent-side guidance stays vendored but is read only through the CLI.
+PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
+# What the server exposes from a page: the browser layer, media, immutable revisions,
+# and event-backed version addresses. Agent-side guidance stays vendored but is read
+# only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 _DIR_FILES = {

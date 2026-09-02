@@ -1,4 +1,4 @@
-"""Mutable source and immutable revision and version paths."""
+"""Mutable source, immutable revisions, and public version addresses."""
 
 import hashlib
 import json
@@ -48,21 +48,6 @@ def version_num(name: str) -> int:
 
 def version_name(version: int) -> str:
     return f"v{version}.html"
-
-
-def version_path(page_dir: Path, version: int) -> Path:
-    return page_dir / "versions" / version_name(version)
-
-
-def list_versions(page_dir: Path) -> list:
-    versions_dir = page_dir / "versions"
-    if not versions_dir.exists():
-        return []
-    return sorted(
-        version_num(p.name)
-        for p in versions_dir.iterdir()
-        if p.is_file() and VERSION_FILE.fullmatch(p.name)
-    )
 
 
 def revision_num(name: str) -> int:
@@ -147,7 +132,7 @@ def stamped_version(events: list, revision: int) -> int | None:
 
 
 def version_descriptors(page_dir: Path, events: list) -> list[dict]:
-    """The public stamps whose note and immutable copy both exist."""
+    """The public stamps whose note names an existing immutable revision."""
     mappings = version_revisions(events)
     revisions = set(list_revisions(page_dir))
     return [
@@ -157,7 +142,7 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
             "url": f"/versions/{version_name(version)}",
         }
         for version in sorted(mappings)
-        if version_path(page_dir, version).is_file() and mappings[version] in revisions
+        if mappings[version] in revisions
     ]
 
 
@@ -200,9 +185,8 @@ def revision_label(events: list, revision: int) -> str:
 
 
 def published_versions(page_dir: Path, events: list) -> list:
-    """Stamped versions: those whose immutable file and `note` both exist."""
-    noted = {e["version"] for e in events if e["kind"] == "note"}
-    return [version for version in list_versions(page_dir) if version in noted]
+    """Public versions whose stamp and mapped immutable revision both exist."""
+    return [item["version"] for item in version_descriptors(page_dir, events)]
 
 
 def latest_published(page_dir: Path, events: list) -> int:

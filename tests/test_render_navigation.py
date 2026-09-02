@@ -2923,7 +2923,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
-    (d / "versions" / "v2.html").write_text(without_passage)
+    (d / ".fixture-versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)
     details.evaluate("el => { el.open = true; }")
@@ -4766,7 +4766,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
-    (d / "versions" / "v2.html").write_text(NOTED_PAGE)
+    (d / ".fixture-versions" / "v2.html").write_text(NOTED_PAGE)
     stamp_version_file(d, 2, "two")
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)

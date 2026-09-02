@@ -3683,7 +3683,7 @@ stateApplication = createStateApplication({
   runtime,
   sameLayer,
   sayLine,
-    showComparison,
+  showComparison,
   showNews,
   notice,
   snapshotVersionNavigation,

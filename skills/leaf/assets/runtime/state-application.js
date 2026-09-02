@@ -45,7 +45,7 @@ export function createStateApplication(dependencies) {
     runtime,
     sameLayer,
     sayLine,
-        showComparison,
+    showComparison,
     showNews,
     notice,
     snapshotVersionNavigation,

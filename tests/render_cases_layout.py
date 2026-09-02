@@ -696,10 +696,12 @@ NEIGHBOUR = (
 # nothing here to disturb.
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
-# The controls a press is aimed *past*: the ones sharing its parent, standing on the same
-# line, and on screen at both ends of the gesture. Held in a JS array rather than looked
-# up again afterwards, because identity has to survive a press that adds or removes a
-# sibling; measured with offset*, which is the layout box before any transform, so a card
+# The controls a press is aimed *past*: the ones sharing its row, standing on the same
+# line, and on screen at both ends of the gesture. A target Button's row is its cluster;
+# contribution and options wrappers do not split the visible row. Other controls use
+# their parent. Held in a JS array rather than looked up afterwards, because identity
+# has to survive a press that adds or removes a sibling; measured with offset*, which
+# is the layout box before any transform, so a card
 # still lifted under the pointer reads as the nothing it is.
 #
 # On screen is the load-bearing half. A control inside a fold the press opens was nowhere
@@ -723,9 +725,13 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
   window.__lfOnScreen = {ON_SCREEN};
-  window.__lfNeighbours = [...el.parentElement.children]
-      .filter((n) => n !== el && !n.contains(el))
-      .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]))
+  const cluster = el.closest('.lf-margin-item');
+  const candidates = cluster ? [...cluster.querySelectorAll(sel)]
+      : [...el.parentElement.children]
+          .filter((n) => n !== el && !n.contains(el))
+          .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]));
+  window.__lfNeighbours = candidates
+      .filter((n) => n !== el && !n.contains(el) && !el.contains(n))
       .filter((n) => window.__lfOnScreen(n) && sameLine(n));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
@@ -746,26 +752,19 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
 
 
 def unfolded_button(control):
-    """Press `…` and hand back the Button standing in for one folded contribution.
+    """Return a secondary Button, opening `…` only for a larger peer set.
 
-    A target's cluster rests with one primary Button; every other contributed control
-    is folded away and appears, once `…` is pressed, as a peer Button of its own. That
-    peer is what a reader can aim at — the owner keeps the row's record and never comes
-    out from behind the fold — so a test whose subject is a secondary gesture presses
-    the stand-in and lets it forward the press to its owner.
-
-    Named for the fold rather than for any one control, because which contribution is
-    primary is the layer's choice and not a test's: handed a control the cluster is
-    already resting, this presses `…` for nothing and finds no stand-in, which is the
-    honest failure rather than a quiet press of the wrong Button.
+    A single peer is already visible. In either posture the contribution's real
+    control stays with its owner and the visible proxy forwards the reader's press.
+    Asking this helper for a primary still fails: it has no secondary proxy.
     """
     item = control.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '),"
         " ' lf-margin-item ')][1]"
     )
     more = item.locator(":scope > .lf-margin-more")
-    expect(more).to_be_visible()
-    more.click()
+    if more.is_visible():
+        more.click()
     options = item.locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
     return options.get_by_role(

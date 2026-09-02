@@ -95,6 +95,7 @@ import {
   loadDraft,
   measure,
   marginAction,
+  marginActionState,
   clearDraft,
   watchDraft,
   alignText,
@@ -157,6 +158,8 @@ customElements.define(
     #alignments = new Map();
     #ta = null;
     #sending = false;
+    #failed = false;
+    #failureReceipt = null;
     #margin = null;
     #buttonReserve = 0;
 
@@ -194,18 +197,38 @@ customElements.define(
       ]);
 
       this.#pencil = this.#marginButton(
-        "✎",
+        "edit",
+        "edit",
         "Edit",
         () => this.#open(),
         "neutral",
         "disclosure",
+        "primary",
       );
       this.#pencil.classList.add("lf-draft-pencil");
       this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
       this.#row = offer("div", "lf-draft-controls");
       this.#row.dataset.lfFor = this.id;
-      this.#cancel = this.#marginButton("×", "Cancel", () => this.#close(true));
-      this.#save = this.#marginButton("✓", "Save", () => this.#commit());
+      this.#cancel = this.#marginButton(
+        "cancel",
+        "cross",
+        "Cancel",
+        () => this.#close(true),
+        "neutral",
+        "action",
+        "escape",
+        "engaged",
+      );
+      this.#save = this.#marginButton(
+        "save",
+        "check",
+        "Save",
+        () => this.#commit(),
+        "positive",
+        "action",
+        "complete",
+        "engaged",
+      );
       // Reserve the editor's wider pair before the page is presented, then keep the
       // resting pencil against the marker at the row's right edge. Opening the editor
       // changes what the one row offers without moving the document beneath it.
@@ -275,11 +298,19 @@ customElements.define(
     #offer() {
       if (!this.#row || this.#margin) return;
       this.#margin = registerMarginItem({
+        key: `draft:${this.id}`,
         target: () => this,
         controls: this.#row,
         // Editing is the target's active interaction, not a temporary peek behind
         // `…`: keep every peer action exposed until Save or Cancel ends that state.
-        engaged: () => Boolean(this.#ta),
+        state: () =>
+          this.#failed
+            ? "failed"
+            : this.#sending
+              ? "busy"
+              : this.#ta
+                ? "engaged"
+                : "idle",
         reserve: () => this.#buttonReserve,
         items: () => [
           {
@@ -297,15 +328,53 @@ customElements.define(
       return b;
     }
 
-    #marginButton(glyph, label, onClick, tone = "neutral", behavior = "action") {
+    #marginButton(
+      key,
+      icon,
+      label,
+      onClick,
+      tone = "neutral",
+      behavior = "action",
+      role = "primary",
+      state = "idle",
+    ) {
       const button = marginAction(offer("button", ""), {
-        glyph,
+        key,
+        icon,
         label,
         tone,
         behavior,
+        role,
+        state,
       });
       button.addEventListener("click", onClick);
       return button;
+    }
+
+    #paintButtons() {
+      marginAction(this.#save, {
+        key: this.#failed ? "retry" : "save",
+        icon: this.#failed ? "retry" : "check",
+        label: this.#failed ? "Retry" : "Save",
+        tone: "positive",
+        role: "complete",
+        state: this.#failed ? "failed" : "engaged",
+      });
+      this.#save.setAttribute("aria-label", this.#failed ? "Retry" : "Save");
+      marginActionState(this.#cancel, this.#failed ? "failed" : "engaged");
+      marginActionState(this.#pencil, this.#sending ? "busy" : "idle");
+      this.#pencil.setAttribute("aria-disabled", String(this.#sending));
+      if (this.#failed && this.#ta) {
+        this.#failureReceipt ??= document.createElement("span");
+        this.#failureReceipt.className = "lf-margin-receipt";
+        this.#failureReceipt.textContent = "Failed";
+        this.#row.append(this.#failureReceipt);
+        this.#row.dataset.lfMarginReceipt = "failed";
+      } else {
+        this.#failureReceipt?.remove();
+        delete this.#row.dataset.lfMarginReceipt;
+      }
+      this.#margin?.update();
     }
 
     #delta(before, after, cache = true) {
@@ -438,10 +507,12 @@ customElements.define(
       if (text === this.#body.textContent) return;
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
+      this.#paintButtons();
       this.#body.textContent = text;
       const ok = await sendAction(this, "edit", { text });
       this.#sending = false;
       this.removeAttribute("aria-busy");
+      this.#paintButtons();
       if (ok) notice(`Restored ${label.toLowerCase()} — recorded`);
     }
 
@@ -455,7 +526,13 @@ customElements.define(
       // A set-aside edit outranks the authored text here too: reopening resumes it.
       ta.value = seed ?? loadEdit(this.id) ?? this.#body.textContent;
       ta.setAttribute("aria-label", `Edit ${this.id}`);
-      ta.addEventListener("input", () => saveEdit(this.id, ta.value));
+      ta.addEventListener("input", () => {
+        saveEdit(this.id, ta.value);
+        if (this.#failed) {
+          this.#failed = false;
+          this.#paintButtons();
+        }
+      });
       // The composer's bindings on the box that replaces the page's own words. Escape sets
       // the edit aside rather than discarding it (never lose user text: Cancel is the only
       // discard) — and being the innermost scope's is what keeps the runtime's own rung
@@ -466,8 +543,8 @@ customElements.define(
           id: "draft.save",
           reach: "in an open draft editor",
           keys: ["Mod+Enter"],
-          does: "Save the edit",
-          line: "save",
+          does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
+          line: () => (this.#failed ? "retry" : "save"),
           run: () => this.#save.click(),
         },
         {
@@ -482,7 +559,7 @@ customElements.define(
       this.#row.replaceChildren(this.#save, this.#cancel);
       this.#ta = ta;
       this.#body.after(ta);
-      this.#margin?.update();
+      this.#paintButtons();
       ta.focus();
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
@@ -503,10 +580,11 @@ customElements.define(
         this.#row.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
+      this.#failed = false;
       // States the whole row rather than removing two buttons from it, so read mode
       // is one call from anywhere.
       this.#row.replaceChildren(this.#pencil);
-      this.#margin?.update();
+      this.#paintButtons();
       if (stood) this.#pencil.focus();
     }
 
@@ -518,8 +596,8 @@ customElements.define(
         return;
       }
       this.#body.textContent = text;
-      this.#close(false);
       this.#sending = true;
+      this.#close(false);
       this.setAttribute("aria-busy", "true");
       const ok = await sendDraft(
         ctx(this.id),
@@ -528,6 +606,7 @@ customElements.define(
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
+      this.#paintButtons();
       if (ok) {
         notice(`Edited “${this.id}” — recorded`);
       } else {
@@ -539,7 +618,10 @@ customElements.define(
         // editable. The outbox has already projected the authoritative body before
         // resolving this call, so opening the saved generation must not overwrite it
         // with the stale pre-send snapshot.
-        if (standing !== null) this.#open(standing);
+        if (standing !== null) {
+          this.#failed = true;
+          this.#open(standing);
+        }
       }
     }
 

@@ -427,6 +427,13 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     sent = _traffic(page).sends
     page.keyboard.press("z")
     assert _traffic(page).sends == sent
+    # The local Button shares the keyboard's guard; it cannot post around an
+    # accepted event whose authoritative state is still incomplete.
+    first_item = page.locator('[data-lf-margin-for="sug-refill"]')
+    first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
+    expect(first_item.locator(".lf-sug-receipt")).to_have_text("Undo failed · Accepted")
+    assert _traffic(page).sends == sent
+    first_item.get_by_role("button", name="Cancel", exact=True).click()
 
     # A later refusal is another asynchronous reconciliation wake-up. It may not use
     # the accepted-but-incomplete event tail or release either hold merely because its
@@ -444,7 +451,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     lifted = True
     told(page)
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
+    page.locator("[data-lf-for='sug-in-card']").get_by_role(
+        "button", name="Retry", exact=True
+    ).click()
     round_trip(page)
 
     assert [request["attempt"] for request in requests].count(first_attempt[0]) == 1
@@ -1686,10 +1695,10 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     # the control offers the decision rather than recording it, and the banner
     # counts the question among the ones still waiting on the reader.
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_text(
-        "✓ Accept", use_inner_text=True
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
+        "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/3)")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "the rebuilt change hung a second row beside the one it replaced"
     )
@@ -1743,7 +1752,11 @@ def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
     round_trip(page)
     # The sentence left the page with the decision, so the mark goes with it.
     page.wait_for_function(f"{marks} === 0")
-    expect(accept).to_be_focused()
+    expect(
+        page.locator("[data-lf-for='sug-refill']").get_by_role(
+            "button", name=re.compile(r"^Undo accepting")
+        )
+    ).to_be_focused()
 
     undo(page)
     page.wait_for_function(f"{marks} === 1")
@@ -2000,9 +2013,9 @@ def test_a_rebuild_keeps_what_the_reader_did_inside_the_change(browser, serve):
     undo(page)
 
     expect(page.locator("#sug-thistle lf-old, #sug-thistle lf-new")).to_have_count(1)
-    expect(page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")).to_have_text(
-        "✓ Accept", use_inner_text=True
-    )
+    expect(
+        page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")
+    ).to_have_attribute("aria-label", re.compile(r"^Accept the suggested change"))
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
     assert errors == []
     page.close()

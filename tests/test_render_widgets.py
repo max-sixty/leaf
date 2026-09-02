@@ -1405,7 +1405,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
     # The verb is discovery chrome; at rest the Button is the canonical circle.
-    expect(accept).to_have_text("✓", use_inner_text=True)
+    expect(accept.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "check"
+    )
 
     # A strike and two tints say which words are going and which are proposed, and say
     # it in no text at all: a reader listening got the sentence twice, the two readings
@@ -1416,17 +1418,19 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(accept).to_have_text("✓", use_inner_text=True)
+    expect(accept).to_have_count(0)
+    undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(undo_button.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "undo"
+    )
     receipt = row.locator(".lf-sug-receipt")
     expect(receipt).to_have_text("Accepted", use_inner_text=True)
     expect(receipt).to_be_visible()
     assert receipt.get_attribute("data-lf-said") == ""
-    assert accept.get_attribute("data-lf-said") is None
-    assert accept.get_attribute("aria-label").startswith(
-        "Accepted the suggested change: Refill a feeder when"
-    ), "the record still offers the press it has already taken"
-    assert accept.get_attribute("aria-disabled") == "true"
-    assert accept.evaluate(box) == before, (
+    assert undo_button.get_attribute("data-lf-said") is None
+    expect(undo_button).to_be_enabled()
+    expect(undo_button).to_be_focused()
+    assert undo_button.evaluate(box) == before, (
         "the primary Button moved away from the press as its receipt arrived"
     )
     expect(reject).to_be_hidden()
@@ -1478,17 +1482,23 @@ def test_a_settled_receipt_keeps_a_visible_perch_when_the_change_vanishes(
 
 
 def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
-    """The retired Accept control is `display: none`, so Reject becomes the one
-    canonical circle rather than leaving a receipt beside an unrelated `…` Button."""
+    """Reject leaves a visible receipt and an active Undo, never a dead circle."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-for='sug']")
     reject = row.locator(".lf-sug-reject")
     unfolded_button(reject).click()
 
-    expect(reject).to_be_visible()
-    expect(reject).to_have_attribute("data-lf-button-primary", "")
+    expect(reject).to_have_count(0)
+    undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
+    expect(undo_button).to_have_attribute("data-lf-button-primary", "")
     expect(row.locator(".lf-sug-accept")).to_be_hidden()
     expect(row.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    undo_button.click()
+    round_trip(page)
+    expect(page.locator("#sug")).not_to_have_attribute(
+        "data-lf-state", re.compile(".+")
+    )
+    expect(page.locator("[data-lf-for='sug'] .lf-sug-accept")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -1507,6 +1517,38 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
     expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
     assert item.evaluate("row => row.lfEntry.target.id") == "sug"
     assert errors == []
+    page.close()
+
+
+def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
+    """Undo has the same failure lifecycle without inventing a counter-decision."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    row = page.locator("[data-lf-for='sug']")
+    unfolded_button(row.locator(".lf-sug-reject")).click()
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
+    expect(row.locator(".lf-sug-receipt")).to_have_text("Undo failed · Rejected")
+    expect(page.locator("#sug")).to_have_attribute("data-lf-state", "reject")
+    item = row.locator("xpath=..")
+    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    page.unroute("**/api/event")
+    item.get_by_role("button", name="Retry", exact=True).click()
+    round_trip(page)
+    expect(page.locator("#sug")).not_to_have_attribute(
+        "data-lf-state", re.compile(".+")
+    )
+    logged = events_model.read_events(serve.page_dir)
+    decision = next(event for event in logged if event.get("action") == "reject")
+    assert [event["undoes"] for event in logged if event["kind"] == "undo"] == [
+        decision["id"]
+    ]
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -1745,22 +1787,19 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     assert page.evaluate("() => window.__settled") == [], (
         "the refused decision must never have been on the element at all"
     )
-    # The row is the record of a decision, so a decision that was never taken must not
-    # be standing in it: both controls offering again, neither of them past tense. The
-    # pair is one Button at rest and one behind `…` now, so the second is read where the
-    # reader would find it rather than in the rail it no longer stands in.
-    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
-    reject = unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject"))
-    # The unfolded proxy can replace `…` directly beneath a resting pointer. This
-    # assertion is about refusal restoring the glyph-only state, not its intentional
-    # transient hover label, so move the pointer away before reading it.
-    page.mouse.move(0, 0)
-    expect(accept).to_have_text("✓", use_inner_text=True)
-    expect(reject).to_be_visible()
-    expect(reject).to_have_text("✗", use_inner_text=True)
-    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-receipt")).to_have_count(0)
-    assert reject.get_attribute("aria-disabled") == "false"
-    assert accept.get_attribute("aria-disabled") == "false"
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Failed")
+    expect(item).to_have_attribute("data-lf-state", "failed")
+    expect(item.locator(".lf-margin-more")).to_be_hidden()
+    expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Details", exact=True)).to_have_count(0)
+    expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    item.get_by_role("button", name="Cancel", exact=True).click()
+    expect(item.locator(".lf-sug-receipt")).to_have_count(0)
+    expect(item.locator(".lf-sug-accept")).to_be_focused()
+    item.locator(".lf-sug-accept").click()
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
@@ -1768,10 +1807,9 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
 
-    # The retry is a second click, not a reload: a definitive refusal made the widget
-    # pending again, and the new press carries a fresh attempt of its own.
+    # Retry starts a fresh attempt without reloading or pretending the failed one won.
     page.unroute("**/api/event")
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    item.get_by_role("button", name="Retry", exact=True).click()
     round_trip(page)
     logged = actions(serve.page_dir)
     assert [(event["widget"], event["action"]) for event in logged] == [
@@ -1813,7 +1851,8 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-notice")).to_contain_text("retrying your change")
 
-    accept.click()
+    expect(accept).to_be_disabled()
+    accept.evaluate("button => button.click()")
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert accepted == [200]
     assert len(requests) == 2
@@ -1847,8 +1886,10 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     row = page.locator("[data-lf-for='sug-refill']")
     row.locator(".lf-sug-accept").click()
     _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
-    row.locator(".lf-sug-accept").click()
-    unfolded_button(row.locator(".lf-sug-reject")).click()
+    expect(row.locator(".lf-sug-accept")).to_be_disabled()
+    row.locator(".lf-sug-accept").evaluate("button => button.click()")
+    expect(unfolded_button(row.locator(".lf-sug-reject"))).to_be_disabled()
+    row.locator(".lf-sug-reject").evaluate("button => button.click()")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1941,10 +1982,12 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # Nothing left to decide, and the row says which way it went — written by the
     # replay here rather than by a press, which is the only place that path is driven.
     row = second.locator("[data-lf-for='sug-refill']")
-    accepted = row.locator(".lf-sug-accept")
-    expect(accepted).to_have_text("✓", use_inner_text=True)
+    accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(accepted.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "undo"
+    )
     expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
-    assert accepted.get_attribute("aria-disabled") == "true"
+    expect(accepted).to_be_enabled()
     # Its pair leaves, while the persistent receipt says the decision was taken.
     rejected = second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
     expect(rejected).to_be_hidden()

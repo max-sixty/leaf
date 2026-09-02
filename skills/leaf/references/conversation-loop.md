@@ -50,11 +50,6 @@ same Target Button beside an action or widget subject progresses through:
 - **Picked up** once a direct wait flushes it or Codex's durable queue accepts it;
 - **Active** only after `status … --on` supplies real work detail.
 
-The first three phases, and the standing outcome that follows them, report a move the
-reader has already made, so the Button is sewn flat there: the check keeps its place in
-muted ink, and the raised circle, the pointer, and the tab stop go. A keyboard reader
-still walks onto it and hears the phase. **Active** raises the circle again.
-
 Pickup is automatic and never changes the page-wide status. The Button cluster keeps
 one identity as its phase changes, then returns to the standing outcome or disappears
 when a reply or authored version answers the move. In the full thread panel and inside

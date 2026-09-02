@@ -128,11 +128,8 @@ CONTROL_ARCHETYPES = (
         "target": ".lf-signoff",
     },
     {
-        # The cluster's own row, not the contribution's: a target rests with one primary
-        # Button beside `…`, and every other contributed control is folded out of the
-        # rail, so the accept press has no visible control left to hold still. `…` is the
-        # press with neighbours — the primary stands beside it — and unfolding is the one
-        # transition that adds Buttons to the row it is made on.
+        # Accept and Reject share the resting row. A thread adds the third Button that
+        # puts the secondary choices behind `…`; opening it must leave Accept still.
         "name": "margin-action",
         "coverage": ".lf-margin-action",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
@@ -1481,7 +1478,21 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 )
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
-    page, errors = open_page(browser, serve(CONTROL_STABILITY_PAGE))
+    page, errors = open_page(
+        browser,
+        serve(
+            CONTROL_STABILITY_PAGE,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Does the narrower proof still cover every control?",
+                    "anchor": {"section": "stable-suggestion"},
+                }
+            ],
+        ),
+    )
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])

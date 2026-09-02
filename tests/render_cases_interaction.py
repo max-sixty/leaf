@@ -571,6 +571,55 @@ DECISION_WITH_CONTEXT_PAGE = leaf_page(
 {"".join(f"<p id='tail-{i}'>Later finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
 """,
 )
+
+
+# An ask that cannot declare an arrival region of its own: the change is a phrase inside a
+# sentence, and what explains it is that sentence and the heading over it. One ask, so the
+# walk's wrap comes back to it and a second press can be asked what it does to a page the
+# reader has already adjusted.
+SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
+    "suggestion with context",
+    f"""
+<h1 id="sc-h">What changed</h1>
+{"".join(f"<p id='sc-lead-{i}'>Earlier note {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
+<section id="sc-api">
+  <h2 id="sc-api-heading">API</h2>
+  <p id="sc-api-why">The v1 header is deprecated rather than gone, and this note has to
+  say which.<lf-suggestion id="sc-sug"
+    ><lf-old>The Sunset header does the announcing.</lf-old
+    ><lf-new>The Sunset header announces it, and the guide carries the detail.</lf-new
+  ></lf-suggestion></p>
+</section>
+{"".join(f"<p id='sc-tail-{i}'>Later note {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
+""",
+)
+
+
+# Two asks written one after the other, which is the ordinary way to write two. The change
+# has no heading of its own under its container, so the nearest heading written before it
+# is the previous ask's own — a different question, and not this change's context. The
+# suggestion is a sibling of the decision rather than nested in a section for exactly that
+# reason: with a section heading of its own there would be a nearer candidate and the
+# container bound would never be asked.
+ASKS_IN_A_ROW_PAGE = leaf_page(
+    "asks in a row",
+    f"""
+<h1 id="ar-h">What is still open</h1>
+{"".join(f"<p id='ar-lead-{i}'>Earlier note {i}. " + "Background. " * 18 + "</p>" for i in range(6))}
+<lf-decision id="ar-other-decision"><h2 id="ar-other-heading">Where should sessions live?</h2>
+  <p id="ar-other-why">The store is the only part of this the beta never exercised.</p>
+  <lf-options id="ar-other" choose>
+    <lf-option id="ar-other-keep"><strong>Keep the store</strong></lf-option>
+    <lf-option id="ar-other-token"><strong>Signed tokens</strong></lf-option>
+  </lf-options>
+</lf-decision>
+<lf-suggestion id="ar-sug">
+  <lf-old><p id="ar-was">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p id="ar-now">Refill a feeder when its camera says so.</p></lf-new>
+</lf-suggestion>
+{"".join(f"<p id='ar-tail-{i}'>Later note {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
+""",
+)
 # The decision the walk is standing on. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is

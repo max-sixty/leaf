@@ -1,5 +1,14 @@
 /* The page's one DOM reading and quote resolver. */
 let publishedPassages;
+// The page's own text blocks: what a reader takes in as one unit of prose, and the
+// grain every question about "where in the document is this" is answered at — which
+// passage they are reading, where a walk over decisions starts, what a version diff
+// compares, and which block holds a change the reader has to see in context. A plain
+// constant at module scope rather than a member of the passages object, because a
+// consumer built before that object exists is otherwise reduced to holding a thunk for
+// a string that never varies.
+export const TEXT_BLOCK =
+  "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 export const closestAcross = (...args) => publishedPassages.closestAcross(...args);
 export const containsAcross = (...args) => publishedPassages.containsAcross(...args);
 export const inChrome = (...args) => publishedPassages.inChrome(...args);
@@ -203,8 +212,6 @@ export function createPassages(dependencies) {
   // runtime's own buttons and named "ps ask", where the same widget on the page reads
   // "lf-options · ps-decision".
   const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
-  const TEXT_BLOCK =
-    "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
   // The two readings, each one predicate over a text node and named for the question it
   // answers. Anchoring reads what the user can point at: not the runtime's own words —
   // `inUi`, which a declared label answers for itself — and nothing behind a wall no label
@@ -825,7 +832,6 @@ export function createPassages(dependencies) {
     inChrome,
     pageWords,
     layerPart,
-    TEXT_BLOCK,
     elementOver,
     under,
     authored,

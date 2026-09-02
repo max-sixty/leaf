@@ -804,7 +804,6 @@ const {
   stateSignoff,
   style,
   syncLayout,
-  textBlockSelector: () => TEXT_BLOCK,
 });
 const toggleBtn = el("button", "lf-btn lf-threads-toggle", "Threads");
 toggleBtn.title = "Show or hide the thread panel";
@@ -1870,6 +1869,7 @@ const {
   paintKeys,
   PRESS,
   panelIsOpen,
+  readableDestination: (...args) => readableDestination(...args),
   registry,
   reserve,
   reveal,
@@ -3054,6 +3054,9 @@ function fragmentId(...args) {
 function markAt(...args) {
   return anchorRuntime.markAt(...args);
 }
+function readableDestination(...args) {
+  return anchorRuntime.readableDestination(...args);
+}
 function scrollToElement(...args) {
   return anchorRuntime.scrollToElement(...args);
 }
@@ -3093,7 +3096,6 @@ const {
   DATUM,
   pageWords,
   layerPart,
-  TEXT_BLOCK,
   elementOver,
   under,
   authored,

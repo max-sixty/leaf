@@ -40,7 +40,6 @@ from render_support import (
     painted,
     panel_settled,
     pending_text,
-    primed,
     refuse,
     resized,
     round_trip,
@@ -52,26 +51,6 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
-
-
-@pytest.fixture
-def held_composer_send(browser, request):
-    """The page starts under interception, before any request can bypass the hold."""
-    held = []
-
-    def prepare(page):
-        page.route("**/api/event", lambda route: held.append(route))
-
-        def release():
-            if page.is_closed():
-                return
-            while held:
-                held.pop(0).continue_()
-            page.unroute("**/api/event")
-
-        request.addfinalizer(release)
-
-    return primed(browser, prepare), held
 
 
 def draft_controls(page, draft_id="draft-ops"):
@@ -1003,7 +982,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
 
 
 def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
-    held_composer_send, serve
+    held_events, serve
 ):
     """A comment's send must not take a newer passage selection with its focus handoff.
 
@@ -1013,7 +992,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     Held rather than raced: the window is one request's flight, and a machine quick
     enough closes it before the next gesture. A loaded CI runner is not, and it said so
     as a 💬 that never came up for the passage picked out after a send."""
-    browser, held = held_composer_send
+    browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.locator("#p1").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -1806,11 +1785,9 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     assert again_errors == []
 
 
-def test_a_held_selection_comment_preserves_a_newer_exact_draft(
-    held_composer_send, serve
-):
+def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):
     """A selection send owns one serialized composer generation, not its box."""
-    browser, held = held_composer_send
+    browser, held = held_events
     page, errors = open_page(browser, serve(LONG_PAGE))
     old = "The selected passage needs this first comment."
     newer = "  A newer selection comment remains in the composer.  "

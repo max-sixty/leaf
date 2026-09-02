@@ -121,8 +121,11 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
 
 
 @pytest.mark.parametrize("view", ["inline", "panel"])
-def test_resolve_acknowledges_the_press_and_recovers_a_refusal(browser, serve, view):
+def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
+    held_events, serve, view
+):
     """Both thread views acknowledge a held request and allow a refused one to retry."""
+    browser, held = held_events
     page, errors = open_page(
         browser,
         serve(
@@ -149,8 +152,6 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(browser, serve, v
         thread = page.locator(f'.lf-thread[data-id="{root}"]')
     resolve = thread.get_by_role("button", name="Resolve", exact=True)
     expect(resolve).to_be_visible()
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     resolve.scroll_into_view_if_needed()
     before = resolve.bounding_box()
     with page.expect_request("**/api/event"):
@@ -193,8 +194,11 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(browser, serve, v
     page.close()
 
 
-def test_settlement_controls_share_one_request_across_page_and_panel(browser, serve):
+def test_settlement_controls_share_one_request_across_page_and_panel(
+    held_events, serve
+):
     """Mirrored controls share pending delivery, resolution, and reopening."""
+    browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
@@ -211,8 +215,6 @@ def test_settlement_controls_share_one_request_across_page_and_panel(browser, se
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve", exact=True).click()
     for thread in (inline, panel):
@@ -1153,9 +1155,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 @pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
 @pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
 def test_a_thread_completion_keeps_the_readers_later_destination(
-    browser, serve, request, kind, destination
+    held_events, serve, kind, destination
 ):
     """A held thread operation may land only while its original intent still stands."""
+    browser, held = held_events
     gallery = next(path for path in EXAMPLES if path.stem == "button-gallery")
     page, errors = open_page(browser, serve(gallery))
     resized(page, 390, 700)
@@ -1173,16 +1176,6 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     elif kind == "reply":
         thread.locator("textarea").fill("A reply whose delivery is held.")
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-
-    def release():
-        while held:
-            held.pop(0).continue_()
-        if not page.is_closed():
-            page.unroute("**/api/event")
-
-    request.addfinalizer(release)
     before = _traffic(page).sends
     thread.get_by_role(
         "button",
@@ -1203,7 +1196,8 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         # Accessibility and app focus travel need not emit a pointer or key gesture.
         later.focus()
 
-    release()
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
     round_trip(page)
     told(page)
     page.wait_for_function(RENDERED)

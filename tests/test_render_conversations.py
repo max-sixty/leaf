@@ -15,6 +15,7 @@ from render_support import (
     COVERED_TOP,
     DECISION_PAGE,
     EDGES,
+    EXAMPLES,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -25,6 +26,8 @@ from render_support import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    _traffic,
+    _until,
     draw_edge,
     edge_settled,
     in_threads_scrollport,
@@ -118,8 +121,11 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
 
 
 @pytest.mark.parametrize("view", ["inline", "panel"])
-def test_resolve_acknowledges_the_press_and_recovers_a_refusal(browser, serve, view):
+def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
+    held_events, serve, view
+):
     """Both thread views acknowledge a held request and allow a refused one to retry."""
+    browser, held = held_events
     page, errors = open_page(
         browser,
         serve(
@@ -146,8 +152,6 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(browser, serve, v
         thread = page.locator(f'.lf-thread[data-id="{root}"]')
     resolve = thread.get_by_role("button", name="Resolve", exact=True)
     expect(resolve).to_be_visible()
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     resolve.scroll_into_view_if_needed()
     before = resolve.bounding_box()
     with page.expect_request("**/api/event"):
@@ -190,8 +194,11 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(browser, serve, v
     page.close()
 
 
-def test_settlement_controls_share_one_request_across_page_and_panel(browser, serve):
+def test_settlement_controls_share_one_request_across_page_and_panel(
+    held_events, serve
+):
     """Mirrored controls share pending delivery, resolution, and reopening."""
+    browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
@@ -208,8 +215,6 @@ def test_settlement_controls_share_one_request_across_page_and_panel(browser, se
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve", exact=True).click()
     for thread in (inline, panel):
@@ -1143,6 +1148,73 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(page.locator(".lf-details")).to_have_count(0)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
+@pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
+def test_a_thread_completion_keeps_the_readers_later_destination(
+    held_events, serve, kind, destination
+):
+    """A held thread operation may land only while its original intent still stands."""
+    browser, held = held_events
+    gallery = next(path for path in EXAMPLES if path.stem == "button-gallery")
+    page, errors = open_page(browser, serve(gallery))
+    resized(page, 390, 700)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = {
+        event["anchor"]["section"]: event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and "token" not in event
+    }
+    root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    if kind == "unresolve":
+        page.locator(".lf-details summary").click()
+    elif kind == "reply":
+        thread.locator("textarea").fill("A reply whose delivery is held.")
+
+    before = _traffic(page).sends
+    thread.get_by_role(
+        "button",
+        name={"unresolve": "Reopen", "resolve": "Resolve", "reply": "Send"}[kind],
+        exact=True,
+    ).click()
+    _until(page, lambda traffic: traffic.sends > before, "held the thread operation")
+
+    later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
+    changes = page.locator("#bg-history summary")
+    if destination == "page":
+        page.get_by_role("button", name="Close threads", exact=True).click()
+        changes.click()
+    elif destination == "other-thread":
+        later.click()
+        later.fill("The reader is working here now.")
+    elif destination == "other-focus":
+        # Accessibility and app focus travel need not emit a pointer or key gesture.
+        later.focus()
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    told(page)
+    page.wait_for_function(RENDERED)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == kind
+    if destination == "page":
+        assert not page.get_by_role("dialog").is_visible()
+        expect(changes).to_be_focused()
+        expect(page.locator("#bg-history details")).to_have_attribute("open", "")
+    elif destination in {"other-thread", "other-focus"}:
+        expect(later).to_be_focused()
+        expect(later).to_have_value(
+            "The reader is working here now." if destination == "other-thread" else ""
+        )
+    elif kind in {"reply", "unresolve"}:
+        expect(thread.locator("textarea")).to_be_focused()
+    else:
+        expect(page.locator(".lf-threads > .lf-thread").first).to_be_focused()
     assert errors == []
     page.close()
 

@@ -1380,6 +1380,31 @@ def primed(browser, prepare):
     return SimpleNamespace(new_page=new_page)
 
 
+@pytest.fixture
+def held_events(browser, request):
+    """Hold event requests from navigation onward, including the first POST.
+
+    Enabling interception on an already loaded page can let its first POST escape
+    both the route and Playwright's request events. Tests release each held route
+    explicitly; teardown releases any left behind after a failed assertion.
+    """
+    held = []
+
+    def prepare(page):
+        page.route("**/api/event", lambda route: held.append(route))
+
+        def release():
+            if page.is_closed():
+                return
+            while held:
+                held.pop(0).continue_()
+            page.unroute("**/api/event")
+
+        request.addfinalizer(release)
+
+    return primed(browser, prepare), held
+
+
 def margins_laid_out(page):
     """Run the margin layout the page has scheduled, so a geometry read follows it.
 

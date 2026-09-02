@@ -216,7 +216,8 @@ export function createConversation(dependencies) {
     threadsBox,
   });
   const { narrowed, paintNarrowing, widen } = narrowing;
-  const { revealThread, showThread } = createPanelLanding({
+  const { retainPanelLanding, revealThread, showThread } = createPanelLanding({
+    panelIsOpen,
     reachedForWords,
     setPanel,
     threadsBox,
@@ -232,7 +233,6 @@ export function createConversation(dependencies) {
   const cards = createThreadCards({
     anchorLabel,
     el,
-    focused,
     isMarked,
     keys,
     msgNode,
@@ -243,6 +243,7 @@ export function createConversation(dependencies) {
     placedAt,
     PRESS,
     reachedForWords,
+    retainPanelLanding,
     revealThread,
     scrollToThread,
     setPanel,

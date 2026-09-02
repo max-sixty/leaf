@@ -979,10 +979,10 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough that the note has its strip (1152px) and narrow enough that the room, not
-# the shared cap, is what decides the board's width — above about 1560px the cap binds
-# first and the two never compete. A window inside that band is where the question is live.
-NOTE_BAND = 1280
+# Wide enough for an exhibit to grow after the live page's 520px conversation strip,
+# but narrow enough that room, not the 1080px shared cap, binds in both live and copied
+# media. With no surplus over prose, a board never asks to share the note's margin.
+NOTE_BAND = 1400
 
 
 def _painted_line(page):

@@ -3,7 +3,6 @@ export function createThreadCards(dependencies) {
   const {
     anchorLabel,
     el,
-    focused,
     isMarked,
     keys,
     msgNode,
@@ -14,6 +13,7 @@ export function createThreadCards(dependencies) {
     placedAt,
     PRESS,
     reachedForWords,
+    retainPanelLanding,
     revealThread,
     scrollToThread,
     setPanel,
@@ -57,10 +57,6 @@ export function createThreadCards(dependencies) {
     }
 
     const div = el("div", "lf-thread");
-    const ownsLanding = () =>
-      focused() === document.body ||
-      focused() === threadsBox ||
-      div.contains(focused());
     div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
     div.dataset.id = t.root.id;
     if (grow) div.classList.add("grow");
@@ -102,6 +98,7 @@ export function createThreadCards(dependencies) {
       const send = el("button", "lf-btn primary lf-thread-send", "Send");
       row.append(input);
       wireReply(t, input, send, {
+        retainLanding: () => retainPanelLanding(div),
         landed: (sent) => revealThread(sent.id),
       });
       const actions = el("div", "lf-thread-actions");
@@ -113,9 +110,10 @@ export function createThreadCards(dependencies) {
       // pressed one is still giving back.
       const resolve = settlementControl(t, {
         prepareLanding: () => {
+          const mayLand = retainPanelLanding(div);
           const at = openThreads().indexOf(div);
           return () => {
-            if (!ownsLanding()) return;
+            if (!mayLand()) return;
             const kept = openThreads();
             (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
           };
@@ -137,8 +135,11 @@ export function createThreadCards(dependencies) {
         status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
       }
       const reopen = settlementControl(t, {
-        prepareLanding: () => () => {
-          if (ownsLanding()) showThread(t.root.id);
+        prepareLanding: () => {
+          const mayLand = retainPanelLanding(div);
+          return () => {
+            if (mayLand()) showThread(t.root.id);
+          };
         },
       });
       actions.append(status, reopen);

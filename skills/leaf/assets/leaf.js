@@ -1116,7 +1116,7 @@ function reserveBannerControls() {
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Asks (999)"]);
+  reserve(decisionsBtn, ["Asks (999/999)"]);
   reserve(othersBtn, ["All leaves (999)"]);
 }
 reserveBannerControls();

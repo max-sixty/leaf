@@ -554,6 +554,14 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             ".lf-sug-actions[data-lf-for='sug']"
         ).get_by_role("button", name=re.compile("^Accept the suggested change"))
         expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
+        expect(suggestion_accept).to_have_attribute("tabindex", "-1")
+        assert suggestion_accept.evaluate(
+            """button => {
+              const glyph = button.firstElementChild;
+              document.dispatchEvent(new Event('lf-actions'));
+              return button.firstElementChild === glyph;
+            }"""
+        ), "an unchanged availability paint rebuilt the suggestion control"
         suggestion_accept.dispatch_event("click")
         expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
         assert posts == [], "a durable action posted before the first state projection"

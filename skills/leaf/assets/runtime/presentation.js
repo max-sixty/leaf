@@ -30,6 +30,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   exhibit: "data-lf-exhibit",
   yield: "data-lf-yield",
   holds: "data-lf-holds",
+  goto: "data-lf-goto",
 });
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 

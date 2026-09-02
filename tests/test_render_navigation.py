@@ -1072,11 +1072,83 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.close()
 
 
+def test_addresses_fit_the_visible_screen_before_collisions_are_removed(browser, serve):
+    """Whole key sequences fit at viewport edges, including below the banner.
+
+    The two left-edge links on the same line start far enough apart for their original
+    chips to fit. Bringing the first chip on screen makes them collide.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "addresses at the edges",
+                """
+<h1 id="top">Addresses at the edges</h1>
+<nav id="edges" aria-label="Edge links">
+  <a id="left" href="#top">Left</a>
+  <a id="right" href="#top">Right</a>
+  <a id="bottom" href="#top">Bottom</a>
+  <a id="below-banner" href="#top">Below the banner</a>
+  <a id="under-banner" href="#top">Under the banner</a>
+  <a id="crowded-left" href="#top">Crowded left</a>
+  <a id="crowded-neighbor" href="#top">Crowded neighbor</a>
+</nav>
+""",
+                head="""<style>
+  #edges a { position: fixed; display: block; width: 1px; height: 20px;
+    overflow: hidden; white-space: nowrap; }
+  #left { left: 1px; top: 200px; }
+  #right { left: calc(100vw - 1px); top: 280px; }
+  #bottom { left: 70vw; top: calc(100vh - 1px); }
+  #below-banner { left: 45vw; top: calc(var(--lf-banner-h) + 1px); }
+  #under-banner { left: 60vw; top: calc(var(--lf-banner-h) - 8px); }
+  #crowded-left { left: 1px; top: 400px; }
+  #crowded-neighbor { left: 80px; top: 400px; }
+</style>""",
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    expect(page.locator(CHIPS).first).to_have_text("gh1")
+    reading = page.evaluate(
+        """() => ({
+          width: document.documentElement.clientWidth,
+          height: document.documentElement.clientHeight,
+          banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+          chips: [...document.querySelectorAll('.lf-chord-address')].map(chip => ({
+            route: chip.textContent,
+            ...chip.getBoundingClientRect().toJSON(),
+          })),
+        })"""
+    )
+    assert len(reading["chips"]) >= 6, reading
+    for chip in reading["chips"]:
+        assert 0 <= chip["left"] < chip["right"] <= reading["width"], reading
+        assert reading["banner"] <= chip["top"] < chip["bottom"] <= reading["height"], (
+            reading
+        )
+    assert [chip["route"] for chip in reading["chips"]] == [
+        "gh1",
+        "gh2",
+        "gh3",
+        "gh4",
+        "gh5",
+        "gh6",
+    ], reading
+    page.keyboard.press("6")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator("#top")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_no_address_is_drawn_on_top_of_another(browser, serve):
     """An address the reader can read is one no other address is sitting on.
 
-    Chips are centred on the corner their member starts at. Several links can start within
-    one digit's width, as they do in a footnote run.
+    Chips sit above the corner their member starts at. Several links can start within
+    one chip's width, as they do in a footnote run.
 
     Stacked, they do not read as two. The lower one shows an edge and the upper one's digit
     is the number the reader takes for the link underneath — so the promise is wrong rather
@@ -1498,7 +1570,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
                        const c = chip.getBoundingClientRect();
                        const first = links[i].getClientRects()[0];
                        return Math.abs(c.left + c.width / 2 - first.left) < 2
-                           && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                           && Math.abs(c.bottom - first.top) < 2;
                      })};
            }"""
     ) == {
@@ -1576,7 +1648,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
                         .getBoundingClientRect();
              const first = document.getElementById('dsc-head').getClientRects()[0];
              return Math.abs(c.left + c.width / 2 - first.left) < 2
-                 && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                 && Math.abs(c.bottom - first.top) < 2;
            }"""
     ), "the chip is not on the corner the summary starts at"
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")

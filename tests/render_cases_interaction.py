@@ -742,6 +742,42 @@ def live_url(version_url):
     return version_url.split("/versions/", 1)[0] + f"/?t={TOKEN}"
 
 
+# A live page a reader is mid-press on when the next revision lands: hyperlinks for the
+# address chord to count, and a decision whose pick mark the key line offers digits over.
+# The second revision adds a paragraph above everything and takes the middle link away,
+# so a restored place has moved and an address has gone; the third adds another.
+LIVE_KEYS_V1 = leaf_page(
+    "Live keys first",
+    """
+<h1 id="lk-title">Live keys</h1>
+<p id="lk-lead">See <a id="lk-link-one" href="#lk-title">the title</a>, <a id="lk-link-two" href="#lk-lead">this lead</a>, and the decision below it.</p>
+<lf-decision id="lk-decision"><h2>Which one?</h2>
+<lf-options id="lk-options" choose>
+  <lf-option id="lk-one">One</lf-option>
+  <lf-option id="lk-two">Two</lf-option>
+</lf-options></lf-decision>
+<p id="lk-para">A closing paragraph with <a id="lk-link-three" href="#lk-para">a link to itself</a>.</p>
+""",
+)
+LIVE_KEYS_V2 = (
+    LIVE_KEYS_V1.replace(
+        "<title>Live keys first</title>", "<title>Live keys second</title>"
+    )
+    .replace(
+        '<h1 id="lk-title">Live keys</h1>',
+        '<p id="lk-new">A finding the second revision put above everything else.</p>\n'
+        '<h1 id="lk-title">Live keys</h1>',
+    )
+    .replace(', <a id="lk-link-two" href="#lk-lead">this lead</a>,', ",")
+)
+LIVE_KEYS_V3 = LIVE_KEYS_V2.replace(
+    "<title>Live keys second</title>", "<title>Live keys third</title>"
+).replace(
+    '<p id="lk-new">',
+    '<p id="lk-newer">A finding the third revision put above that.</p>\n<p id="lk-new">',
+)
+
+
 # A section that generates no box of its own, holding blocks that carry no id. The
 # reading position's landmark is whichever id stands nearest the block the reader was
 # on, so the wrapper is it — which is what a suggestion around whole sections is, and
@@ -882,7 +918,7 @@ def backdate_note(page_dir, version, hours):
 # log holding one event apiece leaves the whole of it standing at once. Selection and
 # completion share one option-group unit but occupy distinct facets, so both stand;
 # accept and reject share the settlement facet, so two suggestions let both competing
-# verbs stand. The floor below derives the list from the registry, so a twelfth widget's
+# verbs stand. The floor below derives the list from the registry, so a newly declared
 # verb fails here rather than passing unexercised.
 STANDING_PAGE = leaf_page(
     "standing state",
@@ -917,6 +953,15 @@ STANDING_PAGE = leaf_page(
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
+<lf-diff id="ab-patch"><pre>
+diff --git a/ab/bracket.py b/ab/bracket.py
+--- a/ab/bracket.py
++++ b/ab/bracket.py
+@@ -1,2 +1,2 @@
+ def bracket():
+-    return "plastic"
++    return "steel"
+</pre></lf-diff>
 """,
 )
 
@@ -938,6 +983,7 @@ STANDING_ACTIONS = [
     ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
     ("ab-sug-410", "accept", {}),
     ("ab-sug-logs", "reject", {}),
+    ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(
     "relative widget",

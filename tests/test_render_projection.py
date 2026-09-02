@@ -14,7 +14,6 @@ from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
@@ -30,6 +29,9 @@ from render_support import (
     DECISIONS_PAGE,
     IMPORTER_CARD,
     KEPT_SECTION_PAGE,
+    LIVE_KEYS_V1,
+    LIVE_KEYS_V2,
+    LIVE_KEYS_V3,
     LIVE_V1,
     LIVE_V2,
     LIVE_V3,
@@ -46,6 +48,7 @@ from render_support import (
     ROSTER_PAGE,
     SCROLL_SETTLE_MS,
     SCROLL_SETTLED,
+    SHIPPED_PACKAGES,
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
     STANDING_ACTIONS,
@@ -239,7 +242,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
 """,
     )
-    url = serve(authored, packages=("pr-review",))
+    # pr-review's lf-call-diff points at an lf-diff, which travels in `diff`.
+    url = serve(authored, packages=("pr-review", "diff"))
     call_diff = """calldiff diff main → feature
 
   Limiter.bucket_key(self, request)  gateway/limits.py:38
@@ -282,6 +286,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-summary")).to_have_text(
         "1 changed root · 1 added · 0 removed · 2 items"
     )
+    # The counts are this widget's account of the tree, not words the page holds:
+    # data-lf-gen is what keeps them out of the version diff, which parses the base.
+    expect(widget.locator(".lf-call-summary")).to_have_attribute("data-lf-gen", "1")
+    expect(widget.locator(".lf-call-group-count")).to_have_attribute("data-lf-gen", "1")
     group = widget.locator(":scope > .lf-call-group")
     expect(group).to_have_count(1)
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
@@ -742,6 +750,62 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     page.close()
 
 
+def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
+    browser, serve
+):
+    """A revision arriving under a reader mid-press keeps their next press live.
+
+    Two kinds of pending input meet an activation. A chord is the runtime's: `g h` names
+    the hyperlinks, and the chips are read off whichever document is standing, so the
+    window holds through the swap and the digit lands in the new page — minus the
+    address of a link the revision took away, which is the honest reading. The reader's
+    standing is the document's: the key line over a focused pick mark offers "1–2 toggle
+    the nth", and the swap that replaced main dropped that focus onto body, taking the
+    offer down with it — the digit then picked nothing, silently. The place is written
+    down by id before the swap and handed back after it, so the fresh mark holds the
+    focus and the digit picks, acknowledged in the banner. One revision arrives as a
+    draft and the next as a stamped version, since both replace the page under the
+    reader by the same door."""
+    version_url = serve(LIVE_KEYS_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    chips = page.locator(".lf-chord-address")
+
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    expect(chips).to_have_text(["gh1", "gh2", "gh3"])
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
+    told(page)
+    expect(page).to_have_title("Live keys second")
+    expect(chips).to_have_text(["gh1", "gh2"])
+    assert "1–2" in key_line(page), "the chord's range did not follow the new document"
+    page.keyboard.press("2")
+    expect(page.locator("#lk-para")).to_be_focused()
+    expect(chips).to_have_count(0)
+
+    mark = page.locator("#lk-one .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+    assert "toggle the nth" in key_line(page)
+    # A stamped version this time, which is the other way a page moves under a reader;
+    # the notice names it in the banner and no toast stands in the corner.
+    stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
+    told(page)
+    expect(page).to_have_title("Live keys third")
+    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text("Updated to v2")
+    assert page.locator(".lf-toast").count() == 0
+    # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
+    expect(page.locator("#lk-one .lf-pick")).to_be_focused()
+    assert "toggle the nth" in key_line(page), "the swap took the reader's keys down"
+    page.keyboard.press("2")
+    expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
+        "Chose “Two” — recorded"
+    )
+    round_trip(page)
+    assert errors == []
+    page.close()
+
+
 def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_broken(
     browser, serve
 ):
@@ -942,9 +1006,9 @@ def test_the_decision_walk_keeps_its_place_when_a_version_lands(browser, serve):
     window is somewhere they had already walked past.
 
     So the walk's place travels in the same record as the passage, and the press after
-    the version lands is the press they would have made before it. The ring does not
-    travel and is not owed a record: it is painted from the focus, and a reader arriving
-    at a fresh document is standing on the page rather than in the decision they left."""
+    the version lands is the press they would have made before it. The ring is not owed a
+    record of its own: it is painted from the focus, and the activation hands the reader
+    back the control they were standing on, so the decision they were in wears it still."""
     url = serve(DECISIONS_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, live_url(url))
@@ -969,7 +1033,10 @@ def test_the_decision_walk_keeps_its_place_when_a_version_lands(browser, serve):
     stamp_page(d, DECISIONS_PAGE, "two")
     wait_for_revision(page, 2)
 
-    expect(page.locator("[data-lf-decision]")).to_have_count(0)
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
+        "data-lf-decision", "1"
+    )
+    expect(page.locator("[data-lf-decision]")).to_have_count(1)
     # The condition the restore is for, stated rather than assumed: an earlier decision's own
     # prose is on screen above the one the reader was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the decision they just left.
@@ -2012,13 +2079,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
         .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
-    registry = validation_model.incoming_registry(
-        [
-            schema_model.ASSETS,
-            schema_model.DEFAULT_PACKAGE,
-            COMMAND_HUB_PACKAGE,
-        ]
-    )
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     declared = {
         (tag, verb)
         for tag, entry in registry.items()
@@ -2572,7 +2633,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
 
 
 def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
-    """A move outlives its toast: the card the user moved stays visibly
+    """A move outlives its notice: the card the user moved stays visibly
     marked as recorded-but-unwritten and its grip says so, in the tab that moved
     it and in a fresh replay alike, because the runtime compares the page's state
     against the version's own snapshot rather than remembering who wrote what.
@@ -3415,7 +3476,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.locator("#tq-set .lf-done").click()
     expect(decisions).to_be_hidden()
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-toast")).to_have_text("Marked answered — recorded")
+    expect(page.locator(".lf-notice")).to_have_text("Marked answered — recorded")
     # Said once, by the log's answer. An `answered` attribute on the group said it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every

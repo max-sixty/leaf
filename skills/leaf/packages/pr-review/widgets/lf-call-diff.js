@@ -5,6 +5,7 @@
 import {
   announce,
   navigateToDatum,
+  offer,
   projectData,
   watchData,
 } from "/runtime/widget-api.js";
@@ -108,10 +109,16 @@ function updateDisclosureControl(owner) {
 
 function buildToolbar(owner) {
   const toolbar = make("div", "lf-call-tools");
+  // The counts this widget writes are an account of the tree, not words the page holds,
+  // so `data-lf-gen` takes them out of the version diff and makes each its own passage
+  // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
+  // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = make("p", "lf-call-summary");
-  const button = make("button", "lf-call-toggle");
-  toolbar.dataset.lfUi = "";
-  button.type = "button";
+  summary.dataset.lfGen = "1";
+  // `offer`, not a bare button: the disclosure control is chrome this widget injected
+  // and a handler is all it ever was, so the markers it writes are what tells the
+  // exported copy to take the press away rather than draw a hand over a dead one.
+  const button = offer("button", "lf-call-toggle");
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);
@@ -119,8 +126,7 @@ function buildToolbar(owner) {
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
-  toolbar.append(summary);
-  if (!owner.preparingExport) toolbar.append(button);
+  toolbar.append(summary, button);
   return toolbar;
 }
 
@@ -180,13 +186,22 @@ function renderLine(record, prior, owner) {
   setText(body, record.body);
   setText(location, record.location);
   location.hidden = !record.location;
-  if (owner.preparingExport) location.removeAttribute("href");
-  else location.href = `#${owner.getAttribute("diff")}`;
-  location.onclick = async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    await travelToLine(owner, record);
-  };
+  // The header row names no location, so its anchor is hidden — and an `href` on a
+  // hidden anchor is a way in that leads nowhere. Worse, `reachScrollers` reads a
+  // candidate for a focusable descendant before granting the stop, and a hidden
+  // `a[href]` is one: the header's own words run off the side, and the live page
+  // answered "there is already a way in here" with a link nobody can reach.
+  if (record.location && !owner.preparingExport) {
+    location.href = `#${owner.getAttribute("diff")}`;
+    location.onclick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await travelToLine(owner, record);
+    };
+  } else {
+    location.removeAttribute("href");
+    location.onclick = null;
+  }
   return line;
 }
 
@@ -220,10 +235,14 @@ customElements.define(
       this.stopWatching = null;
     }
 
+    // In a copy the anchor can only reach the patch, never the line it names — and on a
+    // group's root row, which is the disclosure's own `<summary>`, it is a focusable
+    // descendant of a disclosure as well. So the copy keeps each location as text.
+    // The toggle needs nothing here: `offer` marked it, and the bake takes a marked
+    // press away on its own. Nor do the counts, which stay, because an account of the
+    // tree is something a reader still wants on paper.
     lfPrepareExport() {
       this.preparingExport = true;
-      this.querySelector(":scope > .lf-call-tools .lf-call-toggle")?.remove();
-      for (const count of this.querySelectorAll(".lf-call-group-count")) count.remove();
       for (const location of this.querySelectorAll(".lf-call-location"))
         location.removeAttribute("href");
     }
@@ -322,15 +341,13 @@ customElements.define(
         const groupRecords = records.filter((record) => record.groupKey === key);
         const root = groupRecords.find((record) => record.root);
         const rootNode = nodesByKey.get(root.key);
-        if (!this.preparingExport) {
-          let count = rootNode.querySelector(".lf-call-group-count");
-          if (!count) {
-            count = make("span", "lf-call-group-count");
-            count.dataset.lfUi = "";
-            rootNode.append(count);
-          }
-          setText(count, groupLabel(groupRecords));
+        let count = rootNode.querySelector(".lf-call-group-count");
+        if (!count) {
+          count = make("span", "lf-call-group-count");
+          count.dataset.lfGen = "1";
+          rootNode.append(count);
         }
+        setText(count, groupLabel(groupRecords));
         reconcileChildren(
           parts.body,
           groupRecords

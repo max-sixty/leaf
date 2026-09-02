@@ -355,7 +355,7 @@ def record(
     page.mouse.up()
     page.wait_for_selector("#col-during #card-oncall")
     page.wait_for_function(
-        "() => document.querySelector('.lf-toast').classList.contains('show')"
+        "() => document.querySelector('.lf-notice').classList.contains('show')"
     )
     shot(2400)
     waiter.receive()

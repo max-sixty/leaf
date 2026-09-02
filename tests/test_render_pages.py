@@ -294,38 +294,43 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         #
         # The product's own readings, not test-side copies, and the population is
         # asserted first: a widget with no controls in it would make both come back
-        # clean for having been handed nothing.
-        offers = page.evaluate(
-            """(ids) => ids.flatMap((id) => {
-                 const el = document.getElementById(id);
-                 return el ? [...el.querySelectorAll('[data-lf-offer]')] : [];
-               }).length""",
-            sorted(carried_ids),
-        )
-        assert offers, (
-            f"{example.stem}: no widget a message carries built a control, so the two "
-            "readings below were handed nothing of the panel's to look at"
-        )
-        for finding, probe, arg in (
-            (
-                "draws a box of no size",
-                "tinyBoxes",
-                page_registry(page),
-            ),
-            (
-                "has a control clipped out of its box",
-                "clippedControls",
-                None,
-            ),
-        ):
-            found = (
-                render_checks_model.evaluate_probe(page, probe, arg)
-                if arg
-                else render_checks_model.evaluate_probe(page, probe)
+        # clean for having been handed nothing. Which is also why this half is skipped
+        # where the log carries no widget at all: a message widget is a shared runtime
+        # mechanism, held by a causal representative rather than repeated over every
+        # seeded page, and `drawn` and `decided` below the loop are the floor that says
+        # one still stands somewhere.
+        if carried_ids:
+            offers = page.evaluate(
+                """(ids) => ids.flatMap((id) => {
+                     const el = document.getElementById(id);
+                     return el ? [...el.querySelectorAll('[data-lf-offer]')] : [];
+                   }).length""",
+                sorted(carried_ids),
             )
-            assert found == [], (
-                f"{example.stem}: with the panel open, something {finding}: {found}"
+            assert offers, (
+                f"{example.stem}: no widget a message carries built a control, so the "
+                "two readings below were handed nothing of the panel's to look at"
             )
+            for finding, probe, arg in (
+                (
+                    "draws a box of no size",
+                    "tinyBoxes",
+                    page_registry(page),
+                ),
+                (
+                    "has a control clipped out of its box",
+                    "clippedControls",
+                    None,
+                ),
+            ):
+                found = (
+                    render_checks_model.evaluate_probe(page, probe, arg)
+                    if arg
+                    else render_checks_model.evaluate_probe(page, probe)
+                )
+                assert found == [], (
+                    f"{example.stem}: with the panel open, something {finding}: {found}"
+                )
 
         # And the third thing a log carries: what the reader did to one of those
         # widgets. A decision on a widget a message carries is folded from thread
@@ -534,7 +539,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page.close()
 
 
-def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serve):
+def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):
     """A failed candidate owns neither the agent name nor the reply count.
 
     The first read reaches panel and version rendering before malformed projection data
@@ -606,16 +611,16 @@ def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serv
     expect(version_menu).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
-    toast = page.locator(".lf-toast")
-    assert "show" not in toast.get_attribute("class").split()
+    notice_el = page.locator(".lf-notice")
+    assert "show" not in notice_el.get_attribute("class").split()
     page.wait_for_timeout(100)
     assert "Codex replied" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(toast).to_have_text("Codex replied — open Threads")
-    expect(toast).to_have_class(re.compile(r"\bshow\b"))
+    expect(notice_el).to_have_text("Codex replied — open Threads")
+    expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     assert errors == []
     page.close()
 
@@ -2156,10 +2161,38 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     resized(page, 1400, 900)
 
-    page.evaluate(
-        "document.scrollingElement.style.scrollBehavior = 'auto'; document.scrollingElement.scrollTo(0, 900)"
+    # Halfway through the stretch where the box stands on its own offset: past the
+    # scroll that lifts it off where it was authored, and short of the one where main's
+    # own end starts carrying it back up. Both edges are the page's, so they are read
+    # off it — a named scroll fell past the far one when the release page grew shorter.
+    parked = page.evaluate(
+        """() => {
+          const scroller = document.scrollingElement;
+          scroller.style.scrollBehavior = 'auto';
+          const sidebar = document.querySelector('aside.sidebar');
+          const main = sidebar.parentElement;
+          const box = sidebar.getBoundingClientRect();
+          const style = getComputedStyle(sidebar);
+          const offset = parseFloat(style.top);
+          const stands = scroller.scrollTop + box.top - offset;
+          const carried = scroller.scrollTop + main.getBoundingClientRect().bottom
+            - parseFloat(getComputedStyle(main).paddingBottom)
+            - parseFloat(style.marginBottom) - box.height - offset;
+          const at = Math.round((stands + carried) / 2);
+          scroller.scrollTo(0, at);
+          return { at, stands, carried };
+        }"""
     )
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 800")
+    # The stretch has to exist before a point halfway along it says anything. A page
+    # too short to lift the box off where it was authored parks the scroll behind
+    # `stands`, and the ring assertion below would then report a position rather than
+    # the page that made it meaningless.
+    assert parked["carried"] > parked["stands"], (
+        f"the page is too short for the sidebar to stand on its own offset: {parked}"
+    )
+    page.wait_for_function(
+        "at => document.scrollingElement.scrollTop >= at - 1", arg=parked["at"]
+    )
     stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
     assert 64 <= stuck <= 68, (
         f"the sidebar stuck at {stuck:.0f}px, not below the banner"

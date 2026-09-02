@@ -438,10 +438,6 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
 
     What the reader left standing is the arrangement the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
-    One thing was caught the day this was written: a panel left open moved the toast
-    across the page's foot, because its resting corner is the panel's and the
-    stylesheet transitions it there. Invisible, the toast being transparent until it
-    speaks — and exactly the shape of the visible one.
     """
     url = serve(CHANGE_SHAPES_PAGE)
     page, errors = open_page(browser, url)
@@ -1198,15 +1194,19 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
 
     example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
     page, errors = open_page(browser, serve(example))
+    # The lines a diff has drawn, which is not every diff on the page: the shipped patch
+    # stands collapsed and fetches one file when it is asked for, so its shadow tree
+    # holds nothing to mark until a reader opens one. The floor below is what keeps that
+    # from reading as a clean sweep of nothing.
     diffed = page.evaluate(
-        """() => [...document.querySelectorAll('lf-diff')].map((d) => {
-            const pre = d.shadowRoot.querySelector('pre');
-            return { scrolls: getComputedStyle(pre).overflowX,
-                     marked: pre.hasAttribute('data-lf-holds'),
-                     position: getComputedStyle(pre).position };
-        })"""
+        """() => [...document.querySelectorAll('lf-diff')]
+            .map((d) => d.shadowRoot.querySelector('pre'))
+            .filter(Boolean)
+            .map((pre) => ({ scrolls: getComputedStyle(pre).overflowX,
+                             marked: pre.hasAttribute('data-lf-holds'),
+                             position: getComputedStyle(pre).position }))"""
     )
-    assert diffed, "no diff on the page, so nothing here stands in a shadow tree"
+    assert diffed, "no diff drew its lines here, so nothing stands in a shadow tree"
     assert all(
         d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
     ), f"the mark did not reach the diff's lines: {diffed}"

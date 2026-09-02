@@ -12,45 +12,6 @@
         "schema": {
           "type": "string"
         }
-      },
-      "unified-diff": {
-        "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "fragments": {
-          "items": "files",
-          "key": "key",
-          "value": "patch"
-        },
-        "schema": {
-          "type": ["string", "object"],
-          "properties": {
-            "files": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "key": { "type": "string", "minLength": 1 },
-                  "path": { "type": "string", "minLength": 1 },
-                  "previousPath": { "type": "string", "minLength": 1 },
-                  "kind": { "enum": ["patch", "rename"] },
-                  "additions": { "type": "integer", "minimum": 0 },
-                  "deletions": { "type": "integer", "minimum": 0 },
-                  "patch": { "type": "string", "minLength": 1 }
-                },
-                "required": [
-                  "key",
-                  "path",
-                  "kind",
-                  "additions",
-                  "deletions",
-                  "patch"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": ["files"],
-          "additionalProperties": false
-        }
       }
     }
   },
@@ -531,70 +492,6 @@
     },
     "x-upgrade": false
   },
-  "lf-diff": {
-    "description": "A unified diff rendered by Pierre with native per-file collapse, file filtering, durable reviewed marks, next-unreviewed navigation, old/new line numbers, full add/delete line backgrounds, brighter inline word changes, visible but unselectable +/− indicators, and per-file +/− counts. Line numbers and indicators stay outside copied and commented source text. A reviewed mark is an explicit reader action folded by file path; filtering is temporary and never hides files from print or export. Add `collapsed` when every file should start closed, especially for a large patch; a comment or navigation target still opens the containing file and clears a filter that hid it. Bind `source` to a page-owned unified-diff feed and use `snapshot` for an immutable capture; each rendered line then becomes a commentable datum keyed by file path, old/new side, and source line. The feed may hold patch text or, for large reviews, a `files` manifest whose path-keyed `patch` fields Leaf delivers only when their files open. The bound form is `<lf-diff id=\"patch\" source=\"pr-patch\"><pre></pre></lf-diff>`; the empty `<pre>` preserves the shared data-body shape and its content is ignored. With no source, the diff verbatim inside its <pre>, at column 0, remains the authored fallback. Every changed file needs at least one `@@` hunk header, whose old and new counts must match the following lines exactly. A path-only rename is the only supported hunkless entry and appears as one old → new row; write that block as exactly four lines: `diff --git`, `similarity index 100%`, `rename from`, and `rename to`, with the same non-empty old and new paths in the header and rename lines. A rename with changes uses the normal disclosure labeled with its new path. Binary, mode-only, empty added/deleted, and copy entries are unsupported, so state those changes in prose rather than mixing them into the diff; for an edited copy destination, omit the copy metadata and provide its textual hunks. Context lines keep their leading space; encode a context line with nothing after that prefix as &amp;#32; so HTML parsing preserves it. HTML-escape an inline body — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt; — or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
-      "snapshot": {
-        "type": "string",
-        "pattern": "^[1-9][0-9]*$"
-      },
-      "collapsed": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "id"
-    ],
-    "dependentRequired": {
-      "snapshot": [
-        "source"
-      ]
-    },
-    "additionalProperties": false,
-    "x-content": "data",
-    "x-data": {
-      "document": {
-        "contract": "unified-diff",
-        "source": "source",
-        "snapshot": "snapshot"
-      }
-    },
-    "x-state": {
-      "review": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "file": {
-              "type": "string",
-              "minLength": 1
-            },
-            "reviewed": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "file",
-            "reviewed"
-          ],
-          "additionalProperties": false
-        },
-        "facet": "review",
-        "unit": "file"
-      }
-    },
-    "x-upgrade": true,
-    "x-shadow": true,
-    "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
-  },
   "lf-tree": {
     "description": "A file tree from an indent-notation body: one node per line, children indented deeper, a trailing / marking a directory, trailing +N/-N tokens rendering as change badges. Body is data — text inside its <pre>, HTML-escaped (& first, then < and >).",
     "type": "object",
@@ -665,32 +562,6 @@
       "at"
     ],
     "x-upgrade": false
-  },
-  "lf-diagram": {
-    "description": "A diagram rendered from a mermaid-source body (flowchart, sequence, state…). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). A click comments on the whole diagram by default. Boxes listed in `parts` as `node:SOURCE_ID` take individual comments, where SOURCE_ID is the id written in the Mermaid source: the id of a node, a subgraph or a composite state in a flowchart or a `stateDiagram-v2`, or an `erDiagram` entity's name. Unlisted boxes and diagrams authored without `parts` keep the whole-diagram behavior. `parts` accepts only those three types, because they are the ones that carry a written id into the box they draw; every other type places its boxes by position, so declaring `parts` on one is a render error rather than a promise that cannot resolve. A sequence diagram gives its steps no id at all, so a drawing whose steps a reader should be able to point at is one of the three.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "parts": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "^node:[A-Za-z_][A-Za-z0-9_-]*(?:\\s+node:[A-Za-z_][A-Za-z0-9_-]*)*$"
-      }
-    },
-    "required": [
-      "id"
-    ],
-    "additionalProperties": false,
-    "x-content": "data",
-    "x-upgrade": true,
-    "x-visual": {
-      "parts": "parts"
-    },
-    "x-wide": "drawing",
-    "x-example": "<lf-diagram id=\"checkout-flow\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\ngraph LR\n  Cart --> Pay\n  Pay --> Receipt\n</pre></lf-diagram>"
   },
   "lf-chart": {
     "description": "A chart drawn from a comma-separated body: the header row names the x column and then one column per series, and every row after it is one x value and its numbers (blank where a series has none). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). `kind` says which picture — bars (a group of bars per x value), rows (horizontal bars, for long names or a ranking), stack (bars stacked into a total, so no negatives), line (a run over time or an ordered x), dots (two numbers against each other, x column numeric). `y` names what the numbers are. A bar's x is one slot per row whatever it says; a line or a scatter reads its column, so dates (2026-06-01, or 2026-06 for a month) get a time axis and numbers a numeric one. Two rows may not share an x value, and a series column may not be empty. At most $series.steps series — fold the small ones together or split the chart. There is no pie, because the comparison it asks for is between angles and the comparison bars ask for is between lengths. Comments anchor to the required id, not to text inside the drawing.",

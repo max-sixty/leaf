@@ -18,6 +18,7 @@ from playwright.sync_api import expect
 from render_support import (
     ADDRESSED_PAGE,
     BANNER_WATCH,
+    BOARD_PAGE,
     BOTH_STAMPS,
     COMMAND_HUB_PACKAGE,
     DEEP_FOCUS,
@@ -1387,7 +1388,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     `actionAvailable` paints the control and `sendAction` guards the press, and the
     module has already painted the answer by the time either runs. Reading the reader's
     list at this door therefore does not refuse the press so much as swallow it — the
-    widget flips, nothing is logged, no toast fires, and the next poll puts it back with
+    widget flips, nothing is logged, no notice fires, and the next poll puts it back with
     nothing anywhere saying why.
 
     The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
@@ -1697,6 +1698,38 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         "a banner with no room left took it out of a control instead of giving the "
         "overflow to its action shelf"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser, serve):
+    """The page has one place for news. A gesture's acknowledgement used to arrive twice
+    — a count in the banner and, at the same moment, a toast in the opposite corner —
+    two places for the reader to watch. The status line says it now: "Moved to Done —
+    recorded" stands in for the line's own words while it lasts, the live region hears
+    the same sentence, and the line's words return when the notice fades. No toast node
+    exists to be the second place."""
+    page, errors = open_page(browser, serve(BOARD_PAGE))
+    board = page.locator("#sprint")
+    status = page.locator(".lf-status-text")
+    notice = page.locator(".lf-banner-status .lf-notice")
+    expect(status).to_be_visible()
+    expect(notice).to_be_hidden()
+
+    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    expect(notice).to_have_text("Moved to Done — recorded")
+    expect(notice).to_be_visible()
+    expect(status).to_be_hidden()
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done — recorded")
+    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
+    round_trip(page)
+
+    # The line's own words come back once the notice has had its moment.
+    expect(status).to_be_visible(timeout=6_000)
+    expect(notice).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -2635,104 +2668,6 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.close()
 
 
-def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, serve):
-    """A covering panel has no beside-panel space for a toast: on a viewport no
-    wider than the sheet, the wide layout's panel-width offset puts the whole
-    message past the left edge. The toast stays inside that sheet instead, above
-    its persistent composer even when that composer grows under a live toast,
-    then returns beside it at the first width where the panel stops covering."""
-    page, _ = open_page(browser, serve(LONG_PAGE))
-    resized(page, 320, 600)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-general textarea").fill("The unsent comment stays here.")
-
-    message = (
-        "Couldn't send this detailed comment to Claude — the complete draft "
-        "is still here and ready to retry."
-    )
-    page.evaluate(
-        """async message => {
-            const {toast} = await import("/runtime/widget-api.js");
-            toast(message);
-        }""",
-        message,
-    )
-    expect(page.locator(".lf-toast")).to_have_text(message)
-
-    def geometry():
-        return page.evaluate("""() => {
-            const rect = selector => {
-                const r = document.querySelector(selector).getBoundingClientRect();
-                return {left: r.left, top: r.top, right: r.right, bottom: r.bottom};
-            };
-            return {
-                width: innerWidth,
-                height: innerHeight,
-                panel: rect(".lf-panel"),
-                footer: rect(".lf-general"),
-                toast: rect(".lf-toast"),
-            };
-        }""")
-
-    narrow = geometry()
-    assert (
-        narrow["toast"]["left"] >= 17
-        and narrow["toast"]["right"] <= narrow["width"] - 17
-    ), f"the toast left the covering viewport: {narrow}"
-    assert narrow["toast"]["bottom"] <= narrow["footer"]["top"] - 17, (
-        f"the toast covered the panel's persistent composer: {narrow}"
-    )
-
-    resized(page, 841, 600)
-    page.wait_for_function("""() => {
-        const toast = document.querySelector(".lf-toast").getBoundingClientRect();
-        const panel = document.querySelector(".lf-panel").getBoundingClientRect();
-        return Math.abs(toast.right - (panel.left - 18)) < 1
-            && Math.abs(toast.bottom - (innerHeight - 18)) < 1;
-    }""")
-
-    wide = geometry()
-    assert wide["toast"]["left"] >= 0, (
-        f"the long toast left the viewport beside the wide panel: {wide}"
-    )
-    assert abs(wide["toast"]["right"] - (wide["panel"]["left"] - 18)) < 1, (
-        f"the wide toast no longer sits beside the panel: {wide}"
-    )
-    assert abs(wide["toast"]["bottom"] - (wide["height"] - 18)) < 1, (
-        f"the wide toast no longer sits in its original bottom corner: {wide}"
-    )
-
-    resized(page, 320, 600)
-    page.wait_for_function("""() => {
-        const toast = document.querySelector(".lf-toast").getBoundingClientRect();
-        const footer = document.querySelector(".lf-general").getBoundingClientRect();
-        return toast.left >= 17 && toast.right <= innerWidth - 17
-            && toast.bottom <= footer.top - 17;
-    }""")
-    before_growth = geometry()
-    page.locator(".lf-general textarea").fill(
-        "The whole unsent comment stays here.\n" * 4
-    )
-    page.wait_for_function(
-        """beforeTop => {
-            const toast = document.querySelector(".lf-toast").getBoundingClientRect();
-            const footer = document.querySelector(".lf-general").getBoundingClientRect();
-            return footer.top < beforeTop - 1
-                && toast.bottom <= footer.top - 17;
-        }""",
-        arg=before_growth["footer"]["top"],
-    )
-    expanded = geometry()
-    assert expanded["footer"]["top"] < before_growth["footer"]["top"] - 1, (
-        f"the composer did not grow under the already-visible toast: "
-        f"{before_growth=}, {expanded=}"
-    )
-    assert expanded["toast"]["bottom"] <= expanded["footer"]["top"] - 17, (
-        f"the growing composer rose through an already-visible toast: {expanded}"
-    )
-    page.close()
-
-
 def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve):
     """Over a covering panel the key line stands on the sheet, lifted clear of what the
     sheet keeps standing at its foot. That foot is two rows once the page offers
@@ -2819,17 +2754,11 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.evaluate(
-        """async () => {
-          const {toast} = await import('/runtime/widget-api.js');
-          toast('Inset proof');
-        }"""
-    )
     expect(page.locator(".lf-keyline")).to_be_visible()
     page.wait_for_function(
         """insets => Math.abs(
-          document.querySelector('.lf-toast').getBoundingClientRect().right
-          - (innerWidth - 18 - insets.right)
+          document.querySelector('.lf-keyline').getBoundingClientRect().left
+          - (18 + insets.left)
         ) < 1""",
         arg=insets,
     )
@@ -2839,22 +2768,11 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             const r = document.querySelector(selector).getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {toast: rect('.lf-toast'), keyline: rect('.lf-keyline'),
-                      footer: rect('.lf-panel-foot'), width: innerWidth, height: innerHeight,
-                      toastRight: getComputedStyle(document.querySelector('.lf-toast')).right};
+              return {keyline: rect('.lf-keyline'), footer: rect('.lf-panel-foot'),
+                      width: innerWidth, height: innerHeight};
         }"""
     )
-    assert abs(boxes["toast"]["right"] - (boxes["width"] - 18 - insets["right"])) < 1, (
-        boxes
-    )
     footer_height = boxes["footer"]["bottom"] - boxes["footer"]["top"]
-    assert (
-        abs(
-            boxes["toast"]["bottom"]
-            - (boxes["height"] - footer_height - 18 - insets["bottom"])
-        )
-        < 1
-    )
     assert (
         abs(
             boxes["keyline"]["bottom"]

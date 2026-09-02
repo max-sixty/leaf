@@ -84,7 +84,8 @@ export function createTrays({
 
   // What the page is still waiting on the reader for, and the way to the next one — the
   // same list a/A step and the "?" overlay names, counted here so a reader who
-  // has not scrolled that far still knows there is something to answer.
+  // has not scrolled that far still knows there is something to answer. While they
+  // stand in one, the count also says which (sayAsks): "Asks (3/7)".
   const decisionsBtn = el("button", "lf-btn lf-decisions", "");
   decisionsBtn.title = "Show or hide this page's asks";
   // The machine's live leaves and what each is doing: a left panel of rows, each a

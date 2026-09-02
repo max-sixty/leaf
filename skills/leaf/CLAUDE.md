@@ -66,7 +66,7 @@ subscriptions;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
-`runtime/state-application.js` owns stale-answer ordering, version preparation,
+`runtime/state-application.js` owns stale-answer ordering, activation serialization,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
@@ -76,11 +76,11 @@ Web Animations playback;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
-`runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
-`runtime/version-activation.js` owns version document loading, authored-root
-replacement, and activation serialization;
-`runtime/version-navigation.js` owns version travel, the chooser control and menu,
-its key scope, and forced live activation;
+`runtime/version.js` owns version travel whole: the chooser control, its menu and the
+newest-version chip, its own `v` and the menu's key scope, forced live activation,
+version-comparison state, marks and chooser paint, version document loading,
+authored-root replacement, the persisted semantic reading landmarks carried across that
+replacement, and the page-block reading directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
@@ -106,9 +106,6 @@ dynamic widget imports, and initial settlement;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
-`runtime/view-continuity.js` owns persisted semantic reading landmarks, arrival
-landing across authored-document replacement, and the page-block reading used to
-start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
@@ -238,7 +235,14 @@ latest immutable version and carries a runtime-only version marker. On a later
 state read, `versionDocument` fetches the next immutable file in the background.
 `activateVersion` replaces the authored head declarations, root attributes, and
 `body > main`; runs the same fence, clone, dressing, settlement, and authored-facet
-passes as startup; reconciles the log; and restores the semantic reading landmark.
+passes as startup; reconciles the log; and restores the semantic reading landmark
+and the reader's standing. That standing is written down by id before the swap —
+the nearest element carrying one, and the control within it by kind and position —
+and handed back after it: the same control where the revision kept it, its owner
+where the revision kept only that, and nothing where it kept neither. A chord armed
+before the swap is the runtime's and holds through it; its chips are read off the
+document standing afterwards. The gestures `midComposition` names — item hints, a
+reaction list, page search, a drag or grab — defer the activation instead.
 The chrome, browser document, module globals, panel, and address remain standing.
 
 That activation is one presentation boundary. Its async work runs in a
@@ -874,7 +878,7 @@ evidence.
 Passages use one representation: ordered segments
 `{node, start, end}` over composed text. `textNodesUnder` produces the segments,
 and quote capture, quote resolution, reading position, item labels, and
-version-diff readings all use them. Never introduce another text walk for one of
+version-comparison readings all use them. Never introduce another text walk for one of
 those jobs.
 
 Two readings are intentionally different:
@@ -2194,10 +2198,17 @@ than for the container's class, because a resolved thread is built by the same
 function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
+The banner's Asks count is the ring in numbers. While the reader stands in an ask
+on the reader's list it says which of how many — `Asks (3/7)` — and `sayAsks` paints
+it from the same `standingIn` reading and the same `openDecisions` list as the ring
+and the tray row, so the three cannot name different places. Leaving the ask
+returns the bare count the way it takes the ring away. An ask the ring can mark
+but the walk will not step to shows the bare count, because a number is a place in
+the walk's list.
+
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-the banner's Asks button retains focus while the walk moves through the page.
-Clicking elsewhere removes the focus-derived ring without erasing the walk's
-useful continuation point.
+clicking elsewhere removes the focus-derived ring, and the count's place with it,
+without erasing the walk's useful continuation point.
 
 `shownParts` supplies ring targets when a page styles a decision with
 `display: contents`. A normal boxed decision wears one outline on its own box.
@@ -2326,13 +2337,24 @@ older/newer page keys. A comparison base is the focused row in the menu; opening
 the menu lands on the current base, and walking to the version being read clears
 the comparison because it has no earlier base to mark against.
 
+`runtime/version.js` owns the whole move, because a move between two documents of
+one page is one gesture: the walk through the menu states a comparison per row,
+an activation drops the standing comparison and puts it back, the chooser's word
+says whether one is standing, and the activation captures the reading landmark
+before it replaces the authored main. Split into modules, those four facts travel
+as callbacks passed back and forth; kept together they are ordinary local calls.
+The surface the rest of the runtime sees is the three key rows; the chooser's nodes
+and the labels the banner reserves for; `renderVersions` and `prepareActivation`,
+which state application drives; the arrival landing; the menu and comparison
+readings the composing surface and the margin take; and `blocksOnScreen`.
+
 The live root follows the newest version without navigating. It begins fetching
 as soon as a state read announces the version, but `midComposition` or an open
 version menu defers activation and leaves the newest-version chip visible. Ending
 the composition releases the version on the next heartbeat; pressing the chip is
-an explicit override and still keeps the live address. `goVersion` is the one door
-for both that in-place newest-version request and travel to an older immutable
-version.
+an explicit override and still keeps the live address. `goActive` is the one door
+for that in-place newest-version request and for the way back to the live address
+from a pinned document; `goVersion` is the door to an older immutable version.
 
 An older version is historical rather than live: choosing one navigates to its
 immutable file with `?pin`, and it stays at `currentVersion` while offering the
@@ -2497,16 +2519,18 @@ the saved view on a fresh navigation; the saved view outranks a leftover
 fragment on reload or back navigation. `landArrival` applies that ranking only
 after final page geometry is available.
 
-Focus and selection are not restored across documents. Restoring focus onto a
-control would change the next Space from page scroll to activation, and a
-selection may refer to words the new version replaced. The saved decision landmark
-preserves directional continuity without claiming the reader still stands
-there.
+Focus and selection are not restored across document travel. Restoring focus
+onto a control the reader never stood on would change the next Space from page
+scroll to activation, and a selection may refer to words the new version replaced.
+The saved decision landmark preserves directional continuity without claiming the
+reader still stands there. A live activation is the other case: the reader's own
+standing carries across it (see "Startup and presentation"), so the next press
+means what it meant before the swap.
 
 ## Chrome, conversations, and text input
 
-`.lf-chrome` is one fixed runtime root containing the banner, the tray panel,
-thread panel, composer, floating comment control, toast, live region, key line,
+`.lf-chrome` is one fixed runtime root containing the banner and its notice, the
+tray panel, thread panel, composer, floating comment control, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
@@ -2658,9 +2682,13 @@ An accepted anchored comment opens its inline thread. When the reserved margin i
 narrow, that thread may cover the page in its bounded card; it does not substitute the
 Threads panel. The send focuses the reply box only when no later selection, edit, or
 typing gesture stands.
-News arriving without the reader's send gesture may show a toast and count but
-does not move focus or scroll the panel. `showToast` clears click behavior as it
-fades so invisible toast chrome cannot remain a pointer target.
+News arriving without the reader's send gesture may show a notice and count but
+does not move focus or scroll the panel. `notice` is the one visible surface for a
+moment's news — a recorded gesture, an arrived version, a refused send — and it
+stands in the banner's status slot in place of the status line, which returns when
+the notice fades; the live region hears the same words. It is text rather than a
+control: what a notice names, the banner's own buttons reach. There is no second
+surface for news, so nothing floats in a corner to become a stale pointer target.
 
 ## Durable drafts
 

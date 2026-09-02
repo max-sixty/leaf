@@ -472,7 +472,7 @@ def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
     page.keyboard.press("Escape")
     page.evaluate("() => getSelection().removeAllRanges()")
     page.keyboard.press("r")
-    expect(page.locator(".lf-toast")).to_have_text("Select something to react to")
+    expect(page.locator(".lf-notice")).to_have_text("Select something to react to")
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 

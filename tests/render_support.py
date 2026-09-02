@@ -5,7 +5,7 @@ runtime probes, and domain-specific readings. Existing tests import this facade 
 fixture can move between those owners without making test modules coordinate it.
 """
 
-from interact_support import COMMAND_HUB_PACKAGE, record_claim
+from interact_support import COMMAND_HUB_PACKAGE, SHIPPED_PACKAGES, record_claim
 from render_cases_interaction import (
     BOXLESS_SECTION_PAGE,
     CHANGE_SHAPES_PAGE,
@@ -29,6 +29,9 @@ from render_cases_interaction import (
     KEPT_SECTION_PAGE,
     LIST_RUNS,
     LIST_STATE,
+    LIVE_KEYS_V1,
+    LIVE_KEYS_V2,
+    LIVE_KEYS_V3,
     LIVE_READING,
     LIVE_V1,
     LIVE_V2,
@@ -441,6 +444,9 @@ __all__ = (
     "LINKED_CELLS_PAGE",
     "LIST_RUNS",
     "LIST_STATE",
+    "LIVE_KEYS_V1",
+    "LIVE_KEYS_V2",
+    "LIVE_KEYS_V3",
     "LIVE_READING",
     "LIVE_V1",
     "LIVE_V2",
@@ -521,6 +527,7 @@ __all__ = (
     "SHADOWED_DIFF",
     "SHADOW_CODE_PAGE",
     "SHADOW_HOST_PAGE",
+    "SHIPPED_PACKAGES",
     "SHORT_CHIP_PAGE",
     "SHORT_SUGGESTION",
     "SHOTS",

@@ -3407,9 +3407,19 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     """A hold is recorded against the declaration that admitted it."""
     package = page_dir.parent / "mutable-command-hub"
     shutil.copytree(COMMAND_HUB_PACKAGE, package)
+    # An explicit selection replaces the recorded one, so it restates `diagram` for
+    # PAGE's lf-diagram beside the copy of command-hub this test mutates.
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "./mutable-command-hub", str(page_dir)],
+        [
+            "page",
+            "init",
+            "--package",
+            "./mutable-command-hub",
+            "--package",
+            "diagram",
+            str(page_dir),
+        ],
     )
     assert selected.exit_code == 0, selected.output
     version = page_dir / "versions" / "v1.html"
@@ -3640,7 +3650,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     # door's own docstring. A withdrawn reaction is gone from `build_threads`, so the
     # kind's thread walk had nothing to find and raised out of the door instead: a 500
     # the browser is told to retry, against a state that will never answer differently.
-    # The no-op costs a toast, which is what a final refusal is.
+    # The no-op costs a notice, which is what a final refusal is.
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),

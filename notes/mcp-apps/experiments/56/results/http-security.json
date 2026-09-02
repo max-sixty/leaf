@@ -1,0 +1,131 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "client": "server-side localhost",
+      "method": "GET",
+      "route": "/health",
+      "status": 200
+    },
+    {
+      "client": "server-side localhost",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 200
+    },
+    {
+      "client": "server-side localhost",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 204
+    },
+    {
+      "client": "server-side IPv4",
+      "method": "GET",
+      "route": "/health",
+      "status": 200
+    },
+    {
+      "client": "server-side IPv4",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 200
+    },
+    {
+      "client": "server-side IPv4",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 204
+    },
+    {
+      "client": "reference host",
+      "method": "GET",
+      "route": "/health",
+      "status": 200
+    },
+    {
+      "client": "reference host",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 200
+    },
+    {
+      "client": "reference host",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 204
+    },
+    {
+      "client": "foreign host",
+      "method": "GET",
+      "route": "/health",
+      "status": 403
+    },
+    {
+      "client": "foreign host",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "foreign host",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "missing host",
+      "method": "GET",
+      "route": "/health",
+      "status": 403
+    },
+    {
+      "client": "missing host",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "missing host",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "foreign origin",
+      "method": "GET",
+      "route": "/health",
+      "status": 403
+    },
+    {
+      "client": "foreign origin",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "foreign origin",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "opaque origin",
+      "method": "GET",
+      "route": "/health",
+      "status": 403
+    },
+    {
+      "client": "opaque origin",
+      "method": "POST",
+      "route": "/mcp",
+      "status": 403
+    },
+    {
+      "client": "opaque origin",
+      "method": "OPTIONS",
+      "route": "/mcp",
+      "status": 403
+    }
+  ]
+}

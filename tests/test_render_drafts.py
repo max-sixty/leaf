@@ -488,7 +488,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         "button => button.click()"
     )
     expect(draft.locator("textarea")).to_have_count(0)
-    expect(page.locator(".lf-toast")).to_contain_text("Wait for the current edit")
+    expect(page.locator(".lf-notice")).to_contain_text("Wait for the current edit")
 
     page.evaluate("window.releaseDraftSend()")
     page.wait_for_function(
@@ -1302,7 +1302,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    expect(first.locator(".lf-toast")).to_contain_text("Message recorded")
+    expect(first.locator(".lf-notice")).to_contain_text("Message recorded")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]

@@ -1,0 +1,13 @@
+▲ [WARNING] Duplicate key "elementOver" in object literal [duplicate-object-key]
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page/runtime/passages.js:837:4:
+      837 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+  The original key "elementOver" is here:
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page/runtime/passages.js:828:4:
+      828 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+{"bundleBytes":3849206,"widgets":15}

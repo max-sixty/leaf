@@ -32,7 +32,7 @@ import {
   sendAction,
   shownParts,
   textNodesUnder,
-  toast,
+  notice,
   undoableAction,
   watchActions,
   withdraw,
@@ -358,7 +358,7 @@ customElements.define(
       }
     }
 
-    // What the change is about, for the button's label and the toast: the
+    // What the change is about, for the button's label and the notice: the
     // proposal where there is one, since that is what accepting brings about —
     // a deletion has only the markup it would remove.
     #label() {
@@ -388,7 +388,7 @@ customElements.define(
       // decision beside the first — two lines in the log for one act.
       if (this.#deciding) return this.#deciding;
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
-      // reading, and `says` on what has left the reading answers nothing — the toast
+      // reading, and `says` on what has left the reading answers nothing — the notice
       // then named the widget's id instead of the words the user just judged.
       const label = this.#label();
       // Accepting the fix answers the thread it was written for, so the same
@@ -405,7 +405,7 @@ customElements.define(
         if (!accepted) {
           // A definitive refusal is a state the reader can act from. Keep it at the
           // target as Failed, Retry, Cancel; there is no detail disclosure because the
-          // transport returned no useful detail beyond the toast it already showed.
+          // transport returned no useful detail beyond the notice it already showed.
           this.#failed = { outcome, label };
           this.#renderControls(label);
           this.#margin?.update();
@@ -419,7 +419,7 @@ customElements.define(
           this.#renderControls(label);
           this.#margin?.update();
         }
-        toast(
+        notice(
           `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — recorded`,
         );
         return true;
@@ -463,7 +463,7 @@ customElements.define(
       if (!outcome || this.#undoing) return;
       const event = undoableAction(this, outcome);
       if (!event) {
-        toast("This outcome is no longer available to undo");
+        notice("This outcome is no longer available to undo");
         return;
       }
       this.#failed = null;

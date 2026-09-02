@@ -1361,7 +1361,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     Claude is told must be the same event.
 
     What stays is the row, saying what was done there. It used to clear itself in
-    the same frame as the press, leaving a corner toast as the only evidence that
+    the same frame as the press, leaving a banner notice as the only evidence that
     anything had happened — and clearing a control is the one thing a press may not
     do to the line it was made on. Now the control the user pressed states the
     outcome where it stood and stops offering. Its pair leaves and a persistent receipt
@@ -1542,7 +1542,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     and offered to accept “Retry three times. 1 comment”. It reads the slot the way the
     page is read instead, which is what `says` is for — read before deciding, because a
     reject retires the very slot the label comes from, and a retired slot says nothing:
-    the toast then named the widget's id instead of the words the user judged. Short
+    the notice then named the widget's id instead of the words the user judged. Short
     on purpose: the label cuts at 48 characters, which hid this on every shipped example."""
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page, errors = open_page(browser, url)
@@ -1551,7 +1551,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
     control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
-    expect(page.locator(".lf-toast")).to_have_text(
+    expect(page.locator(".lf-notice")).to_have_text(
         f"{verb} “Retry three times.” — recorded"
     )
     assert errors == []
@@ -1777,7 +1777,7 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     expect(item.locator(".lf-sug-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
-    expect(page.locator(".lf-toast")).to_contain_text("Couldn't send")
+    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
@@ -1824,7 +1824,7 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     ):
         accept.click()
     expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
-    expect(page.locator(".lf-toast")).to_contain_text("retrying your change")
+    expect(page.locator(".lf-notice")).to_contain_text("retrying your change")
 
     expect(accept).to_be_disabled()
     accept.evaluate("button => button.click()")
@@ -2044,11 +2044,12 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     suggestion that control is the ✓ Accept hoisted into the page margin, and the walk
     follows it out there."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    decisions = page.locator(".lf-decisions")
+    expect(decisions).to_have_text("Asks (4)")
     walked = []
-    for expected in [
-        *DECISIONS_IN_ORDER,
-        DECISIONS_IN_ORDER[0],
-    ]:  # one past the end: it wraps
+    for i, expected in enumerate(
+        [*DECISIONS_IN_ORDER, DECISIONS_IN_ORDER[0]]
+    ):  # one past the end: it wraps
         page.keyboard.press("a")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the decision this press stepped to is both the wait and the assertion —
@@ -2056,6 +2057,9 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         # And exactly one decision wears it, the reader standing in one place at a time.
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
+        # The banner says the ring in numbers, from the same focus: which of how many,
+        # so the wrap is visible as 4/4 becoming 1/4 rather than felt as a jump.
+        expect(decisions).to_have_text(f"Asks ({i % 4 + 1}/4)")
         walked.append(
             page.evaluate(
                 "() => document.activeElement.tagName.toLowerCase()"
@@ -2075,10 +2079,11 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # holding the focus — that row is hoisted out into the page margin as a sibling of the
     # block it decides, so a walk reading it where it hangs would step back onto the
     # change the reader is standing on.
-    for expected in reversed(DECISIONS_IN_ORDER):
+    for i, expected in enumerate(reversed(DECISIONS_IN_ORDER)):
         page.keyboard.press("Shift+a")
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
+        expect(decisions).to_have_text(f"Asks ({4 - i}/4)")
 
     # Every request has an answering control, so the walk never has to lend a tab stop
     # to authored content.
@@ -2101,13 +2106,22 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-keyline")).to_contain_text("asks")
 
+    # Leaving the ask takes the place off the count the way it takes the ring off the
+    # page: a click into the prose is the reader standing nowhere in the list.
+    page.locator("#h").click()
+    expect(page.locator(STANDING_DECISION)).to_have_count(0)
+    expect(decisions).to_have_text("Asks (4)")
+
     # An answered decision leaves the walk: deciding the change on its own control is where
     # the reader now stands, and the next press reaches what followed it rather than the
-    # change they have just settled.
+    # change they have just settled. The control the reader answered from keeps the
+    # focus, and a settled ask is no place in the list, so the count is bare until the
+    # next press puts them on one.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(decisions).to_have_text("Asks (3)")
     page.keyboard.press("a")
     expect(page.locator("#t-baffles-review .lf-pick").first).to_be_focused()
+    expect(decisions).to_have_text("Asks (2/3)")
     assert errors == []
     page.close()
 

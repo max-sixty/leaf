@@ -63,7 +63,7 @@ palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
 
 Widget attributes carry scalars; children carry prose; an item's title is a
-leading `<strong>`. A data-bodied widget such as `lf-diagram` holds escaped
+leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
 registry is the only widget vocabulary.

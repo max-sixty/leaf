@@ -50,6 +50,12 @@ def capture_anchor(
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
     with an answer, and asking now beats posting a comment that lands nowhere.
 
+    Two readers meet that refusal: the agent running `leaf comment`, and the person
+    selecting text in the MCP snapshot's panel, who has no flags to reach for. So a
+    refusal about a quote or a section names what the reading found and a recourse both
+    have — quote more of the surrounding text, or name the section. Only a refusal about
+    a CLI-only input, such as `--part`, names its flag.
+
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
@@ -101,7 +107,7 @@ def capture_anchor(
         if span is None:
             raise ValueError(
                 f"§ {section} holds no quotable text — a widget's data body is its source, "
-                "not its words. Drop --quote to anchor on the element itself."
+                "not its words. Anchor on the element itself, without a quote."
             )
         lo_bound, hi_bound = span
     where = "the page" if not section else f"§ {section}"
@@ -111,8 +117,8 @@ def capture_anchor(
             raise ValueError(
                 f"{wanted!r} runs across a widget's parts, and a widget writes words of "
                 "its own between them — a column's heading, a milestone's chips, a "
-                "diagram in place of its source. Quote within one part, or --section the "
-                "widget to point at the whole of it."
+                "diagram in place of its source. Quote within one part, or name the "
+                "widget as the section to point at the whole of it."
             )
         was = _removed_by(html, registry, wanted, section, decided or {}, rewritten)
         if was:
@@ -122,19 +128,20 @@ def capture_anchor(
             raise ValueError(
                 f"{wanted!r} is in § {holder}'s data body, which is the widget's source "
                 "and not its words — the page shows whatever its module made of that, "
-                "and this reading holds nothing there to anchor on. Point at the element "
-                f"instead: --section {holder}."
+                f"and this reading holds nothing there to anchor on. Name § {holder} "
+                "as the section instead."
             )
         raise ValueError(
-            f"{where} doesn't say {wanted!r} — quote it as the version file holds it. A "
-            "widget's data body is the widget's source, not its words (a diagram's body "
-            "is a picture by the time it is read), so --section the element instead."
+            f"{where} doesn't say {wanted!r} — quote the words this version of the page "
+            "shows. A widget's data body is the widget's source, not its words (a "
+            "diagram's body is a picture by the time it is read), so name that element "
+            "as the section instead."
         )
     # A stored browser anchor may legitimately carry a repeated quote: its neighbours
     # are what identify the occurrence. Resolution gives one exact-context occurrence
     # priority, then falls back only when the quote itself has one candidate. This is the
     # browser's `findQuote` rule; capture callers omit both fields and retain the stricter
-    # instruction to extend or scope an ambiguous new quote.
+    # instruction to quote more of the surrounding text or name a section.
     if prefix is not None or suffix is not None:
         pre = collapse(prefix or "")
         post = collapse(suffix or "")
@@ -165,7 +172,8 @@ def capture_anchor(
             around.append(f"  - …and {len(hits) - len(around)} more")
         raise ValueError(
             f"{where} says {wanted!r} {len(hits)} times, so this quote names no one "
-            "passage. Extend it, or scope it with --section:\n" + "\n".join(around)
+            "passage. Quote more of the surrounding text, or name the section it sits "
+            "in:\n" + "\n".join(around)
         )
 
     lo = hits[0]

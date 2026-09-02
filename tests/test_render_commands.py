@@ -58,10 +58,11 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     and every page the sweep above renders is a page with no comments on it.
 
     The pass hunting words drawn on other words has to know the same difference, and
-    knows it as a float the runtime hangs over the page. The resting control is transparent,
-    so the browser correctly omits it from a paint check. This test makes that control
-    visible to plant the fault it is about: its characters then fall down the document
-    through the paragraphs under the passage. Holding the runtime float out is the only
+    knows it as a float the runtime hangs over the page. The resting control is drawn
+    nowhere twice over — transparent, and clipped to the pixel it is parked on — and the
+    paint check correctly omits it for either reason. This test takes both away to plant
+    the fault it is about: its characters then fall down the document through the
+    paragraphs under the passage, painted. Holding the runtime float out is the only
     thing keeping the reading clean, so it is taken twice: once as the gate runs it, and
     once with the hold defeated, where it has to report.
 
@@ -82,8 +83,14 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
     # Give the real runtime control paint so this tests the floating exemption rather
-    # than passing because the ordinary resting state is not drawn.
-    page.locator(".lf-mark-note").evaluate("note => note.style.opacity = '1'")
+    # than passing because the ordinary resting state is not drawn. Both halves of "not
+    # drawn": the transparency, and the one-pixel box whose hidden overflow keeps the
+    # characters off the screen however opaque they are.
+    # The one-pixel box stays: it is what turns the label into a column of characters
+    # falling through the paragraphs, which is the shape of the fault.
+    page.locator(".lf-mark-note").evaluate(
+        "note => Object.assign(note.style, {opacity: '1', overflow: 'visible'})"
+    )
     held = render_checks_model.evaluate_probe(page, "coveredWords")
     reported = render_checks_model.evaluate_probe(
         page, "coveredWords", {"holdFloating": False}
@@ -200,7 +207,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     LEAF_BROWSER_EXECUTABLE names. The default arm states the empty value rather
     than inheriting whatever the developer or the job exported, since a set variable
     would otherwise turn the channel this arm exists to cover into a second run of
-    the other one."""
+    the other one. Each arm's success line has to name the browser that drew the
+    page: a clean gate telling a Chromium host that Chrome drew it is the same false
+    claim on the way out that the failure messages stopped making."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -222,11 +231,11 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
-    assert "renders clean" in ok.stdout
+    assert "renders clean in Chrome" in ok.stdout
 
     named = gate(executable=headless_shell)
     assert named.returncode == 0, named.stderr
-    assert "renders clean" in named.stdout
+    assert f"renders clean in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.

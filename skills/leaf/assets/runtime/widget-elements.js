@@ -227,6 +227,27 @@ export function offer(tag, cls, label) {
   return node;
 }
 
+// Put the reader on an element that may not be a tab stop: focus it, and where it will
+// not take focus, lend it the tab stop a control has for exactly as long as it holds it —
+// the lend leaves with the first blur, so a paragraph the address chord landed on is a
+// paragraph again once the reader moves off it. Two arrivals want this and neither owns
+// the element: a numbered address completing on a link's fragment, and a document swap
+// handing back the place the reader stood in.
+export function focusDestination(destination) {
+  destination.focus({ preventScroll: true });
+  if (destination.matches(":focus")) return;
+  if (destination.hasAttribute("tabindex")) return;
+  destination.tabIndex = -1;
+  destination.focus({ preventScroll: true });
+  if (!destination.matches(":focus")) {
+    destination.removeAttribute("tabindex");
+    return;
+  }
+  destination.addEventListener("blur", () => destination.removeAttribute("tabindex"), {
+    once: true,
+  });
+}
+
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
 // few controls deliberately remain spans and their owning widget supplies the complete

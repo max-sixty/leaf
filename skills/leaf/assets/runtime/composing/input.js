@@ -4,7 +4,7 @@
 // Growing with their content is the stylesheet's job (field-sizing), not this file's.
 // wire() returns a sync() the caller runs after setting .value programmatically, so the
 // send button and any containing chrome agree with what's in the box.
-export function createInput({ focused, keys, showToast, spell }) {
+export function createInput({ focused, keys, notice, spell }) {
   // The send binding, and the register's spelling of it: the placeholder, the button's
   // tooltip and the row a box declares all read one string, where the constant they used to
   // share sat beside a listener that bound the chord independently.
@@ -78,10 +78,10 @@ export function createInput({ focused, keys, showToast, spell }) {
       if (sending || busy()) return;
       // A send key on an empty box answered with silence reads as a send that
       // happened — the blind drive believed exactly that. Say the nothing out loud
-      // (the toast announces too).
+      // (the notice announces too).
       const raw = ta.value;
       const text = raw.trim();
-      if (!text) return showToast("Nothing to send — the box is empty");
+      if (!text) return notice("Nothing to send — the box is empty");
       sending = true;
       sync();
       try {

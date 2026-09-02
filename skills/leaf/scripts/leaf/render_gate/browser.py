@@ -35,6 +35,13 @@ def launch_browser(p):
     return p.chromium.launch(channel="chrome")
 
 
+def launched_name() -> str:
+    """What to call the browser a gate just drew in, for a message that reports
+    success. A host that named an executable never ran Chrome, so naming Chrome
+    there would be the same false claim the failure messages stopped making."""
+    return named_executable() or "Chrome"
+
+
 def browser_hint() -> str:
     """The line each gate appends when the launch failed."""
     if executable := named_executable():

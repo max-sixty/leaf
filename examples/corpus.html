@@ -13,8 +13,8 @@
 <main>
 <p class="eyebrow">internal example corpus</p>
 <h1>Every Leaf example, composed</h1>
-<p class="lede" id="corpus-lede">This internal stress surface puts all nine
-authored pages in one document so the browser suite can exercise their combined
+<p class="lede" id="corpus-lede">This internal stress surface puts every
+authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
 catalog.</p>
 
@@ -842,13 +842,31 @@ flowchart LR
             ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
+        <h3 id="pr-hunk-heading">The default the picker now opens on</h3>
+        <p id="pr-hunk-intro">
+          The one hunk the rest of the change is arranged around: the picker asks for a
+          prepared diff instead of assembling its own <code>git diff</code> arguments.
+        </p>
+        <lf-diff id="pr-key-hunk">
+          <pre>
+diff --git a/src/git/diff.rs b/src/git/diff.rs
+--- a/src/git/diff.rs
++++ b/src/git/diff.rs
+@@ -112,4 +112,3 @@ impl Repository {
+     pub fn picker_preview(&amp;self, worktree: &amp;Worktree) -&gt; Result&lt;Diff&gt; {
+-        let args = ["diff", "--patch", "--no-color", "--find-renames", "--diff-algorithm=histogram", "HEAD"];
+-        Diff::parse(&amp;self.git(&amp;args, worktree.path())?)
++        PreparedDiff::for_worktree(self, worktree)?.unified()
+     }
+</pre>
+        </lf-diff>
         <h3 id="pr-invariant-heading">Review invariants</h3>
         <p id="pr-invariant-intro">
           The implementation is expected to preserve these three properties.
         </p>
         <lf-code id="pr-review-invariants" language="rust" hi="1-3">
           <pre>
-assert_eq!(real_index_after, real_index_before);
+assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
 assert!(temp_index.is_operation_scoped());
 assert!(offscreen_worktree_preview.is_demand_loaded());
 </pre>
@@ -1552,10 +1570,91 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           one-in-forty failure compounds enough to block launch, and carries the
           follow-up work the approver wants ready if the vendor's release slips.
           Approval records the direction; task statuses change when the agent publishes
-          the resulting version. Whether this review opens in the full browser or a
-          host's embedded Leaf app, its comments enter the same durable page log and
-          return to the same agent task.
+          the resulting version. Codex opens this full page in its browser pane;
+          comments and option choices enter the durable page log and return to the same
+          agent task.
         </p>
+      </section>
+</lf-tab>
+
+<lf-tab id="corpus-log-retention" label="Retention">
+<h1>Raw request logs: 400 days down to 45</h1>
+      <p class="lede" id="ret-lede">
+        Raw request logs are 61% of what we store and almost none of what we read. Below
+        is what I would cut, the evidence I cut it on, and the two weeks it takes to
+        land. Quote anything the evidence does not carry and I will go back to it before
+        this becomes a change request.
+      </p>
+
+      <section id="ret-what">
+        <h2>What changes</h2>
+        <p id="ret-what-body">
+          Raw request logs expire after 45 days instead of 400. The per-minute
+          aggregates built from them — status class, latency percentiles, route, region
+          — keep the full 400 days and are unaffected, as are audit records, which are a
+          separate store on a separate schedule.
+        </p>
+        <p id="ret-what-size">
+          That is 18.4 TB of hot storage returned and about £3,100 a month, against a
+          bill where the raw logs are the single largest line.
+        </p>
+      </section>
+
+      <section id="ret-why">
+        <h2>Where 45 comes from</h2>
+        <p id="ret-why-body">
+          45 days is the ninety-fifth percentile of the age of the oldest log line any
+          query touched, over the eighteen months of query history we keep. The
+          distribution is not a curve with a tail; it is a wall. Ninety per cent of
+          reads land inside a week, the rest inside six, and then nothing until the
+          quarterly compliance export, which reads aggregates and not raw lines.
+        </p>
+        <p id="ret-why-margin">
+          45 rather than 42 is a fortnight's rounding, so a query written on the last
+          day of a six-week investigation still lands.
+        </p>
+      </section>
+
+      <section id="ret-cost">
+        <h2>What it costs us</h2>
+        <p id="ret-cost-body">
+          Two years of incident write-ups name a log older than six weeks exactly twice.
+          The rate came from the aggregates both times, and in March the raw line is
+          also where the request id came from — an identifier the aggregates do not
+          carry, and the thing that got us to the four accounts rather than to the
+          number of them.
+        </p>
+        <p id="ret-cost-keep">
+          So the cut is not flat. Request logs for 5xx responses keep 120 days: 4% of
+          the volume, and every write-up above is inside it. Everything else expires at
+          45 as described.
+        </p>
+        <p id="ret-cost-legal">
+          Nothing here is a retention obligation. Legal's requirement is on the audit
+          store, which keeps seven years and is not part of this.
+        </p>
+      </section>
+
+      <section id="ret-steps">
+        <h2>How it lands</h2>
+        <ul id="ret-steps-list">
+          <li id="ret-steps-shadow">
+            Week one: the expiry job runs in report-only mode and posts what it would
+            have deleted, per team, to the storage channel.
+          </li>
+          <li id="ret-steps-quiet">
+            Week one, in parallel: anyone whose dashboards read raw logs directly hears
+            from me, because those are the queries that break rather than slow down.
+          </li>
+          <li id="ret-steps-carve">
+            Week two, first: the 5xx carve-out ships on its own, so a mistake in the
+            predicate is a mistake about what we kept rather than what we deleted.
+          </li>
+          <li id="ret-steps-cut">
+            Week two: expiry runs for real, oldest first, at a rate that returns the
+            storage over four days rather than in one drop.
+          </li>
+        </ul>
       </section>
 </lf-tab>
 

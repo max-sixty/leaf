@@ -6,8 +6,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
-import anyio
-from interact_support import PAGE
+from interact_support import PAGE, run_async
 from leaf.event_log import append_event, read_events
 from leaf.mcp_page import (
     PAGE_APP_RESOURCE,
@@ -31,7 +30,7 @@ def call(server, name, arguments):
     async def invoke():
         return await server.call_tool(name, arguments)
 
-    return anyio.run(invoke)
+    return run_async(invoke)
 
 
 def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path):
@@ -151,7 +150,7 @@ def test_registered_server_uses_one_adaptive_resource_for_every_presentation():
         async def inspect():
             return await server.list_tools(), await server.list_resources()
 
-        tools, resources = anyio.run(inspect)
+        tools, resources = run_async(inspect)
     finally:
         pages.close()
 

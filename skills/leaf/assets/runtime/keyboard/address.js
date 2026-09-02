@@ -1,6 +1,7 @@
 import { labelOf, spell } from "./bindings.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink } from "../presentation.js";
+import { focusDestination } from "../widget-elements.js";
 
 export function createAddress({
   EVERYTHING,
@@ -111,22 +112,6 @@ export function createAddress({
     } catch {
       return null;
     }
-  }
-  function focusDestination(destination) {
-    destination.focus({ preventScroll: true });
-    if (destination.matches(":focus")) return;
-    if (destination.hasAttribute("tabindex")) return;
-    destination.tabIndex = -1;
-    destination.focus({ preventScroll: true });
-    if (!destination.matches(":focus")) {
-      destination.removeAttribute("tabindex");
-      return;
-    }
-    destination.addEventListener(
-      "blur",
-      () => destination.removeAttribute("tabindex"),
-      { once: true },
-    );
   }
   function followLink(link) {
     const section = fragmentSection(link);

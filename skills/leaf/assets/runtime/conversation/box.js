@@ -7,7 +7,7 @@ import { offer, quoted } from "../widget-elements.js";
 let publishedConversationBox;
 export const conversationBox = (...args) => publishedConversationBox(...args);
 
-export function createConversationBox({ post, renderPanel, showToast, wireInput }) {
+export function createConversationBox({ post, renderPanel, notice, wireInput }) {
   publishedConversationBox = (el, hint) => {
     if (inChrome(el) || quoted(el)) return null;
     const declaration = registry[el.localName]?.["x-conversation"];
@@ -50,12 +50,12 @@ export function createConversationBox({ post, renderPanel, showToast, wireInput 
       save: (value) => saveDraft(ctx, value),
       send: async (text, raw) => {
         if (!(await sendComment(text, raw))) return;
-        showToast("Message recorded");
+        notice("Message recorded");
       },
       altSend: hold
         ? async (text, raw) => {
             if (!(await sendComment(text, raw, true))) return;
-            showToast("Message recorded — goal paused");
+            notice("Message recorded — goal paused");
           }
         : null,
     });

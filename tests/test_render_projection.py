@@ -2072,7 +2072,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     vocabulary has nothing to do — a card placed where it already is, a pick set to
     what it already holds, a body assigned the words it already reads.
 
-    The corpus cannot say this on its own: `test_example_renders` serves every example
+    The corpus cannot say this on its own: `test_page_fixture_renders` serves every page
     under a log holding one note, so the fold is empty there and the reading passes
     without applying anything. This page is the log the examples haven't got, and the
     floor is that the standing state covers every verb the registry declares — a verb
@@ -2620,8 +2620,8 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
     """A widget may use the runtime's namespace for state without making that state
     runtime paint. Replaying a suggestion changes only data-lf-state on its authored
-    element, so the replay record must name it; data-lf-pending on the same element is
-    the runtime's own annotation and must not change the signature."""
+    element, so the replay record must name it; runtime attributes and generated chrome
+    must not change the signature."""
     url = serve(SUGGESTION_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -2662,17 +2662,37 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
+            '<div class="lf-ui" id="runtime-control"></div>' +
+            '<div class="lf-ui" id="runtime-parent">' +
+                '<lf-options id="thread-widget"></lf-options></div>' +
             '<i></i><div id="second"></div>';
         const before = Object.fromEntries(shallowSigs(root));
+        root.insertBefore(document.createElement("i"), root.firstElementChild);
+        root.querySelector("#runtime-parent").id = "replacement-runtime-parent";
+        root.querySelector("#runtime-control").replaceWith(
+            Object.assign(document.createElement("div"), {
+                className: "lf-ui",
+                id: "replacement-runtime-control",
+            }),
+        );
+        const painted = Object.fromEntries(shallowSigs(root));
         root.prepend(root.lastElementChild);
         const moved = Object.fromEntries(shallowSigs(root));
-        return { before, moved };
+        return { before, painted, moved };
     }""")
     assert positions == {
         "before": {
             "signature-root": "DIV [id=signature-root] in=#-1",
             "first": "DIV [id=first] in=signature-root#0",
             "nested": "B [id=nested] in=first#0",
+            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
+            "second": "DIV [id=second] in=signature-root#1",
+        },
+        "painted": {
+            "signature-root": "DIV [id=signature-root] in=#-1",
+            "first": "DIV [id=first] in=signature-root#0",
+            "nested": "B [id=nested] in=first#0",
+            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
             "second": "DIV [id=second] in=signature-root#1",
         },
         "moved": {
@@ -2680,6 +2700,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
             "second": "DIV [id=second] in=signature-root#0",
             "first": "DIV [id=first] in=signature-root#1",
             "nested": "B [id=nested] in=first#0",
+            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
         },
     }
     assert errors == []

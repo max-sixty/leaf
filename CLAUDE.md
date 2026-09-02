@@ -146,9 +146,8 @@ Before finishing a feature:
 - Keep the implementation, tests, and any owning protocol or reference aligned.
 - Give every action a keyboard route. Chords keep actions reachable without spending a
   page-level binding on each one.
-- Make the feature appear in at least one authored page under `examples/`.
-  Implementing or changing it includes adding or updating a source example and
-  regenerating the derived corpus.
+- Follow `examples/CLAUDE.md`'s page-fixture rules when adding or changing a feature,
+  and regenerate the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
   `skills/leaf/SKILL.md` or the routed reference that owns the workflow.
 - Update any public docs or generated outputs the feature affects.

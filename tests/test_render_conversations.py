@@ -15,7 +15,7 @@ from render_support import (
     COVERED_TOP,
     DECISION_PAGE,
     EDGES,
-    EXAMPLES,
+    FEATURE_GALLERY,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -1193,8 +1193,7 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
 ):
     """A held thread operation may land only while its original intent still stands."""
     browser, held = held_events
-    gallery = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(gallery))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2784,7 +2783,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "text": "the later plain reply",
         },
     )
-    log = d / "comments.jsonl"
+    log = d / "events.jsonl"
     lines = log.read_text(encoding="utf-8").split("\n")
     torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
     lines[torn] = lines[torn][: len(lines[torn]) // 2]

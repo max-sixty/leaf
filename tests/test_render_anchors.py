@@ -21,6 +21,7 @@ from render_support import (
     CHIPS,
     CODE_PAGE,
     CONTROL_LABEL_PAGE,
+    CORPUS_SOURCES,
     DIFF_PAGE,
     DRIFT_V1,
     DRIFT_V2,
@@ -34,7 +35,6 @@ from render_support import (
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
-    SOURCE_EXAMPLES,
     SUGGESTION_PAGE,
     TAIL_PAGE,
     THIN_V1,
@@ -94,13 +94,13 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     assert errors == [], errors
 
 
-@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
-def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
     """Anchoring has to work on the pages people actually write, not on a fixture built
     to suit it. Every failure here has been a place where what the reader selects and
     what the search reads come apart — an uppercased header, a widget's own chrome, the
     stylesheet a rendered diagram carries — and a hand-built page has none of them. So
-    this drags across every pair of adjacent blocks in every source example, which is
+    this drags across every pair of adjacent blocks in every source page, which is
     the shape a real selection takes, and asks for the highlight the composer promises.
 
     The generated corpus is not another authored input: scripts/corpus.py derives a
@@ -114,7 +114,7 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     the class, the sweep that proves every passage is quotable structurally could not see
     the passages that weren't. Across the source corpus it reaches attribute-rendered
     headings, settled summaries, and the tab names in live-progress."""
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(source))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
@@ -186,15 +186,15 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
         return {missed, skipped, astray};
     }""")
     assert result["missed"] == [], (
-        f"{len(result['missed'])} passages in {example.stem} quote text the page "
+        f"{len(result['missed'])} passages in {source.stem} quote text the page "
         f"can't find: {result['missed']}"
     )
     assert result["skipped"] == [], (
-        f"{len(result['skipped'])} passages in {example.stem} raised no Comment button, "
+        f"{len(result['skipped'])} passages in {source.stem} raised no Comment button, "
         f"so this sweep never tested them: {result['skipped']}"
     )
     assert result["astray"] == [], (
-        f"{len(result['astray'])} passages in {example.stem} painted outside what was "
+        f"{len(result['astray'])} passages in {source.stem} painted outside what was "
         f"selected: {result['astray']}"
     )
     assert errors == []

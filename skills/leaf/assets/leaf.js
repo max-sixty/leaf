@@ -3276,6 +3276,7 @@ const runtimeProjection = createProjection(runtime, {
   PAGE_PAINT_ATTRIBUTES,
   agentName,
   answeredContext,
+  authored,
   decisionEntry,
   containsAcross,
   dress,

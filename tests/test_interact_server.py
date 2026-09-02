@@ -496,7 +496,7 @@ def test_server_round_trip(server, page_dir):
     ]:
         assert fetch(server + path)[0] == 200, path
     for path in [
-        "/comments.jsonl",
+        "/events.jsonl",
         "/data.json",
         "/vendor/..",
         "/status.json",
@@ -1234,13 +1234,13 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     original = served_page.full_state
 
     def own_state(*args, **kwargs):
-        assert leases_model.lock_is_held(page_dir / "comments.jsonl")
+        assert leases_model.lock_is_held(page_dir / "events.jsonl")
         own_state_read.set()
         return original(*args, **kwargs)
 
     def neighbours(directory):
         assert directory == page_dir
-        assert not leases_model.lock_is_held(page_dir / "comments.jsonl")
+        assert not leases_model.lock_is_held(page_dir / "events.jsonl")
         scanned.set()
         return []
 
@@ -2541,7 +2541,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     assert [e["text"] for e in events] == [text]
     # One physical line per event under any line-splitting reader, so what
     # `wait` and `events` print stays one event per line for every consumer.
-    raw = (page_dir / "comments.jsonl").read_text()
+    raw = (page_dir / "events.jsonl").read_text()
     assert raw.splitlines() == raw.rstrip("\n").split("\n")
 
 
@@ -2552,7 +2552,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
     )
-    with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
+    with open(page_dir / "events.jsonl", "a", encoding="utf-8") as f:
         f.write('{"kind": "comm')  # the tear: no trailing newline
     event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "after"}
@@ -2563,7 +2563,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     # A tear lands mid-character as easily as mid-line — ensure_ascii=False
     # writes multi-byte UTF-8 — and a strict whole-file decode would raise
     # before any line-level tolerance could reach it.
-    with open(page_dir / "comments.jsonl", "ab") as f:
+    with open(page_dir / "events.jsonl", "ab") as f:
         f.write('{"kind": "comment", "text": "café'.encode()[:-1])
     event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "again"}
@@ -3297,7 +3297,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # A neighbour something corrupted: its log no longer parses, and the fault
     # stays its own — skipped, rather than 500ing every other page's poll.
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
-    (pages / "corrupt" / "comments.jsonl").write_text('{"kind": "note", "author"')
+    (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
     # malformed private claim on another page must not make this page's poll fail.
     malformed = pages / "malformed-status"
@@ -3422,7 +3422,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     writer = threading.Thread(target=resolve_then_claim)
     writer.start()
     assert writer_entered.wait(5)
-    assert leases_model.lock_is_held(page_dir / "comments.jsonl")
+    assert leases_model.lock_is_held(page_dir / "events.jsonl")
     release.set()
     reader.join(5)
     writer.join(5)
@@ -3678,7 +3678,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             ),
         },
     )
-    log = page_dir / "comments.jsonl"
+    log = page_dir / "events.jsonl"
     lines = log.read_text(encoding="utf-8").split("\n")
     torn = next(i for i, line in enumerate(lines) if '"id": "c-lost"' in line)
     lines[torn] = lines[torn][: len(lines[torn]) // 2]  # the tear a crash leaves

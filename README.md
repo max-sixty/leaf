@@ -44,7 +44,7 @@ Codex opens the full Leaf page in its browser pane, or in a local browser when
 the pane is unavailable. It uses the same theme, package widgets, anchored
 comments, and version travel as Claude Code. A detached adapter delivers page
 input into later turns of the same Codex task; the page directory and
-`comments.jsonl` remain the durable record.
+`events.jsonl` remain the durable record.
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
@@ -100,3 +100,7 @@ dashboard meant to change as work finishes. They are live in the visual index at
 <https://leaf.page/examples.html>; every example opens as its own complete page.
 From a checkout, `scripts/site.py --serve` previews that catalog and all its routes;
 `scripts/preview.py triage-board` serves one page with the real agent loop behind it.
+Synthetic feature specimens live together in
+[`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
+`scripts/preview.py feature-gallery` serves that developer playground without adding
+it to the public catalog.

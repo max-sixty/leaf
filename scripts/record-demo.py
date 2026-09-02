@@ -163,7 +163,7 @@ def stop_server(page_dir: Path) -> None:
 
 def wait_for_comment(page_dir: Path) -> str:
     deadline = time.monotonic() + 10
-    log = page_dir / "comments.jsonl"
+    log = page_dir / "events.jsonl"
     while time.monotonic() < deadline:
         events = [
             json.loads(line) for line in log.read_text().splitlines() if line.strip()
@@ -398,7 +398,7 @@ def shoot_stills(
     # once: neither shot posts anything, so the log is the same for both.
     actions = sum(
         json.loads(line)["kind"] == "action"
-        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (page_dir / "events.jsonl").read_text().splitlines()
         if line.strip()
     )
 

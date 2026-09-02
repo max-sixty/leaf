@@ -10,6 +10,7 @@ from render_support import (
     BOTH_STAMPS,
     DECISION_PAGE,
     EXAMPLES,
+    FEATURE_GALLERY,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
@@ -277,10 +278,9 @@ def test_ask_addresses_follow_the_button_gallery_s_visible_margin_controls(
 
 
 @pytest.mark.parametrize("width", [1440, 700, 390])
-def test_the_button_gallery_keeps_its_real_actions_reachable(browser, serve, width):
-    """The shipped sampler stays usable after edits, verdicts, and dense overflow."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
+    """The developer sampler stays usable after edits, verdicts, and dense overflow."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
     for target, outcome, receipt in (

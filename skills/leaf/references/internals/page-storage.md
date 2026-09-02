@@ -50,7 +50,7 @@ A page directory holds:
                          copy that `version check` walks and a browser reloads.
                          So the transport was never an optimisation over
                          inlining; inlining was never available
-    comments.jsonl       append-only event log; an event's seq is its line number (1-based)
+    events.jsonl         append-only event log; an event's seq is its line number (1-based)
     data.json            explicit authority for page-bound sources: each record keeps
                          its contract identity, may have a replaceable current value
                          with the data revision that wrote it,
@@ -71,7 +71,7 @@ A page directory holds:
                          private records become canonical claim updates, which
                          their local receipts show beside the page-wide banner
                          (`leaf status … --on`). Delivery pickup never writes
-                         this file; it is a page-owned event in comments.jsonl
+                         this file; it is a page-owned event in events.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all

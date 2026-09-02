@@ -18,6 +18,7 @@ export function createProjection(runtime, dependencies) {
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     answeredContext,
+    authored,
     decisionEntry,
     containsAcross,
     dress,
@@ -57,8 +58,9 @@ export function createProjection(runtime, dependencies) {
   // state survived a recordless rebuild or a thread reconcile; node identity can. A
   // coordinate with no winner is committed too, once its authored baseline stands.
   const committedProjection = new Map();
-  // An id-bearing element's state as markup can say it: tag, attributes, and
-  // place among its id-bearing kin. Text is deliberately absent — words are the
+  // An authored, id-bearing element's state as markup can say it: tag, attributes,
+  // and place among its authored id-bearing kin. Generated chrome is deliberately
+  // absent. Text is deliberately absent — words are the
   // static gate's subject (restatement_errors); this is the rest, the state no
   // version file can speak. What the runtime itself paints onto page elements —
   // exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
@@ -69,8 +71,9 @@ export function createProjection(runtime, dependencies) {
   function shallowSigs(root) {
     const sigs = new Map();
     const siblingPositions = new Map();
+    const isAuthored = (el) => Boolean(el.id) && authored(el)(el);
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
-      if (!el.id) continue;
+      if (!isAuthored(el)) continue;
       const attrs = [...el.attributes]
         .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
         .map((a) => `${a.name}=${a.value}`)
@@ -81,12 +84,12 @@ export function createProjection(runtime, dependencies) {
       if (!positions) {
         positions = new Map();
         for (const sibling of parent?.children ?? [])
-          if (sibling.id) positions.set(sibling, positions.size);
+          if (isAuthored(sibling)) positions.set(sibling, positions.size);
         siblingPositions.set(parent, positions);
       }
       sigs.set(
         el.id,
-        `${el.tagName} [${attrs}] in=${parent?.id ?? ""}#${positions.get(el) ?? -1}`,
+        `${el.tagName} [${attrs}] in=${parent && isAuthored(parent) ? parent.id : ""}#${positions.get(el) ?? -1}`,
       );
     }
     return sigs;

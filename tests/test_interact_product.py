@@ -42,6 +42,12 @@ from leaf.structure import parse_structure
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
 
+PUBLIC_EXAMPLES = tuple(
+    path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
+)
+FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
+
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     source = page_dir / "index.html"
@@ -387,13 +393,13 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
-    """Every page fixture in examples/ lints clean against the shipped layer."""
+def test_page_fixtures_pass_check(tmp_path, monkeypatch, clone_initialized_page):
+    """Every public example and developer feature fixture passes the real check."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    examples = sorted(root.glob("*.html"))
-    assert examples
+    examples = [*PUBLIC_EXAMPLES, FEATURE_GALLERY, root / "corpus.html"]
+    assert FEATURE_GALLERY.is_file()
     selection_args = [arg for package in packages for arg in ("--package", package)]
 
     def initialize(target):
@@ -434,7 +440,7 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             # Preview and the published site append this file verbatim. Do the
             # same here: normalizing a stale event contract in the fixture would
             # let the shipped demo fail while its corpus gate stayed green.
-            (d / "comments.jsonl").write_bytes(seed.read_bytes())
+            (d / "events.jsonl").write_bytes(seed.read_bytes())
         # Every authored version, not only the current one. A prior version is markup
         # a builder stamps through the same door, so a fault in one stops preview and
         # the site build — which is a slow way to hear it from this gate.
@@ -448,7 +454,7 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             assert result.exit_code == 0, f"{version.name}: {result.output}"
 
 
-def test_every_widget_in_the_vocabulary_stands_in_an_example():
+def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     """Eight sweeps in test_render.py read a widget inside a whole page, and their
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
@@ -457,16 +463,12 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
-    authored = " ".join(
-        p.read_text()
-        for p in (ROOT / "examples").glob("*.html")
-        if p.name != "corpus.html"
-    )
+    authored = " ".join(path.read_text() for path in CORPUS_SOURCES)
     tags = [tag for tag in registry if not tag.startswith("$")]
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
     undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not undemonstrated, (
-        f"no example holds {', '.join(undemonstrated)} — see examples/CLAUDE.md"
+        f"no corpus source holds {', '.join(undemonstrated)} — see examples/CLAUDE.md"
     )
 
 
@@ -1674,11 +1676,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     refused in a version, and until recently accepted in a reply. No seed carries one
     today, which is what a floor is for."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    seeded = [
-        p
-        for p in sorted((ROOT / "examples").glob("*.html"))
-        if p.with_suffix(".jsonl").exists()
-    ]
+    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
     selection_args = [arg for package in packages for arg in ("--package", package)]

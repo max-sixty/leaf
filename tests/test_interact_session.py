@@ -564,7 +564,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     assert [e["events"] for e in pickups] == [["c1", shown[1]["id"]], ["c2"]]
     stored = [
         json.loads(line)
-        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (page_dir / "events.jsonl").read_text().splitlines()
     ]
     assert all("seq" not in event for event in stored if event["kind"] == "pickup")
     session_model.cmd_status(page_dir, "working", "revising the plan")
@@ -3512,7 +3512,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     # A background job's claim names the job's record and no process at all, so the
     # pid the environment states — dead here — is nothing to this reader. Claimed
     # through the real door, which asks for an initialized page.
-    (page / "comments.jsonl").write_bytes(b"")
+    (page / "events.jsonl").write_bytes(b"")
     job = tmp_path / "job"
     job.mkdir()
     files_model.write_json(job / "state.json", {"sessionId": "guarded"})
@@ -3530,7 +3530,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     # records are still walked, and the live one is still the session's page.
     other = tmp_path / "other"
     other.mkdir()
-    (other / "comments.jsonl").write_bytes(b"")
+    (other / "events.jsonl").write_bytes(b"")
     record_claim(other, id="guarded")
     assert service_model.owned_pages("guarded") == [other.resolve()]
 
@@ -3666,20 +3666,20 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     """
     session_model.cmd_status(page_dir, "waiting", "comment on the prototype")
     marker = page_dir / "status-lock-requested"
-    comments = open(  # noqa: SIM115 - held across the child transition
-        page_dir / "comments.jsonl", "a+b"
+    events = open(  # noqa: SIM115 - held across the child transition
+        page_dir / "events.jsonl", "a+b"
     )
-    fcntl.flock(comments, fcntl.LOCK_EX)
+    fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
 from leaf import service as service_model
 
 original_flocked = service_model.flocked
-comments = Path(os.environ["COMMENTS"]).resolve()
+events = Path(os.environ["EVENTS"]).resolve()
 marker = Path(os.environ["MARKER"])
 
 @contextlib.contextmanager
 def observed_flocked(path, **kwargs):
-    if Path(path).resolve() == comments:
+    if Path(path).resolve() == events:
         marker.write_text("requested", encoding="utf-8")
     with original_flocked(path, **kwargs) as stream:
         yield stream
@@ -3692,7 +3692,7 @@ cli_model.cli()
         spawn,
         page_dir,
         probe,
-        COMMENTS=page_dir / "comments.jsonl",
+        EVENTS=page_dir / "events.jsonl",
         MARKER=marker,
     )
 
@@ -3700,17 +3700,17 @@ cli_model.cli()
     while not marker.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
     if not marker.exists():
-        comments.close()
+        events.close()
         process.kill()
         process.communicate()
-        pytest.fail("the idle command never requested the held comments-log lock")
+        pytest.fail("the idle command never requested the held event-log lock")
 
     # The marker is immediately before the command's lock acquisition. In the
     # broken ordering it appears only after the empty pending read; in the fixed
     # ordering it appears before that read. Appending while this process owns the
     # lock therefore makes the old command idle and the fixed command refuse.
-    comments.seek(0, os.SEEK_END)
-    comments.write(
+    events.seek(0, os.SEEK_END)
+    events.write(
         (
             events_model.jsonl_line(
                 {
@@ -3723,10 +3723,10 @@ cli_model.cli()
             + "\n"
         ).encode()
     )
-    comments.flush()
-    os.fsync(comments.fileno())
-    fcntl.flock(comments, fcntl.LOCK_UN)
-    comments.close()
+    events.flush()
+    os.fsync(events.fileno())
+    fcntl.flock(events, fcntl.LOCK_UN)
+    events.close()
 
     out, err = process.communicate(timeout=60)
     assert process.returncode == 1, f"{out}{err}"

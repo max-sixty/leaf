@@ -18,7 +18,7 @@ dynamic assets, and compact-layout parity remain incomplete.
 
 The bundled stdio server is a delivery route over the existing page model.
 `index.html` starts state, immutable revisions hold valid saves,
-`comments.jsonl` changes them, and `PageTransaction` remains the read/write
+`events.jsonl` changes them, and `PageTransaction` remains the read/write
 boundary. The MCP resource, its iframe shell, and its loopback server own no
 current state, replay, undo, versions, or delivery cursor. Closing an app loses
 only that presentation.

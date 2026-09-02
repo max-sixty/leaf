@@ -29,6 +29,7 @@ from render_support import (
     MANY_DECISIONS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
+    PAGE_FIXTURES,
     PANEL_DIFF_MARKUP,
     RENDERED,
     REPLAYED_PAGE,
@@ -636,9 +637,15 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
         "Server offline — reconnecting. Keep this page open so pending changes can send.",
     ):
         read = page.evaluate(fits, sentence)
-        assert read["oneLine"] > read["shown"] * 1.2, (
+        # The pressure, said as the sentence outgrowing the box it is given rather than as
+        # a ratio between them. The row's cap is the sentence's floor stated from the other
+        # end (chrome-style), so a crowded row leaves the status its floor and no less —
+        # a margin over that floor is a number the design will not pay, and the fixture's
+        # own crowding is asserted where the row is read, below.
+        assert read["oneLine"] > read["shown"], (
             f"the fixture put no pressure on the wide banner: {sentence!r} needs "
-            f"{read['oneLine']}px on one line and the status box is {read['shown']}px"
+            f"{read['oneLine']}px on one line and the status box is {read['shown']}px, "
+            "so the wrap this test is about never happened"
         )
         assert read["across"]["shown"] == read["across"]["needed"], (
             f"the wide banner cut {sentence!r} off its own edge: {read}"
@@ -686,6 +693,10 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
             document: {shown: document.documentElement.clientWidth,
                        needed: document.documentElement.scrollWidth}};
         }"""
+    )
+    assert crowded["folded"], (
+        "the wide row folded nothing, so it never reached the cap this test is about and "
+        f"the sentence beside it was never competing for room: {crowded}"
     )
     clipped = [c for c in crowded["row"] if c["shown"] < c["needed"]]
     assert not clipped, f"the crowded row compressed the addresses it kept: {clipped}"
@@ -2181,14 +2192,23 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     )
     version.focus()
     resized(page, 390, 900)
-    # The row narrows by folding rather than by turning round, so an address still on it
-    # is still under the reader's hands.
-    # `test_a_phone_banner_folds_its_addresses_into_one_menu` is the other half: what the
-    # fold does take goes behind one door, and the door is what the reader is handed.
-    expect(page.locator(".lf-banner-actions > .lf-version")).to_have_count(1)
-    assert page.evaluate(
-        "document.activeElement === document.querySelector('.lf-version')"
+    # The row narrows by folding rather than by turning round, and what it folds it hands
+    # over rather than drops: the reader is left standing on the address they had, or on
+    # the door it went behind, which is the press that finds it again.
+    #
+    # Which of those two the version is at 390px is a font-width fact rather than this
+    # test's subject, and the two cannot both be pinned: the assertion #209 shipped
+    # reads the version still on the row, and this suite's fonts fold it away. So
+    # the reading follows the address to wherever the fold put it, over a row that has
+    # been made to fold something — refold() hands focus to the door only for a control
+    # that went behind it, and refocuses the control itself otherwise.
+    # `test_a_phone_banner_folds_its_addresses_into_one_menu` is the other half: what goes
+    # behind the door, and that there is only ever one door.
+    assert page.locator(".lf-banner-menu > *").count() > 0, (
+        "the 390px row folded nothing at all, so nothing here crossed into a fold"
     )
+    behind = page.locator(".lf-banner-menu > .lf-version").count() == 1
+    expect(page.locator(".lf-banner-more" if behind else ".lf-version")).to_be_focused()
 
     resized(page, 1200, 900)
     # Back on the wide row, with every folded address back on it and back at its start,
@@ -2745,8 +2765,10 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_examples_have_no_serious_wcag_a_or_aa_violations(browser, serve, example):
+@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
+def test_page_fixtures_have_no_serious_wcag_a_or_aa_violations(
+    browser, serve, page_fixture
+):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
@@ -2757,7 +2779,7 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(browser, serve, exampl
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    url = serve(example)
+    url = serve(page_fixture)
     findings = []
     for color_scheme in ("light", "dark"):
         page, errors = open_page(browser, url, color_scheme=color_scheme)
@@ -3802,6 +3824,20 @@ RING_WALKS = (
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
+
+
+# Whether the page is offering a banner address at all, which is not the same question as
+# whether the reader can see it standing on the row. A control with nothing to show is
+# drawn away by the banner's own presence writer (paintPresence, display: none), while one
+# the row had no width for is alive behind the fold's menu — and asking a folded address
+# whether it is visible answers no for a page that is offering it perfectly well, which
+# read as a scope no example reached rather than as a window too narrow to show it.
+def offered(page, selector):
+    return page.locator(selector).evaluate_all(
+        "els => els.some(el => getComputedStyle(el).display !== 'none')"
+    )
+
+
 # What each scope has to have opened before its walk means anything, and what the page
 # shows while its entry is available. A control with nothing to show is absent by
 # declaration — Asks on a page waiting on nobody, `L` where the machine has one leaf — so
@@ -4148,7 +4184,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
-            if surface and (offers is None or page.locator(offers).is_visible()):
+            if surface and (offers is None or offered(page, offers)):
                 assert page.locator(surface).count() == 1, (
                     f"{RING_SCOPE_CONTROL.get(scope, (' '.join(keys),))[0]} did not open "
                     f"{scope} on {example.stem}, which "

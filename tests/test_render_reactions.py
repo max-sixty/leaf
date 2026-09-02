@@ -631,20 +631,26 @@ def test_a_map_reopened_before_its_close_lands_still_presses_its_button(browser,
 
     # The ordering Esc-then-press reaches by luck, stated: close and reopen in one task,
     # then hold until the first close has been delivered to the second opening. The
-    # listener is added after the runtime's, so the page has answered it by then.
+    # listener is added after the runtime's, so the page has answered it by then. It
+    # records the delivery as a synchronous fact rather than resolving a promise the
+    # `evaluate` awaits: a close that never arrives would be a wait nothing bounds,
+    # spending the worker's whole step, while the poll's deadline names this test.
     page.evaluate(
         """() => {
           const sheet = document.querySelector("dialog.lf-page-map-sheet");
-          const landed = new Promise((resolve) =>
-            sheet.addEventListener("close", () => resolve(true), { once: true }),
+          window.__lfLateClose = false;
+          sheet.addEventListener(
+            "close",
+            () => { window.__lfLateClose = true; },
+            { once: true },
           );
           sheet.close();
           document
             .querySelector('[data-lf-margin-for="sug-refill"] .lf-margin-spill')
             .click();
-          return landed;
         }"""
     )
+    page.wait_for_function("() => window.__lfLateClose")
     expect(sheet).to_be_visible()
     expect(item.locator(".lf-margin-reactions")).to_be_visible()
 

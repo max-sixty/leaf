@@ -3,6 +3,7 @@
 import re
 
 import pytest
+from leaf import data as data_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
@@ -72,7 +73,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     """Core chrome is a gallery journey, not merely present around its specimens."""
     live_leaf("second", "A second Leaf page")
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, 1280, 900)
+    resized(page, 1600, 900)
 
     expect(
         page.get_by_role("heading", name="Start with the main Asks panel", exact=True)
@@ -91,7 +92,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-decisions").click()
     asks = page.locator("button.lf-decisions-row")
-    expect(asks).to_have_count(8)
+    expect(asks).to_have_count(9)
     expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -129,6 +130,144 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
+    """Sign-off, layer comments, and request outcomes are real gallery journeys."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1280, 900)
+
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_have_text("Approve version")
+    approve.click()
+    round_trip(page)
+    expect(approve).to_have_text("✓ Version approved")
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(approve).to_have_text("Approve version")
+
+    option = page.locator("#bg-choice-street")
+    option_box = option.bounding_box()
+    assert option_box is not None
+    page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    page.mouse.click(
+        option_box["x"] + option_box["width"] / 2,
+        option_box["y"] + option_box["height"] / 2,
+    )
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · lf-option · bg-choice-street"
+    )
+    expect(option).not_to_have_attribute("chosen", "")
+    page.locator(".lf-composer textarea").fill("The sample option needs less padding.")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    design_comment = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and event.get("about") == "layer"
+    ][-1]
+    assert design_comment["anchor"] == {"section": "bg-choice-street"}
+    page.locator("body").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+
+    ready = page.locator("#bg-request-live")
+    restart = ready.get_by_role("button", name="Restart the sample worker", exact=True)
+
+    restart.click()
+    round_trip(page)
+    request = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "bg-request-live"
+    ][-1]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": request["id"],
+            "status": "failed",
+            "text": "The sample branch is protected by another review",
+        },
+    )
+    told(page)
+    expect(ready).to_contain_text(
+        "restart failed · The sample branch is protected by another review"
+    )
+    expect(restart).to_be_enabled()
+
+    restart.click()
+    round_trip(page)
+    retried = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "bg-request-live"
+    ][-1]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": retried["id"],
+            "status": "succeeded",
+            "text": "Restarted the sample worker",
+        },
+    )
+    told(page)
+    expect(ready).to_contain_text("restart succeeded · Restarted the sample worker")
+    expect(restart).to_be_disabled()
+
+    def reject(route):
+        route.fulfill(
+            status=400,
+            json={"ok": False, "error": "gallery transport refusal", "final": True},
+        )
+
+    page.route("**/api/event", reject)
+    change = page.locator('[data-lf-margin-for="bg-replace"]')
+    change.get_by_role(
+        "button", name=re.compile(r"^Accept the suggested change")
+    ).click()
+    retry = change.get_by_role("button", name="Retry", exact=True)
+    expect(retry).to_be_visible()
+    expect(change.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(change).to_contain_text("Failed")
+    change.get_by_role("button", name="Cancel", exact=True).click()
+    expect(retry).to_have_count(0)
+
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
+    browser, serve
+):
+    """One captured source supplies a following view, a snapshot, and provenance."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    live = page.locator("#bg-source-live")
+    frozen = page.locator("#bg-source-snapshot")
+    original = (
+        '[route]\nname = "covered terrace"\ndistance_km = 1.8\nstatus = "sample"\n'
+    )
+
+    expect(live.locator("code")).to_have_text(original)
+    expect(frozen.locator("code")).to_have_text(original)
+    expect(frozen.locator("figcaption")).to_have_text(
+        "feature-gallery-source.toml at sample-1 · lines 1–4 · snapshot 1"
+    )
+
+    changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
+    data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
+    expect(live.locator("code")).to_have_text(changed)
+    expect(frozen.locator("code")).to_have_text(original)
+    expect(page.locator("#bg-measurement-guide")).to_contain_text(
+        "measurement is behind its source"
+    )
+
     assert errors == []
     page.close()
 

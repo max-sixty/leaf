@@ -3,8 +3,9 @@
 
 The corpus is derived test content — edit the public examples or the developer
 feature gallery and rerun this script (tests fail on a stale corpus). Each page's
-<main> body is embedded verbatim, so ids in the corpus are the ids in the sources;
-that requires every source to keep its ids disjoint, which this script enforces.
+<main> body is embedded with its ids unchanged; snapshot selectors are rebased onto
+the combined data log. Every source must therefore keep its ids disjoint, which this
+script enforces.
 Usage: corpus.py  (no arguments; writes examples/corpus.html)
 """
 
@@ -82,6 +83,56 @@ class _Scan(HTMLParser):
             self.ids.append(attrs["id"])
 
 
+SNAPSHOTTED_TAG = re.compile(r'<lf-[a-z-]+\b[^>]*\bsnapshot="[1-9][0-9]*"[^>]*>')
+
+
+def composed_data() -> tuple[dict, dict[str, int]]:
+    """Compose sources and map each capture to its revision in the combined log."""
+    sources = {}
+    captures = {}
+    capture_revisions = {}
+    for source, _ in TABS:
+        companion = source.with_suffix(".data.json")
+        if not companion.exists():
+            continue
+        document = json.loads(companion.read_text(encoding="utf-8"))
+        for name, spec in document.pop("$captures", {}).items():
+            capture_file = (source.parent / spec["file"]).resolve()
+            try:
+                relative_file = capture_file.relative_to(EXAMPLES_DIR.resolve())
+            except ValueError:
+                sys.exit(f"{source.name}: data capture {name!r} is outside examples/")
+            corpus_spec = {**spec, "file": relative_file.as_posix()}
+            if name in captures:
+                if captures[name] != corpus_spec:
+                    sys.exit(
+                        f"corpus examples contribute conflicting data capture {name!r}"
+                    )
+                continue
+            captures[name] = corpus_spec
+            capture_revisions[name] = len(captures)
+        for name, value in document.items():
+            if name in sources and sources[name] != value:
+                sys.exit(f"corpus examples contribute conflicting data source {name!r}")
+            sources[name] = value
+    data = ({"$captures": captures} if captures else {}) | sources
+    return data, capture_revisions
+
+
+def rebase_snapshots(body: str, capture_revisions: dict[str, int]) -> str:
+    """Keep a pinned capture selected after independent data logs are combined."""
+
+    def rebase(match):
+        tag = match.group()
+        source = re.search(r'\bsource="([^"]+)"', tag)
+        if source is None or source.group(1) not in capture_revisions:
+            return tag
+        revision = capture_revisions[source.group(1)]
+        return re.sub(r'\bsnapshot="[1-9][0-9]*"', f'snapshot="{revision}"', tag)
+
+    return SNAPSHOTTED_TAG.sub(rebase, body)
+
+
 def build() -> str:
     on_disk = {p.name for p in EXAMPLES_DIR.glob("*.html")} - {CORPUS.name}
     in_table = {stem + ".html" for stem, _ in PUBLIC_TABS}
@@ -97,6 +148,7 @@ def build() -> str:
             f"{sorted(path.name for path in developer_pages ^ {FEATURE_GALLERY})}"
         )
 
+    _, capture_revisions = composed_data()
     owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
     for source, label in TABS:
@@ -115,6 +167,7 @@ def build() -> str:
         body = text[
             text.index("<main>") + len("<main>") : text.rindex("</main>")
         ].strip()
+        body = rebase_snapshots(body, capture_revisions)
         # The tab's label is the example's own eyebrow, title-cased, so embedding both
         # makes the panel say its name twice. On screen the strip carries it; wherever
         # there is no strip — unupgraded, in print, in a copy — the theme paints the
@@ -127,24 +180,8 @@ def build() -> str:
 
 def build_data() -> dict:
     """Compose the package sources needed by the examples embedded in the corpus."""
-    sources = {}
-    captures = {}
-    for source, _ in TABS:
-        companion = source.with_suffix(".data.json")
-        if not companion.exists():
-            continue
-        document = json.loads(companion.read_text(encoding="utf-8"))
-        for name, spec in document.pop("$captures", {}).items():
-            if name in captures and captures[name] != spec:
-                sys.exit(
-                    f"corpus examples contribute conflicting data capture {name!r}"
-                )
-            captures[name] = spec
-        for name, value in document.items():
-            if name in sources and sources[name] != value:
-                sys.exit(f"corpus examples contribute conflicting data source {name!r}")
-            sources[name] = value
-    return ({"$captures": captures} if captures else {}) | sources
+    data, _ = composed_data()
+    return data
 
 
 def main() -> None:

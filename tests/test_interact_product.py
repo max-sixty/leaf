@@ -472,6 +472,25 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     )
 
 
+def test_every_default_widget_stands_in_the_feature_gallery():
+    """The developer surface owns default presentation coverage directly.
+
+    A public example may incidentally render the same widget, but that does not give a
+    leaf developer one feature-indexed place to find and exercise it.
+    """
+    registry = json.loads(
+        (schema_model.DEFAULT_PACKAGE / "registry.json").read_text(encoding="utf-8")
+    )
+    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    tags = [tag for tag in registry if tag.startswith("lf-")]
+    assert tags, "the default package declares no widgets"
+    missing = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
+    assert not missing, (
+        f"the feature gallery has no focused specimen for {', '.join(missing)} — "
+        "see examples/CLAUDE.md"
+    )
+
+
 def test_shipped_widget_purposes_live_in_their_descriptions():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     titled = [
@@ -496,6 +515,15 @@ def test_corpus_is_generated_from_the_examples():
     )
     assert corpus.build_data() == committed_data, (
         "example data changed — rerun scripts/corpus.py"
+    )
+    assert committed_data["$captures"]["gallery-source"]["file"] == (
+        "developer/feature-gallery-source.toml"
+    )
+    _, capture_revisions = corpus.composed_data()
+    gallery_snapshot = capture_revisions["gallery-source"]
+    assert (
+        f'source="gallery-source"\n            snapshot="{gallery_snapshot}"'
+        in committed
     )
 
 

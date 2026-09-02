@@ -2150,10 +2150,17 @@ than for the container's class, because a resolved thread is built by the same
 function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
+The banner's Asks count is the ring in numbers. While the reader stands in an ask
+on the reader's list it says which of how many — `Asks (3/7)` — and `sayAsks` paints
+it from the same `standingIn` reading and the same `openDecisions` list as the ring
+and the tray row, so the three cannot name different places. Leaving the ask
+returns the bare count the way it takes the ring away. An ask the ring can mark
+but the walk will not step to shows the bare count, because a number is a place in
+the walk's list.
+
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-the banner's Asks button retains focus while the walk moves through the page.
-Clicking elsewhere removes the focus-derived ring without erasing the walk's
-useful continuation point.
+clicking elsewhere removes the focus-derived ring, and the count's place with it,
+without erasing the walk's useful continuation point.
 
 `shownParts` supplies ring targets when a page styles a decision with
 `display: contents`. A normal boxed decision wears one outline on its own box.

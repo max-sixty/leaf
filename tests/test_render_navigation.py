@@ -1426,6 +1426,9 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("Shift+a")
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     expect(page.locator(".lf-decisions-row").first).to_be_focused()
+    # A row is the reader standing at the ask it names, so the banner's count says
+    # which of how many from the tray as it does from the page.
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/1)")
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -4657,6 +4660,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
+    # The count says no place for it: a number there is a place in the walk's list, and
+    # this decision is off it while the agent owes the seat its next word.
+    expect(decisions).to_have_text("Asks (1)")
 
     # Answering hands the question back, and the count moves while the ring does not.
     # Focus is not touched again from here, so the ring read below is the one painted
@@ -4679,7 +4685,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             },
         )
     told(page)
-    expect(decisions).to_have_text("Asks (2)")
+    # Back on the list, the standing the ring never dropped is now a place in it, so the
+    # count gains the place along with the number.
+    expect(decisions).to_have_text("Asks (1/2)")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")

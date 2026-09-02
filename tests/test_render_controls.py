@@ -29,6 +29,7 @@ from render_support import (
     MANY_DECISIONS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
+    PAGE_FIXTURES,
     PANEL_DIFF_MARKUP,
     RENDERED,
     REPLAYED_PAGE,
@@ -2764,8 +2765,10 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_examples_have_no_serious_wcag_a_or_aa_violations(browser, serve, example):
+@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
+def test_page_fixtures_have_no_serious_wcag_a_or_aa_violations(
+    browser, serve, page_fixture
+):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
@@ -2776,7 +2779,7 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(browser, serve, exampl
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    url = serve(example)
+    url = serve(page_fixture)
     findings = []
     for color_scheme in ("light", "dark"):
         page, errors = open_page(browser, url, color_scheme=color_scheme)

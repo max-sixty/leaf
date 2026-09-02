@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare an example as a live page or a standalone review file.
+"""Prepare an example or developer fixture as a live page or review file.
 
 An example is a page body, not a page directory: it links /theme.css and
 /leaf.js at the server root, which is where `page init` vendors them. Opening one
@@ -22,7 +22,7 @@ same page-bound external data a real host would replace through `leaf data set`.
 Vendoring runs fresh each time, so an edit to the theme, the registry, or a
 widget shows up on the next run. `version stamp` lints the example on the way
 past. The browser gate a page normally passes before its URL goes out is left to
-the suite: `version check --render` and `test_example_renders` drive the same
+the suite: `version check --render` and `test_page_fixture_renders` drive the same
 `render_version` over the same files, so running it here would only repeat what
 the suite has already said about these exact pages.
 
@@ -30,7 +30,7 @@ Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
 starts the page service and returns its URL instead of holding the terminal.
 
-Usage: preview.py [example] [options]  (default: design-decision)
+Usage: preview.py [page] [options]  (default: design-decision)
 """
 
 import argparse
@@ -48,6 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
 PAGE = TMP / "preview"  # gitignored, and stable so the port persists
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
+NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer")
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 
@@ -140,12 +141,12 @@ def slot_name(value: str) -> str:
 
 def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser = argparse.ArgumentParser(
-        description="Prepare a shipped example or authored source with a Leaf runtime."
+        description="Prepare a public example or developer fixture with a Leaf runtime."
     )
     parser.add_argument(
         "example",
         nargs="?",
-        help="shipped example name (default: design-decision)",
+        help="public example or developer fixture name (default: design-decision)",
     )
     parser.add_argument("--source", type=Path, help="authored HTML source to preview")
     parser.add_argument(
@@ -211,12 +212,17 @@ def authored_source(
             parser.error(f"no authored source at {selected}")
         return selected
     name = (example or "design-decision").removesuffix(".html")
-    selected = ROOT / "examples" / f"{name}.html"
-    if selected.is_file():
-        return selected
+    candidates = [root / f"{name}.html" for root in NAMED_SOURCE_DIRS]
+    found = [path for path in candidates if path.is_file()]
+    if len(found) == 1:
+        return found[0]
+    if len(found) > 1:
+        parser.error(f"{name} names more than one preview source: {found}")
+    available = sorted(
+        path.stem for root in NAMED_SOURCE_DIRS for path in root.glob("*.html")
+    )
     parser.error(
-        f"no example named {name}; examples/ holds "
-        + ", ".join(sorted(p.stem for p in (ROOT / "examples").glob("*.html")))
+        f"no preview source named {name}; available pages: " + ", ".join(available)
     )
 
 

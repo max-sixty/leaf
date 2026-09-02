@@ -182,10 +182,14 @@ but callers do not read the rendering to recover it. For example,
 does not remember where a decision walk last landed.
 
 `PAGE_PAINT_ATTRIBUTE` is the runtime's one list of attributes it may paint on
-authored elements. `shallowSigs` excludes exactly those attributes. A widget's
-own `data-lf-*` state remains visible to replay and to the render gate. Add a
-runtime-authored attribute to `PAGE_PAINT_ATTRIBUTE` when its writer is added;
-do not broaden the exclusion to every `data-lf-*` attribute.
+authored elements. `shallowSigs` excludes exactly those attributes and reads only
+id-bearing elements accepted by the bounded `authored` predicate. Generated elements
+are absent; generated parents and siblings contribute neither the `in=` id nor sibling
+position. An authored widget inside conversation chrome remains visible because its
+widget frame bounds that predicate. A widget's own `data-lf-*` state remains visible to
+replay and to the render gate. Add a runtime-authored attribute to
+`PAGE_PAINT_ATTRIBUTE` when its writer is added; do not broaden the exclusion to every
+`data-lf-*` attribute.
 
 Layout follows the same ownership rule. CSS owns the document shell: `body` is
 the `lf-shell` container, `main` composes margin claims, and container queries
@@ -2933,7 +2937,7 @@ The live-page scrolling and chrome reservations stay under the live guard. A
 copy with no panel uses an ordinary centered document and must not retain room
 for absent runtime furniture.
 
-`test_an_exported_example_stands_on_its_own` strips scripts, opens the copy, and
+`test_an_exported_page_fixture_stands_on_its_own` strips scripts, opens the copy, and
 asks what still looks actionable. Keep that end-to-end test general rather than
 asserting one widget's exported implementation.
 

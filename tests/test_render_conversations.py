@@ -15,7 +15,7 @@ from render_support import (
     COVERED_TOP,
     DECISION_PAGE,
     EDGES,
-    EXAMPLES,
+    FEATURE_GALLERY,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -1193,8 +1193,7 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
 ):
     """A held thread operation may land only while its original intent still stands."""
     browser, held = held_events
-    gallery = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(gallery))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

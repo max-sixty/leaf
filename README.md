@@ -100,3 +100,7 @@ dashboard meant to change as work finishes. They are live in the visual index at
 <https://leaf.page/examples.html>; every example opens as its own complete page.
 From a checkout, `scripts/site.py --serve` previews that catalog and all its routes;
 `scripts/preview.py triage-board` serves one page with the real agent loop behind it.
+Synthetic feature specimens live together in
+[`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
+`scripts/preview.py feature-gallery` serves that developer playground without adding
+it to the public catalog.

@@ -22,6 +22,7 @@ from render_support import (
     CODE_PAGE,
     COLORED_CODE_PAGE,
     COMMAND_HUB_PACKAGE,
+    CORPUS_SOURCES,
     CUSTOM_WIDGET_PAGE,
     DECISIONS_PAGE,
     EDGE_IDS,
@@ -36,6 +37,7 @@ from render_support import (
     LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
+    PAGE_FIXTURES,
     PANEL_PAGE,
     REPLY_HOST_PAGE,
     RESIZE_LOOP_EVENT,
@@ -858,22 +860,22 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_example_renders(browser, serve, example):
-    """Every shipped example loads clean and lays out, in both color schemes: no
+@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
+def test_page_fixture_renders(browser, serve, page_fixture):
+    """Every shipped example and the developer gallery lay out in both color schemes: no
     fail-soft error box, no console error, every visible widget occupies real
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    assert render_gate_model.render_version(browser, serve(example)) == []
+    assert render_gate_model.render_version(browser, serve(page_fixture)) == []
 
 
-def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
-    """The sweep above is the corpus's own gate, and an idiom no example holds never
+def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
+    """The sweep above is the corpus's own gate, and an idiom no source holds never
     reaches it: the shape passes every test it has, because it has none. It is the
-    floor test_every_widget_in_the_vocabulary_stands_in_an_example is for widgets, and
+    floor test_every_widget_in_the_vocabulary_stands_in_a_corpus_source is for widgets, and
     the reason it is here rather than beside that one is that an idiom is declared as a
     selector, which only a layout engine can answer.
 
@@ -897,9 +899,7 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
     held, invalid = set(), set()
-    for example in EXAMPLES:
-        if example.stem == "corpus":
-            continue
+    for example in CORPUS_SOURCES:
         page.set_content(example.read_text(), wait_until="domcontentloaded")
         answer = page.evaluate(
             """(selectors) => {
@@ -2071,8 +2071,8 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     clean result is only a reading that never arrived. A page is served rather than a
     bare fixture because the panel has to be holding something for its boxes to exist,
     and a seeded example is the corpus's own conversation."""
-    seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
-    assert seeded, "no example ships a log, so the panel would open on nothing"
+    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    assert seeded, "no corpus source ships a log, so the panel would open on nothing"
     page, errors = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
     page.locator(".lf-threads-toggle").click()

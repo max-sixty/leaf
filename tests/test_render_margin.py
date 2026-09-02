@@ -21,6 +21,7 @@ from render_support import (
     live_url,
     margins_laid_out,
     open_page,
+    panel_comment,
     panel_settled,
     resized,
     round_trip,
@@ -1252,9 +1253,6 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(options).to_be_visible()
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-action:visible")).to_have_count(6)
-    expect(reactions.locator(":scope > .lf-fab")).to_have_class(
-        re.compile(r"lf-margin-action")
-    )
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-action")
     )
@@ -1604,6 +1602,38 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
         expect(
             item.get_by_role("button", name=f"Detail 1 {target}", exact=True)
         ).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_a_reading_marker_counts_toward_the_expanded_button_budget(browser, serve):
+    """A reading-only target never grows a seventh fitting beside its marker."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this thread visible.", {"section": "how-cap"})
+    page, errors = open_page(browser, url)
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const controls = document.createElement('span');
+          for (let index = 0; index < 6; index += 1)
+            controls.append(marginAction(offer('button', ''), {
+              key: `peer-${index}`, icon: 'dot', label: `Peer ${index}`,
+              role: 'secondary'
+            }));
+          window.readingBudgetFixture = registerMarginItem({
+            key: 'reading-budget', target: document.querySelector('#how-cap'),
+            controls, side: 'after'
+          });
+        }"""
+    )
+    item = page.locator('[data-lf-margin-for="how-cap"]')
+    item.locator(":scope > .lf-margin-more").click()
+    expect(item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(item.locator(":scope > .lf-margin-marker")).to_be_visible()
+    expect(item.locator(".lf-margin-spill")).to_have_attribute(
+        "data-lf-spill-count", "2"
+    )
     assert errors == []
     page.close()
 

@@ -1588,10 +1588,14 @@ export function createLivingMargin(dependencies) {
   function syncOptionGroup(group, entry, primary, optionsOpen) {
     const allNodes = optionNodes(entry, primary);
     const unique = [...new Set(allNodes)];
-    // An option-only target has no primary fitting outside this group. Let its peers use
-    // the whole cluster budget instead of reserving a ghost seventh position; reaction
-    // mode is the common case, where its six declared choices should fit exactly.
-    const peerCapacity = Math.max(0, EXPANDED_BUTTON_BUDGET - (primary ? 1 : 0));
+    // Peers may use the whole cluster budget only when no fitting stands outside this
+    // group. Reaction mode is the common case: it has neither a primary nor a reading
+    // marker, so its six declared choices fit exactly. A reading-only target keeps its
+    // marker visible, and that fitting counts just as a contributed primary would.
+    const peerCapacity = Math.max(
+      0,
+      EXPANDED_BUTTON_BUDGET - (primary || markerFace(entry).kinds.length ? 1 : 0),
+    );
     const needsSpill = unique.length > peerCapacity;
     // The spill route consumes the last visible fitting; it does not increase the
     // cluster beyond its budget. A fully expanded cluster is therefore either one

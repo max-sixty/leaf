@@ -748,7 +748,7 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
 
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    page.locator("p").click()
+    page.locator("main p").click()
     page.keyboard.press("/")
     expect(page.locator(".lf-keyline")).to_contain_text("close search")
     expect(page.locator(".lf-keyline")).not_to_contain_text("back to hints")

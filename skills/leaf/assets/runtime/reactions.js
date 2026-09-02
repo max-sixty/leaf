@@ -137,8 +137,6 @@ export function createReactions({
   let surfaceOrdinal = 0;
   let marginSurface = null;
   let marginOffer = null;
-  let marginComment = null;
-  let marginSuggest = null;
   function buildReactSurface(
     surface,
     pressed,
@@ -218,30 +216,6 @@ export function createReactions({
     marginSurface = el("div", "lf-margin-reactions");
     marginSurface.setAttribute("role", "group");
     marginSurface.setAttribute("aria-label", "Other responses");
-    marginSuggest = marginAction(offer("button", "lf-fab-suggest"), {
-      key: "suggest",
-      icon: "edit",
-      label: "Suggest",
-      behavior: "disclosure",
-      role: "secondary",
-    });
-    marginSuggest.onclick = () => {
-      if (!fabAnchorAt()?.quote || designIsOn()) return;
-      setReact(false);
-      suggestHere();
-    };
-    marginComment = marginAction(offer("button", "lf-fab"), {
-      key: "comment",
-      icon: "comment",
-      label: "Comment",
-      behavior: "disclosure",
-      role: "primary",
-    });
-    marginComment.onclick = () => {
-      setReact(false);
-      fabBar.querySelector(":scope > .lf-fab")?.click();
-    };
-    marginSurface.append(marginComment, marginSuggest);
     buildReactSurface(marginSurface, reactHere, {
       label: "Reactions for this selection or item",
       target: () => anchorWord(fabAnchorAt()),
@@ -317,10 +291,7 @@ export function createReactions({
     const target = anchor && fabTargetAt();
     if (!marginSurface || !target) return false;
     // `r` is an explicit reaction mode. Comment and Suggest remain their own `c` and
-    // response-bar routes; keeping them in this cluster would displace reaction choices
-    // behind More while the key line claimed all six were open.
-    marginComment.hidden = true;
-    marginSuggest.hidden = true;
+    // response-bar routes, so this temporary contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
     // Register the response surface in the state it is about to show. Registering its
     // collapsed face first makes the projection treat the six choices as hidden owner
@@ -435,9 +406,7 @@ export function createReactions({
       const firstChoice =
         reactSurface === fabBar
           ? responseChoices(fabBar)[0]
-          : reactSurface === marginSurface && !marginSuggest.hidden
-            ? marginSuggest
-            : pickerFor(reactSurface).palette.querySelector(".lf-react");
+          : pickerFor(reactSurface).palette.querySelector(".lf-react");
       if (focusPicker || (surface && reactFrom === pickerFor(reactSurface).trigger))
         firstChoice?.focus({
           preventScroll: true,

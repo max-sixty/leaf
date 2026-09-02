@@ -1451,9 +1451,9 @@ and `…` when there are at least two peers. Hiding one peer costs the same fitt
 showing it and adds a press, so it is not overflow. With no contributed control,
 standing information supplies the primary disclosure Button.
 
-The expanded budget is six fittings, including the primary where one exists; a target
-made only of peer choices uses all six. A larger set shows the Buttons that fit and a
-final Page-map Button whose label gives the remaining count. That opens
+The expanded budget is six fittings, including the primary or visible reading marker
+where one exists; a target made only of peer choices uses all six. A larger set shows
+the Buttons that fit and a final Page-map Button whose label gives the remaining count. That opens
 the existing Page map at the first excess action; every excess control has its own
 named row which performs that exact action. Do not grow another popover for overflow.
 The same limit and exact-action route apply when the cluster docks on a narrow screen.

@@ -149,6 +149,7 @@ def stamped_version(events: list, revision: int) -> int | None:
 def version_descriptors(page_dir: Path, events: list) -> list[dict]:
     """The public stamps whose note and immutable copy both exist."""
     mappings = version_revisions(events)
+    revisions = set(list_revisions(page_dir))
     return [
         {
             "version": version,
@@ -156,8 +157,7 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
             "url": f"/versions/{version_name(version)}",
         }
         for version in sorted(mappings)
-        if version_path(page_dir, version).is_file()
-        and mappings[version] in list_revisions(page_dir)
+        if version_path(page_dir, version).is_file() and mappings[version] in revisions
     ]
 
 

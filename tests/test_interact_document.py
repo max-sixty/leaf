@@ -59,6 +59,37 @@ def test_check_accepts_a_valid_page(page_dir):
     assert result.exit_code == 0, result.output
 
 
+def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
+    """A version history is one directory snapshot, not one scan per version."""
+    (tmp_path / "versions").mkdir()
+    (tmp_path / "revisions").mkdir()
+    events = []
+    for revision in range(1, 4):
+        (tmp_path / "versions" / f"v{revision}.html").write_text("version")
+        (tmp_path / "revisions" / f"r{revision}-{'0' * 16}.html").write_text("revision")
+        events.append({"kind": "note", "version": revision, "revision": revision})
+
+    native_list_revisions = files_model.list_revisions
+    scans = 0
+
+    def counted_list_revisions(page_dir):
+        nonlocal scans
+        scans += 1
+        return native_list_revisions(page_dir)
+
+    monkeypatch.setattr(files_model, "list_revisions", counted_list_revisions)
+
+    assert files_model.version_descriptors(tmp_path, events) == [
+        {
+            "version": revision,
+            "revision": revision,
+            "url": f"/versions/v{revision}.html",
+        }
+        for revision in range(1, 4)
+    ]
+    assert scans == 1
+
+
 def test_check_requires_the_layers_one_csp(page_dir):
     """The vendoring promise — an approved page can't change under its user and
     can't phone home — is enforced by the browser only if the page declares the

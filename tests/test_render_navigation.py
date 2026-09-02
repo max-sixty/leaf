@@ -289,8 +289,8 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — where `d` lands — ↑/↓ walk the options clamping at the ends, a
-    digit picks outright, and each option wears its digit only while a mark holds
+    """From a mark — one Tab past where `a` lands — ↑/↓ walk the options clamping at the
+    ends, a digit picks outright, and each option wears its digit only while a mark holds
     keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     nums = page.locator("#live-question .lf-address")
@@ -298,6 +298,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
 
     page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
+    # The arrival stands on the decision; its marks are the next Tab stops.
+    expect(nums.first).to_be_hidden()
+    page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
@@ -360,6 +363,9 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["r-now", "r-later"], "centred"),
     ]:
         page.keyboard.press("a")
+        # The arrival stands on the decision; the digits are drawn once a mark holds the
+        # focus, one Tab in.
+        page.keyboard.press("Tab")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
@@ -3664,7 +3670,7 @@ def test_the_resting_key_line_names_the_presses_that_say_something_back(browser,
     expect(shown).to_have_count(2)
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
-    assert key_line(page) == "c\nthreads\nr\nreact\n?\nmore", key_line(page)
+    assert key_line(page) == "c\ngo to threads\nr\nreact\n?\nmore", key_line(page)
 
     # Still declared, and off the glance nobody asked for. Each is in the DOM and each is
     # hidden — the pair of counts is what separates a row the line declined to paint from

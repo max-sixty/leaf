@@ -328,7 +328,8 @@ export function chromeStyle({
      A receipt is a third case: the platform's element, kept for the cluster's one
      anatomy and for the walk to land on, with nothing to press. It is excluded from the
      hand and the lift here rather than overruled by a later rule, so where a Button gets
-     its promise is stated once. */
+     its promise is stated once; the theme's own pressable rule reads the offer marker,
+     which marginAction empties for a receipt, so both hands are withheld by one fact. */
   .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]) {
     cursor: pointer;
   }
@@ -758,6 +759,13 @@ ${MARK_RULES}
     .lf-banner-actions { flex: 0 0 auto; min-width: 0;
       max-width: calc(100% - 34ch); justify-content: safe flex-end; overflow: hidden;
       padding: 4px 5px; }
+    /* An address keeps its words at every width, and says so: a flex item's default
+       minimum is its own words, but the aim floor states a minimum width in pixels for
+       every control in the layer, and a stated minimum lets the item shrink past its
+       words to that number. A row of clipped addresses overflows nothing, so the fold,
+       which reads overflow, would never fire; an address that cannot shrink is what
+       hands the fold something to measure. */
+    .lf-banner-actions > .lf-btn { flex: none; }
     /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
        mask is the page's actual vendored mark, so a project that replaces icon.svg does
        not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -809,7 +817,7 @@ ${MARK_RULES}
       max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-      box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
+      box-shadow: 0 8px 24px var(--shade); padding: 4px; }
     .lf-banner-menu:popover-open { display: flex; }
     /* A folded address is the same control, so it keeps its own paint and states its own
        words; what the menu decides is that it reads as a row rather than as a chip. It
@@ -1655,7 +1663,10 @@ ${MARK_RULES}
          Centring is for the controls that are there. */
       .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
         align-items: center; justify-content: center; }
-      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 6px; }
+      /* Forty on the covering row, or the aim floor where a finger raises that past
+         forty: this rule outranks the shared AIMS floor by standing later at the same
+         weight, so it has to carry the floor itself or a touch shelf loses four pixels. */
+      .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding-inline: 6px; }
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.

@@ -331,17 +331,19 @@ def test_a_live_pick_is_a_quiet_check_and_remains_pressable(browser, serve):
 
 
 def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, serve):
-    """Decision arrival leaves both answer paths one press away.
+    """From the option mark, both answer paths are one press away.
 
-    The walk lands on an option mark so the group's own scope can answer the next key.
-    A digit chooses its listed option; Enter steps into the field for the option the
-    author did not list. Without that second binding, reaching the field costs one Tab
-    per listed option even though the Decision is already selected.
+    The walk stands the reader on the decision and its marks are the next Tab stops; from
+    a mark the group's own scope answers the next key. A digit chooses its listed option;
+    Enter steps into the field for the option the author did not list. Without that
+    second binding, reaching the field costs one Tab per listed option even though the
+    Decision is already selected.
     """
     url = serve(DECISION_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
 
     page.keyboard.press("a")
+    page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
@@ -370,6 +372,7 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
 
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
+    page.keyboard.press("Tab")
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
@@ -1816,7 +1819,7 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
     )
     expect(work_button).to_have_css("display", "flex")
     expect(work_button).to_have_css("border-radius", "50%")
-    expect(work_button).to_have_css("min-height", "32px")
+    expect(work_button).to_have_css("height", "32px")
     assert errors == []
     page.close()
 

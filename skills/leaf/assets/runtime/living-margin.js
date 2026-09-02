@@ -80,9 +80,15 @@ export function marginAction(
   if (behavior === "receipt") {
     control.setAttribute("role", "status");
     control.tabIndex = -1;
+    // The theme's one pressable rule reads the offer marker's value for the hand and
+    // the lift, and the empty value is how `offer` spells chrome that is not a press.
+    // A receipt is exactly that, so it says so in the marker rather than being carved
+    // out of the theme's rule by name; the marker comes back with the press.
+    control.dataset.lfOffer = "";
   } else if (control.getAttribute("role") === "status") {
     control.removeAttribute("role");
     control.removeAttribute("tabindex");
+    control.dataset.lfOffer = control.localName === "button" ? "button" : "";
   }
   let glyphNode = control.querySelector(":scope > .lf-margin-action-glyph");
   let spaceNode = control.querySelector(":scope > .lf-margin-action-space");

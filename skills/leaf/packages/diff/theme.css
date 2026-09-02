@@ -42,7 +42,7 @@ lf-diff:not(.lf-rendered) > pre {
    which would be this box, which never scrolls, so the header stuck to nothing and
    scrolled away with its rows. */
 :host(.lf-rendered) details,
-:host(.lf-rendered) .lf-diff-rename { margin: 8px 0; padding: 0; overflow: clip;
+:host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
 :host(.lf-rendered) summary,
@@ -75,21 +75,32 @@ lf-diff:not(.lf-rendered) > pre {
 .lf-diff-next:disabled { opacity: .55; cursor: default; }
 /* The file's row is a disclosure, and a disclosure is a control, so the review press
    cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
-   line instead: 6px and 11px are the details' 1px border plus that line's own 7px and
-   10px padding, the top pulled 2px up so the press sits centred on the text beside it.
-   The sans is stated because the host this sits in is set in mono, and one width for
-   both labels is what makes the column the row holds open exact.
-   The z-index is the pinned summary's (below): that one lifts the header over the rows
-   that pass under it, and lifted alone it covered this press too, on every file, so a
-   click on "Mark reviewed" opened and closed the file instead. At the same level the
-   later sibling paints on top, which is the press. */
-.lf-diff-file { position: relative; --lf-diff-press: 110px; }
-.lf-diff-review, .lf-diff-reviewed { position: absolute; top: 6px; right: 11px;
-                                     z-index: 2; font-family: var(--sans); }
+   line instead: a block in the flow ahead of the row, pushed to the right by its auto
+   margin and pulled up by a bottom margin that takes back its own height and the 6px
+   above it, so the row starts where it would without it; that is why the height is
+   stated rather than floored, and why the wrapper carries the file's spacing and is a
+   block context of its own, so those margins meet nothing outside it. 6px and 11px
+   are the details' 1px border plus that
+   line's own 7px and 10px padding, the top pulled 2px up so the press sits centred on
+   the text beside it. The sans is stated because the host this sits in is set in mono,
+   and one width for both labels is what makes the column the row holds open exact.
+   In the flow rather than absolute because the line pins (below): the summary sticks
+   under the banner while its rows go past, and a box placed against the file's top
+   stayed there and drifted off the header it belongs to, its column empty and the
+   press out of reach for the whole of the file. Positioned, and one level over the
+   pinned summary: that one lifts the header over the rows that pass under it, and
+   lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
+   opened and closed the file instead. */
+.lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
+                --lf-diff-press: 110px; }
+.lf-diff-review, .lf-diff-reviewed { display: block; position: relative; z-index: 3;
+                                     width: fit-content; height: 26px;
+                                     margin: 6px 11px -32px auto;
+                                     font-family: var(--sans); }
 .lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
                   min-height: 26px; padding: 2px 8px;
                   color: var(--code-muted); font-size: var(--t-6); }
-.lf-diff-reviewed { font-size: var(--t-5); }
+.lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }
 .lf-diff-filtered { display: none !important; }
@@ -120,6 +131,11 @@ lf-diff:not(.lf-rendered) > pre {
 @media screen {
   :host(.lf-rendered[data-lf-diff-pinned]) summary { position: sticky;
                               top: var(--lf-banner-h, 0px); z-index: 2; }
+  /* The press with it, 5px down: its own 6px less the border the summary's box starts
+     inside, which is the distance between the two at rest. */
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-review,
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-reviewed { position: sticky;
+                              top: calc(var(--lf-banner-h, 0px) + 5px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same

@@ -32,6 +32,7 @@ from render_support import (
     DECISIONS_PAGE,
     DIFF_CLIPPING,
     DIFF_LANDING,
+    DIFF_PRESS,
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
@@ -3874,6 +3875,17 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     assert pinned["bannerBottom"] == in_flow["bannerBottom"], (
         "the banner moved, so the header meeting it says nothing"
     )
+    # The press drawn onto that line came with it. It stands outside the disclosure, so
+    # nothing about the summary pinning moves it; placed against the file's top it stayed
+    # there and scrolled off under the banner, leaving the pinned header's column empty
+    # and "Mark reviewed" out of reach for the whole of the file it names. Reached by a
+    # pointer as well as measured, because a box can stand on the line and still be
+    # painted under the header.
+    press = page.evaluate(DIFF_PRESS)
+    assert abs(press["top"] - (press["headTop"] + 5)) <= 2, (
+        f"the review press is not on the pinned header's line: {press}"
+    )
+    assert press["hit"] == "review", f"a pointer on the press reaches something else: {press}"
 
     page.locator("lf-diff .lf-diff-wrap").focus()
     page.keyboard.press("]")

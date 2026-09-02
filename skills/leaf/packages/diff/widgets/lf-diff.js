@@ -201,8 +201,11 @@ function summaryNode(file, open) {
 // A file's row and its review press. The press cannot go inside the <summary>: a
 // disclosure is itself a control, and a control nested in one is announced as a single
 // thing — the serious `nested-interactive` finding the corpus's axe sweep reports, once
-// per file. They are siblings in this wrapper instead, and theme.css draws the press
-// back onto the summary line.
+// per file. They are siblings in this wrapper instead, the press first, and theme.css
+// draws it back onto the summary line. First because the line pins: the summary sticks
+// under the banner while its rows go past, and the press sticks with it only as a box
+// in the flow ahead of the disclosure, since a box placed against the file's top would
+// stay there and drift off the header it belongs to.
 function fileRow(row) {
   const file = document.createElement("div");
   file.className = "lf-diff-file";
@@ -855,7 +858,7 @@ customElements.define(
           else this.refreshReviewedState();
         });
       });
-      entry.node.append(entry.review);
+      entry.node.prepend(entry.review);
       this.setReviewed(entry, false, { repaint: false });
     }
 

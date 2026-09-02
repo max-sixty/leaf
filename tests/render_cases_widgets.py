@@ -566,6 +566,20 @@ DIFF_CLIPPING = """() => {
 # where the keyboard just landed. One pass, because every number here means something only
 # against the others. With nothing focused it answers for the first file, so the same
 # reading covers a page nobody has pressed a key on yet.
+# The first file's review press against its own header, and what a pointer at the
+# press's centre would reach. Read through the shadow root, which is the tree the press
+# is in.
+DIFF_PRESS = """() => {
+    const root = document.querySelector('lf-diff').shadowRoot;
+    const file = root.querySelector('.lf-diff-file');
+    const box = file.querySelector('.lf-diff-review').getBoundingClientRect();
+    const head = file.querySelector('summary').getBoundingClientRect();
+    const hit = root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { top: Math.round(box.top), headTop: Math.round(head.top),
+             hit: hit && hit.classList.contains('lf-diff-review') ? 'review'
+                : hit && (hit.localName + '.' + hit.className) };
+}"""
+
 DIFF_LANDING = """() => {
     const diff = document.querySelector('lf-diff');
     const at = diff.shadowRoot.activeElement;

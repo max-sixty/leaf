@@ -27,6 +27,7 @@ export function createDecisionView({
   inChrome,
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,
@@ -398,23 +399,65 @@ export function createDecisionView({
     run: (binding) => availableActions()[Number(binding) - 1]?.control.click(),
   };
 
-  // The chips are an eye's projection of the same row, positioned in chrome rather
-  // than inserted into authored prose or a Button's fixed geometry. Off-screen actions
-  // keep their address and remain named on the key line; only a control the reader can
-  // currently see receives an inline chip. A nearer keyboard layer suppresses both the
-  // row and these chips through actionReachable, so a digit never stays painted after a
-  // chord, text box, or modal has taken it.
+  // The chips are an eye's projection of the same row. A widget that already owns an
+  // address face lends that face and its exact placement; other actions get chrome at
+  // the visible Button's corner. Off-screen actions keep their working address and name
+  // on the key line but wear no chip. A nearer keyboard layer suppresses both the row and
+  // these chips through actionReachable, so a digit never stays painted after a chord,
+  // text box, or modal has taken it.
   const overlaps = (a, b) =>
     a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const wornAddresses = new Map();
+  function restoreAddress(address, { display, priority }) {
+    address.removeAttribute("data-lf-ask-address");
+    if (display) address.style.setProperty("display", display, priority);
+    else address.style.removeProperty("display");
+  }
+  function clearWornAddresses() {
+    for (const [address, previous] of wornAddresses) restoreAddress(address, previous);
+    wornAddresses.clear();
+  }
   function paintActionAddresses() {
+    clearWornAddresses();
+    const actions = availableActions();
     if (!actionReachable() || !bindings(actionRow).length) {
       actionLayer.replaceChildren();
       return;
     }
     const clips = new Map();
     const covered = banner.getBoundingClientRect().bottom;
+    const kept = [keylineEl.getBoundingClientRect()];
+
+    // Reuse a widget's page-local address where it has one. Besides preserving the
+    // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
+    // the fixed key line above it. Hide a face that has no clear visible box, just as the
+    // general address pass drops a route chip where the screen cannot say it safely.
+    for (const { address } of actions) {
+      if (!address?.isConnected) continue;
+      const previous = {
+        display: address.style.getPropertyValue("display"),
+        priority: address.style.getPropertyPriority("display"),
+      };
+      address.setAttribute("data-lf-ask-address", "");
+      address.style.setProperty("display", "block", "important");
+      const box = address.checkVisibility() && shownRect(address, clips);
+      if (
+        !box ||
+        box.right <= box.left ||
+        box.bottom <= box.top ||
+        box.bottom <= covered ||
+        kept.some((standing) => overlaps(box, standing))
+      ) {
+        restoreAddress(address, previous);
+        continue;
+      }
+      wornAddresses.set(address, previous);
+      kept.push(box);
+    }
+
     const chips = [];
-    for (const [index, { control }] of availableActions().entries()) {
+    for (const [index, { control, address }] of actions.entries()) {
+      if (address) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = shownRect(presented, clips);
@@ -429,7 +472,6 @@ export function createDecisionView({
 
     const right = document.documentElement.clientWidth;
     const bottom = document.documentElement.clientHeight;
-    const kept = [];
     for (const chip of chips) {
       const start = chip.getBoundingClientRect();
       const box = new DOMRect(

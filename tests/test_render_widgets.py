@@ -2284,11 +2284,14 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     focus into the widget.
     """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 900, 900)
 
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert "1–2\nKeep the store / Signed tokens" in key_line(page)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
 
     page.keyboard.press("2")
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
@@ -2301,6 +2304,73 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.keyboard.press("2")
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serve):
+    """Ask and local-scope digits name one stable place on each option card."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 900, 900)
+
+    page.keyboard.press("a")
+    ask = page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    expect(ask).to_have_text(["1", "2"])
+    ask_centers = ask.evaluate_all(
+        """nodes => nodes.map(node => {
+          const box = node.getBoundingClientRect();
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+        })"""
+    )
+
+    page.keyboard.press("Tab")
+    local = page.locator("#live-question > lf-option > .lf-address")
+    expect(local).to_have_text(["1", "2"])
+    local_centers = local.evaluate_all(
+        """nodes => nodes.map(node => {
+          const box = node.getBoundingClientRect();
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+        })"""
+    )
+    assert len(ask_centers) == len(local_centers) == 2
+    for ask_point, local_point in zip(ask_centers, local_centers, strict=True):
+        assert ask_point["x"] == pytest.approx(local_point["x"], abs=0.5)
+        assert ask_point["y"] == pytest.approx(local_point["y"], abs=0.5)
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
+    """A clamped action chip yields to the legend that explains its digit."""
+    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    resized(page, 900, 520)
+
+    page.keyboard.press("a")
+    page.keyboard.press("k")
+    geometry = page.evaluate(
+        """() => {
+          const read = node => {
+            const box = node.getBoundingClientRect();
+            return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
+          };
+          return {
+            line: read(document.querySelector('.lf-keyline')),
+            chips: [...document.querySelectorAll(
+              '.lf-ask-addresses > .lf-ask-address, [data-lf-ask-address]'
+            )].map(read),
+          };
+        }"""
+    )
+    assert geometry["chips"], "the fixture did not leave an Ask address on screen"
+    assert all(
+        chip["right"] <= geometry["line"]["left"]
+        or geometry["line"]["right"] <= chip["left"]
+        or chip["bottom"] <= geometry["line"]["top"]
+        or geometry["line"]["bottom"] <= chip["top"]
+        for chip in geometry["chips"]
+    ), geometry
 
     assert errors == []
     page.close()

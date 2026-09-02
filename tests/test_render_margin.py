@@ -232,12 +232,11 @@ PAGE_MAP_EVENTS = [
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_ask_addresses_follow_the_button_gallery_s_visible_margin_controls(
+def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     browser, serve, width
 ):
     """A secondary action's visible proxy gets its canonical Ask address."""
-    example = next(path for path in EXAMPLES if path.stem == "button-gallery")
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
     margins_laid_out(page)
 

@@ -1950,6 +1950,7 @@ const {
   inChrome: (node) => inChrome(node),
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,

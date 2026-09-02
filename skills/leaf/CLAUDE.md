@@ -2480,7 +2480,7 @@ panel and directional walk agree about focus, reveal, arrival placement, and
 
 An arrival stands the reader on the decision, which is the element the scroll has just
 aligned and the one the ring names. The widget's contributed actions are addressable
-there as `1`–`9; its controls remain the next Tab stops, a stop at `tabindex: -1`
+there as `1`–`9`; its controls remain the next Tab stops, a stop at `tabindex: -1`
 keeping its place in document order. Landing the answering control
 instead puts them as far down the decision as its context and evidence are long, off
 the screen the same gesture arranged. A decision a page styles boxless has nothing to

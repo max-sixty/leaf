@@ -184,6 +184,7 @@ customElements.define(
           ...this.#marks().map((control) => ({
             control,
             label: label(control.parentElement) || control.parentElement.id,
+            address: control.parentElement.querySelector(":scope > .lf-address"),
           })),
           ...(this.#done ? [{ control: this.#done, label: "Done" }] : []),
         ]);

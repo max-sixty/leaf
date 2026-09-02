@@ -6,7 +6,6 @@ import re
 
 import pytest
 from leaf import event_log as events_model
-from leaf import schema as schema_model
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_support import (
@@ -17,7 +16,6 @@ from render_support import (
     AIM_SEAM_PAGE,
     AIMED,
     BOTH_STAMPS,
-    COMMAND_HUB_PACKAGE,
     CORNER_PAGE,
     DECISIONS_PAGE,
     DRAFT_MARK,
@@ -32,6 +30,7 @@ from render_support import (
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
     REPLAYED_PAGE,
+    SHIPPED_PACKAGES,
     SPECIMEN_PAGE,
     SUGGESTION_PAGE,
     TYPED_PARTS_PAGE,
@@ -102,13 +101,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     regress to an id-less note that renders normally but gives Alt nothing to outline.
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
-    registry = validation_model.incoming_registry(
-        [
-            schema_model.ASSETS,
-            schema_model.DEFAULT_PACKAGE,
-            COMMAND_HUB_PACKAGE,
-        ]
-    )
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     sidenote = registry["$idioms"]["aside.sidenote"]["example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'

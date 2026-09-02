@@ -2022,11 +2022,12 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     suggestion that control is the ✓ Accept hoisted into the page margin, and the walk
     follows it out there."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    decisions = page.locator(".lf-decisions")
+    expect(decisions).to_have_text("Asks (4)")
     walked = []
-    for expected in [
-        *DECISIONS_IN_ORDER,
-        DECISIONS_IN_ORDER[0],
-    ]:  # one past the end: it wraps
+    for i, expected in enumerate(
+        [*DECISIONS_IN_ORDER, DECISIONS_IN_ORDER[0]]
+    ):  # one past the end: it wraps
         page.keyboard.press("a")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the decision this press stepped to is both the wait and the assertion —
@@ -2034,6 +2035,9 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         # And exactly one decision wears it, the reader standing in one place at a time.
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
+        # The banner says the ring in numbers, from the same focus: which of how many,
+        # so the wrap is visible as 4/4 becoming 1/4 rather than felt as a jump.
+        expect(decisions).to_have_text(f"Asks ({i % 4 + 1}/4)")
         walked.append(
             page.evaluate(
                 "() => document.activeElement.tagName.toLowerCase()"
@@ -2053,10 +2057,11 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # holding the focus — that row is hoisted out into the page margin as a sibling of the
     # block it decides, so a walk reading it where it hangs would step back onto the
     # change the reader is standing on.
-    for expected in reversed(DECISIONS_IN_ORDER):
+    for i, expected in enumerate(reversed(DECISIONS_IN_ORDER)):
         page.keyboard.press("Shift+a")
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
+        expect(decisions).to_have_text(f"Asks ({4 - i}/4)")
 
     # Every request has an answering control, so the walk never has to lend a tab stop
     # to authored content.
@@ -2079,13 +2084,22 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-keyline")).to_contain_text("asks")
 
+    # Leaving the ask takes the place off the count the way it takes the ring off the
+    # page: a click into the prose is the reader standing nowhere in the list.
+    page.locator("#h").click()
+    expect(page.locator(STANDING_DECISION)).to_have_count(0)
+    expect(decisions).to_have_text("Asks (4)")
+
     # An answered decision leaves the walk: deciding the change on its own control is where
     # the reader now stands, and the next press reaches what followed it rather than the
-    # change they have just settled.
+    # change they have just settled. The control the reader answered from keeps the
+    # focus, and a settled ask is no place in the list, so the count is bare until the
+    # next press puts them on one.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(decisions).to_have_text("Asks (3)")
     page.keyboard.press("a")
     expect(page.locator("#t-baffles-review .lf-pick").first).to_be_focused()
+    expect(decisions).to_have_text("Asks (2/3)")
     assert errors == []
     page.close()
 

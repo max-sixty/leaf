@@ -18,7 +18,8 @@ EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 # Order is editorial: move from a focused choice through evidence and live work to the
-# specialized command surface, then end on the compact review that ships a conversation.
+# specialized command surface, then end on the two reviews that ship a conversation —
+# one compact, one that was revised because of it.
 TABS = [
     ("design-decision", "Decision"),
     ("heat-loss", "Heat"),
@@ -29,6 +30,7 @@ TABS = [
     ("triage-board", "Triage"),
     ("command-hub", "Command"),
     ("ship-review", "Ship review"),
+    ("log-retention", "Retention"),
 ]
 
 HEAD = """\
@@ -47,8 +49,8 @@ HEAD = """\
 <main>
 <p class="eyebrow">internal example corpus</p>
 <h1>Every Leaf example, composed</h1>
-<p class="lede" id="corpus-lede">This internal stress surface puts all nine
-authored pages in one document so the browser suite can exercise their combined
+<p class="lede" id="corpus-lede">This internal stress surface puts every
+authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
 catalog.</p>
 

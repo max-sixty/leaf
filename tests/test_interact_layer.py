@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
+    PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
     SKILL_ROOT,
@@ -415,6 +416,8 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/serving-pages.md",
         "skills/leaf/packages/command-hub/registry.json",
         "skills/leaf/packages/default/registry.json",
+        "skills/leaf/packages/diagram/registry.json",
+        "skills/leaf/packages/diff/registry.json",
         # The form a leaf process re-launches itself in.
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
@@ -498,7 +501,13 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     )
 
     init_result = subprocess.run(
-        [launcher, "page", "init", "--package", "command-hub", page],
+        [
+            launcher,
+            "page",
+            "init",
+            *(arg for name in PAGE_PACKAGES for arg in ("--package", name)),
+            page,
+        ],
         cwd=elsewhere,
         capture_output=True,
         text=True,
@@ -507,7 +516,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     assert init_result.returncode == 0, init_result.stderr
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-command" in installed_registry
-    assert installed_registry["$layer"]["packages"] == ["command-hub"]
+    assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
@@ -596,9 +605,14 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "runtime" / "widget-api.js").is_file()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
     assert (page_dir / "widgets" / "lf-chart.js").is_file()
+    assert (page_dir / "vendor" / "plot.esm.js").is_file()
+    # The selected packages land in the same flat directories as the default one,
+    # which is what lets a widget import `/vendor/…` without knowing where it came
+    # from (PAGE_PACKAGES).
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
-    assert (page_dir / "vendor" / "plot.esm.js").is_file()
+    assert (page_dir / "widgets" / "lf-diff.js").is_file()
+    assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
     assert interact_files.read_json(page_dir / "data.json") == {
         "revision": 0,
         "sources": {},
@@ -2092,7 +2106,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert checked.exit_code == 0, checked.output
 
     page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    # PAGE holds an lf-diagram, so the page selects the package that widget lives in
+    # beside the project package this test is about.
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+    )
     assert initialized.exit_code == 0, initialized.output
     assert "lf-callout {" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry

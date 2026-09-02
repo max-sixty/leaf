@@ -96,6 +96,26 @@ export function createDecisionView({
       ).length,
     }));
   }
+  // What the banner's button says about the list: how many, and — while the reader is
+  // standing in one of them — which. The ring says which ask they are at; this says
+  // which of how many, read from the same focus (standingIn) against the same list, so
+  // the two cannot name different places. A walk that wraps shows it as 4/4 becoming
+  // 1/4, and a reader who has pressed `a` a few times can see how far through they are
+  // without opening the tray. Leave the ask — click into the prose, answer it — and
+  // the count goes back to the bare number, the way the ring goes.
+  //
+  // Not in the list is a place too: a reader standing in an unanswered ask whose seat is
+  // mid-conversation is standing in something the walk will not step to, and a number
+  // out of the walk's list would say otherwise.
+  //
+  // Written only on change: a poll repaints this, and an unchanged write feeds the
+  // mutation stream a screen reader rebuilds its buffer on.
+  function sayAsks(decisions, here) {
+    const at = decisions.indexOf(here);
+    const said =
+      at < 0 ? `Asks (${decisions.length})` : `Asks (${at + 1}/${decisions.length})`;
+    if (decisionsBtn.textContent !== said) decisionsBtn.textContent = said;
+  }
   // The banner's reading of that one list. Refreshed from every signal that can change
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
   // page's own words change), and every poll, which is where the fold moves and where a
@@ -107,7 +127,7 @@ export function createDecisionView({
     // While the tray stands its button stands too, whatever the count just did — the
     // press that opened it has to be able to close it.
     showNews(decisionsBtn, decisionsOffered());
-    decisionsBtn.textContent = `Asks (${decisions.length})`;
+    sayAsks(decisions, standingIn());
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
@@ -263,11 +283,10 @@ export function createDecisionView({
   }
   // Where the walk last left off. Not the same question as where the reader is standing,
   // though one answer used to serve both: the ring said where they were and the walk read
-  // its own last landing off it. The Decisions button is the walk's own control and focuses
-  // itself on the way to running a step, so a reader pressing it is standing in the banner
-  // and the ring is rightly gone from the page — leaving the walk with nothing to step from
-  // but whatever happens to be on screen, which would send every second press on that
-  // button back up the page.
+  // its own last landing off it. A reader who has pressed the banner's Asks button is
+  // standing in the banner, and the ring is rightly gone from the page — leaving the walk
+  // with nothing to step from but whatever happens to be on screen, which would send the
+  // next press back up the page.
   let landed = null;
   // A place in the document, stated as the decision it belongs to wherever it belongs to one: a
   // control hoisted out of its decision and pointing back at it stands for that decision and not for
@@ -315,8 +334,8 @@ export function createDecisionView({
   // same place was marked or not by how the reader had reached it.
   //
   // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
-  // than about where the reader is: the Decisions button's own press lands the focus by script
-  // after a click, and the decision it brought the reader to would wear nothing at all.
+  // than about where the reader is: a tray row's press lands the focus by script after a
+  // click, and the decision it brought the reader to would wear nothing at all.
   //
   // The decision wears it, and so does every box it shows through (shownParts): the decision is
   // what carries the id captureView writes down and the place decisionStep measures from,
@@ -334,6 +353,10 @@ export function createDecisionView({
   // attribute is the whole of what the row needs.
   function markHere() {
     const here = standingIn();
+    // The banner's place in the list is the ring in numbers, so it is painted from the
+    // reading the ring is painted from: every focus move that puts the ring somewhere,
+    // or takes it away, says so in the count too.
+    sayAsks(openDecisions(), here);
     const row = here && decisionsPanel.querySelector(`[${DECISION_AT}="${here.id}"]`);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
@@ -372,8 +395,8 @@ export function createDecisionView({
   function decisionPosition() {
     const held = documentFocused();
     // The banner stands over the page rather than in it, and its controls are addresses
-    // the reader holds from wherever they are. The Decisions button focuses itself on the way
-    // to running this, so measuring from it would send every press on it back to the top.
+    // the reader holds from wherever they are. A reader who pressed the Asks button is
+    // standing on it, so measuring from it would send the next press back to the top.
     if (held && held !== document.body && !banner.contains(held))
       return decisionPlace(held);
     const sel = getSelection();

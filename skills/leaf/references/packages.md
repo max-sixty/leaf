@@ -39,21 +39,30 @@ An explicit directory keeps a contribution separately owned and selectable. `.le
 is the project package and `~/.config/leaf` is the user package. Inside a repository
 dedicated to one package, use `.` as the package path.
 
-Leaf also ships optional packages that select by bare name. `command-hub` adds
-multi-agent orchestration widgets; `pr-review` adds a typed pull-request brief with a
-safe Markdown description and compact checks table, plus a data-backed unified call
-diff:
+Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
+and the Mermaid renderer it draws with; `diff` adds `lf-diff`, the `unified-diff` data
+contract, and the Pierre renderer; `command-hub` adds multi-agent orchestration widgets;
+`pr-review` adds a typed pull-request brief with a safe Markdown description and compact
+checks table, plus a data-backed unified call diff:
 
 ```bash
+leaf page init --package diagram PAGE
+leaf page init --package diff PAGE
 leaf page init --package command-hub PAGE
-leaf page init --package pr-review PAGE
+leaf page init --package diff --package pr-review PAGE
 ```
+
+Those two renderers are 5.3MB of the 8.1MB a page used to vendor, and most pages draw
+neither, so they travel in packages rather than in the default one: a plain `page init`
+now writes about 2.7MB, and a page that wants a diagram or a diff says so.
 
 `lf-call-diff` binds a captured `text-document` containing CallDiff-style plain text.
 The analysis host owns that source; the widget keeps unchanged tree items beside
 additions and removals, folds the result by changed root, and projects every row as a
 commentable datum. Its required `diff` target turns source coordinates into navigation
-to matching lines in the exact patch. For a large repository, capture one affected file
+to matching lines in the exact patch — an `lf-diff`, which is why the command above
+selects `diff` beside `pr-review`. Packages declare no dependencies on each other; a
+page states the whole list it needs. For a large repository, capture one affected file
 or entry point per source rather than one unbounded call graph.
 
 ## Package contract

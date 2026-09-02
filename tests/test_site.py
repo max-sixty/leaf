@@ -24,7 +24,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
-from interact_support import COMMAND_HUB_PACKAGE
+from example_data import example_versions
+from interact_support import SHIPPED_PACKAGES
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -33,7 +34,6 @@ from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select, 
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
-DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -59,6 +59,13 @@ def pages_under(directory):
     pages = sorted(directory.glob("*.html"))
     assert pages, f"no pages under {directory}"
     return pages
+
+
+def example_title(stem: str) -> str:
+    """The h1 an example's own source carries, so a retitled example cannot strand a
+    test on its old words."""
+    source = (EXAMPLES / f"{stem}.html").read_text(encoding="utf-8")
+    return re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
 
 
 def authored_examples():
@@ -94,7 +101,9 @@ def hosted(site):
 
 
 def example_url(hosted, name):
-    return f"{hosted}/examples/{name}/versions/v1.html"
+    """The route a reader lands on: the example's newest published version."""
+    newest = site_build.newest_version(EXAMPLES / f"{name}.html")
+    return f"{hosted}/examples/{name}/versions/{newest}"
 
 
 def opened(page, errors, url):
@@ -117,11 +126,12 @@ def test_the_pages_link_the_theme_the_site_serves(site):
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
     served = (site / "theme.css").read_text()
-    for source in (
-        ASSETS / "theme.css",
-        DEFAULT_PACKAGE / "theme.css",
-        COMMAND_HUB_PACKAGE / "theme.css",
-    ):
+    # Every half the site's own layer composes, read off examples/layer.json rather
+    # than listed, so a package added there is covered without a second edit here.
+    halves = [root / "theme.css" for root in SHIPPED_PACKAGES]
+    missing = [source.parent.name for source in halves if not source.is_file()]
+    assert missing == [], f"shipped roots without a theme half: {missing}"
+    for source in halves:
         assert source.read_text().rstrip() in served, (
             f"the theme the site serves is missing {source.parent.name}'s half"
         )
@@ -155,11 +165,16 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in authored_examples():
-        version = site / "examples" / source.stem / "versions" / "v1.html"
-        assert version.read_text() == site_build.eager_example(source.read_text()), (
-            f"{source.name} changed beyond the static showcase's root marker"
-        )
-        assert "versions/v1.html" in (version.parent.parent / "index.html").read_text()
+        # Every authored version is published, so the chooser on the static page has
+        # somewhere to travel; the index forwards to the newest of them.
+        for number, authored in enumerate(example_versions(source), start=1):
+            version = site / "examples" / source.stem / "versions" / f"v{number}.html"
+            assert version.read_text() == site_build.eager_example(
+                authored.read_text()
+            ), f"{authored.name} changed beyond the static showcase's root marker"
+        newest = site_build.newest_version(source)
+        index = site / "examples" / source.stem / "index.html"
+        assert f"versions/{newest}" in index.read_text()
 
 
 def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
@@ -251,7 +266,8 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
     try:
         for source in examples:
             opened(page, errors, example_url(hosted, source.stem))
-            expect(page.locator(".lf-banner .lf-version")).to_have_text("v1 ▾")
+            newest = len(example_versions(source))
+            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
             expect(page.locator(".lf-status-text")).to_contain_text(
                 "Nobody is behind this page"
             )
@@ -283,7 +299,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(example_url(hosted, "pr-walkthrough"), wait_until="commit")
-        expect(page.locator("h1")).to_have_text("Unified diff in the switch picker")
+        expect(page.locator("h1")).to_have_text(example_title("pr-walkthrough"))
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"
@@ -396,7 +412,13 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
             label = page.locator("main > .sitenote")
             expect(label).to_contain_text("An example of a leaf page.")
             expect(label).to_contain_text("nothing you do here leaves your own browser")
-            published = site / "examples" / source.stem / "versions" / "v1.html"
+            published = (
+                site
+                / "examples"
+                / source.stem
+                / "versions"
+                / site_build.newest_version(source)
+            )
             targets = label.locator("a").evaluate_all(
                 "links => links.map(a => a.getAttribute('href'))"
             )

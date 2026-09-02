@@ -2319,7 +2319,7 @@ nested in an `x-decision` region, the row names the region: its heading, context
 evidence are the decision the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
 tray row travels through the same decision-arrival function as `a` and `A`, so the
-panel and directional walk agree about focus, reveal, start-aligned scroll, and
+panel and directional walk agree about focus, reveal, arrival placement, and
 `landed`.
 
 A request decision is answered at acceptance rather than by replayable widget state. Its
@@ -2448,6 +2448,20 @@ The banner is an address, not a page position, so its controls do not become the
 walk's origin. `decisionStep` compares document positions rather than incrementing an
 index remembered by the walk. A panel thread walk may use log order because the
 list itself is its complete ordered space.
+
+Arriving at a page decision puts its arrival region's start below the banner, not
+the decision's own top edge. A widget declaring `x-decision` states that region and
+the walk is handed the region rather than the source inside it. Nothing else declares
+one, and an edit to a phrase cannot: what explains it is the sentence it stands in and
+the heading over that. `arrivalRegion` reads that region off the document instead —
+the nearest preceding heading sharing a container with the decision, then the text
+block holding it or, for a change that is its own block, the block before it — and
+takes the first candidate whose start still leaves the decision's foot on screen,
+falling back to the decision itself. That bound is what lets the widest candidate go
+first, and it keeps the region inside one screen without a rule about distance. A
+decision whose region already stands clear of the banner with its foot in view is not
+travelled to: the press moves the ring and the focus and leaves the page still. A
+thread decision keeps its centred arrival in the panel's own list.
 
 `captureView` stores a passage-based reading landmark, correction within the
 block, and the last decision landmark. `restoreView` resolves the landmark after

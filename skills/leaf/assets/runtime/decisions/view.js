@@ -1,3 +1,7 @@
+import { shownBox, shownRect } from "../geometry.js";
+import { closestAcross, TEXT_BLOCK } from "../passages.js";
+import { pageScroller } from "../scrolling.js";
+
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   scrollBehavior,
@@ -414,6 +418,75 @@ export function createDecisionView({
     focusForNavigation(control ?? source);
   }
 
+  // The screen the reader can use, and the distance two boxes stand apart in it. The
+  // clearance is the scroller's own declared scroll-padding, where it already says how
+  // much of its top edge the banner stands over, rather than a second copy of that number
+  // kept here.
+  const clearanceOf = (box) => parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+  const HEADING = "h1,h2,h3,h4,h5,h6";
+
+  // Where the reader arrives at a page decision: the region whose start has to be in front
+  // of them for the question to make sense. A widget declaring x-decision states its own —
+  // one heading, then the context and evidence, then the control — and this walk is handed
+  // that region rather than the widget inside it, so its arrival is simply its start.
+  //
+  // The kind that most needs a region is the kind that cannot declare one. A suggestion is
+  // an edit to a phrase, and what explains it is the sentence it stands in and the heading
+  // over that — so it can never satisfy "an ask must name itself without context outside
+  // the ask", and no x-decision can be written round it. Landing on the change alone put
+  // its own top edge under the banner and took that sentence with it: the reader arrived
+  // at ✓ Accept with nothing on screen saying what they were accepting. So where the
+  // author has not declared a region, the document supplies one in the shape a declared
+  // region has.
+  //
+  // Candidates widest first — the heading titling this part of the document, then the
+  // block the change stands in, or, for a change that is its own block, the block before
+  // it. The first whose start still leaves the decision's own foot on screen wins, so a
+  // region never grows past what the reader takes in at once and a decision with nothing
+  // that fits keeps the landing this walk always gave it. That bound is what lets the
+  // widest candidate go first: a heading a long way up fails to fit, rather than needing a
+  // rule about how far up is too far.
+  function arrivalRegion(decision, box) {
+    if (registry[decision.localName]?.["x-decision"]) return decision;
+    const room = shownBox(box).height - clearanceOf(box);
+    const fits = (region) =>
+      region && shownBox(decision).bottom - shownBox(region).top <= room;
+    // An ancestor both contains and precedes, so the block holding an inline change is
+    // asked for by name and excluded from the blocks before it — or the walk backwards
+    // would stop at the sentence the change is already inside and call it the one before.
+    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
+      (block) =>
+        !inChrome(block) &&
+        !block.contains(decision) &&
+        decision.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING,
+    );
+    const heading = before.findLast((block) => block.matches(HEADING));
+    return (
+      [heading, closestAcross(decision, TEXT_BLOCK) ?? before.at(-1)].find(fits) ??
+      decision
+    );
+  }
+
+  // The arrival the reader already has. The press then moves the ring and the focus and
+  // leaves the page where it stands: they can see the ask and the words around it, and
+  // scrolling to rebuild a view they are already looking at is motion that says nothing.
+  //
+  // What the page shows of the decision, not what its own box claims — the reading
+  // commentOnItem makes before it travels, and for the same reason: a decision clipped
+  // away inside a board's own scroller is not in front of the reader for having a box that
+  // falls inside the window.
+  function framed(region, decision, box) {
+    const view = shownBox(box);
+    const seen = shownRect(decision, new Map());
+    const foot = shownBox(decision).bottom;
+    return Boolean(
+      seen &&
+      Math.abs(seen.bottom - foot) <= 0.5 &&
+      shownBox(region).top >= view.top + clearanceOf(box) &&
+      foot <= view.bottom,
+    );
+  }
+
   // Standing on one decision: what d and D do once they have decided which, and what a press on
   // a tray row does having been told outright. One function because it is one act — a
   // second would be a second answer to "how do I put the reader on a decision", and the two
@@ -437,12 +510,21 @@ export function createDecisionView({
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
     standOn(next);
-    // A page Decision starts below the banner so its context comes before its control. A
-    // thread Decision is in the panel's own list, whose arrival stays centred in that region.
-    // One travel for both, because which box it moves is now the travel's own question
-    // (scrollerFor) rather than a second one asked here; what stays is the destination,
-    // which is the banner's clearance in the document and the middle of the list.
-    scrollToElement(next, scrollBehavior(), inChrome(next) ? "center" : "start");
+    // A page Decision starts below the banner so its context comes before its control, and
+    // what counts as its context is arrivalRegion's answer: the region an author declared,
+    // or the one the document supplies for a change that cannot declare one. A thread
+    // Decision is in the panel's own list, whose arrival stays centred in that region.
+    // Which box either travel moves is the travel's own question (scrollerFor) rather than
+    // a second one asked here.
+    //
+    // A page arrival the reader already has is left alone. The ring and the focus have
+    // moved to the next ask, which is the whole of what this press had left to say.
+    if (inChrome(next)) scrollToElement(next, scrollBehavior(), "center");
+    else {
+      const region = arrivalRegion(next, pageScroller);
+      if (!framed(region, next, pageScroller))
+        scrollToElement(region, scrollBehavior(), "start");
+    }
     announce(`${decisions.indexOf(next) + 1} of ${decisions.length} waiting on you`);
   }
   function stepDecision(dir) {

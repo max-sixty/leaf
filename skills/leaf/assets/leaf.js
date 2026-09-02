@@ -274,6 +274,7 @@ import {
   inUi,
   renderRetired,
   says,
+  TEXT_BLOCK,
   textNodesUnder,
   wrote,
 } from "./runtime/passages.js";
@@ -2937,7 +2938,6 @@ const {
   sameLayer,
   notice,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
   versionLabel,
   versionMenu,
@@ -3188,7 +3188,6 @@ const {
   DATUM,
   pageWords,
   layerPart,
-  TEXT_BLOCK,
   elementOver,
   under,
   authored,

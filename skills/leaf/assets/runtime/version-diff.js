@@ -1,4 +1,5 @@
 import { runtime } from "./context.js";
+import { TEXT_BLOCK } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { versionUrl } from "./storage.js";
 
@@ -12,7 +13,6 @@ export function createVersionDiff({
   sameLayer,
   notice,
   stateCoordinate,
-  textBlockSelector,
   versionBtn,
   versionLabel,
   versionMenu,
@@ -32,7 +32,7 @@ export function createVersionDiff({
   // model is prose is a block of the page's prose the same way a paragraph is.
   const diffBlockSel = () =>
     [
-      textBlockSelector(),
+      TEXT_BLOCK,
       "aside",
       ...tagsDeclaring((e) => e["x-parent"] && (e["x-content"] ?? "prose") === "prose"),
       // A verbatim body reaches the reader as its own words, so the widget is a block

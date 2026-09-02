@@ -28,23 +28,24 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 let shadowRules = "";
 const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
 // A top-layer element no longer composites through its light/shadow ancestors, so the
-// document's main gate cannot hide a dialog promoted out of an x-shadow widget. Every
-// legitimate page shadow tree is built here; put the same subtree boundary inside it,
-// in an anonymous first layer so later widget stylesheet rules cannot outrank it. The
-// selector is already universal for that boundary, so it also withholds inner
-// transitions until presentation.
-const SHADOW_PRESENTATION_CSS = `
+// document's rules cannot withhold a dialog or popover promoted out of an x-shadow
+// widget. Every legitimate page shadow tree is built here; repeat that narrow boundary
+// inside it, together with transition suppression. The shadow's ordinary contents still
+// paint before presentation, just like authored light DOM.
+const SHADOW_STARTUP_CSS = `
 @layer {
   @media screen {
     :host-context(body:not([data-lf-presented])) *,
     :host-context(body:not([data-lf-presented])) *::before,
-    :host-context(body:not([data-lf-presented])) *::after,
-    :host-context(body:not([data-lf-presented])) *::backdrop {
+    :host-context(body:not([data-lf-presented])) *::after {
+      transition: none !important;
+    }
+    :host-context(body:not([data-lf-presented])) :is(dialog, [popover]),
+    :host-context(body:not([data-lf-presented])) :is(dialog, [popover])::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
       interactivity: inert !important;
-      pointer-events: none !important;
     }
   }
 }`;
@@ -146,10 +147,7 @@ export function createShadowStage(watchDisclosures, watchExternalLinks) {
     // boundary either.
     watchDisclosures(root);
     const style = document.createElement("style");
-    const presentationRules = document.documentElement.hasAttribute("data-lf-eager")
-      ? ""
-      : SHADOW_PRESENTATION_CSS;
-    style.textContent = presentationRules + shadowRules;
+    style.textContent = SHADOW_STARTUP_CSS + shadowRules;
     root.replaceChildren(style, ...nodes);
     watchExternalLinks(root);
     return root;

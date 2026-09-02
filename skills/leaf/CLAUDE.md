@@ -33,7 +33,9 @@ and page-error channel;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
 `runtime/decisions/model.js` owns request discovery and folding;
-`runtime/decisions/view.js` owns decision chrome, marking, and the decision walk;
+`runtime/decisions/actions.js` owns widgets' exact ordered action contribution;
+`runtime/decisions/view.js` owns decision chrome, marking, the decision walk, and
+Ask-local numeric action projection;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
@@ -285,7 +287,8 @@ the vendored layer in turn:
 - `data-lf-applied` is the event coverage of the last complete semantic
   projection committed to the DOM.
 - `data-lf-presented` means the initial authoritative projection, or the
-  deliberate offline authored fallback, has crossed the presentation boundary.
+  deliberate offline authored fallback, has crossed the semantic-interaction
+  boundary.
 
 Do not merge these stamps. A document can finish upgrading while its first state
 read is pending, or the answer can wait unapplied while upgrades finish. A
@@ -293,19 +296,26 @@ projection can commit while finite reconciliation animations are still settling.
 Any consumer that reads final boxes waits for upgraded, applied, presented, and
 no finite animation reported by `moving`.
 
-The presentation gate hides the authored `main` and makes it inert until the first
-state read has either applied or established that the server is unavailable. The
-static showcase's build sets `data-lf-eager`, which lifts the gate whole, leaving its
-immutable authored document as ordinary readable HTML while its illustrative session,
-widgets, and controls progressively arrive. Fixed recovery chrome remains usable while
-a live page waits.
+Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
+and layout remain usable while widgets upgrade and the first state read is pending.
+`data-lf-presented` does not release paint: it releases recorded widget actions and
+authored top-layer UI once the first state read has either applied or established that
+the server is unavailable. Modules must consult `actionAvailable` or
+`requestAvailable` before optimistic mutation as well as before sending; their common
+send doors repeat the check. Fixed status and unanchored discussion chrome remain usable
+while a live page waits; selecting a passage does not raise the anchored composer until
+the passage has survived the first projection.
 `showModal()` calls from authored main are temporarily represented as measurable
 non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
 reconciled branch remains visible. This prevents a modal's top-layer inertness from
-disabling the recovery chrome.
+disabling the recovery chrome. `showPopover()` opens natively so the widget can observe
+and cancel it through `:popover-open`; the startup stylesheet withholds its top-layer
+paint and interaction, and `presentPage` closes any open popover whose reconciled branch
+is no longer visible.
 
-`presentPage` owns the one transition from arrival to live presentation. Motion
-helpers and the stylesheet collapse arrival animations until that boundary.
+`presentPage` owns the one transition from arrival to stateful interaction. Motion
+helpers and the stylesheet collapse arrival animations until that boundary, and the
+stylesheet withholds only dialogs and popovers rather than the authored document.
 After it, a state change may animate only where motion helps the reader follow a
 change. A failed startup does not stamp the page presented as if it had read the
 log.
@@ -315,11 +325,12 @@ log.
 there are no comments. A restored or newly opened panel keeps its general
 composer usable and shows a loading state until that distinction resolves.
 
-A failed fetch is a complete offline answer for presentation: the authored page
-is honest when no log can be reached, so fixed status chrome reports the loss and
-the page may appear. A successful response with malformed state is not an
+A failed fetch is a complete offline answer for interaction: the authored page
+is the best state available when no log can be reached, so fixed status chrome reports
+the loss and its controls may activate. A successful response with malformed state is not an
 offline answer. Parsing or rendering errors pass to the recovery boundary and
-leave the candidate sequence unresolved.
+leave the candidate sequence unresolved; authored content stays readable while
+state-dependent controls remain unavailable.
 
 `reportPageError` is the common runtime error surface. A widget failure may
 `failSoft` its own element so the rest of the page and Threads remain usable,
@@ -1926,7 +1937,10 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. `j`/`k` scroll down/up by 60 pixels; `d`/`u` move 60% of
+is often repeated or held. While the Ask itself holds semantic focus, its widget's
+ordered actions take `1`–`9`; the core projects that exact list into the key line and
+visible control chips, while Tab enters the widget's own local scopes. `j`/`k` scroll
+down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader, while direct
@@ -1934,8 +1948,9 @@ destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
 Threads, Asks, and All leaves, and `g M` enters the Page map at its roving marker.
 Where the margin rail has left the compact layout, the same destination opens the complete
 Page-map sheet. A key spelling something nothing on screen says is a key nobody reaches for twice.
-Approval spends no page letter: its visible button is in the Tab order and takes native
-Enter or Space. In particular, a conditional chord mnemonic must not share its final key
+Approval spends no fixed page letter: its visible button stays in the Tab order and takes
+native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
+a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
@@ -2464,8 +2479,9 @@ panel and directional walk agree about focus, reveal, arrival placement, and
 `landed`.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
-aligned and the one the ring names; its controls are the next Tab stops, a stop at
-`tabindex: -1` keeping its place in document order. Landing the answering control
+aligned and the one the ring names. The widget's contributed actions are addressable
+there as `1`–`9`; its controls remain the next Tab stops, a stop at `tabindex: -1`
+keeping its place in document order. Landing the answering control
 instead puts them as far down the decision as its context and evidence are long, off
 the screen the same gesture arranged. A decision a page styles boxless has nothing to
 stand on and keeps the control as its landing. A widget rebuilt under a reader is not
@@ -3005,7 +3021,8 @@ Named journey tests retain behaviors that a generic render reading cannot drive:
   covers rejection against authoritative history plus later local overlays.
 - `test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order` covers a
   deferred editor correction.
-- `test_first_replay_is_the_pages_first_presentation` covers the presentation
+- `test_authored_page_paints_but_durable_controls_wait_for_first_replay` covers
+  the split between immediate authored paint and the later semantic-interaction
   boundary rather than only the two readiness stamps.
 
 Keep causal fixtures narrow, but retain a distinct case when only a real gesture,

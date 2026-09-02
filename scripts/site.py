@@ -5,8 +5,7 @@ The site is the pages the repo already holds. `docs/` is written to be opened fr
 a checkout — the worn assets (`WORN`) arrive by relative paths into the plugin
 payload, and payload and example links point into the checkout — so publishing is
 those substitutions plus the files the paths then name. An example keeps its authored
-document and gains only the site-only startup marker below; that narrow transformation
-lets the files in the tree remain the specimens of the theme.
+document unchanged, so the files in the tree remain the specimens of the theme.
 
 The examples are the files in the tree too, and they are live. A static build
 materializes the version addresses that Leaf's live server resolves from revision
@@ -16,9 +15,8 @@ where a page's absolute /theme.css and /leaf.js resolve, and puts each example a
 own examples/<name>/versions/, which is where the runtime reads a version number from.
 An example that ships a prior version publishes every one of them, so the chooser on
 the published page travels and marks the same way the served page's does. The
-published root wears `data-lf-eager`, so the shipped theme can paint the authored
-page before this site's JavaScript arrives without changing that rule for a served
-Leaf page. What answers the three paths is `docs/session.js`, loaded in front of
+Authored HTML paints before this site's JavaScript arrives, as it does on a served Leaf
+page. What answers the three paths is `docs/session.js`, loaded in front of
 the runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on
 the page is then the shipped one, working — the banner, the thread panel, a board that
 takes a drag and holds it. The half no host can supply is the agent at the other end:
@@ -110,19 +108,6 @@ PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
 # A live server can keep the root address because it injects the exact projected-version
 # marker into that response; this static host has no changing root response to mark.
 EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
-
-# A static showcase has no server response that could reconcile a prior log before paint,
-# so its immutable authored version is safe to show while this site's in-tab session
-# starts. CSS needs the fact in the document before an external module arrives. A served
-# Leaf page retains the ordinary presentation gate because its source has no marker.
-EAGER_ROOT = re.compile(r"<html(?=[\s>])", flags=re.IGNORECASE)
-
-
-def eager_example(html: str) -> str:
-    if len(EAGER_ROOT.findall(html)) != 1:
-        raise ValueError("a published example must have exactly one html root")
-    return EAGER_ROOT.sub("<html data-lf-eager", html, count=1)
-
 
 # A static showcase has no server response that can stamp a live root with the version
 # it projected, so the directory's index forwards to the newest immutable file — every
@@ -338,7 +323,8 @@ def publish_pages(out: Path, env: dict) -> None:
             ):
                 markup = revision_path(page, revision).read_text(encoding="utf-8")
                 (published / "versions" / f"v{version}.html").write_text(
-                    eager_example(markup), encoding="utf-8"
+                    markup,
+                    encoding="utf-8",
                 )
             (published / "index.html").write_text(
                 REDIRECT.format(name=newest_version(source)), encoding="utf-8"

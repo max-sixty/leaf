@@ -1161,12 +1161,16 @@ compact `.lf-fab-input` followed by one response ellipsis. An explicit item targ
 and focuses that field immediately. Selecting a passage opens the field without taking
 focus or collapsing the browser selection; the reader can still copy the selection or use
 its native context menu, then enter the field with Comment. The field grows in place and
-never transfers text into a second composer card. Enter sends and Shift-Enter inserts a
-newline. Tab changes the same bar into Comment, Suggest when the anchor is a quote, and
-the layer's reaction tokens. `.lf-response-control` keeps the field and every choice on
-one baseline with one type, border, and elevation; the bar keeps its DOM owner and
-accessible name while its contents change. Comment restores the field and Suggest
-restores it in replacement-text mode.
+never transfers text into a second composer card. A one-line note is a pill. A longer one
+widens to a readable 80ch and then wraps, and grows down as far as the room below the
+banner before it scrolls; its corner stays the pill's 16px rather than growing with the
+box, so the corner never reaches over the first or last line. `place` states a float's
+room as `--lf-float-w` and `--lf-float-h`, the bar's width is capped by it, and the field
+is the part that shrinks. Enter sends and Shift-Enter inserts a newline. Tab changes the same bar into Comment, Suggest when the
+anchor is a quote, and the layer's reaction tokens. `.lf-response-control` keeps the
+field and every choice on one baseline with one type, border, corner, and elevation; the
+bar keeps its DOM owner and accessible name while its contents change. Comment restores
+the field and Suggest restores it in replacement-text mode.
 
 `showFab` places the bar; `openComposer` binds its field to the durable draft and takes the
 focus decision. `selectResponseTarget` focuses it for a keyboard item hint, and the ⌥ press
@@ -2643,7 +2647,7 @@ keep the send button and placeholder current, and prevent parallel sends of one 
 surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer passes
 `Enter`, leaving Shift-Enter to the textarea's native newline. The stylesheet owns
 textarea growth through `field-sizing: content`. Script does not measure or set textarea
-height.
+height; `place` states the room a float has, and the stylesheet caps growth against it.
 
 The selection composer keeps its passage painted after an explicit Comment gesture moves
 focus into the textarea. Automatic passage selection leaves the native selection in place.

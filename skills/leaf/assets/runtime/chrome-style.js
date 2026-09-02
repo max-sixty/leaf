@@ -1103,14 +1103,20 @@ ${MARK_RULES}
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
     .lf-fab-bar { position: absolute; display: none; align-items: center;
-      gap: 4px; white-space: nowrap; }
+      gap: 4px; white-space: nowrap; max-width: var(--lf-float-w, calc(100vw - 16px)); }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
     /* The field and the choices are two states of one anchored response control. This
-       primitive owns their height, vertical padding, type, border, and elevation; Tab
-       changes only the contents of the bar. */
+       primitive owns their height, vertical padding, type, border, corners, and
+       elevation; Tab changes only the contents of the bar.
+       The corner is half the resting height, written as that length rather than as
+       999px: both draw the same one-line pill, and only the length survives growth. The
+       field below grows with its words, and a corner kept in proportion to the box was
+       a 48px arc at five lines, over the first line's opening and the last line's
+       close. */
     .lf-response-control { --lf-response-height: 32px;
       box-sizing: border-box; min-height: var(--lf-response-height);
-      border: 1px solid var(--border-2); border-radius: 999px; background: var(--card);
+      border: 1px solid var(--border-2); background: var(--card);
+      border-radius: calc(var(--lf-response-height) / 2);
       color: var(--ink-2); font: 400 var(--t-6)/1.4 var(--sans);
       padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
       box-shadow: 0 2px 6px rgba(0,0,0,.14); }
@@ -1119,8 +1125,16 @@ ${MARK_RULES}
       border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
         0 2px 6px rgba(0,0,0,.14); }
-    textarea.lf-fab-input { width: 216px; min-width: 0;
-      max-height: min(132px, 30vh); border-radius: 999px;
+    /* The field takes the size its words want. A short note is the one-line pill; a
+       longer one widens to a readable measure before it wraps, then grows down as far as
+       the room the placement states (--lf-float-h, set by place), and only past that does
+       it scroll. placeFab re-places the bar on every input, so a grown bar stands where the
+       one-line bar stood, and a bar hung above its target grows away from the corner it
+       hangs from. The room's width caps the bar, above, and the field is the flex item
+       that shrinks, so on a narrow screen the words wrap sooner and the ellipsis keeps
+       its room. */
+    textarea.lf-fab-input { width: auto; min-width: 216px; max-width: 80ch;
+      max-height: var(--lf-float-h, 60vh);
       padding-inline: 12px;
       resize: none;
       field-sizing: content; overflow-y: auto; }
@@ -1138,7 +1152,7 @@ ${MARK_RULES}
       .lf-response-action-label) { display: none; }
     .lf-fab-bar:not(.lf-react-open) > :is(.lf-fab, .lf-fab-suggest,
       .lf-react-palette) { display: none !important; }
-    .lf-fab-bar.lf-react-open { max-width: calc(100vw - 16px); flex-wrap: wrap; }
+    .lf-fab-bar.lf-react-open { flex-wrap: wrap; }
     .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
     .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
     /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;

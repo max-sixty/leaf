@@ -67,7 +67,13 @@ export function createSelectionSurface({
     Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
   // So the one writer of their position is where the coordinates change space: clamp in
   // the viewport and above any key line it would cross, then store in the document.
+  // The same writer states the room a float has — the band between the gutters and
+  // between the banner and the viewport's foot — as custom properties on the float, so
+  // its stylesheet can let it grow with its contents up to that room and no further. The
+  // room is stated before the float is measured, since it decides the measurement.
   function place(node, left, top) {
+    node.style.setProperty("--lf-float-w", `${rightEdge() - 8}px`);
+    node.style.setProperty("--lf-float-h", `${innerHeight - 8 - topEdge()}px`);
     const x = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
     const keyline = keylineEl.getBoundingClientRect();
     const overlapsKeyline =

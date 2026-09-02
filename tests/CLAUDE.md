@@ -372,7 +372,7 @@ before navigation, waits for the load event, and then waits on `BOTH_STAMPS`:
 - `data-lf-upgraded="1"` says widget upgrade and anchor preparation finished.
 - `data-lf-applied` says a replay pass applied the event log.
 - `data-lf-presented="1"` says the authoritative projection or offline fallback is
-  visible and interactive.
+  safe for recorded interaction. Authored HTML may have painted earlier.
 
 These are independent facts. The document and first state read run together, and the
 state answer remains unapplied until upgrade finishes. Network quiet does not imply

@@ -98,6 +98,7 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
+  actionAvailable,
   actionStands,
   conversationInput,
   inChrome,
@@ -147,9 +148,12 @@ customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
+      document.removeEventListener("lf-actions", this.#paintAvailability);
+      document.addEventListener("lf-actions", this.#paintAvailability);
       if (!once(this)) {
         this.#addition?.connect();
         this.#settled?.connect();
+        this.#paintAvailability();
         return;
       }
       // Quoted material is exhibited, not offered, so a specimen renders exactly like a
@@ -163,8 +167,10 @@ customElements.define(
         if (choosable || option.hasAttribute("chosen")) this.#mark(option, choosable);
       this.#addition = new OptionAddition(this, {
         offered: choosable && !inChrome(this),
+        available: () => actionAvailable(this, "choose"),
         shortcut: labelOf(WRITE_ANOTHER),
         commit: (detail, attempt) => {
+          if (!actionAvailable(this, "choose")) return null;
           this.#applyChoice(detail);
           return sendAction(this, "choose", detail, { attempt });
         },
@@ -178,6 +184,7 @@ customElements.define(
         this.#settled = new SettledOptions(this, { label });
         this.#settled.connect();
       }
+      this.#paintAvailability();
       if (!choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
@@ -192,6 +199,7 @@ customElements.define(
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
         if (inner && !inner.matches(".lf-pick, .lf-address")) return;
+        if (!actionAvailable(this, "choose")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a reader who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle
@@ -259,6 +267,7 @@ customElements.define(
     // the button is hit while the first is still in the wire.
     #answer() {
       if (this.#answering) return this.#answering;
+      if (!actionAvailable(this, "answer")) return Promise.resolve(false);
       const sent = sendAction(this, "answer", {}).then((accepted) => {
         this.#sending(null);
         if (!accepted) return false; // unsent means unrecorded, and nothing was painted
@@ -290,6 +299,20 @@ customElements.define(
       this.#done?.setAttribute("aria-pressed", String(on));
       document.dispatchEvent(new CustomEvent("lf-answered"));
     }
+
+    #paintAvailability = () => {
+      const available = actionAvailable(this, "choose");
+      for (const mark of this.#marks()) {
+        mark.setAttribute("aria-disabled", String(!available));
+        mark.tabIndex = available ? 0 : -1;
+      }
+      this.#addition?.refresh();
+      if (this.#done) {
+        const answerAvailable = actionAvailable(this, "answer");
+        this.#done.setAttribute("aria-disabled", String(!answerAvailable));
+        this.#done.tabIndex = answerAvailable ? 0 : -1;
+      }
+    };
 
     // The keyboard path past Tab: from a mark, ↑/↓ walk the options, a digit picks
     // outright, and Enter reaches the box for the option the author did not list.
@@ -478,6 +501,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      document.removeEventListener("lf-actions", this.#paintAvailability);
       this.#addition?.disconnect();
       this.#settled?.disconnect();
     }

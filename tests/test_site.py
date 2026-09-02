@@ -172,9 +172,9 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
         # somewhere to travel; the index forwards to the newest of them.
         for number, authored in enumerate(example_versions(source), start=1):
             version = site / "examples" / source.stem / "versions" / f"v{number}.html"
-            assert version.read_text() == site_build.eager_example(
-                authored.read_text()
-            ), f"{authored.name} changed beyond the static showcase's root marker"
+            assert version.read_text() == authored.read_text(), (
+                f"{authored.name} changed while it was published"
+            )
         newest = site_build.newest_version(source)
         index = site / "examples" / source.stem / "index.html"
         assert f"versions/{newest}" in index.read_text()
@@ -306,7 +306,6 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"
-        assert page.locator("html").get_attribute("data-lf-eager") == ""
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")

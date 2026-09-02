@@ -281,7 +281,8 @@ the vendored layer in turn:
 - `data-lf-applied` is the event coverage of the last complete semantic
   projection committed to the DOM.
 - `data-lf-presented` means the initial authoritative projection, or the
-  deliberate offline authored fallback, has crossed the presentation boundary.
+  deliberate offline authored fallback, has crossed the semantic-interaction
+  boundary.
 
 Do not merge these stamps. A document can finish upgrading while its first state
 read is pending, or the answer can wait unapplied while upgrades finish. A
@@ -289,19 +290,23 @@ projection can commit while finite reconciliation animations are still settling.
 Any consumer that reads final boxes waits for upgraded, applied, presented, and
 no finite animation reported by `moving`.
 
-The presentation gate hides the authored `main` and makes it inert until the first
-state read has either applied or established that the server is unavailable. The
-static showcase's build sets `data-lf-eager`, which lifts the gate whole, leaving its
-immutable authored document as ordinary readable HTML while its illustrative session,
-widgets, and controls progressively arrive. Fixed recovery chrome remains usable while
-a live page waits.
+Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
+and layout remain usable while widgets upgrade and the first state read is pending.
+`data-lf-presented` does not release paint: it releases recorded widget actions and
+authored top-layer UI once the first state read has either applied or established that
+the server is unavailable. Modules must consult `actionAvailable` or
+`requestAvailable` before optimistic mutation as well as before sending; their common
+send doors repeat the check. Fixed status and discussion chrome remain usable while a
+live page waits.
 `showModal()` calls from authored main are temporarily represented as measurable
 non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
 reconciled branch remains visible. This prevents a modal's top-layer inertness from
-disabling the recovery chrome.
+disabling the recovery chrome. `showPopover()` calls are deferred across the same
+boundary and opened only when their reconciled branch remains visible.
 
-`presentPage` owns the one transition from arrival to live presentation. Motion
-helpers and the stylesheet collapse arrival animations until that boundary.
+`presentPage` owns the one transition from arrival to stateful interaction. Motion
+helpers and the stylesheet collapse arrival animations until that boundary, and the
+stylesheet withholds only dialogs and popovers rather than the authored document.
 After it, a state change may animate only where motion helps the reader follow a
 change. A failed startup does not stamp the page presented as if it had read the
 log.
@@ -311,11 +316,12 @@ log.
 there are no comments. A restored or newly opened panel keeps its general
 composer usable and shows a loading state until that distinction resolves.
 
-A failed fetch is a complete offline answer for presentation: the authored page
-is honest when no log can be reached, so fixed status chrome reports the loss and
-the page may appear. A successful response with malformed state is not an
+A failed fetch is a complete offline answer for interaction: the authored page
+is the best state available when no log can be reached, so fixed status chrome reports
+the loss and its controls may activate. A successful response with malformed state is not an
 offline answer. Parsing or rendering errors pass to the recovery boundary and
-leave the candidate sequence unresolved.
+leave the candidate sequence unresolved; authored content stays readable while
+state-dependent controls remain unavailable.
 
 `reportPageError` is the common runtime error surface. A widget failure may
 `failSoft` its own element so the rest of the page and Threads remain usable,
@@ -3001,7 +3007,8 @@ Named journey tests retain behaviors that a generic render reading cannot drive:
   covers rejection against authoritative history plus later local overlays.
 - `test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order` covers a
   deferred editor correction.
-- `test_first_replay_is_the_pages_first_presentation` covers the presentation
+- `test_authored_page_paints_but_durable_controls_wait_for_first_replay` covers
+  the split between immediate authored paint and the later semantic-interaction
   boundary rather than only the two readiness stamps.
 
 Keep causal fixtures narrow, but retain a distinct case when only a real gesture,

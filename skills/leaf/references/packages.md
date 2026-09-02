@@ -140,10 +140,12 @@ inlined into an export, so use fonts available on the reader's machine rather th
 remote font a standalone copy would have to fetch.
 
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
-offline fallback, is visible and interactive. Leaf disables transitions on page
-elements before that stamp, so package styles need no arrival guard. Scriptless pages
-and `data-lf-eager` showcases remain unchanged. A declared `x-shadow` widget gets the
-same protection when it builds its root with `shadowStage`.
+offline fallback, is safe for recorded interaction. Authored content is already visible:
+Leaf disables its arrival transitions and withholds dialogs, popovers, and durable widget
+actions before that stamp. Package styles need no arrival guard. A declared `x-shadow`
+widget gets the same transition and top-layer protection when it builds its root with
+`shadowStage`. A module must guard every optimistic mutation with `actionAvailable` or
+`requestAvailable`; the send door repeats the same check.
 
 ## A widget
 

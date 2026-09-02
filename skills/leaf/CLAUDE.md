@@ -2542,7 +2542,8 @@ target, an external hyperlink names the browser tab it opens, a fold opens and t
 focus, and a page-map item opens its marker or focuses its first available action.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
-line. Each row shows its complete chord. Each visible numbered member also shows its
+line and paints `data-lf-goto` on the body, so the contents map can reveal its labels as
+it does on hover. Each row shows its complete chord. Each visible numbered member shows its
 complete address, such as `g h 1`. A direct mnemonic completes the travel and moves
 focus inside its destination. A numbered-list mnemonic narrows the inline hints to that
 list's first nine members without changing their labels or geometry. The following digit
@@ -2562,7 +2563,8 @@ Numbered addresses are stable within the document and capped at nine per list. T
 first nine members do not change identity as the reader scrolls. Chips are painted
 only for addressable members whose `shownRect` is visible, but an off-screen member
 within that prefix remains reachable by the same address. Chips live in runtime
-chrome rather than authored markup.
+chrome rather than authored markup. They sit above their targets and move inside the
+viewport below the banner before overlapping chips are removed.
 
 `LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
 immediate word for their next press. An addressed fold lands on its summary after

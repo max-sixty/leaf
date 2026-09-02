@@ -2661,7 +2661,8 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         const { shallowSigs } = await import("/runtime/widget-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
-        root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
+        root.innerHTML = '<i id="lf-runtime"></i>' +
+            '<div id="first"><b id="nested"></b></div>' +
             '<i></i><div id="second"></div>';
         const before = Object.fromEntries(shallowSigs(root));
         root.prepend(root.lastElementChild);

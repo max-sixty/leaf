@@ -194,8 +194,8 @@ export function createPanelLanding({
   const listNode = (id) =>
     threadsBox.querySelector(`.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`);
 
-  function revealThread(id) {
-    setPanel(true);
+  function revealThread(id, { panelReady = false } = {}) {
+    if (!panelReady) setPanel(true);
     const node = listNode(id);
     if (!node) return;
     const thread = node.closest(".lf-thread");
@@ -233,7 +233,7 @@ export function createPanelLanding({
       const thread = listNode(id)?.closest(".lf-thread");
       (conversationInputOf(thread) ?? thread)?.focus({ preventScroll: true });
     }
-    revealThread(id);
+    revealThread(id, { panelReady: true });
   }
 
   return { retainPanelLanding, revealThread, showThread };

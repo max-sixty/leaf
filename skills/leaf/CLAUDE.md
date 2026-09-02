@@ -1426,8 +1426,9 @@ and `…` when there are at least two peers. Hiding one peer costs the same fitt
 showing it and adds a press, so it is not overflow. With no contributed control,
 standing information supplies the primary disclosure Button.
 
-The expanded budget is six fittings, including the primary. A larger set shows four
-peers and a final Page-map Button whose label gives the remaining count. That opens
+The expanded budget is six fittings, including the primary where one exists; a target
+made only of peer choices uses all six. A larger set shows the Buttons that fit and a
+final Page-map Button whose label gives the remaining count. That opens
 the existing Page map at the first excess action; every excess control has its own
 named row which performs that exact action. Do not grow another popover for overflow.
 The same limit and exact-action route apply when the cluster docks on a narrow screen.
@@ -1462,9 +1463,12 @@ peer. A standalone page-widget claim gets an **Active** Button directly. When no
 the full thread panel or a widget frozen into conversation chrome—the compact
 `.lf-receipt` remains the local fallback.
 
-Content modules contribute through `registerMarginItem({key, target, controls, state,
-...})`; they own their verbs and events, never placement or control styling. `key` is
-stable within a target. `state` is a value or live reading of `idle`, `engaged`, `busy`,
+Content modules contribute through `registerMarginItem({key, target, controls, subject,
+state, ...})`; they own their verbs and events, never placement or control styling. `key`
+is stable within a target. Optional `subject` is a string or live reading of the concise
+semantic subject used to name that target away from its own paint. Supply it only when
+plain text concatenation loses a relation the widget paints visually, such as a rewrite's
+`old → new`; contributions at the same target must agree. `state` is a value or live reading of `idle`, `engaged`, `busy`,
 `failed`, or `settled`; active states keep the owner's peers exposed. A contribution
 item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
@@ -1476,6 +1480,14 @@ type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy
 by decisions, editing, communications, and information triggers. Its behavior states
 the promise before the press. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
+
+`marginAction` also establishes the canonical Button record: key, face, label,
+behavior, tone, role, and lifecycle state. Registration assigns its stable owner and
+rejects duplicate Button keys within that owner. The compact rail and complete Page map
+both render from this record; neither infers semantics by scraping the contributor's
+painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
+onto a retained proxy, while the original contributor control remains the only
+activation owner.
 
 - `action` has a uniformly heavier ring, carries an imperative verb, and performs its
   effect immediately;
@@ -1561,15 +1573,25 @@ top-level block. At compact widths it returns the host to flow immediately after
 target's rendered text block (or the target itself). Adding another target action must
 not add another absolute row, control type, or rail measurement.
 
-That ordered target collection is the Page map's complete location count and the source
-for the `g m` address list. A location's disclosure Button announces its position in
-the complete collection. The numbered chord exposes the collection's first nine
-locations; later locations remain in the Page map and ordinary focus order rather than
-making a one-digit chord ambiguous. Addressing an item opens its disclosure Button when
-it has one; an action-only item receives focus on its first available action without
-performing it. In the compact posture, an informational item opens the Page map sheet
-at that location instead of reviving the hidden desktop preview; an action-only item
-keeps its direct focus arrival on the action docked into the page.
+That ordered target collection is the Page map's complete location count. A location's
+disclosure Button announces its position in the collection, while `g m` and the banner's
+Map control both open the same complete sheet. The collection is not a numbered address
+list: a one-digit route would silently make every location after the ninth unreachable.
+The sheet projects the same currently available contributed controls, in the same owner
+and role order, plus readings that have no direct control. An offered reading that merely
+describes its owner's controls is omitted there rather than becoming a parallel “open
+action” beside the real verbs. Ordinary entry focuses the sheet's filter, so a large map
+is searchable by Button name, concise target name, or the visible passage containing
+that target without tabbing through every preceding action.
+A spill opens this complete sheet focused on the first
+control the compact cluster omitted; it does not make a smaller overflow-only menu.
+
+Live reconciliation retains the DOM identity of each surviving Button and each of its
+hit-tested descendants, including a count badge. State-feed refreshes can arrive between
+pointerdown and pointerup, so rebuilding an unchanged face would cancel the browser's
+click even if its replacement had identical markup. The open Page map follows the same
+rule for its groups and action proxies; a refresh updates their meaning without replacing
+the control under focus or a held pointer.
 
 A thread card names the target without offering a second route to the panel the banner
 already opens. At wide widths it is the conversation itself, measured eight pixels
@@ -1603,9 +1625,12 @@ while its rendered descendants remain usable, and a collapsed target has no rend
 part to offer.
 
 The `r` key unfolds this same cluster's secondary Button group for a page selection or
-item. Comment, Suggest where available, and the declared reaction Buttons appear there
-as peer choices; they do not widen the rail or open a separate palette below the target.
-The compact response bar's Tab state stays in that bar. Conversation reactions remain in
+item and shows the declared reaction Buttons together within the six-fitting budget.
+Comment and Suggest retain their separate `c` and compact response-bar routes rather than
+displacing reactions from the mode that explicitly asked for them. The digit register and
+visible choices therefore name the same complete set. The choices do not widen the rail
+or open a separate palette below the target. The compact response bar's Tab state stays in
+that bar. Conversation reactions remain in
 their conversation-owned strip. The event still carries its durable authored anchor,
 while the temporary item resolves selected text to the first rendered block, matching
 the target where replay later seats its standing reaction.
@@ -1925,10 +1950,9 @@ walks open asks. Keep these as single-key presses rather than prefix sequences; 
 is often repeated or held. `d` and `u` move down and up by 60% of the reading page,
 leaving native Space free for the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader, while direct
-destinations use an uppercase mnemonic after `g`: `g T`, `g A`, and `g L` go to
-Threads, Asks, and All leaves, and `g M` enters the Page map at its roving marker.
-Where the margin rail has left the compact layout, the same destination opens the complete
-Page-map sheet. A key spelling something nothing on screen says is a key nobody reaches for twice.
+destinations use a mnemonic after `g`: `g T`, `g A`, and `g L` go to Threads, Asks,
+and All leaves, and `g m` opens the complete Page map. A key spelling something nothing
+on screen says is a key nobody reaches for twice.
 Approval spends no page letter: its visible button is in the Tab order and takes native
 Enter or Space. In particular, a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
@@ -2515,12 +2539,9 @@ region.
 
 ### Go-to chord
 
-`g` opens one destination mode. `T`, `A`, `L`, and `M` complete a direct trip to
-Threads, Asks, All leaves, and the Page map. The first three enter their panel or tray;
-`M` focuses the map's roving marker so ArrowUp, ArrowDown, Home, and End are immediately
-available, or opens the complete sheet where the compact layout has no rail or the map
-has no locations. `m`, `t`, `h`, and `f` name the page's numbered
-page-map item, tab, hyperlink, and fold lists, and one digit names a member. `g g` and
+`g` opens one destination mode. `T`, `A`, `L`, and `m` complete a direct trip to
+Threads, Asks, All leaves, and the complete Page map. `t`, `h`, and `f` name the page's
+numbered tab, hyperlink, and fold lists, and one digit names a member. `g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2543,7 +2564,7 @@ The page-level `g` row promises only the mode; destinations and ranges belong to
 the rows inside it. Completing an address runs that list's destination: a tab selects
 and takes focus, a same-document hyperlink follows and leaves focus on its fragment
 target, an external hyperlink names the browser tab it opens, a fold opens and takes
-focus, and a page-map item opens its marker or focuses its first available action.
+focus. The complete Page map is a direct destination rather than a numbered list.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
 line and paints `data-lf-goto` on the body, so the contents map can reveal its labels as

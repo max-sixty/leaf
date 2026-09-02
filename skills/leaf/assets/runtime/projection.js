@@ -70,7 +70,9 @@ export function createProjection(runtime, dependencies) {
     const sigs = new Map();
     const siblingPositions = new Map();
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
-      if (!el.id) continue;
+      // The protected lf- namespace belongs to generated runtime controls, not markup
+      // a version may author or a widget may use as its state coordinate.
+      if (!el.id || el.id.startsWith("lf-")) continue;
       const attrs = [...el.attributes]
         .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
         .map((a) => `${a.name}=${a.value}`)
@@ -81,7 +83,8 @@ export function createProjection(runtime, dependencies) {
       if (!positions) {
         positions = new Map();
         for (const sibling of parent?.children ?? [])
-          if (sibling.id) positions.set(sibling, positions.size);
+          if (sibling.id && !sibling.id.startsWith("lf-"))
+            positions.set(sibling, positions.size);
         siblingPositions.set(parent, positions);
       }
       sigs.set(

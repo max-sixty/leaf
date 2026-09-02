@@ -137,6 +137,7 @@ export function createReactions({
   let surfaceOrdinal = 0;
   let marginSurface = null;
   let marginOffer = null;
+  let marginComment = null;
   let marginSuggest = null;
   function buildReactSurface(
     surface,
@@ -229,7 +230,7 @@ export function createReactions({
       setReact(false);
       suggestHere();
     };
-    const marginComment = marginAction(offer("button", "lf-fab"), {
+    marginComment = marginAction(offer("button", "lf-fab"), {
       key: "comment",
       icon: "comment",
       label: "Comment",
@@ -315,8 +316,17 @@ export function createReactions({
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
     if (!marginSurface || !target) return false;
-    marginSuggest.hidden = !anchor.quote || designIsOn();
+    // `r` is an explicit reaction mode. Comment and Suggest remain their own `c` and
+    // response-bar routes; keeping them in this cluster would displace reaction choices
+    // behind More while the key line claimed all six were open.
+    marginComment.hidden = true;
+    marginSuggest.hidden = true;
     fabBar.dataset.lfMarginRaised = "1";
+    // Register the response surface in the state it is about to show. Registering its
+    // collapsed face first makes the projection treat the six choices as hidden owner
+    // content; a fast `r` can then arm their digit shortcuts while only the old floating
+    // ellipsis remains on screen.
+    marginSurface.classList.add("lf-react-open");
     paintReactionStanding(
       marginSurface,
       [...fabBar.querySelectorAll(".lf-react[aria-pressed='true']")]
@@ -338,6 +348,7 @@ export function createReactions({
       marginUnfolded = !standing;
       return true;
     }
+    marginSurface.classList.remove("lf-react-open");
     marginOffer.unregister();
     marginOffer = null;
     return false;

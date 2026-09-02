@@ -1183,6 +1183,10 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
 .lf-say textarea { flex: 1; min-width: 0; }
+.lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
+.lf-conversation-actions, .lf-conversation-resolved { display: flex;
+          align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.lf-conversation-actions .lf-resolve { margin-left: auto; }
 .lf-conversation > .lf-say { margin-top: 0; }
 .lf-conversation-thread + .lf-conversation-thread {
           border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
@@ -1196,7 +1200,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
-.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
+.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
    that subject. This is the panel-local and frozen-conversation fallback; page targets
@@ -1498,12 +1502,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen {
-  /* 1208px leaves the document's 640px evidence floor beside the 520px thread
-     margin and the two 24px page gutters. Below it the marker offers a compact
-     handoff rather than covering the source. */
+  /* A live page can receive its first comment at any moment. Reserve conversation
+     room before that gesture so sending and resolving never move the passage.
+     1208px leaves the 640px evidence floor, 520px margin, and two 24px gutters.
+     Static copies need the strip only where they carry a thread marker. */
   @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
+      :where(.lf-chrome, .lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1514,7 +1519,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
   body:has(
-      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
+      :where(.lf-chrome, .lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;

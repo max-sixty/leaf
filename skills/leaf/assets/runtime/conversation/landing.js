@@ -1,4 +1,4 @@
-import { shownBox } from "../geometry.js";
+import { shownBand, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
@@ -6,6 +6,30 @@ import { closestAcross } from "../passages.js";
 const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
 export const SAY_BOX = ":scope > .lf-compose textarea, :scope > .lf-say textarea";
 const conversationReturns = new WeakMap();
+
+// Keep a whole conversation in view when it fits. A long thread reveals its reply
+// area, including Send and Resolve; an oversized editor reveals only its control.
+// scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing.
+const landingTarget = (held, control) => {
+  let room = Infinity;
+  for (let parent = held.parentElement; parent; parent = parent.parentElement) {
+    const band = shownBand(parent);
+    if (!band) continue;
+    const style = getComputedStyle(parent);
+    room = Math.min(
+      room,
+      band.bottom -
+        band.top -
+        (parseFloat(style.scrollPaddingTop) || 0) -
+        (parseFloat(style.scrollPaddingBottom) || 0),
+    );
+  }
+  if (shownBox(held).height <= room) return held;
+  const reply = control.closest(".lf-compose, .lf-say");
+  return reply?.parentElement === held && shownBox(reply).height <= room
+    ? reply
+    : control;
+};
 
 const conversationInputOf = (held) => {
   const box = held?.querySelector(SAY_BOX);
@@ -34,7 +58,10 @@ export function landInConversation(box, route = null) {
 export function createConversationLanding({ scrollToThread }) {
   const focusConversation = ({ held, box }) => {
     box.focus({ preventScroll: true });
-    held.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+    landingTarget(held, box).scrollIntoView({
+      behavior: scrollBehavior(),
+      block: "nearest",
+    });
     if (held.dataset.id) scrollToThread(held.dataset.id);
   };
   publishedLand = ({ held = null, box, route = null }) => {
@@ -110,7 +137,10 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
   const standing = () => focused()?.closest?.(".lf-thread");
   const land = (thread) => {
     if (thread && threadsBox.contains(thread))
-      thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+      landingTarget(thread, focused()).scrollIntoView({
+        behavior: scrollBehavior(),
+        block: "nearest",
+      });
   };
   // The primary pointer owns the provisional landing until that same gesture ends. A
   // cancellation means the browser took it for something else — commonly a touch scroll —
@@ -145,9 +175,13 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
     const node = listNode(id);
     if (!node) return;
     const thread = node.closest(".lf-thread");
-    node.scrollIntoView({
+    const target =
+      node === thread && thread.contains(focused())
+        ? landingTarget(thread, focused())
+        : node;
+    target.scrollIntoView({
       behavior: scrollBehavior(),
-      block: node === thread ? "center" : "nearest",
+      block: target === thread ? "center" : "nearest",
     });
     thread.classList.remove("grow");
     thread.classList.add("flash");
@@ -167,12 +201,14 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
   function showThread(id, { stand = true } = {}) {
     setPanel(true);
     if (!listNode(id)) widen();
-    // Showing a thread is an arrival in the panel, not a glimpse from the page. Focus is
-    // the standing fact shared by the card and its mark, so the route that begins on a
-    // painted passage has to end on the same focus target as t/T and the address chord.
-    // preventScroll keeps this call out of the scroll: the list lands a thread that takes
-    // the focus, and the reveal below is the deliberate placement that follows and wins.
-    if (stand) listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });
+    // Opening a conversation is ready for words; the explicit t/T walk keeps the card
+    // as its navigation stop. Escape returns from the reply to that stop. Resolved
+    // threads have no reply, so their card remains the useful landing. The focus paints
+    // the same thread and page mark in both modes, and the reveal owns placement.
+    if (stand) {
+      const thread = listNode(id)?.closest(".lf-thread");
+      (conversationInputOf(thread) ?? thread)?.focus({ preventScroll: true });
+    }
     revealThread(id);
   }
 

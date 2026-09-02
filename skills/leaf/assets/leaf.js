@@ -1388,6 +1388,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   loadDraft,
   mayLandTyping,
   openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
+  panelIsOpen,
   paintAnchors,
   paintHere,
   post,
@@ -1478,7 +1479,7 @@ const syncGeneral = wireInput(generalInput, {
     );
     if (!sent) return;
     const shouldLand = mayLandTyping(generalInput);
-    showThread(sent.id, { stand: shouldLand });
+    showThread(sent.id, { stand: false });
     if (shouldLand) landTyping(generalInput); // both send routes end where typing was
   },
 });
@@ -2430,7 +2431,7 @@ const THREAD = {
         Boolean(focusedThread()?.querySelector(":scope > .lf-compose")) ||
         Boolean(
           focusedThread()?.querySelector(
-            ":scope > .lf-thread-actions > .lf-reopen:not(:disabled)",
+            ':scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
           ),
         ),
       // Find the thread's own compose row rather than the first textarea: a message may
@@ -2464,13 +2465,13 @@ const THREAD = {
       when: () =>
         Boolean(
           focusedThread()?.querySelector(
-            ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen):not(:disabled)",
+            ':scope > .lf-compose > .lf-thread-actions > .lf-resolve:not(:disabled, [aria-disabled="true"]), :scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
           ),
         ),
       run: () =>
         focusedThread()
           .querySelector(
-            ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen):not(:disabled)",
+            ':scope > .lf-compose > .lf-thread-actions > .lf-resolve:not(:disabled, [aria-disabled="true"]), :scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
           )
           .click(),
     },

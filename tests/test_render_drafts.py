@@ -887,9 +887,8 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
-    """A sent comment preserves the panel's narrowing while its inline conversation
-    takes the reader; reopening the overview keeps that filter intact."""
+def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(browser, serve):
+    """The reader's new comment widens a filter that would hide it, keeping the panel."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -910,16 +909,12 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    inline = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
-    )
-    expect(inline.locator("textarea")).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread.locator("textarea")).to_be_focused()
+    expect(thread).to_contain_text(sent["text"])
     assert errors == []
     page.close()
 

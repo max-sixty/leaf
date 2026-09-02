@@ -20,6 +20,7 @@ export function createSelectionComposer(runtime, dependencies) {
     loadDraft,
     mayLandTyping,
     openInlineThread,
+    panelIsOpen,
     paintAnchors,
     paintHere,
     post,
@@ -133,11 +134,12 @@ export function createSelectionComposer(runtime, dependencies) {
       if (composerEpoch !== flight.epoch || loadDraft(ctx) !== null) return;
       let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       const shouldLand = mayLandTyping(reply, composerInput);
-      // Opening an inline view closes the panel and moves focus. Decide from the standing
-      // view first, so a later gesture in another reply box survives an earlier send.
-      const inlineReply = shouldLand ? openInlineThread(sent.id) : null;
+      // Continue in the surface already in use. Closing an open panel here reflows the
+      // passage just as the reader's comment moves across it to a new floating card.
+      const inlineReply =
+        shouldLand && !panelIsOpen() ? openInlineThread(sent.id) : null;
       reply = inlineReply ?? reply;
-      if (!inlineReply) {
+      if (!inlineReply && shouldLand) {
         showThread(sent.id, { stand: shouldLand });
         reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       }

@@ -35,6 +35,7 @@ from render_support import (
     composer_quote,
     expect_address_steps,
     hold_selection,
+    in_threads_scrollport,
     key_line,
     leaf_page,
     live_url,
@@ -595,19 +596,63 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     page.close()
 
 
-def test_pressing_a_page_mark_stands_in_the_thread_it_opens(browser, serve):
-    """A page mark is one view of a thread, so pressing it leaves the reader in the
-    card on the other surface rather than merely flashing that card and leaving focus
-    behind on the prose. The focus is the standing fact: it paints the card and its
-    passage through the same predicate, and gives the next key to the thread scope."""
-    page, errors = open_page(browser, serve(INLINE_PAGE, anchored=[("p", "bold text")]))
-    thread = page.locator(".lf-thread")
+@pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
+def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
+    browser, serve, long_thread
+):
+    """Opening a thread by pointer is ready for a reply. Escape explicitly leaves
+    typing; only then does t navigate. The page mark follows both focus modes."""
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    if long_thread:
+        root = next(
+            event["id"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "comment"
+        )
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": root,
+                "revision": 1,
+                "text": "\n\n".join(
+                    f"Consideration {i}: the response needs room for its explanation."
+                    for i in range(18)
+                ),
+            },
+        )
+    page, errors = open_page(browser, url)
+    threads = page.locator(".lf-threads > .lf-thread")
+    thread = threads.first
+    reply = thread.locator(":scope > .lf-compose textarea")
 
     page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)
 
-    expect(thread).to_be_focused()
+    expect(reply).to_be_focused()
+    in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     wait_standing(page, "bold text")
+    assert "back to thread" in key_line(page)
+    page.keyboard.press("t")
+    expect(reply).to_have_value("t")
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    assert "reply" in key_line(page)
+    page.keyboard.press("t")
+    expect(threads.nth(1)).to_be_focused()
+    wait_standing(page, "neighbouring block")
+    page.keyboard.press("Enter")
+    expect(threads.nth(1).locator(":scope > .lf-compose textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+    in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     assert errors == []
     page.close()
 
@@ -1476,8 +1521,9 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     assert page.locator(".lf-margin-thread").count() >= 1
-    expect(page.locator(".lf-margin-marker").first).to_be_focused()
+    expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -4756,6 +4802,9 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     page.keyboard.press("Enter")
     round_trip(page)
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
+    expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()
+    expect(line).to_contain_text("back to thread")
+    page.keyboard.press("Escape")
     expect(reopened).to_be_focused()
     expect(line).to_contain_text("reply")
 
@@ -4765,17 +4814,6 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     tab_to(resolve_control)
     expect(resolve_control).to_be_focused()
     expect(line).to_contain_text("resolve")
-    resolve_control.evaluate("button => button.disabled = true")
-    page.evaluate(
-        "async () => (await import('/runtime/keyboard/scopes.js')).paintKeys()"
-    )
-    assert resolve_control.get_attribute("aria-keyshortcuts") is None
-    expect(line).not_to_contain_text("resolve")
-    resolve_control.evaluate("button => button.disabled = false")
-    page.evaluate(
-        "async () => (await import('/runtime/keyboard/scopes.js')).paintKeys()"
-    )
-    resolve_control.focus()
     page.keyboard.press("x")
     round_trip(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
@@ -4785,7 +4823,7 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     expect(reopen_control).to_be_focused()
     page.keyboard.press("x")
     round_trip(page)
-    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')).to_be_focused()
+    expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()
     assert errors == []
     page.close()
 

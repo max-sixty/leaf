@@ -10,6 +10,7 @@ export function createInlineConversations({
   renderMessageMarkdown,
   seatRoot,
   setChildren,
+  settlementControl,
   showThread,
   syncEdited,
   turns,
@@ -81,19 +82,39 @@ export function createInlineConversations({
         t.resolved.author === "claude"
           ? `✓ Resolved by ${t.resolved.agent || "Agent"}`
           : "✓ Resolved";
-      if (!tail) tail = offer("div", "lf-conversation-resolved");
-      if (tail.textContent !== settledBy) tail.textContent = settledBy;
+      if (!tail) {
+        tail = offer("div", "lf-conversation-resolved");
+        tail.append(
+          el("span"),
+          settlementControl(t, {
+            prepareLanding: () => () => {
+              if (focused() === document.body || thread.contains(focused()))
+                thread.querySelector(":scope > .lf-say textarea")?.focus({
+                  preventScroll: true,
+                });
+            },
+          }),
+        );
+      }
+      if (tail.firstChild.textContent !== settledBy)
+        tail.firstChild.textContent = settledBy;
     } else if (t.root.response?.kind === "version") {
       // The page seat shows what the reader proposed. Their reply workspace remains
       // in Threads; the agent's response is the next authored version.
-      tail = null;
+      tail = thread.querySelector(":scope > .lf-conversation-actions");
+      if (!tail) {
+        tail = offer("div", "lf-conversation-actions");
+        tail.append(settlementControl(t));
+      }
     } else {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
         tail = offer("div", "lf-say");
         const input = offer("textarea");
         const send = offer("button", "lf-btn primary", "Send");
-        tail.append(input, send);
+        const actions = offer("div", "lf-conversation-actions");
+        actions.append(send, settlementControl(t));
+        tail.append(input, actions);
         wireReply(t, input, send);
       }
     }

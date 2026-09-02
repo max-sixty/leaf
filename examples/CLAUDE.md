@@ -6,9 +6,12 @@ feature scenarios have one home: `developer/feature-gallery.html`. Extend that
 omnibus page instead of adding another developer page. Every core Leaf feature must
 be directly exercisable there. A change that adds or materially changes a core feature
 must add or update its focused specimen in the same change; coverage in a public
-example does not substitute for the developer surface. The gallery uses the same
-companion version, log, and data conventions as an example, but the website does not
-publish it.
+example does not substitute for the developer surface. Incidental presence does not
+count: a focused specimen names the real control or gesture, seeds the state it needs,
+and tells the developer what result to inspect. For injected chrome whose state comes
+from outside one document, name that condition and exercise it in the gallery's browser
+test. The gallery uses the same companion version, log, and data conventions as an
+example, but the website does not publish it.
 `corpus.html` and `corpus.data.json` are generated from both sets; edit the source page
 and regenerate the corpus instead of patching either output.
 

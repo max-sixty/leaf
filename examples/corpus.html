@@ -1673,17 +1673,43 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       </aside>
       <p id="bg-start">
         This gallery grows by feature, so a developer can add a focused specimen here
-        without inventing another example page. Hover over a Button for its label. Tab
-        into a cluster to expose its peers, then use ← / → and Enter. The contents spine
-        jumps between specimens; in a narrow window, Map collects them. Undo takes back
-        a decision, and a live preview keeps experiments on reload.
+        without inventing another example page. Start with Leaf’s own controls below,
+        then use the contents spine when it fits beside the page, or open Map. Undo
+        takes back a decision, and a live preview keeps experiments on reload.
       </p>
+
+      <section id="bg-core-surfaces">
+        <h2>Start with the main Asks panel</h2>
+        <p id="bg-core-surfaces-guide">
+          The top bar is Leaf’s control surface, not part of this document. Open
+          <strong>Asks</strong>—or press <kbd>g</kbd>, then <kbd>Shift+A</kbd>—choose
+          the row labeled <strong>Ask</strong>, and answer the question it returns to
+          here. The suggestion rows in that panel exercise Accept, Reject, and Undo
+          later in this gallery.
+        </p>
+        <lf-decision id="bg-choice-ask">
+          <h3>Which map should the sample team carry?</h3>
+          <lf-options id="bg-choice" choose>
+            <lf-option id="bg-choice-street">Street map</lf-option>
+            <lf-option id="bg-choice-trail">Trail map</lf-option>
+          </lf-options>
+        </lf-decision>
+        <p id="bg-core-controls-guide">
+          Then tour the rest of the injected controls: the status line reports who is
+          behind the page; <strong>Threads</strong> holds every conversation; the
+          version picker opens v1 and its diff; <strong>Map</strong> collects page
+          locations (<kbd>g</kbd>, then <kbd>Shift+M</kbd>); and pressing
+          <strong>?</strong> twice opens the complete keyboard reference.
+          <strong>All leaves</strong> appears when another Leaf page is live.
+        </p>
+      </section>
 
       <section id="bg-changes">
         <h2>Accept, reject, undo</h2>
         <p id="bg-changes-guide">
           The heavier ring means an immediate action. Try either verdict, then the Undo
-          beside its receipt. Each row below changes a different amount of text.
+          beside its receipt. Each row below changes a different amount of text. Hover
+          over a Button for its label; Tab into a cluster, then use ← / → and Enter.
         </p>
         <p id="bg-replace-line">
           <strong>Replace.</strong> The sample meeting starts at
@@ -1802,19 +1828,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-readings">
-        <h2>Asks and outcomes</h2>
+        <h2>Read a recorded outcome</h2>
         <p id="bg-readings-guide">
-          A Map Button can describe an item as well as offer an action. An unanswered
-          choice has an Ask; a recorded choice has an Outcome. Open each to inspect it.
-          These choices only change the sample page.
+          A Map Button can describe an item as well as offer an action. This settled
+          choice has an Outcome instead of an Ask. Open it to inspect the recorded
+          choice. It only changes the sample page.
         </p>
-        <lf-decision id="bg-choice-ask">
-          <h3>Which map should the sample team carry?</h3>
-          <lf-options id="bg-choice" choose>
-            <lf-option id="bg-choice-street">Street map</lf-option>
-            <lf-option id="bg-choice-trail">Trail map</lf-option>
-          </lf-options>
-        </lf-decision>
         <lf-decision id="bg-outcome-ask">
           <h3>Where should the sample group meet?</h3>
           <lf-options id="bg-outcome" choose>

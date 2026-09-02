@@ -16,6 +16,7 @@ from render_support import (
     DECISIONS_PAGE,
     DISCLOSED_PAGE,
     EXAMPLES,
+    FEATURE_GALLERY,
     FOOTED_PAGE,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
@@ -63,6 +64,73 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_the_feature_gallery_exercises_the_injected_core_surfaces(
+    browser, serve, live_leaf
+):
+    """Core chrome is a gallery journey, not merely present around its specimens."""
+    live_leaf("second", "A second Leaf page")
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 900)
+
+    expect(
+        page.get_by_role("heading", name="Start with the main Asks panel", exact=True)
+    ).to_be_visible()
+    guide = page.locator("#bg-core-controls-guide")
+    for surface in (
+        "status line",
+        "Threads",
+        "version picker",
+        "Map",
+        "keyboard reference",
+        "All leaves",
+    ):
+        expect(guide).to_contain_text(surface)
+    expect(page.locator(".lf-banner-status")).not_to_be_empty()
+
+    page.locator(".lf-decisions").click()
+    asks = page.locator("button.lf-decisions-row")
+    expect(asks).to_have_count(8)
+    expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
+    expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
+        "Which map should the sample team carry?"
+    )
+    asks.first.click()
+    expect(page.locator("#bg-choice-ask")).to_be_focused()
+    page.locator(".lf-decisions").click()
+
+    page.locator(".lf-threads-toggle").click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
+    expect(page.locator(".lf-details .lf-thread")).to_have_count(1)
+    page.locator(".lf-threads-toggle").click()
+
+    page.locator(".lf-version").click()
+    expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
+    page.keyboard.press("Escape")
+
+    page.locator(".lf-others").click()
+    expect(page.locator(".lf-others-panel")).to_be_visible()
+    expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
+    page.keyboard.press("Escape")
+
+    resized(page, 390, 900)
+    page.evaluate("scrollTo(0, 0)")
+    expect(page.locator("#bg-sidebar")).to_be_hidden()
+    expect(
+        page.get_by_role("heading", name="Start with the main Asks panel", exact=True)
+    ).to_be_in_viewport()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    assert errors == []
+    page.close()
 
 
 def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_leaf):

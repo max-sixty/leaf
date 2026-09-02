@@ -1925,8 +1925,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
         "iOS reconnect stall"
     )
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
-    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
-    expect(thread.locator(".lf-conversation-open")).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name="Open interactive reply in Threads")
+    ).to_have_count(1)
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -1990,10 +1991,16 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     marker.click()
     expect(preview).to_be_visible()
 
-    page.locator(".lf-threads-toggle").click()
+    page.keyboard.press("Shift+Tab")
+    expect(
+        thread.get_by_role("button", name="Open interactive reply in Threads")
+    ).to_be_focused()
+    page.keyboard.press("Enter")
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator("#off-slip")).to_be_in_viewport()
+    expect(page.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     marker.focus()

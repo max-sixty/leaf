@@ -31,6 +31,13 @@ const landingTarget = (held, control) => {
     : control;
 };
 
+export function revealConversation(held, control) {
+  landingTarget(held, control).scrollIntoView({
+    behavior: scrollBehavior(),
+    block: "nearest",
+  });
+}
+
 const conversationInputOf = (held) => {
   const box = held?.querySelector(SAY_BOX);
   return box && shownBox(box).height ? box : null;
@@ -58,10 +65,7 @@ export function landInConversation(box, route = null) {
 export function createConversationLanding({ scrollToThread }) {
   const focusConversation = ({ held, box }) => {
     box.focus({ preventScroll: true });
-    landingTarget(held, box).scrollIntoView({
-      behavior: scrollBehavior(),
-      block: "nearest",
-    });
+    revealConversation(held, box);
     if (held.dataset.id) scrollToThread(held.dataset.id);
   };
   publishedLand = ({ held = null, box, route = null }) => {
@@ -88,6 +92,7 @@ export function createConversationLanding({ scrollToThread }) {
 }
 
 export function createPanelLanding({
+  finishFold,
   panelIsOpen,
   reachedForWords,
   setPanel,
@@ -126,7 +131,7 @@ export function createPanelLanding({
   // Focus is the one fact all of them share, so the landing hangs off that and each of
   // them gives up its copy. Four callers still write this list's scroll, and each says
   // something focus cannot: `stepThread` for the press at either end of the walk, which
-  // moves no focus at all; `revealThread` for a deliberate centring, which runs after
+  // moves no focus at all; `showThread` for a deliberate centring, which runs after
   // the focus it follows and wins; `placeThreadEdge` for an explicit edge placement;
   // and `landIn`, which puts the reader in a thread's box and lands the thread around it,
   // the same correction this makes and the reason a reply box reached by key was never
@@ -160,11 +165,7 @@ export function createPanelLanding({
   let pressedPointer = null;
   const standing = () => focused()?.closest?.(".lf-thread");
   const land = (thread) => {
-    if (thread && threadsBox.contains(thread))
-      landingTarget(thread, focused()).scrollIntoView({
-        behavior: scrollBehavior(),
-        block: "nearest",
-      });
+    if (thread && threadsBox.contains(thread)) revealConversation(thread, focused());
   };
   // The primary pointer owns the provisional landing until that same gesture ends. A
   // cancellation means the browser took it for something else — commonly a touch scroll —
@@ -185,20 +186,31 @@ export function createPanelLanding({
     if (pressedPointer === null) land(standing());
   });
 
-  // One answer to "show me that thread", whoever asks: a click on a mark out on the page
-  // and a send that just landed both come here, with a thread's id or a message's. The
-  // panel scrolls its own list — moving the page to a thread's passage is scrollToThread,
-  // a different question — and flashes the thread. The flash takes over from a running
-  // grow explicitly: both classes bind the element's one animation declaration, and the
-  // send's confirmation is the one the gesture asked for.
   const listNode = (id) =>
     threadsBox.querySelector(`.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`);
 
-  function revealThread(id) {
+  // Direct navigation reveals what was requested, including a message's interactive
+  // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
+  // focus at its own words so Tab reaches its controls. Sending a reply stays with its
+  // editor through revealConversation instead.
+  function showThread(id, { stand = true } = {}) {
     setPanel(true);
-    const node = listNode(id);
+    if (!listNode(id)) widen();
+    let node = listNode(id);
+    const going = node?.closest(".lf-going");
+    if (going) {
+      finishFold(going.dataset.id);
+      node = listNode(id);
+    }
     if (!node) return;
     const thread = node.closest(".lf-thread");
+    const disclosure = thread.closest(".lf-details");
+    if (disclosure) disclosure.open = true;
+    if (stand) {
+      const destination =
+        node === thread ? (conversationInputOf(thread) ?? thread) : node;
+      destination.focus({ preventScroll: true });
+    }
     const target =
       node === thread && thread.contains(focused())
         ? landingTarget(thread, focused())
@@ -212,29 +224,5 @@ export function createPanelLanding({
     setTimeout(() => thread.classList.remove("flash"), 1300);
   }
 
-  // The same decision, insisted on. Two callers mean the thread has to be on screen and cannot
-  // see the narrowing they would be asking past: a press out on the page or in a message,
-  // which knows nothing of the panel at all, and a comment the reader has just written,
-  // which cannot be allowed to vanish into a narrowing it does not match. So the narrowing
-  // goes rather than the thread.
-  //
-  // Every other reveal is a confirmation of something the reader was already watching — a
-  // reply landing in a thread in front of them — and takes the list as it stands. A
-  // narrowing that let go for having been used would be worse than one that hid something:
-  // answering a thread is exactly how the reader empties the waiting-on-you list.
-  function showThread(id, { stand = true } = {}) {
-    setPanel(true);
-    if (!listNode(id)) widen();
-    // Opening a conversation is ready for words; the explicit t/T walk keeps the card
-    // as its navigation stop. Escape returns from the reply to that stop. Resolved
-    // threads have no reply, so their card remains the useful landing. The focus paints
-    // the same thread and page mark in both modes, and the reveal owns placement.
-    if (stand) {
-      const thread = listNode(id)?.closest(".lf-thread");
-      (conversationInputOf(thread) ?? thread)?.focus({ preventScroll: true });
-    }
-    revealThread(id);
-  }
-
-  return { retainPanelLanding, revealThread, showThread };
+  return { retainPanelLanding, showThread };
 }

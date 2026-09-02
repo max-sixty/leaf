@@ -14,7 +14,6 @@ export function createThreadCards(dependencies) {
     PRESS,
     reachedForWords,
     retainPanelLanding,
-    revealThread,
     scrollToThread,
     setPanel,
     settlementControl,
@@ -97,10 +96,7 @@ export function createThreadCards(dependencies) {
       const input = document.createElement("textarea");
       const send = el("button", "lf-btn primary lf-thread-send", "Send");
       row.append(input);
-      wireReply(t, input, send, {
-        retainLanding: () => retainPanelLanding(div),
-        landed: (sent) => revealThread(sent.id),
-      });
+      wireReply(t, input, send);
       const actions = el("div", "lf-thread-actions");
       // Resolving takes this node out of the open list and focus with it — the blind
       // drive fell to body here. Land where t would have gone: the thread that now

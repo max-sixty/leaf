@@ -35,6 +35,7 @@ from render_support import (
     composer_quote,
     held_stale,
     hold_selection,
+    in_threads_scrollport,
     live_url,
     open_page,
     painted,
@@ -821,35 +822,142 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.close()
 
 
-def test_a_held_reply_send_leaves_a_later_reply_box_focused(browser, serve):
-    """A reply box opened while another reply is in flight is the reader's later
-    gesture. When the first send lands, it must not take focus back from that box."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+@pytest.mark.parametrize("same_thread", [False, True])
+def test_a_held_reply_send_leaves_a_later_reply_box_focused(
+    held_events, serve, same_thread
+):
+    """A later draft keeps its focus and remains visible when a reply arrives.
+
+    The long sent message tests reflow above a draft in the same card; the distant
+    card tests a reader who has moved to another conversation.
+    """
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=8))
+    page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads > .lf-thread")
     first_id = threads.nth(0).get_attribute("data-id")
-    later_id = threads.nth(1).get_attribute("data-id")
+    later_id = first_id if same_thread else threads.last.get_attribute("data-id")
     first = page.locator(f'.lf-thread[data-id="{first_id}"] textarea')
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
-    first.fill("The first reply is in flight.")
+    first.fill("\n\n".join(["The first reply is in flight."] * 15))
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
         "button", name="Send", exact=True
     ).click()
     _until(page, lambda traffic: traffic.sends == 1, "held the first reply send")
 
     later.click()
-    later.fill("The later reply keeps the reader here.")
+    newer = "The later reply keeps the reader here.\n" * (14 if same_thread else 1)
+    later.fill(newer)
     expect(later).to_be_focused()
+    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
+    expect(
+        page.locator(f'.lf-thread[data-id="{first_id}"] .lf-msg').last
+    ).to_contain_text("The first reply is in flight.")
     expect(later).to_be_focused()
-    expect(later).to_have_value("The later reply keeps the reader here.")
+    expect(later).to_have_value(newer)
+    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("continue_inline", [False, True])
+def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_inline):
+    """Closing Threads during delivery is later than sending the reply."""
+    browser, held = held_events
+    url = serve(SEATED_QUESTION_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job comes first?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread")
+    reply = thread.locator("textarea")
+    reply.fill("Send this while I return to reading.")
+    thread.get_by_role("button", name="Send", exact=True).click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+
+    toggle.click()
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(toggle).to_be_focused()
+    inline = page.locator(
+        f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
+    )
+    newer = "Continue this reply beside the question."
+    if continue_inline:
+        inline.fill(newer)
+        inline.evaluate("box => box.setSelectionRange(9, 9)")
+        expect(reply).to_have_value(newer)
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(reply).to_have_value(newer if continue_inline else "")
+    expect(thread.locator(".lf-msg").last).to_contain_text(
+        "Send this while I return to reading."
+    )
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    if continue_inline:
+        expect(inline).to_be_focused()
+        expect(inline).to_have_value(newer)
+        assert inline.evaluate("box => box.selectionStart") == 9
+    else:
+        expect(toggle).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
+    """A wheel can move the reading place while leaving the old reply focused."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads > .lf-thread")
+    first = threads.first
+    later = threads.last
+    reply = first.locator("textarea")
+    reply.fill("A reply whose delivery is slow.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+
+    bounds = page.locator(".lf-threads").bounding_box()
+    page.mouse.move(
+        bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2
+    )
+    page.mouse.wheel(0, 3500)
+    expect(later).to_be_in_viewport()
+    expect(reply).to_be_focused()
+    before = later.evaluate("node => node.getBoundingClientRect().top")
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(reply).to_have_value("")
+    expect(first.locator(".lf-msg").last).to_contain_text(
+        "A reply whose delivery is slow."
+    )
+    expect(later).to_be_in_viewport()
+    assert later.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 

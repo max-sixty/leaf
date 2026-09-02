@@ -169,7 +169,7 @@ Each mutable fact has one writer:
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
-| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -2755,25 +2755,24 @@ Neither is stored. A remembered narrowing greets a returning reader with part of
 a conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the
 page restores; a look at a list is not one.
 
-`revealThread` and `showThread` are two asks, not one with a flag.
-`revealThread` confirms something the reader was already watching — a reply
-landing in a thread in front of them — and takes the list as it stands.
-`showThread` insists: a press out on the page or in a message knows nothing of
-the narrowing it would be asking past, and a comment the reader has just written
-cannot vanish into a narrowing it does not match, so the narrowing goes instead.
-It focuses the reply box, or the card when the thread is resolved, before
-`revealThread` places it. A thread too tall for its scrollport reveals its reply
-area. The explicit `t`/`T` walk remains on cards; Enter starts a reply and Escape
-returns to the card. A general-comment send keeps focus in its originating box.
-A reveal that widened for a reply would take the reader's narrowing away for
-having been used, which is how the waiting-on-you list is emptied.
+`showThread` reveals a directly requested thread or message. It clears a narrowing
+that hides the destination and finishes an outgoing resolution fold before opening
+the resolved disclosure. A thread opens in its reply box, or on its card when
+resolved; a message takes focus at its own words so Tab reaches its controls.
+A thread too tall for its scrollport reveals its reply area. The explicit `t`/`T`
+walk remains on cards; Enter starts a reply and Escape returns to the card.
+
+A reply send keeps its editor and actions visible only while the reader remains
+there. Moving to another input, closing the panel, or scrolling away relinquishes
+that continuation. The send preserves the panel's narrowing. A general-comment
+send keeps focus in its originating box.
 
 Messages render from Markdown after escaping raw HTML. Literal text such as a
 generic type remains text and cannot inject markup. Interactive event `markup`
 has a different door: only the CLI can write it after validating against the
 vendored registry, while the browser event schema refuses it. A widget in that
 markup is instantiated once in the panel; inline conversation seats show a
-textual projection rather than copying interactive ids.
+textual projection with a link to that reply's controls in Threads.
 
 An agent message edit is a later event folded onto the original message id. The
 panel and an inline conversation update the existing message node and show

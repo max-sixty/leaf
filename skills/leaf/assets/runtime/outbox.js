@@ -102,7 +102,7 @@ export function createOutbox(runtime, dependencies) {
   }
 
   // Returns the event the server minted — the id is the sender's only handle on the
-  // thread or message it just created, which is what revealThread is handed — or null
+  // thread or message it just created, which is what showThread is handed — or null
   // when the server definitively refused it. Every event carries one browser-minted
   // attempt, so a lost answer is retried without becoming a second gesture.
   //

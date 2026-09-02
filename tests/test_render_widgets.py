@@ -2351,7 +2351,14 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     expect(
         page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     page.keyboard.press("k")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("k")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_count(1)
     geometry = page.evaluate(
         """() => {
           const read = node => {

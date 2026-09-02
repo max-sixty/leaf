@@ -358,8 +358,25 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
         // carrying notes is deliberately not — but that no strip is held open for
         // nothing. Resolve the shell's custom-property lengths through a probe, then
         // ask whether anything is actually standing in each claimed band.
-        empty: ((b, main) => {
-            const box = b.getBoundingClientRect();
+        //
+        // The bands stand against the column's own edges and not against the page's.
+        // A strip is what main gives up beside itself and the shift then re-centres
+        // what is left, so on a window wider than the column plus its strips the
+        // leftover room sits outside both — and a reading taken from body's edges
+        // asks about that leftover instead, which is nobody's claim and always empty.
+        //
+        // And it is put to the residents that make the claim rather than to everything
+        // under main. A widget asking for width is drawn past the column by design and
+        // lands in the band beside it while claiming nothing, so a reading satisfied by
+        // any overlap at all answered for a board or a diagram on three of the five
+        // copies that hold a strip: the strip could have been held open for nothing and
+        // the band still read as occupied. The claimants are the ones the cascade names
+        // — aside.sidebar writes --strip-l, while aside.sidenote and the living
+        // margin's items write --claim-note, --claim-rail, and --claim-map. A copy
+        // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
+        // furniture is outside the corpus this runs over.
+        empty: ((main) => {
+            const box = main.getBoundingClientRect();
             const length = (name) => {
                 const probe = document.createElement('i');
                 probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
@@ -369,15 +386,17 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
                 return width;
             };
             const left = length('--strip-l'), right = length('--strip-r');
-            const held = (lo, hi) => hi - lo > 1 && ![...document.querySelectorAll('main *')]
+            const residents = 'aside.sidebar, aside.sidenote, .lf-margin-item';
+            const held = (lo, hi) => hi - lo > 1
+                && ![...document.querySelectorAll(residents)]
                 .some(el => { const r = el.getBoundingClientRect();
                               return el.checkVisibility() && r.width > 1
                                      && r.left < hi - 1 && r.right > lo + 1; });
             return [
-                held(box.left, box.left + left) && 'left',
-                held(box.right - right, box.right) && 'right',
+                held(box.left - left, box.left) && 'left',
+                held(box.right, box.right + right) && 'right',
             ].filter(Boolean);
-        })(document.body, document.querySelector('main')),
+        })(document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own

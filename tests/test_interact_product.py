@@ -12,7 +12,6 @@ import pytest
 from click.testing import CliRunner
 from example_data import data_operations, example_versions
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     COMMAND_SUBJECTS,
     PAGE,
     ROOT,
@@ -1641,13 +1640,15 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
 
     assert packages
     assert all(not Path(name).is_absolute() for name in packages)
+    # The manifest is what every corpus floor reads, so it has to be the whole
+    # directory rather than whichever packages someone remembered to add.
+    assert sorted(packages) == sorted(
+        entry.name
+        for entry in schema_model.BUNDLED_PACKAGES.iterdir()
+        if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
+    )
     resolved = layer_model.resolve_packages(tuple(packages))
-    assert resolved == [
-        schema_model.BUNDLED_PACKAGES / "diagram",
-        schema_model.BUNDLED_PACKAGES / "diff",
-        COMMAND_HUB_PACKAGE,
-        schema_model.BUNDLED_PACKAGES / "pr-review",
-    ]
+    assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
 
 

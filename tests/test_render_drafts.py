@@ -887,9 +887,11 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
-    """A sent comment preserves the panel's narrowing while its inline conversation
-    takes the reader; reopening the overview keeps that filter intact."""
+@pytest.mark.parametrize("later_selection", [False, True])
+def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
+    browser, serve, later_selection
+):
+    """A new comment widens the panel's filter without taking a later selection."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -902,7 +904,17 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
     page.locator(".lf-composer textarea").fill(
         "This comment starts outside the filter."
     )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
+    _until(page, lambda traffic: traffic.sends == 1, "held the filtered comment send")
+    if later_selection:
+        page.locator("#p2").click(click_count=3)
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        assert pending_text(page) == "A short second passage."
+
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
 
     sent = next(
@@ -910,16 +922,18 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    inline = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
-    )
-    expect(inline.locator("textarea")).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread).to_contain_text(sent["text"])
+    if later_selection:
+        assert pending_text(page) == "A short second passage."
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        expect(page.locator(".lf-fab-input")).not_to_be_focused()
+        assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    else:
+        expect(thread.locator("textarea")).to_be_focused()
     assert errors == []
     page.close()
 

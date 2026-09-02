@@ -224,11 +224,17 @@ export function createViewContinuity(dependencies) {
     return { landArrival, savedView };
   }
 
+  // The one block the reader is on, which is the first the walk above yields. Three
+  // things ask it — where a decision walk starts, where a version change lands, and
+  // where the keyboard reference hands a reader back to — and they were asking it in
+  // two places with the same expression written out twice.
+  const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
+
   return {
-    blocksOnScreen,
     captureStanding,
     captureView,
     installArrival,
+    readingBlock,
     restoreStanding,
     restoreView,
   };

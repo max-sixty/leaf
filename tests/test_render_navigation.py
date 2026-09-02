@@ -15,9 +15,11 @@ from render_support import (
     CROWDED_PAGE,
     DECISIONS_PAGE,
     DISCLOSED_PAGE,
+    EXAMPLES,
     FOOTED_PAGE,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
+    LONG_PAGE,
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
@@ -39,6 +41,7 @@ from render_support import (
     mark_point,
     open_page,
     opened_tab,
+    page_at_rest,
     painted,
     panel_comment,
     panel_settled,
@@ -1665,6 +1668,8 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-decisions-row")).to_be_focused()
     page.keyboard.press("Enter")
+    expect(page.locator("#only-decision")).to_be_focused()
+    page.keyboard.press("Tab")
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
@@ -1679,6 +1684,116 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     assert (
         page.locator(".lf-decisions-panel").get_attribute("aria-keyshortcuts") is None
     )
+    assert errors == []
+    page.close()
+
+
+# What the key line is saying, chip by chip. The word is the chip's own trailing span —
+# `keySequence` builds the keycaps into a classed element and the word is the unclassed
+# one beside it — and the commands are what the row projects, so a duplicate can be
+# reported as the pair of rows that made it rather than as a word said twice.
+KEY_LINE_HINTS = """() => [...document.querySelectorAll('.lf-keyline .lf-key')]
+  .filter(chip => !chip.hidden)
+  .map(chip => ({
+    commands: chip.dataset.lfCommands,
+    word: [...chip.children].filter(c => !c.className).map(c => c.textContent).join(''),
+  }))"""
+
+
+def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
+    """The line is a row of words with keycaps over them, and the word is what is read.
+
+    Two rows sharing one leaves the keycaps to carry the whole difference, which is the
+    line failing at the one thing it is for. Two pairs did. The versions menu binds Tab
+    and Shift-Tab to leaving it forward and backward, and on a one-version menu both are
+    at their boundary and live together — both saying "leave versions". And the page's `c`
+    says where the press goes; standing nowhere nameable that is the room the comments are
+    in, which said "threads" beside the t/T walk's own "threads".
+
+    Both scenes are read, and each is asserted to hold the rows at issue first: a line
+    that had stopped showing them would report a clean result about a page the reader
+    never sees. The words are the register's, which is where the fix goes — the line
+    prints what the rows say, and inventing a difference here would be this projection
+    disagreeing with the reference and the announcements.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+
+    # The shelf, because the ordinary shortlist shows the first live row and little else:
+    # what this is about is two words a reader can see at one time, and the shelf is where
+    # the page's own scene is all of it.
+    page.keyboard.press("?")
+    page.evaluate(RENDERED)
+    standing = page.evaluate(KEY_LINE_HINTS)
+    assert {"comment.create", "thread.next thread.previous"} <= {
+        hint["commands"] for hint in standing
+    }, f"the line no longer offers both the comments and the thread walk: {standing}"
+
+    # The menu claims every key but the reference, so its own two rows are the whole
+    # scene and the shelf has nothing to add to it.
+    page.keyboard.press("Escape")
+    page.keyboard.press("v")
+    page.evaluate(RENDERED)
+    versions = page.evaluate(KEY_LINE_HINTS)
+    assert {"version.leave-forward", "version.leave-backward"} <= {
+        hint["commands"] for hint in versions
+    }, f"the versions menu no longer offers both ways out at once: {versions}"
+
+    for scene, hints in (("the page", standing), ("the versions menu", versions)):
+        said = {}
+        for hint in hints:
+            said.setdefault(hint["word"], []).append(hint["commands"])
+        twice = {word: rows for word, rows in said.items() if len(rows) > 1}
+        assert not twice, (
+            f"on {scene} the key line says one word for two capabilities, so the "
+            f"keycaps are the whole difference: {twice}"
+        )
+    assert errors == []
+    page.close()
+
+
+def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
+    """A tray that has rendered nothing and a tray that has failed to render look alike.
+
+    The thread panel has said which of the two it is for as long as it has had an empty
+    state — "No threads yet", and then the gesture that would fill it. Asks answered the
+    same question with a blank panel, on the page a reader is most likely to open it from:
+    the one where they have just finished. The second half of the sentence names the agent
+    rather than a gesture, because a reader makes their own threads and does not make
+    their own asks.
+
+    Both states are read, because a note that stands whatever the tray holds is the same
+    fault wearing the other sign — and the tray is opened on a page that has an ask, so a
+    note that never renders at all could not pass either.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "One decision",
+                '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+                '<lf-options id="only" choose>'
+                '<lf-option id="first">First</lf-option>'
+                '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    note = page.locator(".lf-decisions-panel .lf-empty")
+    expect(note).to_have_count(0)
+
+    # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
+    # rather than the digit straight off the arrival, because where an arrival lands is
+    # not this test's subject and it should not go red when that moves.
+    page.keyboard.press("Enter")
+    page.keyboard.press("Tab")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(note).to_be_visible()
+    expect(note).to_contain_text("Nothing is waiting on you")
     assert errors == []
     page.close()
 
@@ -5270,3 +5385,102 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         assert errors == []
     finally:
         page.close()
+
+
+# Where the reader is standing, in the terms the next Tab is decided by: the document
+# position of the focused element, and whether it is the first stop in the document.
+STANDING = """() => {
+  const at = document.activeElement;
+  const first = document.querySelector('.lf-skip');
+  return {
+    name: at?.className || at?.tagName || 'nothing',
+    isFirstStop: at === first,
+    top: at ? at.getBoundingClientRect().top : null,
+    inChrome: Boolean(at?.closest?.('.lf-chrome')),
+  };
+}"""
+
+
+def test_the_reference_hands_the_reader_back_to_the_page_they_were_reading(
+    browser, serve
+):
+    """Closing a mode gives back the press that opened it, and the reader's place with it.
+
+    A reader working from the page stands on `body`: `letGo` puts them there so Space and
+    PageDown reach the document's own scroll box. `?` from there recorded `body` as the
+    door and closing handed focus back to it — and focusing `body` resets the browser's
+    sequential focus navigation starting point, so the next Tab began at the top of the
+    document. A reader who opened the reference four screens down to look a key up was
+    charged the whole page to get back to where they had been.
+
+    The reading is the next Tab rather than the focused element, because that is the fact
+    that was wrong: the restore itself looked fine both before and after, focus being on
+    nothing either way. The skip link is the document's first stop, so landing on it is
+    exactly the failure written down.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    reading = page.evaluate(
+        "() => document.getElementById('p40').getBoundingClientRect().top"
+    )
+    # Twice: the first press unfolds the shelf, the second opens the reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert not standing["isFirstStop"], (
+        f"after the reference closed, the reader's next Tab went to the first stop in "
+        f"the document ({standing}) rather than on from the words they were reading at "
+        f"{reading:.0f}px"
+    )
+    # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
+    # PAGE_PAINT_ATTRIBUTES, so a stop left standing would be runtime paint the replay
+    # signature has no vocabulary for.
+    assert (
+        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_reader_at_the_top_of_the_document_is_one_press_from_the_chrome(
+    browser, serve
+):
+    """The runtime's layer follows `main`, so reaching it by Tab meant reaching it last.
+
+    Document order is right for reading — the page is what the reader came for — and it
+    is the whole tab order too, so on a page of any length the banner, the panel and the
+    key line stood behind every link, fold and control the author wrote. A keyboard reader
+    arriving at the top of the document had no way to the layer that is not the page.
+
+    The press is what is asserted rather than the link's presence: a skip link that is in
+    the DOM and does not land anybody is the failure this is about, one step later.
+
+    On the corpus, because a page of plain paragraphs would put the chrome one Tab away
+    on its own and this would pass with the link taken out.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    page, errors = open_page(browser, serve(example))
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert standing["isFirstStop"], (
+        f"the first Tab from the top of the document landed on {standing['name']}, so "
+        f"the layer is still behind the whole page"
+    )
+    assert standing["top"] >= 0, (
+        f"the skip link takes focus and is not on screen: {standing}"
+    )
+    page.keyboard.press("Enter")
+    landed = page.evaluate(STANDING)
+    assert landed["inChrome"], (
+        f"the skip link's press left the reader on {landed['name']}, outside the layer "
+        f"it names"
+    )
+    assert errors == []
+    page.close()

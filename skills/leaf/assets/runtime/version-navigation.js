@@ -236,11 +236,15 @@ export function createVersionNavigation({
     // statement rather than a suspension the surfaces have to be told about separately.
     claims: allButTheReference,
     rows: [
+      // Two rows, both live at either end of a one-row menu, so the line prints both at
+      // once — and while they shared a word it printed it twice, leaving the reader to
+      // tell them apart by their keycaps. The direction is the whole difference between
+      // them and it is what each says.
       {
         id: "version.leave-forward",
         keys: ["Tab"],
         does: "Leave the versions menu forward",
-        line: "leave versions",
+        line: "leave forward",
         native: true,
         // A held Tab is still one continuous trip through the controls. When its repeated
         // keydown reaches the boundary, closing is part of that press just as it is for a
@@ -253,7 +257,7 @@ export function createVersionNavigation({
         id: "version.leave-backward",
         keys: ["Shift+Tab"],
         does: "Leave the versions menu backward",
-        line: "leave versions",
+        line: "leave backward",
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),

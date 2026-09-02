@@ -1724,9 +1724,14 @@ override it without specificity contests.
 
 The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private
 class names do not escape that root. The global vocabulary is deliberately
-small: shared `.lf-ui`, `.lf-btn`, `.lf-pill`, `.lf-address`, and the markers the
-runtime paints on page elements. Adding a global selector widens the widget
-contract and must be covered by the render suite.
+small: shared `.lf-ui`, `.lf-btn`, `.lf-pill`, `.lf-address`, `.lf-skip`, and the
+markers the runtime paints on page elements. Adding a global selector widens the
+widget contract and must be covered by the render suite.
+
+`--aim-floor` is the smallest box the layer offers a reader to aim at, on either
+axis, and the one thing a coarse pointer changes about it. The query is asked
+once, in theme.css; every rule that states the floor reads the token, so a
+control joins both answers by joining one of them.
 
 A shared class owns only the look shared on both sides of the scope line.
 Placement remains with each surface. For example, an address chip may share
@@ -2380,6 +2385,14 @@ tray row travels through the same decision-arrival function as `a` and `A`, so t
 panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
+An arrival stands the reader on the decision, which is the element the scroll has just
+aligned and the one the ring names; its controls are the next Tab stops, a stop at
+`tabindex: -1` keeping its place in document order. Landing the answering control
+instead puts them as far down the decision as its context and evidence are long, off
+the screen the same gesture arranged. A decision a page styles boxless has nothing to
+stand on and keeps the control as its landing. A widget rebuilt under a reader is not
+an arrival and hands back the control they were working (`standOn`).
+
 A request decision is answered at acceptance rather than by replayable widget state. Its
 pending lifecycle therefore leaves the reader's list immediately and hands the next
 word to the host; a terminal failure returns it, while success keeps it closed. Page
@@ -2527,7 +2540,17 @@ means what it meant before the swap.
 `.lf-chrome` is one fixed runtime root containing the banner and its notice, the
 tray panel, thread panel, composer, floating comment control, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
-separate scroll regions. Opening or closing one calls its state setter, updates
+separate scroll regions.
+
+One control stands outside it, and it has to: the skip link is the layer's route
+in from the top of the document, and tab order is document order while the
+chrome is last. It is prepended to the body, rests transparent as the comment
+note does — every reading that asks whether a box is on screen asks
+`opacityProperty` — and carries the offer marker, so paper and a copy drop it
+with every other injected control.
+It takes no register row — a control is a route to a capability rather than a
+capability of its own, and this one's design is to be found by the first Tab
+rather than advertised. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
 
 `.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.
@@ -2780,7 +2803,15 @@ inside it.
 
 Print asks a stricter question than export because nothing on paper is
 interactive. `data-lf-offer` identifies injected controls to remove, while
-`data-lf-said` preserves a decision word the page speaks through a control.
+`data-lf-said` preserves a decision word the page speaks through a control. What
+`data-lf-said` keeps is the word and not the shape: a control that survives paper
+gives up its ground, corner, border, underline, marker and pointer hand, because
+nothing on a sheet can answer the press they promise. Colour stays, being part of
+what the control says.
+
+Paper opens what a page puts behind a gesture, for the same reason: a settled
+group's cards, an inactive tab's panel, and a shut `<details>` all print open. A
+page that means a disclosure to stay shut on paper says so in its own stylesheet.
 `paperWords` compares the screen and print readings across the whole page.
 `coveredWords` runs again in print. A wrong offer/said declaration is fixed
 where the label is created, not by naming its widget in print CSS.

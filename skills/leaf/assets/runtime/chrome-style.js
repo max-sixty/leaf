@@ -14,6 +14,15 @@ const KEY_BOX = `box-sizing: border-box;
     color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
     line-height: 1.478; text-align: center; white-space: nowrap;`;
 
+/* Everything in the layer a reader aims at, once, for the two rules that state how small
+   it may be: the resting floor near the top of the scope block and the coarse-pointer
+   floor near its foot. One list because the two floors answer one question and a control
+   that reached only one of them would be comfortable with a finger and not with a mouse,
+   or the other way about — which is how most of these came to be under both. */
+const AIMS = `.lf-btn, .lf-pill:is(button, [role="button"]), .lf-thread-action,
+    .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-help-command,
+    .lf-quote, .lf-margin-action`;
+
 export function chromeStyle({
   COVERING,
   MARK_RULES,
@@ -226,13 +235,46 @@ export function chromeStyle({
      sideways to reach it. The scroller answers for it, and the runtime sees to that:
      reachScrollers marks every static box that scrolls, and the theme positions the
      mark ([data-lf-holds]). */
-  .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
+  .lf-quiet, .lf-mark-note, .lf-skip { position: absolute; width: 1px; height: 1px;
     overflow: hidden; user-select: none; -webkit-user-select: none; }
   /* A comment note is also a real button exposed through the accessibility tree. Keep
      its resting box transparent instead of clipping it out of hit testing, so an
      ordinary pointer press reaches the same click handler as Enter. */
-  .lf-mark-note { opacity: 0; }
+  /* Both of these are real buttons standing in the page's own document, so their
+     resting box is transparent rather than clipped out of hit testing: a comment note
+     takes an ordinary pointer press the way Enter takes it, and every reading that asks
+     whether a box is on screen — the control sweeps, covered words, paper — asks the
+     opacity property and answers no for both. Clipped instead, the skip link read as a
+     one-pixel control at the top of the document that the floating comment bar could be
+     standing on. */
+  .lf-mark-note, .lf-skip { opacity: 0; }
+  /* The skip link takes no pointer at rest, which is the whole difference between it and
+     the comment note beside it: that one is a real hit target on purpose, so a press
+     reaches the same handler Enter does, while this one is a keyboard affordance and
+     nothing else. A transparent pixel under the banner that could still receive a click
+     is a control the layer is standing on — which is what the page's own reading of
+     that question said, correctly. */
+  .lf-skip { pointer-events: none; }
   .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
+  /* The skip link (leaf.js says why it stands where it does). It rests transparent, the
+     way the comment note above does and for the same reason, and on focus takes the face
+     the two controls below take, in the same place — a reader who has just pressed Tab
+     from the top of the document is the only one who ever sees it. Outside the scope
+     block because it stands outside the container, which is the whole point of it.
+
+     Its ring insets, which is the rule for a box whose own edge touches something that
+     paints: this one is dropped over whatever the page has under the banner, and an
+     outset band's outer pixels are not the control's to answer for — the layer's ring
+     reading correctly called them a control standing behind the page. */
+  .lf-skip:is(:focus-visible, .lf-focus-visible) { opacity: 1; pointer-events: auto;
+    position: fixed; z-index: 9050;
+    top: calc(var(--lf-banner-h) + 6px); left: 8px;
+    width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
+    overflow: visible; clip-path: none;
+    outline: var(--here-ring); --lf-here-ring: skip;
+    outline-offset: calc(-1 * var(--here-ring-w));
+    border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -320,7 +362,7 @@ export function chromeStyle({
     padding: 4px 7px; border-radius: 4px;
     background: var(--ink); color: var(--paper);
     font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap;
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent);
+    box-shadow: 0 2px 8px var(--shade);
     opacity: 0; visibility: hidden; pointer-events: none;
     transform: translate(-50%, -2px);
     transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
@@ -465,8 +507,11 @@ ${MARK_RULES}
      glyph in the margin is the control. */
   .lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
   /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
-     registry being script state no file can hold (BAKE). */
-  html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
+     registry being script state no file can hold (BAKE). It carries the line with it: the
+     wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
+     cannot hover the words to find out whether anything is there. */
+  html.lf-copy mark.lf-react { background: var(--react); color: inherit;
+    text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
   /* The glyphs of the reactions standing on a target — a pill per reaction, the pill
      being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
      contribution: the living margin joins it to the target's other RHS controls and
@@ -541,13 +586,13 @@ ${MARK_RULES}
     width: auto; height: auto; padding: 6px 10px; overflow: visible;
     opacity: 1;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-    color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
   .lf-visual-action:focus-visible { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-    color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade);
     outline: var(--here-ring); --lf-here-ring: visual-target;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
@@ -575,7 +620,24 @@ ${MARK_RULES}
      same two markers, and takes the control out of the document rather than hiding it,
      which paper cannot do (BAKE). The runtime's own layer hides as one thing, in the
      @scope block below. */
-  @media print { [data-lf-offer]:not([data-lf-said]) { display: none !important; } }
+  @media print {
+    [data-lf-offer]:not([data-lf-said]) { display: none !important; }
+    [data-lf-offer][data-lf-said] {
+      background: none !important; border: 0 !important; border-radius: 0 !important;
+      box-shadow: none !important; padding-inline: 0 !important;
+      cursor: default !important; text-decoration: none !important;
+      list-style: none !important;
+    }
+    [data-lf-offer][data-lf-said]::-webkit-details-marker { display: none !important; }
+    /* And the ones that stay give up the promise of a press. Twenty of the corpus's 236
+       injected controls survive that first rule, every one of them because it speaks —
+       and each was arriving on paper still dressed as a control: a chip background and a
+       999px radius, a pointer cursor, a summary's marker, a link's underline. The words
+       are what data-lf-said keeps; the shape was never part of the bargain, and on a
+       sheet where nothing can be pressed it is a promise the page cannot answer.
+       Colour is left alone, because a chip that is red for a reason is saying something
+       too and that is the same declaration's business. */
+  }
   /* Keyframe names are document-global even beside an @scope block. The stable salt
      makes this runtime-private in the one CSS namespace scoping cannot protect. */
   @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
@@ -630,6 +692,26 @@ ${MARK_RULES}
     :scope, .lf-legend { position: static; }
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
+    /* The floor under every aim the layer offers, stated once for all of them rather
+       than left to whatever each control's type and padding happened to add up to.
+       Measured before it existed: a thread's Reopen and the panel's reaction pills stood
+       at 20 and 22 pixels, a version's Δ and a command in the reference at about seven —
+       all of them presses a reader has to land on with a mouse, and none of them a
+       control anybody chose the size of.
+
+       --aim-floor is the length, and it is the only thing a coarse pointer changes about
+       any of this (theme.css asks that query once). So there is no second rule at the
+       foot of this file repeating the list at the other number, and a control cannot
+       reach one floor without reaching the other.
+
+       A floor and not a size: every one of these is free to be bigger, and most are. It
+       is written as a minimum on both axes because a target is a box and a control that
+       is tall and two pixels wide is as hard to hit as a short one. Buttons centre their
+       own label, so nothing here has to say where the words go.
+
+       .lf-pill is halved on how it is spelled, because the class dresses a standing chip
+       as well as a press and a chip is not something to aim at. */
+    :is(${AIMS}) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
     /* Page paint belongs under a covering workspace. Paint whose target is inside the
        chrome belongs above that workspace, including when the same aim or response bar moves
        between the two. The target owner states the plane; document order keeps aim,
@@ -796,7 +878,7 @@ ${MARK_RULES}
       max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-      box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
+      box-shadow: 0 8px 24px var(--shade); padding: 4px; }
     .lf-version-menu:popover-open { display: grid; }
     /* Left-aligned text in a control that is otherwise a press: the rows are a list to
        read down, and a centred note re-ragged on every line is not one. */
@@ -1151,6 +1233,13 @@ ${MARK_RULES}
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-thread-action:hover { color: var(--ok); }
+    /* Reopen stands in the same row as Resolve and answers the same question from the
+       other side, so it wears the same band when the keyboard reaches it. It was left on
+       the platform's own ring, which is a real mark and the wrong one here: the pair
+       looked like two kinds of control, and a walk down the resolved disclosure changed
+       shape halfway. */
+    .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+      --lf-here-ring: thread-action; outline-offset: 2px; }
     .lf-resolved-by { color: var(--muted); }
     .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
     .lf-details { margin-top: 16px; color: var(--muted); background: none; border: none; padding: 0; }
@@ -1189,12 +1278,12 @@ ${MARK_RULES}
       border: 1px solid var(--border-2); border-radius: 999px; background: var(--card);
       color: var(--ink-2); font: 400 var(--t-6)/1.4 var(--sans);
       padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
-      box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+      box-shadow: 0 2px 6px var(--shade); }
     .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
       outline: none;
       border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
-        0 2px 6px rgba(0,0,0,.14); }
+        0 2px 6px var(--shade); }
     textarea.lf-fab-input { width: 216px; min-width: 0;
       max-height: min(132px, 30vh); border-radius: 999px;
       padding-inline: 12px;
@@ -1298,7 +1387,7 @@ ${MARK_RULES}
       max-height: min(80dvh, calc(100dvh - var(--lf-safe-top) - var(--lf-safe-bottom) - 32px));
       overflow: hidden; display: none; margin: 0;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
-      box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 18px; }
+      box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }
     .lf-help.open { display: flex; flex-direction: column; }
     .lf-help::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
     .lf-help-head { display: flex; align-items: center; justify-content: space-between;
@@ -1340,7 +1429,7 @@ ${MARK_RULES}
       max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
-      background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+      background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
     /* The conversation has its fixed position measured from its Button: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */
@@ -1377,7 +1466,7 @@ ${MARK_RULES}
     .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
-      color: var(--ink); box-shadow: 0 18px 54px rgba(0,0,0,.24); }
+      color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
     .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
     .lf-page-map-list { margin-top: 10px; overflow: auto; max-height: calc(100vh - 110px); }
     .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
@@ -1511,7 +1600,7 @@ ${MARK_RULES}
       display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
       gap: 10px; padding: 7px; border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card);
-      box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+      box-shadow: 0 8px 24px var(--shade); }
     .lf-target-search[hidden] { display: none; }
     .lf-target-search-box { min-width: 0; box-sizing: border-box; font: inherit;
       padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;
@@ -1581,15 +1670,14 @@ ${MARK_RULES}
        changing sides when a covering sheet meets a phone, and its line remains on the seam
        rather than following the middle of the hit box. */
     @media (pointer: coarse) {
-      .lf-btn, .lf-pill:is(button, [role="button"]), .lf-margin-action {
-        min-height: 44px;
-      }
-      .lf-margin-action { width: 44px; min-width: 44px; height: 44px; }
+      /* What is left here is what a finger changes besides the floor. The floor itself
+         moved out: this block used to name three controls at 44px and the resting layer
+         named none at all, so Reopen, the page preview, a version's Δ, a command in the
+         reference, a quote and the panel's pills were small under both pointers. They
+         are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
+      .lf-margin-action { width: 44px; height: 44px; }
       .lf-response-control { --lf-response-height: 44px; }
-      .lf-banner-actions > .lf-btn { min-height: 44px; }
-      .lf-panel-head .lf-btn { min-width: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
-      .lf-react { min-width: 44px; }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
       .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
         transform: translateY(-50%); }

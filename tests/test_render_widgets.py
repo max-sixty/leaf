@@ -367,12 +367,15 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
-    expect(start).to_have_attribute(
-        "aria-label", "Migration plan for the readers already in flight"
+    # Every row says its own word as text, the start row included. Its word used to be an
+    # attribute the rail form drew with `content: attr()`, which left the link that names
+    # the whole document saying nothing at all to any reading that asks a link what it
+    # says — the accessible name it falls back to, a text dump, the widget's own outline.
+    said = nav.locator("a").evaluate_all(
+        "links => links.map(a => a.textContent.trim())"
     )
-    expect(start).to_have_attribute(
-        "data-lf-label", "Migration plan for the readers already in flight"
-    )
+    assert said and all(said), f"a contents row carries no words: {said}"
+    expect(start).to_have_text("Migration plan for the readers already in flight")
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
@@ -559,6 +562,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     page.locator("body").focus()
+    # Twice: the layer's skip link is the document's first stop, and the map is what the
+    # page itself opens with.
+    page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(start).to_be_focused()
     expect(start).to_have_css("opacity", "1")
@@ -830,6 +836,9 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.locator("body").focus()
+    # Twice: the layer's skip link is the document's first stop, and the mark is the
+    # first thing the page itself offers.
+    page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
@@ -1311,18 +1320,22 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
 
 
 def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serve):
-    """Stepping the decisions opens the closed <details> a change waits inside and
-    focuses that change's control in the same task. The row un-waits on the
-    runtime's reveal signal rather than at the observer's next frame: settled
-    asynchronously, focus() fell on a display:none control and stayed where it
-    was — on the previous decision's Accept — while the announce said otherwise, so
-    Enter was aimed at a decision the reader had already seen."""
+    """Stepping the decisions opens the closed <details> a change waits inside, and does
+    it in the same task as the arrival. The row un-waits on the runtime's reveal signal
+    rather than at the observer's next frame: settled asynchronously, the arrival landed
+    on a display:none element and the reader stayed where they were — at the previous
+    decision — while the announce said otherwise, so Enter was aimed at a decision they
+    had already seen."""
     page, errors = open_page(browser, serve(COLLAPSED_PAGE))
     page.keyboard.press("a")
-    expect(page.locator("[data-lf-for='sug-now'] .lf-sug-accept")).to_be_focused()
+    expect(page.locator("#sug-now[data-lf-decision]")).to_have_count(1)
     page.keyboard.press("a")
     expect(page.locator("#later")).to_have_attribute("open", "")
-    expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_focused()
+    expect(page.locator("#sug-boxes[data-lf-decision]")).to_have_count(1)
+    # The arrival stands on the suggestion; what the reveal has to have done is leave the
+    # control that answers it a thing the reader can reach, which a display:none control
+    # is not.
+    expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -2003,10 +2016,10 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     answered — forward is the direction with somewhere to go, and one key that stopped
     at the last one would strand the reader there.
 
-    The landing is marked on the ask and focused on the control that answers it, so
-    the reader can see what they were brought to and answer it immediately. On a
-    suggestion that control is the ✓ Accept hoisted into the page margin, and the walk
-    follows it out there."""
+    The landing is marked on the ask and stands the reader on it, which is the same
+    element the scroll has just brought to the top of the window — a walk that landed the
+    control instead put them on whatever the decision's context and evidence had pushed
+    off the bottom of the screen. The controls that answer it are the next Tab stops."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     walked = []
     for expected in [
@@ -2027,11 +2040,11 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
             )
         )
     assert walked == [
-        "span lf-pick lf-ui",  # the question: its first pick mark
-        "button lf-sug-accept lf-ui lf-margin-action",  # ✓ Accept, in the margin
-        "span lf-pick lf-ui",  # the task's nested review question
-        "span lf-pick lf-ui",
-        "span lf-pick lf-ui",
+        "lf-decision ",  # the question's own region, its picks a Tab away
+        "lf-suggestion ",  # the suggestion itself, its ✓ Accept hoisted into the margin
+        "lf-decision ",  # the task's nested review question
+        "lf-decision ",
+        "lf-decision ",
     ], f"the walk landed on something else: {walked}"
 
     # And back, from where the last press left them: A wraps at this end too, and the
@@ -2071,7 +2084,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
     page.keyboard.press("a")
-    expect(page.locator("#t-baffles-review .lf-pick").first).to_be_focused()
+    expect(page.locator("#t-baffles-decision[data-lf-decision]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2083,11 +2097,24 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     the heading, premise, and evidence stood immediately above it, `d` centred the
     options and made the reader scroll backward before they could answer. `lf-decision`
     encodes that broader unit while the nested x-awaits widget still owns the action:
-    the walk focuses the first answering control, rings the region, and aligns the
-    region's opening below the banner.
+    the walk rings the region, aligns its opening below the banner, and stands the
+    reader on it.
+
+    On it, and not on the control that answers it, which was where the walk landed until
+    the scroll and the focus were measured against each other. The scroll puts the
+    region's opening at the top of the window and the answering control is as far down as
+    the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
+    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the reader was
+    told to look at one thing while standing on another they could not see, and their next
+    Enter would have worked it. The picks are the next Tab stops instead, which is what a
+    stop at `tabindex: -1` on the region buys: it keeps its place in document order and
+    everything inside the decision comes after it.
     """
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
-    resized(page, 900, 500)
+    # Short enough that the decision's first pick falls past the foot of the window once
+    # the decision's opening is at its head, which is the shape the fault has: the walk
+    # cannot both show the question and stand the reader on its answer.
+    resized(page, 900, 300)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -2106,13 +2133,30 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     assert before["room"] > 500, "the page has no room to put the decision at its start"
 
     page.keyboard.press("a")
-    expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
+    expect(page.locator("#storage-decision")).to_be_focused()
     expect(page.locator("#storage-decision")).to_have_attribute("data-lf-decision", "1")
     expect(page.locator("#storage-options")).not_to_have_attribute(
         "data-lf-decision", "1"
     )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-
+    # Where the reader was left is on the screen the walk has just arranged, and the pick
+    # the walk used to stand them on is the measurement that says the two cannot both be.
+    standing = page.evaluate(
+        """() => {
+          const box = document.activeElement.getBoundingClientRect();
+          const pick = document.querySelector('#storage-options .lf-pick')
+            .getBoundingClientRect();
+          return {top: box.top, pick: pick.top, height: innerHeight};
+        }"""
+    )
+    assert standing["pick"] > standing["height"], (
+        f"the first pick is on screen at this size, so standing on it would have been no "
+        f"worse than standing on the decision and nothing below is evidence: {standing}"
+    )
+    assert 0 <= standing["top"] < standing["height"], (
+        f"the walk left the reader standing off the screen it had just scrolled: "
+        f"{standing}"
+    )
     landed = page.evaluate(
         """() => {
           const decision = document.getElementById('storage-decision').getBoundingClientRect();
@@ -2128,6 +2172,17 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     assert landed["options"] > landed["decision"] + 100, (
         "the arrival did not leave the Decision's context above its options"
     )
+
+    # And the answer is one press away, in the order the options are written. Read after
+    # the landing above, because a Tab onto a control below the fold scrolls to it and
+    # would take the arrival's own geometry with it.
+    page.keyboard.press("Tab")
+    expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
+
+    # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
+    # of what the runtime may leave on an author's element, and `tabindex` is not in it.
+    page.keyboard.press("Escape")
+    expect(page.locator("#storage-decision")).not_to_have_attribute("tabindex", "-1")
     assert errors == []
     page.close()
 
@@ -2744,10 +2799,11 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
 
 
 def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
-    """Pressing a row does what `d` does — one function does both, so the tray can
+    """Pressing a row does what `a` does — one function does both, so the tray can
     never drift into a second way of arriving at a decision. It scrolls there, rings the
-    ask, and puts the focus on the control that answers it, which is what lets the
-    reader answer in the page beside the words arguing for it rather than in the list.
+    ask, and stands the reader on it, which is what lets them answer in the page beside
+    the words arguing for it rather than in the list; the controls that answer it are
+    the next Tab stops.
 
     The ring lands in two places for one reason: the decision on the page and its row on the
     tray are two surfaces showing where the reader is standing, painted from the one
@@ -2772,8 +2828,10 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     page.locator("button.lf-decisions-row[data-lf-at='t-bath-decision']").click()
     expect(page.locator(".lf-decisions-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
-    expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
+    expect(page.locator("#t-bath-decision")).to_be_focused()
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-decision", "1")
+    page.keyboard.press("Tab")
+    expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
     # The covering tray has gone, so its projected rows go with it. The page carries the
     # one standing mark rather than leaving a second, hidden authority in the closed tray.
     marked = page.evaluate(

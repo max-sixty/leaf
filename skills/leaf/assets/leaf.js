@@ -327,7 +327,7 @@ import {
   renderSaid,
   watchExternalLinks,
 } from "./runtime/presentation.js";
-import { reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
+import { FOCUSABLE, reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
 import { pageScroller } from "./runtime/scrolling.js";
 import {
   matchesWhen,
@@ -1112,6 +1112,36 @@ chromeRoot.append(
   keylineEl,
   inspectEl,
 );
+// The chrome follows `main` in the document, which is right for reading and wrong for
+// reaching: nothing stood between the top of the page and the banner but the whole page,
+// and the top of the page is where a keyboard reader's next Tab starts whenever they are
+// holding no control. So one stop stands in front of everything, the way a skip link
+// always has.
+//
+// Prepended to the body rather than put in the chrome, because tab order is document
+// order and the chrome is last; there is no `tabindex` that would buy this and no reason
+// to want one. It carries the offer marker `offer` writes, so paper drops it with every
+// other injected control and a copy takes it out with the layer it points at. It takes no
+// row in the register either: a control is a route to a capability rather than a
+// capability of its own, and this one's whole design is to be the first thing a reader
+// finds without having been told about it.
+// Which control it lands is decided by the press taking, not by a reading of whether the
+// control looks available. The banner's controls are conditional in several ways at once
+// — Leaves is absent where the machine has one leaf, Asks where the page waits on
+// nobody, the newest-version chip is drawn only while there is a newer version, and
+// sign-off is disabled until the page is presented — and each of those makes focus
+// silently do nothing rather than fail. So the walk asks the browser the only question
+// that matters here, whether the reader ended up on it, and the banner itself is the
+// answer when none of them will have them.
+const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
+skipToChrome.onclick = () => {
+  for (const control of banner.querySelectorAll(FOCUSABLE)) {
+    control.focus({ preventScroll: true });
+    if (control.matches(":focus")) return;
+  }
+  focusDestination(banner);
+};
+document.body.prepend(skipToChrome);
 document.body.append(chromeRoot);
 // The controls that rewrite their own words hold the widest of them, measured in the
 // face and padding the banner is using now (see the stylesheet's banner comment). The
@@ -1481,6 +1511,14 @@ function paintApproval() {
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
   approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
+  // The word and the title turn over together. The title read "Approve this work; the
+  // page stays open for follow-up" whether or not the work had been approved, so the one
+  // surface that could have told a reader what pressing it would do next went on
+  // describing a press they had already made. Approved, it says the state and the way
+  // out of it, which is `z` like every other reader gesture.
+  approveBtn.title = approved
+    ? "Approved. Press z to take it back while it is still your last gesture"
+    : "Approve this work; the page stays open for follow-up";
   paintHere();
 }
 approveBtn.onclick = async () => {
@@ -1644,7 +1682,10 @@ const commentDestination = () => {
   // shape of every other way in: a scope names its keys, and typing is a scope you enter.
   return {
     does: "Go to the threads",
-    line: "threads",
+    // Not "threads": that is the t/T walk's word on the same line, and the two are
+    // different capabilities — one goes to the room, the other steps through what is in
+    // it. A line printing one word twice leaves the keycaps to say which is which.
+    line: "go to threads",
     go: () => {
       setPanel(true);
       threadsBox.focus({ preventScroll: true });
@@ -1896,7 +1937,7 @@ const {
   decisionsOffered,
   decisionsPanel,
   banner,
-  blocksOnScreen,
+  readingBlock,
   closeTray: () => showTray(null),
   el,
   elementById: (...args) => elementById(...args),
@@ -2923,6 +2964,7 @@ const reference = createReference({
   pruneScopedElements,
   reachScrollers,
   readerIn,
+  readingBlock,
   scopeRefs,
   SCOPES,
   setCharacterShortcuts: (on) => {
@@ -3149,8 +3191,8 @@ function showThread(...args) {
   return conversationRuntime.showThread(...args);
 }
 
-function blocksOnScreen(...args) {
-  return viewRuntime.blocksOnScreen(...args);
+function readingBlock(...args) {
+  return viewRuntime.readingBlock(...args);
 }
 function captureView(...args) {
   return viewRuntime.captureView(...args);

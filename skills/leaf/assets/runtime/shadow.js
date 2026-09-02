@@ -79,7 +79,20 @@ async function readShadowRules() {
    through the highlight registry — which styles glyphs, so the underline stands in for
    a border. The active visual is an element paint from the same pass. Both are stated
    once and installed twice: in the document and in every declared shadow root, where
-   document rules cannot reach. */
+   document rules cannot reach.
+
+   Every name here carries an ink line, and the wash alone is never the mark. The washes
+   are what the hue affords rather than what a floor asks: --mark composites to 1.13:1
+   over the light paper and 1.34:1 over the dark, and --dfd1ed cannot reach 1.5:1 against
+   --paper at any alpha at all — opaque it stands at 1.38:1. So what the reader sees a
+   mark by is the line, at 9.0:1 light and 6.2:1 dark, exactly as the element anchors
+   next door are seen by their hairline (.lf-mark-el, chrome-style.js). The wash then
+   only has to separate one mark from another, which is a job it can do at 1.1:1.
+
+   lf-react was the one name with no line, and it was the faintest wash of the set: a
+   reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
+   Dashed against the comment's solid, the pair the element anchors already draw
+   (.lf-mark-el solid, .lf-react-el dashed) — same relation, said on glyphs. */
 export const MARK_RULES = `
   ::highlight(lf-mark) { background-color: var(--mark);
     text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
@@ -89,7 +102,8 @@ export const MARK_RULES = `
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-  ::highlight(lf-react) { background-color: var(--react); }
+  ::highlight(lf-react) { background-color: var(--react);
+    text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
   .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
     cursor: pointer; }`;
 

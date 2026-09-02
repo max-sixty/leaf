@@ -7,6 +7,7 @@ from ..events import (
     is_reaction,
     seat_root,
     spoken_turns,
+    taken_back,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..requests import request_lifecycles_for, request_phases
@@ -101,7 +102,17 @@ def _browser_conversation(
             },
             "requests": requests,
             "threads": rendered_threads,
-            "done": [event for event in events if event["kind"] == "done"],
+            # Through the withdrawal, like every other fold: an approval a reader
+            # took back is not one, and this list is what the banner's own button
+            # reads to say whether the version has been signed off.
+            # Through the withdrawal, like every other fold: an approval a reader
+            # took back is not one, and this list is what the banner's own button
+            # reads to say whether the version has been signed off.
+            "done": [
+                event
+                for event in events
+                if event["kind"] == "done" and event["id"] not in taken_back(events)
+            ],
         },
         reading,
     )

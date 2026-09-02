@@ -72,6 +72,7 @@ from render_support import (
     standing_ring,
     token_colour,
     told,
+    undo,
     watched,
 )
 
@@ -230,6 +231,64 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
     assert event["text"]
     expect(button).to_be_disabled()
+    assert errors == []
+    page.close()
+
+
+def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, serve):
+    """Sign-off was one press with no second step, and the heaviest press on the page.
+
+    A reader who meant Threads and hit the button beside it had approved the work, and
+    nothing on the page or in the log would take it back: `done` was outside
+    UNDOABLE_KINDS, so the append door refused the undo and the offer never reached the
+    key line. It is a mark rather than speech, the way a reaction is — the agent is told
+    the version is approved, not told something — so the withdrawal is the whole of the
+    correction, and it goes through the outbox and the `z` row every other reader gesture
+    uses.
+
+    Read at all three levels the fault sat in, because two of them were separately wrong:
+    the key line has to offer the press, the log has to take the undo, and the projection
+    the button reads has to stop counting an approval a reader withdrew — `done` was a
+    raw filter over the whole log, so an accepted undo would have left the button reading
+    "✓ Version approved" for ever.
+
+    And the tooltip, which is the other half of the same fault: it said "Approve this
+    work" whether or not the work had been approved, so the one surface that could tell a
+    reader what the press would do next described one they had already made.
+    """
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, serve(html))
+    button = page.locator(".lf-signoff")
+    expect(button).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
+    button.click()
+    round_trip(page)
+    expect(button).to_have_text("✓ Version approved")
+    expect(button).to_have_attribute(
+        "title", "Approved. Press z to take it back while it is still your last gesture"
+    )
+
+    undo(page)
+    expect(button).to_have_text("Approve version")
+    expect(button).to_be_enabled()
+    expect(button).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
+    kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
+    assert kinds[-2:] == ["done", "undo"], (
+        f"the withdrawal is not in the log as its own event: {kinds}"
+    )
+
+    # And the press is available again, which is what makes this a correction rather than
+    # a page the reader has spent.
+    button.click()
+    round_trip(page)
+    expect(button).to_have_text("✓ Version approved")
+    assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
     assert errors == []
     page.close()
 
@@ -3988,6 +4047,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
+        # And the resolved threads, for the same reason and with the same shape: a
+        # closed thread's Reopen is behind this disclosure, so a walk that leaves it
+        # shut reaches every control in the panel except the one on the far side of an
+        # answered conversation.
+        resolved = page.locator(".lf-details > summary")
+        if resolved.count() and resolved.is_visible():
+            resolved.click()
         page_at_rest(page)
 
         for scope, keys, corpus in RING_WALKS:
@@ -4190,3 +4256,274 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         f"corpus can be walked to, so nothing above is evidence about them:\n  "
         + "\n  ".join(unlit)
     )
+
+
+# Every declaration in the page's composed layer that lifts a box off the page: a
+# box-shadow with a blur radius. A ring is `0 0 0 Npx` and an inset band is `inset …`, so
+# the reading asks for a third length that is not nought — which is the one thing that
+# separates elevation from the other two uses of the property, and is decidable from the
+# declaration where "is this a shadow" is not.
+#
+# Flat and condition-blind for the reasons RING_NAMES gives next door: nothing re-runs a
+# selector, and a shadow painted only in some other medium is one this reading should say
+# nothing about.
+ELEVATION_SHADOWS = """() => {
+  const found = [];
+  const eaten = new Set();
+  const eat = (sheet) => {
+    if (!sheet || eaten.has(sheet)) return;
+    eaten.add(sheet);
+    let list;
+    try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
+    const walk = (from) => {
+      for (const rule of from) {
+        for (const property of ['box-shadow', '--lf-lift', '--lf-ring']) {
+          const value = rule.style?.getPropertyValue(property)?.trim();
+          if (!value || value === 'none') continue;
+          // The blur, which is the third length of a layer, past the two offsets. A ring
+          // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per
+          // layer, because a control may state its ring and its lift in one declaration.
+          const lifts = value.split(/,(?![^(]*\\))/).filter((layer) => {
+            if (/(^|\\s)inset(\\s|$)/.test(layer)) return false;
+            const lengths = layer.trim().split(/\\s+/)
+              .filter((token) => /^-?(\\d*\\.)?\\d+(px)?$/.test(token));
+            return lengths.length >= 3 && parseFloat(lengths[2]) !== 0;
+          });
+          if (!lifts.length) continue;
+          const own = rule.selectorText;
+          const up = rule.parentRule?.selectorText;
+          found.push({
+            said: own && up ? `${up} { ${own}` : (own ?? up ?? '(a declaration)'),
+            property,
+            value: lifts.map((layer) => layer.trim()).join(', '),
+          });
+        }
+        if (rule.cssRules) walk(rule.cssRules);
+      }
+    };
+    walk(list);
+  };
+  const roots = [document];
+  for (const root of roots) {
+    for (const sheet of root.styleSheets) eat(sheet);
+    for (const sheet of root.adoptedStyleSheets) eat(sheet);
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) roots.push(el.shadowRoot);
+  }
+  return found;
+}"""
+
+
+def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink(
+    browser, serve
+):
+    """A drop shadow written as rgba(0,0,0,α) can only be right about one ground.
+
+    At .12 over the light paper a menu lifts its ground by 10 L*. The same declaration
+    over the dark paper lifts it by 1.4, which is a shadow that is in the stylesheet and
+    not on the screen — and nine of the layer's twelve elevation shadows were written that
+    way, each with an alpha of its own between .12 and .24. --shade is the ink, stated once
+    per scheme, and depth is left to the offsets and the blur that were already saying it.
+
+    Asked of the declarations rather than of the paint, because that is where the fault
+    is: on the dark ground the difference between the value that reads and the value that
+    does not is 4 L*, which no screenshot of a blurred edge will tell you about reliably,
+    while "does this name the token" is exact. The two schemes are then asked for
+    different answers from the token itself, which is the whole of what one hard-coded
+    colour could not do.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    lifted = page.evaluate(ELEVATION_SHADOWS)
+    assert len(lifted) >= 10, (
+        f"the layer declares {len(lifted)} elevation shadows, which is fewer than it "
+        f"ships: this reading has stopped finding them and the assertion below is "
+        f"about nothing"
+    )
+    raw = [shadow for shadow in lifted if "var(--shade)" not in shadow["value"]]
+    assert not raw, (
+        f"{len(raw)} of the layer's {len(lifted)} elevation shadows are cast in a "
+        f"colour of their own rather than in --shade, so the dark scheme cannot answer "
+        f"for them:\n  "
+        + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
+    )
+    light = page.evaluate(
+        "() => getComputedStyle(document.documentElement).getPropertyValue('--shade')"
+    )
+    assert errors == []
+    page.close()
+
+    dark, dark_errors = open_page(browser, serve(LONG_PAGE), color_scheme="dark")
+    shade = dark.evaluate(
+        "() => getComputedStyle(document.documentElement).getPropertyValue('--shade')"
+    )
+    assert shade.strip() and shade.strip() != light.strip(), (
+        f"both schemes cast their shadows in {shade!r}, so routing them through a token "
+        f"bought the dark page nothing it did not already have"
+    )
+    assert dark_errors == []
+    dark.close()
+
+
+# Every box the layer promises a press on, wherever it stands. Not a list of class names:
+# what makes something a target is that the runtime built it (data-lf-offer) or that it
+# stands in the runtime's own layer, and that the page under the pointer says a press
+# lands there. A twelfth control joins by being one, which is how the six this first
+# reported were found.
+#
+# The reading takes the element's box together with any absolutely positioned pseudo it
+# hangs, because an aim need not be the thing the reader sees: a mark six pixels wide set
+# in a line of prose cannot grow without opening the line, so it carries a box of its own.
+#
+# Inline boxes are out, and that is the target-size exception rather than an excuse: a
+# link inside a sentence is sized by the words around it, and nothing can be done about
+# that which does not damage the sentence.
+AIM_BOXES = """(floor) => {
+  const found = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll(
+    '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
+    ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
+    ' .lf-chrome .lf-pill, .lf-chrome .lf-quote'
+  )) {
+    if (seen.has(el)) continue;
+    seen.add(el);
+    const style = getComputedStyle(el);
+    if (!['pointer', 'grab'].includes(style.cursor)) continue;
+    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+    if (style.display === 'inline') continue;
+    // The option mark is the one control held out, and it is a handover rather than an
+    // exemption: its box is being rewritten alongside the group's pressable rule, and
+    // this line goes with that change. It stands at 11x11 today.
+    if (el.classList.contains('lf-pick')) continue;
+    const box = el.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    let [w, h] = [box.width, box.height];
+    for (const pseudo of ['::before', '::after']) {
+      const at = getComputedStyle(el, pseudo);
+      if (at.content === 'none' || at.position !== 'absolute') continue;
+      w = Math.max(w, parseFloat(at.width) || 0);
+      h = Math.max(h, parseFloat(at.height) || 0);
+    }
+    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0];
+    if (Math.min(w, h) < floor - 0.5)
+      found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
+  }
+  return found;
+}"""
+
+# What the sweep has to have stood in front of before its answer means anything. Each is
+# on a surface the walk has to open, and each was under the floor.
+AIM_SURFACES = (
+    ".lf-thread-action",
+    ".lf-preview",
+    ".lf-pill",
+    ".lf-version-diff",
+    ".lf-help-command",
+    ".lf-quote",
+    ".lf-gloss-mark",
+    ".lf-tab-btn",
+    ".lf-grip",
+)
+
+
+def _each_aim_surface(page, page_dir):
+    """Stand each surface up in turn, yielding at every stop.
+
+    In turn rather than all at once, because they do not coexist: the reference is modal
+    and takes the version menu down as it opens, so a sweep that waited for the last of
+    them would meet a page that had put two of the controls away again.
+    """
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    comment = next(
+        e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
+    )
+    # A resolved thread, which is the only state that has a Reopen to aim at.
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator(".lf-details summary")).to_have_count(1)
+    page.locator(".lf-details summary").click()
+    expect(page.locator(".lf-reopen")).to_have_count(1)
+    yield
+
+    page.locator(".lf-version").click()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    yield
+    page.keyboard.press("Escape")
+
+    # Twice: the first press unfolds the shelf, the second opens the reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help-command").first).to_be_visible()
+    yield
+
+
+@pytest.mark.parametrize("touch", (False, True))
+def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
+    browser, serve, touch
+):
+    """A press the reader cannot land on is a capability the page does not have.
+
+    Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
+    reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
+    version's Δ, a command in the reference, a quote and a gloss mark at around twelve by
+    seven. Three controls reached the coarse-pointer block and the rest reached neither
+    floor, so the same presses were small under a finger too.
+
+    The sweep names no control. What makes a box an aim is that the runtime built it or
+    stands in the runtime's own layer, and that the page under the pointer says a press
+    lands there — so the next control the layer grows is held to this without anybody
+    adding it to a list. Both pointers are asked, from the one token that states the
+    floor, because a control comfortable under one and not the other is the fault this is
+    about rather than a lesser version of it.
+
+    The surfaces have to be opened for any of it to mean anything: seven of the nine
+    controls at issue exist only inside a panel, a menu, a resolved disclosure or the
+    reference, and a sweep of the page at rest would report a clean layer while every one
+    of them was still six pixels tall. AIM_SURFACES is that assertion.
+    """
+    context = (
+        browser.new_context(viewport={"width": 1200, "height": 900}, has_touch=True)
+        if touch
+        else None
+    )
+    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    # A preview record, because the badge it puts in the banner is one of the aims and
+    # exists on no page that was not served by the preview script.
+    served = serve(
+        example,
+        comments=2,
+        preview={
+            "kind": "example",
+            "example": "corpus",
+            "checkout": "fb77",
+            "started": "2026-08-31T12:00:00+00:00",
+        },
+    )
+    # A second version, published the way a page gets one and read from, so the versions
+    # menu has an earlier version to compare against and its Δ exists to be aimed at.
+    _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
+    page, errors = open_page(
+        browser, served.replace("/v1.html", "/v2.html"), context=context
+    )
+    floor = 44 if touch else 24
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch, (
+        "the fixture did not reach the pointer medium this run is about, so the floor "
+        "below is the other one's"
+    )
+    small, stood = [], set()
+    for _ in _each_aim_surface(page, serve.page_dir):
+        small += page.evaluate(AIM_BOXES, floor)
+        stood |= {s for s in AIM_SURFACES if page.locator(s).count()}
+    assert not (missed := set(AIM_SURFACES) - stood), (
+        f"the walk never stood {', '.join(sorted(missed))} up, so a clean answer would "
+        f"be about a layer with those controls missing rather than about their size"
+    )
+    assert not small, (
+        f"{len(set(small))} of the layer's controls are under the {floor}px floor a "
+        f"{'coarse' if touch else 'fine'} pointer asks for:\n  "
+        + "\n  ".join(sorted(set(small)))
+    )
+    assert errors == []
+    page.close()
+    if context:
+        context.close()

@@ -62,7 +62,8 @@ def main() -> None:
             for source in site_build.example_sources():
                 errors.clear()
                 page.goto(
-                    f"{origin}/examples/{source.stem}/versions/v1.html",
+                    f"{origin}/examples/{source.stem}/versions/"
+                    + site_build.newest_version(source),
                     wait_until="load",
                 )
                 page.wait_for_function(READY)

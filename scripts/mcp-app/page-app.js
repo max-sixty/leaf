@@ -403,18 +403,59 @@ function sizeComment() {
   comment.style.height = `${Math.min(Math.max(comment.scrollHeight, 66), 240)}px`;
 }
 
+// The passage as the document holds it, which is not the passage the host paints. A
+// selection's own toString() gives back the rendering: the theme uppercases a table
+// header and an eyebrow, and a <br> or a display:block span breaks a run the page's own
+// words run together. An anchor written from that names a passage no reading of the
+// version file can find, and the reader is told the page never said the words in front
+// of them. So the characters come from the text nodes, and one space goes wherever the
+// enclosing text block changes, using the tag vocabulary Python owns and sends as
+// textBlocks. The collapse is JS's whitespace class, which passages.py spells out as
+// COLLAPSE_CHARS. A node pageCss has taken off the page is out of the reading too, which
+// is how the generated and runtime nodes it hides stay out of a quote.
+//
+// Which passage it is stays on the other side. The append gate reads the version under
+// the lease that stores the anchor, and it is the one resolver: it writes the neighbours
+// that tell two copies apart, and refuses a quote repeated without unique context rather
+// than letting a client guess at document order.
+function passageIn(range) {
+  const root = range.commonAncestorContainer;
+  const nodes = [];
+  if (root.nodeType === Node.TEXT_NODE) nodes.push(root);
+  else {
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+      if (range.intersectsNode(node)) nodes.push(node);
+    }
+  }
+  let text = "";
+  let block = null;
+  for (const node of nodes) {
+    const from = node === range.startContainer ? range.startOffset : 0;
+    const to = node === range.endContainer ? range.endOffset : node.data.length;
+    const holder = node.parentElement;
+    if (from >= to || !holder?.checkVisibility()) continue;
+    const owner = holder.closest(current.textBlocks) || holder;
+    if (text && owner !== block) text += " ";
+    block = owner;
+    text += node.data.slice(from, to);
+  }
+  return text.replace(/\s+/g, " ").trim();
+}
+
 function captureSelection() {
   const selected = shadow.getSelection?.() || getSelection();
-  const text =
-    selected && !selected.isCollapsed
-      ? selected.toString().replace(/\s+/g, " ").trim()
-      : "";
-  if (!text) return null;
+  if (!selected || selected.isCollapsed) return null;
   const range = selected.getRangeAt(0);
+  const quote = passageIn(range);
+  if (!quote) return null;
   const common = range.commonAncestorContainer;
   const holder = common.nodeType === Node.ELEMENT_NODE ? common : common.parentElement;
+  // `closest` stops at the shadow boundary, so this can only name the page's own ids.
+  // Where the passage sits under none, the field is left out and the append gate names
+  // the innermost element enclosing it.
   const section = holder?.closest?.("[id]")?.id;
-  return { quote: text, ...(section && { section }) };
+  return { quote, ...(section && { section }) };
 }
 
 function openComposer(nextSelection) {
@@ -493,7 +534,9 @@ pageHost.addEventListener("mouseup", () => {
 
 pageHost.addEventListener("dblclick", (event) => {
   if (currentMode !== "snapshot") return;
-  const target = event.composedPath().find((node) => node?.id);
+  // Inside the rendered page only. The composed path runs on out through this app's own
+  // shell, and its ids name nothing any version of the page has got.
+  const target = event.composedPath().find((node) => node?.id && shadow.contains(node));
   if (target) openComposer({ section: target.id });
 });
 

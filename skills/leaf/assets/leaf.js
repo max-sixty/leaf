@@ -275,9 +275,7 @@ import {
   renderRetired,
   says,
   textNodesUnder,
-  wrote,
 } from "./runtime/passages.js";
-import { createViewContinuity } from "./runtime/view-continuity.js";
 import { textUnits } from "./runtime/text-alignment.js";
 import {
   ago,
@@ -295,14 +293,9 @@ import {
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
-import {
-  captureVersionRoots,
-  createVersionActivation,
-} from "./runtime/version-activation.js";
-import { createVersionDiff } from "./runtime/version-diff.js";
-import { createVersionNavigation } from "./runtime/version-navigation.js";
+import { createVersion } from "./runtime/version.js";
 import { createWidgetLoader } from "./runtime/widget-loader.js";
-import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
+import { failSoft, settling } from "./runtime/widget-upgrade.js";
 import {
   createMeasurements,
   focusDestination,
@@ -362,9 +355,6 @@ configureBindings({ characterShortcuts: () => characterShortcutsOn });
 async function undoLast(...args) {
   return runtimeProjection.undoLast(...args);
 }
-
-// Capture the authored share before the runtime paints roots or appends head chrome.
-const versionRoots = captureVersionRoots();
 
 const { promoteDeferredModals } = createDeferredModals({
   presentedAttribute: PAGE_PAINT_ATTRIBUTE.presented,
@@ -568,7 +558,6 @@ const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWid
 // ---------- comment layer ----------
 
 const VERSION_MATCH = location.pathname.match(VERSION_PATH);
-const LIVE_ROOT = location.pathname.endsWith("/") && !VERSION_MATCH;
 const servedRevision = document.querySelector(
   'meta[name="lf-revision"][data-lf-runtime]',
 )?.content;
@@ -707,19 +696,6 @@ bannerStatus.append(dot, statusText, noticeEl);
 const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
   el,
 });
-// The hidden pinned slot carries representative words as well as a measured width: an
-// empty button is shorter, so its first real label would still move vertically.
-const latestChip = el(
-  "button",
-  "lf-ui lf-btn lf-latest-chip",
-  "New page available → open v999",
-);
-// The keyboard reaches this through the chooser rather than past it: v opens the menu, and
-// the letter again takes the current page. The chip names that motion, spelled from the
-// two rows that make it rather than typed out beside them.
-latestChip.dataset.lfKeyTitle = "Open the current page";
-latestChip.title = latestChip.dataset.lfKeyTitle;
-if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
   decisionRows,
@@ -773,38 +749,62 @@ const { leavesOffered, othersLinks, renderOthers } = createLiveLeaves({
   toneFor: (...args) => toneFor(...args),
   walkRows,
 });
-for (const control of [latestChip, decisionsBtn, othersBtn]) showNews(control, false);
+for (const control of [decisionsBtn, othersBtn]) showNews(control, false);
+// One owner for everything a move between two documents of one page takes: the chooser
+// and its key, the comparison marks, live activation, and the reading landmark that
+// survives it. Wired here because the chooser's control belongs to the banner row built
+// just above; the readings it needs from the page arrive as thunks, the way every owner
+// composed after this point receives what is still being built.
 const {
+  CHOOSER,
   NEWEST,
   VERSIONS,
-  activationIsForced,
-  clearForcedActivation,
+  blocksOnScreen,
   closeVersionMenu,
-  goActive,
+  comparisonBase,
+  comparisonChanges,
+  installArrival,
+  latestChip,
+  prepareActivation,
   renderVersions,
-  snapshotVersionNavigation,
   versionBtn,
-  versionLabel,
+  versionLabels,
   versionMenu,
   versionMenuIsOpen,
-  versionsOffered,
-} = createVersionNavigation({
+} = createVersion({
   allButTheReference,
-  comparable: (...args) => comparable(...args),
-  comparisonBase: (...args) => comparisonBase(...args),
+  banner,
+  captureAuthoredFacets: (...args) => captureAuthoredFacets(...args),
+  cut: (...args) => cut(...args),
+  domFacet: (...args) => domFacet(...args),
   el,
-  keys,
-  latestChip,
-  liveRoot: LIVE_ROOT,
-  midComposition: (...args) => midComposition(...args),
-  paintDiff: (...args) => paintDiff(...args),
+  elementById: (...args) => elementById(...args),
+  focused,
+  landedAt: (...args) => landedAt(...args),
+  midComposition: () => midComposition(),
+  pageText: (...args) => pageText(...args),
   paintHere,
-  paintKeys,
+  paintLegend,
+  projectionFromView: (...args) => projectionFromView(...args),
+  pruneScopedElements,
+  quoteFrom: (...args) => quoteFrom(...args),
+  rangeOf: (...args) => rangeOf(...args),
   readAndApply,
-  pressComparison: (...args) => pressComparison(...args),
-  setDiff: (...args) => setDiff(...args),
-  showComparison: (...args) => showComparison(...args),
+  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  rememberPassageParts,
+  reportPageError,
+  reserveNewsSlot,
+  resetAuthoredPage: (...args) => resetAuthoredPage(...args),
+  resolveAnchor,
+  reveal,
+  sameLayer,
+  setLanded: (...args) => setLanded(...args),
   showNews,
+  stateCoordinate: (...args) => stateCoordinate(...args),
+  stateSignoff,
+  style,
+  syncLayout,
+  textBlockSelector: () => TEXT_BLOCK,
 });
 const toggleBtn = el("button", "lf-btn lf-threads-toggle", "Threads");
 toggleBtn.title = "Show or hide the thread panel";
@@ -1113,14 +1113,7 @@ function reserveBannerControls() {
     "Latest edit couldn't be shown",
   ]);
   latestChip.classList.toggle("lf-news-shown", latestWasShown);
-  reserve(versionBtn, [
-    versionLabel(false),
-    versionLabel(true),
-    versionLabel(false, "Draft"),
-    versionLabel(true, "Draft"),
-    versionLabel(false, "v999"),
-    versionLabel(true, "v999"),
-  ]);
+  reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
   reserve(decisionsBtn, ["Asks (999)"]);
@@ -2539,31 +2532,8 @@ const DESIGN = {
 // Escape is the default promotion over this order, because the way out of a current scene
 // must survive beside its way in. A row can waive only that promotion when two local actions
 // on the current state belong together; the binding remains live and stays in the reference.
-// v names the chooser, the control wearing the version number, and the menu it opens
-// takes the letter again for the current page — one motion whose second half is a key of
-// the scope the first half stood up, so it costs the table no row and holds whether or not
-// this page is behind. Named, because the chip that jumps straight to the current page
-// spells that motion in its tooltip.
-const CHOOSER = {
-  id: "version.open",
-  keys: ["v"],
-  does: "The versions, and what each one changed",
-  line: "versions",
-  also: versionBtn,
-  // The same predicate the menu's Escape stands on, so the key cannot open a layer the
-  // way out is not live over. The walk being empty is the menu's business, not this key's.
-  when: versionsOffered,
-  // The control's own press, so the key and the pointer are one gesture: the menu is a
-  // popover the button declares, and the browser's invoker is what makes a second press a
-  // close. The focus first is what makes the handback the same on both doors — a popover
-  // restores focus to whatever had it when it showed, which the pointer leaves as the
-  // button of its own accord and this key would otherwise leave as the body, putting a
-  // reader who pressed `v` and then Escape on the page rather than back on the chooser.
-  run: () => {
-    versionBtn.focus();
-    versionBtn.click();
-  },
-};
+// `CHOOSER` is the chooser's own key, declared beside the control it presses in
+// runtime/version.js and taken into this table by name.
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
 // rather than spelling "?" beside it — a fact about a binding written where the binding
@@ -2919,30 +2889,6 @@ keyline = createKeyline({
   stack,
 });
 const { renderLine } = keyline;
-const {
-  comparable,
-  comparisonBase,
-  comparisonChanges,
-  paintDiff,
-  pressComparison,
-  setDiff,
-  showComparison,
-} = createVersionDiff({
-  chooserLabel: () => labelOf(CHOOSER),
-  domFacet: (...args) => domFacet(...args),
-  elementById: (...args) => elementById(...args),
-  inChrome: (...args) => inChrome(...args),
-  quoted,
-  projectionFromView: (...args) => projectionFromView(...args),
-  sameLayer,
-  notice,
-  stateCoordinate: (...args) => stateCoordinate(...args),
-  textBlockSelector: () => TEXT_BLOCK,
-  versionBtn,
-  versionLabel,
-  versionMenu,
-  wrote: (...args) => wrote(...args),
-});
 const { droppedAt, presented } = createPresence();
 
 const { loadIcon, renderStatus, toneFor } = createBanner({
@@ -2955,26 +2901,6 @@ const { loadIcon, renderStatus, toneFor } = createBanner({
   notice,
 });
 
-const { activateRevision, currentActivation, revisionDocument, trackActivation } =
-  createVersionActivation(versionRoots, {
-    captureAuthoredFacets: (...args) => captureAuthoredFacets(...args),
-    captureStanding,
-    captureView,
-    comparisonBase,
-    designIsOn: () => designOn,
-    paintLegend,
-    pruneScopedElements,
-    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
-    rememberPassageParts,
-    resetAuthoredPage: (...args) => resetAuthoredPage(...args),
-    sameLayer,
-    setDiff,
-    settle,
-    settling,
-    stateSignoff,
-    style,
-    syncLayout,
-  });
 /** The reader's hand on a widget, in the layer's own word: a drag the log has not taken
  * yet. The class is half of `unaccountedGesture` below, so taking it up or putting it
  * down moves core's `z` row — a row no widget declares, and therefore the one no widget
@@ -3023,11 +2949,6 @@ const midComposition = () => {
         (replyDraft === null && active.hasAttribute("data-lf-offer"))))
   );
 };
-// Through the chooser's one door, so the chip opens exactly the version it names. At the
-// live root that is an explicit in-place release of the composition hold; on an immutable
-// page it is ordinary version travel.
-latestChip.onclick = () => goActive();
-
 // ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
@@ -3053,7 +2974,6 @@ latestChip.onclick = () => goActive();
 // (restatement_errors), not something inferred here from silence.
 let conversationRuntime;
 let anchorRuntime;
-let viewRuntime;
 
 function buildThreads(...args) {
   return conversationRuntime.buildThreads(...args);
@@ -3092,21 +3012,6 @@ function showThread(...args) {
   return conversationRuntime.showThread(...args);
 }
 
-function blocksOnScreen(...args) {
-  return viewRuntime.blocksOnScreen(...args);
-}
-function captureView(...args) {
-  return viewRuntime.captureView(...args);
-}
-function restoreView(...args) {
-  return viewRuntime.restoreView(...args);
-}
-function captureStanding(...args) {
-  return viewRuntime.captureStanding(...args);
-}
-function restoreStanding(...args) {
-  return viewRuntime.restoreStanding(...args);
-}
 function sectionOf(...args) {
   return anchorRuntime.sectionOf(...args);
 }
@@ -3497,28 +3402,6 @@ livingMargin = createLivingMargin({
   waitingForPickupSince,
 });
 
-viewRuntime = createViewContinuity({
-  TEXT_BLOCK,
-  banner,
-  closestAcross,
-  containsAcross,
-  cut,
-  elementById,
-  focusDestination,
-  focused,
-  inChrome,
-  landedAt,
-  pageScroller,
-  pageText,
-  quoteFrom,
-  rangeOf,
-  resolveAnchor,
-  reveal,
-  runtime,
-  setLanded,
-  textNodesUnder,
-});
-
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, notice, wireInput });
 
@@ -3551,24 +3434,18 @@ designRuntime = createDesign({
 });
 
 stateApplication = createStateApplication({
-  LIVE_ROOT,
   PAGE_PAINT_ATTRIBUTE,
   acceptData,
-  activateRevision,
-  activationIsForced,
   accountOutbox,
-  clearForcedActivation,
-  currentActivation,
   getSignoffDeclared: () => signoffDeclared,
-  latestChip,
   loadMarked,
-  midComposition,
   notifyDataSubscribers,
   observeServerNow,
   paintAnchors,
   paintApproval,
   paintAcknowledgments,
   panelIsOpen,
+  prepareActivation,
   presented,
   reconcileState,
   refreshHover,
@@ -3577,21 +3454,12 @@ stateApplication = createStateApplication({
   renderPanel,
   renderStatus,
   renderVersions,
-  reportPageError,
-  restoreStanding,
-  restoreView,
-  revisionDocument,
   runtime,
   sameLayer,
-  showComparison,
-  showNews,
   notice,
-  snapshotVersionNavigation,
   settleAcceptedDrafts,
   stateSignoff,
-  trackActivation,
   updateFab,
-  versionMenuIsOpen,
 });
 
 stateFeed = createStateFeed({
@@ -3657,7 +3525,7 @@ createArrangements({
 // chrome clickable throughout: a reader who took a control in that window would have it
 // taken back off them. Main is withheld from paint, and body can name the page now.
 letGo();
-const { landArrival, savedView } = viewRuntime.installArrival({
+const { landArrival, savedView } = installArrival({
   fragmentId,
   ready: () => anchoringReady,
   scrollToElement,

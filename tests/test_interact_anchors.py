@@ -130,7 +130,10 @@ def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
     assert result.exit_code != 0
     assert "2 times" in result.output
-    # Scoping it to one of them is the way out the message offers.
+    # Both readers meet this message — the writer here, and a person selecting text in
+    # the MCP snapshot's panel — so its recourse names no flag.
+    assert "name the section" in result.output and "--section" not in result.output
+    # Naming a section is one of the two ways out it offers.
     scoped = comment(
         page_dir, "--quote", "Ship dark", "--section", "flag-first", "--text", "x"
     )
@@ -149,9 +152,9 @@ def test_a_section_the_version_has_no_id_for_is_refused(page_dir):
 
 
 def test_a_section_scopes_where_a_quote_may_land(page_dir):
-    """--section is the way out the ambiguity message offers, so it has to be a bound
-    and not a label: the words go in the anchor's section field, and the browser then
-    searches inside that element alone. A quote the page holds elsewhere is not a quote
+    """Naming a section is one of the two ways out of the ambiguity message, so it has
+    to be a bound and not a label: the words go in the anchor's section field, and the
+    browser then searches inside that element alone. A quote the page holds elsewhere is not a quote
     this section says, and taking it would write a comment whose two halves disagree —
     a section that doesn't hold the passage the quote names, which is exactly the claim
     the file's reading may never make on the page's behalf."""
@@ -190,7 +193,8 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     # a wider claim than this reading can make — for a widget whose body does reach the
     # reader as text it is simply false, and it sent the writer to fix a page that was
     # never wrong.
-    assert "§ flow's data body" in body.output and "--section flow" in body.output
+    assert "§ flow's data body" in body.output
+    assert "Name § flow as the section" in body.output
     element = comment(
         page_dir, "--section", "flow", "--text", "the retry edge is missing"
     )

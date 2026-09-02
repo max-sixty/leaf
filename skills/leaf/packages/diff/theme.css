@@ -76,10 +76,15 @@ lf-diff:not(.lf-rendered) > pre {
 /* The file's row is a disclosure, and a disclosure is a control, so the review press
    cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
    line instead: a block in the flow ahead of the row, pushed to the right by its auto
-   margin and pulled up by a bottom margin that takes back its own height and the 6px
-   above it, so the row starts where it would without it; that is why the height is
-   stated rather than floored, and why the wrapper carries the file's spacing and is a
-   block context of its own, so those margins meet nothing outside it. 6px and 11px
+   margin, with the row pulled back up over it by a top margin that takes back the
+   press's height and the 6px above it, so the row starts where it would without it;
+   that is why the height is stated rather than floored, and why the wrapper carries
+   the file's spacing and is a block context of its own, so those margins meet nothing
+   outside it. The pull is the row's and not the press's because the press pins (below)
+   and a sticky box is held inside its containing block by its margin box: a negative
+   bottom margin on the press lent it 32px of travel past its file, so at every file
+   boundary the header unpinned and the press stayed, over the next file's header and
+   that file's own press. 6px and 11px
    are the details' 1px border plus that
    line's own 7px and 10px padding, the top pulled 2px up so the press sits centred on
    the text beside it. The sans is stated because the host this sits in is set in mono,
@@ -93,9 +98,11 @@ lf-diff:not(.lf-rendered) > pre {
    opened and closed the file instead. */
 .lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
                 --lf-diff-press: 110px; }
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) > :is(details, .lf-diff-rename) {
+                margin-top: -32px; }
 .lf-diff-review, .lf-diff-reviewed { display: block; position: relative; z-index: 3;
                                      width: fit-content; height: 26px;
-                                     margin: 6px 11px -32px auto;
+                                     margin: 6px 11px 0 auto;
                                      font-family: var(--sans); }
 .lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
                   min-height: 26px; padding: 2px 8px;

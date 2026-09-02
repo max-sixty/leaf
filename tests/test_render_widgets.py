@@ -3888,6 +3888,28 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     assert press["hit"] == "review", (
         f"a pointer on the press reaches something else: {press}"
     )
+    # And it leaves with the file. A sticky box is held inside its containing block by
+    # its margin box, so a negative margin on the press lent it that much travel past
+    # the file's end: with the header unpinned and gone, the press stood on for 32px of
+    # scroll over the next file's header and that file's own press. Scrolled to where
+    # the file's foot is 15px under the banner's edge, the press's foot is no lower than
+    # the file's.
+    page.evaluate(
+        """() => {
+            const file = document.querySelector('lf-diff').shadowRoot
+                .querySelector('.lf-diff-file').getBoundingClientRect();
+            const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+            window.scrollBy(0, file.bottom - banner.bottom + 15);
+        }"""
+    )
+    leaving = page.evaluate(DIFF_PRESS)
+    assert leaving["fileBottom"] < pinned["bannerBottom"], (
+        f"the file has not left the banner's edge, so nothing is being measured: {leaving}"
+    )
+    assert leaving["bottom"] <= leaving["fileBottom"], (
+        f"the review press outlives its file: {leaving}"
+    )
+    page.evaluate("() => window.scrollTo(0, 0)")
 
     page.locator("lf-diff .lf-diff-wrap").focus()
     page.keyboard.press("]")

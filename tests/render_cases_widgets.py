@@ -575,7 +575,9 @@ DIFF_PRESS = """() => {
     const box = file.querySelector('.lf-diff-review').getBoundingClientRect();
     const head = file.querySelector('summary').getBoundingClientRect();
     const hit = root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    return { top: Math.round(box.top), headTop: Math.round(head.top),
+    return { top: Math.round(box.top), bottom: Math.round(box.bottom),
+             headTop: Math.round(head.top),
+             fileBottom: Math.round(file.getBoundingClientRect().bottom),
              hit: hit && hit.classList.contains('lf-diff-review') ? 'review'
                 : hit && (hit.localName + '.' + hit.className) };
 }"""

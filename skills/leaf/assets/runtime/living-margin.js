@@ -8,7 +8,7 @@ import {
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
-import { tagsDeclaring } from "./registry.js";
+import { landInConversation } from "./conversation/landing.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -347,6 +347,8 @@ export function createLivingMargin(dependencies) {
   } = dependencies;
 
   const nav = el("nav", "lf-ui lf-living-margin");
+  // Every live page can gain an anchored comment, including one made entirely of prose.
+  reserveRail();
   nav.dataset.lfGen = "1";
   nav.setAttribute("aria-label", "Page map");
   const toolbar = el("div", "lf-margin-toolbar");
@@ -452,7 +454,6 @@ export function createLivingMargin(dependencies) {
   let sheetActivation = false;
   let sheetFrom = null;
   let sheetTarget = null;
-  let previewRequest = 0;
   // The cascade owns available room: panels and trays change the body's named
   // container, while an authored sidebar claims the page's left strip. Read the
   // posture it resolved instead of asking the viewport a different question.
@@ -702,7 +703,8 @@ export function createLivingMargin(dependencies) {
       control.removeAttribute("aria-expanded");
       return;
     }
-    const opensBeside = threadBeside() || forcedInlineKey === control.lfEntry?.key;
+    const opensBeside =
+      !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
     control.setAttribute("aria-controls", opensBeside ? preview.id : threadPanel.id);
     if (opensBeside)
       control.setAttribute("aria-expanded", String(previewButton === control));
@@ -1701,29 +1703,7 @@ export function createLivingMargin(dependencies) {
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
-  // A page that can grow a page-edge Button takes the strip before the reader asks for
-  // one, so the first gesture is not paid for with a reflow of the whole page. x-state
-  // declares a widget the reader can act on, and an action's standing outcome comes back
-  // as a Target Button; x-work declares a widget an agent can claim, and the claim
-  // arrives at the same place. Either declaration on a tag the page holds says a Button
-  // is coming, so nothing here names a widget and a new one joins by declaring. The
-  // question is the page's rather than the document's because a widget frozen into
-  // thread markup or standing in a panel has no page edge to grow a Button at. Asked
-  // again after each reconcile, because a later version may be the first to carry such
-  // a tag.
-  let railHeld = false;
-  function reserveRailForPage() {
-    if (railHeld) return;
-    const tags = tagsDeclaring((entry) => entry["x-state"] || entry["x-work"]);
-    if (!tags.length) return;
-    const holders = [...document.querySelectorAll(tags.join(","))];
-    if (!holders.some((el) => !inChrome(el))) return;
-    railHeld = true;
-    reserveRail();
-  }
-
   function render() {
-    reserveRailForPage();
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewButton;
     transferThreadFocus = false;
@@ -1912,7 +1892,7 @@ export function createLivingMargin(dependencies) {
     if (previewEntry) {
       const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
       if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
-        closePreview(false);
+        closePreview(preview.contains(document.activeElement));
       else if (forcedInlineKey !== fresh.key && !threadBeside()) {
         const threads = fresh.items.filter((item) => item.kind === "comment");
         closePreview(false);
@@ -2068,6 +2048,8 @@ export function createLivingMargin(dependencies) {
     }
     pinnedKey = entry.key;
     showPreview(entry, button);
+    const reply = previewList.querySelector("textarea");
+    if (reply) landInConversation(reply);
   }
 
   function closePreview(returnFocus) {
@@ -2132,29 +2114,20 @@ export function createLivingMargin(dependencies) {
   }
 
   function openThreadChoice(entry, button) {
-    const open = () => {
-      if (expandedOptionsKey && expandedOptionsKey !== entry.key)
-        setOptionsOpen(entry, false);
-      const choice = threadReading(entry);
-      if (!choice) return;
-      if (!threadBeside()) {
-        setOptionsOpen(entry, false);
-        openThreads(choice.items, entry);
-        return;
-      }
-      togglePinned(entry, button);
-    };
+    const choice = threadReading(entry);
+    if (!choice) return;
     if (panelIsOpen()) {
-      const request = ++previewRequest;
-      setPanel(false);
-      const movements = document.body.getAnimations();
-      Promise.allSettled(movements.map((movement) => movement.finished)).then(() => {
-        if (request === previewRequest && button.isConnected) open();
-      });
+      activate(choice.items[0], entry, { focusMap: false });
       return;
     }
-    previewRequest += 1;
-    open();
+    if (expandedOptionsKey && expandedOptionsKey !== entry.key)
+      setOptionsOpen(entry, false);
+    if (!threadBeside()) {
+      setOptionsOpen(entry, false);
+      openThreads(choice.items, entry);
+      return;
+    }
+    togglePinned(entry, button);
   }
 
   function openThreads(threadItems, entry) {
@@ -2172,10 +2145,9 @@ export function createLivingMargin(dependencies) {
     const entry = pageMapEntries.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
-    if (!entry || designIsOn()) return null;
+    if (!entry || designIsOn() || panelIsOpen()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
-    if (panelIsOpen()) setPanel(false);
     let button = threadButton(entry);
     if (!button?.checkVisibility()) {
       setOptionsOpen(entry, true);
@@ -2184,7 +2156,6 @@ export function createLivingMargin(dependencies) {
     if (!button) return null;
     pinnedKey = entry.key;
     forcedInlineKey = entry.key;
-    buildThreadCard(entry);
     showPreview(entry, button);
     const item = [...previewList.children].find(
       (candidate) => candidate.dataset.lfMarginItem === itemId,

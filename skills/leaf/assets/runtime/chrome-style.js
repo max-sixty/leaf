@@ -440,9 +440,8 @@ export function chromeStyle({
     border-radius: 6px; background: var(--card); color: inherit; resize: none;
     field-sizing: content; max-height: 50vh; overflow-y: auto; }
   .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
-  textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: none;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
+    --lf-here-ring: text-box; outline-offset: 1px; border-color: var(--accent); }
 ${MARK_RULES}
   body.lf-over-mark { cursor: pointer; }
   /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
@@ -1183,6 +1182,10 @@ ${MARK_RULES}
        the box itself is within. */
     .lf-thread:is(:focus-within, .lf-focus-within) { outline: var(--here-ring); --lf-here-ring: thread;
       outline-offset: calc(-1 * var(--here-ring-w)); }
+    /* The strong ring names the control receiving keys. Keep the thread's standing
+       visible while typing, with the reply box carrying the active ring itself. */
+    .lf-thread:has(> .lf-compose textarea:is(:focus, .lf-focus)) {
+      outline-color: color-mix(in srgb, var(--accent) 25%, transparent); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
     .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: quote;
@@ -1474,7 +1477,7 @@ ${MARK_RULES}
     .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
     .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
     .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
-    .lf-margin-thread .lf-say { align-items: flex-end; }
+    .lf-margin-thread .lf-say { align-items: stretch; }
     .lf-margin-thread .lf-say textarea { min-width: 0; }
     .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;

@@ -119,7 +119,8 @@ cross-widget projected-datum travel;
 `runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
 `runtime/conversation/inline.js` owns conversation seats rendered into the page;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
-`runtime/conversation/folding.js` owns resolution-fold state and motion;
+`runtime/conversation/folding.js` owns shared Resolve/Reopen controls and resolution-fold
+state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
 and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
@@ -1098,16 +1099,16 @@ parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the decision ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
 it: the quote's press, the `t`/`T` walk, a click on the card, a reply box. A
-press on a page mark reaches `showThread`, which focuses the thread
-with `preventScroll` before its deliberate reveal; the page and card therefore
-both say which comment that press opened, and the next key belongs to the thread
-scope. `paintHere` repaints it beside the decision ring, and `paintAnchors` repaints
+press on a page mark reaches `showThread`, which focuses the reply box before its
+deliberate reveal. Escape returns to the card; `t`/`T` then walk the threads.
+`paintHere` repaints it beside the decision ring, and `paintAnchors` repaints
 it after rebuilding the ranges it holds.
 
 The panel paints the same fact on the card, through `.lf-thread:focus-within` —
 the same predicate, so the two halves cannot disagree about which comment the
 reader is in. `:focus-visible` instead answers which input modality should draw
-the browser's focus indicator.
+the browser's focus indicator. While typing, the reply box carries the strong
+focus ring and the enclosing thread keeps a subdued outline.
 
 `lf-mark-hover` answers a different question — which thread the pointer is
 indicating — and reads both surfaces in one frame. A card is the thread's view in
@@ -2299,7 +2300,9 @@ under a standing thread cuts its ring again, and nothing re-lands it: the reader
 is moving away from what they were standing in, and a control under something is
 a fact about where it was put. A thread taller than the list's own scrollport is
 the excepted case in both directions — there is no scroll that shows all of it,
-which is the same thing the ring reading declines to report.
+which is the same thing the ring reading declines to report. Landing in a reply
+inside such a thread reveals its composer and actions together; an editor too
+tall to fit with its actions reveals the focused control itself.
 
 `test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered`,
 `test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading`, and
@@ -2669,6 +2672,12 @@ or disclosure state. Reconciliation preserves node identity; the list's own
 hold, rather than the browser's scroll anchoring, preserves viewport position.
 Tests pin the thread's box rather than a particular scroll offset.
 
+Panel and inline settlement controls read pending work from the outbox. Their busy
+labels reserve their width, keep focus, and prevent another submission while the
+request is pending. The accepted projection decides when the thread resolves or
+reopens. Resolving the last thread in an inline card closes it and returns focus
+to page navigation; a conversation seated in the page keeps a Reopen control.
+
 `renderThreads` holds one live card through every list mutation. It chooses the
 card under the pointer while the pointer is in the list, then the card containing
 focus, then the topmost visible card. It records later visible cards before the
@@ -2747,10 +2756,10 @@ landing in a thread in front of them — and takes the list as it stands.
 `showThread` insists: a press out on the page or in a message knows nothing of
 the narrowing it would be asking past, and a comment the reader has just written
 cannot vanish into a narrowing it does not match, so the narrowing goes instead.
-It focuses the containing thread before `revealThread` scrolls it, making the
-thread the standing result rather than a card flashed while focus remains on the
-page. `preventScroll` keeps that focus call out of the scroll, so the list's own
-landing and then the reveal place the thread, in that order.
+It focuses the reply box, or the card when the thread is resolved, before
+`revealThread` places it. A thread too tall for its scrollport reveals its reply
+area. The explicit `t`/`T` walk remains on cards; Enter starts a reply and Escape
+returns to the card. A general-comment send keeps focus in its originating box.
 A reveal that widened for a reply would take the reader's narrowing away for
 having been used, which is how the waiting-on-you list is emptied.
 
@@ -2789,10 +2798,15 @@ outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`; `openComposer`'s 
 option decides focus independently. Outside clicks and Escape hide without discarding
 words. A successful send or an explicit draft close discards the local record.
 
-An accepted anchored comment opens its inline thread. `--thread-card-floor` is how
-narrow the room right of its marker may get before that thread comes off the marker
-and covers the page in its bounded card; it does not substitute the Threads panel. The send focuses the reply box only when no later selection, edit, or
-typing gesture stands.
+An accepted anchored comment continues in the open Threads panel, widening a filter
+that would hide it. With the panel closed, it opens the inline thread beside its
+passage. A page marker uses an already-open panel; with the panel closed, it opens
+inline where the layout has room and uses the panel at narrower widths.
+The send focuses the reply box only when no later selection, edit, or typing gesture
+stands. Live pages reserve conversation room at the wide layout's existing floors,
+so the first comment and the last resolution leave the document column in place.
+`--thread-card-floor` bounds an inline card when the remaining margin is too narrow;
+the card then covers the page rather than becoming an unreadable sliver.
 News arriving without the reader's send gesture may show a notice and count but
 does not move focus or scroll the panel. `notice` is the one visible surface for a
 moment's news — a recorded gesture, an arrived version, a refused send — and it

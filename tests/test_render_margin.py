@@ -266,7 +266,8 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
                 '[data-lf-margin-for="map-3"] > .lf-margin-marker'
               );
               return {
-                focused: document.activeElement === marker,
+                focused: document.activeElement === document.querySelector(
+                  '.lf-margin-preview textarea'),
                 clicks: marker.dataset.activationClicks,
                 open: document.querySelector('.lf-margin-preview')
                   .matches(':popover-open'),
@@ -1477,7 +1478,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-keyline")).to_contain_text("close thread")
-    expect(marker).to_be_focused()
+    expect(preview.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -1513,6 +1514,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
 
+    preview.get_by_role("button", name="Close thread").focus()
     page.keyboard.press("i")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     expect(preview).to_be_hidden()
@@ -1593,8 +1595,6 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
-    expect(page.locator(".lf-keyline")).to_contain_text("comment on the thread")
-    page.keyboard.press("c")
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
@@ -1634,21 +1634,22 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
         }"""
     )
     marker.click()
-    panel_settled(page, open=False)
-    expect(preview).to_be_visible()
-    assert page.evaluate("() => window.__openedMarginModes") == [True]
+    panel_settled(page)
+    expect(preview).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
+    assert page.evaluate("() => window.__openedMarginModes") == []
 
     assert errors == []
     page.close()
 
 
 @pytest.mark.parametrize(
-    ("width", "panel_open"), [(760, False), (1000, True), (1440, False)]
+    ("width", "panel_open"), [(760, False), (1000, True), (1440, False), (1440, True)]
 )
-def test_a_new_anchored_comment_opens_its_inline_thread(
+def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     browser, serve, width, panel_open
 ):
-    """A first message lands in its complete conversation at every page posture."""
+    """A send continues in the open panel or beside the passage, keeping the page put."""
     page, errors = open_page(browser, serve(DECISION_PAGE))
     resized(page, width, 900)
     if panel_open:
@@ -1658,6 +1659,7 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check the January failure mode.")
+    passage_before = page.locator("#mounts-p").bounding_box()
     page.keyboard.press("Enter")
     round_trip(page)
 
@@ -1667,17 +1669,30 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
         "Check the January failure mode.",
     )
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
-    thread = preview.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
-    )
-    expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    if panel_open:
+        expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+        expect(preview).to_be_hidden()
+        thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+        expect(thread).to_contain_text(sent["text"])
+    else:
+        expect(preview).to_be_visible()
+        thread = preview.locator(
+            f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+        )
+        expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
+        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-keyline")).to_contain_text("close thread")
+        preview_box = preview.bounding_box()
+        assert preview_box["x"] >= 0, preview_box
+        assert preview_box["x"] + preview_box["width"] <= width, preview_box
     expect(thread.locator("textarea")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("close thread")
-    preview_box = preview.bounding_box()
-    assert preview_box["x"] >= 0, preview_box
-    assert preview_box["x"] + preview_box["width"] <= width, preview_box
+    page.keyboard.type("the next thought")
+    expect(thread.locator("textarea")).to_have_value("the next thought")
+    passage_after = page.locator("#mounts-p").bounding_box()
+    for coordinate in ("x", "y", "width", "height"):
+        assert passage_after[coordinate] == pytest.approx(
+            passage_before[coordinate], abs=1
+        )
     if width == 760:
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
@@ -1908,7 +1923,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
-    expect(marker).to_be_focused()
+    expect(preview.locator("textarea")).to_be_focused()
 
     resized_shell(page, 1208, 900)
     beside = page.evaluate(
@@ -1986,12 +2001,16 @@ def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
     page.close()
 
 
-def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serve):
-    """Other map meanings keep their narrow rail until a thread needs the card."""
+@pytest.mark.parametrize(("width", "room"), [(1000, 59), (1440, 520)])
+def test_a_live_page_reserves_conversation_room_before_its_first_thread(
+    browser, serve, width, room
+):
+    """Creating and resolving the first thread cannot shift the passage being read."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION])
+        browser,
+        serve(leaf_page("A passage", '<p id="passage">A passage to discuss.</p>')),
     )
-    resized(page, 1440, 900)
+    resized(page, width, 900)
 
     # The strip is a claim main resolves from the shell, so it is read off main rather
     # than off body's padding. A custom property computes to its unresolved expression,
@@ -2010,11 +2029,27 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
             }"""
         )
 
-    assert strip_right() == 59
+    assert strip_right() == room
 
-    events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
+    comment = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A first thought",
+            "anchor": {"section": "passage"},
+        },
+    )
     told(page)
-    assert strip_right() == 520
+    assert strip_right() == room
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": comment["id"]},
+    )
+    told(page)
+    assert strip_right() == room
 
     assert errors == []
     page.close()

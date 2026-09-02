@@ -1,3 +1,77 @@
+import { outbox } from "../outbox.js";
+import { measure, reserve } from "../widget-elements.js";
+
+/* Settlement controls share the outbox across panel and inline views. */
+export function createThreadSettlement({ keys, offer, paintKeys, post, PRESS }) {
+  const news = "lf-thread-settlement";
+  const pendingSettlement = (id) =>
+    outbox.find(
+      ({ event }) =>
+        event.parent === id && (event.kind === "resolve" || event.kind === "unresolve"),
+    );
+  const busy = (id) => Boolean(pendingSettlement(id));
+  const tell = (id) =>
+    document.dispatchEvent(new CustomEvent(news, { detail: { id } }));
+
+  function settlementControl(t, { prepareLanding } = {}) {
+    const id = t.root.id;
+    const reopen = Boolean(t.resolved);
+    const kind = reopen ? "unresolve" : "resolve";
+    const word = reopen ? "Reopen" : "Resolve";
+    const pendingWord = reopen ? "Reopening…" : "Resolving…";
+    const button = offer(
+      "button",
+      reopen ? "lf-btn lf-reopen lf-thread-action" : "lf-btn lf-resolve",
+      word,
+    );
+    const sync = () => {
+      // A fold owns its accepted outcome until it removes the old control.
+      if (button.closest(".lf-going")) return;
+      const pending = pendingSettlement(id);
+      button.setAttribute("aria-disabled", String(Boolean(pending)));
+      button.setAttribute("aria-busy", String(Boolean(pending)));
+      button.textContent = pending?.event.kind === kind ? pendingWord : word;
+    };
+    const update = (ev) => {
+      if (!button.isConnected) return document.removeEventListener(news, update);
+      if (ev.detail.id !== id) return;
+      sync();
+    };
+    document.addEventListener(news, update);
+    button.onclick = async () => {
+      if (busy(id)) return;
+      const land = prepareLanding?.();
+      const sent = post({ kind, parent: id });
+      tell(id);
+      paintKeys();
+      try {
+        if (await sent) land?.();
+      } finally {
+        tell(id);
+        paintKeys();
+      }
+    };
+    keys(button, `On a thread's ${word} button`, [
+      {
+        id: reopen ? "thread.reopen" : "thread.resolve",
+        keys: [...PRESS, "x"],
+        does: `${word} it`,
+        line: word.toLowerCase(),
+        when: () => !busy(id),
+        run: () => button.click(),
+      },
+    ]);
+    // Showing one view can release a hidden control's measurement during resize
+    // delivery. Reserve outside that delivery because its thread also observes size.
+    const fit = () => reserve(button, [word, pendingWord, "✓ Resolved"]);
+    measure(button, () => requestAnimationFrame(() => measure(button, fit)));
+    sync();
+    return button;
+  }
+
+  return { settlementControl };
+}
+
 /* Resolution-fold state and motion for comment-panel threads. */
 export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }) {
   // A thread the log has resolved and the open list is still holding. Its place is not
@@ -58,12 +132,13 @@ export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }
     to.opacity = 0;
     const played = motion(node, [from, to], FOLD_MS);
     if (!played) return null;
-    // The control the press was made on states the outcome where it stood. It needs no
-    // reservation for the longer word: Send and Resolve hold the two edges, so the
-    // longer outcome takes room from the gap and moves neither edge. Send stays in the
-    // row with visibility hidden, keeping the same room without reading as live.
-    node.querySelector(":scope > .lf-thread-actions > .lf-resolve").textContent =
-      "✓ Resolved";
+    // The pressed control states the outcome in the room it already reserved. Send
+    // stays in the row with visibility hidden, keeping its room without reading as live.
+    const resolve = node.querySelector(
+      ":scope > .lf-compose > .lf-thread-actions > .lf-resolve",
+    );
+    resolve.textContent = "✓ Resolved";
+    resolve.setAttribute("aria-busy", "false");
     node.className = "lf-going";
     if (node.matches(":focus-within")) threadsBox.focus({ preventScroll: true });
     node.inert = true;

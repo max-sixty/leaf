@@ -3885,7 +3885,9 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     assert abs(press["top"] - (press["headTop"] + 5)) <= 2, (
         f"the review press is not on the pinned header's line: {press}"
     )
-    assert press["hit"] == "review", f"a pointer on the press reaches something else: {press}"
+    assert press["hit"] == "review", (
+        f"a pointer on the press reaches something else: {press}"
+    )
 
     page.locator("lf-diff .lf-diff-wrap").focus()
     page.keyboard.press("]")

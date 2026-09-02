@@ -608,13 +608,19 @@ def reply(
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to edit")
 @click.option("--text", help="replacement text (default: stdin)")
-def edit(dir: str, to: str, text: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the edit event instead")
+def edit(dir: str, to: str, text: str, as_json: bool) -> None:
     """Replace the visible text of an agent-authored comment or reply.
 
     The original and every revision remain in the append-only event log. Frozen
     widget markup is not editable.
     """
-    print(json.dumps(cmd_edit(resolve_dir(dir), to, text), ensure_ascii=False))
+    page_dir = resolve_dir(dir)
+    accepted = cmd_edit(page_dir, to, text)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"edited {to} in {thread_of(page_dir, to)}")
 
 
 @cli.command(short_help="Close a thread as the agent.")

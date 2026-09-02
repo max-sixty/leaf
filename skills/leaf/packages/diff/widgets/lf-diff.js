@@ -478,8 +478,12 @@ customElements.define(
                 active: () => {
                   const search = this.reviewTools?.search;
                   const held = focused();
+                  const inDiff =
+                    this.contains(held) || Boolean(this.shadowRoot?.contains(held));
                   return Boolean(
-                    search && (search.value || this.reviewTools.node.contains(held)),
+                    search &&
+                    inDiff &&
+                    (search.value || this.reviewTools.node.contains(held)),
                   );
                 },
                 close: () => {

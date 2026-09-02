@@ -200,13 +200,13 @@ export function createVersion({
   // restores focus to on a hide is the element that had it when the popover showed — not
   // the `source`, which buys the anchor and the invoker relationship and nothing about
   // focus — so every door into this menu shows it from the button and the way back out is
-  // the platform's on all of them: the pointer because the press focuses the button first,
-  // `v` because the row focuses it before running that same press, and the reference
-  // because it stands a layer back up from that layer's invoker. Scoping the handback to
-  // the door rather than to the state is what keeps it off a light dismissal, which
-  // restores nothing on purpose: a reader who pressed away into the page is left where
-  // they pressed rather than moved to the chooser they pressed away from. Leaf is left
-  // with the close, which is the only end state it asks for.
+  // the platform's for pointer entry, because that press focuses the button first. Keyboard
+  // `v` clicks the same invoker without moving focus and its return frame restores the real
+  // origin; the reference stands a layer back up from that invoker before restoring its own
+  // origin. Scoping the platform handback to its door rather than to the state is what keeps
+  // it off a light dismissal, which restores nothing on purpose: a reader who pressed away
+  // into the page is left where they pressed rather than moved to the chooser they pressed
+  // away from. Leaf is left with the close, which is the only end state it asks for.
   function closeVersionMenu() {
     if (versionMenuIsOpen()) versionMenu.hidePopover();
   }

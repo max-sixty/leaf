@@ -1891,7 +1891,7 @@ const BACK_OUT = {
   // thing the reader just chose. Keep both on the short line and leave this row in the full
   // reference until the target is gone.
   promoteEscape: () => !hasCapturedTarget() || reactionTokens().length === 0,
-  when: () => !browserDismissesTopLayer() && Boolean(rung()),
+  when: () => !returnStack.current() && !browserDismissesTopLayer() && Boolean(rung()),
   run: () => rung().out(),
 };
 
@@ -2465,7 +2465,7 @@ const PANEL = {
         (conversationRuntime.needsYou ||
           conversationRuntime.threadList.some(awaitsReader)),
       returnFrame: () => ({
-        active: () => conversationRuntime.needsYou,
+        active: () => panelIsOpen() && conversationRuntime.needsYou,
         close: () => needsBtn.click(),
         does: "Show every thread again",
         line: "show all",
@@ -2939,11 +2939,12 @@ const PAGE = {
 };
 
 // The stack, innermost first, and the whole of what the runtime says about the order. The
-// Element scopes splice in where ELEMENTS stands. The dispatcher inserts RETURN after a
-// focused control's own rows and before generic typing and ancestor rows, so an input can
-// clear its own query before leaving while a plain composer returns in the one Escape its
-// entry earned. Every other reading is taken from this stack: the dispatcher and line walk
-// it as it stands, and the reference walks it backwards.
+// Element scopes splice in where ELEMENTS stands. RETURN follows that placeholder in this
+// canonical list; the dispatcher places it at the dynamic boundary after the exact control
+// and before generic typing and ancestor rows, so an input can clear its own query before
+// leaving while a plain composer returns in the one Escape its entry earned. Every reading
+// starts from this stack: the dispatcher and line walk it inward, and the reference walks it
+// backwards.
 //
 // Three lists said this, and the third was the reference's own, in its own order, holding the
 // same eight scopes by hand. A mode left out of that one was a mode the reference never named
@@ -2961,6 +2962,7 @@ const SCOPES = [
   REACT,
   SELECT,
   ELEMENTS,
+  RETURN,
   VERSIONS,
   COMPOSER,
   TYPING,
@@ -2971,7 +2973,7 @@ const SCOPES = [
   DESIGN,
   PAGE,
 ];
-const CORE = [RETURN, ...SCOPES.filter((scope) => scope !== ELEMENTS)];
+const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
 // Core's scopes are checked at module load by the rule every widget's are checked by at
 // upgrade, so a row here that presses with nothing to say for itself takes down the layer on
 // the first page rather than going quiet on every one.

@@ -1856,6 +1856,11 @@ one transaction: `c` from the page opens and focuses the page-comment box, and i
 Escape closes that whole entry because the panel is the box's container, not a second
 destination the reader requested.
 
+A frame is active only while its owning surface still stands and the reader remains in
+the layer it entered. A latent filter value or mode flag is not enough: closing a panel or
+leaving a widget must retire its frame so core Escape cannot advertise or mutate hidden
+state elsewhere on the page.
+
 Two independently requested entries remain two frames. `g T` enters the Threads list;
 `c` from that list enters its page-comment box. Two Escapes return first to the list and
 then to the exact place and workspace `g T` displaced. A filter or other state entered

@@ -983,6 +983,21 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
+    # Closing the owning surface retires both its narrowing frame and the g T frame below
+    # it. The narrowing itself stays set for a later reopen, but Escape on the page must
+    # neither advertise nor mutate a filter the reader cannot see.
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, False)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("show all")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    page.keyboard.press("w")
+    page.keyboard.press("w")
+
     # Answering the agent's comment takes it out of the reader's list and hands the
     # next word to the agent.
     reply = page.locator(f'.lf-thread[data-id="{theirs}"] textarea')
@@ -1005,6 +1020,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
+
     assert errors == []
     page.close()
 

@@ -543,8 +543,19 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(summaries.nth(2)).to_be_hidden()
     expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
 
+    # The frame belongs to the diff, not to the query value globally. Leaving the widget
+    # retires it: Escape over page prose must not clear a hidden filter or pull focus back.
+    page.locator("#title").click()
+    expect(search).not_to_be_focused()
+    page.keyboard.press("Escape")
+    expect(search).to_have_value("second")
+    expect(search).not_to_be_focused()
+
     # Filtering is a nested state of the one / entry: the first Escape clears it, and
     # the second restores the file header that opened the field.
+    summaries.nth(1).focus()
+    page.keyboard.press("/")
+    expect(search).to_be_focused()
     page.keyboard.press("Escape")
     expect(search).to_have_value("")
     expect(search).to_be_focused()
@@ -552,7 +563,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()
     page.keyboard.press("Escape")
-    expect(summaries.nth(0)).to_be_focused()
+    expect(summaries.nth(1)).to_be_focused()
 
     page.keyboard.press("/")
     search.fill("second")

@@ -61,6 +61,10 @@ export function createDispatch({
         // composer returns in the same one Escape that entered it.
         return [...own, RETURN, TYPING, ...ancestors];
       }
+      // RETURN is declared in SCOPES so every projection sees it. The element placeholder
+      // above has already placed it at the dynamic boundary between the exact control and
+      // the generic/ancestor scopes, so the static slot contributes no second copy.
+      if (scope === RETURN) return [];
       if (scope === TYPING && typing) return [];
       return scope;
     }).filter(standing);

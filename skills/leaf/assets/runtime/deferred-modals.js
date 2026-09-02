@@ -6,15 +6,16 @@ export function createDeferredModals({ presentedAttribute }) {
   // non-modal dialogs until replay has produced the page. A widget can still close one
   // while waiting; only a connected, still-open dialog whose post-replay place is visible
   // is promoted, so replay retiring its authored branch cannot resurrect stale UI on top.
-  // Popovers need no measurable placeholder, so their show is held outright and replay
-  // opens only those that still belong to a visible authored branch.
+  // Popovers open for real too. The startup stylesheet withholds their top-layer paint
+  // and interaction, while the native :popover-open state lets a widget's ordinary
+  // `if (open) hidePopover()` path cancel the pending surface before replay lands.
   const nativeDialogShow = HTMLDialogElement.prototype.show;
   const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
   const nativeDialogClose = HTMLDialogElement.prototype.close;
   const deferredModals = new Set();
   const nativePopoverShow = HTMLElement.prototype.showPopover;
   const nativePopoverHide = HTMLElement.prototype.hidePopover;
-  const deferredPopovers = new Map();
+  const deferredPopovers = new Set();
   const inAuthoredMain = (node) => {
     const main = document.querySelector("body > main");
     for (let at = node; at;) {
@@ -55,13 +56,12 @@ export function createDeferredModals({ presentedAttribute }) {
   };
   HTMLElement.prototype.showPopover = function (...args) {
     if (!document.body.hasAttribute(presentedAttribute) && inAuthoredMain(this)) {
-      deferredPopovers.set(this, args);
-      return;
+      deferredPopovers.add(this);
     }
     return nativePopoverShow.apply(this, args);
   };
   HTMLElement.prototype.hidePopover = function (...args) {
-    if (deferredPopovers.delete(this)) return;
+    deferredPopovers.delete(this);
     return nativePopoverHide.apply(this, args);
   };
   function promoteDeferredModals() {
@@ -81,13 +81,14 @@ export function createDeferredModals({ presentedAttribute }) {
       nativeDialogShowModal.call(dialog);
     }
     deferredModals.clear();
-    for (const [popover, args] of deferredPopovers) {
+    for (const popover of deferredPopovers) {
       if (
-        popover.isConnected &&
-        inAuthoredMain(popover) &&
-        authoredBranchVisible(popover)
+        popover.matches(":popover-open") &&
+        (!popover.isConnected ||
+          !inAuthoredMain(popover) ||
+          !authoredBranchVisible(popover))
       )
-        nativePopoverShow.apply(popover, args);
+        nativePopoverHide.call(popover);
     }
     deferredPopovers.clear();
   }

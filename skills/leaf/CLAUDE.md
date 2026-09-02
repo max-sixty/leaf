@@ -296,13 +296,16 @@ and layout remain usable while widgets upgrade and the first state read is pendi
 authored top-layer UI once the first state read has either applied or established that
 the server is unavailable. Modules must consult `actionAvailable` or
 `requestAvailable` before optimistic mutation as well as before sending; their common
-send doors repeat the check. Fixed status and discussion chrome remain usable while a
-live page waits.
+send doors repeat the check. Fixed status and unanchored discussion chrome remain usable
+while a live page waits; selecting a passage does not raise the anchored composer until
+the passage has survived the first projection.
 `showModal()` calls from authored main are temporarily represented as measurable
 non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
 reconciled branch remains visible. This prevents a modal's top-layer inertness from
-disabling the recovery chrome. `showPopover()` calls are deferred across the same
-boundary and opened only when their reconciled branch remains visible.
+disabling the recovery chrome. `showPopover()` opens natively so the widget can observe
+and cancel it through `:popover-open`; the startup stylesheet withholds its top-layer
+paint and interaction, and `presentPage` closes any open popover whose reconciled branch
+is no longer visible.
 
 `presentPage` owns the one transition from arrival to stateful interaction. Motion
 helpers and the stylesheet collapse arrival animations until that boundary, and the

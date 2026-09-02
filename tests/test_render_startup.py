@@ -503,6 +503,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
 </lf-options></lf-decision>
+<lf-draft id="startup-note"><pre>Ship on Tuesday from the blue room.</pre></lf-draft>
 """
             + SHADOWED_DIFF,
         )
@@ -516,6 +517,17 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "widget": "sug",
             "action": "accept",
             "detail": {},
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "startup-note",
+            "action": "edit",
+            "detail": {"text": "Ship on Friday from the green room."},
         },
     )
     held = []
@@ -539,6 +551,14 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         choice.dispatch_event("click")
         expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
         assert posts == [], "a durable action posted before the first state projection"
+        authored_note = page.locator("#startup-note .lf-draft-body")
+        expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
+        authored_note.select_text()
+        page.keyboard.press("c")
+        expect(page.locator(".lf-fab-input")).not_to_be_visible()
+        assert posts == [], (
+            "an anchored comment posted before the first state projection"
+        )
         page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
         page.evaluate(
             """() => {
@@ -554,6 +574,13 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               popover.textContent = 'Shadow top-layer stale popover';
               root.append(popover);
               popover.showPopover();
+              const cancelled = document.createElement('div');
+              cancelled.id = 'shadow-cancelled-popover';
+              cancelled.setAttribute('popover', 'manual');
+              cancelled.textContent = 'Cancelled before presentation';
+              root.append(cancelled);
+              cancelled.showPopover();
+              if (cancelled.matches(':popover-open')) cancelled.hidePopover();
               const nonmodal = document.createElement('dialog');
               nonmodal.id = 'shadow-final-nonmodal';
               nonmodal.textContent = 'Final state is non-modal';
@@ -636,7 +663,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             }"""
         )
         assert shadow_popover == {
-            "open": False,
+            "open": True,
             "visibility": "hidden",
             "opacity": "0",
             "hit": False,
@@ -666,6 +693,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+        expect(authored_note).to_have_text("Ship on Friday from the green room.")
         expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
         expect(page.locator("#sug lf-old")).to_be_hidden()
         expect(choice).to_have_attribute("aria-disabled", "false")
@@ -680,6 +708,10 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "document.querySelector('#shadowed').shadowRoot"
             ".querySelector('#shadow-stale-popover').matches(':popover-open')"
         ), "a still-current deferred popover was not opened after replay"
+        assert not page.evaluate(
+            "document.querySelector('#shadowed').shadowRoot"
+            ".querySelector('#shadow-cancelled-popover').matches(':popover-open')"
+        ), "a popover dismissed by its widget reopened after replay"
         assert page.evaluate(
             """() => {
               const dialog = document.querySelector('#shadowed').shadowRoot
@@ -1291,8 +1323,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     That interval is real state, not a missing-registry fallback: the state answer waits
     unapplied until upgrades have captured the authored page, general Threads accepts a
     send but holds it until the layer identity arrives, and an anchored comment waits until
-    upgrades have made the page's final words. The explicit gate proves each assertion runs
-    on the intended side of the fetch rather than racing a timer.
+    upgrades and the buffered replay have made the page's final words. The explicit gate
+    proves each assertion runs on the intended side of the fetch rather than racing a timer.
     """
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
@@ -1368,8 +1400,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
-    # Text is readable and selectable, but an anchored composer waits until upgrades have
-    # established the coordinate it would record.
+    # Text is readable and selectable, but an anchored composer waits until upgrades and
+    # replay have established the coordinate it would record.
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")

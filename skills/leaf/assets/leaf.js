@@ -3673,8 +3673,24 @@ const savedComposer = selectionComposerRuntime.pendingComposer();
 function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
-  // Repaint state-dependent chrome and controls in this same task. Replay is already
-  // complete, so the presented attribute opens interaction on the state it names.
+  // Anchors are durable coordinates, so their pass and every route that can mint one
+  // begin only after replay has reconciled the authored document. An early native text
+  // selection can then resolve against the standing DOM, while a retired passage cannot
+  // leave a composer carrying its authored words.
+  anchoringReady = true;
+  paintAnchors();
+  updateFab();
+  paintHere();
+  landArrival();
+  if (savedView && savedView.revision < runtime.currentRevision)
+    notice(`Updated to ${runtime.currentLabel}`);
+  if (savedComposer)
+    openComposer(savedComposer.anchor, savedComposer.text, {
+      suggest: Boolean(savedComposer.suggest),
+      about: savedComposer.about ?? null,
+    });
+  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
+  // is already complete, so the presented attribute opens interaction on the state it names.
   restoreTray();
   showNews(othersBtn, leavesOffered());
   paintKeys();
@@ -3684,9 +3700,9 @@ function presentPage() {
 }
 
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
-// never top-level await: boot first publishes every factory-built owner capability, then
-// imports the behavior modules that consume the public facade.
+// positions are re-found in the enhanced, replayed DOM rather than authored markup. An
+// async function, never top-level await: boot first publishes every factory-built owner
+// capability, then imports the behavior modules that consume the public facade.
 async function startPage() {
   const [upgraded] = await Promise.all([
     upgradeWidgets(),
@@ -3704,18 +3720,6 @@ async function startPage() {
   captureAuthoredFacets();
   buildBulkAnswers();
   syncDecisions();
-  anchoringReady = true;
-  paintAnchors(); // an early general post may already have loaded anchored threads
-  updateFab(); // an early selection is now read from the fully upgraded page
-  paintHere(); // c is live again, whether or not that selection raised the button
-  landArrival();
-  if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
-  if (savedComposer)
-    openComposer(savedComposer.anchor, savedComposer.text, {
-      suggest: Boolean(savedComposer.suggest),
-      about: savedComposer.about ?? null,
-    });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

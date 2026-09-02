@@ -145,7 +145,8 @@ Leaf disables its arrival transitions and withholds dialogs, popovers, and durab
 actions before that stamp. Package styles need no arrival guard. A declared `x-shadow`
 widget gets the same transition and top-layer protection when it builds its root with
 `shadowStage`. A module must guard every optimistic mutation with `actionAvailable` or
-`requestAvailable`; the send door repeats the same check.
+`requestAvailable`; the send door repeats the same check. Leaf's own anchored composer
+uses the same stamp before it can capture or post a passage coordinate.
 
 ## A widget
 

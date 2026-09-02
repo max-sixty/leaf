@@ -244,6 +244,8 @@ textarea {
   padding: 9px 10px;
   color: var(--app-muted);
   font-size: 12px;
+  /* A refused anchor answers with the occurrences it found, one per line. */
+  white-space: pre-line;
 }
 
 .status.show {

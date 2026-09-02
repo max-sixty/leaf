@@ -1,0 +1,1 @@
+notes/mcp-apps/experiments/48/commands.sh: line 18: 81221 Terminated: 15          ( cd /Users/maximilian/workspace/leaf-ext-apps-reference/examples/basic-host; export SERVERS='["http://localhost:3001/mcp"]'; exec node serve.ts ) > "$results/reference-host.log" 2>&1

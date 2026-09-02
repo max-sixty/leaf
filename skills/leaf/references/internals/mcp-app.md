@@ -1,8 +1,18 @@
 # MCP App transport
 
 Status: experimental. The Codex plugin registers this transport so the complete
-Leaf interface can be evaluated in shipped MCP Apps hosts without replacing the
-browser fallback.
+Leaf interface can be evaluated in shipped MCP Apps hosts. Codex's default
+handoff opens the canonical page in its browser pane; the inline app is an
+explicit experiment, not a prerequisite for full Leaf in Codex.
+
+A developer-only direct-resource probe under `scripts/mcp-app/direct-*` bundles the
+canonical vendored runtime and routes reads/writes through MCP tools to the same
+PageStateService and EventEndpoint. Experiment 56 in `notes/mcp-apps/` verifies
+the design-decision fixture, a keyboard choice, and an anchored comment with no
+nested Leaf iframe or external resource requests in the official reference host.
+It also verifies accepted ui/message transport, not Codex idle wake. This is a
+fixed-page experiment, not the installed server described below; version/data,
+dynamic assets, and compact-layout parity remain incomplete.
 
 ## Authorities
 
@@ -102,13 +112,28 @@ the browser bundle are not write authorization for any other registry kind.
 The append gate canonicalizes abbreviated text anchors before storing them, so
 fallback clients do not create weaker durable anchors. Served runtime anchors
 keep the browser reading that already resolved them; only the snapshot endpoint
-requests file-side capture. Snapshot mode runs no authored code and does not
-implement package actions. It removes authored navigation, editing, and form
-targets, cancels composed link and form defaults, and applies containment rules
-after authored CSS so snapshot content cannot replace the app document or cover
-its controls. The old single-choice `lf-options` projector is deliberately
-absent: a fixed shape was a second Leaf interface and understated what the
-complete route can carry.
+requests file-side capture.
+
+Snapshot mode reads a passage and resolves nothing. Its quote comes from the
+rendered document's own text nodes, with one space wherever the enclosing text
+block changes; the tag vocabulary for that arrives in the tool result as
+`textBlocks`, so the app keeps no list of its own. A selection's `toString()`
+gives back the host's paint instead of the page's words — the theme uppercases a
+table header and an eyebrow, and a `<br>` breaks a run the version holds
+unbroken — and an anchor written from it names a passage no reading of the file
+can find. An element anchor names an element of the page, and the app's own shell
+stands on the same composed path wearing ids that belong to no version.
+Everything after that is the gate's. It writes the neighbours that tell two
+copies apart, and refuses a quote repeated without unique context rather than
+reading document order as identity. The app shows that refusal with the reader's
+draft still in the box.
+
+Snapshot mode runs no authored code and does not implement package actions. It
+removes authored navigation, editing, and form targets, cancels composed link and
+form defaults, and applies containment rules after authored CSS so snapshot
+content cannot replace the app document or cover its controls. The old
+single-choice `lf-options` projector is deliberately absent: a fixed shape was a
+second Leaf interface and understated what the complete route can carry.
 
 ## Return and wake
 

@@ -29,7 +29,10 @@ Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for what Mermaid draws — a flow, a sequence, a state machine —
 and `lf-chart` for quantities: a comparison across a few categories, a run over
-time, a ranking, a composition, two numbers against each other. A handful of
+time, a ranking, a composition, two numbers against each other. The Mermaid
+renderer is 3.6MB, so `lf-diagram` travels in the `diagram` package rather than in
+every page: initialize a page that wants one with
+`leaf page init --package diagram <page>`. `lf-chart` needs no selection. A handful of
 numbers the sentence beside them can carry is prose; a chart is for when the
 shape of the numbers is the point. Use inline SVG only for a bespoke drawing.
 Use `<pre><code class="language-…">` for selectable literal source and `lf-code`
@@ -46,9 +49,11 @@ picture between them.
 Use `lf-source` when literal UTF-8 text should remain selectable and commentable
 without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
-and gives each source line a stable comment coordinate. The reader gets the rest
-of a long review without anything authored: each file's header pins under the
-banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
+and gives each source line a stable comment coordinate. Its Pierre renderer is
+1.7MB, so `lf-diff` and the `unified-diff` contract travel in the `diff` package:
+initialize such a page with `leaf page init --package diff <page>`. The reader gets
+the rest of a long review without anything authored: each file's header pins under
+the banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
 by file, and a Soft wrap switch in the diff's own header folds lines too long for
 the column — paper takes that wrap whether or not the switch is on, so nothing is
 cut off a printed patch. First add a current-data binding so Leaf can give the

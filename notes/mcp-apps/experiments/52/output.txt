@@ -1,0 +1,38 @@
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-52.i6fZPl/page
+{"kind": "note", "author": "claude", "agent": "Codex", "session": "01a054d1-f145-7bd3-979a-69e45dd5980d", "version": 1, "revision": 1, "text": "Direct MCP resource probe", "id": "1382784b7b0d59043c036529c8bc8b65", "ts": "2026-09-01T18:10:28-07:00"}
+▲ [WARNING] Duplicate key "elementOver" in object literal [duplicate-object-key]
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-52.i6fZPl/page/runtime/passages.js:837:4:
+      837 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+  The original key "elementOver" is here:
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-52.i6fZPl/page/runtime/passages.js:828:4:
+      828 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+{"bundleBytes":3849186,"widgets":15}
+true
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   'http://localhost:8081/icon.svg'
++ ]
+- []
+
+    at file:///Users/maximilian/.codex/worktrees/a5c8/leaf/scripts/mcp-app/observe-direct.mjs:88:10 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [ 'http://localhost:8081/icon.svg' ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.8.1

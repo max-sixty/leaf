@@ -1,6 +1,13 @@
+import { LIVE_ROOT } from "./storage.js";
+
+// What an application writes to the runtime and a refused one gives back, the three
+// current-document facts included, so the chooser re-renders from the restored state.
 const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "agent",
   "browser",
+  "currentLabel",
+  "currentRevision",
+  "currentStamp",
   "events",
   "lastEventSeq",
   "reading",
@@ -11,25 +18,19 @@ const APPLICATION_RUNTIME_FIELDS = Object.freeze([
 
 export function createStateApplication(dependencies) {
   const {
-    LIVE_ROOT,
     PAGE_PAINT_ATTRIBUTE,
     acceptData,
-    activateRevision,
-    activationIsForced,
     accountOutbox,
-    clearForcedActivation,
-    currentActivation,
     getSignoffDeclared,
     importWidgets,
-    latestChip,
     loadMarked,
-    midComposition,
     notifyDataSubscribers,
     observeServerNow,
     paintAnchors,
     paintApproval,
     paintAcknowledgments,
     panelIsOpen,
+    prepareActivation,
     presented,
     reconcileState,
     replaceClaimState,
@@ -38,22 +39,13 @@ export function createStateApplication(dependencies) {
     renderPanel,
     renderStatus,
     renderVersions,
-    reportPageError,
-    restoreStanding,
-    restoreView,
-    revisionDocument,
     runtime,
     sameLayer,
     sayLine,
-    showComparison,
-    showNews,
     notice,
-    snapshotVersionNavigation,
     settleAcceptedDrafts,
     stateSignoff,
-    trackActivation,
     updateFab,
-    versionMenuIsOpen,
   } = dependencies;
 
   let agentMsgCount = -1;
@@ -62,6 +54,12 @@ export function createStateApplication(dependencies) {
   // way to know which tags are in it — so each one is read once rather than on every
   // poll of a conversation that may be full of widgets.
   const markupRead = new Set();
+  // The state read installing a document, while it is. Polls and POST answers may
+  // overlap, and a document activation is the one application that cannot safely
+  // interleave: a second one would capture or replace the halfway upgraded main. Every
+  // read lets it commit before judging its own answer against the resulting version,
+  // sequence and stamp.
+  let activating = null;
 
   // Whether an answer was taken before the one the page holds. Answers cross — a read
   // held by a slow proxy or a test while a later one lands, a POST's answer beside a
@@ -102,8 +100,7 @@ export function createStateApplication(dependencies) {
     // sequence as the newer one and differ in everything the sequence does not order —
     // status, claims, the reading itself.
     if (takenBefore(state)) {
-      const activation = currentActivation();
-      if (activation) await activation;
+      if (activating) await activating;
       await notifyChangedData();
       return;
     }
@@ -113,17 +110,11 @@ export function createStateApplication(dependencies) {
     // gate: that orders the server's answers, and this holds the log's order against
     // any answer at all, one a test built included.
     if (eventSeq < runtime.lastEventSeq) {
-      const activation = currentActivation();
-      if (activation) await activation;
+      if (activating) await activating;
       await notifyChangedData();
       return;
     }
-    // Polls and POST answers may overlap. A document activation is the one state read
-    // that cannot safely interleave: a second one would capture or replace the halfway
-    // upgraded main. Let it commit, then judge this response against its resulting
-    // version, sequence and stamp.
-    let activationInFlight = currentActivation();
-    if (activationInFlight) await activationInFlight;
+    if (activating) await activating;
     if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
       await notifyChangedData();
       return;
@@ -137,23 +128,16 @@ export function createStateApplication(dependencies) {
       await notifyChangedData();
       return;
     }
-    const wantsActivation =
-      LIVE_ROOT &&
-      runtime.currentRevision !== null &&
-      targetRevision > runtime.currentRevision;
-    let incoming = null;
-    let incomingFailed = false;
-    if (wantsActivation) {
-      latestChip.textContent = `New page available → open ${state.active.label}`;
-      showNews(latestChip, true);
-    }
     // Messages render from Markdown; have the renderer in hand before the panel
-    // builds a body, so msgNode stays synchronous. Fetch the next authored document on
-    // the same background stretch rather than making either network trip wait on the
-    // other.
-    const preparations = [];
-    if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
-      preparations.push(loadMarked());
+    // builds a body, so msgNode stays synchronous. The next authored document, where
+    // the state names one the live root can follow, is fetched on the same background
+    // stretch rather than making either network trip wait on the other.
+    const preparations = [
+      prepareActivation(state),
+      nextEvents.some((e) => e.kind === "comment" || e.kind === "reply")
+        ? loadMarked()
+        : null,
+    ];
     // And the modules for the widgets a message carries, on the same stretch and for the
     // same reason: a reply's frozen markup may hold a tag this document never had, and
     // buildMsgBody instantiates it synchronously once the panel builds a body.
@@ -166,19 +150,8 @@ export function createStateApplication(dependencies) {
       frozen.innerHTML = e.markup;
       preparations.push(importWidgets(frozen.content));
     }
-    if (wantsActivation)
-      preparations.push(
-        revisionDocument(state.active)
-          .then((doc) => (incoming = doc))
-          .catch((error) => {
-            incomingFailed = true;
-            reportPageError(
-              `revision ${targetRevision} failed to load: ${error?.message ?? error}`,
-            );
-          }),
-      );
-    await Promise.all(preparations);
-    if (wantsActivation && incoming === null && !incomingFailed) {
+    const [activation] = await Promise.all(preparations);
+    if (activation?.stale) {
       await notifyChangedData();
       return;
     }
@@ -186,8 +159,7 @@ export function createStateApplication(dependencies) {
     // waiting, and two responses may have joined the same version-file promise before
     // either had an activation to await. Serialize again at the commit boundary, then
     // judge this candidate against the version and sequence the winner installed.
-    activationInFlight = currentActivation();
-    if (activationInFlight) await activationInFlight;
+    if (activating) await activating;
     if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
       await notifyChangedData();
       return;
@@ -196,12 +168,7 @@ export function createStateApplication(dependencies) {
       await notifyChangedData();
       return;
     }
-    const willActivate =
-      Boolean(incoming) &&
-      targetRevision > runtime.currentRevision &&
-      (!midComposition() || activationIsForced()) &&
-      !versionMenuIsOpen() &&
-      targetRevision === state.active.revision;
+    const willActivate = activation !== null && activation.activates();
     // The last coordinate the commit boundary judges, beside sequence and active
     // revision: the answer holds a view of the revision the page named when it asked and
     // of the one it may activate into, and of no others. An activation between the decision
@@ -219,19 +186,15 @@ export function createStateApplication(dependencies) {
         APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
       ),
     };
-    const restoreVersionNavigation = snapshotVersionNavigation();
     let nextAgentMsgCount = null;
     let replyNotice = null;
     let restoreClaimState = () => {};
     const apply = async () => {
       runtime.events = nextEvents;
       runtime.browser = nextBrowser;
-      let activation = null;
+      let finishActivation = null;
       runtime.statePhase = "ready";
-      if (willActivate) {
-        clearForcedActivation();
-        activation = await activateRevision(incoming, state.active);
-      }
+      if (willActivate) finishActivation = await activation.install();
       runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
       // What is left for this to catch, now that a late answer is dropped above: an
       // answer that is malformed rather than late, and an activation that left the page
@@ -255,7 +218,7 @@ export function createStateApplication(dependencies) {
       stateSignoff(getSignoffDeclared());
       paintApproval();
       renderOthers(state);
-      if (eventSeq > runtime.lastEventSeq || activation) {
+      if (eventSeq > runtime.lastEventSeq || finishActivation) {
         renderPanel();
         // Sign-off is a fact in the log, not a click this tab happens to remember, so a
         // reload (or the other tab) shows it too.
@@ -277,12 +240,10 @@ export function createStateApplication(dependencies) {
       // event this tab holds. After widget reconciliation because a module may rebuild
       // its authored subtree; the local line is the transient overlay that follows it.
       paintAcknowledgments();
-      if (activation) {
-        restoreView(activation.view);
-        restoreStanding(activation.standing);
+      if (finishActivation) {
+        finishActivation();
         paintAnchors();
         updateFab();
-        if (activation.comparedFrom !== null) showComparison(activation.comparedFrom);
         notice(`Updated to ${runtime.currentLabel}`);
       }
       // Only a complete application advances the read boundary. A render fault may
@@ -337,11 +298,11 @@ export function createStateApplication(dependencies) {
             }
           } else await apply();
         })();
-        const clearActivation = trackActivation(running);
+        activating = running;
         try {
           await running;
         } finally {
-          clearActivation();
+          if (activating === running) activating = null;
         }
       } else await apply();
     } catch (error) {
@@ -349,8 +310,11 @@ export function createStateApplication(dependencies) {
       // rendering it. If any required surface refuses the state, restore the last whole
       // reading so focus, panel, and undo cannot consume a log tail the page never
       // adopted. The next poll retries the candidate from the same complete boundary.
+      // The chooser is painted from the restored state, which leaves it as it stood: an
+      // open menu's rows are never rebuilt under the reader, so a focused row survives
+      // both the candidate and its rollback.
       Object.assign(runtime, prior.runtime);
-      restoreVersionNavigation();
+      renderVersions(runtime.state);
       if (runtime.reading === null)
         document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.reading);
       else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);

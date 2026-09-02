@@ -252,13 +252,13 @@ $ leaf ack ./review 3</code></pre>
           The hosts carry that context through different loops. On Claude Code,
           <code>leaf wait</code> is a background task whose completion joins the same
           queue as a terminal message: an idle session takes it as a new turn, and a
-          working one folds it in between tool calls. On Codex, an experimental bundled
-          MCP App can put a compact review directly in the task. Its comments pass
-          through the same validator and log, then the app sends the complete pending
-          batch as a follow-up turn. Where a Codex build does not render MCP Apps — or
-          the reader needs the full widget runtime — the loopback browser stays the
-          surface and a detached adapter queues that same batch into the task. The
-          transport changes; the page, event identities, and delivery contract do not.
+          working one folds it in between tool calls. On Codex, the full Leaf page opens
+          in the browser pane, or a local browser when the pane is unavailable. A
+          detached adapter queues the complete pending batch into the same task. The
+          experimental inline MCP App uses that adapter too; its own
+          <code>ui/message</code> response is not a delivery receipt. Comments from
+          either surface pass through the same validator and log. The presentation
+          changes; the page, event identities, and delivery contract do not.
         </p>
         <p id="wait-ack">
           The wait owner acknowledges a complete, untruncated JSON batch only after it
@@ -518,15 +518,18 @@ $ leaf ack ./review 3</code></pre>
         <p id="what-is-customizable">
           The kernel is the machine: the runtime and chrome, shared tokens and idioms,
           and the registry contracts the collaboration loop itself reads. The bundled
-          default package carries broadly useful fallback shapes, such as boards,
-          diagrams, drafts, and diffs. An explicit package may contain one widget, while
-          another contains only theme rules. Package size and provenance do not change
-          the format. Packages are composed rather than added as runtime branches, so a
-          default widget reaches the page through the same door as a project widget. You
-          or the agent can restyle or replace an entry or file and add new ones beside
-          it; the checked result must still satisfy the kernel's generic event and
-          runtime contracts. The <a href="packages.html">package tutorial</a> builds the
-          smallest useful example.
+          default package carries broadly useful fallback shapes, such as boards, code
+          walkthroughs, drafts, and charts, while a shape whose renderer is large
+          travels in a bundled package a page opts into — <code>diagram</code> for
+          Mermaid, <code>diff</code> for a unified patch. An explicit package may
+          contain one widget, while another contains only theme rules. Package size and
+          provenance do not change the format. Packages are composed rather than added
+          as runtime branches, so a default widget reaches the page through the same
+          door as a project widget. You or the agent can restyle or replace an entry or
+          file and add new ones beside it; the checked result must still satisfy the
+          kernel's generic event and runtime contracts. The
+          <a href="packages.html">package tutorial</a> builds the smallest useful
+          example.
         </p>
       </section>
 

@@ -3,6 +3,7 @@
 import importlib.util
 import itertools
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -146,9 +147,9 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     errors = watched(page)
     page.on("requestfailed", lambda request: errors.append(f"unfetched {request.url}"))
     page.goto(out.as_uri(), wait_until="load")
-    expect(
-        page.get_by_role("heading", name="Unified diff in the switch picker")
-    ).to_be_visible()
+    source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
+    title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
+    expect(page.get_by_role("heading", name=title)).to_be_visible()
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0

@@ -1,6 +1,7 @@
 /* The page's one DOM reading and quote resolver. */
 let publishedPassages;
 export const closestAcross = (...args) => publishedPassages.closestAcross(...args);
+export const containsAcross = (...args) => publishedPassages.containsAcross(...args);
 export const inChrome = (...args) => publishedPassages.inChrome(...args);
 export const inUi = (...args) => publishedPassages.inUi(...args);
 export const renderRetired = (...args) => publishedPassages.renderRetired(...args);

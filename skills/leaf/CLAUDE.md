@@ -66,7 +66,7 @@ subscriptions;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
-`runtime/state-application.js` owns stale-answer ordering, version preparation,
+`runtime/state-application.js` owns stale-answer ordering, activation serialization,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
@@ -78,11 +78,11 @@ Web Animations playback;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
-`runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
-`runtime/version-activation.js` owns version document loading, authored-root
-replacement, and activation serialization;
-`runtime/version-navigation.js` owns version travel, the chooser control and menu,
-its key scope, and forced live activation;
+`runtime/version.js` owns version travel whole: the chooser control, its menu and the
+newest-version chip, its own `v` and the menu's key scope, forced live activation,
+version-comparison state, marks and chooser paint, version document loading,
+authored-root replacement, the persisted semantic reading landmarks carried across that
+replacement, and the page-block reading directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
@@ -108,9 +108,6 @@ dynamic widget imports, and initial settlement;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
-`runtime/view-continuity.js` owns persisted semantic reading landmarks, arrival
-landing across authored-document replacement, and the page-block reading used to
-start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
@@ -896,7 +893,7 @@ evidence.
 Passages use one representation: ordered segments
 `{node, start, end}` over composed text. `textNodesUnder` produces the segments,
 and quote capture, quote resolution, reading position, item labels, and
-version-diff readings all use them. Never introduce another text walk for one of
+version-comparison readings all use them. Never introduce another text walk for one of
 those jobs.
 
 Two readings are intentionally different:
@@ -2346,13 +2343,25 @@ older/newer page keys. A comparison base is the focused row in the menu; opening
 the menu lands on the current base, and walking to the version being read clears
 the comparison because it has no earlier base to mark against.
 
+`runtime/version.js` owns the whole move, because a move between two documents of
+one page is one gesture: the walk through the menu states a comparison per row,
+an activation drops the standing comparison and puts it back, the chooser's word
+says whether one is standing, and the activation captures the reading landmark
+before it replaces the authored main. Split into modules, those four facts travel
+as callbacks passed back and forth; kept together they are ordinary local calls.
+The surface the rest of the runtime sees is the three key rows; the chooser's nodes
+and the labels the banner reserves for; `renderVersions` and `prepareActivation`,
+which state application drives; the arrival landing; the menu and comparison
+readings the composing surface and the margin take; and `readingBlock`, the block
+the reader is on, which the decision walk and the keyboard reference start from.
+
 The live root follows the newest version without navigating. It begins fetching
 as soon as a state read announces the version, but `midComposition` or an open
 version menu defers activation and leaves the newest-version chip visible. Ending
 the composition releases the version on the next heartbeat; pressing the chip is
-an explicit override and still keeps the live address. `goVersion` is the one door
-for both that in-place newest-version request and travel to an older immutable
-version.
+an explicit override and still keeps the live address. `goActive` is the one door
+for that in-place newest-version request and for the way back to the live address
+from a pinned document; `goVersion` is the door to an older immutable version.
 
 An older version is historical rather than live: choosing one navigates to its
 immutable file with `?pin`, and it stays at `currentVersion` while offering the

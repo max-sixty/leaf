@@ -40,7 +40,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations
+from example_data import data_operations, example_versions
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -395,8 +395,11 @@ TOKEN = "test-page-key"
 
 @pytest.fixture
 def serve(tmp_path, monkeypatch, clone_initialized_page):
-    """Publish HTML as v1 of a fresh page directory and serve it, as the real
-    server does — vendoring included, so the assets under test are this repo's.
+    """Publish HTML as the newest version of a fresh page directory and serve it,
+    as the real server does — vendoring included, so the assets under test are this
+    repo's. Markup is one version; an example is every version it ships, stamped
+    oldest first, so a revised one arrives with a chooser, a base to compare against
+    and a thread opened before the revision.
 
     Handed an example's path rather than its markup, it also lays in the three
     things that example ships beside itself: the media it names, external data,
@@ -456,16 +459,23 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 else "examples-" + ("-".join(selected_packages) or "no-packages")
             )
             clone_initialized_page(template_name, d, initialize)
-        html = example.read_text() if example else source
+        # An example is every authored version it ships, oldest first; markup is one.
+        authored = (
+            [version.read_text() for version in example_versions(example)]
+            if example
+            else [source]
+        )
+        html = authored[-1]
         (d / "index.html").write_text(html)
-        parsed = structure_model._StructParser()
-        parsed.feed(html)
-        parsed.close()
-        for reference in parsed.media_refs:
-            fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
-            if fixture_media.is_file():
-                (d / "media").mkdir(exist_ok=True)
-                shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        for markup in authored:
+            parsed = structure_model._StructParser()
+            parsed.feed(markup)
+            parsed.close()
+            for reference in parsed.media_refs:
+                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+                if fixture_media.is_file():
+                    (d / "media").mkdir(exist_ok=True)
+                    shutil.copy2(fixture_media, d / "media" / fixture_media.name)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -490,29 +500,39 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                         operation["label"],
                         operation["format"],
                     )
-        activated = revisioning_model.activate_source(d, events_model.read_events(d))
-        assert activated.error is None and activated.revision == 1, activated.error
-        (d / "versions" / "v1.html").write_text(html)
-        events_model.append_event(
-            d,
-            {
-                "kind": "note",
-                "author": "claude",
-                "version": 1,
-                "revision": 1,
-                "text": "t",
-            },
+        seeded = (
+            example and seed_log and (seed := example.with_suffix(".jsonl")).exists()
         )
-        # After the note, so v1's announcement stays the log's first line and the
-        # exchange reads in the order it happened, which is preview.py's ordering.
-        # (The site build writes the seed alone and announces its versions
-        # elsewhere, so it has no note to come after.) Split on the writer's own
-        # separator, never splitlines(), whose wider class reads a U+2028 inside a
-        # comment's text as a break.
-        if example and seed_log and (seed := example.with_suffix(".jsonl")).exists():
-            for line in seed.read_text(encoding="utf-8").split("\n"):
-                if line.strip():
-                    events_model.append_event(d, json.loads(line))
+        for number, markup in enumerate(authored, start=1):
+            (d / "index.html").write_text(markup)
+            activated = revisioning_model.activate_source(
+                d, events_model.read_events(d)
+            )
+            assert activated.error is None and activated.revision == number, (
+                activated.error
+            )
+            (d / "versions" / f"v{number}.html").write_text(markup)
+            events_model.append_event(
+                d,
+                {
+                    "kind": "note",
+                    "author": "claude",
+                    "version": number,
+                    "revision": number,
+                    "text": "t",
+                },
+            )
+            # After the first note and before any later one, so v1's announcement
+            # stays the log's first line and a revised example reads in the order it
+            # happened, which is preview.py's ordering. (The site build writes the
+            # seed alone and announces its versions elsewhere, so it has no note to
+            # come after.) Split on the writer's own separator, never splitlines(),
+            # whose wider class reads a U+2028 inside a comment's text as a break.
+            if number == 1 and seeded:
+                for line in seed.read_text(encoding="utf-8").split("\n"):
+                    if line.strip():
+                        events_model.append_event(d, json.loads(line))
+        if seeded:
             # A seed is history rather than news, so the page opens acknowledged
             # through it — the state every other publisher of a seeded example
             # serves. Left at nought the banner tells the reader their own comment
@@ -557,7 +577,10 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         # The key rides in the URL exactly as it does in a handover, so the first
         # navigation of each browser context earns the cookie the rest of the
         # page's own fetches go out under.
-        return f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
+        return (
+            f"http://127.0.0.1:{httpd.server_address[1]}"
+            f"/versions/v{len(authored)}.html?t={TOKEN}"
+        )
 
     servers = []
     yield go

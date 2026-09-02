@@ -33,8 +33,9 @@ A page directory holds:
                          reader with six leaves open sees which one wants them
                          without opening any
     runtime/             private browser owners plus the public widget-api.js module
-    widgets/             one ES module per upgraded widget (lf-tabs.js, lf-diagram.js)
-    vendor/              vendored third-party assets (mermaid.min.js, sortable.esm.js)
+    widgets/             one ES module per upgraded widget (lf-tabs.js, lf-board.js)
+    vendor/              vendored third-party assets (sortable.esm.js, plot.esm.js),
+                         and whatever a selected package brings (mermaid.min.js)
     media/               images the page shows, each named by the hash of its bytes
                          (`page media`). Not vendored — this is the page's content,
                          not the layer's — but served the same way.

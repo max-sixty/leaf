@@ -1,0 +1,186 @@
+{
+  "parents": [
+    {
+      "tag": "P",
+      "id": "",
+      "classes": "",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "classes": "lf-msg-text",
+      "hidden": false,
+      "display": "contents",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "classes": "lf-msg-body",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "classes": "lf-msg user",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "classes": "lf-thread",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "classes": "lf-threads",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIALOG",
+      "id": "lf-threads",
+      "classes": "lf-ui lf-panel",
+      "hidden": false,
+      "display": "none",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "classes": "lf-chrome",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 2805.890625,
+        "width": 1060,
+        "height": 51,
+        "top": 2805.890625,
+        "right": 1060,
+        "bottom": 2856.890625,
+        "left": 0
+      }
+    },
+    {
+      "tag": "BODY",
+      "id": "",
+      "classes": "",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1060,
+        "height": 2856.890625,
+        "top": 0,
+        "right": 1060,
+        "bottom": 2856.890625,
+        "left": 0
+      }
+    },
+    {
+      "tag": "HTML",
+      "id": "",
+      "classes": "",
+      "hidden": false,
+      "display": "block",
+      "visibility": "visible",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1060,
+        "height": 2857,
+        "top": 0,
+        "right": 1060,
+        "bottom": 2857,
+        "left": 0
+      }
+    }
+  ],
+  "body": "",
+  "toggle": "<button class=\"lf-btn lf-threads-toggle\" title=\"Show or hide the thread panel\" aria-expanded=\"false\" style=\"min-width: 116px;\">Threads (1)</button>"
+}

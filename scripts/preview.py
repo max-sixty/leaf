@@ -42,7 +42,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from example_data import data_operations
+from example_data import data_operations, example_versions
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
@@ -97,26 +97,34 @@ def seed_log(source: Path, page: Path) -> None:
 
     A thread is log state — no markup describes one — so an example that wants to
     show a conversation ships the events beside it, the way one that wants a
-    screenshot ships the bytes beside it. Appended after `version stamp`, so the
-    note announcing v1 stays the log's first line and the exchange reads in the
-    order it happened.
-
-    The cursor goes to the end of it, because a seed is history rather than news.
-    Without that, every preview of a seeded example hands the next agent session a
-    question to answer that the same log already answers two lines further down,
-    and the loop guard is right to nag about it each time — the demo would spend
-    its first move undoing itself.
+    screenshot ships the bytes beside it. Appended after the first `version stamp`
+    and before any later one, so the note announcing v1 stays the log's first line
+    and a revised example reads in the order it happened: the version, what the
+    reader said about it, then the version that answered them.
     """
     seed = source.with_suffix(".jsonl")
     if not seed.exists():
         return
-    log = page / "comments.jsonl"
-    with log.open("a", encoding="utf-8") as f:
+    with (page / "comments.jsonl").open("a", encoding="utf-8") as f:
         f.write(seed.read_text(encoding="utf-8"))
+
+
+def acknowledge_log(source: Path, page: Path) -> None:
+    """Put the cursor at the end of a seeded log, because a seed is history not news.
+
+    Without this, every preview of a seeded example hands the next agent session a
+    question to answer that the same log already answers two lines further down,
+    and the loop guard is right to nag about it each time — the demo would spend
+    its first move undoing itself. Run after the last stamp, so a revised example's
+    closing note is inside the acknowledgement rather than left as unread news.
+    """
+    if not source.with_suffix(".jsonl").exists():
+        return
     # An event's seq is its line number, so the last line's number is the cursor.
     # Split on the writer's own separator, never splitlines(), whose wider class
     # reads a U+2028 inside a comment's text as a break.
-    lines = [n for n in log.read_text(encoding="utf-8").split("\n") if n.strip()]
+    log = (page / "comments.jsonl").read_text(encoding="utf-8")
+    lines = [n for n in log.split("\n") if n.strip()]
     (page / "cursor.json").write_text(
         json.dumps({"seq": len(lines)}) + "\n", encoding="utf-8"
     )
@@ -220,6 +228,9 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
     packages = json.loads(package_manifest.read_text(encoding="utf-8"))
     selection_args = [arg for package in packages for arg in ("--package", package)]
     leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+    # The data door validates a source against the page's markup, and the current
+    # version is the one that has to bind it, so the newest version goes in first and
+    # the loop below walks back to the oldest and stamps forward from there.
     (page / "index.html").write_text(
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -227,16 +238,24 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
     if media.is_dir():
         shutil.copytree(media, page / "media", dirs_exist_ok=True)
     seed_data(source, page, launcher, runtime)
-    leaf(
-        launcher,
-        runtime,
-        "version",
-        "stamp",
-        str(page),
-        "--text",
-        f"{source.name}, as it stands in the tree",
-    )
-    seed_log(source, page)
+    # Each authored version in order, through the real stamp boundary, so a revised
+    # example arrives with the chooser, the marks and the notes a reader travels by.
+    for order, version in enumerate(example_versions(source)):
+        (page / "index.html").write_text(
+            version.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        leaf(
+            launcher,
+            runtime,
+            "version",
+            "stamp",
+            str(page),
+            "--text",
+            f"{version.name}, as it stands in the tree",
+        )
+        if order == 0:
+            seed_log(source, page)
+    acknowledge_log(source, page)
 
 
 def mark_preview(source: Path, page: Path, runtime: Path) -> None:

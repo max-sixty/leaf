@@ -1508,15 +1508,12 @@ lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
  * inside these widgets is a <pre> that gives up the document's dressing and inherits from
  * here (the rule below), so this is the size such a page is set in until a module
  * runs. */
-lf-diagram, lf-chart, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
+lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
-lf-diagram.lf-rendered, lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
+lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
-/* The diff renders its evidence inside a shadow tree, so its host keeps the code scale
- * above while giving up only the pre-upgrade colour and overflow. */
-lf-diff.lf-rendered { color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
@@ -1524,38 +1521,26 @@ lf-diff.lf-rendered { color: inherit; overflow: visible; }
    be rendered or edited, inside an element that has already said how it looks and how
    far it stands off. The rendered <pre> a module builds is evidence again, and keeps
    the dressing. */
-lf-diagram:not(.lf-rendered) > pre, lf-chart:not(.lf-rendered) > pre,
-lf-diff:not(.lf-rendered) > pre,
+lf-chart:not(.lf-rendered) > pre,
 lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
-/* A rendered diagram keeps its natural size — its module strips mermaid's
- * scale-to-fit, which set a wide flowchart's labels below legibility — so a wide one
- * scrolls in its own box, the same answer a wide table gets, instead of painting over
- * the margin. max-width: none escapes the page-wide svg rule near the top, which
- * would scale it right back down. Where the runtime has marked the element wide,
- * theme.css's `[data-lf-wide="drawing"]` rule owns the box; these two are for the
- * diagram standing where nothing marks it — a thread's message — and agree with it.
- * Paper cannot scroll, so print restores the fit: width and viewBox stay in the markup,
- * and max-width alone scales the drawing whole. */
-lf-diagram.lf-rendered { overflow-x: auto; }
-lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
 /* Until it has drawn, a drawing's box is not a drawing's box: what stands in it is the
    authored source, which is evidence and reads at the column's width from the column's
    own left edge. Both halves of the drawing rule are wrong for it — the room, since
    there is no drawing to be around, and the row, whose whole job is placing one. The
-   runtime marks the element before any module imports, so this is not a corner: mermaid
-   is fetched lazily and draws at about 160ms against a 50ms first paint, so every
-   diagram on every page spends that tenth of a second as source centred in most of the
-   window, at an indent set by its own longest line — three diagrams, three indents, none
-   of them the column's. A page whose module never arrives spends the rest of its life
-   that way. `.lf-rendered` is this package's word for a module having replaced its body,
-   so this is the sentence theme.css's `.lf-error` rule makes about a failure, said where
-   the word for the other half lives. */
+   rule is written against the `x-wide: drawing` declaration rather than against a tag,
+   so it stays here where every page reads it while the one drawing widget shipped today
+   travels in the `diagram` package. The runtime marks the element before any module
+   imports, so this is not a corner: mermaid is fetched lazily and draws at about 160ms
+   against a 50ms first paint, so every diagram on every page spends that tenth of a
+   second as source centred in most of the window, at an indent set by its own longest
+   line — three diagrams, three indents, none of them the column's. A page whose module
+   never arrives spends the rest of its life that way. `.lf-rendered` is this package's
+   word for a module having replaced its body, so this is the sentence theme.css's
+   `.lf-error` rule makes about a failure, said where the word for the other half
+   lives. */
 [data-lf-wide="drawing"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
-@media print {
-  lf-diagram svg { max-width: 100%; }
-}
 
 /* A chart's colors are all here, and none of them are in its module. Plot leaves every
  * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes
@@ -1592,175 +1577,6 @@ lf-chart .lf-chart-keys { display: flex; flex-wrap: wrap; gap: 2px var(--sp-3);
 lf-chart .lf-chart-key { display: inline-flex; align-items: center; gap: 6px; }
 lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
              background: currentColor; flex: none; }
-
-/* The rules a shadow-rendering widget (x-shadow) carries into its own tree. A selector
-   written out here reaches the document and stops dead at a shadow boundary, so these
-   are sliced out at load and put back as a <style> the shadow root owns — which is also
-   what makes them survive `version export`, since an adopted stylesheet is in no
-   element's markup and a copy runs no script to adopt one. They stay in this file
-   because the theme owns the look: a project overriding the theme overrides these with
-   it, and a second copy in a widget module would be a second answer to what a diff
-   looks like. Everything inside the markers is written for the shadow tree — :host is
-   the widget element itself — so nothing in here matches anything at document level. */
-/* lf-shadow:start */
-/* `clip` rather than `hidden`, and the difference is the whole of why the file header
-   below can pin. Both clip a rounded corner identically; only `hidden` also makes the
-   box a scroll container, and a sticky child is held by the nearest scrolling ancestor —
-   which would be this box, which never scrolls, so the header stuck to nothing and
-   scrolled away with its rows. */
-:host(.lf-rendered) details,
-:host(.lf-rendered) .lf-diff-rename { margin: 8px 0; padding: 0; overflow: clip;
-                              background: var(--pre-bg); border: 1px solid var(--code-border);
-                              border-radius: var(--r); }
-:host(.lf-rendered) summary,
-:host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
-                                     font-family: var(--sans); color: var(--code-ink);
-                                     background: var(--code-chrome); }
-.lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
-                 margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
-                 border-radius: var(--r); background: var(--code-chrome);
-                 color: var(--code-muted); font: var(--t-6) var(--sans); }
-.lf-diff-search-label { flex: 1 1 220px; }
-.lf-diff-search { box-sizing: border-box; width: 100%; min-height: 30px; padding: 5px 8px;
-                  border: 1px solid var(--code-border); border-radius: calc(var(--r) - 2px);
-                  background: var(--pre-bg); color: var(--code-ink); font: inherit; }
-.lf-diff-search::placeholder { color: var(--code-muted); opacity: 1; }
-.lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
-                      white-space: nowrap; cursor: pointer; }
-.lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
-.lf-diff-next, .lf-diff-review { min-height: 30px; padding: 4px 9px;
-                                border: 1px solid var(--code-border);
-                                border-radius: 999px; background: var(--pre-bg);
-                                color: var(--code-ink); font: inherit; cursor: pointer; }
-.lf-diff-next:disabled { opacity: .55; cursor: default; }
-.lf-diff-review { flex: none; min-height: 26px; padding: 2px 8px;
-                  color: var(--code-muted); font-size: var(--t-6); float: right;
-                  margin: -2px 0 -2px 8px; }
-.lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
-                                                         font-weight: 650; }
-.lf-diff-filtered { display: none !important; }
-.lf-diff-next:is(:focus-visible, .lf-focus-visible),
-.lf-diff-wrap:is(:focus-visible, .lf-focus-visible),
-.lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                                        --lf-here-ring: diff-tools;
-                                                        outline-offset: 1px; }
-/* The review press rides the file's own summary row, inside the box that clips it, so
-   it takes the inset the summary below takes and not the toolbar's outward gap: drawn
-   outward its lower run fell past the bottom the details clips at. */
-.lf-diff-review:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                            --lf-here-ring: diff-review;
-                                            outline-offset: calc(-1 * var(--here-ring-w)); }
-/* The file's own row, and the box it opens clips (overflow above), so the ring it wears
-   is inset — theme.css's rule for a control packed into something rather than standing
-   on its own. Outside, its top run was drawn into the border the details draws and lost
-   with it. */
-:host(.lf-rendered) summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
-                                            outline-offset: calc(-1 * var(--here-ring-w)); }
-/* The file header pins under the banner while its own rows go past, which is the thread
-   list's answer to the same question — the name of the part you are reading has to be on
-   screen for the whole of it, not only at its start. Forty-six files at thirty-two
-   thousand pixels is that list's four-thousand-pixel run with a nought on it: opening one
-   file and reading down it left nothing on screen saying which file it was.
-   The slot is the banner's own height, said once at :root and inherited through this
-   boundary, so the two edges cannot drift apart. Opaque already (the summary's
-   background), because the rows pass underneath it.
-   Screen only: paper has no banner and no scroll to pin against, and a copy's rows are
-   all on the page at once. And only where the module says the page's own scroller is the
-   one underneath — inside the panel the pinned slot is the run headings', and a diff in a
-   reply scrolls in that list rather than in the document. */
-@media screen {
-  :host(.lf-rendered[data-lf-diff-pinned]) summary { position: sticky;
-                              top: var(--lf-banner-h, 0px); z-index: 2; }
-}
-/* The room that header takes, so a landing arrives below it rather than behind it. The
-   document declares its banner through scroll-padding-top; this is the rest of the same
-   sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (paintHeadRoom, lf-diff.js — the thread list writes the same fact under this name for
-   its own pinned headings). */
-:host(.lf-rendered) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
-/* The path is evidence — a file's name in the file's own voice — and a shadow tree
-   inherits no document rule, so the mono is stated here or it is the UA's. */
-.lf-diff-path { font-family: var(--mono); font-size: var(--t-6);
-                overflow-wrap: anywhere; }
-.lf-diff-stat { color: var(--code-muted); font-weight: 400; margin-left: 8px;
-                font-size: var(--t-6); font-variant-numeric: tabular-nums;
-                white-space: nowrap; }
-:host(.lf-rendered) {
-  --diffs-font-family: var(--mono);
-  --diffs-font-size: var(--code-size);
-  --diffs-line-height: var(--code-line);
-  --diffs-bg: var(--pre-bg);
-  --diffs-bg-buffer: var(--pre-bg);
-  --diffs-bg-context: var(--pre-bg);
-  --diffs-bg-context-gutter: color-mix(in srgb, var(--code-ink) 4%, var(--pre-bg));
-  --diffs-bg-separator: var(--code-chrome);
-  --diffs-fg: var(--code-ink);
-  --diffs-fg-number: var(--code-muted);
-  /* A changed row's number is drawn in that row's own base by default, which is the
-     ink the fill beside it is mixed from: green on green at 4.03:1 in the light
-     palette. The tinted-surface inks are the layer's answer to exactly that question
-     and keep the number the same statement, legibly. */
-  --diffs-fg-number-addition-override: var(--ok-ink);
-  --diffs-fg-number-deletion-override: var(--danger-ink);
-  --diffs-addition-base: var(--ok);
-  --diffs-deletion-base: var(--danger);
-  --diffs-bg-addition: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
-  --diffs-bg-deletion: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
-  --diffs-bg-addition-emphasis: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
-  --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
-}
-:host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
-                          border-radius: 0; overflow-x: auto; color: var(--code-ink); }
-/* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
-   show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                          --lf-here-ring: code-pre-shadow;
-                          outline-offset: calc(-1 * var(--here-ring-w)); }
-/* Soft wrap. A diff line is `white-space: pre` and the box it sits in scrolls sideways,
-   so the only way to read the end of a long line is a scrollbar at the foot of the whole
-   file — twenty-four thousand pixels below the line, on the patch this was measured on.
-   Wrapping trades the diff's column alignment for lines that end where the reader can
-   see them, which is why it is the reader's own switch rather than the default.
-   The switch is a checkbox and this is a sibling combinator off it, so the state has one
-   home and a copy with its scripts dropped still works it. `anywhere` rather than
-   `break-word`: what runs long in a patch is paths, URLs, minified data and prose in
-   comments, and the first three offer the line box no break opportunity to find.
-   The code box gives up its permanent scrollbar with them, since wrapped rows leave it
-   nothing to scroll. */
-.lf-diff-tools:has(.lf-diff-wrap:checked) ~ details [data-line] {
-                          white-space: pre-wrap; overflow-wrap: anywhere; }
-.lf-diff-tools:has(.lf-diff-wrap:checked) ~ details code[data-code] { overflow-x: auto; }
-/* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
-   through its variables above, and keeps its syntax roles readable on the denser one. */
-[data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="kw"] { color: color-mix(in srgb, var(--syn-keyword) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="st"] { color: color-mix(in srgb, var(--syn-string) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="nu"] { color: color-mix(in srgb, var(--syn-number) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="fn"] { color: color-mix(in srgb, var(--syn-name) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="ty"] { color: color-mix(in srgb, var(--syn-type) 50%, var(--ink)); }
-/* Syntax colour is the same statement the document makes, and the tokens are in here
-   rather than out there, so the rules come too. The custom properties they read inherit
-   through the boundary, which is why only the selectors need repeating. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
-@media print {
-  .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
-  .lf-diff-filtered { display: block !important; }
-  /* Paper wraps whether or not the switch was on, because a clipped line on screen is a
-     scroll away and a clipped line on paper is gone: forty rows of the walkthrough's
-     patch came out cut, the worst by 744px, and one of them was the key line a reader
-     would have been reading the page to learn. The switch is not on the sheet to press,
-     so the sheet cannot be left holding its answer. */
-  [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
-  code[data-code] { overflow-x: visible !important; }
-}
-/* lf-shadow:end */
-
 
 /* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
    the `pre` contract again, and a

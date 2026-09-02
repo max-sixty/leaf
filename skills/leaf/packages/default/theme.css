@@ -1162,10 +1162,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
  * margin form is a reading map: the widget gives each row the length of the section it
  * leads, flex lays those shares down the full available height, and the darker lens on
  * the spine shows the band currently in view. The markers therefore describe the page
- * while every repeated heading is quiet. Pointer or keyboard entry fades the labels in
- * without changing any row's box. The transparent first layer receives the revealing
- * gesture, then the links become pointer targets when that fade is complete; an unseen
- * label cannot navigate on the gesture that discovers it.
+ * while every repeated heading is quiet. Pointer entry, keyboard entry, or the go-to
+ * chord fades the labels in without changing any row's box. The transparent first layer
+ * receives the revealing gesture, then the links become pointer targets when that fade
+ * is complete; an unseen label cannot navigate on the gesture that discovers it.
  *
  * The start row repeats the page title only in that map. It is still navigation
  * apparatus, so weight and ink distinguish it within the same sans voice as the section
@@ -1264,10 +1264,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }
     lf-toc a:focus-visible { outline: 2px solid var(--accent);
                              outline-offset: -2px; }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) {
       --lf-toc-label-opacity: 1;
     }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       animation: lf-toc-enable-links 0s .24s forwards;
     }
     /* When the labels themselves would make the track overflow, the track stays a map:
@@ -1285,7 +1285,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       -webkit-line-clamp: 1;
     }
     lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       opacity: 0; animation: none; pointer-events: none;
     }
     lf-toc[data-lf-dense] .lf-toc-nav:hover
@@ -1299,10 +1299,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   lf-toc a { transition: none; }
   @container style(--lf-sidebar-posture: margin) {
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       animation: none; pointer-events: auto;
     }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       opacity: 0; pointer-events: none;
     }
     lf-toc[data-lf-dense] .lf-toc-nav:hover

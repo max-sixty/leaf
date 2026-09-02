@@ -444,6 +444,27 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return [r.x, r.y, r.width, r.height]; })"
     )
 
+    # The go-to menu reveals the same labels without moving focus into the rail.
+    page.keyboard.press("g")
+    for link in nav.locator("a").all():
+        expect(link).to_have_css("opacity", "1")
+        expect(link).to_have_css("pointer-events", "auto")
+    assert (
+        nav.locator(".lf-toc-start, li, a").evaluate_all(
+            "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
+            "return [r.x, r.y, r.width, r.height]; })"
+        )
+        == hidden_boxes
+    )
+    assert nav.evaluate("node => !node.contains(document.activeElement)")
+    page.keyboard.press("h")
+    expect(prepare).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    expect(prepare).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
+
     prepare.evaluate(
         "node => node.addEventListener('pointerdown', () => { window.lfTocPressed = true; }, { once: true })"
     )

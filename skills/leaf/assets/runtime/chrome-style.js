@@ -1381,17 +1381,13 @@ ${MARK_RULES}
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
     /* The g chord's numbered document destinations. Each visible member keeps the complete
-       route at the corner where it starts; key faces carry progress without changing its
-       geometry. */
+       route above its starting corner so the keys leave its text clear. Key faces carry
+       progress without changing geometry; the address pass keeps them inside the screen. */
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
-      transform: translate(-50%, -50%); }
+      transform: translate(-50%, -100%); }
     .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
       border: 0; background: transparent; }
-    /* Under the banner there is no room to straddle the corner, so the chip hangs below
-       the covered edge instead — the same step the legend's tag makes, and the same class
-       name, because it is the same fact about the same bar. */
-    .lf-addresses > .lf-address.lf-in { transform: translate(-50%, 0); }
     /* Item selection borrows the address chip's face but not its meaning. These hints are
        deliberately local to the viewport: the page gives every visible item a short,
        prefix-free name for the few seconds this mode stands. Unlike addresses, hints are

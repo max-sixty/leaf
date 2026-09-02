@@ -25,47 +25,49 @@ from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
-    _CARD,
     BOTH_STAMPS,
+    compare_with,
+    composer_quote,
+    data_projection_page,
     DRAFT_EDITED,
     DRAFT_TEXT,
     EXAMPLES,
     FIRST_PRESENTATION,
     JOURNEY_V1,
     JOURNEY_V2,
-    LONG_PAGE,
-    RENDERED,
-    SENTENCE,
-    SHADOWED_DIFF,
-    SHORT_SUGGESTION,
-    SUGGEST_BLOCK,
-    TAB_AND_DOT,
-    TAB_TONE,
-    TOKEN,
-    _card_done,
-    _draft_says,
-    _publish,
-    _traffic,
-    compare_with,
-    composer_quote,
-    data_projection_page,
     leaf_page,
     live_url,
     live_watcher,
+    LONG_PAGE,
+    MANIFEST_DIFF_PAGE,
+    MULTI_HUNK_PATCH,
     nudge,
     open_page,
     panel_settled,
     record_claim,
     refuse,
+    RENDERED,
     round_trip,
     select,
+    SENTENCE,
     sent_events,
+    SHADOWED_DIFF,
+    SHORT_SUGGESTION,
     stamp_page,
+    SUGGEST_BLOCK,
+    TAB_AND_DOT,
+    TAB_TONE,
     ticked,
+    TOKEN,
     told,
     undo,
     wait_for_revision,
     watched,
+    _CARD,
+    _card_done,
+    _draft_says,
+    _publish,
+    _traffic,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1640,25 +1642,34 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
 
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):
-    """The other side of the narrowing, on the example that ships a diff.
+    """The other side of the narrowing, on a diff bound as a manifest of collapsed files.
 
-    The walkthrough's diff is bound to a captured patch and arrives as a manifest of
-    collapsed files, so its module renders the file rows without parsing a line. That
-    is the boundary the renderer now follows: the module loads because the markup
-    carries `<lf-diff>`, and Pierre loads when a file is opened and its lines are
-    drawn. Both halves are asserted, because either alone would pass on a diff that
-    never rendered at all.
+    That is the form a captured patch arrives in, and its module draws the file rows
+    without parsing a line, so the renderer follows the lines rather than the tag: the
+    module loads because the markup carries `<lf-diff>`, and Pierre loads when a file is
+    opened and its lines are drawn. Both halves are asserted, because either alone would
+    pass on a diff that never rendered at all.
+
+    A fixture rather than the walkthrough, which opens on an inline hunk as well as its
+    manifest and so draws lines, and needs the renderer, at load. Only a page whose one
+    diff is the manifest can show the manifest's half.
     """
-    example = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
-    page, errors = open_page(browser, serve(example), context=context)
+    url = serve(MANIFEST_DIFF_PAGE)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        data_model.unified_diff_manifest(MULTI_HUNK_PATCH),
+        "review.patch",
+    )
+    page, errors = open_page(browser, url, context=context)
 
     assert "/widgets/lf-diff.js" in asked
     assert not [p for p in asked if "pierre-diffs" in p], (
         "a collapsed manifest draws no lines, so nothing has needed the renderer yet"
     )
-    diff = page.locator("lf-diff#pr-exact-patch")
+    diff = page.locator("lf-diff#patch")
     expect(diff).to_have_class(re.compile(r"\blf-rendered\b"))
     files = diff.locator("details > summary")
     expect(files.first).to_be_visible()

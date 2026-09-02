@@ -532,6 +532,17 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     + _filler("tail", 30),
 )
 
+# The same review bound as a manifest of collapsed files, the form a captured patch
+# arrives in on the shipped walkthrough: the module draws the file rows from the manifest
+# alone and parses no line until a reader opens a file, which is where the renderer comes
+# in. One diff and nothing else that draws lines, so what the page asks for at load is
+# the manifest's answer and no other widget's.
+MANIFEST_DIFF_PAGE = leaf_page(
+    "manifest",
+    "<h1 id='t'>Review</h1>"
+    + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
+)
+
 # Which of a diff's source lines are cut off by the box they sit in. A row is one line of
 # the patch however many line boxes it takes, so scrollWidth past clientWidth is text the
 # reader cannot see without scrolling the file's own box sideways — and on paper, text

@@ -17,8 +17,8 @@ from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_support import (
-    EXAMPLES,
     LONG_PAGE,
+    PAGE_FIXTURES,
     REPORT_PAGE,
     leaf_page,
     primed,
@@ -317,13 +317,14 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path):
-    """Every shipped example copied to a file and opened from disk, which is the whole
-    contract: no server answers, so anything still reaching for one is a hole, and the
-    console is where a hole says so. Driven over the corpus rather than one page because
-    what a copy loses is per-widget — the corpus alone would pass while the widget only
-    it lacks was the broken one.
+@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
+def test_an_exported_page_fixture_stands_on_its_own(
+    page_fixture, browser, serve, tmp_path
+):
+    """Every shipped example and the developer gallery is copied to a file and opened
+    from disk. No server answers, so anything still reaching for one is a hole, and the
+    console is where a hole says so. Every page fixture runs because what a copy loses
+    is per-widget — the corpus alone would pass while a widget it lacks was broken.
 
     A copy over-promising is the other half of that, and it went unread for as long as
     there was nothing here asking. Tab into an exported decision page landed on a pick
@@ -334,7 +335,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     holding a tab stop or a role, a control standing there with nothing left behind it,
     and a hand or a grab under the pointer — and every question is put to the markers
     rather than to any widget."""
-    url = serve(example)
+    url = serve(page_fixture)
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -350,16 +351,17 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
-        // A page gives up a CSS shell claim for what it hangs in the margin, and
-        // a copy keeps only the strips whose residents came with it: a suggestion's
-        // controls are gone from a file that can decide nothing, and its rail with them,
-        // while sidenotes are the page's own words and stand in a copy exactly as they
-        // stand on screen. So the reading is not that the column is centred — a page
-        // carrying notes is deliberately not — but that no strip is held open for
-        // nothing. Resolve the shell's custom-property lengths through a probe, then
-        // ask whether anything is actually standing in each claimed band.
-        empty: ((b, main) => {
-            const box = b.getBoundingClientRect();
+        // A page gives up a CSS shell claim for what it hangs in the margin, and a
+        // copy keeps only the claims whose residents came with it: a suggestion's
+        // controls are gone from a file that can decide nothing, and its rail with
+        // them, while sidenotes are the page's own words and stand in a copy exactly
+        // as they stand on screen. So the reading is not that the column is centred —
+        // a page carrying notes is deliberately not — but that no strip is held open
+        // for nothing. The strip is a reservation, not the resident's box: a narrow
+        // rail sits just outside the shifted column rather than in the outermost
+        // reserved pixels. Resolve its length, then ask whether one of the layer's
+        // right-margin residents actually survived the bake.
+        empty: ((main) => {
             const length = (name) => {
                 const probe = document.createElement('i');
                 probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
@@ -369,15 +371,18 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
                 return width;
             };
             const left = length('--strip-l'), right = length('--strip-r');
-            const held = (lo, hi) => hi - lo > 1 && ![...document.querySelectorAll('main *')]
+            const column = main.getBoundingClientRect();
+            const rightResident = [...main.querySelectorAll(
+                '.lf-margin-item, aside.sidenote')]
                 .some(el => { const r = el.getBoundingClientRect();
                               return el.checkVisibility() && r.width > 1
-                                     && r.left < hi - 1 && r.right > lo + 1; });
+                                     && r.height > 1 && r.left >= column.right - 1; });
             return [
-                held(box.left, box.left + left) && 'left',
-                held(box.right - right, box.right) && 'right',
+                // A copy's sidebar returns to flow, so no left-margin form survives.
+                left > 1 && 'left',
+                right > 1 && !rightResident && 'right',
             ].filter(Boolean);
-        })(document.body, document.querySelector('main')),
+        })(document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
@@ -475,7 +480,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     )
     assert covered == [], f"the copy draws its own words over each other: {covered}"
     assert axe_violations == [], axe_report
-    assert errors == [], f"{example.stem} needs a server to render: {errors}"
+    assert errors == [], f"{page_fixture.stem} needs a server to render: {errors}"
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
@@ -585,7 +590,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     is a session that does not exist behind a file, which is the same lie the chrome is
     dropped for. Nothing else on the tab is worth losing over it: the mark still says
     which product wrote the file, and it is inlined, so it survives the copy leaving the
-    machine that served it (test_an_exported_example_stands_on_its_own is what says no
+    machine that served it (test_an_exported_page_fixture_stands_on_its_own is what says no
     link here still points at a server)."""
     url = serve(LONG_PAGE)
     out = tmp_path / "standalone.html"

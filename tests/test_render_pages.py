@@ -142,8 +142,8 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
 
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
-    seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
-    assert seeded, "no example ships a log; this gate is reading nothing"
+    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
     decided = []
     read_as = {}  # widget id -> how it reads with the log's decision standing

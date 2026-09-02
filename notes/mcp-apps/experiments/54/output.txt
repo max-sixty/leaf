@@ -1,0 +1,107 @@
+
+added 97 packages in 5s
+Cloning into '/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720'...
+HEAD is now at 10195ad9 docs: add Alpic Playground to supported clients (#729)
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+
+> @modelcontextprotocol/ext-apps@1.7.5 prepare
+> npm run build && husky
+
+
+> @modelcontextprotocol/ext-apps@1.7.5 build
+> npm run generate:schemas && npm run sync:snippets && node scripts/run-bun.mjs build.bun.ts && node scripts/link-self.mjs
+
+
+> @modelcontextprotocol/ext-apps@1.7.5 generate:schemas
+> tsx scripts/generate-schemas.ts && prettier --write "src/generated/**/*"
+
+🔧 Generating Zod schemas from spec.types.ts...
+
+✅ Written: /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/src/generated/schema.ts
+✅ Written: /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/src/generated/schema.test.ts
+✅ Written: /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/src/generated/schema.json
+
+🎉 Schema generation complete!
+(node:39548) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+src/generated/schema.json 82ms
+src/generated/schema.test.ts 58ms
+src/generated/schema.ts 47ms
+
+> @modelcontextprotocol/ext-apps@1.7.5 sync:snippets
+> bun scripts/sync-snippets.ts
+
+🔧 Syncing code snippets from example files...
+
+✅ No files needed modification
+
+🎉 Snippet sync complete!
+
+added 574 packages in 12s
+npm warn install-scripts 5 packages have install scripts not yet covered by allowScripts:
+npm warn install-scripts   bun@1.3.10 (postinstall: node install.js)
+npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+npm warn install-scripts   fsevents@2.3.3 (install: (install scripts present))
+npm warn install-scripts   fsevents@2.3.2 (install: (install scripts present))
+npm warn install-scripts   esbuild@0.27.2 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+
+> @modelcontextprotocol/ext-apps-basic-host@1.7.5 build
+> tsc --noEmit && concurrently "cross-env INPUT=index.html vite build" "cross-env INPUT=sandbox.html vite build"
+
+[1] vite v6.4.3 building for production...
+[0] vite v6.4.3 building for production...
+[1] transforming...
+[0] transforming...
+[1] ✓ 145 modules transformed.
+[1] rendering chunks...
+[1] [plugin vite:singlefile] 
+[1] 
+[1] [plugin vite:singlefile] Inlining: sandbox-1dMPAJea.js
+[1] computing gzip size...
+[1] dist/sandbox.html  102.35 kB │ gzip: 28.10 kB
+[1] ✓ built in 573ms
+[1] cross-env INPUT=sandbox.html vite build exited with code 0
+[0] ✓ 329 modules transformed.
+[0] rendering chunks...
+[0] [plugin vite:singlefile] 
+[0] 
+[0] [plugin vite:singlefile] Inlining: index-B0F7flEi.js
+[0] [plugin vite:singlefile] Inlining: style-ChS5Yjuf.css
+[0] computing gzip size...
+[0] dist/index.html  532.50 kB │ gzip: 157.64 kB
+[0] ✓ built in 1.42s
+[0] cross-env INPUT=index.html vite build exited with code 0
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-54.0w5s7U/page
+{"kind": "note", "author": "claude", "agent": "Codex", "session": "01a054d1-f145-7bd3-979a-69e45dd5980d", "version": 1, "revision": 1, "text": "Direct MCP resource probe", "id": "b9b971c8a69978bc8f85979bfe6ef32b", "ts": "2026-09-01T18:37:58-07:00"}
+▲ [WARNING] Duplicate key "elementOver" in object literal [duplicate-object-key]
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-54.0w5s7U/page/runtime/passages.js:837:4:
+      837 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+  The original key "elementOver" is here:
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-54.0w5s7U/page/runtime/passages.js:828:4:
+      828 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+{"bundleBytes":3855441,"widgets":15}
+true
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('iframe').contentFrame().locator('iframe').contentFrame().locator('body[data-lf-presented="1"]') to be visible[22m
+
+    at /Users/maximilian/.codex/worktrees/a5c8/leaf/scripts/mcp-app/observe-direct.mjs:65:52 {
+  log: [
+    `  - waiting for locator('iframe').contentFrame().locator('iframe').contentFrame().locator('body[data-lf-presented="1"]') to be visible`
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v26.8.1

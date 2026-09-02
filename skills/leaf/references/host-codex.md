@@ -2,39 +2,40 @@
 
 Read this immediately before handing a page to Codex.
 
-## Embedded MCP App
+## Full Leaf handoff
 
-Prefer the bundled model tool whose exposed name ends in `leaf_present`. Call it
-with the initialized page's absolute directory. Continue only when its result
-visibly attaches an app; a text result alone means this Codex build did not render
-the surface.
+Use the canonical browser page by default. Run `leaf server start <page>` and
+retain its exact keyed URL. When Codex exposes `open_in_codex`, open that URL as a
+browser target beside this task; otherwise hand over the URL for a local browser.
+This runs Leaf's theme, package widgets, anchored comments, versions, and state
+stream unchanged.
 
-The attached app frames the complete canonical Leaf page: the same projected
-document, package modules, comments, actions, versions, state stream, and event
-endpoint as the browser handoff. The MCP process supplies one ephemeral localhost
-origin, while each page receives a random capability path under it. That server is
-presentation plumbing only. It creates no `service.json`, owns no current state,
-and stops with the MCP session; the page directory and append-only log remain the
-authorities.
+Set the page to `waiting` and run `leaf codex start <page>` before finishing the
+turn with the URL and a concrete gesture. The browser pane is the presentation;
+the detached adapter below carries input back to this same task.
 
-If the app shell appears but its page cannot load, use the model tool ending in
-`leaf_present_snapshot` for a comments-only authored view, or follow the browser
-fallback below when the user needs package controls. Do not call the app-only
-refresh or write tools from the model.
+## Experimental inline MCP App
 
-The app does not claim that a host's `ui/message` response delivered anything to
-Codex. Before finishing the handoff, set the page to `waiting` and run `leaf codex
-start <page>`. The detached adapter is the sole wake and acknowledgement carrier:
-it queues the persisted batch into a later turn of this task and advances the
-cursor only after Codex accepts that durable queue item. Then finish the turn by
-saying the Leaf page is attached; an embedded page has no durable URL to invent.
+Use the bundled model tool whose exposed name ends in `leaf_present` when the
+user requests an inline MCP App or a host-capability experiment. Pass the
+initialized page's absolute directory. The app attempts to frame the canonical
+page from a process-scoped localhost origin; hosts that disallow that frame get a
+comments-only snapshot. That snapshot has no package actions or version travel;
+open the full browser page whenever the observed mode lacks what the user needs.
 
-## Full browser fallback
+Judge the rendered mode from the visible app or host diagnostics. Model-visible
+text and a successful tool call do not establish which UI the host displayed.
+If visual evidence is unavailable, say the rendering is unverified. Use
+`leaf_present_snapshot` only when deliberately requesting the comments-only view;
+the app already handles automatic fallback. Do not call app-only tools from the
+model.
 
-Use this path when `leaf_present` returns only text, when the host refuses the
-nested local page, or when the user asks to open Leaf separately. Run `leaf server
-start <page>` and retain its exact URL. After setting the page `waiting`, run `leaf
-codex start <page>`, then finish the turn normally with that URL.
+Set the page to `waiting` and start the same Codex adapter before handing over an
+inline app. Name the review and report its observed mode or unverified rendering;
+its ephemeral iframe URL is not a durable browser handoff. A successful
+`ui/message` response is not a delivery receipt.
+
+## Same-task delivery
 
 One detached adapter watches every page this task owns. It gives each complete
 batch a stable delivery id, queues it as a new user turn in this same task, and

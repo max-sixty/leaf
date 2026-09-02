@@ -1,0 +1,18 @@
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-53.JTR8NM/page
+{"kind": "note", "author": "claude", "agent": "Codex", "session": "01a054d1-f145-7bd3-979a-69e45dd5980d", "version": 1, "revision": 1, "text": "Direct MCP resource probe", "id": "81fee9db2be3830b2371182f6df49d8c", "ts": "2026-09-01T18:11:50-07:00"}
+▲ [WARNING] Duplicate key "elementOver" in object literal [duplicate-object-key]
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-53.JTR8NM/page/runtime/passages.js:837:4:
+      837 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+  The original key "elementOver" is here:
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-53.JTR8NM/page/runtime/passages.js:828:4:
+      828 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+{"bundleBytes":3855441,"widgets":15}
+true
+Probe passed. Preview remains live at http://localhost:8080/?tool=leaf_direct_present
+notes/mcp-apps/experiments/53/commands.sh: line 4: 61764 Terminated: 15          /bin/bash scripts/mcp-app/run-direct-probe.sh 53

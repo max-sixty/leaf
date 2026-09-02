@@ -1,0 +1,34 @@
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-46.f5Ps4O/page
+{"kind": "note", "author": "claude", "agent": "Codex", "session": "01a054d1-f145-7bd3-979a-69e45dd5980d", "version": 1, "revision": 1, "text": "Direct MCP resource probe", "id": "28c06a88bf1e2a853bd0998a89393806", "ts": "2026-09-01T18:00:53-07:00"}
+▲ [WARNING] Duplicate key "elementOver" in object literal [duplicate-object-key]
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-46.f5Ps4O/page/runtime/passages.js:837:4:
+      837 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+  The original key "elementOver" is here:
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-46.f5Ps4O/page/runtime/passages.js:828:4:
+      828 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+{"bundleBytes":3849186,"widgets":15}
+true
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('iframe').contentFrame().locator('iframe').contentFrame().getByText('Comment delivered directly through MCP tools: 90088f8c-21e6-45ce-8b67-22d13e268131', { exact: true }).first() to be visible[22m
+[2m    59 × locator resolved to hidden <p>Comment delivered directly through MCP tools: 900…</p>[22m
+
+    at /Users/maximilian/.codex/worktrees/a5c8/leaf/scripts/mcp-app/observe-direct.mjs:58:61 {
+  log: [
+    "  - waiting for locator('iframe').contentFrame().locator('iframe').contentFrame().getByText('Comment delivered directly through MCP tools: 90088f8c-21e6-45ce-8b67-22d13e268131', { exact: true }).first() to be visible",
+    '    59 × locator resolved to hidden <p>Comment delivered directly through MCP tools: 900…</p>'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v26.8.1

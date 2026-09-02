@@ -16,8 +16,8 @@ $ARGUMENTS
 
 After first handing over a browser page's URL, repeat that exact URL every time
 you return to the user in chat, including interim updates, questions, and the
-final handoff. An embedded MCP App has no URL to invent; name the attached Leaf
-review instead. If you later open its browser fallback, the URL rule begins then.
+final handoff. An inline MCP App has no durable URL to invent; refer to the review
+and its observed mode instead. If you open its browser page, the URL rule begins then.
 
 ## Start here
 
@@ -58,12 +58,13 @@ incomplete. A checkout keeps it at `bin/leaf`.
 4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` or `references/host-codex.md`. Set the page's
    handoff status as the conversation reference defines.
-5. Use the presentation and delivery path defined by that host contract. The
-   Codex contract prefers the bundled MCP App when the host actually renders it;
-   Claude Code and the Codex fallback start the browser service and retain its
-   exact keyed URL.
+5. Use the presentation and delivery path defined by that host contract. Both
+   hosts use the full browser page by default; Codex can open it beside the task
+   in its browser pane. Retain the exact keyed URL. Inline MCP Apps are an
+   explicit experimental route with a reduced fallback.
 6. Name the available gesture and finish the turn. Send the exact URL for a
-   browser handoff; for an MCP App, say the Leaf review is attached to the task.
+   browser handoff; for an MCP App, name the review and report the observed mode
+   or that rendering remains unverified.
 
 When input arrives, read `references/event-batches.md` before processing it and
 `references/conversation-threads.md` when a thread needs work. Read

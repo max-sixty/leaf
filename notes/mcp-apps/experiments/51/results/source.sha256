@@ -1,0 +1,5 @@
+17c670ea631b7aab1cfdaf25fb9624ae74369564e30dd769b50ba11aa24dd487  scripts/mcp-app/direct-build.mjs
+9da6808e0fd002666fb632e8a39f662c7fc817cf70172d43ced8e0a1f7e2fb50  scripts/mcp-app/direct-entry.js
+5b2d967075ae58d0c95790237d5072d891a65fe42ea0f04b9bfc3eecdc1dfec7  scripts/mcp-app/direct.py
+369420108041b6a92ab292d8d22367f4459f93a7560beb3299540cb4fdd2b94d  scripts/mcp-app/direct-server.mjs
+5a92fc40c93df6094a6213af116a27dbcce2549b46aa8c6f25052f9ae15386e2  scripts/mcp-app/observe-direct.mjs

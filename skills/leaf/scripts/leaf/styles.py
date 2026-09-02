@@ -1,7 +1,7 @@
 """CSS and readable-column readings of authored HTML.
 
-Cache immutable CSS readings by their exact text: source activation runs for every
-browser event, while the composed theme usually stays unchanged.
+Bounded readings of exact CSS text keep state requests from reparsing unchanged
+stylesheets. Their results are read-only; edits select a new cache entry.
 """
 
 from functools import lru_cache
@@ -27,7 +27,7 @@ from .structure import OVERFLOW_PROPS, _StructParser
 # declarations and a nested rule as declaring nothing of its own; and still told a fixed
 # `900px` from a `calc(100% - 900px)` by asking whether the string ended in `px`, which
 # `900px !important` does not. CSS has no parser in the stdlib, so the dependency is a
-# real cost — one more wheel behind every `version check` — and
+# real cost — one more wheel behind every `version check`, ~6ms to read the theme — and
 # it buys the grammar whole rather than one bug's worth at a time.
 
 
@@ -37,14 +37,15 @@ def css_block(css):
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
 
 
-def css_rules(css: str):
+@lru_cache(maxsize=32)
+def css_rules(css: str) -> tuple:
     """(selector, block, conditional) per qualified rule, at every depth — a rule that
     holds both declarations and a nested rule states one of its own. `conditional` is
     true for a rule inside an at-rule, which applies only when a condition this check
     never evaluates holds: `@media print`, a viewport query. Nesting alone is not a
     condition, so a rule nested in a conditional one is conditional and no more."""
-    yield from _rules(
-        tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True)
+    return tuple(
+        _rules(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True))
     )
 
 
@@ -79,13 +80,9 @@ def _css_unclosed_blocks(css: str) -> int:
     return depth
 
 
-def css_syntax_errors(css: str, source: str, *, block=False) -> list:
-    """Every parse error in a stylesheet or declaration block, including nested rules."""
-    return [f"{source}{error}" for error in _css_syntax_errors(css, block=block)]
-
-
 @lru_cache(maxsize=32)
-def _css_syntax_errors(css: str, *, block=False) -> tuple[str, ...]:
+def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
+    """Every parse error in a stylesheet or declaration block, including nested rules."""
     parse = (
         css_block
         if block
@@ -97,7 +94,7 @@ def _css_syntax_errors(css: str, *, block=False) -> tuple[str, ...]:
     seen = set()
     if not block and (depth := _css_unclosed_blocks(css)):
         errors.append(
-            f": {depth} block(s) left open at end of file — every rule "
+            f"{source}: {depth} block(s) left open at end of file — every rule "
             "after the unclosed brace, this stylesheet's or a later layer's, "
             "lands inside its scope"
         )
@@ -108,7 +105,8 @@ def _css_syntax_errors(css: str, *, block=False) -> tuple[str, ...]:
             return
         seen.add(key)
         errors.append(
-            f" syntax error at {node.source_line}:{node.source_column}: {node.message}"
+            f"{source} syntax error at "
+            f"{node.source_line}:{node.source_column}: {node.message}"
         )
 
     def walk_tokens(tokens):
@@ -180,11 +178,6 @@ def root_tokens(css: str) -> dict:
     One level. A token defined as another token is a stylesheet answering a different
     question than these readings ask, and following it would be a resolver rather than
     the two facts this needs."""
-    return dict(_root_tokens(css))
-
-
-@lru_cache(maxsize=32)
-def _root_tokens(css: str) -> tuple[tuple[str, float], ...]:
     tokens = {}
     for selector, block, conditional in css_rules(css):
         if conditional or selector.strip() != ":root":
@@ -194,7 +187,7 @@ def _root_tokens(css: str) -> tuple[tuple[str, float], ...]:
                 px = _lone_px(declaration.value)
                 if px is not None:
                     tokens[declaration.name] = px
-    return tuple(tokens.items())
+    return tokens
 
 
 def _px(declaration, tokens: dict | None = None):
@@ -263,7 +256,6 @@ def _declares_column(block) -> bool:
     )
 
 
-@lru_cache(maxsize=32)
 def _column_width(page_css: str, theme_css: str) -> int:
     """The readable-column width, from the max-width of the rule claiming the column.
     A page's own <style> wins over the vendored theme, which wins over the fallback.

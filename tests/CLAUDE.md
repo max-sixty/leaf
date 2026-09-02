@@ -568,6 +568,12 @@ interception on an already-running Chromium page can let that POST reach the ser
 without a route callback or Playwright request event. Early interception keeps the
 test's premise intact without retrying the reader's gesture.
 
+That escape is the browser arming interception rather than the pattern reaching it,
+so `open_page` arms each page it makes on a pattern nothing ever asks for: a route a
+test registers later, even a keystroke before the gesture it holds, only adds to a
+list the browser is already consulting. A page made another way is unarmed, and a
+request already in flight is past holding either way — both remain `primed`'s.
+
 A handler that appends a route to `held` has established only that the browser made
 the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a
 request event, or another fact named by the handler. Some resources are requested

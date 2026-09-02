@@ -609,6 +609,62 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
     page.close()
 
 
+def test_a_map_reopened_before_its_close_lands_still_presses_its_button(browser, serve):
+    """A dialog hands `close` to a task of its own, so a reopen can arrive first.
+
+    A reader who leaves the overflow route and returns to it in the same breath is
+    standing in the second opening before the first one's close is delivered. That
+    opening owns the return route and the target the sheet is read as, so the late
+    close takes neither with it: a press inside the reopened sheet still reaches the
+    Button the overflow named rather than standing the reaction down.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 390, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(".lf-sug-accept").focus()
+    page.keyboard.press("r")
+    spill = item.locator(".lf-margin-spill")
+    expect(spill).to_be_visible()
+    spill.click()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+
+    # The ordering Esc-then-press reaches by luck, stated: close and reopen in one task,
+    # then hold until the first close has been delivered to the second opening. The
+    # listener is added after the runtime's, so the page has answered it by then.
+    page.evaluate(
+        """() => {
+          const sheet = document.querySelector("dialog.lf-page-map-sheet");
+          const landed = new Promise((resolve) =>
+            sheet.addEventListener("close", () => resolve(true), { once: true }),
+          );
+          sheet.close();
+          document
+            .querySelector('[data-lf-margin-for="sug-refill"] .lf-margin-spill')
+            .click();
+          return landed;
+        }"""
+    )
+    expect(sheet).to_be_visible()
+    expect(item.locator(".lf-margin-reactions")).to_be_visible()
+
+    button = sheet.locator("[data-lf-map-button]").nth(1)
+    token = button.get_attribute("aria-label").split(" — ")[0]
+    sends = _traffic(page).sends
+    button.click()
+    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["token"], sent["anchor"]) == (
+        "comment",
+        token,
+        {"section": "sug-refill"},
+    )
+    expect(item.locator(".lf-margin-reactions")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize(
     ("target", "action"), [("sug-insert", "reject"), ("sug-delete", "accept")]
 )

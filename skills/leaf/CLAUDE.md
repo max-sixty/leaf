@@ -1413,6 +1413,16 @@ the page map sheet — keep `showModal()` and the backdrop that comes with it. O
 `<dialog>` runs the browser's focusing steps at either spelling, so a caller that means
 to leave the reader where they were has to put the focus back.
 
+Closing is not the mirror of that. The platform hides the dialog and restores focus at
+once but hands `close` to a task of its own, so a reader who leaves a surface and
+returns to it in the same breath — Esc off an overflow route and straight back onto the
+control that named it — is standing in the next opening before the first one's close
+arrives. A handler that tears down the opening's state therefore reads whether the
+dialog is open again and gives that reopening its state back rather than taking it: a
+`close` overtaken by a reopen has nothing left to close. The state a late close would
+have cleared is what the surface is read by, and losing it is silent — the sheet still
+stands, still says its name, and the next press inside it means something else.
+
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every

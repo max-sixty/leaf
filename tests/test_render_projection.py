@@ -1218,7 +1218,19 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     why `body.focus()` ever moved anything here — on a page that fits the window, the
     call did nothing and the reader stayed on the control the line had just promised to
     take them off."""
-    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    url = serve(DECISIONS_PAGE)
+    # A third action puts the suggestion's cluster beyond its two resting controls.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Check this wording before accepting it.",
+            "anchor": {"section": "sug-refill"},
+        },
+    )
+    page, errors = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision[data-lf-decision]")).to_have_count(1)
     expect(page.locator(".lf-keyline")).to_contain_text("let go")
@@ -2645,6 +2657,31 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     assert signatures["decided"] != signatures["undecided"], (
         "widget-owned data-lf-state disappeared with the runtime's private attributes"
     )
+    positions = page.evaluate("""async () => {
+        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const root = document.createElement("div");
+        root.id = "signature-root";
+        root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
+            '<i></i><div id="second"></div>';
+        const before = Object.fromEntries(shallowSigs(root));
+        root.prepend(root.lastElementChild);
+        const moved = Object.fromEntries(shallowSigs(root));
+        return { before, moved };
+    }""")
+    assert positions == {
+        "before": {
+            "signature-root": "DIV [id=signature-root] in=#-1",
+            "first": "DIV [id=first] in=signature-root#0",
+            "nested": "B [id=nested] in=first#0",
+            "second": "DIV [id=second] in=signature-root#1",
+        },
+        "moved": {
+            "signature-root": "DIV [id=signature-root] in=#-1",
+            "second": "DIV [id=second] in=signature-root#0",
+            "first": "DIV [id=first] in=signature-root#1",
+            "nested": "B [id=nested] in=first#0",
+        },
+    }
     assert errors == []
     page.close()
 
@@ -2692,6 +2729,19 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
             "el => getComputedStyle(el).outlineStyle"
         )
         == "solid"
+    )
+    second.evaluate("""() => {
+        window.__pendingWrites = [];
+        new MutationObserver(records => {
+            window.__pendingWrites.push(...records.map(record => record.target.id));
+        }).observe(document.getElementById('work'), {
+            subtree: true, attributes: true, attributeFilter: ['data-lf-pending'],
+        });
+    }""")
+    ticked(second)
+    assert second.evaluate("() => window.__pendingWrites") == [], (
+        "an unchanged heartbeat rewrote the pending marks and woke the board's "
+        "card-name observer"
     )
 
     # The honoring version authors the card where the user put it; replay
@@ -3533,7 +3583,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # same standing projection opens the decision again. The selection is another facet,
     # so it survives that rebuild.
     undo(page)
-    expect(decisions).to_have_text("Asks (1)")
+    expect(decisions).to_have_text("Asks (1/1)")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
@@ -4092,7 +4142,7 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator("#command-decision")).to_contain_text("Second instruction")
     expect(operations).not_to_contain_text("restart succeeded")
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/1)")
     expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -4170,7 +4220,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     )
     assert result.exit_code == 0, result.output
     told(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (6)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (6/6)")
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(operations).to_contain_text("restart failed")
 
@@ -4300,7 +4350,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     expect(operations).to_contain_text(
         "park failed · Branch is protected by another review"
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/5)")
     expect(operations.get_by_role("button")).to_have_count(3)
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'false')"

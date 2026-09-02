@@ -26,6 +26,9 @@ from pathlib import Path
 import pytest
 from example_data import example_versions
 from interact_support import SHIPPED_PACKAGES
+from leaf.event_log import _parse_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -510,19 +513,23 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
     with no error anywhere."""
     page, errors = open_page(browser, example_url(hosted, "ship-review"))
     try:
-        # Counted off the log rather than typed, so a seed that grows a thread does
-        # not red this on a number nobody meant to assert.
-        # The comments that opened a thread: a reaction is a comment carrying a token
-        # in place of words, and it opens none until somebody replies to it.
-        threads = sum(
-            json.loads(line)["kind"] == "comment" and "token" not in json.loads(line)
-            for line in (ROOT / "examples" / "ship-review.jsonl")
-            .read_text(encoding="utf-8")
-            .split("\n")
-            if line.strip()
-        )
-        expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({threads})")
+        source = EXAMPLES / "ship-review.html"
+        events = _parse_events(source.with_suffix(".jsonl").read_bytes())
+        conversations = [
+            thread
+            for thread in build_threads(
+                events, enclosing_ids(source.read_text(encoding="utf-8"))
+            ).values()
+            if not bare_reaction(thread)
+        ]
+        opened = sum(not thread["resolved"] for thread in conversations)
+        resolved = len(conversations) - opened
+        assert opened and resolved, "the shipped seed must cover both thread states"
+        expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({opened})")
         page.locator(".lf-threads-toggle").click()
+        expect(page.locator(".lf-panel .lf-details > summary")).to_have_text(
+            f"Resolved ({resolved})"
+        )
         # Named rather than taken first: the assertion follows the shipped objection,
         # independent of where a later seed might place another thread.
         thread = page.locator(".lf-panel .lf-thread").filter(

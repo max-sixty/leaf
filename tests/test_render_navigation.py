@@ -301,7 +301,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the decision, which wears its options' digits; the marks
     # are the next Tab stops.
-    expect(nums).to_have_text(["1", "2"])
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()

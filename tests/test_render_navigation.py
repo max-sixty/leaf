@@ -15,9 +15,11 @@ from render_support import (
     CROWDED_PAGE,
     DECISIONS_PAGE,
     DISCLOSED_PAGE,
+    EXAMPLES,
     FOOTED_PAGE,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
+    LONG_PAGE,
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
@@ -33,12 +35,14 @@ from render_support import (
     composer_quote,
     expect_address_steps,
     hold_selection,
+    in_threads_scrollport,
     key_line,
     leaf_page,
     live_url,
     mark_point,
     open_page,
     opened_tab,
+    page_at_rest,
     painted,
     panel_comment,
     panel_settled,
@@ -286,8 +290,8 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — where `d` lands — ↑/↓ walk the options clamping at the ends, a
-    digit picks outright, and each option wears its digit only while a mark holds
+    """From a mark — one Tab past where `a` lands — ↑/↓ walk the options clamping at the
+    ends, a digit picks outright, and each option wears its digit only while a mark holds
     keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     nums = page.locator("#live-question .lf-address")
@@ -295,6 +299,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
 
     page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
+    # The arrival stands on the decision; its marks are the next Tab stops.
+    expect(nums.first).to_be_hidden()
+    page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
@@ -357,6 +364,9 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["r-now", "r-later"], "centred"),
     ]:
         page.keyboard.press("a")
+        # The arrival stands on the decision; the digits are drawn once a mark holds the
+        # focus, one Tab in.
+        page.keyboard.press("Tab")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
@@ -586,19 +596,63 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     page.close()
 
 
-def test_pressing_a_page_mark_stands_in_the_thread_it_opens(browser, serve):
-    """A page mark is one view of a thread, so pressing it leaves the reader in the
-    card on the other surface rather than merely flashing that card and leaving focus
-    behind on the prose. The focus is the standing fact: it paints the card and its
-    passage through the same predicate, and gives the next key to the thread scope."""
-    page, errors = open_page(browser, serve(INLINE_PAGE, anchored=[("p", "bold text")]))
-    thread = page.locator(".lf-thread")
+@pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
+def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
+    browser, serve, long_thread
+):
+    """Opening a thread by pointer is ready for a reply. Escape explicitly leaves
+    typing; only then does t navigate. The page mark follows both focus modes."""
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    if long_thread:
+        root = next(
+            event["id"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "comment"
+        )
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": root,
+                "revision": 1,
+                "text": "\n\n".join(
+                    f"Consideration {i}: the response needs room for its explanation."
+                    for i in range(18)
+                ),
+            },
+        )
+    page, errors = open_page(browser, url)
+    threads = page.locator(".lf-threads > .lf-thread")
+    thread = threads.first
+    reply = thread.locator(":scope > .lf-compose textarea")
 
     page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)
 
-    expect(thread).to_be_focused()
+    expect(reply).to_be_focused()
+    in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     wait_standing(page, "bold text")
+    assert "back to thread" in key_line(page)
+    page.keyboard.press("t")
+    expect(reply).to_have_value("t")
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    assert "reply" in key_line(page)
+    page.keyboard.press("t")
+    expect(threads.nth(1)).to_be_focused()
+    wait_standing(page, "neighbouring block")
+    page.keyboard.press("Enter")
+    expect(threads.nth(1).locator(":scope > .lf-compose textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+    in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     assert errors == []
     page.close()
 
@@ -1063,11 +1117,83 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.close()
 
 
+def test_addresses_fit_the_visible_screen_before_collisions_are_removed(browser, serve):
+    """Whole key sequences fit at viewport edges, including below the banner.
+
+    The two left-edge links on the same line start far enough apart for their original
+    chips to fit. Bringing the first chip on screen makes them collide.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "addresses at the edges",
+                """
+<h1 id="top">Addresses at the edges</h1>
+<nav id="edges" aria-label="Edge links">
+  <a id="left" href="#top">Left</a>
+  <a id="right" href="#top">Right</a>
+  <a id="bottom" href="#top">Bottom</a>
+  <a id="below-banner" href="#top">Below the banner</a>
+  <a id="under-banner" href="#top">Under the banner</a>
+  <a id="crowded-left" href="#top">Crowded left</a>
+  <a id="crowded-neighbor" href="#top">Crowded neighbor</a>
+</nav>
+""",
+                head="""<style>
+  #edges a { position: fixed; display: block; width: 1px; height: 20px;
+    overflow: hidden; white-space: nowrap; }
+  #left { left: 1px; top: 200px; }
+  #right { left: calc(100vw - 1px); top: 280px; }
+  #bottom { left: 70vw; top: calc(100vh - 1px); }
+  #below-banner { left: 45vw; top: calc(var(--lf-banner-h) + 1px); }
+  #under-banner { left: 60vw; top: calc(var(--lf-banner-h) - 8px); }
+  #crowded-left { left: 1px; top: 400px; }
+  #crowded-neighbor { left: 80px; top: 400px; }
+</style>""",
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    expect(page.locator(CHIPS).first).to_have_text("gh1")
+    reading = page.evaluate(
+        """() => ({
+          width: document.documentElement.clientWidth,
+          height: document.documentElement.clientHeight,
+          banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+          chips: [...document.querySelectorAll('.lf-chord-address')].map(chip => ({
+            route: chip.textContent,
+            ...chip.getBoundingClientRect().toJSON(),
+          })),
+        })"""
+    )
+    assert len(reading["chips"]) >= 6, reading
+    for chip in reading["chips"]:
+        assert 0 <= chip["left"] < chip["right"] <= reading["width"], reading
+        assert reading["banner"] <= chip["top"] < chip["bottom"] <= reading["height"], (
+            reading
+        )
+    assert [chip["route"] for chip in reading["chips"]] == [
+        "gh1",
+        "gh2",
+        "gh3",
+        "gh4",
+        "gh5",
+        "gh6",
+    ], reading
+    page.keyboard.press("6")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator("#top")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_no_address_is_drawn_on_top_of_another(browser, serve):
     """An address the reader can read is one no other address is sitting on.
 
-    Chips are centred on the corner their member starts at. Several links can start within
-    one digit's width, as they do in a footnote run.
+    Chips sit above the corner their member starts at. Several links can start within
+    one chip's width, as they do in a footnote run.
 
     Stacked, they do not read as two. The lower one shows an edge and the upper one's digit
     is the number the reader takes for the link underneath — so the promise is wrong rather
@@ -1147,7 +1273,7 @@ def test_an_address_is_never_drawn_on_the_key_line(browser, serve):
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
 
-    # Swept rather than asked once. The line's height is reserved at the document's foot,
+    # Swept rather than asked once. The line's whole band is reserved at the document's foot,
     # so the end of the page is exactly where this cannot happen; what puts a member in the
     # corner is an ordinary scroll position with a link resting on the bottom edge. Each
     # step waits for the runtime's own paint frame, since the chips follow a scroll on a
@@ -1467,8 +1593,9 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     assert page.locator(".lf-margin-thread").count() >= 1
-    expect(page.locator(".lf-margin-marker").first).to_be_focused()
+    expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -1489,7 +1616,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
                        const c = chip.getBoundingClientRect();
                        const first = links[i].getClientRects()[0];
                        return Math.abs(c.left + c.width / 2 - first.left) < 2
-                           && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                           && Math.abs(c.bottom - first.top) < 2;
                      })};
            }"""
     ) == {
@@ -1567,7 +1694,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
                         .getBoundingClientRect();
              const first = document.getElementById('dsc-head').getClientRects()[0];
              return Math.abs(c.left + c.width / 2 - first.left) < 2
-                 && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                 && Math.abs(c.bottom - first.top) < 2;
            }"""
     ), "the chip is not on the corner the summary starts at"
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
@@ -1668,6 +1795,8 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-decisions-row")).to_be_focused()
     page.keyboard.press("Enter")
+    expect(page.locator("#only-decision")).to_be_focused()
+    page.keyboard.press("Tab")
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
@@ -1682,6 +1811,116 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     assert (
         page.locator(".lf-decisions-panel").get_attribute("aria-keyshortcuts") is None
     )
+    assert errors == []
+    page.close()
+
+
+# What the key line is saying, chip by chip. The word is the chip's own trailing span —
+# `keySequence` builds the keycaps into a classed element and the word is the unclassed
+# one beside it — and the commands are what the row projects, so a duplicate can be
+# reported as the pair of rows that made it rather than as a word said twice.
+KEY_LINE_HINTS = """() => [...document.querySelectorAll('.lf-keyline .lf-key')]
+  .filter(chip => !chip.hidden)
+  .map(chip => ({
+    commands: chip.dataset.lfCommands,
+    word: [...chip.children].filter(c => !c.className).map(c => c.textContent).join(''),
+  }))"""
+
+
+def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
+    """The line is a row of words with keycaps over them, and the word is what is read.
+
+    Two rows sharing one leaves the keycaps to carry the whole difference, which is the
+    line failing at the one thing it is for. Two pairs did. The versions menu binds Tab
+    and Shift-Tab to leaving it forward and backward, and on a one-version menu both are
+    at their boundary and live together — both saying "leave versions". And the page's `c`
+    says where the press goes; standing nowhere nameable that is the room the comments are
+    in, which said "threads" beside the t/T walk's own "threads".
+
+    Both scenes are read, and each is asserted to hold the rows at issue first: a line
+    that had stopped showing them would report a clean result about a page the reader
+    never sees. The words are the register's, which is where the fix goes — the line
+    prints what the rows say, and inventing a difference here would be this projection
+    disagreeing with the reference and the announcements.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+
+    # The shelf, because the ordinary shortlist shows the first live row and little else:
+    # what this is about is two words a reader can see at one time, and the shelf is where
+    # the page's own scene is all of it.
+    page.keyboard.press("?")
+    page.evaluate(RENDERED)
+    standing = page.evaluate(KEY_LINE_HINTS)
+    assert {"comment.create", "thread.next thread.previous"} <= {
+        hint["commands"] for hint in standing
+    }, f"the line no longer offers both the comments and the thread walk: {standing}"
+
+    # The menu claims every key but the reference, so its own two rows are the whole
+    # scene and the shelf has nothing to add to it.
+    page.keyboard.press("Escape")
+    page.keyboard.press("v")
+    page.evaluate(RENDERED)
+    versions = page.evaluate(KEY_LINE_HINTS)
+    assert {"version.leave-forward", "version.leave-backward"} <= {
+        hint["commands"] for hint in versions
+    }, f"the versions menu no longer offers both ways out at once: {versions}"
+
+    for scene, hints in (("the page", standing), ("the versions menu", versions)):
+        said = {}
+        for hint in hints:
+            said.setdefault(hint["word"], []).append(hint["commands"])
+        twice = {word: rows for word, rows in said.items() if len(rows) > 1}
+        assert not twice, (
+            f"on {scene} the key line says one word for two capabilities, so the "
+            f"keycaps are the whole difference: {twice}"
+        )
+    assert errors == []
+    page.close()
+
+
+def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
+    """A tray that has rendered nothing and a tray that has failed to render look alike.
+
+    The thread panel has said which of the two it is for as long as it has had an empty
+    state — "No threads yet", and then the gesture that would fill it. Asks answered the
+    same question with a blank panel, on the page a reader is most likely to open it from:
+    the one where they have just finished. The second half of the sentence names the agent
+    rather than a gesture, because a reader makes their own threads and does not make
+    their own asks.
+
+    Both states are read, because a note that stands whatever the tray holds is the same
+    fault wearing the other sign — and the tray is opened on a page that has an ask, so a
+    note that never renders at all could not pass either.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "One decision",
+                '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+                '<lf-options id="only" choose>'
+                '<lf-option id="first">First</lf-option>'
+                '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    note = page.locator(".lf-decisions-panel .lf-empty")
+    expect(note).to_have_count(0)
+
+    # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
+    # rather than the digit straight off the arrival, because where an arrival lands is
+    # not this test's subject and it should not go red when that moves.
+    page.keyboard.press("Enter")
+    page.keyboard.press("Tab")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(note).to_be_visible()
+    expect(note).to_contain_text("Nothing is waiting on you")
     assert errors == []
     page.close()
 
@@ -3078,19 +3317,29 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     reading-page pair is the case that named this: a runtime key must be visible wherever
     the keyboard vocabulary is projected.
 
+    Where it is projected is the shelf and the reference, not the resting line, which
+    holds two chips and spends neither on scrolling. So the line is asked for the row it
+    holds rather than the row it paints, and the reference below is read for the words —
+    a key named on no surface at all is what this refuses.
+
     It is refused now, where a scope is declared, so the next binding written without a
     word fails on the page that introduces it rather than going quiet on every page after
     it. A row that presses nothing needs none — F7 is the browser's caret browsing, real
     and worth knowing and not what the next press does."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     line = page.locator(".lf-keyline")
-    movement = line.locator('.lf-key:not([hidden])[data-lf-commands~="page.down"]')
+    movement = line.locator('.lf-key[data-lf-commands~="page.down"]')
     expect(movement).to_have_count(1)
     expect(movement).to_have_attribute("data-lf-commands", re.compile(r"\bpage\.up\b"))
     expect(movement.locator("kbd")).to_have_text("d / u")
     expect(movement).to_contain_text("page down / up")
+    # Declared and worded, and painted where the reader asks rather than on the resting
+    # glance. The reference below is the surface that names it, and this is the pair of
+    # counts that tells a row the line declined to paint from a row that says nothing.
+    expect(
+        line.locator('.lf-key:not([hidden])[data-lf-commands~="page.down"]')
+    ).to_have_count(0)
     resized(page, 420, 800)
-    expect(movement).to_have_count(1)
     compact = line.evaluate(
         """node => {
           const visible = [...node.children].filter(el => el.checkVisibility());
@@ -3112,30 +3361,26 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     assert compact["scrollWidth"] <= compact["clientWidth"], compact
     assert compact["scrollHeight"] <= compact["clientHeight"], compact
 
-    # Linux's wider system face wraps this line at the smallest supported window. Keep
-    # the real disclosure control with the contextual hints so a persistent fact, rather
-    # than a second compact target, takes the lower row beside page or panel controls.
+    # Linux's wider system face wraps this line at the smallest supported window, and the
+    # disclosure is the one control on it: whatever the face costs, More stays painted and
+    # the line stays inside its own box rather than clipping the way out of itself.
     resized(page, 320, 800)
-    disclosure_order = page.evaluate(
-        """() => {
-          const more = document.querySelector('.lf-key-more');
-          const movement = document.querySelector(
-            '.lf-key:not([hidden])[data-lf-commands~="page.down"]'
-          );
+    page.evaluate(RENDERED)
+    smallest = line.evaluate(
+        """node => {
+          const more = node.querySelector('.lf-key-more');
           return {
-            moreTop: more.offsetTop,
-            movementTop: movement.offsetTop,
-            before: Boolean(
-              more.compareDocumentPosition(movement)
-              & Node.DOCUMENT_POSITION_FOLLOWING
-            ),
+            moreShown: more.checkVisibility(),
+            clientWidth: node.clientWidth,
+            scrollWidth: node.scrollWidth,
+            clientHeight: node.clientHeight,
+            scrollHeight: node.scrollHeight,
           };
         }"""
     )
-    assert disclosure_order["before"], disclosure_order
-    assert disclosure_order["moreTop"] <= disclosure_order["movementTop"], (
-        disclosure_order
-    )
+    assert smallest["moreShown"], smallest
+    assert smallest["scrollWidth"] <= smallest["clientWidth"], smallest
+    assert smallest["scrollHeight"] <= smallest["clientHeight"], smallest
     resized(page, 1280, 800)
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -3282,8 +3527,12 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
         }"""
     )
 
+    # The row the line holds rather than the one it paints. Both are the same projection —
+    # renderLine builds every live row and then hides what it has no room for — and the
+    # resting line now spends both chips on the two presses that say something back, so
+    # asking for a painted chip would be asking about the width instead of the shadowing.
     line = page.locator(".lf-keyline")
-    up = line.locator('.lf-key:not([hidden])[data-lf-commands="page.up"]')
+    up = line.locator('.lf-key[data-lf-commands="page.up"]')
     expect(up).to_have_count(1)
     expect(up.locator("kbd")).to_have_text("u")
     expect(up).to_contain_text("page up")
@@ -3396,9 +3645,9 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     browser, serve
 ):
     """The short line is a glance, not the keyboard reference. It keeps the first
-    innermost live action and the way out when the current scene has one, plus the page
-    movement row the register marks persistent. One `? more` unfolds a bounded shelf of
-    current commands; `? all shortcuts` then opens the complete searchable register.
+    innermost live action and the way out when the current scene has one. One `? more`
+    unfolds a bounded shelf of current commands; `? all shortcuts` then opens the
+    complete searchable register.
 
     The panel's general box is the causal contrast for the cap. A full page row crosses
     into the panel and paints over the box; the bounded shortlist ends before it. The
@@ -3410,7 +3659,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
 
     line = page.locator(".lf-keyline")
     visible_hints = line.locator(".lf-key:not([hidden])")
-    assert visible_hints.count() == 3, page.evaluate(
+    assert visible_hints.count() == 2, page.evaluate(
         """() => { const line = document.querySelector('.lf-keyline'); return {
           client: line.clientWidth, scroll: line.scrollWidth,
           max: getComputedStyle(line).maxWidth,
@@ -3419,8 +3668,6 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
           }))
         }; }"""
     )
-    expect(visible_hints.nth(2).locator("kbd")).to_have_text("d / u")
-    expect(visible_hints.nth(2)).to_contain_text("page down / up")
     assert not page.evaluate(
         """() => {
           const a = document.querySelector('.lf-keyline').getBoundingClientRect();
@@ -3430,10 +3677,9 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         }"""
     ), "the key line covers the general comment box"
 
-    # Moving into the box changes the two contextual hints without introducing a second
-    # shortlist: the same scope order the dispatcher uses supplies them. The text-entry
-    # scope claims d and u, so the persistent row correctly disappears when its presses
-    # are no longer page movement.
+    # Moving into the box changes both contextual hints without introducing a second
+    # shortlist: the same scope order the dispatcher uses supplies them, so what the line
+    # says is what the innermost live scope answers and not a list kept beside it.
     #
     # Stand on the list directly: the banner button that opened the panel is chrome, and
     # its `c` meaning is deliberately outside this key-line projection test.
@@ -3522,7 +3768,261 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-expanded", "false"
     )
-    expect(visible_hints).to_have_count(3)
+    expect(visible_hints).to_have_count(2)
+    assert errors == []
+    page.close()
+
+
+def test_the_resting_key_line_names_the_presses_that_say_something_back(browser, serve):
+    """The sentence a reader reads before they have pressed anything.
+
+    It used to be `/ search page · s select item · ? more · d / u page down / up`: two
+    ways of finding something to act on, one way of scrolling a page that scrolls under
+    any wheel, and not one word about the remark the page exists to collect — `c` and `r`
+    were display: none until `?`. The two presses that say something back lead it now,
+    and the ways of choosing what to say it about are what `?` unfolds.
+
+    Read off `:not([hidden])`, because renderLine leaves every live row in the DOM and
+    hides the ones it will not paint: `to_contain_text` on the line answers about the
+    register and would pass over a chip nobody can see."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    line = page.locator(".lf-keyline")
+    shown = line.locator(".lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
+    # One settled read, which pins the count, the order, the keys and the words together.
+    assert key_line(page) == "c\ngo to threads\nr\nreact\n?\nmore", key_line(page)
+
+    # Still declared, and off the glance nobody asked for. Each is in the DOM and each is
+    # hidden — the pair of counts is what separates a row the line declined to paint from
+    # a row that stopped existing.
+    for command in ("page.search.open", "selection.open", "page.down"):
+        expect(line.locator(f'.lf-key[data-lf-commands~="{command}"]')).to_have_count(1)
+        expect(
+            line.locator(f'.lf-key:not([hidden])[data-lf-commands~="{command}"]')
+        ).to_have_count(0)
+
+    # And named in full by the reference, which lists every live capability rather than
+    # the ones the current width has room for.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    help_el = page.locator(".lf-help")
+    expect(help_el).to_be_visible()
+    expect(help_el).to_contain_text("Search all the text on the page")
+    expect(help_el).to_contain_text("Select a visible item by hint")
+    expect(help_el).to_contain_text("Move 60% of a page down")
+    expect(help_el).to_contain_text("Move 60% of a page up")
+    assert errors == []
+    page.close()
+
+
+def test_a_coarse_pointer_is_given_no_key_line_and_keeps_no_room_for_one(
+    browser, serve
+):
+    """A touch device has no keyboard to advertise, so the line has nothing to say and
+    stands down whole rather than shrinking: every hint on it names a key the reader
+    cannot press, and it spends a box on them over the words of a page whose window is
+    the smallest one there is.
+
+    The room goes with it. syncLayout reads the standing line's own box, so the band
+    reserved at the foot of the document and of either list is the line's footprint or
+    nothing at all — a reservation for a line nobody is shown is a strip of blank paper
+    under the last paragraph."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    try:
+        page, errors = open_page(browser, serve(NOTED_PAGE), context=context)
+        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
+            "the touch fixture never reached Leaf's coarse-pointer rules"
+        )
+        expect(page.locator(".lf-keyline")).to_be_hidden()
+        room = page.evaluate(
+            """() => {
+              const line = document.querySelector('.lf-keyline');
+              const chrome = document.querySelector('.lf-chrome');
+              return {
+                display: getComputedStyle(line).display,
+                height: line.getBoundingClientRect().height,
+                reserved: getComputedStyle(chrome).paddingBottom,
+                moreShown: document.querySelector('.lf-key-more').checkVisibility(),
+              };
+            }"""
+        )
+        assert room == {
+            "display": "none",
+            "height": 0,
+            "reserved": "0px",
+            "moreShown": False,
+        }, room
+
+        # And the page is still whole underneath. Everything that asks how far down the
+        # page reaches asks it of the line's box, and a line with no box answers 0 — the
+        # top of the window — which reads as "all of it is covered". Item hints and the
+        # search's own highlight are drawn for boxes above that answer, so a tablet got
+        # `s` naming nothing and `/` painting no match, with the page itself intact and
+        # nothing on screen saying why.
+        page.keyboard.press("s")
+        expect(page.locator(".lf-target-hint").first).to_be_visible()
+        page.keyboard.press("Escape")
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+    # The control the reading above needs, because `paddingBottom` computes to "0px" on a
+    # chrome root syncLayout never wrote to: the same page at the same size under a fine
+    # pointer has to reserve a band, or "reserved nothing" and "reserved nowhere" are the
+    # same green.
+    fine, errors = open_page(browser, serve(NOTED_PAGE))
+    resized(fine, 390, 844)
+    fine.evaluate(RENDERED)
+    reserved = fine.evaluate(
+        "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
+    )
+    assert reserved != "0px" and float(reserved.removesuffix("px")) > 20, reserved
+    assert errors == []
+    fine.close()
+
+
+FOOT_CONTROL_PAGE = NOTED_PAGE.replace(
+    "</main>",
+    '<div style="height: 2400px"></div>'
+    '<lf-decision id="foot-d"><h2 id="foot-h">The last question</h2>'
+    '<lf-options id="foot-o" choose>'
+    '<lf-option id="foot-keep">Keep it</lf-option>'
+    '<lf-option id="foot-change">Change it</lf-option>'
+    "</lf-options></lf-decision></main>",
+)
+
+# The band the line stands in, and the room the document keeps for it. `footprint` is the
+# whole of what the line takes at the foot of the window — its height plus every inset
+# holding it off that foot — and `reserved` is what syncLayout gives up for it.
+FOOT_ROOM = """() => {
+  const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+  const box = document.getElementById('foot-change').getBoundingClientRect();
+  const chrome = document.querySelector('.lf-chrome');
+  const s = document.scrollingElement;
+  return {
+    atEnd: s.scrollTop + s.clientHeight >= s.scrollHeight - 1,
+    lineHeight: line.height,
+    footprint: document.documentElement.clientHeight - line.top,
+    reserved: parseFloat(getComputedStyle(chrome).paddingBottom),
+    clearance: line.top - box.bottom,
+  };
+}"""
+
+# Where the line's chips are, and where its one real control is. The band is the whole
+# fixed box; More is the only part of it that answers a press, so a hit test aimed at the
+# page has to be aimed past it. Both are read from the rendered boxes rather than stated,
+# because the chips' width is the register's answer for the current scene.
+UNDER_THE_LINE = """(id) => {
+  const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+  const more = document.querySelector('.lf-key-more').getBoundingClientRect();
+  const el = document.getElementById(id);
+  const box = el.getBoundingClientRect();
+  const left = Math.max(line.left, box.left);
+  const right = Math.min(more.left, box.right);
+  const x = (left + right) / 2;
+  const y = line.top + line.height / 2;
+  const at = document.elementFromPoint(x, y);
+  return {
+    band: right - left,
+    covered: Math.min(line.bottom, box.bottom) - Math.max(line.top, box.top),
+    reaches: Boolean(at) && (el === at || el.contains(at)),
+    hit: at ? at.tagName + "." + (at.className || "") : null,
+    aim: {x, y}, line: {left: line.left, top: line.top, bottom: line.bottom},
+    more: {left: more.left}, box: {left: box.left, right: box.right,
+      top: box.top, bottom: box.bottom},
+  };
+}"""
+
+
+def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
+    """The line is fixed at the foot of the window, so what it owes the page is a band:
+    room of its own where the document ends, and no press taken from what it stands over
+    on the way there.
+
+    The room was measured as the line's height alone. Its own 14px inset came out of the
+    20px of air that was supposed to be left over, so the document's last line cleared the
+    line by five pixels rather than twenty; over a covering sheet, which lifts the line by
+    the whole height of the panel's foot, the reservation was short by that lift. The band
+    from the line's top to a region's own foot is one measurement and covers every inset.
+
+    The press is the other half. The line and its chips take no pointer events, so a
+    control the line stands over on some scroll position is still a control. Its More
+    button does take them, and deliberately: it is the only pointer route to the keyboard
+    reference and so to the character-shortcut preference, which cannot be made to depend
+    on the character key it turns off. The band is aimed past it here for that reason."""
+    page, errors = open_page(browser, serve(FOOT_CONTROL_PAGE))
+    control = page.locator("#foot-change")
+    expect(control).to_be_visible()
+
+    page.evaluate(
+        "() => { const s = document.scrollingElement; s.scrollTo({top: s.scrollHeight}); }"
+    )
+    page.evaluate(RENDERED)
+    ended = page.evaluate(FOOT_ROOM)
+    assert ended["atEnd"] and ended["lineHeight"] > 0, ended
+    # The band, and the air over it. Reserving the height alone spent 14 of the 20px on
+    # the line's own inset and left five, which clears and says nothing about whether the
+    # reservation knows what it is reserving for.
+    assert ended["reserved"] >= ended["footprint"] + 20, ended
+    assert ended["clearance"] >= 20, (
+        f"the document's last control ends in the key line's band: {ended}"
+    )
+
+    # A covering sheet lifts the line over the whole of its own foot, and the band grows
+    # by that lift. This is where a reservation counting only the line's height parts
+    # company with the line: 148px of footprint standing on 51px of reserved room.
+    resized(page, 420, 900)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.evaluate(RENDERED)
+    covered = page.evaluate(FOOT_ROOM)
+    # The lift is what this phase is about, so it has to have happened: without it the
+    # footprint is the resting one and the reservation below is the resting question again.
+    assert covered["footprint"] > ended["footprint"] + 20, (
+        f"the sheet never lifted the line, so the reservation is untested here: {covered}"
+    )
+    assert covered["reserved"] >= covered["footprint"] + 20, (
+        f"the sheet lifted the line off a reservation that never heard about it: {covered}"
+    )
+    page.keyboard.press("Escape")
+
+    # And where the reader is not at the end, the line is standing over the page. The
+    # control keeps the press: the chips are painted, not pressable. Narrow, because that
+    # is where the chips and the reading column share room at all — at 1200 the column
+    # starts to the right of them and it is More that overhangs its first few pixels.
+    resized(page, 520, 800)
+    page.evaluate(
+        """() => {
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          const box = document.getElementById('foot-change').getBoundingClientRect();
+          scrollBy(0, box.top + box.height / 2 - (line.top + line.height / 2));
+        }"""
+    )
+    page.evaluate(RENDERED)
+    under = page.evaluate(UNDER_THE_LINE, "foot-change")
+    assert under["band"] > 8 and under["covered"] > 0, (
+        f"the aim never reached page under the line's chips, so it proves nothing: {under}"
+    )
+    assert under["reaches"], (
+        f"the key line took a press aimed at the control underneath it: {under}"
+    )
+
+    # More is the exception, and the one that has to stay: it is the only pointer route to
+    # the reference, and so to the preference that turns character shortcuts off. A reader
+    # who has turned them off cannot be asked to press `?` to get back. Asked as a press
+    # rather than as a declaration, the same way the chips above were.
+    expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
+    assert page.evaluate(
+        """() => {
+          const more = document.querySelector('.lf-key-more');
+          const box = more.getBoundingClientRect();
+          const at = document.elementFromPoint(box.left + box.width / 2,
+                                               box.top + box.height / 2);
+          return more === at || more.contains(at);
+        }"""
+    ), "the line's own control stopped answering a press"
     assert errors == []
     page.close()
 
@@ -3730,11 +4230,19 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     )
     page, errors = open_page(browser, serve(html))
     line = page.locator(".lf-keyline")
+    # Two page rows, because the claim is the whole keyboard rather than one key: `c` is
+    # painted at rest, and the movement row is one `?` further in. A scope that swallowed
+    # the page would take both, and the box below is where both go.
+    comment = line.locator('.lf-key:not([hidden])[data-lf-commands~="comment.create"]')
     movement = line.locator('.lf-key:not([hidden])[data-lf-commands~="page.down"]')
 
     page.locator("#flip").focus()
+    expect(comment).to_have_count(1)
+    page.keyboard.press("?")
     expect(movement).to_have_count(1)
     expect(movement).to_have_attribute("data-lf-commands", re.compile(r"\bpage\.up\b"))
+    page.keyboard.press("Escape")
+    expect(page.locator("#flip")).to_be_focused()
     page.keyboard.press("Space")
     expect(page.locator("#flip")).to_be_checked()
     # The letter reaches the page, which is the whole claim; where it then goes is the
@@ -3750,6 +4258,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     # The box beside it, where every one of those letters is the reader's. The line
     # names none of them, which is the same register saying so.
     page.locator("#note").focus()
+    expect(comment).to_have_count(0)
     expect(movement).to_have_count(0)
     page.keyboard.press("c")
     expect(page.locator("#note")).to_have_value("c")
@@ -4365,6 +4874,9 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     page.keyboard.press("Enter")
     round_trip(page)
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
+    expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()
+    expect(line).to_contain_text("back to thread")
+    page.keyboard.press("Escape")
     expect(reopened).to_be_focused()
     expect(line).to_contain_text("reply")
 
@@ -4374,17 +4886,6 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     tab_to(resolve_control)
     expect(resolve_control).to_be_focused()
     expect(line).to_contain_text("resolve")
-    resolve_control.evaluate("button => button.disabled = true")
-    page.evaluate(
-        "async () => (await import('/runtime/keyboard/scopes.js')).paintKeys()"
-    )
-    assert resolve_control.get_attribute("aria-keyshortcuts") is None
-    expect(line).not_to_contain_text("resolve")
-    resolve_control.evaluate("button => button.disabled = false")
-    page.evaluate(
-        "async () => (await import('/runtime/keyboard/scopes.js')).paintKeys()"
-    )
-    resolve_control.focus()
     page.keyboard.press("x")
     round_trip(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
@@ -4394,7 +4895,7 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     expect(reopen_control).to_be_focused()
     page.keyboard.press("x")
     round_trip(page)
-    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')).to_be_focused()
+    expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -5008,3 +5509,102 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         assert errors == []
     finally:
         page.close()
+
+
+# Where the reader is standing, in the terms the next Tab is decided by: the document
+# position of the focused element, and whether it is the first stop in the document.
+STANDING = """() => {
+  const at = document.activeElement;
+  const first = document.querySelector('.lf-skip');
+  return {
+    name: at?.className || at?.tagName || 'nothing',
+    isFirstStop: at === first,
+    top: at ? at.getBoundingClientRect().top : null,
+    inChrome: Boolean(at?.closest?.('.lf-chrome')),
+  };
+}"""
+
+
+def test_the_reference_hands_the_reader_back_to_the_page_they_were_reading(
+    browser, serve
+):
+    """Closing a mode gives back the press that opened it, and the reader's place with it.
+
+    A reader working from the page stands on `body`: `letGo` puts them there so Space and
+    PageDown reach the document's own scroll box. `?` from there recorded `body` as the
+    door and closing handed focus back to it — and focusing `body` resets the browser's
+    sequential focus navigation starting point, so the next Tab began at the top of the
+    document. A reader who opened the reference four screens down to look a key up was
+    charged the whole page to get back to where they had been.
+
+    The reading is the next Tab rather than the focused element, because that is the fact
+    that was wrong: the restore itself looked fine both before and after, focus being on
+    nothing either way. The skip link is the document's first stop, so landing on it is
+    exactly the failure written down.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    reading = page.evaluate(
+        "() => document.getElementById('p40').getBoundingClientRect().top"
+    )
+    # Twice: the first press unfolds the shelf, the second opens the reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert not standing["isFirstStop"], (
+        f"after the reference closed, the reader's next Tab went to the first stop in "
+        f"the document ({standing}) rather than on from the words they were reading at "
+        f"{reading:.0f}px"
+    )
+    # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
+    # PAGE_PAINT_ATTRIBUTES, so a stop left standing would be runtime paint the replay
+    # signature has no vocabulary for.
+    assert (
+        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_reader_at_the_top_of_the_document_is_one_press_from_the_chrome(
+    browser, serve
+):
+    """The runtime's layer follows `main`, so reaching it by Tab meant reaching it last.
+
+    Document order is right for reading — the page is what the reader came for — and it
+    is the whole tab order too, so on a page of any length the banner, the panel and the
+    key line stood behind every link, fold and control the author wrote. A keyboard reader
+    arriving at the top of the document had no way to the layer that is not the page.
+
+    The press is what is asserted rather than the link's presence: a skip link that is in
+    the DOM and does not land anybody is the failure this is about, one step later.
+
+    On the corpus, because a page of plain paragraphs would put the chrome one Tab away
+    on its own and this would pass with the link taken out.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    page, errors = open_page(browser, serve(example))
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert standing["isFirstStop"], (
+        f"the first Tab from the top of the document landed on {standing['name']}, so "
+        f"the layer is still behind the whole page"
+    )
+    assert standing["top"] >= 0, (
+        f"the skip link takes focus and is not on screen: {standing}"
+    )
+    page.keyboard.press("Enter")
+    landed = page.evaluate(STANDING)
+    assert landed["inChrome"], (
+        f"the skip link's press left the reader on {landed['name']}, outside the layer "
+        f"it names"
+    )
+    assert errors == []
+    page.close()

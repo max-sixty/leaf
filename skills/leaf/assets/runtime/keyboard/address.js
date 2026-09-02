@@ -1,6 +1,6 @@
 import { labelOf, spell } from "./bindings.js";
 import { keySequence, progressStates } from "./presentation.js";
-import { isExternalPageLink } from "../presentation.js";
+import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { focusDestination } from "../widget-elements.js";
 
 export function createAddress({
@@ -276,6 +276,7 @@ export function createAddress({
     if (on && !chordArmed && claimsEsc(focused())) return;
     chordArmed = on;
     aimedList = on ? list : null;
+    document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     // The chips are the eye's copy; the window itself is spoken, or the mode change is
     // silent to exactly the reader who can't see them. Off the rows either way, since the
     // rows are what the window answers now — the letters at the first stage, the named
@@ -303,26 +304,23 @@ export function createAddress({
   // member's rect read after one is a layout forced per member, on every scroll frame a
   // numbered-list window stands through.
   function paintAddresses() {
+    if (!chordArmed) {
+      addressLayer.replaceChildren();
+      return;
+    }
     const chips = [];
-    if (chordArmed) {
-      const clips = new Map();
-      // The banner stands over the page rather than in it, so shownRect says nothing about
-      // it — that reading is what the page's own boxes clip, and the bar clips none of them.
-      // The chip is the one thing that has to care, being drawn above the bar: placed on a
-      // corner the bar has taken, it is an address floating over the status line, naming
-      // nothing the reader can see there. So it rides the covered edge, and a member with
-      // nothing left below that edge wears no chip at all.
-      const covered = banner.getBoundingClientRect().bottom;
-      for (const entry of aimedList ? [aimedList] : ADDRESSES) {
-        for (const [i, member] of addressed(entry).entries()) {
-          const r = startsAt(member, clips);
-          if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
-          const chip = addressChip(entry, i + 1);
-          if (r.top < covered) chip.classList.add("lf-in");
-          chip.style.left = `${r.left}px`;
-          chip.style.top = `${Math.max(r.top, covered)}px`;
-          chips.push(chip);
-        }
+    const clips = new Map();
+    // The banner covers page content without clipping its boxes. Members hidden behind
+    // it have no chip; a partly visible member keeps its chip below the covered edge.
+    const covered = banner.getBoundingClientRect().bottom;
+    for (const entry of aimedList ? [aimedList] : ADDRESSES) {
+      for (const [i, member] of addressed(entry).entries()) {
+        const r = startsAt(member, clips);
+        if (!r || r.bottom <= covered) continue;
+        const chip = addressChip(entry, i + 1);
+        chip.style.left = `${r.left}px`;
+        chip.style.top = `${r.top}px`;
+        chips.push(chip);
       }
     }
     addressLayer.replaceChildren(...chips);
@@ -337,24 +335,27 @@ export function createAddress({
     // is the same answer, given to a member the page has no room to say it about rather than
     // to one that has scrolled away.
     //
-    // Every box is read after the one write and every removal made after the last read, so
-    // the pass stays at the single layout the write already cost.
-    //
-    // The key line is standing in that same corner and goes in first, so a chip loses to it
-    // the way it loses to a chip already drawn. It is the legend saying what these digits
-    // mean, on screen exactly as long as they are, so covering it is the one collision that
-    // takes away the reader's answer rather than one of its members. The bar at the other
-    // edge is dodged earlier and by clamping, because a chip has somewhere to go there: the
-    // covered edge is above the member, while sliding clear of a line at the foot would put
-    // the chip on a member it no longer sits on.
+    // Clamp each complete face before checking collisions: bringing a chip on screen
+    // can move it onto its neighbour. Measure every face before moving or removing one.
+    // The key line reserves its own box first, so the chips cannot cover their legend.
+    const right = document.documentElement.clientWidth;
+    const bottom = document.documentElement.clientHeight;
     const kept = [keylineEl.getBoundingClientRect()];
-    const piled = [];
-    for (const chip of chips) {
-      const box = chip.getBoundingClientRect();
-      if (kept.some((standing) => overlaps(box, standing))) piled.push(chip);
-      else kept.push(box);
+    const measured = chips.map((chip) => [chip, chip.getBoundingClientRect()]);
+    for (const [chip, start] of measured) {
+      const box = new DOMRect(
+        Math.max(0, Math.min(start.left, right - start.width)),
+        Math.max(covered, Math.min(start.top, bottom - start.height)),
+        start.width,
+        start.height,
+      );
+      if (kept.some((standing) => overlaps(box, standing))) chip.remove();
+      else {
+        chip.style.left = `${box.left + box.width / 2}px`;
+        chip.style.top = `${box.bottom}px`;
+        kept.push(box);
+      }
     }
-    for (const chip of piled) chip.remove();
   }
   // Whether two boxes share any pixel. Touching edges do not, so two chips laid exactly a
   // chip's width apart sit side by side rather than one of them being taken down. That

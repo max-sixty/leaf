@@ -7,6 +7,7 @@ from pathlib import Path
 from leaf.anchor_capture import capture_anchor
 from leaf.decisions import local_decision_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
+from leaf.event_log import read_events
 from leaf.files import (
     latest_published,
     latest_revision,
@@ -38,6 +39,11 @@ def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
         sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
     root_id = thread_roots(events)[to]
     return root_id, messages.get(root_id)
+
+
+def thread_of(page_dir: Path, message_id: str) -> str:
+    """The thread a message sits in, for a command that has to name it back."""
+    return thread_roots(read_events(page_dir))[message_id]
 
 
 def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bool:

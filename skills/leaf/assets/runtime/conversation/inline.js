@@ -1,3 +1,5 @@
+import { landInConversation, SAY_BOX } from "./landing.js";
+
 /* Textual conversation views rendered outside the retained Threads list. */
 export function createInlineConversations({
   ago,
@@ -10,6 +12,7 @@ export function createInlineConversations({
   renderMessageMarkdown,
   seatRoot,
   setChildren,
+  settlementControl,
   showThread,
   syncEdited,
   turns,
@@ -74,26 +77,34 @@ export function createInlineConversations({
     );
     let tail;
     if (t.resolved) {
-      const compose = thread.querySelector(":scope > .lf-say");
-      if (compose?.contains(focused())) thread.focus({ preventScroll: true });
       tail = thread.querySelector(":scope > .lf-conversation-resolved");
       const settledBy =
         t.resolved.author === "claude"
           ? `✓ Resolved by ${t.resolved.agent || "Agent"}`
           : "✓ Resolved";
-      if (!tail) tail = offer("div", "lf-conversation-resolved");
-      if (tail.textContent !== settledBy) tail.textContent = settledBy;
+      if (!tail) {
+        tail = offer("div", "lf-conversation-resolved");
+        tail.append(el("span"), settlementControl(t));
+      }
+      if (tail.firstChild.textContent !== settledBy)
+        tail.firstChild.textContent = settledBy;
     } else if (t.root.response?.kind === "version") {
       // The page seat shows what the reader proposed. Their reply workspace remains
       // in Threads; the agent's response is the next authored version.
-      tail = null;
+      tail = thread.querySelector(":scope > .lf-conversation-actions");
+      if (!tail) {
+        tail = offer("div", "lf-conversation-actions");
+        tail.append(settlementControl(t));
+      }
     } else {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
         tail = offer("div", "lf-say");
         const input = offer("textarea");
         const send = offer("button", "lf-btn primary", "Send");
-        tail.append(input, send);
+        const actions = offer("div", "lf-conversation-actions");
+        actions.append(send, settlementControl(t));
+        tail.append(input, actions);
         wireReply(t, input, send);
       }
     }
@@ -107,11 +118,17 @@ export function createInlineConversations({
       if (receipt) placed.add(receipt);
       return receipt ? [message, receipt] : [message];
     });
+    const standing = focused();
+    const heldFocus = thread.contains(standing);
     setChildren(thread, [
       ...messageRows,
       ...receipts.filter((receipt) => !placed.has(receipt)),
       ...(tail ? [tail] : []),
     ]);
+    // Settlement replaces the focused controls in either tail shape. Transfer only
+    // that removed focus; a later gesture elsewhere remains where the reader put it.
+    if (heldFocus && !thread.contains(standing))
+      landInConversation(thread.querySelector(SAY_BOX) ?? thread);
     return thread;
   }
 

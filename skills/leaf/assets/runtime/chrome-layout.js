@@ -45,6 +45,7 @@ export function createChromeLayout({
   currentTray,
   dockSeats,
   focused,
+  foldShelf,
   keylineEl,
   pageShifted,
   paintHere,
@@ -125,6 +126,11 @@ export function createChromeLayout({
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
   function syncLayout() {
+    // How many of the banner's addresses stand on its row is a reservation taken from the
+    // row's current box, so it belongs here with the rest of them and it goes first: what
+    // it decides is the banner's own contents, which nothing below reads. The banner is
+    // fixed, so a fold cannot resize the boxes this function is watching.
+    foldShelf();
     const panelBeside = panelOpen && !panelCovers();
     // What a covering sheet keeps standing at its foot: the composer, and the page's own
     // reaction strip above it once the registry offers one. Measured as the one box that
@@ -144,17 +150,36 @@ export function createChromeLayout({
       "--lf-keyline-right",
       (panelBeside ? commentsEdge.width() : 0) + "px",
     );
-    // One line stands over three scroll regions, so one measurement is what they all
-    // reserve — off the rendered line rather than stated as a number, which is what
-    // keeps it true when the line's face or its padding moves.
-    const clear = keylineEl.offsetHeight + 20 + "px";
+    // What a scroll region gives up is the part of the line that stands over it: the band
+    // from the line's top down to that region's own foot, plus the air above the line.
+    // Read off the rendered line rather than stated as a number, which is what keeps it
+    // true when the line's face or its padding moves — and off each region's own foot,
+    // because the three do not end in the same place. The document ends at the foot of
+    // the window; the panel's list ends above the sheet's own foot, which is the composer
+    // and can be half the window once a draft has grown it.
+    //
+    // The band and not the height. The height alone leaves out every inset holding the
+    // line off the foot — the 14px above, a covering sheet's lift, the device's safe area
+    // — which spent 14 of the 20px of air on the inset and left the document's last line
+    // 5px clear rather than 20, and over a covering sheet was short by the whole lift:
+    // 148px of line standing on a reservation of 51. One box read rather than three
+    // numbers added up, so a fourth inset cannot be introduced without this following it.
+    //
+    // A line that is not rendered — no room on a coarse pointer, nothing to say on any
+    // pointer — is a band nothing stands in, so nothing reserves it. Nor does a region
+    // whose own foot is above the line, which is what the panel's list is beside the page.
+    const line = keylineEl.getBoundingClientRect();
+    const roomBelow = (foot) =>
+      line.height && foot > line.top ? Math.ceil(foot - line.top) + 20 + "px" : "0px";
+    const clear = roomBelow(document.documentElement.clientHeight);
     // The document's, taken as the chrome container's own box rather than as padding on
     // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
     // watched by nobody, so what it takes is room the document has and no measurement's
     // business.
     chromeRoot.style.paddingBottom = clear;
     // A tray's list is the page's other scroll region, in the corner the line is
-    // written into, so it reserves the same room — and states it twice, because it reaches
+    // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
+    // document's band is its band — and it states it twice, because it reaches
     // the bottom two ways that take their room from different places. A wheel to the end
     // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
     // scroll-into-view stops short of, and without it the last row's clearance is however
@@ -168,7 +193,14 @@ export function createChromeLayout({
     // entirely. Spent the same two ways a tray's is — the wheel reads the padding, a
     // walk's scroll-into-view reads the scroll padding — and returned to the
     // stylesheet's inset when the panel steps back beside the page.
-    const listClear = panelCovers() ? clear : "";
+    //
+    // Measured to this list's own foot, which is the sheet's composer rather than the
+    // window's. Giving it the document's band reserved the whole lift twice: the line is
+    // standing on the foot, not on the list, so a grown draft put its own height of blank
+    // paper under the last thread and parked a `t` walk that far short of the list's end.
+    const listClear = panelCovers()
+      ? roomBelow(panelList.getBoundingClientRect().bottom)
+      : "";
     panelList.style.paddingBottom = listClear;
     panelList.style.scrollPaddingBottom = listClear;
     syncFloats();

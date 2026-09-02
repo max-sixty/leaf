@@ -2464,6 +2464,99 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     page.close()
 
 
+# Everything an injected control still draws once the medium has taken the press away.
+# `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
+# a control wears — a chip ground, a pill's corner, a border, a link's underline, a
+# summary's marker. Colour is not read: a chip that is red is saying something, and what a
+# control says is the other half of this bargain rather than this half.
+PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
+  .filter(n => n.checkVisibility() && n.getBoundingClientRect().width > 0)
+  .map(n => {
+    const s = getComputedStyle(n);
+    return {
+      what: (n.className || n.tagName).toString().trim().split(/\\s+/)[0],
+      said: n.hasAttribute('data-lf-said'),
+      pressable: [
+        s.cursor === 'pointer' && 'a pointer hand',
+        s.backgroundColor !== 'rgba(0, 0, 0, 0)' && 'a filled ground',
+        parseFloat(s.borderTopLeftRadius) > 0 && 'a rounded corner',
+        parseFloat(s.borderTopWidth) > 0 && 'a border',
+        s.textDecorationLine.includes('underline') && 'an underline',
+        s.listStyleType !== 'none' && 'a marker',
+      ].filter(Boolean),
+    };
+  })"""
+
+# Each disclosure and whether the sheet shows what it holds.
+DISCLOSURES = """() => [...document.querySelectorAll('details')]
+  .filter(d => !d.closest('.lf-chrome'))
+  .map(d => ({
+    open: d.open,
+    summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
+    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY')
+      .every(c => c.checkVisibility()),
+  }))"""
+
+
+def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
+    """Nothing on a sheet is interactive, so nothing on it should look as though it is.
+
+    Injected controls go on paper, which the layer has always done — but the ones whose
+    label is the page speaking stay, because their words are the page's only statement of
+    what they say, and twenty of the corpus's 236 came through still dressed as controls:
+    the command hub's counts as filled pills with a pointer hand, its worktree heads with
+    a disclosure marker, a decision's links underlined. The words are what data-lf-said
+    keeps; the shape was never part of that bargain.
+
+    A shut disclosure is the same fault from the other side — the words are in the
+    document, nothing on the sheet says so, and there is no press to open it with. The
+    layer already prints a settled group's cards and an inactive tab's panel open;
+    <details> was the one way of putting content behind a gesture that was missed. Six of
+    them printed as stubs, one holding 3270px of an exact source.
+
+    Both readings are taken on screen first, and that half is what makes the print half
+    mean anything: a corpus whose controls were bare and whose disclosures were open
+    everywhere would pass the assertions below while proving nothing about the medium.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    page, errors = open_page(browser, serve(example))
+
+    on_screen = page.evaluate(PRINTED_OFFERS)
+    assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (
+        f"the page draws almost nothing as pressable on screen, so paper taking it away "
+        f"is not something this can see: {on_screen}"
+    )
+    shut = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
+    assert len(shut) >= 3, f"the corpus has no shut disclosures to print: {shut}"
+    assert not any(d["shown"] for d in shut), (
+        f"the page shows what its shut disclosures hold before the medium changes: {shut}"
+    )
+
+    page.emulate_media(media="print")
+    printed = page.evaluate(PRINTED_OFFERS)
+    assert len(printed) >= 10, (
+        f"paper kept {len(printed)} injected controls, which is too few for the "
+        f"assertion below to be about the ones that speak"
+    )
+    dressed = [
+        f"{offer['what']} still draws {', '.join(offer['pressable'])}"
+        for offer in printed
+        if offer["pressable"]
+    ]
+    assert not dressed, (
+        f"{len(dressed)} of the {len(printed)} controls paper kept still promise a press "
+        f"nothing on a sheet can answer:\n  " + "\n  ".join(dressed)
+    )
+    on_paper = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
+    assert on_paper and all(d["shown"] for d in on_paper), (
+        f"a shut disclosure printed as a summary and a stub, with no press on the sheet "
+        f"to open it: {[d for d in on_paper if not d['shown']]}"
+    )
+    page.emulate_media(media="screen")
+    assert errors == []
+    page.close()
+
+
 def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     url = serve(INLINE_PAGE)
 

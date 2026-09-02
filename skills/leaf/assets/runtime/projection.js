@@ -68,6 +68,7 @@ export function createProjection(runtime, dependencies) {
   // files with the same eyes, so the two readings cannot drift.
   function shallowSigs(root) {
     const sigs = new Map();
+    const siblingPositions = new Map();
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
       if (!el.id) continue;
       const attrs = [...el.attributes]
@@ -75,10 +76,17 @@ export function createProjection(runtime, dependencies) {
         .map((a) => `${a.name}=${a.value}`)
         .sort()
         .join(" ");
-      const kin = [...(el.parentElement?.children ?? [])].filter((c) => c.id);
+      const parent = el.parentElement;
+      let positions = siblingPositions.get(parent);
+      if (!positions) {
+        positions = new Map();
+        for (const sibling of parent?.children ?? [])
+          if (sibling.id) positions.set(sibling, positions.size);
+        siblingPositions.set(parent, positions);
+      }
       sigs.set(
         el.id,
-        `${el.tagName} [${attrs}] in=${el.parentElement?.id ?? ""}#${kin.indexOf(el)}`,
+        `${el.tagName} [${attrs}] in=${parent?.id ?? ""}#${positions.get(el) ?? -1}`,
       );
     }
     return sigs;
@@ -335,6 +343,16 @@ export function createProjection(runtime, dependencies) {
       // thread paints nothing, so there is nothing to offer the press. The server
       // refuses the same three (undo_error), this being the offer and that the door.
       if (e.token) return e;
+      // The approval, while it is the one the button is showing. Scoped the way
+      // paintApproval scopes what it reads, because a reader on v3 taking back their
+      // sign-off of v2 would be undoing a press whose result is nowhere on the page —
+      // and the button is the whole of what says the press happened.
+      if (
+        e.kind === "done" &&
+        e.revision === runtime.currentRevision &&
+        e.version === runtime.currentStamp
+      )
+        return e;
       // On the version it was made against: a later version may have been written
       // around the decision, and a press that paints nothing is not one to offer. What
       // *hearing* such an undo owes is reconciliation's, and is not the same answer.
@@ -370,6 +388,7 @@ export function createProjection(runtime, dependencies) {
     resolve: "Reopened the thread",
     unresolve: "Resolved the thread again",
     action: "Took back your last change",
+    done: "Took back your approval",
   };
   // A reaction's word is the token, which is the layer's word rather than a widget's
   // verb — read off the event, as the bar and the strip read it.
@@ -783,8 +802,12 @@ export function createProjection(runtime, dependencies) {
   // with (honoring retires the wrapper), so it stays marked while the wrapper
   // stands.
   function paintPending() {
-    for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
-      for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
+    const marks = new Map(
+      [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
+        attr,
+        new Set(),
+      ]),
+    );
     const projection = stateProjection();
     for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
@@ -798,7 +821,13 @@ export function createProjection(runtime, dependencies) {
         e.kind === "action"
           ? PAGE_PAINT_ATTRIBUTE.pending
           : PAGE_PAINT_ATTRIBUTE.reported;
-      el.setAttribute(attr, "1");
+      marks.get(attr).add(el);
+    }
+    for (const [attr, wanted] of marks) {
+      for (const el of pageQueryAll(`[${attr}]`))
+        if (!wanted.has(el)) el.removeAttribute(attr);
+      for (const el of wanted)
+        if (el.getAttribute(attr) !== "1") el.setAttribute(attr, "1");
     }
   }
 

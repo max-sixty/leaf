@@ -3055,6 +3055,41 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     assert "exceeds column (720px)" in result.output
 
 
+def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
+    """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
+    theme = page_dir / "theme.css"
+    original = theme.read_text()
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><p style="width: var(--pin)">Measured.</p>',
+        )
+    )
+
+    def activate(css):
+        theme.write_text(original + css)
+        return revisioning_model.activate_source(page_dir, [])
+
+    css = ":root { --pin: 700px; --col: 720px } main { --lf-column: 1; max-width: var(--col) }"
+    initial = activate(css)
+    assert initial.error is None
+    assert activate(css).check.errors == []
+
+    overwide = activate(css.replace("700px", "900px"))
+    assert "inline style width: 900px (column is 720px)" in overwide.error
+    assert overwide.revision == initial.revision
+
+    wider_column = css.replace("700px", "900px").replace("720px", "960px")
+    widened = activate(wider_column)
+    assert widened.error is None
+    assert widened.check.column == 960
+    assert not widened.created
+
+    broken = activate(wider_column + " .broken { color red }")
+    assert "theme.css syntax error" in broken.error
+    assert activate(wider_column).error is None
+
+
 def test_check_reads_a_column_the_theme_states_as_a_token():
     """A width naming a root token is a width the stylesheet stated, so the column reads
     it. The theme keeps its own constants in `:root` and more than one rule now wants the

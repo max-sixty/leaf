@@ -44,7 +44,10 @@ import { shadowRootsIn } from "./shadow.js";
 // after the mark, whichever of the two lands first. Held when a sweep reaches the box,
 // which is what the callers above owe this: a scroller a module builds outside its
 // own settlement calls this on the subtree, as it would for the stop.
-const FOCUSABLE =
+// What the platform puts in the tab order without being asked. Exported because the skip
+// link needs the same reading of the banner: "the first thing in there a reader can
+// stand on" and "does this box already hold a stop" are the one question.
+export const FOCUSABLE =
   'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 // The declaration picks the candidates and the measurement decides. A rule saying a box
 // may scroll is not the same fact as a box with something out of sight: the theme sets

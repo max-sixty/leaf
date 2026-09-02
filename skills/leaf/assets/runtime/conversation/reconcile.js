@@ -1,5 +1,5 @@
 import { createThreadModel } from "./model.js";
-import { createThreadFolding } from "./folding.js";
+import { createThreadFolding, createThreadSettlement } from "./folding.js";
 import { createInlineConversations } from "./inline.js";
 import { createPanelLanding } from "./landing.js";
 import { createConversationMessages } from "./messages.js";
@@ -223,6 +223,13 @@ export function createConversation(dependencies) {
     threadsBox,
     widen,
   });
+  const { settlementControl } = createThreadSettlement({
+    keys,
+    offer,
+    paintKeys,
+    post,
+    PRESS,
+  });
   const cards = createThreadCards({
     anchorLabel,
     el,
@@ -234,13 +241,13 @@ export function createConversation(dependencies) {
     paintReactStrips,
     panelCovers,
     placedAt,
-    post,
     PRESS,
     reachedForWords,
     retainPanelLanding,
     revealThread,
     scrollToThread,
     setPanel,
+    settlementControl,
     showThread,
     syncMsgNode,
     threadList: () => threadList,
@@ -285,6 +292,7 @@ export function createConversation(dependencies) {
     renderMessageMarkdown,
     seatRoot,
     setChildren,
+    settlementControl,
     showThread,
     syncEdited,
     turns,

@@ -34,6 +34,7 @@ from render_support import (
     compose,
     composer_quote,
     held_stale,
+    hold_selection,
     live_url,
     open_page,
     painted,
@@ -109,10 +110,9 @@ def test_page_round_trip(browser, serve):
     page.mouse.up()
     page.wait_for_selector("#col-done #card-x")  # the drop reparented the card
 
-    # Rewrite the draft through its fast path: double-click opens the text in
-    # place (winning over the word-selection the gesture makes — no comment
-    # button contests it), Save sends the whole new body. The text must have
-    # arrived without the source's indentation.
+    # Rewrite the draft through its own door: a press opens the text in place, Save
+    # sends the whole new body. The text must have arrived without the source's
+    # indentation.
     draft = page.locator("#draft-ops")
     assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
     draft.locator(".lf-draft-body").dblclick()
@@ -218,14 +218,14 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     and stretched a two-line draft — and text that jumps out from under a
     double-click is the user's aim thrown away.
 
-    The gesture: the word the browser would select is selected by the second
-    mousedown and painted before dblclick arrives, so the handler that cleared it
-    afterwards ran a frame late and the user saw a flash. That frame is
-    timing, and no assertion here reaches it; what is assertable is the outcome
-    on either side of it. Nothing on the page ends up selected, and the word the
-    gesture named opens selected in the box — which is what a double-click means
-    everywhere else, and what cancelling the default rather than undoing it is
-    for.
+    The gesture: a double press on a draft is two presses on two different boxes now.
+    The first opens the editor with a collapsed caret where it landed, so there is no
+    page selection to flash; the second lands in the textarea that first press put
+    there, where selecting a word is the browser's own behaviour in any text field.
+    What is assertable is the outcome on either side of that. Nothing on the page ends
+    up selected, and the word the gesture named opens selected in the box — which is
+    what a double-click means everywhere else, and is true here because the box is a
+    real text field rather than because the widget reimplemented word boundaries.
 
     The block around them counts too: the whole draft has to keep its shape, or a
     gesture aimed at one word is answered by everything under it moving. Cancel and
@@ -887,9 +887,11 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
-    """A sent comment preserves the panel's narrowing while its inline conversation
-    takes the reader; reopening the overview keeps that filter intact."""
+@pytest.mark.parametrize("later_selection", [False, True])
+def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
+    browser, serve, later_selection
+):
+    """A new comment widens the panel's filter without taking a later selection."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -902,7 +904,17 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
     page.locator(".lf-composer textarea").fill(
         "This comment starts outside the filter."
     )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
+    _until(page, lambda traffic: traffic.sends == 1, "held the filtered comment send")
+    if later_selection:
+        page.locator("#p2").click(click_count=3)
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        assert pending_text(page) == "A short second passage."
+
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
 
     sent = next(
@@ -910,16 +922,18 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    inline = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
-    )
-    expect(inline.locator("textarea")).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread).to_contain_text(sent["text"])
+    if later_selection:
+        assert pending_text(page) == "A short second passage."
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        expect(page.locator(".lf-fab-input")).not_to_be_focused()
+        assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    else:
+        expect(thread.locator("textarea")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2672,5 +2686,94 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     # The door, and it marks the same passage the key used to.
     compare_with(page)
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
+    assert errors == []
+    page.close()
+
+
+def test_the_draft_box_is_its_own_door(browser, serve):
+    """A draft is the one block on a page whose whole purpose is that the reader rewrites
+    it, and until now the only thing that said so was a pencil in the margin 45px away.
+    The block itself ignored a press. The gesture that did open it in place was a
+    double-click, which is a thing you have to already know.
+
+    So the box is the door, and the caret lands where the press did. Which is a door that
+    has to be opened carefully, because the same words are the page's words: a reader
+    drawing across them to quote them ends that drag with a mouseup inside the box, and
+    opening on it would throw the selection away at the moment it was finished. That is
+    the question `reachedForWords` answers for every other press on the page's own words,
+    asked here rather than answered again. The drag runs through the harness's own
+    `hold_selection`, which floors the press - a fractional start point loses the
+    selection outright, and an empty one would read exactly like the door swallowing it -
+    and the words are read while the drag is still held, because the runtime re-seats the
+    selection on a timer after the release and a read in that gap comes back empty.
+
+    And the door is exactly the box - not the chrome inside it. `offer` writes its marker
+    on everything a widget builds, controls row and edit box included, and only names a
+    kind for the things to press; the guard reads that, so a press on the row does not
+    reopen the editor and the row does not wear a hand it has no use for."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    draft = page.locator("#draft-ops")
+    body = draft.locator(".lf-draft-body")
+    expect(body).to_have_text(DRAFT_TEXT)
+
+    # A drag across the words takes the words. Read as the selection the reader is left
+    # holding, which is the thing the door would have destroyed.
+    box = body.bounding_box()
+    line = box["y"] + 8
+    hold_selection(page, (box["x"] + 2, line), (box["x"] + box["width"] - 2, line))
+    held = page.evaluate("() => getSelection().toString()")
+    assert held.strip() != "", (
+        f"the drag selected nothing, so this says nothing about the door: {held!r}"
+    )
+    page.mouse.up()
+    expect(draft.locator("textarea")).to_have_count(0)
+
+    # A press opens it, with the caret where the press landed rather than at the top.
+    page.evaluate("() => getSelection().removeAllRanges()")
+    at = page.evaluate(
+        """(word) => {
+            const node = document.createTreeWalker(
+              document.querySelector('#draft-ops .lf-draft-body'),
+              NodeFilter.SHOW_TEXT).nextNode();
+            const start = node.data.indexOf(word);
+            const range = document.createRange();
+            range.setStart(node, start); range.setEnd(node, start + word.length);
+            const r = range.getBoundingClientRect();
+            return [r.x + r.width / 2, r.y + r.height / 2, start, word.length];
+        }""",
+        "migration",
+    )
+    page.mouse.click(at[0], at[1])
+    editor = draft.locator("textarea")
+    expect(editor).to_be_focused()
+    caret = page.evaluate(
+        "() => { const t = document.querySelector('#draft-ops textarea');"
+        "        return [t.selectionStart, t.selectionEnd]; }"
+    )
+    assert caret[0] == caret[1], (
+        f"one press selected a range rather than placing a caret: {caret}"
+    )
+    assert at[2] <= caret[0] <= at[2] + at[3], (
+        f"the box opened with the caret at {caret[0]}, not in the word pressed "
+        f"({at[2]}..{at[2] + at[3]})"
+    )
+
+    # The chrome inside the box is not the door, and does not dress as one. The controls
+    # row and the edit box are both things `offer` built and neither names a kind.
+    inside = page.evaluate(
+        """() => [...document.querySelectorAll('#draft-ops [data-lf-offer=""]')]
+             .map((el) => [el.localName, getComputedStyle(el).cursor])"""
+    )
+    assert inside, "the draft built no generated chrome, so this proves nothing"
+    assert all(cursor != "pointer" for _tag, cursor in inside), (
+        f"generated chrome inside the draft dresses as a press: {inside}"
+    )
+
+    # And the pencil is still there, still the keyboard's way in.
+    page.keyboard.press("Escape")
+    pencil = draft_controls(page).locator(".lf-draft-pencil")
+    expect(pencil).to_be_focused()
+    pencil.click()
+    expect(draft.locator("textarea")).to_be_visible()
     assert errors == []
     page.close()

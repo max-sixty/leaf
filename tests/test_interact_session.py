@@ -3072,6 +3072,47 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):
+    """A developer preview is a page put up to be looked at, not handed over.
+
+    A session inspecting a dozen slots was carrying a dozen copies of the same
+    "no watcher" line into every turn, none of which named anything a reader was
+    waiting on. What must survive the exemption is the reader: a comment left on
+    a preview is as unanswered as one left anywhere else, and the clause that
+    reports it runs above this one.
+    """
+    session_model.cmd_status(claimed, "waiting", "")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
+
+    files_model.write_json(
+        claimed / schema_model.PREVIEW_FILE,
+        {
+            "kind": "example",
+            "example": "design-decision",
+            "checkout": "leaf",
+            "started": "2026-09-01T10:00:00+00:00",
+        },
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # Presence is the whole reading. The serve path's reader raises on a preview
+    # file it cannot parse, and this guard fails open by saying nothing, so a
+    # reader here would take every page the session holds down without a word.
+    (claimed / schema_model.PREVIEW_FILE).write_text("{not json", encoding="utf-8")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    events_model.append_event(
+        claimed,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "is this right?"},
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert "1 update you haven't picked up" in reason and str(claimed) in reason
+
+
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
     """A Stop decision belongs to the page's owner at decision time.
 

@@ -89,7 +89,9 @@ A page directory holds:
                          example preview: example, checkout name, start time, and
                          optional commit/dirty state. The server projects these named
                          fields into preview-only browser chrome; it never serves this
-                         file or an absolute checkout path
+                         file or an absolute checkout path. Its presence is the one
+                         statement "this page is a preview, not a handoff", so the
+                         loop guard also reads it and asks no watcher of the page
     service.json         {"host", "bind", "port", "enabled", "lifetime", "runtime"}:
                          the durable desired service. It preserves the exact URL an
                          open browser holds and whether a session may end it.

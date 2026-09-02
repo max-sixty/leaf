@@ -1,6 +1,7 @@
 export function createBanner({
   agentName,
   ago,
+  announce,
   dot,
   el,
   presented,
@@ -101,20 +102,42 @@ export function createBanner({
     // every two seconds.
     if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
   }
-  // One writer for the dot, the line and the tab, offline included: null is the poll saying
-  // it couldn't reach the server, not a second function's own rendering. The line is one of
-  // the two things on the row that give up width when it runs out (see the theme), so what
-  // a narrow window clips is a hover away, the way the version chooser's label is — worth
-  // more now that the line carries the decision and not only the state. Written every time
-  // rather than only when the box clips, because whether it does is a fact about the
-  // rendering and nothing here reads that back.
-  const showStatus = (tone, ...parts) => {
+  // One writer for the dot, the line, the tab and the live region, offline included: null
+  // is the poll saying it couldn't reach the server, not a second function's own
+  // rendering. The line wins the row's width now and wraps to two, so what a narrow
+  // window still clips is a hover away, the way the version chooser's label is. Written
+  // every time rather than only when the box clips, because whether it does is a fact
+  // about the rendering and nothing here reads that back.
+  //
+  // The live region is the fourth seat and the one that must not be written every time.
+  // This line is rewritten on every poll — an age moving, a count turning over, a detail
+  // rephrased — and a region repeating all of that is a page talking over the reader it
+  // is talking to. What is worth interrupting for is the kind changing: work starting, a
+  // turn ending, the server going and coming back. What it says then is the banner's own
+  // sentence, so what is heard and what is on the row are one line rather than two
+  // accounts of it. The first reading is the page arriving rather than a change in it,
+  // and arriving is the document's own announcement.
+  let saidKind;
+  const showStatus = (kind, tone, ...parts) => {
     dot.className = "lf-dot" + (tone ? " " + tone : "");
     statusText.textContent = "";
     statusText.append(...parts);
     statusText.title = statusText.textContent;
     paintTab();
+    const changed = saidKind !== undefined && saidKind !== kind;
+    saidKind = kind;
+    if (changed) announce(statusText.textContent);
   };
+  // A reload the page has decided on its own: a layer that has moved under it, or a
+  // version it could not show. The reader is looking at a page that is about to go, and a
+  // tab reloading with nothing said is the page appearing to lose their place for no
+  // reason. One line, in the seat the rest of the banner's news arrives in, said out loud
+  // as well — a reload is exactly the moment a reader not watching the banner needs
+  // telling, and there is no kind here to have changed.
+  function sayLine(text) {
+    showStatus(saidKind, "", text);
+    announce(text);
+  }
   let previewButton = null;
   let previewDiagnostics = "";
   function renderPreview(state) {
@@ -160,11 +183,12 @@ export function createBanner({
   }
   function renderStatus(state) {
     if (state instanceof Error) {
-      showStatus("offline", "Page couldn't apply current state — reload");
+      showStatus("broken", "offline", "Page couldn't apply current state — reload");
       return;
     }
     if (state === null) {
       showStatus(
+        "unreachable",
         "offline",
         "Server offline — reconnecting. Keep this page open so pending changes can send.",
       );
@@ -238,8 +262,8 @@ export function createBanner({
         " ",
         Object.assign(el("span", "lf-age"), { textContent: `(${ago(status.ts)})` }),
       );
-    showStatus(TONE[kind], ...line);
+    showStatus(kind, TONE[kind], ...line);
   }
 
-  return { loadIcon, renderStatus, toneFor };
+  return { loadIcon, renderStatus, sayLine, toneFor };
 }

@@ -16,6 +16,7 @@ from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
+import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
@@ -301,6 +302,58 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     assert recovered["source_error"] is None
 
 
+def test_state_validation_follows_css_edits_and_recovers_cached_readings(
+    server, page_dir, monkeypatch
+):
+    """State reads reuse CSS work, while edits still change syntax and width checks."""
+    parsed = []
+    parse_stylesheet = tinycss2.parse_stylesheet
+
+    def counted(css, **options):
+        parsed.append(css)
+        return parse_stylesheet(css, **options)
+
+    monkeypatch.setattr(tinycss2, "parse_stylesheet", counted)
+    source = PAGE.replace(
+        "</head>",
+        "<style>:root { --probe-width: 700px } "
+        ".probe { width: var(--probe-width) }</style></head>",
+    )
+    path = page_dir / "index.html"
+    path.write_text(source)
+    initial = json.loads(fetch(f"{server}/api/state")[1])
+    assert initial["source_error"] is None
+    parsed_count = len(parsed)
+    assert parsed_count > 0, "the changed source never reached the CSS parser"
+    comment = {
+        "kind": "comment",
+        "revision": initial["active"]["revision"],
+        "text": "Keep the readable width.",
+        "anchor": {"section": "plan"},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
+    assert status == 200, body
+    assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
+    assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
+
+    theme_path = page_dir / "theme.css"
+    theme = theme_path.read_text()
+    theme_path.write_text(theme.replace("--col: 720px", "--col: 600px"))
+    assert (
+        "column is 600px" in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
+    )
+    theme_path.write_text(theme)
+    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
+
+    path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
+    assert (
+        "page <style> syntax error"
+        in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
+    )
+    path.write_text(source)
+    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
+
+
 def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     """A transition marker is spent by its stamp, not rejected on the next poll."""
     baseline = PAGE.replace(
@@ -310,7 +363,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     (page_dir / "index.html").write_text(baseline)
     first = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "baseline"],
+        ["version", "stamp", "--json", str(page_dir), "--text", "baseline"],
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
@@ -334,7 +387,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     second = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "corrected"],
+        ["version", "stamp", "--json", str(page_dir), "--text", "corrected"],
     )
     assert second.exit_code == 0, second.output
     stamped = json.loads(second.output)

@@ -27,6 +27,7 @@ from render_support import (
     select,
     ticked,
     told,
+    undo,
 )
 
 pytestmark = pytest.mark.nightly
@@ -61,6 +62,99 @@ PAGE_MAP_ITEM_HINT = '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map
 def address_span(count):
     capped = min(count, 9)
     return f"1–{capped}" if capped > 1 else "1"
+
+
+def test_margin_layout_batches_the_composed_page_without_refolding_controls(
+    browser, serve
+):
+    """Layout work is bounded by phases, not the number of contributed controls.
+
+    The corpus used to force 26 layouts and 44 style recalculations per unchanged
+    pass (about 45 ms in local Chrome). Count the browser's work rather than time;
+    the contributor's primary/overflow state must also remain untouched.
+    """
+    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
+    page, errors = open_page(browser, serve(corpus))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    assert page.locator(".lf-margin-item").count() >= 15
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    reading = page.evaluate(
+        """async () => {
+          const {layoutMarginRows} = await import('/runtime/margin-layout.js');
+          const rows = [...document.querySelectorAll('.lf-margin-item')];
+          const boxes = () => rows.map(row => {
+            const {x, y, width, height} = row.getBoundingClientRect();
+            return {x, y, width, height};
+          });
+          const before = boxes();
+          const observer = new MutationObserver(() => {});
+          observer.observe(document.body, {subtree: true, attributes: true,
+            attributeFilter: ['data-lf-button-primary', 'data-lf-button-overflow']});
+          for (let i = 0; i < 5; i++) layoutMarginRows();
+          const mutations = observer.takeRecords().length;
+          observer.disconnect();
+          return {before, after: boxes(), mutations};
+        }"""
+    )
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    assert reading["mutations"] == 0
+    assert reading["after"] == reading["before"]
+    work = {
+        name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
+    }
+    assert all(count <= 30 for count in work.values()), work
+    assert errors == []
+    page.close()
+
+
+def test_a_docked_cluster_keeps_later_margin_buttons_beside_their_targets(
+    browser, serve
+):
+    """Docking adds page height; later hanging Buttons use that final flow."""
+    fixture = leaf_page(
+        "Mixed margin postures",
+        '<p id="first">First target</p><p id="second">Second target</p>',
+    )
+    page, errors = open_page(browser, serve(fixture))
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          for (const [id, count] of [['first', 6], ['second', 1]]) {
+            const controls = document.createElement('span');
+            for (let i = 0; i < count; i++) controls.append(
+              marginAction(offer('button', ''), {
+                key: `action-${i}`, icon: 'dot', label: `Action ${i} for ${id}`,
+                role: i ? 'secondary' : 'primary'
+              })
+            );
+            registerMarginItem({key: id, target: document.getElementById(id), controls,
+              claim: false, state: count > 1 ? 'engaged' : 'idle'});
+          }
+        }"""
+    )
+    first = page.locator('[data-lf-margin-for="first"]')
+    second = page.locator('[data-lf-margin-for="second"]')
+    for width in (1440, 1000, 1440):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        assert ("lf-docked" in first.get_attribute("class")) == (width == 1000)
+        expect(second).not_to_have_class(re.compile(r"\blf-docked\b"))
+        assert second.bounding_box()["y"] == pytest.approx(
+            page.locator("#second").bounding_box()["y"], abs=1
+        )
+    assert errors == []
+    page.close()
 
 
 def expect_page_map_address(page, count, pressed):
@@ -246,7 +340,8 @@ def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
                 '[data-lf-margin-for="map-3"] > .lf-margin-marker'
               );
               return {
-                focused: document.activeElement === marker,
+                focused: document.activeElement === document.querySelector(
+                  '.lf-margin-preview textarea'),
                 clicks: marker.dataset.activationClicks,
                 open: document.querySelector('.lf-margin-preview')
                   .matches(':popover-open'),
@@ -819,6 +914,31 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.keyboard.press(str(draft_address["number"]))
     expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
+
+    assert errors == []
+    page.close()
+
+
+def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
+    """Which location of how many, and how far down, is how a reader listening places a
+    Button in the walk. Painted, the same words read as progress toward something, which
+    is not what they say, so they belong to the accessible name alone."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    buttons = page.evaluate(
+        """() => [...document.querySelectorAll('.lf-margin-action')].map(control => ({
+          name: control.getAttribute('aria-label'),
+          word: control.querySelector(':scope > .lf-margin-action-label').textContent,
+        }))"""
+    )
+    placed = [button for button in buttons if re.search(r"\d+ of \d+", button["name"])]
+    assert placed, "no Button announced where it stands in the walk"
+    for button in placed:
+        assert "percent down" in button["name"], button
+    for button in buttons:
+        assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
 
     assert errors == []
     page.close()
@@ -1434,7 +1554,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-keyline")).to_contain_text("close thread")
-    expect(marker).to_be_focused()
+    expect(preview.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -1470,6 +1590,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
 
+    preview.get_by_role("button", name="Close thread").focus()
     page.keyboard.press("i")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     expect(preview).to_be_hidden()
@@ -1550,8 +1671,6 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
-    expect(page.locator(".lf-keyline")).to_contain_text("comment on the thread")
-    page.keyboard.press("c")
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
@@ -1591,21 +1710,22 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
         }"""
     )
     marker.click()
-    panel_settled(page, open=False)
-    expect(preview).to_be_visible()
-    assert page.evaluate("() => window.__openedMarginModes") == [True]
+    panel_settled(page)
+    expect(preview).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
+    assert page.evaluate("() => window.__openedMarginModes") == []
 
     assert errors == []
     page.close()
 
 
 @pytest.mark.parametrize(
-    ("width", "panel_open"), [(760, False), (1000, True), (1440, False)]
+    ("width", "panel_open"), [(760, False), (1000, True), (1440, False), (1440, True)]
 )
-def test_a_new_anchored_comment_opens_its_inline_thread(
+def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     browser, serve, width, panel_open
 ):
-    """A first message lands in its complete conversation at every page posture."""
+    """A send continues in the open panel or beside the passage, keeping the page put."""
     page, errors = open_page(browser, serve(DECISION_PAGE))
     resized(page, width, 900)
     if panel_open:
@@ -1615,6 +1735,7 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check the January failure mode.")
+    passage_before = page.locator("#mounts-p").bounding_box()
     page.keyboard.press("Enter")
     round_trip(page)
 
@@ -1624,21 +1745,128 @@ def test_a_new_anchored_comment_opens_its_inline_thread(
         "Check the January failure mode.",
     )
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
-    thread = preview.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
-    )
-    expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    if panel_open:
+        expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+        expect(preview).to_be_hidden()
+        thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+        expect(thread).to_contain_text(sent["text"])
+    else:
+        expect(preview).to_be_visible()
+        thread = preview.locator(
+            f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+        )
+        expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
+        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-keyline")).to_contain_text("close thread")
+        preview_box = preview.bounding_box()
+        assert preview_box["x"] >= 0, preview_box
+        assert preview_box["x"] + preview_box["width"] <= width, preview_box
     expect(thread.locator("textarea")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("close thread")
-    preview_box = preview.bounding_box()
-    assert preview_box["x"] >= 0, preview_box
-    assert preview_box["x"] + preview_box["width"] <= width, preview_box
+    page.keyboard.type("the next thought")
+    expect(thread.locator("textarea")).to_have_value("the next thought")
+    passage_after = page.locator("#mounts-p").bounding_box()
+    for coordinate in ("x", "y", "width", "height"):
+        assert passage_after[coordinate] == pytest.approx(
+            passage_before[coordinate], abs=1
+        )
     if width == 760:
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
+# What the card came out as, beside the two facts that decide how wide it was allowed to
+# be: the posture the cascade granted, and the floor the theme declares. The floor is read
+# from the root, where the theme states it, so the test cannot disagree with the layout
+# about which number it is. Where the card stands is asked of the column rather than of
+# the marker: the card is placed once, in the turn it opens, and a claim landing after
+# that moves the marker without moving the card — a race of its own, and not this
+# number's.
+THREAD_CARD_GEOMETRY = """() => {
+  const main = document.querySelector('main').getBoundingClientRect();
+  const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+  const reply = document.querySelector('.lf-margin-thread textarea')
+    .getBoundingClientRect();
+  return {
+    mainRight: main.right,
+    cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+    replyWidth: reply.width, innerWidth: window.innerWidth,
+    beside: getComputedStyle(document.querySelector('main'))
+      .getPropertyValue('--lf-thread-beside').trim(),
+    floor: parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--thread-card-floor')),
+  };
+}"""
+
+
+def send_anchored_comment(page, text):
+    """The gesture the contract's sentence is about: a comment accepted on a passage."""
+    page.locator("#mounts-p").click(click_count=3)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill(text)
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+
+
+def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, serve):
+    """An accepted comment opens a conversation the reader can answer, at any width.
+
+    The card is placed off its marker and takes whatever room the window leaves to the
+    right of that edge. On a page whose left strip is already spoken for, that room runs
+    out while the marker is still on screen, and nothing was asking how much was left:
+    the shipped pr-walkthrough gave a 72px thread and a 22px reply box at 1200, the quote
+    wrapping one word to a line and the placeholder one character. The theme's
+    --thread-card-floor is where the margin stops being a margin — under it the card comes
+    off its marker and covers the page, which is the posture an accepted comment's thread
+    is already allowed (skills/leaf/CLAUDE.md, "Chrome, conversations, and text input").
+    It does not hand the reader to the Threads panel instead, so a card is what both
+    halves of this test read.
+
+    The second half is the other edge of the same number: where the cascade did grant the
+    conversation margin, the floor must change nothing, or a fix for the narrow page would
+    have taken the margin posture away from the wide one.
+
+    Both halves open on a page that already carries a comment, so the conversation margin
+    is claimed and the column has stopped moving before the gesture. Sent into a page
+    claiming that strip for the first time, the card is placed against a marker the claim
+    then slides, and what the read catches is that race rather than this floor.
+    """
+    sidebar_page = DECISION_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_DECISION]))
+    resized(page, 1200, 900)
+    send_anchored_comment(page, "Check the January failure mode.")
+
+    narrow = page.evaluate(THREAD_CARD_GEOMETRY)
+    assert narrow["beside"] == "0", narrow
+    assert narrow["cardWidth"] >= narrow["floor"] - 0.5, narrow
+    assert narrow["replyWidth"] >= 160, narrow
+    assert narrow["cardLeft"] >= 0, narrow
+    assert narrow["cardRight"] <= narrow["innerWidth"] + 0.5, narrow
+    # No margin was reserved at this width, so the room came out of the page.
+    assert narrow["cardLeft"] < narrow["mainRight"], narrow
+
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    send_anchored_comment(page, "Check the January failure mode.")
+
+    wide = page.evaluate(THREAD_CARD_GEOMETRY)
+    assert wide["beside"] == "1", wide
+    # Beside the column at the card's own width: the floor took nothing away here.
+    assert wide["cardLeft"] >= wide["mainRight"], wide
+    assert wide["cardWidth"] >= 459, wide
 
     assert errors == []
     page.close()
@@ -1771,7 +1999,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
-    expect(marker).to_be_focused()
+    expect(preview.locator("textarea")).to_be_focused()
 
     resized_shell(page, 1208, 900)
     beside = page.evaluate(
@@ -1849,12 +2077,16 @@ def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
     page.close()
 
 
-def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serve):
-    """Other map meanings keep their narrow rail until a thread needs the card."""
+@pytest.mark.parametrize(("width", "room"), [(1000, 59), (1440, 520)])
+def test_a_live_page_reserves_conversation_room_before_its_first_thread(
+    browser, serve, width, room
+):
+    """Creating and resolving the first thread cannot shift the passage being read."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION])
+        browser,
+        serve(leaf_page("A passage", '<p id="passage">A passage to discuss.</p>')),
     )
-    resized(page, 1440, 900)
+    resized(page, width, 900)
 
     # The strip is a claim main resolves from the shell, so it is read off main rather
     # than off body's padding. A custom property computes to its unresolved expression,
@@ -1873,11 +2105,79 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
             }"""
         )
 
-    assert strip_right() == 59
+    assert strip_right() == room
 
-    events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
+    comment = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A first thought",
+            "anchor": {"section": "passage"},
+        },
+    )
     told(page)
-    assert strip_right() == 520
+    assert strip_right() == room
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": comment["id"]},
+    )
+    told(page)
+    assert strip_right() == room
+
+    assert errors == []
+    page.close()
+
+
+def test_a_page_that_can_grow_a_button_reserves_its_rail_before_the_first_gesture(
+    browser, serve
+):
+    """The reader's first move must not be the gesture that pays for the margin.
+
+    Moving a card raises an acknowledgement Button at the page edge. Reserved only while
+    that Button stood, the strip arrived with the move and left again with the undo, and
+    the column moved 29px each way — for a control the page had always been going to
+    offer. So the reservation is read off what the page declares, a tag whose registry
+    entry has an action or work channel, and the column stands where it will stand
+    before the reader touches anything.
+
+    Measured on the shipped board rather than a fixture, because the strip is only worth
+    reserving where a real page's width, its claims and its exhibits meet; a fixture
+    built to make those agree would prove nothing about any page a reader opens."""
+    example = next(page for page in EXAMPLES if page.stem == "triage-board")
+    page, errors = open_page(browser, live_url(serve(example)))
+    margins_laid_out(page)
+    column = page.locator("main").evaluate(
+        "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+    )
+
+    page.locator("#card-ie .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator("#col-fixed #card-ie")).to_have_count(1)
+    margins_laid_out(page)
+    # Without a Button in the margin the readings below would agree for the wrong reason.
+    expect(page.locator(".lf-margin-item")).to_have_count(1)
+    assert (
+        page.locator("main").evaluate(
+            "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+        )
+        == column
+    ), "raising the acknowledgement Button moved the readable column"
+
+    undo(page)
+    expect(page.locator("#col-wont #card-ie")).to_have_count(1)
+    margins_laid_out(page)
+    assert (
+        page.locator("main").evaluate(
+            "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+        )
+        == column
+    ), "withdrawing the move handed the strip back and moved the column with it"
 
     assert errors == []
     page.close()
@@ -1983,9 +2283,11 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     toggle = page.locator(".lf-page-map-toggle")
     expect(toggle).to_be_visible()
     expect(toggle).to_have_text(re.compile(r"Map \(\d+\)"))
+    # The row keeps one order at every width and folds what it cannot fit into its menu;
+    # the index stays on the row itself, one press away, rather than behind the door.
     assert toggle.evaluate(
-        "button => button.previousElementSibling.matches('.lf-signoff, .lf-threads-toggle')"
-    ), "the small-screen map is not beside the primary feedback controls"
+        "button => button.parentElement.matches('.lf-banner-actions')"
+    ), "the small-screen map was folded behind the banner's door"
     text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
         """buttons => buttons.map(button => {
           const box = button.getBoundingClientRect();
@@ -2146,6 +2448,55 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     expect(page.locator(".lf-margin-thread").last).to_contain_text(
         "A second reading arrived while the preview was pinned."
     )
+
+    assert errors == []
+    page.close()
+
+
+def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
+    """The card beside a marker follows the marker when the page moves under it.
+
+    A margin row is placed at its target on the next layout pass, and that pass runs
+    whenever the column's size changes — a diagram finishing, an image arriving, a
+    disclosure opening above the marker. The card was placed once, when it opened, so
+    the page moved and the card stood beside where its marker had been. The reflow here
+    is a section growing, which is what every one of those cases is to the margin.
+    """
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
+    )
+    resized(page, 1440, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    # Where the card is and where its marker would have it: placeThreadPreview's own sum,
+    # centred on the marker and held inside the window under the banner.
+    beside = """() => {
+      const marker = document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]');
+      const card = document.querySelector('.lf-margin-preview');
+      const m = marker.getBoundingClientRect();
+      const c = card.getBoundingClientRect();
+      const bannerBottom = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+      const centred = (m.top + m.bottom - c.height) / 2;
+      return {marker: m.top,
+              want: Math.max(bannerBottom + 8, Math.min(centred, innerHeight - c.height - 8)),
+              placed: parseFloat(card.style.getPropertyValue('--lf-thread-top'))};
+    }"""
+    before = page.evaluate(beside)
+    assert abs(before["placed"] - before["want"]) < 1, before
+
+    page.evaluate(
+        "() => { document.getElementById('sec-mounts').style.paddingBottom = '48px'; }"
+    )
+    page.wait_for_function(
+        """was => document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]')
+                 .getBoundingClientRect().top > was + 40""",
+        arg=before["marker"],
+    )
+    after = page.evaluate(beside)
+    assert after["marker"] > before["marker"] + 40, (before, after)
+    assert abs(after["placed"] - after["want"]) < 1, (before, after)
 
     assert errors == []
     page.close()

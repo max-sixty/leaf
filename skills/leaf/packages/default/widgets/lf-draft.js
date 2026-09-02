@@ -31,8 +31,11 @@
  *    same mark every decided-and-unhonored widget wears, driven by the registry's
  *    x-state rather than remembered here.
  *
- * Editing has two doors: double-click the text (the fast path), or the ✎ button (the
- * door keyboards and touch can use; it also makes the block *look* editable). The draft
+ * Editing has two doors: the box itself, which opens the editor with the caret where the
+ * press landed, or the ✎ button (the door the keyboard uses). The block being its own
+ * door is what a reader finds without being told — the ✎ sits in the margin, 45px from
+ * the words it edits, and the gesture that used to open the box in place was a
+ * double-click nothing advertised. The draft
  * contributes that disclosure to its target's shared Button cluster. Save and Cancel
  * replace it for the length of an edit, with their width reserved before presentation,
  * so opening the editor changes what the one RHS item offers without moving the
@@ -56,18 +59,19 @@
  * keeps one state model and lets another tab converge without knowing that the gesture
  * happened in a history view.
  *
- * The fast path is taken on the second mousedown rather than on dblclick, because the
- * word the browser selects is selected *by* that mousedown and painted before dblclick
- * arrives: clearing it afterwards is a frame too late, and the user saw a word
- * flash blue and vanish. Cancelling the mousedown's default means there was never a
- * selection to flash, or a comment button to contest the gesture. What that default
- * was saying — "this word" — is carried into the box instead, where a double-click
- * still means what it means everywhere else: type over this word.
+ * The box's door is taken on click rather than on mousedown, and that is what lets a
+ * drag across the draft still take its words: the gesture is only a press once the
+ * button comes up somewhere that isn't a selection, which is the question
+ * `reachedForWords` answers for every other press on the page's own words. A single
+ * press makes a collapsed caret, so there is no selection to flash and nothing to
+ * cancel — the word-flash this door used to have to preventDefault away was the second
+ * mousedown of a double-click, and that mousedown now lands in the open textarea, where
+ * selecting a word is what a double-click means everywhere else.
  *
  * Chrome is injected through the runtime's `offer`, which marks it .lf-ui for the chrome
  * look, data-lf-gen so the diff ignores it, and data-lf-offer for a thing to work — which
  * is what keeps it off the printed page, out of the anchor pass (this widget declaring no
- * label the page speaks through), and out of the way of the double-click below; the class
+ * label the page speaks through), and out of the way of the box's own door below; the class
  * also earns the edit box the runtime's one textarea rule. Presentation is theme CSS, the
  * swap between the two views included: an open edit is the box being in the document, so
  * the CSS reads that and this module writes no display state at all. Which is also what
@@ -96,6 +100,7 @@ import {
   watchDraft,
   alignText,
   watchActions,
+  reachedForWords,
 } from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -108,31 +113,21 @@ const saveEdit = (id, text) => saveDraft(ctx(id), text);
 const clearEdit = (id) => clearDraft(ctx(id));
 const loadEdit = (id) => loadDraft(ctx(id));
 
-// Where the browser's own double-click would have drawn the word's edges. Segmenter
-// knows the boundaries of the language the draft is written in, which /\w+/ does not:
-// it keeps "l'écran" and a run of CJK whole where a character class splits them. The
-// boundaries follow the script the words are written in; the locale only refines that,
-// and the page's own `lang` is not the place to take it from — nothing validates that
-// attribute, and Segmenter throws on a tag it can't parse, which at module scope is a
-// typo in the markup costing every draft on the page its upgrade.
-const words = new Intl.Segmenter(undefined, { granularity: "word" });
-
-// The word under the pointer as a range in the body's text — the body holds one text
-// node, so its offsets are the textarea's offsets. Between words the range is the
-// collapsed caret the click asked for, which needs no second shape for the caller to
-// test; past the end of the text there is no offset to carry at all, and the box opens
-// where focus alone would have put it.
-function wordAt(body, x, y) {
+// Where the click asked for the caret, as an offset in the body's text — the body holds
+// one text node, so its offsets are the textarea's offsets. Past the end of the text
+// there is no offset to carry at all, and the box opens where focus alone would have put
+// it.
+//
+// A collapsed caret and not a word, because one click means one caret everywhere else.
+// This used to widen the offset to the word around it, through an Intl.Segmenter that
+// knew the boundaries of the language the draft was written in, because the door was a
+// double-click and a double-click means the word. The door is a single click now, and
+// the second click of a double lands in the textarea the first one opened — so the word
+// is selected by the browser, in its own box, by the same segmentation it uses in every
+// other text field. The widget had been reimplementing that to hand it back.
+function caretAt(body, x, y) {
   const pos = document.caretPositionFromPoint(x, y);
   if (!pos || pos.offsetNode !== body.firstChild) return null;
-  for (const w of words.segment(body.textContent)) {
-    if (
-      w.isWordLike &&
-      pos.offset >= w.index &&
-      pos.offset <= w.index + w.segment.length
-    )
-      return [w.index, w.index + w.segment.length];
-  }
   return [pos.offset, pos.offset];
 }
 
@@ -184,7 +179,7 @@ customElements.define(
       this.append(this.#body);
 
       // A quoted draft is an exhibit: the same dedented text, none of the doors —
-      // no pencil, no double-click, no edit keys in the "?" overlay. Quoting
+      // no pencil, no press on the box, no edit keys in the "?" overlay. Quoting
       // gates the action channel, not presentation.
       if (quoted(this)) return;
 
@@ -196,7 +191,7 @@ customElements.define(
         {
           id: "draft.edit",
           keys: [],
-          label: "dblclick or ✎",
+          label: "click or ✎",
           does: "Edit the text in place",
         },
       ]);
@@ -253,19 +248,27 @@ customElements.define(
       });
       watchActions(this, "edit", (actions) => this.#renderHistory(actions));
 
-      // The fast path, taken before the browser paints the selection this gesture
-      // would have made (see above). The word it aimed at opens selected in the box.
-      // A double-click on the widget's own chrome belongs to that control — above all
-      // to the edit box, whose word selection this preventDefault would swallow. What
-      // the guard means is "a thing to work", so it reads the marker that says so and
-      // not the chrome face, which is a look and would answer by coincidence.
-      this.addEventListener("mousedown", (ev) => {
-        // The primary button only: detail counts any button's clicks, and a rapid
-        // middle- or right-button double-press is not the gesture this door is for.
-        if (ev.detail !== 2 || ev.button !== 0 || ev.target.closest("[data-lf-offer]"))
+      // The box is the door. A draft is the one block on the page whose whole purpose is
+      // that the reader rewrites it, so a press anywhere in it opens the editor with the
+      // caret where they pressed — the ✎ is 45px away in the margin, and a double-click
+      // is a gesture nothing on the block advertised.
+      //
+      // A click on the widget's own chrome belongs to that control — above all to the
+      // edit box, which is inside this element and would otherwise reopen on every press
+      // in it. What the guard means is "a thing to work", so it reads the marker that
+      // says so and not the chrome face, which is a look and would answer by coincidence.
+      //
+      // A drag that ended on these words was the reader taking them, not opening
+      // anything: the same complaint `reachedForWords` is for, and the same answer, which
+      // is why it is asked here rather than reimplemented. Opening on the drag's mouseup
+      // would throw the selection away at the moment it was finished.
+      this.addEventListener("click", (ev) => {
+        // A keyboard activation carries no place, and the keyboard's door is the ✎. The
+        // primary button only: a middle- or right-press is not the gesture this is for.
+        if (ev.detail === 0 || ev.button !== 0 || ev.target.closest("[data-lf-offer]"))
           return;
-        ev.preventDefault();
-        this.#open(undefined, wordAt(this.#body, ev.clientX, ev.clientY));
+        if (reachedForWords(this)) return;
+        this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 
       // One edit, however many tabs are open on the page. An open box follows what is

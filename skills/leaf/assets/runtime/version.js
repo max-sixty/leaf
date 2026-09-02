@@ -12,7 +12,7 @@
  * `prepareActivation` fetches the revision a state names ahead of the commit that
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
- * `comparisonChanges`); and `blocksOnScreen`, the reading the decision walk starts from.
+ * `comparisonChanges`); and `readingBlock`, the block the decision walk starts from.
  */
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";
@@ -79,6 +79,7 @@ export function createVersion({
   el,
   elementById,
   focused,
+  importWidgets,
   landedAt,
   midComposition,
   pageText,
@@ -239,6 +240,11 @@ export function createVersion({
     "New page available → open v999",
   );
   latestChip.onclick = () => goActive();
+  // The one address on this row whose arrival a reader must not miss: what they are
+  // reading has been replaced. Every other address is standing information, and being
+  // behind the row's menu costs it nothing; this one is news, so the menu's door says so
+  // while it holds it (banner-shelf.js, paintDoor).
+  latestChip.dataset.lfUrgent = "1";
   if (!LIVE_ROOT) reserveNewsSlot(latestChip);
   const arriving = (label) => `New page available → open ${label}`;
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
@@ -336,11 +342,15 @@ export function createVersion({
     // statement rather than a suspension the surfaces have to be told about separately.
     claims: allButTheReference,
     rows: [
+      // Two rows, both live at either end of a one-row menu, so the line prints both at
+      // once — and while they shared a word it printed it twice, leaving the reader to
+      // tell them apart by their keycaps. The direction is the whole difference between
+      // them and it is what each says.
       {
         id: "version.leave-forward",
         keys: ["Tab"],
         does: "Leave the versions menu forward",
-        line: "leave versions",
+        line: "leave forward",
         native: true,
         // A held Tab is still one continuous trip through the controls. When its repeated
         // keydown reaches the boundary, closing is part of that press just as it is for a
@@ -353,7 +363,7 @@ export function createVersion({
         id: "version.leave-backward",
         keys: ["Shift+Tab"],
         does: "Leave the versions menu backward",
-        line: "leave versions",
+        line: "leave backward",
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
@@ -997,6 +1007,13 @@ export function createVersion({
       return null;
     }
     if (doc === null) return { stale: true };
+    // Step 4 of the startup order, at the boundary that runs the same passes: this
+    // version may introduce a tag the standing document never carried, and insertion is
+    // where its connectedCallback runs. Fetched here, on the same background stretch as
+    // the document itself, so the install below spends none of its view transition on a
+    // module fetch and the page the reader is still looking at is whole for the length
+    // of the import. activateRevision has no other caller, so this is the one import.
+    await importWidgets(doc.querySelector("body > main"));
     return {
       stale: false,
       activates: () =>
@@ -1045,6 +1062,11 @@ export function createVersion({
       if (rect.height && rect.bottom > bannerBottom) yield [block, rect];
     }
   }
+  // The one block the reader is on, which is the first the walk above yields. Two
+  // things outside ask it — where a decision walk starts, and where the keyboard
+  // reference hands a reader back to — and they were asking it in two places with the
+  // same expression written out twice.
+  const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 
   // The quote and the section it's searched in come from the same block, or the search is
   // filtered to a section the text isn't in and can only ever fail — restore then falls back
@@ -1213,13 +1235,13 @@ export function createVersion({
     CHOOSER,
     NEWEST,
     VERSIONS,
-    blocksOnScreen,
     closeVersionMenu,
     comparisonBase,
     comparisonChanges,
     installArrival,
     latestChip,
     prepareActivation,
+    readingBlock,
     renderVersions,
     versionBtn,
     versionLabels,

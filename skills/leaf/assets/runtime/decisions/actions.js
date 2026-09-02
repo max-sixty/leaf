@@ -47,8 +47,7 @@ export function decisionActions(source) {
     const label = words(action?.label);
     if (!(control instanceof Element))
       throw new TypeError(`Decision action ${index + 1} has no Element control`);
-    if (!label)
-      throw new TypeError(`Decision action ${index + 1} has no label`);
+    if (!label) throw new TypeError(`Decision action ${index + 1} has no label`);
     if (seen.has(control))
       throw new TypeError("A decision source registered one control twice");
     seen.add(control);

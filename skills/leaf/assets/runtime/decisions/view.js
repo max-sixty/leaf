@@ -380,8 +380,7 @@ export function createDecisionView({
       )
       .slice(0, MAX_ACTIONS);
   };
-  const actionBindings = () =>
-    availableActions().map((_, index) => String(index + 1));
+  const actionBindings = () => availableActions().map((_, index) => String(index + 1));
   const actionLabels = () => availableActions().map(({ label }) => label);
   const actionRow = {
     id: "decision.activate-nth",
@@ -448,11 +447,10 @@ export function createDecisionView({
     }
   }
   watchDecisionActions(() => paintKeys());
-  addEventListener(
-    "scroll",
-    () => actionReachable() && paintHere(),
-    { capture: true, passive: true },
-  );
+  addEventListener("scroll", () => actionReachable() && paintHere(), {
+    capture: true,
+    passive: true,
+  });
   addEventListener("resize", () => actionReachable() && paintHere());
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather

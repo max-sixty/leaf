@@ -59,8 +59,8 @@ from render_support import (
     actions,
     banner_address,
     compare_with,
-    leaf_page,
     key_line,
+    leaf_page,
     live_url,
     open_page,
     panel_settled,
@@ -2288,9 +2288,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert "1–2\nKeep the store / Signed tokens" in key_line(page)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(
-        ["1", "2"]
-    )
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
 
     page.keyboard.press("2")
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")

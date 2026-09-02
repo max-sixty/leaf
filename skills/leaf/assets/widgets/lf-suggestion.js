@@ -164,8 +164,8 @@ customElements.define(
         [...this.#row.querySelectorAll(":scope > .lf-margin-action")].map(
           (control) => ({
             control,
-            label:
-              control.querySelector(":scope > .lf-margin-action-label")?.textContent,
+            label: control.querySelector(":scope > .lf-margin-action-label")
+              ?.textContent,
           }),
         ),
       );

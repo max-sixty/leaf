@@ -240,8 +240,7 @@ customElements.define(
       this.#decisionActions = registerDecisionActions(this, () =>
         (this.#ta ? [this.#save, this.#cancel] : [this.#pencil]).map((control) => ({
           control,
-          label:
-            control.querySelector(":scope > .lf-margin-action-label")?.textContent,
+          label: control.querySelector(":scope > .lf-margin-action-label")?.textContent,
         })),
       );
       measure(this.#row, () => {

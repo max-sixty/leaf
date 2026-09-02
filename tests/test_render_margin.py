@@ -243,9 +243,7 @@ def test_ask_addresses_follow_the_button_gallery_s_visible_margin_controls(
 
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(
-        ["1", "2"]
-    )
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
           const item = document.querySelector('[data-lf-margin-for="bg-replace"]');

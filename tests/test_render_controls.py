@@ -2805,9 +2805,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `c` lands the reader, and the box it
-    # used to land in is one press further in.
-    page.keyboard.press("c")
+    # The panel, and then its list — which is where `g T` lands the reader; `c` there
+    # enters its page comment box.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
     sweep("standing on the comment list")
     page.keyboard.press("c")
@@ -2989,7 +2990,8 @@ def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve
     the page and the line is capped clear of it instead."""
     page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
     resized(page, 420, 900)
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-page-strip .lf-react-trigger")).to_be_visible()
 
@@ -3809,8 +3811,8 @@ RING_WALK_EXAMPLES = tuple(
 # the rest. Without this a key that stops working leaves the walk re-walking the page and
 # contributing nothing, which the coverage floor catches only where that scope is a
 # rule's sole home: one guard over seven setup steps. The page and the comments raise no
-# surface of their own; `c` and `g T` land on the list, which the walk's own first stop
-# reads.
+# surface of their own; `g T` lands on the Threads list, which the walk's own first stop
+# reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),

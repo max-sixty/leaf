@@ -2724,9 +2724,10 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     )
     assert threads_now == threads_was, "the panel took a key aimed at the document"
 
-    # Into the panel, standing on its list rather than in a box — `c`'s own landing,
+    # Into the panel, standing on its list rather than in a box — `g T`'s landing,
     # which travels nothing, so the baseline below is the one the control left.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
     page_was, threads_was = offsets()

@@ -63,6 +63,16 @@ def test_enter_keeps_another_option_separate_from_a_clarification_thread(
     page.keyboard.press("Enter")
     expect(page.locator("#storage-options > .lf-another input")).to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(mark).to_be_focused()
+
+    # c keeps its page-wide meaning: it comments on the focused option instead of being a
+    # second spelling for adding an answer. Its own Escape restores the same mark too.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
+    page.keyboard.press("Escape")
+    expect(mark).to_be_focused()
     assert errors == []
     page.close()
 

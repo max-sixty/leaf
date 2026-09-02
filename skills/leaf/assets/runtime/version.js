@@ -325,7 +325,8 @@ export function createVersion({
   );
   // The mode represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
-  // not provide. Escape and light dismissal stay native.
+  // not provide. A keyboard-opened menu has CHOOSER's exact return frame; Escape and light
+  // dismissal remain native for pointer-opened menus.
   const VERSIONS = {
     title: "In the versions menu",
     when: versionsOffered,
@@ -372,12 +373,10 @@ export function createVersion({
     ],
   };
 
-  // v names the chooser, the control wearing the version number, and the menu it opens
-  // takes the letter again for the current page — one motion whose second half is a key of
-  // the scope the first half stood up, so it costs the page's table no row and holds whether
-  // or not this page is behind. Named, because the chip that jumps straight to the current
-  // page spells that motion in its tooltip, and because the closed control's own title says
-  // the press beside what pressing it does.
+  // v names the chooser, the control wearing the version number, and the menu it opens.
+  // Named, because the chip that jumps straight to the current page spells that motion in
+  // its tooltip, and because the closed control's own title says the press beside what
+  // pressing it does.
   const CHOOSER = {
     id: "version.open",
     keys: ["v"],
@@ -387,16 +386,16 @@ export function createVersion({
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
-    // The control's own press, so the key and the pointer are one gesture: the menu is a
-    // popover the button declares, and the browser's invoker is what makes a second press a
-    // close. The focus first is what makes the handback the same on both doors — a popover
-    // restores focus to whatever had it when it showed, which the pointer leaves as the
-    // button of its own accord and this key would otherwise leave as the body, putting a
-    // reader who pressed `v` and then Escape on the page rather than back on the chooser.
-    run: () => {
-      versionBtn.focus();
-      versionBtn.click();
-    },
+    // The popover is the control's own press, while the keyboard register owns the route
+    // back to the place that pressed v. Programmatically focusing the chooser first made
+    // the browser return there instead, discarding the real origin before the menu opened.
+    returnFrame: () => ({
+      active: versionMenuIsOpen,
+      close: closeVersionMenu,
+      does: "Return from the versions menu",
+      line: "back",
+    }),
+    run: () => versionBtn.click(),
   };
 
   let lastVersionsKey = "";

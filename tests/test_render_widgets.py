@@ -2348,6 +2348,9 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     resized(page, 900, 520)
 
     page.keyboard.press("a")
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     page.keyboard.press("k")
     geometry = page.evaluate(
         """() => {

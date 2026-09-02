@@ -1,4 +1,8 @@
 import { shownBox, shownRect } from "../geometry.js";
+import {
+  createAddressPlacement,
+  MAX_NUMBERED_ADDRESSES,
+} from "../keyboard/address-placement.js";
 import { bindings } from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
@@ -363,7 +367,6 @@ export function createDecisionView({
   // on the Ask itself. Once Tab enters a control, the widget's nearer scope and native
   // keys take over. The deep focus reading matters for a shadow widget: document focus is
   // retargeted to its host, but a control inside it is still not the Ask itself.
-  const MAX_ACTIONS = 9;
   function actionDecision() {
     const decision = standingIn();
     return decision && focused() === decision ? decision : null;
@@ -379,7 +382,7 @@ export function createDecisionView({
           control.getAttribute("aria-disabled") !== "true" &&
           control.getAttribute("aria-busy") !== "true",
       )
-      .slice(0, MAX_ACTIONS);
+      .slice(0, MAX_NUMBERED_ADDRESSES);
   };
   const actionBindings = () => availableActions().map((_, index) => String(index + 1));
   const actionLabels = () => availableActions().map(({ label }) => label);
@@ -405,8 +408,6 @@ export function createDecisionView({
   // on the key line but wear no chip. A nearer keyboard layer suppresses both the row and
   // these chips through actionReachable, so a digit never stays painted after a chord,
   // text box, or modal has taken it.
-  const overlaps = (a, b) =>
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   const wornAddresses = new Map();
   function restoreAddress(address, { display, priority }) {
     address.removeAttribute("data-lf-ask-address");
@@ -424,9 +425,11 @@ export function createDecisionView({
       actionLayer.replaceChildren();
       return;
     }
-    const clips = new Map();
-    const covered = banner.getBoundingClientRect().bottom;
-    const kept = [keylineEl.getBoundingClientRect()];
+    const placement = createAddressPlacement({
+      banner,
+      keylineEl,
+      startsAt: shownRect,
+    });
 
     // Reuse a widget's page-local address where it has one. Besides preserving the
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
@@ -440,19 +443,12 @@ export function createDecisionView({
       };
       address.setAttribute("data-lf-ask-address", "");
       address.style.setProperty("display", "block", "important");
-      const box = address.checkVisibility() && shownRect(address, clips);
-      if (
-        !box ||
-        box.right <= box.left ||
-        box.bottom <= box.top ||
-        box.bottom <= covered ||
-        kept.some((standing) => overlaps(box, standing))
-      ) {
+      const box = address.checkVisibility() && placement.visibleBox(address);
+      if (!placement.reserve(box)) {
         restoreAddress(address, previous);
         continue;
       }
       wornAddresses.set(address, previous);
-      kept.push(box);
     }
 
     const chips = [];
@@ -460,33 +456,15 @@ export function createDecisionView({
       if (address) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
-      const box = shownRect(presented, clips);
-      if (!box || box.bottom <= covered) continue;
+      const box = placement.visibleBox(presented);
+      if (!box) continue;
       const chip = el("span", "lf-address lf-ask-address", String(index + 1));
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
       chips.push(chip);
     }
-    actionLayer.replaceChildren(...chips);
-
-    const right = document.documentElement.clientWidth;
-    const bottom = document.documentElement.clientHeight;
-    for (const chip of chips) {
-      const start = chip.getBoundingClientRect();
-      const box = new DOMRect(
-        Math.max(0, Math.min(start.left, right - start.width)),
-        Math.max(covered, Math.min(start.top, bottom - start.height)),
-        start.width,
-        start.height,
-      );
-      if (kept.some((standing) => overlaps(box, standing))) chip.remove();
-      else {
-        chip.style.left = `${box.left + box.width / 2}px`;
-        chip.style.top = `${box.top + box.height / 2}px`;
-        kept.push(box);
-      }
-    }
+    placement.paint(actionLayer, chips);
   }
   watchDecisionActions(() => paintKeys());
   addEventListener("scroll", () => actionReachable() && paintHere(), {

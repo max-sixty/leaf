@@ -59,6 +59,7 @@ from render_support import (
     actions,
     banner_address,
     compare_with,
+    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -2089,7 +2090,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     The landing is marked on the ask and stands the reader on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
     control instead put them on whatever the decision's context and evidence had pushed
-    off the bottom of the screen. The controls that answer it are the next Tab stops."""
+    off the bottom of the screen. Its contributed actions are directly addressable there;
+    the controls themselves remain the next Tab stops."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     decisions = page.locator(".lf-decisions")
     expect(decisions).to_have_text("Asks (4)")
@@ -2257,16 +2259,151 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         "the arrival did not leave the Decision's context above its options"
     )
 
-    # And the answer is one press away, in the order the options are written. Read after
+    # Tab remains the complementary route into the widget's local controls. Read after
     # the landing above, because a Tab onto a control below the fold scrolls to it and
     # would take the arrival's own geometry with it.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.
     page.keyboard.press("Escape")
     expect(page.locator("#storage-decision")).not_to_have_attribute("tabindex", "-1")
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
+    """a lands semantic focus on the Ask; digits work its exact action list there.
+
+    The list is contributed by the decision widget rather than inferred from generated
+    descendants: options own controls inside the Ask, while a suggestion's Buttons are
+    hoisted into the shared margin. Core gives either list the same stable numeric
+    projection, and pressing a digit activates the native control without first moving
+    focus into the widget.
+    """
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 900, 900)
+
+    page.keyboard.press("a")
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    assert "1–2\nKeep the store / Signed tokens" in key_line(page)
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
+
+    page.keyboard.press("2")
+    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+
+    page.keyboard.press("a")
+    expect(page.locator("#sug-refill")).to_be_focused()
+    assert "1–2\nAccept / Reject" in key_line(page)
+    page.keyboard.press("2")
+    round_trip(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serve):
+    """Ask and local-scope digits name one stable place on each option card."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 900, 900)
+
+    page.keyboard.press("a")
+    ask = page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    expect(ask).to_have_text(["1", "2"])
+    ask_centers = ask.evaluate_all(
+        """nodes => nodes.map(node => {
+          const box = node.getBoundingClientRect();
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+        })"""
+    )
+
+    page.keyboard.press("Tab")
+    local = page.locator("#live-question > lf-option > .lf-address")
+    expect(local).to_have_text(["1", "2"])
+    local_centers = local.evaluate_all(
+        """nodes => nodes.map(node => {
+          const box = node.getBoundingClientRect();
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+        })"""
+    )
+    assert len(ask_centers) == len(local_centers) == 2
+    for ask_point, local_point in zip(ask_centers, local_centers, strict=True):
+        assert ask_point["x"] == pytest.approx(local_point["x"], abs=0.5)
+        assert ask_point["y"] == pytest.approx(local_point["y"], abs=0.5)
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
+    """A clamped action chip yields to the legend that explains its digit."""
+    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    resized(page, 900, 520)
+
+    page.keyboard.press("a")
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("k")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("k")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_count(1)
+    geometry = page.evaluate(
+        """() => {
+          const read = node => {
+            const box = node.getBoundingClientRect();
+            return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
+          };
+          return {
+            line: read(document.querySelector('.lf-keyline')),
+            chips: [...document.querySelectorAll(
+              '.lf-ask-addresses > .lf-ask-address, [data-lf-ask-address]'
+            )].map(read),
+          };
+        }"""
+    )
+    assert geometry["chips"], "the fixture did not leave an Ask address on screen"
+    assert all(
+        chip["right"] <= geometry["line"]["left"]
+        or geometry["line"]["right"] <= chip["left"]
+        or chip["bottom"] <= geometry["line"]["top"]
+        or geometry["line"]["bottom"] <= chip["top"]
+        for chip in geometry["chips"]
+    ), geometry
+
+    assert errors == []
+    page.close()
+
+
+def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
+    source = leaf_page(
+        "needed draft address",
+        """
+<h1>Supply the copy</h1>
+<lf-decision id="copy-ask"><h2>What should the invitation say?</h2>
+  <lf-draft id="copy" needed><pre>Draft invitation</pre></lf-draft>
+</lf-decision>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+
+    page.keyboard.press("a")
+    expect(page.locator("#copy-ask")).to_be_focused()
+    assert "1\nEdit" in key_line(page)
+    page.keyboard.press("1")
+    expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
+
     assert errors == []
     page.close()
 

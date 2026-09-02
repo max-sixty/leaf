@@ -1048,6 +1048,11 @@ legendRoot.setAttribute("aria-hidden", "true");
 // so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
+// Numeric actions for the Ask the reader is standing in. These share the address face
+// but not the g chord's lifecycle: the decision view paints them whenever its semantic
+// focus and the dispatch stack leave the digit row reachable.
+const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
+decisionActionLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
 // the platform's rather than a keyboard mode's imitation of one.
@@ -1097,6 +1102,7 @@ chromeRoot.append(
   panel,
   legendRoot,
   addressLayer,
+  decisionActionLayer,
   selectionLayer,
   selectionSearch,
   aimBox,
@@ -1900,9 +1906,13 @@ const { decisionEntry, isAwaiting, projectedParent, unansweredDecisions } =
     tagsDeclaring,
   });
 
+// Dispatch is composed after the page table. Until then the decision view can paint its
+// ring but has no complete scope stack from which to claim that a digit is reachable.
+let decisionActionReachable = () => false;
 const {
   DECISION_CONTROL,
   DECISION_ROW,
+  actionRow,
   decisionPlace,
   buildBulkAnswers,
   goToDecision,
@@ -1916,6 +1926,8 @@ const {
   syncDecisions,
 } = createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
+  actionLayer: decisionActionLayer,
+  actionReachable: () => decisionActionReachable(),
   scrollBehavior,
   documentFocused,
   announce,
@@ -1934,9 +1946,11 @@ const {
     if (livingMargin) livingMargin.focusForNavigation(control);
     else control.focus({ preventScroll: true });
   },
+  focused,
   inChrome: (node) => inChrome(node),
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,
@@ -1945,6 +1959,8 @@ const {
   paintKeys,
   PRESS,
   panelIsOpen,
+  presentedActionControl: (control) =>
+    livingMargin?.presentedControl(control) ?? control,
   readableDestination: (...args) => readableDestination(...args),
   registry,
   reserve,
@@ -2637,6 +2653,7 @@ const REFERENCE = {
 };
 const PAGE = {
   rows: [
+    actionRow,
     // The two presses that say something back, first, because the resting line is the
     // only sentence a reader who has not pressed anything yet will read. It used to open
     // `/ search page · s select item`, which are both ways of *finding* a thing to act on
@@ -2945,6 +2962,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   takesLetters,
   TYPING,
 });
+decisionActionReachable = () => availableCommands().has(actionRow.id);
 const reference = createReference({
   byCommand,
   characterShortcutsOn: () => characterShortcutsOn,

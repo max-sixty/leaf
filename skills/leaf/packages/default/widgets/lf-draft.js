@@ -87,6 +87,7 @@ import {
   offer,
   quoted,
   revisionLabel,
+  registerDecisionActions,
   registerMarginItem,
   sendAction,
   sendDraft,
@@ -162,6 +163,7 @@ customElements.define(
     #failed = false;
     #failureReceipt = null;
     #margin = null;
+    #decisionActions = null;
     #buttonReserve = 0;
 
     connectedCallback() {
@@ -239,6 +241,12 @@ customElements.define(
       this.#row.style.opacity = "0";
       this.#row.append(this.#save, this.#cancel);
       this.#offer();
+      this.#decisionActions = registerDecisionActions(this, () =>
+        (this.#ta ? [this.#save, this.#cancel] : [this.#pencil]).map((control) => ({
+          control,
+          label: control.querySelector(":scope > .lf-margin-action-label")?.textContent,
+        })),
+      );
       measure(this.#row, () => {
         // The engaged cluster is Save + Cancel; reserve that complete fitting while
         // the detached measurement row contains its direct controls, before resting
@@ -249,6 +257,7 @@ customElements.define(
         this.#row.replaceChildren(this.#pencil);
         this.#row.style.opacity = "";
         this.#margin?.update();
+        this.#decisionActions.update();
       });
       watchActions(this, "edit", (actions) => this.#renderHistory(actions));
 
@@ -388,6 +397,7 @@ customElements.define(
         delete this.#row.dataset.lfMarginReceipt;
       }
       this.#margin?.update();
+      this.#decisionActions?.update();
     }
 
     #paintAvailability = () => {

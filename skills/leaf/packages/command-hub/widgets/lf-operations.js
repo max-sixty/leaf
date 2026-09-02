@@ -6,6 +6,7 @@ import {
   offer,
   once,
   quoted,
+  registerDecisionActions,
   requestAvailable,
   sendRequest,
   watchRequestLifecycle,
@@ -48,6 +49,7 @@ function paint(holder, lifecycle) {
     control.tabIndex = available ? 0 : -1;
   }
   statusLine(holder, request, receipt);
+  holder._decisionActions?.update();
 }
 
 customElements.define(
@@ -93,6 +95,12 @@ customElements.define(
       if (quoted(this)) return;
       if (!this._stop)
         this._stop = watchRequestLifecycle(this, (lifecycle) => paint(this, lifecycle));
+      this._decisionActions ??= registerDecisionActions(this, () =>
+        children(this).map((option) => ({
+          control: option.querySelector(":scope > .lf-operation-press"),
+          label: title(option),
+        })),
+      );
     }
 
     disconnectedCallback() {

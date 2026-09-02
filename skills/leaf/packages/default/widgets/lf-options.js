@@ -109,6 +109,7 @@ import {
   once,
   quoted,
   reachedForWords,
+  registerDecisionActions,
   relabel,
   selectableOffer,
   sendAction,
@@ -179,6 +180,14 @@ customElements.define(
       if (choosable) {
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
+        this.#decisionActions = registerDecisionActions(this, () => [
+          ...this.#marks().map((control) => ({
+            control,
+            label: label(control.parentElement) || control.parentElement.id,
+            address: control.parentElement.querySelector(":scope > .lf-address"),
+          })),
+          ...(this.#done ? [{ control: this.#done, label: "Done" }] : []),
+        ]);
       }
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
@@ -225,6 +234,7 @@ customElements.define(
     #settled = null;
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
+    #decisionActions = null;
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
@@ -416,6 +426,7 @@ customElements.define(
           },
         ]);
       }
+      this.#decisionActions?.update();
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it

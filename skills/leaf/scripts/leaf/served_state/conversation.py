@@ -90,6 +90,7 @@ def _browser_conversation(
         }
         for thread_id, thread in threads.items()
     ]
+    withdrawn = taken_back(events)
     return (
         {
             "projection": _browser_projection(
@@ -105,13 +106,10 @@ def _browser_conversation(
             # Through the withdrawal, like every other fold: an approval a reader
             # took back is not one, and this list is what the banner's own button
             # reads to say whether the version has been signed off.
-            # Through the withdrawal, like every other fold: an approval a reader
-            # took back is not one, and this list is what the banner's own button
-            # reads to say whether the version has been signed off.
             "done": [
                 event
                 for event in events
-                if event["kind"] == "done" and event["id"] not in taken_back(events)
+                if event["kind"] == "done" and event["id"] not in withdrawn
             ],
         },
         reading,

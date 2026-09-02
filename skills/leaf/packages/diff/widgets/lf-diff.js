@@ -960,8 +960,14 @@ customElements.define(
       return focused && this.shadowRoot.contains(focused) ? focused : null;
     }
 
+    // With nothing focused inside the shadow tree — the host itself is focused, which
+    // is where an in-page link to the diff's id lands — every hunk counts as beyond, in
+    // either direction: `order` is already reversed for a backward step, so the walk
+    // opens the last file and lands on its last hunk, the mirror of the first hunk
+    // forward. Answering false there matched no hunk in any file, and the walk opened
+    // and fetched every one of them to land nowhere.
     beyond(node, here, back) {
-      if (!here) return !back;
+      if (!here) return true;
       const where = here.compareDocumentPosition(node);
       return Boolean(
         where &

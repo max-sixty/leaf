@@ -34,6 +34,7 @@ from render_support import (
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
+    MANIFEST_DIFF_PAGE,
     MESSAGE_ROOM_PAGE,
     MULTI_HUNK_PATCH,
     PROPOSED_PAGE,
@@ -3723,6 +3724,74 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     )
     assert landed["headTop"] == landed["bannerBottom"], (
         f"the header is not pinned where the landing was measured against: {landed}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
+    browser, serve
+):
+    """The mirror of the first `]` above, from the same standing: nothing focused inside
+    the diff. That is where an in-page link to the diff's own id leaves a reader, since
+    `focusDestination` focuses the host, and the diff's keys answer there because the
+    scope climb starts at the focused node itself.
+
+    Going forward, nothing-focused meant every hunk lay ahead and the walk stopped at the
+    first. Going back it meant every hunk lay ahead too, so none lay behind: the walk ran
+    through the whole list, opened each file and fetched its lines, and landed nowhere. A
+    collapsed manifest is where that costs — one fetch per file — so the reading here is
+    the fetch count and the open count beside the landing, on the review's last hunk."""
+    url = serve(MANIFEST_DIFF_PAGE)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        data_model.unified_diff_manifest(MULTI_HUNK_PATCH),
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    fetched = []
+    page.on(
+        "request",
+        lambda request: (
+            fetched.append(request.url) if "/api/data" in request.url else None
+        ),
+    )
+    # Focused as `focusDestination` leaves a host that an in-page link named.
+    page.evaluate(
+        """() => {
+            const diff = document.querySelector('lf-diff');
+            diff.tabIndex = -1;
+            diff.focus();
+        }"""
+    )
+    assert page.evaluate("() => document.activeElement.localName") == "lf-diff"
+    assert (
+        page.evaluate(
+            "() => document.querySelector('lf-diff').shadowRoot.activeElement"
+        )
+        is None
+    ), "the standing this test is about is nothing focused inside the diff"
+
+    page.keyboard.press("[")
+    page.wait_for_function(
+        """() => {
+            const at = document.querySelector('lf-diff').shadowRoot.activeElement;
+            return at && at.dataset.line !== undefined;
+        }"""
+    )
+    landed = page.evaluate(DIFF_LANDING)
+    assert landed["line"] == "200", f"the last file's last hunk starts at 200: {landed}"
+    assert landed["path"] == "app/routes.py", landed
+    opened = page.evaluate(
+        "() => document.querySelector('lf-diff').shadowRoot"
+        ".querySelectorAll('details[open]').length"
+    )
+    assert opened == 1, f"the step opened files it never reached: {opened} open"
+    assert len(fetched) == 1, (
+        f"one file's lines were needed, {len(fetched)} were fetched"
     )
     assert errors == []
     page.close()

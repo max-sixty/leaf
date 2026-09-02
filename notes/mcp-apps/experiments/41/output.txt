@@ -1,0 +1,39 @@
+✘ [ERROR] ENOENT: no such file or directory, open '/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page/widgets/$keys.js' [plugin vendored-leaf]
+
+    Users/maximilian/.codex/worktrees/a5c8/leaf/scripts/mcp-app/leaf-direct-entry.js:3:34:
+      3 │ "/widgets/$keys.js": () => import("/widgets/$keys.js"),
+        ╵                                   ~~~~~~~~~~~~~~~~~~~
+
+▲ [WARNING] Duplicate key "elementOver" in object literal [duplicate-object-key]
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page/runtime/passages.js:837:4:
+      837 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+  The original key "elementOver" is here:
+
+    leaf-file:/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page/runtime/passages.js:828:4:
+      828 │     elementOver,
+          ╵     ~~~~~~~~~~~
+
+/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:1763
+  let error = new Error(text);
+              ^
+
+Error: Build failed with 1 error:
+Users/maximilian/.codex/worktrees/a5c8/leaf/scripts/mcp-app/leaf-direct-entry.js:3:34: ERROR: [plugin: vendored-leaf] ENOENT: no such file or directory, open '/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page/widgets/$keys.js'
+    at failureErrorWithLog (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:1763:15)
+    at /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:1222:25
+    at runOnEndCallbacks (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:1603:45)
+    at buildResponseToResult (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:1220:7)
+    at /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:1247:16
+    at responseCallbacks.<computed> (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:897:9)
+    at handleIncomingPacket (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:952:12)
+    at readFromStdout (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:875:7)
+    at worker.onmessage (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:2655:38)
+    at /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/browser.js:2630:25 {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+
+Node.js v26.8.1

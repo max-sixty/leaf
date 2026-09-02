@@ -10,6 +10,7 @@ let publishedPassages;
 export const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 export const closestAcross = (...args) => publishedPassages.closestAcross(...args);
+export const containsAcross = (...args) => publishedPassages.containsAcross(...args);
 export const inChrome = (...args) => publishedPassages.inChrome(...args);
 export const inUi = (...args) => publishedPassages.inUi(...args);
 export const renderRetired = (...args) => publishedPassages.renderRetired(...args);

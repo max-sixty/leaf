@@ -15,6 +15,9 @@ export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 // read off, which is the one form that cannot disagree with what this document is.
 export const versionUrl = (version) =>
   `${location.pathname.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
+// The live root follows the active revision in place; an immutable version file, served
+// under the path above, stays pinned.
+export const LIVE_ROOT = location.pathname.endsWith("/");
 // Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
 // server serves one page at its own root, so every key below is spelled exactly as it was.
 // Two leaf pages on one origin is what needs it — web storage is the origin's, so the

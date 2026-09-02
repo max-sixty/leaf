@@ -554,7 +554,9 @@ class Handler(BaseHTTPRequestHandler):
                     404,
                 )
                 return True
-            source = (self.page_dir / path.lstrip("/")).read_text(encoding="utf-8")
+            source = revision_path(self.page_dir, mapping[version]).read_text(
+                encoding="utf-8"
+            )
             self._send(
                 200,
                 "text/html; charset=utf-8",

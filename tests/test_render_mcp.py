@@ -813,7 +813,7 @@ def test_mcp_app_is_read_only_when_the_host_cannot_proxy_server_tools(
         page.close()
 
 
-# Three passages a host paints differently from the way the version file holds them: the
+# Three passages a host paints differently from the way the authored document holds them: the
 # theme uppercases a table header and an eyebrow, and a <br> puts a line break where the
 # page's own words run straight on. Each is ordinary authored markup — every shipped
 # example carries an eyebrow — so this is what a reader points at, not an edge case.

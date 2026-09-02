@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from xml.etree import ElementTree
 
-from .event_log import flocked, now_iso
+from .event_log import flocked
 from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
@@ -64,8 +64,8 @@ def _session_key(session_id: str) -> str:
     return hashlib.sha256(session_id.encode()).hexdigest()[:32]
 
 
-def adapter_record_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.codex.json"
+def adapter_log_path(session_id: str) -> Path:
+    return state_home() / "sessions" / f"{_session_key(session_id)}.codex.log"
 
 
 def delivery_path(session_id: str) -> Path:
@@ -83,13 +83,6 @@ def delivery_payload_path(session_id: str, delivery_id: str) -> Path:
 
 def adapter_start_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.start"
-
-
-def _write_record(session_id: str, **fields) -> None:
-    path = adapter_record_path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    previous = read_json(path) or {}
-    write_json(path, {**previous, **fields, "updated": now_iso()})
 
 
 def _delivery_prompt(delivery_id: str, payload_path: Path, url: str | None) -> str:
@@ -201,7 +194,6 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
     leases_released = False
     try:
         check_queue_command(codex_path)
-        _write_record(identity["id"], running=True, pid=os.getpid(), error=None)
         if ready_fd is not None:
             os.write(ready_fd, b'{"ready":true}\n')
             os.close(ready_fd)
@@ -221,10 +213,14 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
                         write_json(delivery_path(identity["id"]), intent)
                     finish_intent(identity, intent)
                     failures = 0
-                    _write_record(identity["id"], error=None)
                 except (OSError, RuntimeError) as error:
                     failures += 1
-                    _write_record(identity["id"], error=str(error))
+                    if failures == 1:
+                        print(
+                            f"Codex delivery retry: {error}",
+                            file=sys.stderr,
+                            flush=True,
+                        )
                     time.sleep(min(30, 2 ** min(failures, 5)))
                 continue
 
@@ -253,7 +249,6 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
                     return reading.outcome or 0
             time.sleep(1)
     except BaseException as error:
-        _write_record(identity["id"], running=False, error=str(error))
         if ready_fd is not None:
             os.write(
                 ready_fd,
@@ -262,7 +257,6 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
             os.close(ready_fd)
         raise
     finally:
-        _write_record(identity["id"], running=False)
         if not leases_released:
             watch.release()
             lease.close()
@@ -285,9 +279,7 @@ def cmd_codex_start(page_dir: Path, codex_path: str | None = None) -> str:
             if adapter_is_live(session_id):
                 return f"Codex delivery is already active for task {session_id}"
             read_fd, write_fd = os.pipe()
-            log_path = (
-                state_home() / "sessions" / f"{_session_key(session_id)}.codex.log"
-            )
+            log_path = adapter_log_path(session_id)
             with open(log_path, "ab", buffering=0) as log:
                 process = subprocess.Popen(
                     [

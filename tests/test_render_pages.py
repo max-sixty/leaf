@@ -120,7 +120,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     real exchange rather than an empty panel.
 
     The anchor in that log is the part that can rot quietly. It is captured from
-    the version file, and it has to name the same passage once the browser has
+    the mapped revision, and it has to name the same passage once the browser has
     built the page; a rewritten sentence leaves the quote resolving to nothing and
     the thread standing there detached, which is a broken demo and no error
     anywhere. The corpus's own anchor sweep does not cover it, because that sweep
@@ -349,7 +349,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # The panel is open, which is the only state in which a widget a message
         # carries has a box at all — so this is where the gate's own geometry readings
         # can be put to one. They cannot be put there by the gate: `version check
-        # --render` is pointed at a version file and never opens the panel, and a fault
+        # --render` is pointed at a version document and never opens the panel, and a fault
         # in a frozen fragment is not one the version's author could edit away, so a
         # finding there would red their handover for good. The readings are the
         # product's own rather than test-side copies, for the reason tests/CLAUDE.md
@@ -359,7 +359,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # shut panel has no boxes at all. Every other geometry reading passes over the
         # panel structurally, by `.lf-chrome` or by starting at `main`, and stays
         # passed over. The gate cannot make up the difference: it is pointed at a
-        # version file and never opens the panel, and a fault in markup frozen in the
+        # version document and never opens the panel, and a fault in markup frozen in the
         # log is not one that version's author could edit away — a finding there would
         # red their handover with no edit that clears it. Here the panel is open,
         # which is the one state in which such a widget has a box to be wrong about.
@@ -466,8 +466,10 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
 
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, source):
-    """The claim `leaf comment` makes is that a quote read out of the version file
+def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
+    browser, serve, source
+):
+    """The claim `leaf comment` makes is that a quote read out of the mapped revision
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
@@ -551,7 +553,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
 
     page, errors = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    (d / "versions" / "v2.html").write_text(TWIN_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
     stamp_version_file(d, 2, "a twin")
     wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")

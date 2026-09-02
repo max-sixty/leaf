@@ -116,8 +116,8 @@ def stamp_page(
 
 
 def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
-    """Migrate a fixture-authored vN file through the real stamp boundary."""
-    path = files_model.version_path(page_dir, version)
+    """Move a fixture-authored candidate through the real stamp boundary."""
+    path = page_dir / ".fixture-versions" / f"v{version}.html"
     html = path.read_text(encoding="utf-8")
     path.unlink()
     note = stamp_page(page_dir, html, text)
@@ -504,6 +504,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                         operation["label"],
                         operation["format"],
                     )
+        (d / ".fixture-versions").mkdir(exist_ok=True)
         seeded = (
             example and seed_log and (seed := example.with_suffix(".jsonl")).exists()
         )
@@ -515,7 +516,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             assert activated.error is None and activated.revision == number, (
                 activated.error
             )
-            (d / "versions" / f"v{number}.html").write_text(markup)
+            (d / ".fixture-versions" / f"v{number}.html").write_text(markup)
             events_model.append_event(
                 d,
                 {
@@ -915,11 +916,10 @@ def nudge(page_dir):
 
     The page asks for state when its news stream says the page has moved, and the
     stream reads file stamps. A test that wants the page's next ask — to park it, or to
-    watch it refused — used to wait for the poll's timer; now it moves a stamp the state
-    does not read. The versions directory's own clock is one: a state reads the files
-    in it and never the directory's time.
+    watch it refused — used to wait for the poll's timer; now it moves the revisions
+    directory stamp, which the state fingerprint reads without changing page content.
     """
-    os.utime(page_dir / "versions")
+    os.utime(page_dir / "revisions")
 
 
 def ticked(page):

@@ -2834,7 +2834,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
     expect(page.locator("lf-source code")).to_have_text("Current instructions.\n")
-    current = (serve.page_dir / "versions" / "v1.html").read_text()
+    current = (serve.page_dir / ".fixture-versions" / "v1.html").read_text()
     _publish(
         serve.page_dir,
         2,
@@ -3229,7 +3229,7 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
         browser, live_url(data_projection_page(serve)), init_script=activation_probe
     )
     d = serve.page_dir
-    current = (d / "versions" / "v1.html").read_text()
+    current = (d / ".fixture-versions" / "v1.html").read_text()
     _publish(
         d,
         2,

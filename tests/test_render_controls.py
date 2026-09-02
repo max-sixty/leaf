@@ -544,7 +544,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(pinned.locator(".lf-banner-more")).not_to_have_attribute(
         "data-lf-news", re.compile(r".*")
     )
-    (serve.page_dir / "versions" / "v2.html").write_text(html)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
     stamp_version_file(serve.page_dir, 2, "two")
     expect(pinned.locator(".lf-latest-chip")).to_have_class(
         re.compile(r"lf-news-shown")
@@ -731,7 +731,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     # the reader to the next standing address instead of silently dropping them on body.
     page, errors = open_page(browser, url, pin=True)
     resized(page, 1200, 900)
-    (serve.page_dir / "versions" / "v2.html").write_text(html)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
     stamp_version_file(serve.page_dir, 2, "two")
     expect(page.locator(".lf-latest-chip")).to_have_class(re.compile(r"lf-news-shown"))
     answer_all = page.locator(".lf-answer-all")
@@ -1906,7 +1906,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page_at_rest(page)
 
     def publish_v2():
-        (d / "versions" / "v2.html").write_text(html)
+        (d / ".fixture-versions" / "v2.html").write_text(html)
         stamp_version_file(d, 2, "two")
 
     # The same events a second tab's presses would have posted, which is the only way one
@@ -2107,7 +2107,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     destination = link.get_attribute("href")
     tab = opened_tab(page, link.click)
     # The new tab keeps the other page's live root, authorized by the key its link
-    # carried, rather than being redirected onto one immutable version.
+    # carried, rather than being redirected onto one stamped version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     expect(tab).to_have_url(destination)
     # The press left this tab alone, tray still standing.
@@ -3391,7 +3391,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         )
         .replace('id="quota-ready" chosen', 'id="quota-ready"')
     )
-    (serve.page_dir / "versions" / "v2.html").write_text(quota_v2)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(quota_v2)
     stamp_version_file(serve.page_dir, 2, "same plan")
     told(current)
     expect(current.locator(".lf-version")).to_contain_text("v2")

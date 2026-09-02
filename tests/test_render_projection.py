@@ -997,7 +997,7 @@ def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
 
 
 def test_the_decision_walk_keeps_its_place_when_a_version_lands(browser, serve):
-    """An immutable version follows by navigation, and the reader's place rides across.
+    """A stamped version follows by navigation, and the reader's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the reader was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
@@ -1460,7 +1460,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
 
 def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
-    """The immutable file and its state must describe the DOM in one reading.
+    """The mapped revision and its state must describe the DOM in one reading.
 
     Hold the first projected base after the server has answered it, advance the open
     page with a report, and then deliver that stale base. The comparison asks again at
@@ -1970,7 +1970,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     nothing printed, which is the one failure a user cannot tell from slowness: the
     gate stopping is loud, and the gate never stopping looks like a slow machine.
 
-    Stalled on the previous version's file, because the page never asks for that one
+    Stalled on the previous version's address, because the page never asks for that one
     itself — a path the runtime fetches on load would wedge the navigation instead,
     and the gate would report the banner it never saw rather than the read it never
     got. The deadline is shortened here for the same reason every wait in this suite
@@ -1980,8 +1980,9 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
+    (d / ".fixture-versions").mkdir()
     for n in (1, 2):
-        (d / "versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
+        (d / ".fixture-versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
         stamp_version_file(d, n, "t")
 
     asked = threading.Event()
@@ -2040,7 +2041,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         )
 
     def stamp(n, html):
-        (d / "versions" / f"v{n}.html").write_text(html)
+        (d / ".fixture-versions" / f"v{n}.html").write_text(html)
         stamp_version_file(d, n, "t")
         return url.replace("v1.html", f"v{n}.html")
 
@@ -2771,7 +2772,7 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     honored = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    (d / "versions" / "v2.html").write_text(honored)
+    (d / ".fixture-versions" / "v2.html").write_text(honored)
     stamp_version_file(d, 2, "t")
     third, third_errors = open_page(browser, url.replace("v1.html", "v2.html"))
     expect(third.locator("#col-done #card-importer")).to_be_visible()
@@ -3432,7 +3433,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     one no version will ever hold (an honored suggestion, whose id the honoring
     version dropped) rather than one to look for again on the next poll. Its authored
     record is banked while the reply body is still detached, so withdrawing the action
-    restores that baseline without a version file for the chrome widget."""
+    restores that baseline without authored version markup for the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -4940,7 +4941,7 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
     url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, live_url(url))
     page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
-    (serve.page_dir / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
     stamp_version_file(serve.page_dir, 2, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")

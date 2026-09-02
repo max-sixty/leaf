@@ -242,7 +242,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     # and the anchor is on a word only the runtime puts there, so it has to be found
     # again in the version the user now has.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         SAID_PAGE.replace("Waiting on the importer.", "Unblocked; starting Thursday.")
     )
     stamp_version_file(d, 2, "two")
@@ -265,7 +265,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
 
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve):
     """Module-only words may sit between authored parts, but they cannot give the
-    browser more context than the version file can confirm."""
+    browser more context than the mapped revision can confirm."""
     page, errors = open_page(browser, serve(FENCED_CAPTURE_PAGE))
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
@@ -429,7 +429,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         CONTROL_LABEL_PAGE.replace(
             "the south pair waits on brackets", "the brackets arrived"
         )
@@ -1015,7 +1015,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
     # The harm that outlives the stray button: a page mid-composition stays put.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         INLINE_PAGE.replace('<h1 id="t">Inline</h1>', '<h1 id="t">Inline II</h1>')
     )
     stamp_version_file(d, 2, "two")
@@ -1025,7 +1025,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
 
 def test_code_is_colored_without_a_word_moving(browser, serve):
-    """Colouring is spans, and the anchor pass is what spans break: the version file holds
+    """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
     block the file knows nothing about, and what keeps `leaf comment` able to quote
@@ -2262,7 +2262,7 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(DRIFT_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(DRIFT_V2)
     stamp_version_file(d, 2, "revised")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
@@ -2560,7 +2560,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(THIN_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(THIN_V2)
     stamp_version_file(d, 2, "revised")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
@@ -2617,7 +2617,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 
     # And the older document is a real destination, not just a row: choosing it pins
-    # the reader to the immutable file the chooser named.
+    # the reader to the virtual version address the chooser named.
     page.locator(".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))

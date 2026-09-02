@@ -1268,20 +1268,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-/* Decided. The surviving circle keeps the outcome glyph and its common action colour;
- * the past tense is a persistent receipt beside it. A tooltip is discovery chrome, not
- * a place for document state: the receipt is visible and selectable, and survives a
- * standalone copy after its inert Button is stripped.
- *
- * The losing control leaves the row. The contribution declares that this surviving
- * control represents the outcome, so the margin does not add a second generated
- * outcome Button; focus continuity moves from a retired proxy to this real control. */
-.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { display: none; }
-.lf-sug-actions[data-lf-outcome] .lf-margin-action-label { display: none; }
+/* A settled suggestion keeps state as visible, selectable receipt text. Its circle is
+ * Undo, so it remains a genuine action; failure uses the same receipt anatomy beside
+ * Retry and Cancel. Generated controls disappear from static export while the receipt
+ * remains ordinary document text. */
 .lf-sug-receipt { color: var(--ink-2); font-weight: 600; }
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-receipt { color: var(--ok-ink); }
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-receipt { color: var(--danger-ink); }
+.lf-sug-actions[data-lf-margin-receipt="failed"] .lf-sug-receipt { color: var(--danger-ink); }
 
 /* The living margin is a retained projection with one cluster per page target. Its
  * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
@@ -1293,6 +1287,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+.lf-margin-item::before { content: ""; position: absolute; right: 100%; top: 16px;
+    width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
+    pointer-events: none; }
+.lf-margin-item:is(:hover, :focus-within)::before { opacity: 1; }
 .lf-margin-item.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box
@@ -1305,6 +1303,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * the whole width of a line the reader is trying to select in (pointer-events above). */
 .lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
+.lf-margin-item.lf-docked::before { display: none; }
+.lf-margin-item.lf-docked .lf-margin-action > .lf-margin-action-label {
+    inset-inline: 0 auto;
+}
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }

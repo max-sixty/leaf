@@ -976,6 +976,7 @@ export function createAnchors(dependencies) {
         record = { seat, roots: [], margin: null };
         reactionSeats.set(at, record);
         record.margin = registerMarginItem({
+          key: "standing-reactions",
           target: at,
           controls: seat,
           items: () =>
@@ -1003,8 +1004,10 @@ export function createAnchors(dependencies) {
         if (!mark) {
           const entry = registry.$reactions.tokens[root.token];
           mark = marginAction(offer("button", "lf-react-mark"), {
+            key: `take-back:${root.id}`,
             glyph: entry?.glyph ?? root.token,
             label: root.token,
+            role: "secondary",
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;

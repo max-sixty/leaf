@@ -13,8 +13,8 @@ export function createDispatch({
   ELEMENTS,
   focused,
   isChordArmed,
-  isReactArmed,
   paintHere,
+  REACT,
   recoveredLabelFocus,
   SCOPES,
   scopesFor,
@@ -88,7 +88,7 @@ export function createDispatch({
     // gives it. A modifier alone is half a press rather than a key: the Shift that
     // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
     // took the window down before the G it was armed for.
-    if ((isChordArmed() || isReactArmed()) && !MODIFIER_KEYS.includes(ev.key)) {
+    if ((isChordArmed() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
       setChord(false);
       setReact(false);
       run(ev);
@@ -210,7 +210,7 @@ export function createDispatch({
     // readings of where the reader is standing would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
-    if (isReactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
+    if (standing(REACT) && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (isChordArmed() && (takesLetters(active) || claimsEsc(active))) {
       setChord(false);
     }

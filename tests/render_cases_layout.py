@@ -746,26 +746,19 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
 
 
 def unfolded_button(control):
-    """Press `…` and hand back the Button standing in for one folded contribution.
+    """Return a secondary Button, opening `…` only for a larger peer set.
 
-    A target's cluster rests with one primary Button; every other contributed control
-    is folded away and appears, once `…` is pressed, as a peer Button of its own. That
-    peer is what a reader can aim at — the owner keeps the row's record and never comes
-    out from behind the fold — so a test whose subject is a secondary gesture presses
-    the stand-in and lets it forward the press to its owner.
-
-    Named for the fold rather than for any one control, because which contribution is
-    primary is the layer's choice and not a test's: handed a control the cluster is
-    already resting, this presses `…` for nothing and finds no stand-in, which is the
-    honest failure rather than a quiet press of the wrong Button.
+    A single peer is already visible. In either posture the contribution's real
+    control stays with its owner and the visible proxy forwards the reader's press.
+    Asking this helper for a primary still fails: it has no secondary proxy.
     """
     item = control.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '),"
         " ' lf-margin-item ')][1]"
     )
     more = item.locator(":scope > .lf-margin-more")
-    expect(more).to_be_visible()
-    more.click()
+    if more.is_visible():
+        more.click()
     options = item.locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
     return options.get_by_role(

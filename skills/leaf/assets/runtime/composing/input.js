@@ -3,7 +3,7 @@
 // binding their caller supplies, and can't be double-sent by an impatient second click.
 // Growing with their content is the stylesheet's job (field-sizing), not this file's.
 // wire() returns a sync() the caller runs after setting .value programmatically, so the
-// send button agrees with what's in the box.
+// send button and any containing chrome agree with what's in the box.
 export function createInput({ focused, keys, showToast, spell }) {
   // The send binding, and the register's spelling of it: the placeholder, the button's
   // tooltip and the row a box declares all read one string, where the constant they used to
@@ -36,6 +36,7 @@ export function createInput({ focused, keys, showToast, spell }) {
       altSend = null,
       busy = () => false,
       sendKey = SEND,
+      layout = () => {},
     },
   ) {
     // The hint goes in the placeholder, where it's visible exactly while the box is
@@ -68,6 +69,7 @@ export function createInput({ focused, keys, showToast, spell }) {
       const disabled = String(sending || busy() || !ta.value.trim());
       sendBtn.setAttribute("aria-disabled", disabled);
       altBtn?.setAttribute("aria-disabled", disabled);
+      layout();
     };
     // A runtime-built box is normally wired before it can receive focus. Preserve the
     // bookkeeping too if a caller wires one that is already standing.

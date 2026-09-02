@@ -5,6 +5,8 @@ import { stateSpecs } from "./registry.js";
 let publishedProjection;
 export const shallowSigs = (...args) => publishedProjection.shallowSigs(...args);
 export const standingState = (...args) => publishedProjection.standingState(...args);
+export const withdraw = (...args) => publishedProjection.withdraw(...args);
+export const undoableAction = (...args) => publishedProjection.undoableAction(...args);
 
 /* Declaration-driven state projection and reconciliation. */
 export function createProjection(runtime, dependencies) {
@@ -46,6 +48,7 @@ export function createProjection(runtime, dependencies) {
     standOn,
     textNodesUnder,
     toast,
+    unaccountedGesture,
   } = dependencies;
   const { registry } = runtime;
 
@@ -346,6 +349,19 @@ export function createProjection(runtime, dependencies) {
     return null;
   }
 
+  // A local Undo names an action rather than walking to the newest one, but it has
+  // exactly the same authored-version and replayability boundary as the keyboard walk.
+  function undoableAction(widget, action) {
+    const candidate = (runtime.view?.undo ?? []).find(
+      ({ event }) =>
+        event.kind === "action" &&
+        event.widget === widget.id &&
+        event.action === action &&
+        (inChrome(widget) || event.revision === runtime.currentRevision),
+    );
+    return candidate && canUndoAction(candidate) ? candidate.event : null;
+  }
+
   // Said in the kinds this file owns, never in the verb the action carries: `move` and
   // `edit` read as nouns in that sentence and `choose` does not, and which of the two a
   // widget's word is is not core's to know. It is the same rule that keeps "accept" out
@@ -376,11 +392,16 @@ export function createProjection(runtime, dependencies) {
   // reaction's glyph in the margin, its pill on a strip — and a press there takes back
   // exactly that event, which need not be the newest. Same door, same toast.
   async function withdraw(e) {
+    if (unaccountedGesture()) {
+      toast("Wait for the current change to finish before undoing");
+      return null;
+    }
     runtime.undoing = true;
     paintKeys();
     try {
-      if (await post({ kind: "undo", undoes: e.id }))
-        toast(`${undoWord(e)} — recorded`);
+      const accepted = await post({ kind: "undo", undoes: e.id });
+      if (accepted) toast(`${undoWord(e)} — recorded`);
+      return accepted;
     } finally {
       runtime.undoing = false;
       paintKeys();
@@ -812,6 +833,7 @@ export function createProjection(runtime, dependencies) {
     stateProjection,
     undoLast,
     undoable,
+    undoableAction,
     unitOf,
     withdraw,
   };

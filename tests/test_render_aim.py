@@ -215,6 +215,131 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     page.close()
 
 
+@pytest.mark.parametrize(
+    "width,panel_open", [(1440, False), (1440, True), (390, False)]
+)
+def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
+    browser, serve, width, panel_open
+):
+    """A short selected phrase does not reserve the rest of its paragraph for chrome.
+
+    The field starts compact, then native field sizing uses the room available beside
+    the whole paragraph or above/below it. Its corners keep the first and last line
+    readable after the one-line capsule grows into an editor.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment placement",
+                '<h1>Comment placement</h1><div style="height: 50vh"></div>'
+                '<p id="passage">A short phrase begins a '
+                "paragraph with enough surrounding words to expose a field placed over "
+                "the rest of the same line. Those surrounding words still belong to the "
+                "passage being reviewed, even when the comment names only a few of them.</p>"
+                '<p id="after">The following paragraph stays in ordinary reading flow.</p>'
+                '<div style="height: 100vh"></div>',
+            )
+        ),
+    )
+    resized(page, width, 900)
+    if panel_open:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+    paragraph = page.locator("#passage")
+    points = paragraph.evaluate(
+        """el => {
+          const node = el.firstChild;
+          const first = document.createRange(), last = document.createRange();
+          first.setStart(node, 2); first.setEnd(node, 3);
+          last.setStart(node, 13); last.setEnd(node, 14);
+          const a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
+    )
+    select(page, *points)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    compact = field.bounding_box()
+    content = "\n".join(
+        f"Line {n}: every word of this longer comment needs to remain readable."
+        for n in range(20)
+    )
+    field.fill(content)
+    expect(field).to_have_value(content)
+    clear = """() => {
+          const target = document.getElementById('passage').getBoundingClientRect();
+          const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
+          return field.right <= target.left || field.left >= target.right
+            || field.bottom <= target.top || field.top >= target.bottom;
+        }"""
+    page.wait_for_function(clear)
+    expanded = field.bounding_box()
+    assert expanded["width"] > compact["width"]
+    assert expanded["height"] > compact["height"] * 5
+    assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
+    assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
+    assert field.evaluate(
+        "el => parseFloat(getComputedStyle(el).borderTopLeftRadius)"
+    ) <= (compact["height"] / 2)
+    if panel_open:
+        assert (
+            expanded["x"] + expanded["width"]
+            < page.locator(".lf-panel").bounding_box()["x"]
+        )
+    page.mouse.move(8, 450)
+    page.mouse.wheel(0, 300)
+    page.wait_for_function("() => scrollY >= 300")
+    page.wait_for_function(clear)
+    expect(field).to_have_value(content)
+    field.fill("Brief")
+    expect(field).to_have_value("Brief")
+    assert field.bounding_box()["height"] == compact["height"]
+    assert errors == []
+    page.close()
+
+
+def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(browser, serve):
+    """A crowded column is one placement problem, not repeated downward nudges.
+
+    On the narrow corpus the old walk moved the field below controls, then the bottom
+    clamp moved it back onto its paragraph. The field must fit the actual clear band.
+    """
+    page, errors = open_page(
+        browser,
+        serve(next(example for example in EXAMPLES if example.stem == "corpus")),
+    )
+    resized(page, 700, 900)
+    page.get_by_role("tab", name="Notes", exact=True).click()
+    paragraph = page.locator("#rn-lede")
+    paragraph.click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    compact_height = field.bounding_box()["height"]
+    field.fill(
+        "\n".join(f"Review line {n}: keep this draft intact." for n in range(20))
+    )
+    page.wait_for_function(
+        """() => {
+          const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
+          const clear = node => {
+            const r = node.getBoundingClientRect();
+            return !r.width || !r.height || field.right <= r.left || field.left >= r.right
+              || field.bottom <= r.top || field.top >= r.bottom;
+          };
+          const target = document.getElementById('rn-lede');
+          const r = target.getBoundingClientRect();
+          const distance = Math.max(r.top - field.bottom, field.top - r.bottom, 0);
+          return clear(target) && distance <= 8 &&
+            [...document.querySelectorAll('[data-lf-offer]')]
+              .filter(node => !node.closest('.lf-chrome')).every(clear);
+        }"""
+    )
+    assert field.bounding_box()["height"] > compact_height * 2
+    assert errors == []
+    page.close()
+
+
 def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     """The one shell observer hears movement that no target observer can hear.
 

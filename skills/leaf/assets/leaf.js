@@ -942,7 +942,7 @@ fabInput.autocomplete = "off";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(el("button", "lf-ui lf-fab"), {
-  glyph: "💬",
+  icon: "comment",
   label: "Comment",
   behavior: "disclosure",
 });
@@ -1262,6 +1262,7 @@ const {
   panel,
   panelCovers,
   pointerAt,
+  reactionContextContains: (node) => reactionContextContains(node),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
   resolveAnchor: (...args) => resolveAnchor(...args),
@@ -1335,6 +1336,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   paintAnchors,
   paintHere,
   post,
+  refreshFab,
   saveDraft,
   sendDraft,
   showFab,
@@ -1985,6 +1987,7 @@ const {
   buildReactBar,
   buildReactSurface,
   isReactArmed,
+  reactionContextContains,
   reactionTokens,
   sendReaction,
   setReact,
@@ -1996,6 +1999,9 @@ const {
   PRESS,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
+  buttonChoices: (target) => livingMargin?.buttonChoices(target) ?? [],
+  buttonContextContains: (target, node) =>
+    livingMargin?.buttonContextContains(target, node) ?? false,
   claimsEsc,
   currentRevision: () => runtime.currentRevision,
   cut: (...args) => cut(...args),
@@ -2838,8 +2844,8 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   ELEMENTS,
   focused,
   isChordArmed,
-  isReactArmed,
   paintHere,
+  REACT,
   recoveredLabelFocus,
   SCOPES,
   scopesFor,
@@ -3207,6 +3213,7 @@ const {
 } = passageRuntime;
 
 const runtimeProjection = createProjection(runtime, {
+  unaccountedGesture,
   DECISION_ROW,
   COLLAPSE,
   MARKED_ANYWHERE,

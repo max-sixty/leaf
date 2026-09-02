@@ -254,25 +254,48 @@ export function chromeStyle({
      Buttons in the target cluster. All three keep one circular fitting. */
   .lf-margin-action[data-lf-behavior="action"] {
     border-width: 2px;
-    border-color: color-mix(in srgb, var(--ink-2) 55%, var(--border-2));
     color: var(--ink);
   }
   .lf-margin-action[data-lf-behavior="disclosure"],
   .lf-margin-action[data-lf-behavior="options"] {
     background: var(--paper); color: var(--muted); box-shadow: none;
   }
-  /* The look is the control's and the hand is the press's, which is one rule apart —
-     the same split the pill above states, and for the same reason. A copy keeps the
-     shape and loses the gesture: BAKE takes the role and the tab stop off a standing
-     reaction mark and leaves the mark itself, so a hand hung on the class alone
-     promises a press no file can answer. It reads the two ways a press is spelled
-     here: the platform's element, and the explicit selectable-offer exception.
-
-     The lift under the pointer is the same promise in the other property, and the tones
-     below are that lift wearing a colour, so all of them are spelled the same way. The
-     hand is the only half a gate can see — the copy's offering reading takes the cursor and
-     nothing else. A decided suggestion puts its durable word in a sibling receipt;
-     BAKE strips the inert Button and leaves that page text behind. */
+  /* Tone colours only the icon. Rings, fills, and state marks keep their shared
+     neutral treatment through hover, focus, and disabled states. */
+  .lf-margin-action[data-lf-tone="positive"] > :is(.lf-margin-action-icon, .lf-margin-action-glyph) {
+    color: var(--ok-ink);
+  }
+  .lf-margin-action[data-lf-tone="negative"] > :is(.lf-margin-action-icon, .lf-margin-action-glyph) {
+    color: var(--danger-ink);
+  }
+  /* State has its own small lower-right witness. It changes neither the Button's ring
+     nor its tone: engaged is a dot, busy is a moving open ring, failed is a diamond,
+     and settled is a square. */
+  .lf-margin-action[data-lf-state]:not([data-lf-state="idle"])::after {
+    content: ""; position: absolute; z-index: 2; inline-size: 6px; block-size: 6px;
+    inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
+    border: 1px solid var(--paper); background: currentColor; border-radius: 50%;
+  }
+  .lf-margin-action[data-lf-state="busy"]::after {
+    inline-size: 8px; block-size: 8px; background: var(--paper);
+    border: 2px solid currentColor; border-block-start-color: transparent;
+    animation: lf-runtime-4f3c2a8d-button-busy 650ms linear infinite;
+  }
+  .lf-margin-action[data-lf-state="failed"]::after {
+    border-radius: 1px; transform: rotate(45deg);
+  }
+  .lf-margin-action[data-lf-state="settled"]::after {
+    border-radius: 1px;
+  }
+  @keyframes lf-runtime-4f3c2a8d-button-busy { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-margin-action[data-lf-state="busy"]::after {
+      animation: none; border-style: dotted;
+    }
+  }
+  /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
+     and tab stop from standing reaction marks, which retain their shape without
+     promising a press. Decided suggestions export their sibling text receipts. */
   .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
   .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);
@@ -281,37 +304,30 @@ export function chromeStyle({
     outline: var(--here-ring); --lf-here-ring: margin-action; outline-offset: 1px;
   }
   .lf-margin-action[aria-disabled="true"] { cursor: default; }
-  .lf-margin-action[data-lf-tone="positive"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-    border-color: var(--ok); color: var(--ok-ink); background: var(--ok-tint);
-  }
-  .lf-margin-action[data-lf-tone="negative"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-    border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
-  }
-  .lf-margin-action[data-lf-tone="positive"][aria-disabled="true"] {
-    border-color: var(--ok); color: var(--ok-ink); background: var(--ok-tint);
-  }
-  .lf-margin-action[data-lf-tone="negative"][aria-disabled="true"] {
-    border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
-  }
   .lf-margin-action.lf-react[aria-pressed="true"] {
-    border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
+    background: var(--chip);
   }
   .lf-margin-action-glyph { line-height: 1; }
+  .lf-margin-action-icon {
+    inline-size: 16px; block-size: 16px; overflow: visible;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
   .lf-margin-action > .lf-margin-action-space { display: none; }
   .lf-margin-action > .lf-margin-action-label {
     position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
-    inset-inline-start: 50%; display: block; width: max-content; max-width: 180px;
+    inset-inline-end: 0; display: block; width: max-content; max-width: 180px;
     padding: 4px 7px; border-radius: 4px;
     background: var(--ink); color: var(--paper);
-    font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap;
+    font: 500 var(--t-6)/1.2 var(--sans); white-space: normal; overflow-wrap: anywhere;
     box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 18%, transparent);
     opacity: 0; visibility: hidden; pointer-events: none;
-    transform: translate(-50%, -2px);
+    transform: translateY(-2px);
     transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
   }
   .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])
     > .lf-margin-action-label {
-    opacity: 1; visibility: visible; transform: translate(-50%, 0);
+    opacity: 1; visibility: visible; transform: translateY(0);
     transition-delay: 90ms;
   }
   .lf-margin-item > .lf-margin-contribution >
@@ -319,9 +335,12 @@ export function chromeStyle({
   .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
     display: none;
   }
-  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not(:has(> [data-lf-button-primary])) {
+  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not([data-lf-margin-receipt]):not(:has(> [data-lf-button-primary])) {
     display: none;
   }
+  .lf-margin-options [data-lf-button-overflow] { display: none; }
+  .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
+  [data-lf-margin-receipt="failed"] > .lf-margin-receipt { color: var(--danger-ink); }
   /* A gesture the log has not answered yet, in the platform's own word for it, which
      is why no tag is named here: any widget that says aria-busy is painted, and
      lf-draft was saying it to screen readers alone before this rule existed.
@@ -1095,7 +1114,7 @@ ${MARK_RULES}
        pill that floats over the page's own content rather than standing in the empty
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
-    .lf-fab-bar { position: absolute; display: none; align-items: center;
+    .lf-fab-bar { position: absolute; display: none; width: max-content; align-items: center;
       gap: 4px; white-space: nowrap; }
     .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
     /* The field and the choices are two states of one anchored response control. This
@@ -1112,8 +1131,10 @@ ${MARK_RULES}
       border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
         0 2px 6px rgba(0,0,0,.14); }
-    textarea.lf-fab-input { width: 216px; min-width: 0;
-      max-height: min(132px, 30vh); border-radius: 999px;
+    textarea.lf-fab-input { width: auto;
+      min-width: min(216px, var(--lf-response-room, 100vw));
+      max-width: min(360px, var(--lf-response-room, 100vw));
+      max-height: min(360px, 50vh, var(--lf-response-height-room, 100vh)); border-radius: 16px;
       padding-inline: 12px;
       resize: none;
       field-sizing: content; overflow-y: auto; }
@@ -1148,16 +1169,13 @@ ${MARK_RULES}
     .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
       display: none; }
     .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
-    /* The glyph is the whole label until the token stands on its target; then the word
-       joins it. State is paint — ink, border, fill — and the word's extra width is the
-       reader's own receipt, not incoming chrome moving under their press. */
+    /* A standing token keeps a neutral fill and shows its word as a receipt. */
     .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
       justify-content: center; }
     .lf-react > .lf-react-word { display: none; }
     .lf-fab-bar.lf-react-open .lf-react-word { display: inline; }
     .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
-    .lf-react[aria-pressed="true"] { border-color: var(--mark-ink); color: var(--mark-ink);
-      background: var(--mark); }
+    .lf-react[aria-pressed="true"] { background: var(--chip); }
     .lf-react[aria-busy="true"] { opacity: .55; }
     .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
       margin-top: 6px; }
@@ -1176,7 +1194,7 @@ ${MARK_RULES}
       border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
     .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
       background: var(--card); }
-    .lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
+    .lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--chip); }
     /* A thread whose root is a mark: the glyph and its word where the comment's words
        would stand, in the chrome's face. */
     .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
@@ -1290,6 +1308,9 @@ ${MARK_RULES}
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
       color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
     .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+    .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
+      align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
+      stroke-linecap: round; stroke-linejoin: round; }
     /* Inset, because a row here fills the list to its own edge and the list is a
        scroller: there is nothing outside the row for a ring to be drawn in, and an
        outset one is cut on both sides by the box it scrolls in. The layer's rule for

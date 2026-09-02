@@ -3346,6 +3346,7 @@ conversationRuntime = createConversation({
   loadDraft,
   markDeclared,
   matchesWhen,
+  mayLandTyping,
   mirrorDraft,
   motion,
   needsBtn,

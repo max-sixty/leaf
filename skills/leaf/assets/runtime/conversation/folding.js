@@ -161,6 +161,9 @@ export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }
   }
 
   return {
+    finishFold: (id) => {
+      if (folding.delete(id)) renderPanel();
+    },
     foldOut,
     hasFolding: () => [...folding.values()].some((node) => node.isConnected),
     isFolding: (id) => folding.has(id),

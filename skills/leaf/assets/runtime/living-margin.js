@@ -2303,13 +2303,20 @@ export function createLivingMargin(dependencies) {
   mapButton.onclick = () => openSheet();
   sheet.addEventListener("close", () => {
     const from = sheetFrom;
+    const activated = sheetActivation;
+    sheetActivation = false;
+    // A dialog delivers `close` in a task of its own, so a reader who reopens the sheet
+    // in the same breath — Esc off the overflow route and straight back onto the Button
+    // that named it — is standing in the next opening by the time this arrives. That
+    // opening owns the return route and the target the retained context is read from
+    // (buttonContextContains), so a late close must not take either with it: cleared,
+    // the reopened sheet stops counting as its target's own surface and the next press
+    // inside it stands the reaction down instead of sending it.
+    if (sheet.open) return;
     sheetFrom = null;
     sheetTarget = null;
     paintKeys();
-    if (sheetActivation) {
-      sheetActivation = false;
-      return;
-    }
+    if (activated) return;
     if (from?.isConnected && from.checkVisibility())
       from.focus({ preventScroll: true });
     else focusMapControl();

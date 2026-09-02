@@ -11,6 +11,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ASKS_IN_A_ROW_PAGE,
     BAD_CHART_PAGE,
     BOARD_PAGE,
     BOTH_STAMPS,
@@ -41,6 +42,7 @@ from render_support import (
     SCROLL_SETTLED,
     SHORT_SUGGESTION,
     STANDING_DECISION,
+    SUGGESTION_IN_CONTEXT_PAGE,
     SUGGESTION_PAGE,
     SWAP_PAGE,
     CutOff,
@@ -2120,6 +2122,171 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     assert landed["options"] > landed["decision"] + 100, (
         "the arrival did not leave the Decision's context above its options"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
+    browser, serve
+):
+    """A change to a phrase has no region to declare, so the document supplies one.
+
+    An x-decision widget states its own arrival region: a heading, the context, then the
+    control. A suggestion can stand mid-sentence, so it can never satisfy "an ask must
+    name itself without context outside the ask" and no region can be written round it.
+    Arriving on the change alone put its own top edge under the banner and took the
+    sentence and the heading with it, leaving the reader at Accept with nothing on
+    screen saying what they would be accepting.
+
+    The heading, the sentence, and the change are read together: a landing on the
+    sentence alone would satisfy a heading assertion by accident on a page whose
+    heading happens to sit one line above it, and this page's does not.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
+    resized(page, 900, 500)
+
+    # The change is below the fold and the page can scroll, or standing still would look
+    # like the arrival this asks for.
+    assert page.evaluate(
+        """() => {
+          const box = document.getElementById('sc-sug').getBoundingClientRect();
+          const se = document.scrollingElement;
+          return box.top > se.clientHeight && se.scrollHeight - se.clientHeight > 500;
+        }"""
+    ), "the fixture already shows the change on the first screen"
+
+    page.keyboard.press("a")
+    expect(page.locator("[data-lf-for='sc-sug'] .lf-sug-accept")).to_be_focused()
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    landed = page.evaluate(
+        """() => {
+          const at = (id) => document.getElementById(id).getBoundingClientRect();
+          return {
+            heading: at('sc-api-heading').top,
+            sentence: at('sc-api-why').top,
+            change: at('sc-sug').top,
+            foot: at('sc-sug').bottom,
+            view: document.scrollingElement.clientHeight,
+            clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          };
+        }"""
+    )
+    assert abs(landed["heading"] - landed["clear"]) <= 2, (
+        f"the arrival put the heading over this change at {landed['heading']:.1f}px "
+        f"rather than below the banner at {landed['clear']:.1f}px"
+    )
+    assert landed["clear"] < landed["sentence"] < landed["change"], (
+        "the sentence the change stands in is not on screen above it"
+    )
+    assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
+    assert errors == []
+    page.close()
+
+
+def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
+    """The heading over a change is the one it stands under, not the last one written.
+
+    Two asks in a row is the ordinary way to write two, and the second here has no
+    heading of its own under its container. The nearest heading written before it is
+    then the first ask's own, and arriving there would put a different question in
+    front of the reader as this change's context. A candidate has to share a container
+    with the change for that reason, which also stops the search at the part of the
+    document the change is in.
+
+    The change is reached from the foot of the page rather than by stepping forward off
+    the ask above it. Arriving at that ask leaves this one on screen already, where the
+    press deliberately moves nothing and there is no travel to read.
+    """
+    page, errors = open_page(browser, serve(ASKS_IN_A_ROW_PAGE))
+    resized(page, 900, 500)
+
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    page.keyboard.press("Shift+a")  # back to the nearest ask above, which is the change
+    expect(page.locator("[data-lf-for='ar-sug'] .lf-sug-accept")).to_be_focused()
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    landed = page.evaluate(
+        """() => {
+          const at = (id) => document.getElementById(id).getBoundingClientRect();
+          return {
+            other: at('ar-other-heading').top,
+            otherFoot: at('ar-other-decision').bottom,
+            change: at('ar-sug').top,
+            foot: at('ar-sug').bottom,
+            view: document.scrollingElement.clientHeight,
+            clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          };
+        }"""
+    )
+    assert landed["otherFoot"] <= landed["change"], (
+        "the fixture no longer has the previous ask standing above this one"
+    )
+    # The previous ask's heading is close enough to reach: without the container bound
+    # it fits the screen from its own top to this change's foot, so it would be chosen
+    # and the reader would start on the question they are not being asked.
+    assert landed["foot"] - landed["other"] <= landed["view"] - landed["clear"], (
+        "the fixture has moved the two asks too far apart for the wrong heading to be "
+        "reachable, so this test can no longer tell the container bound is working"
+    )
+    assert abs(landed["other"] - landed["clear"]) > 2, (
+        "the arrival put the previous ask's heading below the banner, so the reader "
+        "starts on the question they are not being asked"
+    )
+    assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
+    assert errors == []
+    page.close()
+
+
+def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serve):
+    """The press moves the ring and the focus and leaves the page where it stands.
+
+    Rebuilding a view the reader is already looking at is motion that says nothing, and
+    it costs them whatever adjustment they had made within it. The gate reads what the
+    page shows of the ask rather than what its own box claims, which is the reading
+    commentOnItem makes before its own travel.
+
+    The first press is the control: the walk does travel, from a page that opens above
+    the change, so a second press standing still is this gate rather than a walk that
+    never moves the page at all.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
+    resized(page, 900, 500)
+
+    page.keyboard.press("a")
+    expect(page.locator("[data-lf-for='sc-sug'] .lf-sug-accept")).to_be_focused()
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    arrived = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert arrived > 0, "the walk did not travel to the ask at all"
+
+    # A little above that arrival: the region's start is still clear of the banner and
+    # the change's foot is still on screen, so this is the same view with the reader's
+    # own adjustment in it.
+    page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    held = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert held == arrived - 40, "the page did not take the reader's own adjustment"
+
+    # The press's own announcement is the edge this absence stands behind. `goToDecision`
+    # travels before it announces, so a live region that has spoken again is a press whose
+    # travel has already been decided and begun. Waiting on the scroll alone cannot say
+    # that: two equal samples taken before a glide starts are the reading a page that
+    # never moved gives, and the settle probe carries its last reading between waits, so
+    # it answered from the nudge that came before this press. The sentinel makes it take a
+    # fresh sample and then hold, which is the window a travel would appear in.
+    page.evaluate("() => { document.querySelector('.lf-live').textContent = ''; }")
+    page.keyboard.press("a")  # one ask, so the walk wraps back round to it
+    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
+    expect(page.locator("[data-lf-for='sc-sug'] .lf-sug-accept")).to_be_focused()
+    page.evaluate("() => { window.__lfScroll = -1; }")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
+        "the walk travelled to an ask the reader could already see"
     )
     assert errors == []
     page.close()

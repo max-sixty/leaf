@@ -451,13 +451,22 @@ export function createDecisionView({
     const room = shownBox(box).height - clearanceOf(box);
     const fits = (region) =>
       region && shownBox(decision).bottom - shownBox(region).top <= room;
+    // The blocks before this one that are about the same part of the document: the two
+    // stand under one container, which is what "the heading over this" means and is the
+    // whole of the bound the search needs. Without it the nearest preceding heading can
+    // be the previous ask's own — two asks written one after another is the ordinary way
+    // to write them — and the reader arrives reading the wrong question as the context
+    // for this one. It also stops the walk at the section the decision is in rather than
+    // running back through the whole document to find a heading.
+    //
     // An ancestor both contains and precedes, so the block holding an inline change is
-    // asked for by name and excluded from the blocks before it — or the walk backwards
-    // would stop at the sentence the change is already inside and call it the one before.
+    // asked for by name and excluded here — or the walk backwards would stop at the
+    // sentence the change is already inside and call it the one before.
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
       (block) =>
         !inChrome(block) &&
         !block.contains(decision) &&
+        block.parentElement?.contains(decision) &&
         decision.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING,
     );
     const heading = before.findLast((block) => block.matches(HEADING));

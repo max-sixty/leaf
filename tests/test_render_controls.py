@@ -2192,14 +2192,22 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     version.focus()
     resized(page, 390, 900)
     # The row narrows by folding rather than by turning round, and what it folds it hands
-    # over rather than drops: the address the reader was standing on goes behind the one
-    # door, and the door is where they are left, which is the press that finds it again.
+    # over rather than drops: the reader is left standing on the address they had, or on
+    # the door it went behind, which is the press that finds it again.
+    #
+    # Which of those two the version is at 390px is a font-width fact rather than this
+    # test's subject, and the two cannot both be pinned: the assertion #209 shipped
+    # reads the version still on the row, and this suite's fonts fold it away. So
+    # the reading follows the address to wherever the fold put it, over a row that has
+    # been made to fold something — refold() hands focus to the door only for a control
+    # that went behind it, and refocuses the control itself otherwise.
     # `test_a_phone_banner_folds_its_addresses_into_one_menu` is the other half: what goes
     # behind the door, and that there is only ever one door.
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-    assert page.evaluate(
-        "document.activeElement === document.querySelector('.lf-banner-more')"
-    ), "the fold took the address the reader was on and handed them nothing"
+    assert page.locator(".lf-banner-menu > *").count() > 0, (
+        "the 390px row folded nothing at all, so nothing here crossed into a fold"
+    )
+    behind = page.locator(".lf-banner-menu > .lf-version").count() == 1
+    expect(page.locator(".lf-banner-more" if behind else ".lf-version")).to_be_focused()
 
     resized(page, 1200, 900)
     # Back on the wide row, with every folded address back on it and back at its start,

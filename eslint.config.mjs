@@ -137,6 +137,21 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
+    // This transport boot entry loads Leaf after installing the MCP fetch bridge.
+    // It may boot /leaf.js, but must not reach private runtime owners.
+    files: ["scripts/mcp-app/direct-entry.js"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression[source.value="/leaf.js"]',
+          ),
+      ],
+    },
+  },
+  {
     files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
     rules: {
       ...publicRuntimeBoundary,

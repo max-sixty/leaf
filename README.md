@@ -40,24 +40,11 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
-### Experimental Codex MCP App
-
-The Codex plugin registers one bundled local MCP server. On builds that render
-[MCP Apps](https://github.com/modelcontextprotocol/ext-apps), the agent can attach
-the complete Leaf interface directly to the task: comments, package widgets,
-version travel, and the ordinary event path all run unchanged. One ephemeral
-loopback origin serves every page opened by that MCP process under a separate
-random capability path. It writes no service state and disappears with the MCP
-session; the page directory and `comments.jsonl` remain the durable record.
-
-The embedded route is experimental and local-host-only. One adaptive app resource
-renders either that complete route or the explicit comments-only authored snapshot,
-according to the tool result. It keeps the nested route hidden until Leaf reports
-that it is ready, skips origins absent from the host's approved frame domains, and
-falls back to the snapshot when a host disallows or cannot load the frame.
-Builds that do not render the app use the normal full browser page. In every case
-the detached Codex adapter, not an MCP host message, carries durable feedback into
-the next task turn.
+Codex opens the full Leaf page in its browser pane, or in a local browser when
+the pane is unavailable. It uses the same theme, package widgets, anchored
+comments, and version travel as Claude Code. A detached adapter delivers page
+input into later turns of the same Codex task; the page directory and
+`comments.jsonl` remain the durable record.
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
@@ -71,7 +58,20 @@ Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude C
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
 currently about.
 
-To expose the same resource from a checkout to another local MCP Apps host, run:
+### Experimental inline MCP App
+
+The Codex plugin also registers a bundled local
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps) server. The inline app
+attempts to frame the canonical page from an ephemeral localhost origin. Hosts
+that block the frame get a comments-only authored snapshot, without package
+actions or version travel. The tested Codex sandbox blocks that nested HTTP
+origin, so the browser pane is the default full-feature route.
+
+The inline app is local-host-only and lasts for the MCP session. Its reduced
+fallback is explicit in the app; it is not a second full Leaf implementation.
+Both presentations use the same durable log and detached Codex delivery adapter.
+
+To expose the app from a checkout to another local MCP Apps host, run:
 
 ```sh
 bin/leaf mcp

@@ -1,0 +1,16 @@
+Host server:    http://localhost:8080
+Sandbox server: http://localhost:8081
+
+Press Ctrl+C to stop
+
+NotFoundError: Not Found
+    at createHttpError (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/send/index.js:861:12)
+    at SendStream.error (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/send/index.js:168:31)
+    at SendStream.pipe (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/send/index.js:468:14)
+    at sendfile (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/express/lib/response.js:1014:8)
+    at ServerResponse.sendFile (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/express/lib/response.js:411:3)
+    at file:///Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/examples/basic-host/serve.ts:127:7
+    at Layer.handleRequest (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/router/lib/layer.js:152:17)
+    at next (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/router/lib/route.js:157:13)
+    at Route.dispatch (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/router/lib/route.js:117:3)
+    at handle (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-reference-10195ad91851502134930e9b80ec2c04e277a720/node_modules/router/index.js:435:11)

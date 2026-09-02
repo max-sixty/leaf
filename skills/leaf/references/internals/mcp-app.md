@@ -1,8 +1,18 @@
 # MCP App transport
 
 Status: experimental. The Codex plugin registers this transport so the complete
-Leaf interface can be evaluated in shipped MCP Apps hosts without replacing the
-browser fallback.
+Leaf interface can be evaluated in shipped MCP Apps hosts. Codex's default
+handoff opens the canonical page in its browser pane; the inline app is an
+explicit experiment, not a prerequisite for full Leaf in Codex.
+
+A developer-only direct-resource probe under `scripts/mcp-app/direct-*` bundles the
+canonical vendored runtime and routes reads/writes through MCP tools to the same
+PageStateService and EventEndpoint. Experiment 56 in `notes/mcp-apps/` verifies
+the design-decision fixture, a keyboard choice, and an anchored comment with no
+nested Leaf iframe or external resource requests in the official reference host.
+It also verifies accepted ui/message transport, not Codex idle wake. This is a
+fixed-page experiment, not the installed server described below; version/data,
+dynamic assets, and compact-layout parity remain incomplete.
 
 ## Authorities
 

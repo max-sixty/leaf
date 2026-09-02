@@ -12,36 +12,57 @@
 
 ## Current Status
 
-### Latest Results: experiment 34
+### Latest Results: experiment 56
 
-A fresh `leaf_candidate_final` process loaded the current shared resource and
-completed `leaf_present` without an approval prompt. Codex committed and ran the
-widget, then issued one successful app-initiated tool call for the automatic
-`leaf_snapshot_refresh`. It made no nested localhost attempt and logged none of
-experiment 32's CSP or renderer failures. A retained screenshot shows the
-correct full-mode shell and its immediate capability-gate status, with no broken
-frame. The successful refresh log and Chromium tests cover the final snapshot;
-another app took focus before its screenshot could be retained.
+The real Leaf design-decision page travels directly in a `ui://` resource in the
+official MCP Apps reference host. Its canonical theme/runtime render; a keyboard
+choice and anchored comment append through the existing event endpoint, and the
+comment appears in Leaf's normal Threads panel. The resource has no nested Leaf
+iframe, makes no external resource requests, and declares no connect, resource,
+or frame domains. The reference host accepts ui/message. Its acceptance is not
+evidence of an idle Codex turn.
 
-### Current Experiment: none
+The reviewed runner reproduced this result from a fresh pinned reference-host
+checkout and passed 21 HTTP host/origin checks. It resolves temporary paths to
+their physical location and keeps that host outside hidden parent directories,
+as required by npm workspace resolution and the host's Express file policy.
 
-**Status**: A fresh Codex process visually confirmed the capability-gate
-transition. Logs and Chromium cover the rendered fallback; its final Codex
-screenshot remains outstanding.
-**Purpose**: Retain visual evidence of the final snapshot without changing the
-validated transport.
+The prototype bundles the existing vendored runtime and widgets, substituting
+MCP tools only for state reads and event writes. It owns no parallel projection
+or durable log. The experiment demonstrates this fixture, not every widget or
+version/data/package operation. A narrow inline comment card and the tall-frame
+probe control expose remaining layout questions.
+
+This was also viewed in Codex's browser pane, but not in Codex's built-in inline
+MCP renderer. The earlier blocked HTTP iframe was a limitation of our wrapper,
+not evidence that direct Leaf resources cannot work. Experiment 35 remains the
+separate browser-pane/detached-adapter route; its automated actions happened while
+the task was active, so its later delivered turns did not isolate idle wake-up.
+
+### Current Experiment: 56
+
+**Status**: Complete; the passing reference-host preview remains running. Direct
+rendering, durable gestures, visible comment UI, accepted ui/message, no-network,
+and HTTP boundary checks pass. Source hashes identify the reviewed code.
 
 ## Next Steps
 
-1. Repeat the fresh-identity `leaf_present` probe as experiment 35 while keeping
-   its task foregrounded long enough to retain the final snapshot screenshot.
-2. Keep the detached Codex adapter as the sole durable wake and acknowledgement
-   carrier; no remaining implementation decision depends on `ui/message` policy.
-3. If accessibility parity becomes the next question, compare Axe before and
-   after the option action to isolate experiment 30's moderate `region` result.
+1. Register this direct-resource probe in Codex and inspect its actual inline
+   renderer, not a reference host in a browser tab. A fresh probe connection/task
+   is required; the installed production MCP route has not been replaced.
+2. Test ui/message after that task is idle, with no detached watcher, active goal,
+   or diagnostic tool calls before or after the message. Preserve exact event
+   timing so acceptance and wake are separate observations.
+3. If Codex accepts the direct resource, extend the transport to version/data and
+   dynamic assets and test compact comment layout before choosing a production
+   cutover. These are missing prototype coverage, not MCP protocol prohibitions.
 
 ## Reference
 
+- Read the direct-resource result: `cat notes/mcp-apps/experiments/56/README.md`
+- Read its machine result: `jq . notes/mcp-apps/experiments/56/results/reference-host.json`
+- Live reference host: http://localhost:8080/?tool=leaf_direct_present&server=leaf-direct-probe&call=true
+- Read the full Codex browser-pane result: `cat notes/mcp-apps/experiments/35/README.md`
 - Read the fresh-process Codex result: `cat notes/mcp-apps/experiments/34/README.md`
 - Read the invalid reused-process attempt: `cat notes/mcp-apps/experiments/33/README.md`
 - Read the unified candidate result: `cat notes/mcp-apps/experiments/32/README.md`

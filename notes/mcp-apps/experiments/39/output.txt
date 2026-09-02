@@ -1,0 +1,36 @@
+initialized /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/page
+{"kind": "note", "author": "claude", "agent": "Codex", "session": "01a054d1-f145-7bd3-979a-69e45dd5980d", "version": 1, "revision": 1, "text": "Direct MCP resource probe", "id": "6b5a2b422507cf1392f536365cf96fad", "ts": "2026-09-01T17:25:30-07:00"}
+node:events:505
+    throw er; // Unhandled 'error' event
+    ^
+
+RangeError: Invalid array length
+    at Array.push (<anonymous>)
+    at writeOrBuffer (node:internal/streams/writable:561:27)
+    at _write (node:internal/streams/writable:503:10)
+    at Writable.write (node:internal/streams/writable:512:10)
+    at fs.writeSync (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/bin/esbuild:69:55)
+    at SyncWriteStream._write (node:internal/fs/sync_write_stream:27:5)
+    at doWrite (node:internal/streams/writable:600:12)
+    at clearBuffer (node:internal/streams/writable:785:7)
+    at onwrite (node:internal/streams/writable:655:7)
+    at WritableState.onwrite (node:internal/streams/writable:351:26)
+Emitted 'error' event on SyncWriteStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+
+Node.js v26.8.1
+/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/main.js:1224
+      if (error) return callback(new Error(error), null);
+                                 ^
+
+Error: The service was stopped
+    at /Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/main.js:1224:34
+    at responseCallbacks.<computed> (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/main.js:876:9)
+    at Socket.afterClose (/Users/maximilian/.codex/worktrees/a5c8/leaf/.tmp/mcp-direct-39.OFIW1G/node_modules/esbuild-wasm/lib/main.js:867:28)
+    at Socket.emit (node:events:526:24)
+    at endReadableNT (node:internal/streams/readable:1966:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+
+Node.js v26.8.1

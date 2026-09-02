@@ -28,6 +28,21 @@ from .thread_context import batch_threads
 from .work import work_subject
 
 
+def check_local_claim(state: str, detail: str) -> None:
+    """What a local claim needs before it can name a subject.
+
+    A local claim says "I am on this now", so the two other states have nothing
+    to put there: `waiting` is the reader's move, and `idle` is the end of the
+    agent's side. Its own function because `idle` takes a different route to the
+    same status write, and a claim admitted on one route and refused on the other
+    would be reported to the agent as written either way.
+    """
+    if state != "working":
+        sys.exit("--on says what you are working on; use it with `working`")
+    if not detail:
+        sys.exit("--on needs a detail; an Active receipt with no words says nothing")
+
+
 def cmd_status(
     page_dir: Path,
     state: str,
@@ -38,15 +53,7 @@ def cmd_status(
         activate_source(page_dir, page.events)
         work = None
         if on is not None:
-            # A local claim says "I am on this now", so the two other states
-            # have nothing to put there: `waiting` is the reader's move, and
-            # `idle` is the end of the agent's side.
-            if state != "working":
-                sys.exit("--on says what you are working on; use it with `working`")
-            if not detail:
-                sys.exit(
-                    "--on needs a detail; an Active receipt with no words says nothing"
-                )
+            check_local_claim(state, detail)
             work = work_subject(page_dir, page.events, on)
         page.set_status(state, detail, work=work)
 

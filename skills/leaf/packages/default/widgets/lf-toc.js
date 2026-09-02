@@ -109,9 +109,17 @@ customElements.define(
         ? pageTitle.id || this.#targetFor(pageTitle, 0)
         : this.#main.id || this.#targetFor(this.#main, 0);
       startLink.href = `#${startTarget}`;
-      const startLabel = pageTitle ? wrote(pageTitle).trim() : "Top";
-      startLink.dataset.lfLabel = startLabel;
-      startLink.setAttribute("aria-label", startLabel);
+      // The row's word is its text, as every other row's is. It was an attribute the rail
+      // form drew with `content: attr()`, which meant the link had no text at all: every
+      // reading that asks a link what it says — the accessible name it falls back to, a
+      // text dump of the page, the outline this widget keeps below — got an empty string
+      // for the one row that names the whole document.
+      //
+      // `wrote` is authored text alone, so a title whose words are all generated leaves
+      // nothing, and a row is worth having only where it says something: the heading rows
+      // drop for that reason (the filter above) and this one falls back to the word it
+      // uses for a page with no title at all.
+      startLink.textContent = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
       start.append(startLink);
 
       const list = document.createElement("ol");

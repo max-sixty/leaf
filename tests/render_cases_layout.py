@@ -772,6 +772,27 @@ def unfolded_button(control):
     )
 
 
+def banner_address(page, selector):
+    """The banner address named, brought out from behind the row's menu if it is there.
+
+    A window too narrow to hold every address folds the ones it cannot into one menu, so
+    a test that presses an address by name has to say which of the two places it is
+    standing in. Nothing else about it changes: it is the same control, with the same
+    words, the same state paint and the same press. The reading is taken of the page as
+    it is rather than of a width the test assumed, so one call reads the same at 1440 and
+    at 320 — which is the point of there being one order at both.
+    """
+    control = page.locator(selector)
+    expect(control).to_have_count(1)
+    if control.evaluate("el => Boolean(el.closest('.lf-banner-menu'))"):
+        door = page.locator(".lf-banner-more")
+        expect(door).to_be_visible()
+        door.click()
+        expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(control).to_be_visible()
+    return control
+
+
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
     page.evaluate(RENDERED)

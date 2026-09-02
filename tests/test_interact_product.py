@@ -1297,6 +1297,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         [
             "reply",
+            "--json",
             str(page_dir),
             "--to",
             reader["id"],
@@ -1315,7 +1316,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     ]:
         result = CliRunner().invoke(
             cli_model.cli,
-            ["edit", str(page_dir), "--to", message["id"], "--text", text],
+            ["edit", str(page_dir), "--to", message["id"], "--text", text, "--json"],
         )
         assert result.exit_code == 0, result.output
         revisions.append(json.loads(result.output))

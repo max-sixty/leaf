@@ -564,10 +564,11 @@
             <h3><code>x-upgrade</code></h3>
             <div class="reference-copy">
               <p>
-                A module at widgets/&lt;tag&gt;.js enhances the element in the browser.
-                <code>page init</code> refuses a layer declaring it with no module
-                beside it, and the render gate a module that defines no element.
-                Required.
+                A module at widgets/&lt;tag&gt;.js enhances the element in the browser,
+                imported where a page's markup carries the tag rather than for the whole
+                layer. <code>page init</code> refuses a layer declaring it with no
+                module beside it, and the render gate a module that defines no element
+                for a widget the page contains. Required.
               </p>
             </div>
           </section>

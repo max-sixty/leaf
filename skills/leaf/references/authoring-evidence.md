@@ -51,8 +51,13 @@ without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. Its Pierre renderer is
 1.7MB, so `lf-diff` and the `unified-diff` contract travel in the `diff` package:
-initialize such a page with `leaf page init --package diff <page>`. First add a
-current-data binding so Leaf can give the source its page-lifetime contract:
+initialize such a page with `leaf page init --package diff <page>`. The reader gets
+the rest of a long review without anything authored: each file's header pins under
+the banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
+by file, and a Soft wrap switch in the diff's own header folds lines too long for
+the column — paper takes that wrap whether or not the switch is on, so nothing is
+cut off a printed patch. First add a current-data binding so Leaf can give the
+source its page-lifetime contract:
 
 ```html
 <lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>

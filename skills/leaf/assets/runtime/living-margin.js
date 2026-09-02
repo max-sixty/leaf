@@ -1,12 +1,14 @@
 import {
   layoutMarginRows,
   registerMarginRow,
+  reserveRail,
   scheduleMarginLayout,
   unregisterMarginRow,
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
+import { tagsDeclaring } from "./registry.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -302,7 +304,6 @@ export function createLivingMargin(dependencies) {
     anchorLabel,
     acknowledgments,
     announce,
-    approveBtn,
     blockAt,
     chromeRoot,
     claimState,
@@ -316,6 +317,7 @@ export function createLivingMargin(dependencies) {
     el,
     elementById,
     focused,
+    foldShelf,
     goToDecision,
     inChrome,
     itemSays,
@@ -335,7 +337,6 @@ export function createLivingMargin(dependencies) {
     stateProjection,
     threadPanel,
     threads,
-    toggleBtn,
     updateSequence,
     versionBtn,
     waitingForPickupSince,
@@ -366,17 +367,11 @@ export function createLivingMargin(dependencies) {
   mapButton.type = "button";
   mapButton.hidden = true;
   mapButton.title = "Open the page map";
-  function placeMapButton() {
-    if (compact.matches)
-      (approveBtn.isConnected ? approveBtn : toggleBtn).after(mapButton);
-    else versionBtn.before(mapButton);
-  }
   function changePosture() {
     const marginHeld =
       toolbar.contains(document.activeElement) ||
       preview.contains(document.activeElement);
     const sheetHeld = sheet.contains(document.activeElement);
-    placeMapButton();
     if (compact.matches && preview.matches(":popover-open")) closePreview(false);
     if (compact.matches && marginHeld) requestAnimationFrame(() => focusMapControl());
     if (!compact.matches && sheet.open) {
@@ -386,7 +381,14 @@ export function createLivingMargin(dependencies) {
     }
     render();
   }
-  placeMapButton();
+  // One seat in the banner's one order, taken once: the map stands with the page's other
+  // destinations, just before the version chooser. It used to take the far side of
+  // approval under the compact query and be re-placed on every crossing of it, which was
+  // the same address at two different places on one row — and, because a blanket answer
+  // that had arrived in between claims that same seat, the seat it landed in depended on
+  // which way the reader had last crossed 900px. Placed at build, before any of them.
+  versionBtn.before(mapButton);
+  foldShelf();
   compact.addEventListener("change", changePosture);
 
   const preview = el("aside", "lf-ui lf-margin-preview");
@@ -716,7 +718,16 @@ export function createLivingMargin(dependencies) {
     )
       return;
     const marker = previewButton.getBoundingClientRect();
-    const besideLeft = Math.max(8, marker.right + 8);
+    // The stylesheet gives the card the room left to the right of this edge, so a marker
+    // standing near the window's own edge would leave a conversation too narrow to read
+    // or answer in. --thread-card-floor is where that room stops being a margin: past it
+    // the card comes off its marker and covers the page instead, which is the posture a
+    // bounded thread card is already allowed. An accepted comment opens its thread at
+    // every width, so this is the only place the width can be refused.
+    const floor = parseFloat(
+      getComputedStyle(preview).getPropertyValue("--thread-card-floor"),
+    );
+    const besideLeft = Math.max(8, Math.min(marker.right + 8, innerWidth - 8 - floor));
     preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
     const card = preview.getBoundingClientRect();
     const bannerBottom =
@@ -1196,7 +1207,7 @@ export function createLivingMargin(dependencies) {
     const next = candidates.find((row) => row.tabIndex === 0) ?? candidates[0];
     if (!visible.length && next.lfEntry?.target)
       scrollToElement(next.lfEntry.target, "instant", "nearest");
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
     next.focus({ preventScroll: true });
     return true;
   }
@@ -1224,11 +1235,17 @@ export function createLivingMargin(dependencies) {
     });
   }
 
+  // The rail holds one tab stop: the way in from the page, not the reading position,
+  // which the walk, the numbered addresses, and the pointer all reach without it.
+  function holdTabStop(next) {
+    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+  }
+
   function syncRoving() {
     const available = availableRows();
     const visible = visibleRows();
     if (!available.length) {
-      for (const row of rows.values()) row.tabIndex = -1;
+      holdTabStop(null);
       return;
     }
     const focused = available.find((row) => row === document.activeElement);
@@ -1248,7 +1265,7 @@ export function createLivingMargin(dependencies) {
         };
         return distance(row) < distance(best) ? row : best;
       });
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
   }
 
   function scheduleRoving() {
@@ -1268,7 +1285,7 @@ export function createLivingMargin(dependencies) {
         : edge === "last"
           ? visible.at(-1)
           : clampedRow(visible, document.activeElement, direction);
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
     next.focus({ preventScroll: true });
   }
 
@@ -1329,6 +1346,8 @@ export function createLivingMargin(dependencies) {
       role: "reading",
       state: readingState(choice),
     });
+    // Where this marker stands in the walk places it for a reader listening, and reads
+    // as progress if it were painted. The name carries it; the visible word does not.
     row.setAttribute("aria-label", markerName(entry, index, anchored));
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
@@ -1670,7 +1689,29 @@ export function createLivingMargin(dependencies) {
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
+  // A page that can grow a page-edge Button takes the strip before the reader asks for
+  // one, so the first gesture is not paid for with a reflow of the whole page. x-state
+  // declares a widget the reader can act on, and an action's standing outcome comes back
+  // as a Target Button; x-work declares a widget an agent can claim, and the claim
+  // arrives at the same place. Either declaration on a tag the page holds says a Button
+  // is coming, so nothing here names a widget and a new one joins by declaring. The
+  // question is the page's rather than the document's because a widget frozen into
+  // thread markup or standing in a panel has no page edge to grow a Button at. Asked
+  // again after each reconcile, because a later version may be the first to carry such
+  // a tag.
+  let railHeld = false;
+  function reserveRailForPage() {
+    if (railHeld) return;
+    const tags = tagsDeclaring((entry) => entry["x-state"] || entry["x-work"]);
+    if (!tags.length) return;
+    const holders = [...document.querySelectorAll(tags.join(","))];
+    if (!holders.some((el) => !inChrome(el))) return;
+    railHeld = true;
+    reserveRail();
+  }
+
   function render() {
+    reserveRailForPage();
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewButton;
     transferThreadFocus = false;
@@ -1826,10 +1867,6 @@ export function createLivingMargin(dependencies) {
       host.setAttribute("aria-label", `Page actions for ${entry.title}`);
       marker.lfEntry = entry;
       const primary = syncControls(host, marker, more, options, entry);
-      host.toggleAttribute(
-        "data-lf-claims-rail",
-        entry.offers.some((offered) => offered.claim && offered.controls),
-      );
       if (entry.offers.length) {
         host.dataset.lfExternal = "1";
         const perch = externalPerch(entry.target, main);
@@ -2289,6 +2326,12 @@ export function createLivingMargin(dependencies) {
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
+  // The margin packs its rows a frame after anything moves them — a row registering,
+  // the column resizing under a diagram that finished or a disclosure that opened — and
+  // the card beside a marker was placed once, when it opened. margin-layout.js says when
+  // it has moved the rows, and the card follows in that same frame, so a reader never
+  // sees it standing beside where its marker used to be.
+  document.addEventListener("lf-margin-layout", placeThreadPreview);
   document.addEventListener(
     "pointerdown",
     (event) => {

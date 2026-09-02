@@ -41,8 +41,9 @@ def cmd_guidance(page_dir: Path, audience: str | None) -> None:
     require_registry(page_dir)
     guides = page_guidance(page_dir)
     if audience is None:
-        if guides:
-            print("\n".join(guides))
+        # A layer with no audiences is a real answer, and silence reads as a
+        # command that did nothing. Say which it was.
+        print("\n".join(guides) if guides else "no guidance audiences")
         return
     if text := guides.get(audience):
         print(text, end="" if text.endswith("\n") else "\n")

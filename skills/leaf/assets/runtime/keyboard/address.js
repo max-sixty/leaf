@@ -347,7 +347,12 @@ export function createAddress({
     // edge is dodged earlier and by clamping, because a chip has somewhere to go there: the
     // covered edge is above the member, while sliding clear of a line at the foot would put
     // the chip on a member it no longer sits on.
-    const kept = [keylineEl.getBoundingClientRect()];
+    // Where there is a line to lose to. A coarse pointer draws none, and a zero box left
+    // standing in this list is an empty rectangle at the window's origin that a chip on
+    // the first member could still be judged against — the same question `place` asks of
+    // its own floats, asked the same way.
+    const lineBox = keylineEl.getBoundingClientRect();
+    const kept = lineBox.height ? [lineBox] : [];
     const piled = [];
     for (const chip of chips) {
       const box = chip.getBoundingClientRect();

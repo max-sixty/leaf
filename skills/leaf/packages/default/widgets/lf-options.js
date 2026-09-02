@@ -312,9 +312,11 @@ customElements.define(
           // eye's copy, hence aria-hidden.
           // Into the column the option reserves for it, which is what lets a digit
           // arrive without moving anything and land on nobody's words (theme).
-          // Prepended, so the mark stays the row's last child: the digit is a corner
-          // badge wherever it sits in the DOM, and the apparatus keeps ending at the
-          // mark.
+          // Prepended, which puts it before the mark the module also puts first. Order
+          // between the two decides nothing: the digit is out of flow in a column of its
+          // own, so it is a corner badge wherever it sits in the DOM, and it is
+          // aria-hidden, so it is not a stop the reading order can put in the wrong
+          // place. What matters is that both stand before the option's own words.
           const num = offer("span", "lf-address", String(i + 1));
           num.setAttribute("aria-hidden", "true");
           mark.parentElement.prepend(num);
@@ -421,7 +423,14 @@ customElements.define(
         mark.className = "lf-pick";
         mark.dataset.lfGen = "1";
       }
-      option.append(mark);
+      // First, so the row form's table puts it in the cell before the words. A card
+      // places its mark out of flow and cannot see this, so one insertion serves both
+      // forms and the theme states each form's placement as it already did. The mark
+      // ends every row at the column the label opens at, which is where the reader is
+      // reading; it stood at the line's end, ~620px away from the words it answers for
+      // in a full-width group, and a group that took several answers drew its boxes
+      // there while a single-pick card drew none at all.
+      option.prepend(mark);
       this.#label(option);
     }
 

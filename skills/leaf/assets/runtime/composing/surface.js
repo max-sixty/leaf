@@ -351,13 +351,38 @@ export function createSelectionSurface({
   // the capture reads the one the reader is looking at — and only for the primary
   // button, because a right button's release precedes its context menu, and growing the
   // selection there rewrites what Copy was aimed at.
+  //
+  // A queued step belongs to the gesture that queued it, and the next press may begin
+  // before it runs. Then the selection it would act on is not the one it was queued
+  // for: it is the drag under way, and `snapSelection` rewrites that drag mid-gesture.
+  // Chromium does not resume extending a selection it has been handed through
+  // `setBaseAndExtent`, so the pointer's remaining travel is lost and a sweep from
+  // "paragraph" to "carrying" ends up captured as "paragraph" — the reader's own hand
+  // is slow enough that the step always ran first, and a loaded machine hands out that
+  // ordering freely. The press under way owns the selection and queues its own step on
+  // its own release, so standing down here drops no work.
+  //
+  // Which press is under way is asked as "has one begun since this was queued" rather
+  // than as "is one down now". A press whose release never reaches the document — a
+  // handler that stops it, a button let go off-window — leaves a pressed flag standing
+  // for the rest of the page's life, and read here that would put every later selection
+  // out too: the next drag would raise no field and read as a drag that selected
+  // nothing. A count compared against the one this step was queued behind cannot get
+  // stuck, because the step queued by the next release carries the count it finds.
   let selectionUpdate = null;
-  const scheduleSelectionUpdate = () => {
-    if (selectionUpdate) return;
+  let pressesBegun = 0;
+  const deferSelectionUpdate = (update) => {
+    const queuedBehind = pressesBegun;
+    clearTimeout(selectionUpdate);
     selectionUpdate = setTimeout(() => {
       selectionUpdate = null;
-      updateFab();
+      if (pressesBegun !== queuedBehind) return;
+      update();
     });
+  };
+  const scheduleSelectionUpdate = () => {
+    if (selectionUpdate) return;
+    deferSelectionUpdate(updateFab);
   };
   let pointerSelecting = false;
   let selectionChangedDuringPress = false;
@@ -408,6 +433,7 @@ export function createSelectionSurface({
       // Capture the old range before the browser's pointerdown default can collapse it.
       // This is needed when the reader drags across exactly the passage already selected.
       primaryPointerPressed = ev.isPrimary && ev.button === 0;
+      if (primaryPointerPressed) pressesBegun++;
       pointerSelecting = ev.isPrimary && ev.button === 0 && pageWords(ev.target);
       selectionChangedDuringPress = false;
       selectionDragged = false;
@@ -487,9 +513,7 @@ export function createSelectionSurface({
     pointerSelecting = false;
     if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
-    clearTimeout(selectionUpdate);
-    selectionUpdate = setTimeout(() => {
-      selectionUpdate = null;
+    deferSelectionUpdate(() => {
       if (ev.button === 0) snapSelection();
       updateFab();
     });
@@ -604,9 +628,7 @@ export function createSelectionSurface({
         selected?.quote?.length >= MIN_QUOTE
           ? pageRange(selection).cloneRange()
           : selectionRangeDuringPress;
-      clearTimeout(selectionUpdate);
-      selectionUpdate = setTimeout(() => {
-        selectionUpdate = null;
+      deferSelectionUpdate(() => {
         const restored = getSelection();
         restored.removeAllRanges();
         restored.addRange(completed);

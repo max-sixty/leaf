@@ -198,14 +198,21 @@ function summaryNode(file, open) {
   return details;
 }
 
+// A file's row and its review press. The press cannot go inside the <summary>: a
+// disclosure is itself a control, and a control nested in one is announced as a single
+// thing — the serious `nested-interactive` finding the corpus's axe sweep reports, once
+// per file. They are siblings in this wrapper instead, and theme.css draws the press
+// back onto the summary line.
+function fileRow(row) {
+  const file = document.createElement("div");
+  file.className = "lf-diff-file";
+  file.append(row);
+  return file;
+}
+
 function reviewButton(entry, changed) {
   const button = offer("button", "lf-diff-review");
-  button.addEventListener("click", (event) => {
-    // A review press is inside the native summary but is not a disclosure press.
-    event.preventDefault();
-    event.stopPropagation();
-    changed(entry, !entry.reviewed);
-  });
+  button.addEventListener("click", () => changed(entry, !entry.reviewed));
   return button;
 }
 
@@ -562,6 +569,7 @@ customElements.define(
             path: files[index].name,
             ...(files[index].prevName ? { previousPath: files[index].prevName } : {}),
           },
+          node: fileRow(renderedFile.node),
           details: renderedFile.node.matches("details") ? renderedFile.node : null,
           loaded: true,
           reviewed: false,
@@ -631,7 +639,9 @@ customElements.define(
             throw new Error(`rename ${record.path} needs its previous path`);
           entries.push({
             record,
-            node: renameNode({ prevName: record.previousPath, name: record.path }),
+            node: fileRow(
+              renameNode({ prevName: record.previousPath, name: record.path }),
+            ),
             lines: [],
             loaded: true,
             reviewed: false,
@@ -649,7 +659,7 @@ customElements.define(
         );
         const entry = {
           record,
-          node: details,
+          node: fileRow(details),
           details,
           lines: [],
           loaded: false,
@@ -832,7 +842,6 @@ customElements.define(
     }
 
     attachReview(entry) {
-      const row = entry.details?.firstElementChild ?? entry.node;
       entry.review = reviewButton(entry, (target, reviewed) => {
         this.setReviewed(target, reviewed);
         sendAction(this, "review", {
@@ -846,7 +855,7 @@ customElements.define(
           else this.refreshReviewedState();
         });
       });
-      row.append(entry.review);
+      entry.node.append(entry.review);
       this.setReviewed(entry, false, { repaint: false });
     }
 

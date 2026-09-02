@@ -105,13 +105,14 @@ CONTROL_STABILITY_PAGE = leaf_page(
   </lf-task>
 </lf-command>
 <lf-diff id="stable-diff"><pre>
-diff --git a/feeders/mount.py b/feeders/mount.py
---- a/feeders/mount.py
-+++ b/feeders/mount.py
-@@ -1,2 +1,2 @@
- def bracket():
--    return "plastic"
-+    return "steel"
+diff --git a/gateway/limits.py b/gateway/limits.py
+--- a/gateway/limits.py
++++ b/gateway/limits.py
+@@ -1,2 +1,3 @@
+ def ceiling(limit, approvals):
+-    return limit
++    # the ceiling doubles per approval
++    return "over" if approvals &gt; 12 else limit
 </pre></lf-diff>
 """,
     head='<meta name="lf-review" content="sign-off">',
@@ -162,6 +163,16 @@ CONTROL_ARCHETYPES = (
         "name": "diff-tools",
         "coverage": ":is(.lf-diff-tools > button, .lf-diff-tools .lf-diff-wrap)",
         "target": "#stable-diff .lf-diff-wrap-label",
+    },
+    {
+        # The review press shares its file's summary line without being inside it, since
+        # a disclosure is a control and anything focusable within one is a control nested
+        # in a control. Sharing the line puts it in this sweep: its two labels are
+        # different words of different lengths, and one width for both is what keeps the
+        # summary beside it from reflowing when it is pressed.
+        "name": "diff-review",
+        "coverage": ".lf-diff-review",
+        "target": "#stable-diff .lf-diff-review",
     },
 )
 CONTROL_ROW_PRESS = (

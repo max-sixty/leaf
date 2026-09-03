@@ -644,7 +644,7 @@ ASKS_IN_A_ROW_PAGE = leaf_page(
 # An ask inside a scroller of its own, below that scroller's own band. The arrival places
 # the region, and the box that moves for a region is whichever one scrolls it — for a
 # region out on the page, never this card's. So the ask has to be brought into its card by
-# the reveal that runs first, or the ring and the focus land on a control the card hides.
+# the reveal that runs first, or the ring and focus land on a change the card hides.
 #
 # The card holds no text block before the ask, which is what puts the region outside it:
 # the spacer is a bare div, so the nearest candidate is the section's own heading. With a

@@ -2704,8 +2704,8 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
     The placement moves whichever scroller the region belongs to, and for a region on
     the page that is never the card's. So the ask's own box comes into view first, which
     is the one pass that moves a nested scroller. Handing the placement the region alone
-    left the ask unscrolled in its card, with the ring and the focus on a control the
-    reader could not see — and the walk's next press repeated the same non-arrival.
+    left the ask unscrolled in its card, with the ring and focus on a change the reader
+    could not see — and the walk's next press repeated the same non-arrival.
     """
     page, errors = open_page(browser, serve(ASK_IN_A_CARD_PAGE))
     resized(page, 900, 500)
@@ -2726,7 +2726,7 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
     ), "the fixture's card either shows the change already or holds a block before it"
 
     page.keyboard.press("a")
-    expect(page.locator("[data-lf-for='ac-sug'] .lf-sug-accept")).to_be_focused()
+    expect(page.locator("#ac-sug")).to_be_focused()
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
 
     seen = page.evaluate(

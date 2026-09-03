@@ -770,8 +770,8 @@ export function createDecisionView({
         // other than the page's: the placement below moves whichever box scrolls the
         // region, and for a region out on the page that is never the board's own
         // scroller. Handing that placement the region alone left a decision inside a
-        // card unscrolled in its card, with the ring and the focus on a control the
-        // reader could not see. `nearest` is a request to reveal only, which is exactly
+        // card unscrolled in its card, with the ring and focus on a change the reader
+        // could not see. `nearest` is a request to reveal only, which is exactly
         // what this needs and what the placement then builds on.
         scrollToElement(next, "instant", "nearest");
         scrollToElement(region, scrollBehavior(), "start");

@@ -475,9 +475,10 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     """Image clicks and the target's Button flip the same fixed frame.
 
+    Both state labels keep their corresponding sides while the active rule moves.
     Repeated presses keep their target and focus. The Button names the next frame
-    after either route and answers both native activation keys. The render gate
-    also checks selectable captions and the two-frame print view."""
+    after either route and answers both native activation keys. The render gate also
+    checks selectable captions and the two-frame print view."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -485,11 +486,62 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     assert render_gate_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
+    rail = page.locator("lf-shot .lf-shotrail")
+    expect(rail).to_have_count(1)
+    expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
+    before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
+    after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
+    assert before_bounds is not None and after_bounds is not None
+    before_face = rail.evaluate(
+        """rail => [...rail.children].map(cap => ({
+          state: cap.dataset.lfState,
+          ink: getComputedStyle(cap).color,
+          rule: getComputedStyle(cap).boxShadow,
+        }))"""
+    )
+    assert before_face[0]["ink"] != before_face[1]["ink"]
+    assert before_face[0]["rule"] != "none"
+    assert before_face[1]["rule"] == "none"
+    page.emulate_media(media="print")
+    assert shown_frames(page) == ["before", "after"]
+    assert (
+        rail.locator('[data-lf-state="before"]').evaluate(
+            "cap => getComputedStyle(cap, '::after').content"
+        )
+        == '" · top"'
+    )
+    assert (
+        rail.locator('[data-lf-state="after"]').evaluate(
+            "cap => getComputedStyle(cap, '::after').content"
+        )
+        == '" · bottom"'
+    )
+    page.emulate_media(media="screen")
     assert shown_frames(page) == ["before"]
     at = flip_point(page)
     page.mouse.click(*at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
+    after_face = rail.evaluate(
+        """rail => [...rail.children].map(cap => ({
+          state: cap.dataset.lfState,
+          ink: getComputedStyle(cap).color,
+          rule: getComputedStyle(cap).boxShadow,
+        }))"""
+    )
+    assert after_face[0]["ink"] == before_face[1]["ink"]
+    assert after_face[1]["ink"] == before_face[0]["ink"]
+    assert after_face[0]["rule"] == "none"
+    assert after_face[1]["rule"] != "none"
+    for locator, bounds in (
+        (rail.locator('[data-lf-state="before"]'), before_bounds),
+        (rail.locator('[data-lf-state="after"]'), after_bounds),
+    ):
+        flipped_bounds = locator.bounding_box()
+        assert flipped_bounds is not None
+        assert {key: flipped_bounds[key] for key in ("x", "width", "height")} == {
+            key: bounds[key] for key in ("x", "width", "height")
+        }
     box = page.locator("lf-shot input[type=checkbox]")
     expect(box).to_be_focused()
     assert "show before" in key_line(page)

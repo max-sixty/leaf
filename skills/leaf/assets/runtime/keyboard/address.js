@@ -25,8 +25,10 @@ export function createAddress({
   keylineEl,
   leavesOffered,
   letGo,
+  openPageMapItem,
   othersLinks,
   othersPanel,
+  pageMapItems,
   pageParts,
   paintHere,
   panelCovers,
@@ -46,15 +48,16 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. A mnemonic completes a direct destination (`g T` Threads,
-  // `g A` Asks, `g L` All leaves, `g m` Page map), while a numbered list takes a
-  // following digit (`g t 2` selects the second tab, `g h 3` follows the third hyperlink,
-  // and `g f 2` opens the second fold).
+  // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
+  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a lowercase list
+  // mnemonic takes a following digit (`g m 2` reaches the second Page-map location,
+  // `g t 2` selects the second tab, `g h 3` follows the third hyperlink, and `g f 2`
+  // opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
   // t/T and a/A, so those categories do not also carry numbered addresses.
   //
   // Which numbered lists there are is this table and nothing else. The complete Page map
-  // is a direct destination because a one-digit list would silently truncate it. The chord's scope, the chips, the
+  // remains a direct destination because this one-digit list stops at nine. The chord's scope, the chips, the
   // line's words and the reference are all readings of it, so a fourth list is an entry here
   // rather than an edit to four consumers, and nothing that reads the table asks which list
   // it is holding. An entry says its letter, the word every surface calls the list by, the
@@ -75,8 +78,8 @@ export function createAddress({
   // scroll, since a row that goes dead as the page moves is a row the line has to be
   // repainted to stop promising — a paint measured at 1.3ms on the corpus, on every scroll
   // frame of every page, for one row. The numbered route therefore keeps document order
-  // stable and offers its first nine members; later members remain in the document's own
-  // navigation rather than making a one-digit address ambiguous.
+  // stable and offers its first nine members; later Page-map locations remain in the
+  // complete sheet, and every list retains its ordinary document navigation.
   //
   // Above the table rather than beside the other readings below it, because an entry
   // holds the function itself and the array literal reads it as the module evaluates.
@@ -178,7 +181,7 @@ export function createAddress({
     },
     {
       id: "navigation.page-map",
-      key: "m",
+      key: "Shift+m",
       does: "Go to the Page map",
       line: "Page map",
       when: () => true,
@@ -188,6 +191,14 @@ export function createAddress({
     },
   ];
   const ADDRESSES = [
+    {
+      id: "navigation.page-map-item",
+      key: "m",
+      word: "Page map locations",
+      does: "Go to the nth Page map location",
+      list: pageMapItems,
+      go: openPageMapItem,
+    },
     {
       id: "navigation.tab",
       key: "t",

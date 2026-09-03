@@ -699,9 +699,25 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
       outline-offset: calc(-1 * var(--here-ring-w));
     }
   .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another:not([hidden]) { min-height: var(--aim-floor); }
   .lf-another > .lf-address { top: 0; bottom: 0; margin: auto 0; }
-  .lf-another input { flex: 1; min-width: 0; padding: 0; border: 0;
-                     outline: none; background: transparent; color: inherit; font: inherit; }
+  /* The field holds the option before it is recorded, so its words use the document's
+   * face just as they will after the module turns them into an lf-option. The return
+   * remains a real button: its visible word is compact, while the box keeps the pointer
+   * target and accessible Add option name. Positioned over room the input reserves, it
+   * does not make a compact row taller than its neighbours. */
+  .lf-another input { flex: 1; min-width: 0; padding: 0;
+                     padding-inline-end: calc(var(--aim-floor) + var(--sp-1));
+                     border: 0; outline: none; background: transparent; color: inherit;
+                     font: var(--t-4)/1.6 var(--serif); }
+  .lf-another > .lf-btn { position: absolute; inset-inline-end: var(--sp-1);
+                     top: 50%; transform: translateY(-50%);
+                     display: flex; align-items: center; justify-content: center;
+                     width: var(--aim-floor); height: var(--aim-floor); padding: 0;
+                     border: 0; border-radius: 4px; background: transparent;
+                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); }
+  .lf-another > .lf-btn[aria-disabled="false"] { color: var(--ink); cursor: pointer; }
+  .lf-another > .lf-btn[aria-disabled="false"]:hover { background: var(--chip); }
   /* The leading column holds the keyboard address and the gap before the option's
    * words. The address starts at the ordinary 8px inset and takes
    * --lf-key-box, so changing the utility type grows the
@@ -759,7 +775,7 @@ html.lf-copy lf-options > .lf-another { display: none; }
 lf-options:not(:has(> lf-option > strong)) > lf-option {
                      position: relative;
                      display: table; width: 100%; box-sizing: border-box;
-                     border-spacing: var(--sp-2) 0;
+                     border-spacing: var(--lf-row-gap) 0;
                      padding: 5px 0; --lf-frame: 1; }
 /* The mark's own column, and every child of the group opens after it — the options and
  * the cell the reader writes their own option in alike, because the one thing that makes
@@ -776,11 +792,18 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * than be reset by it. Without `choose` there is no address column and the mark's is
  * the whole of it. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
-                     --lf-pick-col: 17px;
+                     --lf-pick-col: 17px; --lf-row-gap: var(--sp-2);
                      padding-inline-start: var(--lf-pick-col); }
 lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
                      > :is(lf-option, .lf-another) {
                      padding-inline-start: calc(var(--lf-address-col) + var(--lf-pick-col)); }
+/* A row's table spacing holds its prose off the mark column. The form has no anonymous
+ * table cell to supply that space, so its input takes the same named gap. Matching the
+ * option's vertical inset makes the draft and the option it becomes one stable row. */
+lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
+                     gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
+lf-options:not(:has(> lf-option > strong)) > .lf-another input {
+                     margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
  * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
@@ -788,8 +811,8 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
  * use the compact spacing token when the group's own box is narrow; the cells retain a
  * visible gap without clipping the mark the reader presses. */
 @container (max-width: 20rem) {
-  lf-options:not(:has(> lf-option > strong)) > lf-option {
-                     border-spacing: var(--sp-1) 0; }
+  lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+                     --lf-row-gap: var(--sp-1); }
 }
 /* The row's own ground: a corner to round and a wash to say its status in, both of which
  * are answers to standing alone. A joined row is a cell that butts its neighbours and
@@ -1162,25 +1185,37 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 }
 
 /* lf-shot: both frames share one grid cell sized by the taller image, so a flip
- * moves nothing below it. The transparent native checkbox covers only the frame;
- * the shared margin Button supplies the visible control. CSS owns image visibility,
- * keeping image clicks and Space live in script-free exports. Print stacks both. */
+ * moves nothing below it. The rail keeps before and after at fixed ends while a short
+ * accent rule names the visible state. The transparent native checkbox covers only
+ * the frame; the shared margin Button supplies the second control. CSS owns image
+ * visibility, keeping image clicks and Space live in script-free exports. Print stacks
+ * both. */
 lf-shot { display: block; margin: 16px 0; }
-lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
-    border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden;
+lf-shot .lf-shotframe { position: relative; grid-area: 2 / 1;
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r); overflow: hidden;
     background: var(--card); }
 lf-shot:has(.lf-shotframe) { display: grid; }
-lf-shot .lf-shotframe img { display: block; width: 100%; height: auto; }
+lf-shot .lf-shotframe img { display: block; width: 100%; height: auto;
+    background: var(--card); }
 lf-shot .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
 lf-shot:has(input:checked) .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
 lf-shot:has(input:checked) .lf-shotframe[data-lf-state="after"] { visibility: visible; }
-lf-shot .lf-shotcap { position: absolute; top: 6px; left: 6px;
-    font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
-    padding: 2px 7px; border-radius: 999px; background: var(--veil);
-    border: 1px solid var(--rule); color: var(--muted); }
+lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
+    justify-content: space-between; height: 34px; padding: 0 11px;
+    border: 1px solid var(--rule); border-bottom: 0;
+    border-radius: var(--r) var(--r) 0 0; color: var(--muted);
+    background: var(--card); }
+lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
+    font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
+    letter-spacing: .04em; }
+lf-shot .lf-shotcap[data-lf-state="before"],
+lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] { color: var(--ink);
+    box-shadow: inset 0 -2px var(--accent); }
+lf-shot:has(input:checked) .lf-shotcap[data-lf-state="before"] {
+    color: var(--muted); box-shadow: none; }
 /* The image is itself the native target, so a click never forwards focus to a
    distant label or control and scrolls a tall comparison out from under the reader. */
-lf-shot > input.lf-shotflip { grid-area: 1 / 1; z-index: 2;
+lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
@@ -1189,8 +1224,14 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
+  lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
+    border-radius: var(--r); margin-bottom: var(--sp-2); }
+  lf-shot .lf-shotcap { color: var(--ink) !important; box-shadow: none !important; }
+  lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
+  lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   lf-shot > input.lf-shotflip { display: none; }
-  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
+  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
+    border-radius: var(--r); }
 }
 
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy

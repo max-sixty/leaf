@@ -136,8 +136,38 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         )
     ).to_be_in_viewport()
     page.keyboard.press("g")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
     expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_headings_are_stable_preview_destinations(browser, serve):
+    """A preview can name its subject directly instead of asking the reader to find it."""
+    root = live_url(serve(FEATURE_GALLERY))
+    destination = "#bg-quoted-and-visual-heading"
+    page, errors = open_page(browser, root + destination)
+
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    targets = links.evaluate_all(
+        """links => links.map(link => {
+          const href = link.getAttribute('href');
+          const target = document.getElementById(decodeURIComponent(href.slice(1)));
+          return {href, tag: target?.localName || null,
+                  generated: target?.dataset.lfGen === '1'};
+        })"""
+    )
+    assert targets and all(
+        target["tag"] in {"h1", "h2", "h3", "h4", "h5", "h6"}
+        and not target["generated"]
+        for target in targets
+    ), targets
+    assert len({target["href"] for target in targets}) == len(targets), targets
+
+    target = page.locator(destination)
+    expect(page).to_have_url(root + destination)
+    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
+    expect(target).to_be_in_viewport()
     assert errors == []
     page.close()
 
@@ -1616,9 +1646,15 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
         ),
         (
             "navigation.page-map",
-            ["g", "m"],
+            ["g", "M"],
             ["pressed", "neutral"],
             "Page map",
+        ),
+        (
+            "navigation.page-map-item",
+            ["g", "m", "1–3"],
+            ["pressed", "neutral", "neutral"],
+            "Page map locations",
         ),
         (
             "navigation.link",
@@ -1788,10 +1824,24 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # the dispatcher has already put the reader back — so the door's own return route has
     # to stand down for the press that is unwinding it.
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    page.keyboard.press("Shift+m")
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+    expect(
+        sheet.get_by_role("searchbox", name="Find a Button or location in Page map")
+    ).to_be_focused()
+    page.evaluate(
+        """() => {
+          window.__lfPageMapClosed = false;
+          document.querySelector('dialog.lf-page-map-sheet').addEventListener(
+            'close',
+            () => { window.__lfPageMapClosed = true; },
+            {once: true},
+          );
+        }"""
+    )
     page.keyboard.press("Escape")
-    expect(page.get_by_role("dialog", name="Page map", exact=True)).not_to_be_visible()
+    page.wait_for_function("() => window.__lfPageMapClosed")
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     expect(ask).to_be_focused()
 
@@ -1808,15 +1858,27 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-decisions-panel")).not_to_be_visible()
 
-    # The Page map is one complete destination rather than a capped numbered prefix.
+    # Uppercase M opens the complete Page map rather than the numbered prefix.
     page.keyboard.press("g")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
     expect(
         sheet.get_by_role("searchbox", name="Find a Button or location in Page map")
     ).to_be_focused()
+    page.keyboard.press("Escape")
+
+    # Lowercase m continues to the page's numbered location addresses. An information
+    # location opens the same thread preview as its marker.
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    expect_address_steps(page, [["g", "m", "1"], ["g", "m", "2"], ["g", "m", "3"]])
+    page.keyboard.press("1")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("Escape")
 
     # The hyperlinks, from the head of the page where both are on screen. A chip is hung on the
@@ -2158,7 +2220,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(page.locator(".lf-page-map-action")).to_have_count(0)
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("Page map")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
 
     sheet = page.locator(".lf-page-map-sheet")
     expect(sheet).to_be_visible()
@@ -2192,13 +2254,13 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
     ) == ["pressed", "neutral", "neutral"]
     expect_address_steps(
         page,
-        [["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
+        [["g", "m", "1"], ["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
     )
     assert (
         page.locator(f"{CHIPS} kbd").evaluate_all(
             "keys => keys.map(key => key.dataset.lfKeyState)"
         )
-        == ["pressed", "neutral", "neutral"] * 3
+        == ["pressed", "neutral", "neutral"] * 4
     )
 
     def sequence_geometry(locator):
@@ -2740,7 +2802,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     ) == ["pressed", "neutral", "neutral"]
     expect_address_steps(
         page,
-        [["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
+        [["g", "m", "1"], ["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
     )
     expect(line).to_contain_text("cancel")
     expect(line.locator('[data-lf-commands="navigation.address.back"]')).to_have_class(
@@ -2762,7 +2824,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     page.keyboard.press("Escape")
     expect_address_steps(
         page,
-        [["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
+        [["g", "m", "1"], ["g", "h", "1"], ["g", "h", "2"], ["g", "f", "1"]],
     )
     assert link_route.locator(":scope > kbd").evaluate_all(
         "keys => keys.map(key => key.dataset.lfKeyState)"

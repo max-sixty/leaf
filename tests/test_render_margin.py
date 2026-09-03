@@ -686,7 +686,7 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     proxy = sheet.get_by_role("button", name="Inspect source", exact=True)
     expect(proxy).to_be_visible()
@@ -748,13 +748,24 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_opens_the_complete_page_map_beyond_nine_locations(browser, serve):
-    """The Map destination never projects an arbitrary numbered prefix."""
+def test_g_m_addresses_nine_and_g_shift_m_opens_the_complete_page_map(browser, serve):
+    """The numbered prefix stays short while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, 1440, 900)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
+
     page.keyboard.press("g")
     page.keyboard.press("m")
+    route = page.locator(
+        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1–9"])
+    expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-group")).to_have_count(12)
@@ -773,7 +784,7 @@ def test_g_m_opens_the_complete_page_map_beyond_nine_locations(browser, serve):
     page.close()
 
 
-def test_g_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve):
+def test_g_shift_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve):
     """Late action-only targets keep their verbs in the complete Page map."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -786,7 +797,7 @@ def test_g_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve)
     )
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
     for title, word in (
@@ -2820,7 +2831,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     if opener == "keyboard":
         page.keyboard.press("g")
         expect(page.locator(".lf-keyline")).to_contain_text("Page map")
-        page.keyboard.press("m")
+        page.keyboard.press("Shift+m")
     else:
         toggle.click()
     sheet = page.locator(".lf-page-map-sheet")
@@ -2846,16 +2857,8 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 
     page.keyboard.press("Escape")
     expect(sheet).to_be_hidden()
-    # Each route gives back exactly what it took. A press on the door is the reader
-    # holding that control, so the modal hands it back to them. `g m` was pressed from
-    # the page, and the dispatcher captured that place before the sheet stood up, so its
-    # one Escape returns them there rather than leaving them on a button they never
-    # touched (skills/leaf/CLAUDE.md, "The keyboard is a stack"). The door's own return
-    # route stands down for that press alone; every other close still runs it.
-    if opener == "keyboard":
-        assert page.evaluate("() => document.activeElement === document.body")
-    else:
-        expect(toggle).to_be_focused()
+    return_focus = page.locator("body") if opener == "keyboard" else toggle
+    expect(return_focus).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert errors == []
     page.close()

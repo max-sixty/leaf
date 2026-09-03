@@ -311,9 +311,8 @@ blank space — draw both at one height. The frame scales an image to its own
 width, so draw the file at twice the width the shot will get where it stands; for
 the JWT pair that is the ~494px the option card leaves once the `.facts` rail has
 taken its share, and it is a width to measure rather than a number to carry over.
-`.lf-shotcap` sits absolutely at the frame's top-left, so a mock whose own title
-starts at the top edge publishes with BEFORE painted across it — leave that
-corner clear. And take the palette from the pair already here.
+The state rail has its own band above the image, so the mock can use its whole
+canvas. Take the palette from the pair already here.
 
 The script that draws a mock belongs in scratch, not in `scripts/`.
 `scripts/record-demo.py` earns its place there because the stills it draws depict

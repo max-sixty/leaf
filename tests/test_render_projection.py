@@ -1307,17 +1307,15 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
         "letting go left the reader holding the control on a page that fits the window"
     )
 
-    # The Page map is navigation too, and one destination rather than the nine-item
-    # numbered prefix it replaced: it opens the complete map without unfolding the walked
-    # item's peers into an extra Escape rung, and its one Escape hands the reader back the
-    # reading place they pressed from rather than the Map control the door opened from.
+    # The direct Page-map address is navigation too: it lands on the target's primary
+    # Button without unfolding the peer controls into an extra Escape rung.
     page.keyboard.press("g")
     page.keyboard.press("m")
-    expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    page.keyboard.press("2")
+    expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
     page.keyboard.press("Escape")
-    expect(page.get_by_role("dialog", name="Page map", exact=True)).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
     page.close()

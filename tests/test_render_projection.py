@@ -5090,7 +5090,7 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
     page.locator("#inner > .lf-command-head").click(position={"x": 5, "y": 5})
     page.locator("#inner > .lf-fleet-view summary").click()
-    page.get_by_role("link", name="inner-worker", exact=True).click()
+    page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
     assert errors == []
     page.close()

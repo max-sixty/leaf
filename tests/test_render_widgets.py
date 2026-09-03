@@ -1030,6 +1030,34 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     context.close()
 
 
+def test_a_gloss_aim_box_does_not_make_its_table_scroll_sideways(browser, serve):
+    """The mark's aim box is outside layout but not outside overflow. A gloss that ends
+    a cell puts the badge against the table's inline edge, and an aim box straddling the
+    badge would hang half its width past that edge — leaving a table the reader can drag
+    sideways over a target nothing draws."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "gloss at the edge",
+                """
+<h1>Areas</h1>
+<table id="edge-table" style="width: fit-content">
+  <tbody><tr><td style="padding: 0"><lf-gloss
+    tip="The test reads the index before and after."
+    >byte-identical</lf-gloss></td></tr></tbody>
+</table>
+""",
+            )
+        ),
+    )
+    expect(page.locator("#edge-table .lf-gloss-mark")).to_be_visible()
+    room = page.locator("#edge-table").evaluate("el => el.scrollWidth - el.clientWidth")
+    assert room <= 1, f"the table scrolls {room}px sideways"
+    assert errors == []
+    page.close()
+
+
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     """A nested control owns its click even when its platform contract is an ARIA role."""
     page, errors = open_page(

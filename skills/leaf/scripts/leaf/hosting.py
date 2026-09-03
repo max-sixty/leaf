@@ -103,10 +103,10 @@ def startup_note(page_dir: Path) -> str:
         for line in (
             lifetime_note(page_dir),
             loopback_note(page_dir),
-            f"page: {page_dir}",
-            f"layer: {fingerprint} ({_provenance_label(layer.get('producer', {}))})",
+            f"page     {page_dir}",
+            f"layer    {fingerprint} ({_provenance_label(layer.get('producer', {}))})",
             (
-                f"leaf: {runtime.get('path', 'unknown payload')} "
+                f"runtime  {runtime.get('path', 'unknown payload')} "
                 f"({_provenance_label(runtime)})"
             ),
         )

@@ -70,13 +70,13 @@ def lifetime_note(page_dir: Path) -> str:
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
     if (read_json(page_dir / "service.json") or {}).get("lifetime") == "standing":
-        return (
-            "standing server: no agent session claimed this page, so it outlives "
-            f"this shell. `leaf server stop {page_dir}` is what stops it."
+        return "\n".join(
+            (
+                "server   standing",
+                f"stop     leaf server stop {page_dir}",
+            )
         )
-    return (
-        "session server: it stops when the agent session that claimed this page ends."
-    )
+    return "server   session (stops with its agent session)"
 
 
 def loopback_note(page_dir: Path) -> str | None:
@@ -101,10 +101,7 @@ def loopback_note(page_dir: Path) -> str | None:
         return None
     if not local:
         return None
-    return (
-        "loopback bind: this URL opens only from a browser on this machine. "
-        "Re-serve with `--host NAME` for a reader anywhere else."
-    )
+    return "access   loopback only (re-serve with --host NAME for remote readers)"
 
 
 def stop_when_service_ends(page_dir: Path) -> None:

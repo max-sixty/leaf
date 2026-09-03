@@ -52,19 +52,35 @@ NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer")
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 
-def leaf(launcher: Path, runtime: Path, *args, check=True, input_text=None):
-    return subprocess.run(
+def leaf(
+    launcher: Path,
+    runtime: Path,
+    *args,
+    check: bool = True,
+    input_text: str | None = None,
+    show_output: bool = False,
+):
+    """Hide successful chatter; checked failures replay their stdout."""
+    result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
-        check=check,
+        check=False,
         input=input_text,
-        text=input_text is not None,
+        stdout=None if show_output else subprocess.PIPE,
+        text=True,
     )
+    if check and result.returncode != 0:
+        if not show_output and result.stdout:
+            print(result.stdout, end="", flush=True)
+        result.check_returncode()
+    return result
 
 
-def seed_data(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
+def seed_data(
+    operations: list[dict], page: Path, launcher: Path, runtime: Path
+) -> None:
     """Apply each page-bound data operation shipped beside an example."""
-    for operation in data_operations(source):
+    for operation in operations:
         if operation["kind"] == "set":
             args = ["data", "set", str(page), operation["source"]]
             if operation["capture_label"] is not None:
@@ -226,7 +242,7 @@ def authored_source(
     )
 
 
-def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
+def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[int, int]:
     """Build one page from the selected runtime and the source's fixtures."""
     package_manifest = source.parent / "layer.json"
     if not package_manifest.is_file():
@@ -245,10 +261,12 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
         media = ROOT / "examples" / "media"
     if media.is_dir():
         shutil.copytree(media, page / "media", dirs_exist_ok=True)
-    seed_data(source, page, launcher, runtime)
+    operations = data_operations(source)
+    seed_data(operations, page, launcher, runtime)
     # Each authored version in order, through the real stamp boundary, so a revised
     # example arrives with the chooser, the marks and the notes a reader travels by.
-    for order, version in enumerate(example_versions(source)):
+    versions = example_versions(source)
+    for order, version in enumerate(versions):
         (page / "index.html").write_text(
             version.read_text(encoding="utf-8"), encoding="utf-8"
         )
@@ -264,6 +282,18 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
         if order == 0:
             seed_log(source, page)
     acknowledge_log(source, page)
+    return len({operation["source"] for operation in operations}), len(versions)
+
+
+def preparation_note(source: Path, data_sources: int, versions: int) -> str:
+    """Summarize successful setup without replaying each child command."""
+    details = []
+    if data_sources:
+        data_label = "data source" if data_sources == 1 else "data sources"
+        details.append(f"{data_sources} {data_label}")
+    version_label = "version" if versions == 1 else "versions"
+    details.append(f"{versions} {version_label}")
+    return f"prepared {source.stem} ({', '.join(details)})"
 
 
 def mark_preview(source: Path, page: Path, runtime: Path) -> None:
@@ -292,11 +322,12 @@ def main() -> None:
         TMP.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
             page = Path(staging) / "page"
-            prepare(source, page, launcher, runtime)
+            data_sources, versions = prepare(source, page, launcher, runtime)
             suffix = f"-{args.slot}" if args.slot else ""
             out = TMP / f"example-{source.stem}{suffix}.html"
             out.unlink(missing_ok=True)
             leaf(launcher, runtime, "version", "export", str(page), "-o", str(out))
+        print(preparation_note(source, data_sources, versions), end="\n\n")
         print(out.resolve())
         return
 
@@ -305,10 +336,11 @@ def main() -> None:
     if page.exists():  # a previous preview may still hold the port
         leaf(launcher, runtime, "server", "stop", str(page), check=False)
         shutil.rmtree(page)
-    prepare(source, page, launcher, runtime)
+    data_sources, versions = prepare(source, page, launcher, runtime)
     mark_preview(source, page, runtime)
+    print(preparation_note(source, data_sources, versions), end="\n\n", flush=True)
     command = "start" if args.background else "run"
-    leaf(launcher, runtime, "server", command, str(page))
+    leaf(launcher, runtime, "server", command, str(page), show_output=True)
 
 
 if __name__ == "__main__":

@@ -3151,6 +3151,50 @@ def test_delivering_a_batch_opens_the_turn_on_every_page_the_session_holds(
     session_model.cmd_status(others, "idle", "")
 
 
+def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
+    claimed, tmp_path, capsys
+):
+    """A delivery is not the only observable opening, and it is not the one the
+    banner sends the reader to. The `quiet` banner says to nudge in the terminal;
+    a reader who does that answers where no batch is written, so no carrier ever
+    hands one over and nothing would clear the stamp — the page would go on telling
+    them to do the thing they just did.
+
+    `UserPromptSubmit` is the literal mirror of the `Stop` branch that stamps the
+    ending: same sweep over `owned_pages`, same place ahead of the early returns,
+    same session scope."""
+    sibling = tmp_path / "sibling"
+    vendoring_model.cmd_init(sibling)
+    capsys.readouterr()
+    session_model.cmd_status(claimed, "working", "answering the first comment")
+    session_model.cmd_status(sibling, "working", "reading the sibling")
+    serving(claimed, 1)
+    serving(sibling, 2)
+    assert service_model.claim_page(sibling)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert service_model.page_claim(sibling)["turn_closed"]
+
+    status_before = (claimed / "status.json").read_bytes()
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert service_model.page_claim(sibling)["turn_closed"] is None
+    # Only the stamp moves: what the agent said it was doing stays the agent's.
+    assert (claimed / "status.json").read_bytes() == status_before
+
+    # Another session's prompt says nothing about this one's pages.
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    closed = service_model.page_claim(claimed)["turn_closed"]
+    assert closed
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] == closed
+    session_model.cmd_status(sibling, "idle", "")
+
+
 def test_delivering_a_batch_opens_the_turn_the_stop_hook_closed(claimed, capsys):
     """The Stop hook stamps the ending of a turn; a delivery is the one observable
     beginning of the next one, and until it cleared the stamp nothing did.

@@ -328,15 +328,15 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
-            # The carrier that hands the batch over is the one thing that knows
-            # whether a turn is opening, exactly as the Stop hook is the one
-            # thing that knows one is over — so it answers rather than being
-            # read. A direct wait says yes: leaving the Stop hook's stamp
-            # standing through the turn it exits into is what had the page
-            # telling the reader the agent had left and to nudge it, two minutes
-            # into a turn spent answering them. The Codex adapter says no; its
-            # own docstring holds why. The Stop hook closed the turn across the
-            # session's pages, so a delivery that opens one reopens the same set.
+            # Whether handing the batch over opens a turn is the carrier's to
+            # answer rather than something read off it. A direct wait says yes:
+            # leaving the Stop hook's stamp standing through the turn it exits
+            # into is what had the page telling the reader the agent had left
+            # and to nudge it, two minutes into a turn spent answering them. The
+            # Codex adapter says no; its own docstring holds why. The prompt
+            # hook stamps the openings no delivery carries. The Stop hook closed
+            # the turn across the session's pages, so an opening here reopens
+            # the same set.
             if deliver(reading) and watch.session_id:
                 open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)

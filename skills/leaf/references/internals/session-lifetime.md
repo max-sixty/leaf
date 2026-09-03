@@ -38,16 +38,19 @@ A claim also has an end the page can observe rather than outwait. The Stop hook
 stamps `turn_closed` on the claim record when the turn that could have renewed it
 ends, and the banner stops believing a claim older than that stamp after a short
 grace — much shorter than the claim's own, because it is reached by evidence
-instead of by a clock. The opening of the next turn is stamped by the carrier
-that causes it, and only where that carrier's handoff is the opening. A direct
-wait's is: it exits with the batch in model context, so it clears the stamp under
-the same lock the batch left under. The Codex adapter's is not: its pointer waits
-in a durable queue that a loaded client starts and an unloaded task leaves
-standing, so it leaves the stamp alone and the turn that does start carries the
-claim the ordinary way, by writing a status past it. Both stamps are the
-session's rather than the page's, and both span its pages: the Stop hook closes
-the turn on every page the session holds, so a delivery that opens one reopens
-that same set, each sibling under its own transaction. Without that clearing the
+instead of by a clock. The opening of the next turn is stamped by the
+prompt hook, which fires with the turn already running whatever caused it, and
+by the carrier that delivers a batch — the latter only where that carrier's
+handoff is the opening. A direct wait's is: it exits with the batch in model
+context, so it clears the stamp under the same lock the batch left under. The
+Codex adapter's is not: its pointer waits in a durable queue that a loaded
+client starts and an unloaded task leaves standing, so it leaves the stamp alone
+and the turn that does start carries the claim the ordinary way, by writing a
+status past it. The prompt is what covers the reader who answers where the
+banner sent them — a nudge in the terminal leaves no batch for any carrier to
+hand over. Both stamps are the session's rather than the page's, and both span
+its pages: the Stop hook closes the turn on every page the session holds, so an
+opening reopens that same set, each page under its own transaction. Without that clearing the
 page reads a session that came back and worked as one that walked away, and tells
 the reader to nudge a turn that is running — a leaf whose own batch was never the
 one delivered included.
@@ -63,8 +66,9 @@ life unheld, and picks up again the moment a session takes it.
 
 The `hook` command closes the same gap from the agent's side. Registered on
 Stop, UserPromptSubmit and SessionEnd, it refuses to let a turn end with one of
-this session's pages unwatched, surfaces unacknowledged user events at the next
-prompt, and releases the session's page claims when it exits. Session death is
+this session's pages unwatched, stamps that turn's ending and the next one's
+opening, surfaces unacknowledged user events at the next prompt, and releases
+the session's page claims when it exits. Session death is
 not completion or an explicit stop: work status and desired service stay as they
 were, while a session server retires once no live successor has claimed it. It
 finds the session's pages through the claim records under

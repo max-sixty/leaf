@@ -157,13 +157,15 @@ class PageTransaction:
         reader was told the agent left when its turn ended and to nudge it in
         the terminal, over a turn that was running.
 
-        A delivery is where the beginning can be observable, and whether it is
-        belongs to the carrier that makes it. The direct watcher exits into
-        model context, so its handoff is the turn; the Codex adapter hands a
-        pointer to a durable queue an unloaded task leaves standing, so its
-        handoff is not, and it declines this. The carrier is the one thing that
-        knows a turn is opening, exactly as the Stop hook is the one thing that
-        knows one is over.
+        Two things observe the beginning. A prompt is one: the hook that mirrors
+        the Stop hook fires with the turn already running, whoever caused it —
+        including the reader who did the thing the banner told them to and
+        nudged in the terminal, leaving no batch for any delivery to carry. A
+        delivery is the other, and whether it is belongs to the carrier that
+        makes it: the direct watcher exits into model context, so its handoff is
+        the turn; the Codex adapter hands a pointer to a durable queue an
+        unloaded task leaves standing, so its handoff is not, and it declines
+        this.
 
         Nothing else about the claim moves. What the agent said it was doing
         stays the agent's to write, and the fifteen-minute grace on that claim's
@@ -284,24 +286,29 @@ def restore_page_claim(
         page.restore_claim(expected, previous)
 
 
-def open_session_turn(session_id: str, delivered: PageTransaction) -> None:
+def open_session_turn(
+    session_id: str, delivered: PageTransaction | None = None
+) -> None:
     """Clear the turn-ended stamp on every page one session holds.
 
     A turn belongs to the session, not to the page whose batch opened it. The
-    Stop hook stamps the ending across `owned_pages`, so a delivery that clears
-    only its own page leaves every sibling claim stamped through a turn that is
+    Stop hook stamps the ending across `owned_pages`, so an opening that clears
+    only one page leaves every sibling claim stamped through a turn that is
     demonstrably running: the reader comments on one leaf, and two minutes later
     the next leaf tells its own reader the agent left when its turn ended and to
     nudge it in the terminal.
 
-    The delivering page is cleared under the transaction its batch left under,
-    so it cannot be read between the two. Each sibling takes its own, the way
-    the Stop hook takes them, and a sibling the turn never touches still falls
-    to the fifteen-minute grace on its own claim age.
+    A delivery names the page its batch came from, which is already open under
+    the transaction the batch left under — clearing it there is what keeps it
+    from being read between the two. A prompt names none: nothing was delivered,
+    so every page the session holds is a sibling. Each sibling takes its own
+    transaction, the way the Stop hook takes them, and a sibling the turn never
+    touches still falls to the fifteen-minute grace on its own claim age.
     """
-    delivered.open_turn(session_id)
+    if delivered is not None:
+        delivered.open_turn(session_id)
     for page_dir in owned_pages(session_id):
-        if paths_same(page_dir, delivered.page_dir):
+        if delivered is not None and paths_same(page_dir, delivered.page_dir):
             continue
         try:
             with PageTransaction(page_dir) as page:

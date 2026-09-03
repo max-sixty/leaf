@@ -183,10 +183,9 @@ captures first and then current values through `leaf data capture` and `leaf dat
 so binding, contract validation, revisioning, live preview, browser sweeps, and the
 static site all exercise the real doors. `scripts/corpus.py` composes those companions
 into `corpus.data.json`; edit the individual example's files and regenerate rather
-than patching the corpus copies. A selected snapshot number must stay valid both in
-its own page and in corpus composition, so the first capture in the first contributing
-example owns snapshot `1`; grow this fixture convention only when another capture
-actually needs to compose.
+than patching the corpus copies. Composition rebases each selected `snapshot` to that
+capture's revision in the combined data log, so each source page owns only its local
+snapshot numbers; contributors do not coordinate a corpus-wide sequence.
 
 A large unified diff stays in its `.patch` source file. Capture it with
 `"format": "unified-diff"`; the public capture door validates and splits it into the

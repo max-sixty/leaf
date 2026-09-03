@@ -207,7 +207,10 @@ export function chromeStyle({
      buttons, and the attribute wireInput sets, which is the only one a span press can
      wear. */
   .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-  .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+  .lf-btn.on,
+  .lf-btn:is(.lf-others, .lf-decisions, .lf-threads-toggle)[aria-expanded="true"] {
+    border-color: var(--accent); color: var(--accent); background: var(--chip);
+  }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
      Target actions use .lf-margin-action below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */

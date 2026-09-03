@@ -620,11 +620,21 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
             bottom: b.bottom + grow,
             card_top: Math.min(...card.map((part) => part.top)),
             card_bottom: Math.max(...card.map((part) => part.bottom)),
+            corners: [cs.borderTopLeftRadius, cs.borderBottomRightRadius],
+            card_corners: [
+              getComputedStyle(shot.querySelector('.lf-shotrail')).borderTopLeftRadius,
+              getComputedStyle(shot.querySelector('.lf-shotframe'))
+                .borderBottomRightRadius,
+            ],
           };
         }"""
     )
     assert ring["name"] == "shot" and ring["width"] > 0
     assert ring["top"] < ring["card_top"] and ring["bottom"] > ring["card_bottom"]
+    # An outline follows its own box's corners, and lf-shot draws no border of its own
+    # to have rounded them, so the ring's corners are asked against the rail's top and
+    # the frame's foot — the card's own outer corners.
+    assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
     assert errors == []
     page.close()
 

@@ -1221,9 +1221,11 @@ lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
     appearance: none; opacity: 0; cursor: pointer; }
 /* The rail and the frame are one card, so the ring goes round the card. Drawn on the
    frame alone it ran along the rail's foot instead of round anything, and the rail's
-   own surface stands where its top run is. */
+   own surface stands where its top run is. lf-shot paints nothing of its own, so the
+   radius here is the card's outer corners lent to the outline and reaches nothing
+   else. */
 lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline: var(--here-ring);
-    --lf-here-ring: shot; outline-offset: 1px; }
+    --lf-here-ring: shot; outline-offset: 1px; border-radius: var(--r); }
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }

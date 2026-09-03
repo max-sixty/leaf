@@ -1,0 +1,4 @@
+[route]
+name = "covered terrace"
+distance_km = 1.8
+status = "sample"

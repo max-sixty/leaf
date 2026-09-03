@@ -88,9 +88,9 @@ const AGENT = "The demo";
 // none of this file's.
 let answered = false;
 
-const ANSWER = `This is the demo answering, not an agent. The page stands on a static host and the session behind it is your own browser tab, so nobody will read what you just wrote.
+const ANSWER = `This demo has no agent, so nobody will read your comment.
 
-It went into the log all the same, with your quote attached — which is exactly what an agent picks up and answers. [Run one from a checkout](/examples.html#run) and a real reply lands right here.`;
+[Install Leaf](/index.html#install) to get replies from your agent.`;
 
 // What the page opens on, for an example that ships a thread beside it: the log the
 // build laid in the page directory, which a served page would hand over on the first

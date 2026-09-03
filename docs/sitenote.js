@@ -38,7 +38,7 @@ const NOTE = `
   <p class="sitenote-nav">
     <a href="/index.html">What leaf is</a> ·
     <a href="/examples.html">The other examples</a> ·
-    <a href="/examples.html#run">Run one for real</a>
+    <a href="/index.html#install">Install leaf</a>
   </p>
 `;
 

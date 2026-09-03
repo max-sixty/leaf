@@ -241,6 +241,8 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )
     media = source.parent / "media"
+    if not media.is_dir() and source.parent == ROOT / "examples" / "developer":
+        media = ROOT / "examples" / "media"
     if media.is_dir():
         shutil.copytree(media, page / "media", dirs_exist_ok=True)
     seed_data(source, page, launcher, runtime)

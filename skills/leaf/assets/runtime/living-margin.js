@@ -1342,7 +1342,7 @@ export function createLivingMargin(dependencies) {
   }
 
   // The direct destination opens the complete map. Its lowercase address list separately
-  // reaches the first nine locations without claiming the sheet ends there.
+  // numbers the visible locations without claiming the sheet ends there.
   function enterPageMap() {
     openSheet();
   }

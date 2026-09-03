@@ -815,22 +815,43 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_addresses_nine_and_g_shift_m_opens_the_complete_page_map(browser, serve):
-    """The numbered prefix stays short while the complete Map keeps every location."""
+def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
+    browser, serve
+):
+    """Visible locations start at one while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
-    resized(page, 1440, 900)
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    resized(page, 1440, 300)
 
     page.keyboard.press("g")
     page.keyboard.press("m")
     route = page.locator(
         '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1–9"])
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
+    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+
+    # When the motion settles, number the newly visible window from one. Location 11 is
+    # outside the document's old one-digit prefix.
+    page.evaluate(
+        """() => new Promise(resolve => {
+          addEventListener('scrollend', resolve, {once: true});
+          const target = document.querySelector('#map-11');
+          document.scrollingElement.scrollTo(0, target.offsetTop - 100);
+        })"""
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
+    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    page.keyboard.press("1")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_contain_text("Map note 11")
     page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
     page.keyboard.press("Escape")
 
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    before_sheet = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
@@ -846,7 +867,38 @@ def test_g_m_addresses_nine_and_g_shift_m_opens_the_complete_page_map(browser, s
     expect(sheet.locator(".lf-page-map-group:visible")).to_contain_text("Map note 12")
     search.fill("")
     expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(12)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
+    assert errors == []
+    page.close()
+
+
+def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve):
+    """A late action-only location is reachable while it is visible."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    page.evaluate(
+        """() => new Promise(resolve => {
+          addEventListener('scrollend', resolve, {once: true});
+          const heading = document.querySelector('#bg-quoted-and-visual-heading');
+          document.scrollingElement.scrollTo(0, heading.offsetTop - 100);
+        })"""
+    )
+    page.locator("body").focus()
+    shot = page.get_by_role(
+        "button", name="Show after — a sample run list with and without a status column"
+    )
+    expect(shot).to_be_visible()
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    route = page.locator(
+        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
+    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    page.keyboard.press("1")
+    expect(shot).to_be_focused()
     assert errors == []
     page.close()
 

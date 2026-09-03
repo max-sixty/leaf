@@ -418,7 +418,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page, errors = open_page(browser, live_url(serve(CONTROL_LABEL_PAGE)))
 
     tab = page.get_by_role("tab", name="Heated bird bath")
-    box = tab.bounding_box()
+    box = tab.locator("[data-lf-said]").bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
@@ -1100,6 +1100,44 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "the tinted line is the one that says it, and it says it once"
     )
 
+    appearance = page.evaluate("""() => {
+      const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
+      const block = document.querySelector('#walk-code pre');
+      const line = document.querySelector('#walk-code .lf-code-line');
+      const note = document.querySelector('#walk-code .lf-code-note');
+      const noteStyle = getComputedStyle(note);
+      const blockRect = block.getBoundingClientRect();
+      const noteRect = note.getBoundingClientRect();
+      return {
+        page: channels(getComputedStyle(document.body).backgroundColor),
+        block: channels(getComputedStyle(block).backgroundColor),
+        gutter: channels(getComputedStyle(line, '::before').backgroundColor),
+        note: channels(noteStyle.backgroundColor),
+        noteBorderBlock: noteStyle.borderBlock,
+        noteBorderLeftWidth: noteStyle.borderLeftWidth,
+        noteRadius: noteStyle.borderRadius,
+        noteFont: noteStyle.fontFamily,
+        sansFont: getComputedStyle(document.documentElement)
+          .getPropertyValue('--sans').trim(),
+        noteInset: {
+          left: noteRect.left - blockRect.left,
+          right: blockRect.right - noteRect.right,
+        },
+      };
+    }""")
+    assert appearance["block"] == [255, 255, 255], appearance
+    assert all(
+        channel > page_channel
+        for channel, page_channel in zip(appearance["block"], appearance["page"])
+    ), f"the code canvas is not whiter than the document: {appearance}"
+    assert appearance["gutter"] != appearance["block"], appearance
+    assert appearance["note"] == appearance["block"], appearance
+    assert appearance["noteBorderBlock"].startswith("1px solid"), appearance
+    assert appearance["noteBorderLeftWidth"] == "0px", appearance
+    assert appearance["noteRadius"] == "0px", appearance
+    assert appearance["noteFont"] == appearance["sansFont"], appearance
+    assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
+
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
     post_event(
         page,
@@ -1320,9 +1358,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         leafFontSize,
         leafLineHeight,
         leafBackground,
-        backgroundIsNearlyNeutral:
-          Math.max(...backgroundChannels) - Math.min(...backgroundChannels) <= 3,
-        backgroundLeansWarm: backgroundChannels[0] > backgroundChannels[2],
+        backgroundIsWhite: backgroundChannels.every(channel => channel === 255),
         backgroundIsSeparateFromPage: leafBackground !== pageBackground,
       };
     }""")
@@ -1340,8 +1376,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
     assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
     assert reading["background"] == reading["leafBackground"], reading
-    assert reading["backgroundIsNearlyNeutral"], reading
-    assert reading["backgroundLeansWarm"], reading
+    assert reading["backgroundIsWhite"], reading
     assert reading["backgroundIsSeparateFromPage"], reading
 
     py = by_path["gateway/limits.py"]

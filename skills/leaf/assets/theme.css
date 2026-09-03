@@ -30,8 +30,8 @@
 
 :root {
   color-scheme: light dark;
-  /* The document is warm paper. Code uses the near-neutral palette below so evidence
-     stays distinct without looking pasted in from another product. */
+  /* The document is warm paper. Code uses a white editor canvas and quiet gray chrome
+     to keep source visually distinct from document fields. */
   --paper: #faf9f5;  --ink: #1c1b18;  --muted: #6f6a60;  --rule: #e7e3d9;
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the
@@ -126,8 +126,8 @@
      in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
      difference and enough of one. */
   --shade: rgb(0 0 0 / .14);
-  --code-bg: #eeeeeb; --pre-bg: #f5f5f3; --code-chrome: #efefec;
-  --code-ink: #262624; --code-muted: #62615d; --code-border: #d6d5d0;
+  --code-bg: #f6f8fa; --pre-bg: #fff; --code-chrome: #f6f8fa;
+  --code-ink: #24292f; --code-muted: #57606a; --code-border: #d0d7de;
   --chip: #eeeade;   /* neutral chip */
   /* Secondary interface ink, held to 4.5:1 against the page surfaces it lands on.
      Code owns a near-neutral value because its canvas no longer follows paper. */
@@ -174,7 +174,7 @@
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
-  --add-tint: #e4efe0; --del-tint: #f7e2dc; --hi-tint: #f7eecd;
+  --add-tint: #e4efe0; --del-tint: #f7e2dc; --hi-tint: #fff8c5;
   /* Six syntax roles are enough to find structure without turning evidence into a
      paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
      on the code canvas and semantic line tints; the render gate checks the result. */

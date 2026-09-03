@@ -1252,8 +1252,8 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
  * screen sits under the title and leaves it out. It is still navigation apparatus, so
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Every knot stays on the same spine, and every
- * label is limited to two lines so an unusually discursive heading does not take over the
- * map.
+ * label is limited to two lines and packs around the markers without changing their
+ * positions, so prose never distorts the map.
  * The open, paper, and copy forms retain the complete words.
  *
  * The one-pixel sibling target is what leaves native fragment navigation behind in a
@@ -1325,7 +1325,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
                                       position: relative; z-index: 2; display: block;
                                       flex: var(--lf-toc-span, 1) 1 0px;
-                                      min-height: min-content; margin: 0; }
+                                      min-height: 0; margin: 0; }
     lf-toc ol { display: contents; }
     lf-toc .lf-toc-start::before, lf-toc li::before {
       content: ""; position: absolute; z-index: 2;
@@ -1340,7 +1340,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
     lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
     lf-toc .lf-toc-start a, lf-toc li a {
-      position: relative; z-index: 3; display: -webkit-box;
+      position: absolute; z-index: 3; display: -webkit-box;
+      top: var(--lf-toc-label-shift, 0px); left: 0; width: 100%;
       overflow: hidden; max-height: 2.6em;
       padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
       line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
@@ -1358,17 +1359,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       animation: lf-toc-enable-links 0s .24s forwards;
     }
-    /* When the labels themselves would make the track overflow, the track stays a map:
-     * rows give no minimum height to their absolutely placed labels, and the destination
-     * under the pointer or keyboard focus reveals on its own. Turning the whole rail into
-     * a second scrollable outline would put the markers and viewport lens in a different
-     * coordinate system from the document they describe. */
+    /* When all labels cannot fit beside the track, the destination under the pointer or
+     * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
+     * would put the markers and viewport lens in a different coordinate system. */
     lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
     lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
       min-height: 0; pointer-events: auto;
     }
     lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
-      position: absolute; top: 0; left: 0; width: 100%;
+      top: 0;
       max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
       -webkit-line-clamp: 1;
     }

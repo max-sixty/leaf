@@ -7,7 +7,8 @@
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
- * before its labels appear. The darker lens is the part of the document in the viewport.
+ * before its labels appear. Labels pack beside those fixed positions without changing
+ * them. The darker lens is the part of the document in the viewport.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes; a widget
  * whose view rearranges descendants without changing its own size emits the shared layout
  * signal. The map writes only to itself, never the main box it observes. The ordinary
@@ -206,12 +207,69 @@ customElements.define(
           this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
         );
       });
-      this.removeAttribute("data-lf-dense");
-      this.toggleAttribute(
-        "data-lf-dense",
-        this.#nav.scrollHeight > this.#nav.clientHeight + 1,
-      );
+      this.#placeLabels();
       this.#paint();
+    }
+
+    #placeLabels() {
+      this.removeAttribute("data-lf-dense");
+      for (const { link } of this.#sections)
+        link.style.removeProperty("--lf-toc-label-shift");
+
+      if (getComputedStyle(this.#rows).display !== "flex") return;
+      const track = this.#rows.getBoundingClientRect();
+      let prefix = 0;
+      const labels = this.#sections.map(({ row, link }) => {
+        const label = {
+          link,
+          ideal: row.getBoundingClientRect().top - track.top,
+          height: link.getBoundingClientRect().height,
+          prefix,
+        };
+        prefix += label.height;
+        return label;
+      });
+      const labelHeight = prefix;
+      if (labelHeight > track.height + 1) {
+        this.setAttribute("data-lf-dense", "");
+        return;
+      }
+
+      // A label's collision-free top is its marker top minus the height of every label
+      // before it. Those corrected tops must be nondecreasing. Pool adjacent violations
+      // and share their correction, so a crowded group moves around its markers instead
+      // of every collision accumulating below them.
+      const blocks = [];
+      labels.forEach((label, index) => {
+        blocks.push({
+          start: index,
+          end: index,
+          top: label.ideal - label.prefix,
+          count: 1,
+        });
+        while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
+          const next = blocks.pop();
+          const previous = blocks.pop();
+          const count = previous.count + next.count;
+          blocks.push({
+            start: previous.start,
+            end: next.end,
+            top: (previous.top * previous.count + next.top * next.count) / count,
+            count,
+          });
+        }
+      });
+      const slack = Math.max(0, track.height - labelHeight);
+      for (const block of blocks) {
+        const top = Math.max(0, Math.min(slack, block.top));
+        for (let index = block.start; index <= block.end; index += 1) {
+          const label = labels[index];
+          label.link.style.setProperty(
+            "--lf-toc-label-shift",
+            `${top + label.prefix - label.ideal}px`,
+          );
+        }
+      }
     }
 
     #documentTop(element) {

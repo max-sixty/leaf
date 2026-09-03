@@ -447,12 +447,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "contents map",
         """
 <h1>Migration plan for the readers already in flight</h1>
-<style>html { scroll-behavior: smooth; }</style>
+<style>
+  html { scroll-behavior: smooth; }
+  #capacity, #limits { margin-block: 0; }
+</style>
 <div id="orientation" style="height: 420px"></div>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
 <section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p>Take a snapshot.</p></section>
 <div style="height: 90px"></div>
-<section><h3 id="capacity">Check capacity before opening the longer transfer window</h3><p>Leave room for both copies.</p></section>
+<section>
+  <h3 id="capacity">Check capacity before opening the longer transfer window</h3>
+  <h3 id="limits">Confirm the limits without moving the waiting readers</h3>
+  <p>Leave room for both copies.</p>
+</section>
 <div id="late-content" style="height: 180px"></div>
 <section><h2 id="move">Move each cohort while preserving its reading position</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 640px"></div>
@@ -468,6 +475,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     start = nav.locator(".lf-toc-start a")
     prepare = nav.get_by_role("link", name="Prepare the copy", exact=False)
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
+    limits = nav.get_by_role("link", name="Confirm the limits", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
     # Every row says its own word as text, the start row included. Its word used to be an
@@ -527,7 +535,41 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
     assert len({round(marker["x"]) for marker in markers}) == 1
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
-    assert markers[3]["y"] - markers[2]["y"] > markers[2]["y"] - markers[1]["y"]
+    assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
+
+    # The marker rows remain an exact scale of the document even where two nearby,
+    # two-line labels need more room than the sections they name. The labels move aside
+    # without overlapping; they do not make those short rows taller.
+    map_layout = nav.locator(".lf-toc-rows").evaluate(
+        """rows => {
+          const track = rows.getBoundingClientRect();
+          const items = [...rows.querySelectorAll('.lf-toc-start, li')];
+          const spans = items.map(item =>
+            Number(item.style.getPropertyValue('--lf-toc-span')));
+          const total = spans.reduce((sum, span) => sum + span, 0);
+          let before = 0;
+          return items.map((item, index) => {
+            const row = item.getBoundingClientRect();
+            const label = item.querySelector(':scope > a').getBoundingClientRect();
+            const expected = track.top + track.height * before / total;
+            before += spans[index];
+            return {rowTop: row.top, rowHeight: row.height, expected,
+                    labelTop: label.top, labelBottom: label.bottom,
+                    labelHeight: label.height};
+          });
+        }"""
+    )
+    assert all(
+        item["rowTop"] == pytest.approx(item["expected"], abs=1) for item in map_layout
+    )
+    assert capacity.evaluate(
+        "node => node.parentElement.getBoundingClientRect().height "
+        "< node.getBoundingClientRect().height"
+    )
+    capacity_label = capacity.bounding_box()
+    limits_label = limits.bounding_box()
+    assert capacity_label is not None and limits_label is not None
+    assert capacity_label["y"] + capacity_label["height"] <= limits_label["y"] + 1
 
     # The start row and top-level sections share one typographic edge. Depth changes
     # indentation, never the spine or the marker position.
@@ -556,7 +598,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     # A Mermaid render, image load, disclosure, or other late block can change the
     # document after upgrade. Growing one such block must move the later sections in
     # the map without changing the rail's own box.
-    move_before = markers[3]["y"]
+    move_before = markers[4]["y"]
     page.locator("#late-content").evaluate("node => { node.style.height = '580px'; }")
     page.wait_for_function(
         "before => { const item = document.querySelector('a[href=\"#move\"]').parentElement; "

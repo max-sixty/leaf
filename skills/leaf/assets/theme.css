@@ -1439,7 +1439,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-reading-option { position: relative; }
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
-.lf-margin-marker:is(:hover, :focus-visible, [aria-expanded="true"]),
+/* A marker reporting a receipt is excluded here as it is from the runtime's press
+ * styles: it is sewn flat, so neither the pointer nor the keyboard raises its ring. The
+ * focus outline still says where the walk has landed. */
+.lf-margin-marker:not([data-lf-behavior="receipt"]):is(:hover, :focus-visible, [aria-expanded="true"]),
 .lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
 .lf-margin-change { color: var(--accent); }

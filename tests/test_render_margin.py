@@ -1,10 +1,15 @@
 """The document's shared, semantic margin map."""
 
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
+from click.testing import CliRunner
+from leaf import cli as cli_model
 from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import session as session_model
 from playwright.sync_api import expect
 from render_support import (
     BOTH_STAMPS,
@@ -26,9 +31,11 @@ from render_support import (
     resized,
     round_trip,
     select,
+    stamp_page,
     ticked,
     told,
     undo,
+    wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
@@ -48,6 +55,12 @@ OUTCOME_ON_DECISION = {
     "action": "choose",
     "detail": {"options": ["br-steel"]},
     "generated": [],
+}
+RECEIPT_PHASES = {
+    "Sent": "sent",
+    "Waiting for pickup": "waiting",
+    "Picked up": "pickup",
+    "Outcome": "check",
 }
 COMMENT_ON_SUGGESTION = {
     "kind": "comment",
@@ -1545,6 +1558,167 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
         assert "percent down" in button["name"], button
     for button in buttons:
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
+
+    assert errors == []
+    page.close()
+
+
+def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser, serve):
+    """A Button's look states its promise, and a receipt promises nothing to press.
+
+    Sent, Waiting for pickup, Picked up, and the standing Outcome all report a move
+    already made, so the Button is sewn flat and leaves the accessibility tree as a
+    status rather than a control. The walk still arrives, because the phase is what a
+    reader listening came for. Only a real claim — work the reader can watch — raises
+    the same Button back into a press, in the same seat, so the cluster's identity
+    survives the change of promise.
+    """
+    page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
+    page_dir = serve.page_dir
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    logged_action = next(
+        event
+        for event in reversed(events_model.read_events(page_dir))
+        if event.get("widget") == "jobs" and event.get("action") == "choose"
+    )
+    marker.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+
+    def face():
+        return marker.evaluate(
+            """node => {
+              const style = getComputedStyle(node);
+              return {
+                behavior: node.dataset.lfBehavior,
+                role: node.getAttribute('role'),
+                icon: node.querySelector(':scope > .lf-margin-action-icon')
+                  .dataset.lfIcon,
+                word: node.querySelector(':scope > .lf-margin-action-label').textContent,
+                tabIndex: node.tabIndex,
+                cursor: style.cursor,
+                background: style.backgroundColor,
+                border: style.borderTopColor,
+                ink: style.color,
+              };
+            }"""
+        )
+
+    muted = page.evaluate(
+        "() => getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--muted').trim()"
+    )
+    expected_ink = page.evaluate(
+        "muted => { const probe = document.createElement('span');"
+        " probe.style.color = muted; document.body.append(probe);"
+        " const read = getComputedStyle(probe).color; probe.remove(); return read; }",
+        muted,
+    )
+
+    def assert_receipt(phase):
+        expect(marker).to_have_attribute("data-identity-probe", "kept")
+        current = face()
+        assert current == {
+            "behavior": "receipt",
+            "role": "status",
+            "icon": RECEIPT_PHASES[phase],
+            "word": phase,
+            "tabIndex": -1,
+            "cursor": "default",
+            "background": "rgba(0, 0, 0, 0)",
+            "border": "rgba(0, 0, 0, 0)",
+            "ink": expected_ink,
+        }
+        named = re.compile(rf"^{re.escape(phase)},")
+        expect(page.get_by_role("button", name=named)).to_have_count(0)
+        expect(page.get_by_role("status", name=named)).to_have_count(1)
+        # The pointer finds nothing to lift, and the seat keeps the cluster's fitting.
+        marker.hover()
+        assert face() == current
+        assert marker.evaluate("node => getComputedStyle(node).width") == "32px"
+
+    assert_receipt("Sent")
+    result = Axe().run(
+        page,
+        options={
+            "runOnly": {"type": "tag", "values": ["wcag2a", "wcag2aa", "wcag21a"]},
+            "resultTypes": ["violations"],
+        },
+    )
+    assert [
+        violation["id"]
+        for violation in result.response["violations"]
+        if violation["impact"] in {"serious", "critical"}
+    ] == []
+    assert page.locator(".lf-margin-marker:visible").evaluate_all(
+        "rows => rows.some(row => row.tabIndex === 0)"
+    ), "no Button is left for Tab to enter the rail by"
+
+    # The reader listening still reaches the phase by its numbered address.
+    place = int(re.search(r"(\d+) of ", marker.get_attribute("aria-label")).group(1))
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press(str(place))
+    expect(marker).to_be_focused()
+
+    # Standing there is not the same as being the way in. A repaint under the reader
+    # leaves the rail's one stop on a Button that acts, and the receipt without one.
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame("
+        "() => requestAnimationFrame(done)))"
+    )
+    expect(marker).to_be_focused()
+    stops = page.locator(".lf-margin-marker:visible").evaluate_all(
+        "rows => rows.map(row => [row.dataset.lfBehavior, row.tabIndex])"
+    )
+    assert ["receipt", -1] in stops, stops
+    assert [behavior for behavior, index in stops if index == 0] == ["disclosure"], (
+        stops
+    )
+
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
+    assert_receipt("Waiting for pickup")
+
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(transaction, [logged_action])
+    told(page)
+    assert_receipt("Picked up")
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(page_dir),
+            "working",
+            "checking the mounts",
+            "--on",
+            "jobs",
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+
+    expect(marker).to_have_attribute("data-identity-probe", "kept")
+    active = face()
+    assert active["behavior"] == "disclosure"
+    assert active["role"] is None
+    assert active["icon"] == "activity"
+    assert active["cursor"] == "pointer"
+    assert active["background"] != "rgba(0, 0, 0, 0)"
+    assert active["border"] != "rgba(0, 0, 0, 0)"
+    expect(page.get_by_role("button", name=re.compile(r"^Active,"))).to_have_count(1)
+
+    honored = DECISION_PAGE.replace(
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+    )
+    stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))
+    wait_for_revision(page, 2)
+    assert_receipt("Outcome")
 
     assert errors == []
     page.close()

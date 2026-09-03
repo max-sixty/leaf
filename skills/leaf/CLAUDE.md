@@ -1484,7 +1484,7 @@ outcomes, changes, or agent activity.
 At rest a cluster has a two-Button budget: the primary and one peer, or the primary
 and `…` when there are at least two peers. Hiding one peer costs the same fitting as
 showing it and adds a press, so it is not overflow. With no contributed control,
-standing information supplies the primary disclosure Button.
+standing information supplies the primary Button in the fitting declared by its face.
 
 The expanded budget is six fittings, including the primary or visible reading marker
 where one exists; a target made only of peer choices uses all six. A larger set shows
@@ -1516,7 +1516,9 @@ lets go of the destination the walk put down.
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
-action's standing outcome supplies the same retained target cluster throughout. A
+action's standing outcome supplies the same retained target cluster throughout. The
+first three phases and the standing outcome report a move already made, so the Button
+wears the flat `receipt` behavior below. **Active** raises it back into a press. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
 the full conversation; an **Active** claim joins that engaged cluster as an exposed
 peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
@@ -1538,7 +1540,7 @@ Every press in a contribution is built with
 reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
-the promise before the press. Behavior, tone, and state are independent axes: never
+what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
 `marginAction` also establishes the canonical Button record: key, face, label,
@@ -1554,16 +1556,20 @@ activation owner.
 - `disclosure` has the ordinary ring, carries `aria-expanded` when it controls
   persistent context, and opens or closes that context without settling it;
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
-  place.
+  place;
+- `receipt` reports a move already made and offers no press. It keeps its icon and its
+  seat in the cluster, but gives up its ring, fill, hover lift, pointer, and tab stop. It
+  remains a `status` in the accessibility tree so the Page map can still land there and
+  name the phase.
 
-Ring weight carries that distinction; the shape and soft border color stay shared,
-with no chevron. A lone non-thread informational Button reveals its target directly.
-Each additional non-thread reading gets its own peer Button under `…`; pressing one reveals that
-reading directly rather than collecting readings in a card. All threads at one target
-share one Thread Button and one conversation card. That card opens only on a press,
-never merely on focus or hover; when the document cannot leave it room beside the
-source, the same press opens the full Threads surface. The thread card is the only
-generated contextual pane, not a generic container for alternatives.
+Ring weight distinguishes the three controls; a receipt has no ring. The shape stays
+shared, with no chevron. A lone non-thread informational Button reveals its target
+directly. Each additional non-thread reading gets its own peer Button under `…`;
+pressing one reveals that reading directly rather than collecting readings in a card.
+All threads at one target share one Thread Button and one conversation card. That card
+opens only on a press, never merely on focus or hover; when the document cannot leave
+it room beside the source, the same press opens the full Threads surface. The thread
+card is the only generated contextual pane, not a generic container for alternatives.
 
 Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
 rings, fills, and state marks keep their shared neutral treatment. State has a
@@ -1609,11 +1615,12 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Every Button rests as a circle. Its label appears as transient chrome on hover or
+Every Button keeps one circular fitting, whether or not it draws the circle. Its label
+appears as transient chrome on hover or
 keyboard focus without changing the cluster's geometry; an open disclosure keeps its
-label visible. Labels for `disclosure` and `options` end in an ellipsis, while immediate
-action labels do not. The complete label remains in the DOM, and its accessible name
-tracks the action.
+label visible. Labels for `disclosure` and `options` end in an ellipsis because they open
+something; action and receipt labels do not. The complete label remains in the DOM, and
+its accessible name tracks the fitting.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it

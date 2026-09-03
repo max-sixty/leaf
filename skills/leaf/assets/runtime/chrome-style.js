@@ -282,10 +282,10 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-action[hidden] { display: none; }
-  /* A Button carries one of three promises. An action's uniformly heavier ring says
+  /* A Button carries one of four promises. An action's uniformly heavier ring says
      this press acts now. A disclosure opens context, and the ellipsis unfolds peer
-     Buttons in the target cluster. All three keep one circular fitting and one place
-     in the cluster. */
+     Buttons in the target cluster. A receipt reports a move already made and offers no
+     press. All four keep one circular fitting and one place in the cluster. */
   .lf-margin-action[data-lf-behavior="action"] {
     border-width: 2px;
     color: var(--ink);
@@ -293,6 +293,10 @@ export function chromeStyle({
   .lf-margin-action[data-lf-behavior="disclosure"],
   .lf-margin-action[data-lf-behavior="options"] {
     background: var(--paper); color: var(--muted); box-shadow: none;
+  }
+  .lf-margin-action[data-lf-behavior="receipt"] {
+    border-color: transparent; background: none; color: var(--muted); box-shadow: none;
+    cursor: default;
   }
   /* Tone colours only the icon. Rings, fills, and state marks keep their shared
      neutral treatment through hover, focus, and disabled states. */
@@ -331,9 +335,12 @@ export function chromeStyle({
   }
   /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
      and tab stop from standing reaction marks, which retain their shape without
-     promising a press. Decided suggestions export their sibling text receipts. */
-  .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
-  .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+     promising a press. A receipt stays in the page-map walk as a status, while its
+     ring, hand, and hover lift go. Decided suggestions export sibling text receipts. */
+  .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]) {
+    cursor: pointer;
+  }
+  .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);
   }
   .lf-margin-action:is(:focus-visible, .lf-focus-visible) {

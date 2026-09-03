@@ -6,9 +6,12 @@ feature scenarios have one home: `developer/feature-gallery.html`. Extend that
 omnibus page instead of adding another developer page. Every core Leaf feature must
 be directly exercisable there. A change that adds or materially changes a core feature
 must add or update its focused specimen in the same change; coverage in a public
-example does not substitute for the developer surface. The gallery uses the same
-companion version, log, and data conventions as an example, but the website does not
-publish it.
+example does not substitute for the developer surface. Incidental presence does not
+count: a focused specimen names the real control or gesture, seeds the state it needs,
+and tells the developer what result to inspect. For injected chrome whose state comes
+from outside one document, name that condition and exercise it in the gallery's browser
+test. The gallery uses the same companion version, log, and data conventions as an
+example, but the website does not publish it.
 `corpus.html` and `corpus.data.json` are generated from both sets; edit the source page
 and regenerate the corpus instead of patching either output.
 
@@ -180,10 +183,9 @@ captures first and then current values through `leaf data capture` and `leaf dat
 so binding, contract validation, revisioning, live preview, browser sweeps, and the
 static site all exercise the real doors. `scripts/corpus.py` composes those companions
 into `corpus.data.json`; edit the individual example's files and regenerate rather
-than patching the corpus copies. A selected snapshot number must stay valid both in
-its own page and in corpus composition, so the first capture in the first contributing
-example owns snapshot `1`; grow this fixture convention only when another capture
-actually needs to compose.
+than patching the corpus copies. Composition rebases each selected `snapshot` to that
+capture's revision in the combined data log, so each source page owns only its local
+snapshot numbers; contributors do not coordinate a corpus-wide sequence.
 
 A large unified diff stays in its `.patch` source file. Capture it with
 `"format": "unified-diff"`; the public capture door validates and splits it into the

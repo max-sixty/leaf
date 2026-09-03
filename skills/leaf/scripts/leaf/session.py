@@ -322,6 +322,14 @@ def read_watch_pass(
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
             deliver(reading)
+            # Handing the batch over is the turn opening. The Stop hook stamped
+            # the last ending; leaving that stamp standing through the turn this
+            # delivery starts is what had the page telling the reader the agent
+            # had left and to nudge it, two minutes into a turn spent answering
+            # them. Under the lock the batch left under, so the page cannot be
+            # read between the delivery and the claim it revises.
+            if watch.session_id:
+                reading.transaction.open_turn(watch.session_id)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(

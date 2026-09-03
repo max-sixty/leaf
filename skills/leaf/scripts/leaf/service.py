@@ -95,8 +95,9 @@ class PageTransaction:
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
-            # When this session's last turn ended. None until one has, and reset
-            # by nothing: a claim taken again is a new record. See close_turn.
+            # When this session's last turn ended. None until one has, and
+            # cleared again when a batch delivered to this session opens the
+            # next turn. See close_turn and open_turn.
             "turn_closed": None,
         }
         write_json(path, claim)
@@ -143,6 +144,38 @@ class PageTransaction:
         claim = self.claim
         if claim and claim["released"] is None and claim["id"] == session_id:
             write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
+
+    def open_turn(self, session_id: str) -> None:
+        """Record that a turn of this session's is running again.
+
+        `close_turn` is stamped by the Stop hook, and until this it was stamped
+        by nothing else — so the page could see a turn end but never see the
+        next one begin. That is not symmetric bookkeeping for its own sake: two
+        minutes past the stamp the browser stops believing the claim under it
+        (`droppedAt`), and a session that came back and worked for longer than
+        that without writing a status was read as one that had walked away. The
+        reader was told the agent left when its turn ended and to nudge it in
+        the terminal, over a turn that was running.
+
+        Delivery is where the beginning is observable. A batch reaching the
+        agent is what starts the turn that answers it under either carrier —
+        the direct watcher exits into model context, the Codex adapter queues a
+        turn in the same task — so the carrier that hands one over is the one
+        thing that knows a turn is opening, exactly as the Stop hook is the one
+        thing that knows one is over.
+
+        Nothing else about the claim moves. What the agent said it was doing
+        stays the agent's to write, and the fifteen-minute grace on that claim's
+        own age still catches a turn that ends without a Stop to stamp it.
+        """
+        claim = self.claim
+        if (
+            claim
+            and claim["released"] is None
+            and claim["id"] == session_id
+            and claim.get("turn_closed") is not None
+        ):
+            write_json(claim_path(self.page_dir), {**claim, "turn_closed": None})
 
     @property
     def status(self) -> dict:

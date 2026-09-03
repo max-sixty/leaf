@@ -3022,6 +3022,47 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     lease.close()
 
 
+def test_delivering_a_batch_opens_the_turn_the_stop_hook_closed(claimed, capsys):
+    """The Stop hook stamps the ending of a turn; a delivery is the one observable
+    beginning of the next one, and until it cleared the stamp nothing did.
+
+    That asymmetry was reader-facing. Two minutes past the stamp the browser stops
+    believing the `working` claim under it, so a session that came back, took its
+    batch and spent longer than that answering it read exactly like one that had
+    walked away: the banner said the agent left when its turn ended and told the
+    reader to nudge it in the terminal, over a turn that was running. Only the stamp
+    moves — what the agent said it was doing stays the agent's to write.
+    """
+    session_model.cmd_status(claimed, "working", "answering the first comment")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"]
+
+    serving(claimed, 1)
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
+    )
+    status_before = (claimed / "status.json").read_bytes()
+
+    assert session_model.cmd_wait(claimed) == 0
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert (claimed / "status.json").read_bytes() == status_before
+
+    # A batch this session never took says nothing about its turn: the successor
+    # that delivers it is the one whose turn opened.
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    closed = service_model.page_claim(claimed)["turn_closed"]
+    assert closed
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
+    )
+    with service_model.PageTransaction(claimed) as page:
+        page.open_turn("s2")
+    assert service_model.page_claim(claimed)["turn_closed"] == closed
+
+
 def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
     """Every ts a seat dates is written here, while the reader's `Date.now()` is
     another machine's opinion. The payload states the writer's clock so the reading is

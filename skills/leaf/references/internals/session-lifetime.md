@@ -34,6 +34,16 @@ word in that thread. That is how a claim crosses a turn boundary the session can
 write across: nothing in a session touches status.json while its turn is over, so
 work handed to a delegate is renewed from the delegate's own hands or not at all.
 
+A claim also has an end the page can observe rather than outwait. The Stop hook
+stamps `turn_closed` on the claim record when the turn that could have renewed it
+ends, and the banner stops believing a claim older than that stamp after a short
+grace — much shorter than the claim's own, because it is reached by evidence
+instead of by a clock. The opening of the next turn is stamped by the carrier that
+causes it: handing a batch to the agent is what starts the turn that answers it,
+so a delivery clears the stamp under the same lock the batch left under. Without
+that clearing the page reads a session that came back and worked as one that
+walked away, and tells the reader to nudge a turn that is running.
+
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant whose lifetime has ended settles the question
 outright; a page nothing ever claimed has only the claim's own age to go on, so

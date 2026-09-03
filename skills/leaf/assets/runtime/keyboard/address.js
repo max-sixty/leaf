@@ -71,15 +71,11 @@ export function createAddress({
   // the markup ended up — a diff stages a <details> per file in a root they tab straight
   // into.
   //
-  // The whole document and not the parts on screen, which is the tempting reading and the
-  // wrong one twice over. An address that counted what is in the window is an address that
-  // means a different link at every scroll position, so a reader who has just learnt that the
-  // PR is `g h 2` is wrong a moment later; and it would put the key line's own truth on the
-  // scroll, since a row that goes dead as the page moves is a row the line has to be
-  // repainted to stop promising — a paint measured at 1.3ms on the corpus, on every scroll
-  // frame of every page, for one row. The numbered route therefore keeps document order
-  // stable and offers its first nine members; later Page-map locations remain in the
-  // complete sheet, and every list retains its ordinary document navigation.
+  // Tabs, links, and folds use addresses as durable identities: a link the reader learnt
+  // as `g h 2` must not change when the page scrolls. Page-map addresses answer a spatial
+  // question instead. A location already in front of the reader is the useful numeric
+  // window, while its complete, searchable identity lives in the Page map sheet. That
+  // window stays fixed during a scroll and is read again only when scrolling settles.
   //
   // Above the table rather than beside the other readings below it, because an entry
   // holds the function itself and the array literal reads it as the module evaluates.
@@ -198,6 +194,7 @@ export function createAddress({
       does: "Go to the nth Page map location",
       list: pageMapItems,
       go: openPageMapItem,
+      viewport: true,
     },
     {
       id: "navigation.tab",
@@ -246,9 +243,30 @@ export function createAddress({
     },
   ];
   // A list's addressable members, and the range its label names. Nine is the whole numbered
-  // vocabulary: every member has one digit, every digit completes immediately, and every
-  // numeric consumer reads this same prefix rather than applying its own cap.
-  const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
+  // vocabulary: every member has one digit and every digit completes immediately. Ordinary
+  // lists take the stable document prefix. A viewport list takes the visible prefix and
+  // holds that reading for the duration of a scroll.
+  let viewportWindows = new Map();
+  function currentAddressed(entry) {
+    const members = entry.list();
+    if (!entry.viewport) return members.slice(0, MAX_NUMBERED_ADDRESSES);
+    const placement = createAddressPlacement({ banner, keylineEl, startsAt });
+    return members
+      .filter((member) => placement.visibleBox(member))
+      .slice(0, MAX_NUMBERED_ADDRESSES);
+  }
+  function refreshViewportWindows() {
+    viewportWindows = new Map(
+      ADDRESSES.filter((entry) => entry.viewport).map((entry) => [
+        entry,
+        currentAddressed(entry),
+      ]),
+    );
+  }
+  const addressed = (entry) =>
+    entry.viewport && chordArmed
+      ? (viewportWindows.get(entry) ?? [])
+      : currentAddressed(entry);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
   // How far the chord has come: `g`, and the list's letter once one has named a list. The
   // key line and page chips combine that progress with each full route; the reference shows
@@ -273,6 +291,7 @@ export function createAddress({
   // other inside the functions that hold both.
   let chordArmed = false;
   let aimedList = null;
+  let scrolling = false;
   // Arming, aiming and disarming are one call, because they are one window: naming a list
   // re-opens it rather than starting a second.
   //
@@ -287,8 +306,11 @@ export function createAddress({
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the chord's cancel — so the chord refuses to arm there at all.
     if (on && !chordArmed && claimsEsc(focused())) return;
+    if (on) refreshViewportWindows();
+    else viewportWindows.clear();
     chordArmed = on;
     aimedList = on ? list : null;
+    scrolling = false;
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     // The chips are the eye's copy; the window itself is spoken, or the mode change is
     // silent to exactly the reader who can't see them. Off the rows either way, since the
@@ -321,6 +343,10 @@ export function createAddress({
       addressLayer.replaceChildren();
       return;
     }
+    // A state render or version activation can replace Page-map hosts without scrolling.
+    // Refresh at every resting presentation boundary; a live scroll keeps the old window
+    // until its own `scrollend` boundary below.
+    if (!scrolling) refreshViewportWindows();
     const placement = createAddressPlacement({ banner, keylineEl, startsAt });
     const chips = [];
     for (const entry of aimedList ? [aimedList] : ADDRESSES) {
@@ -360,11 +386,29 @@ export function createAddress({
   // that repaints on every scroll of every page would be repainting for nobody. Armed, the
   // paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
   // one door is what stops the chips having a repaint set of their own to keep in step.
-  addEventListener("scroll", () => chordArmed && paintHere(), {
-    capture: true,
-    passive: true,
+  addEventListener(
+    "scroll",
+    () => {
+      if (!chordArmed) return;
+      scrolling = true;
+      paintHere();
+    },
+    { capture: true, passive: true },
+  );
+  addEventListener(
+    "scrollend",
+    () => {
+      if (!chordArmed || !scrolling) return;
+      scrolling = false;
+      paintHere();
+    },
+    { capture: true, passive: true },
+  );
+  addEventListener("resize", () => {
+    if (!chordArmed) return;
+    scrolling = false;
+    paintHere();
   });
-  addEventListener("resize", () => chordArmed && paintHere());
 
   // The chord: one scope, a row per panel and addressable list, a row for the page's two
   // edges, and the window's own way out. A panel's mnemonic completes its travel. A list

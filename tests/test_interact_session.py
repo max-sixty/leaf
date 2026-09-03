@@ -3855,7 +3855,7 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     assert started.returncode == 0, started.stderr
     url = started.stdout.strip()
     assert url.startswith("http://127.0.0.1:")
-    assert "session server" in started.stderr
+    assert "server   session" in started.stderr
     info = server_model.running_server(page_dir)
     assert info and info["url"] == url
     # The child claims only after its refusal and bind checks, which is what lets
@@ -3883,7 +3883,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     process's own words, carried out with its exit status."""
     standing = start_through_the_launcher(page_dir, "--standing")
     assert standing.returncode == 0, standing.stderr
-    assert "standing server" in standing.stderr
+    assert "server   standing" in standing.stderr
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
 
@@ -3935,7 +3935,7 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     )
     url = old_server.stdout.readline().strip()
     assert url.startswith("http://127.0.0.1:")
-    assert f"{lifetime} server" in old_server.stderr.readline()
+    assert old_server.stderr.readline().startswith(f"server   {lifetime}")
     prior_status = files_model.read_json(page_dir / "status.json")
     prior_owner = service_model.page_claim(page_dir)
 
@@ -4137,7 +4137,7 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
         text=True,
     )
     assert process.stdout.readline().startswith("http://127.0.0.1:")
-    assert "standing server" in process.stderr.readline()
+    assert process.stderr.readline().strip() == "server   standing"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
 
@@ -4178,7 +4178,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     hosting_model.cmd_serve(page_dir)
     served = capsys.readouterr()
     assert served.out.strip() == launched["url"]
-    assert "standing server" in served.err
+    assert "server   standing" in served.err
 
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
 

@@ -1610,12 +1610,12 @@ where the box is `display: none` is not a measurement.
 
 That ordered target collection is the Page map's complete location count and the source
 for the `g m` address list. A location's disclosure Button announces its position in the
-complete collection. The numbered chord exposes the collection's first nine locations;
-`g M` and the banner's Map control open the complete sheet, so later locations remain
-reachable without making a one-digit chord ambiguous. The sheet projects the same
-currently available contributed controls, in the same owner and role order, plus readings
-that have no direct control. An offered reading that merely describes its owner's controls
-is omitted there rather than becoming a parallel “open action” beside the real verbs.
+complete collection. The numbered chord exposes up to nine locations in the visible
+window, starting at one. `g M` and the banner's Map control open the complete sheet,
+which projects the same currently available contributed controls in owner and role order,
+plus readings that have no direct control. An offered reading that merely describes its
+owner's controls is omitted there rather than becoming a parallel “open action” beside the
+real verbs.
 Ordinary entry focuses the sheet's filter, so a large map is searchable by Button name,
 concise target name, or the visible passage containing that target without tabbing through
 every preceding action. A spill opens this complete sheet focused on the first control the
@@ -2615,7 +2615,7 @@ region.
 | Form | Meaning | Current routes |
 | --- | --- | --- |
 | `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map |
-| `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of its first nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
+| `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of up to nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
 
 Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
 `g m` starts the numbered Page-map location list, while `g M` completes a direct trip to
@@ -2637,7 +2637,7 @@ page-list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
-- its members in stable address order;
+- its ordered members and whether the numbered window follows the viewport;
 - how to arrive at one member.
 
 A list's capability is not declared: it is whether the list is non-empty, read
@@ -2655,8 +2655,8 @@ line and paints `data-lf-goto` on the body, so the contents map can reveal its l
 it does on hover. Each row shows its complete chord. Each visible numbered member shows its
 complete address, such as `g h 1`. A direct mnemonic completes the travel and moves
 focus inside its destination. A numbered-list mnemonic narrows the inline hints to that
-list's first nine members without changing their labels or geometry. The following digit
-selects immediately. Escape backs out to the list menu before it closes the mode.
+list's current numbered window without changing their labels or geometry. The following
+digit selects immediately. Escape backs out to the list menu before it closes the mode.
 
 Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
 remains one decision point and is spoken as “g or G”; a sequence's accessible label says
@@ -2668,12 +2668,14 @@ every route with all steps neutral because it describes rather than enacts them.
 line and page chips apply that progress to each complete route. The reference combines
 the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
 
-Numbered addresses are stable within the document and capped at nine per list. The
-first nine members do not change identity as the reader scrolls. Chips are painted
-only for addressable members whose `shownRect` is visible, but an off-screen member
-within that prefix remains reachable by the same address. Chips live in runtime
-chrome rather than authored markup. They sit above their targets and move inside the
-viewport below the banner before overlapping chips are removed.
+Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
+nine document members, so those identities do not change as the reader scrolls and an
+off-screen member within that prefix remains reachable. Page-map locations instead
+number the visible window from one; their complete searchable identity lives in the
+Page map sheet. That window stays fixed during a scroll and is read again at
+`scrollend`. Chips live in runtime chrome rather than authored markup. They sit above
+their targets and move inside the viewport below the banner before overlapping chips
+are removed.
 
 `LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
 immediate word for their next press. An addressed fold lands on its summary after

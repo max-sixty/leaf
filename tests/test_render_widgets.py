@@ -2060,7 +2060,7 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     expect(decisions).to_have_text("Asks (4)")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
-    expect(page.locator(".lf-answer-all")).to_have_text("✓ Accept all (1)")
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
 
     # Answering one takes it out. A pick is state the page itself carries, so the
     # count follows the click; the suggestion's outcome is in the log alone, so that

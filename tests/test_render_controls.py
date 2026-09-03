@@ -1881,13 +1881,13 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     which decides who pays. A control that grows moves itself and everything to its
     *left*; everything to its right keeps its place. So `Threads (9)` becoming
     `Threads (10)` — a comment posted from the terminal while the user reads —
-    slid the version chooser 6px left, and the ✓ Accept all a second tab's decision puts
+    slid the version chooser 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
-    # Three pending suggestions, so the ✓ Accept all count has somewhere to go before it
+    # Three pending suggestions, so the Accept all count has somewhere to go before it
     # runs out; sign-off asked, so the row is the full one; nine comments already, so the
     # tenth crosses a digit; and pinned, so a v2 landing leaves the page where it is and
     # offers the chip rather than following it.
@@ -1957,7 +1957,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
             lambda: decide("sug-refill", "sug-thistle"),
             (
                 f"() => document.querySelector('{accept_all}')"
-                ".textContent === '\\u2713 Accept all (1)'"
+                ".textContent === 'Accept all (1)'"
             ),
         ),
         (

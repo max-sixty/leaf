@@ -1354,6 +1354,11 @@ export function createLivingMargin(dependencies) {
   }
 
   const pageMapIsActive = () => sheet.open || availableRows().includes(focused());
+  // The dispatcher's own way out of the `g M` frame, and the one close that owes the
+  // reader nothing: it captured where they stood before the press and restores it in the
+  // same press. That restore is synchronous while `close` arrives in a task of its own,
+  // so the door's return route below would run a frame later and put the reader on the
+  // Map control instead of the ask row or the reading place they asked to come back to.
   function leavePageMap() {
     if (!sheet.open) return;
     sheetCloseOwnsFocus = true;

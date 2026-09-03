@@ -617,32 +617,39 @@ ${MARK_RULES}
      the chrome that would have to chase it down every scroll, reflow and drag. */
   [${PAGE_PAINT_ATTRIBUTE.decision}] { outline: var(--here-ring); --lf-here-ring: decision; outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
-     and the box that holds controls. What stays is a control whose label is one of
-     the page's own words — a pick mark reading "chosen" is the only place the page
-     says which option it carries — which is why this keys on the declaration each
-     label makes (see relabel) rather than on .lf-ui, whose question is anchoring's.
+     and the box that holds controls. What stays is a control whose label is words the
+     page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only
+     place the page says which option it carries), or one it echoes off another element
+     (data-lf-echo: a roster row is nothing but its worker's name and a chip) — which is
+     why this keys on the declaration each label makes (see relabel) rather than on
+     .lf-ui, whose question is anchoring's. The two markers part on that question alone:
+     an echo is no passage, and on a sheet the distinction has nothing to stand on.
      Asked of the control itself, not of what it holds: a settled group's disclosure
      names the chosen card, and that word is worth keeping on screen where the row is
      the only place it stands and worth dropping on paper, where the cards are open
-     underneath saying it themselves. An exported copy strikes the same bargain on the
-     same two markers, and takes the control out of the document rather than hiding it,
-     which paper cannot do (BAKE). The runtime's own layer hides as one thing, in the
+     underneath saying it themselves. An exported copy strikes the same bargain, and
+     takes the control out of the document rather than hiding it, which paper cannot do
+     (BAKE) — it asks the marker's value there, so an echoed route is a link the browser
+     still owns and keeps working. The runtime's own layer hides as one thing, in the
      @scope block below. */
   @media print {
-    [data-lf-offer]:not([data-lf-said]) { display: none !important; }
-    [data-lf-offer][data-lf-said] {
+    [data-lf-offer]:not([data-lf-said], [data-lf-echo]) { display: none !important; }
+    [data-lf-offer]:is([data-lf-said], [data-lf-echo]) {
       background: none !important; border: 0 !important; border-radius: 0 !important;
       box-shadow: none !important; padding-inline: 0 !important;
       cursor: default !important; text-decoration: none !important;
       list-style: none !important;
     }
-    [data-lf-offer][data-lf-said]::-webkit-details-marker { display: none !important; }
+    [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
+      display: none !important;
+    }
     /* And the ones that stay give up the promise of a press. Twenty of the corpus's 236
        injected controls survive that first rule, every one of them because it speaks —
        and each was arriving on paper still dressed as a control: a chip background and a
        999px radius, a pointer cursor, a summary's marker, a link's underline. The words
-       are what data-lf-said keeps; the shape was never part of the bargain, and on a
-       sheet where nothing can be pressed it is a promise the page cannot answer.
+       are what the two word markers keep; the shape was never part of the bargain,
+       and on a sheet where nothing can be pressed it is a promise the page cannot
+       answer.
        Colour is left alone, because a chip that is red for a reason is saying something
        too and that is the same declaration's business. */
   }

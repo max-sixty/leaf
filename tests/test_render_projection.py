@@ -4589,6 +4589,55 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     page.close()
 
 
+def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
+    """A roster row names its target in the target's own words, which makes the name a
+    route rather than a second place the page says it: two fenced passages carrying the
+    same text and the same empty context cannot be told apart, and a drag across either
+    detaches. The row is also nothing but that name and a chip, so a sheet that drops it
+    prints "· 12d — awaiting review" with no subject at all.
+
+    `says: "echo"` is both answers at once — no passage, and the words survive the
+    medium that takes the press away. Read on paper because the loss is silent
+    everywhere else: the rows say the same thing on screen either way, and `paperWords`
+    reads no text inside a declared offer, so the gate cannot report a word that only
+    ever stood in one."""
+    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    fleet = page.locator("#hub-plan > .lf-fleet-view")
+    stopped = page.locator("#hub-plan > .lf-stopped-view")
+    fleet.locator(":scope > summary").click()
+    stopped.locator(":scope > summary").click()
+    names = page.locator("#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li > a")
+    expect(names).to_have_count(10)
+    expect(fleet.locator("li > a").first).to_have_text("atlas-lead")
+    expect(stopped.locator("li > a").first).to_have_text("Choose the additive schema")
+    rows = """() => [...document.querySelectorAll(
+         '#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li')]
+       .map((row) => row.innerText.trim())"""
+    on_screen = page.evaluate(rows)
+    assert on_screen[0].startswith("Choose the additive schema · "), on_screen
+    page.emulate_media(media="print")
+    assert page.evaluate(rows) == on_screen, "paper dropped a row's only subject"
+    assert (
+        page.evaluate(
+            """() => getComputedStyle(
+                 document.querySelector('#hub-plan > .lf-fleet-view li > a'),
+               ).textDecorationLine"""
+        )
+        == "none"
+    ), "the words stay on the sheet; the promise of a press does not"
+    page.emulate_media(media="screen")
+
+    assert names.evaluate_all(
+        """links => links.every(
+             (link) =>
+               link.hasAttribute("data-lf-echo") && !link.hasAttribute("data-lf-said"),
+           )"""
+    ), "a roster name declares itself an echo of the words its target says"
+
+    assert errors == []
+    page.close()
+
+
 def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     long_when = "handoff-" + "unbroken" * 40
     markup = COMMAND_HUB_PAGE.replace('when="week 3"', f'when="{long_when}"', 1)

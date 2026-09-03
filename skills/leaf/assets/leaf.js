@@ -37,10 +37,12 @@
  * the diff and in reach of the anchor pass. CLAUDE.md carries why.
  *
  * Paper reads both: a control a widget injected (data-lf-offer) has nothing on paper to
- * be pressed, so it goes, unless its own label is one of the page's words. Keying print
- * on .lf-ui instead cost a printed decision the only words that stated it (see
- * CLAUDE.md), because a pick mark is a control and a statement at once. render_version
- * compares the two media and reports what a page says on screen and not on paper.
+ * be pressed, so it goes, unless its own label is words the page keeps — ones it speaks
+ * (data-lf-said) or ones it echoes off the element a route points at (data-lf-echo,
+ * which anchoring skips and paper keeps). Keying print on .lf-ui instead cost a printed
+ * decision the only words that stated it (see CLAUDE.md), because a pick mark is a
+ * control and a statement at once. render_version compares the two media and reports
+ * what a page says on screen and not on paper.
  *
  * Native controls are the default. A control that also says selectable page words uses
  * the explicit selectable-offer exception, because Chrome starts no pointer selection

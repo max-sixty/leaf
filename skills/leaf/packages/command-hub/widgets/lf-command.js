@@ -60,9 +60,14 @@ function speakingOffer(tag, label, cls = "") {
 // name and on the row alike. Chrome, like the contents sidebar's links, which name every
 // heading on the page and say none of them. The words stay quotable where the page says
 // them, which is the row this points at.
+//
+// An echo rather than an unsaid label, because paper reads the same declaration: a
+// stopped row is its goal's title and an age, a fleet row a worker's name and its state,
+// and a sheet that drops the name prints "· 12d — awaiting review" with no subject at
+// all. The words are not this row's to be pointed at; they are still what it is about.
 function button(label, target, cls = "") {
   const node = offer("a", cls);
-  relabel(node, label, { says: false });
+  relabel(node, label, { says: "echo" });
   node.href = `#${target.id}`;
   node.addEventListener("click", () => {
     if (commandRole(target, "worker")) {

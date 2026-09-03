@@ -1656,23 +1656,23 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 </lf-tab>
 
 <lf-tab id="corpus-feature-gallery" label="Features">
-<h1>Leaf feature gallery</h1>
+<h1 id="bg-title">Leaf feature gallery</h1>
       <p class="lede" id="bg-lede">
         Try Leaf’s working features on one synthetic page. Each section names a feature
         and provides a live example.
       </p>
       <p id="bg-start">
-        Hover over a Button for its label. Tab into a Button group and use ← / → and
-        Enter. Press a to move through Asks; when one is focused, press 1–9 to run a
-        numbered action. Use the contents spine or open Map from the top bar. Changes
-        persist on reload.
+        Use the contents spine or Map to find a feature; each eyebrow lists its element
+        names. Press <kbd>a</kbd> to move through Asks. Hover over a margin Button for
+        its label, or Tab into a group and use ← / → and Enter. Changes persist on
+        reload.
       </p>
 
       <section id="bg-core-surfaces">
         <p class="eyebrow bg-feature-elements">
           Leaf chrome · lf-toc · lf-decision · lf-options · lf-option
         </p>
-        <h2>
+        <h2 id="bg-core-surfaces-heading">
           <strong>Asks</strong
           ><span class="bg-feature-detail">: unfinished decisions</span>
         </h2>
@@ -1684,7 +1684,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           see every Ask still waiting on you.
         </p>
         <lf-decision id="bg-choice-ask">
-          <h3>Which map should the sample team carry?</h3>
+          <h3 id="bg-choice-ask-heading">Which map should the sample team carry?</h3>
           <lf-options id="bg-choice" choose>
             <lf-option id="bg-choice-street">Street map</lf-option>
             <lf-option id="bg-choice-trail">Trail map</lf-option>
@@ -1692,47 +1692,49 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         </lf-decision>
         <p id="bg-core-controls-guide">
           The top bar also shows the status line, <strong>Threads</strong>, the version
-          picker, <strong>Map</strong> (<kbd>g</kbd> then <kbd>m</kbd>), the keyboard
-          reference (<kbd>?</kbd> twice), and <strong>All leaves</strong> when another
-          Leaf page is live.
+          picker, <strong>Map</strong> (<kbd>g</kbd> then <kbd>Shift+M</kbd>), the
+          keyboard reference (<kbd>?</kbd> twice), and <strong>All leaves</strong> when
+          another Leaf page is live.
         </p>
       </section>
 
       <section id="bg-changes">
         <p class="eyebrow bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
-        <h2>
-          <strong>Action Buttons</strong
-          ><span class="bg-feature-detail">: accept or reject suggestions</span>
+        <h2 id="bg-changes-heading">
+          <strong>Suggestions</strong
+          ><span class="bg-feature-detail">: proposed text changes</span>
         </h2>
         <p id="bg-changes-guide">
-          A heavy ring marks an immediate action. Accept applies the suggested text;
-          Reject keeps the original. Undo reverses either decision.
+          Accept applies the proposed text; Reject keeps the original. Undo reverses
+          either decision.
         </p>
-        <p id="bg-replace-line">
-          <strong>Replace one word.</strong> The sample meeting starts at
-          <lf-suggestion id="bg-replace"
-            ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
+        <p id="bg-change-forms">
+          <span id="bg-replace-line"
+            ><strong>Replace.</strong> The sample meeting starts at
+            <lf-suggestion id="bg-replace"
+              ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
+            ></span
           >
-        </p>
-        <p id="bg-insert-line">
-          <strong>Insert a sentence.</strong> Bring a notebook.
-          <lf-suggestion id="bg-insert"
-            ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
+          <span id="bg-insert-line"
+            ><strong>Insert.</strong> Bring a notebook.
+            <lf-suggestion id="bg-insert"
+              ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
+            ></span
           >
-        </p>
-        <p id="bg-delete-line">
-          <strong>Delete a sentence.</strong> The room is upstairs.
-          <lf-suggestion id="bg-delete"
-            ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
+          <span id="bg-delete-line"
+            ><strong>Delete.</strong> The room is upstairs.
+            <lf-suggestion id="bg-delete"
+              ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
+            ></span
           >
         </p>
       </section>
 
       <section id="bg-editing">
         <p class="eyebrow bg-feature-elements">lf-draft</p>
-        <h2>
-          <strong>Disclosure Buttons</strong
-          ><span class="bg-feature-detail">: edit and inspect</span>
+        <h2 id="bg-editing-heading">
+          <strong>Drafts</strong
+          ><span class="bg-feature-detail">: editable passages and history</span>
         </h2>
         <p id="bg-editing-guide">
           Edit opens a draft. Save records the new text; Cancel closes the editor.
@@ -1752,7 +1754,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-conversations">
         <p class="eyebrow bg-feature-elements">Thread Button · Threads panel</p>
-        <h2>
+        <h2 id="bg-conversations-heading">
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
         </h2>
@@ -1778,9 +1780,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reactions">
         <p class="eyebrow bg-feature-elements">Reaction Button · reaction picker</p>
-        <h2>
-          <strong>Reaction Buttons</strong
-          ><span class="bg-feature-detail">: short verdicts</span>
+        <h2 id="bg-reactions-heading">
+          <strong>Reactions</strong
+          ><span class="bg-feature-detail">: short verdicts on a passage</span>
         </h2>
         <p id="bg-reactions-guide">
           Select words and press R to add a reaction. A square Button shows a saved
@@ -1807,53 +1809,36 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-clusters">
-        <p class="eyebrow bg-feature-elements">Options Button · Page map</p>
-        <h2>
-          <strong>Options Buttons</strong
-          ><span class="bg-feature-detail">: related controls</span>
+        <p class="eyebrow bg-feature-elements">
+          Action Button · Disclosure Button · Options Button · Reaction Button
+        </p>
+        <h2 id="bg-clusters-heading">
+          <strong>Buttons</strong
+          ><span class="bg-feature-detail">: actions, disclosures, and states</span>
         </h2>
-        <p id="bg-clusters-guide">
-          Press ⋯, or Tab into the group, to show up to six Buttons. Use ← / → and
-          Enter; Escape folds the group. More opens the remaining Buttons in Map.
-        </p>
-        <lf-suggestion id="bg-crowded">
-          <lf-old><p>Use the courtyard for the practice session.</p></lf-old>
-          <lf-new><p>Use the covered terrace for the practice session.</p></lf-new>
-        </lf-suggestion>
-        <p id="bg-neighbors-guide">
-          These close edits show whether each Button stays with the right words.
-        </p>
-        <p id="bg-neighbors">
-          Pack
-          <lf-suggestion id="bg-neighbor-a"
-            ><lf-old>two</lf-old><lf-new>three</lf-new></lf-suggestion
+        <p id="bg-buttons-line">
+          <strong>One shared target.</strong> Use the
+          <lf-suggestion id="bg-crowded"
+            ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
-          pencils,
-          <lf-suggestion id="bg-neighbor-b"
-            ><lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion
-          >
-          paper, and a
-          <lf-suggestion id="bg-neighbor-c"
-            ><lf-old>large</lf-old><lf-new>small</lf-new></lf-suggestion
-          >
-          map.
+          for the practice session. Accept and Reject act immediately; Thread opens its
+          conversation; reaction marks show settled verdicts; and ⋯ exposes the group.
         </p>
       </section>
 
       <section id="bg-readings">
         <p class="eyebrow bg-feature-elements">
-          Ask Disclosure · Outcome Disclosure · lf-decision
+          Outcome Disclosure · lf-decision · lf-options · lf-option
         </p>
-        <h2>
-          <strong>Reading Disclosures</strong
-          ><span class="bg-feature-detail">: Asks and Outcomes</span>
+        <h2 id="bg-readings-heading">
+          <strong>Outcomes</strong
+          ><span class="bg-feature-detail">: recorded decisions</span>
         </h2>
         <p id="bg-readings-guide">
-          ? opens an unanswered Ask. The check below opens a recorded Outcome. Both show
-          decision state without changing it.
+          The check opens the recorded choice below without changing it.
         </p>
         <lf-decision id="bg-outcome-ask">
-          <h3>Where should the sample group meet?</h3>
+          <h3 id="bg-outcome-ask-heading">Where should the sample group meet?</h3>
           <lf-options id="bg-outcome" choose>
             <lf-option id="bg-outcome-door">At the door</lf-option>
             <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
@@ -1865,7 +1850,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p class="eyebrow bg-feature-elements">
           Approve version · Design mode · Requests
         </p>
-        <h2>
+        <h2 id="bg-reader-workflows-heading">
           <strong>Reader workflows</strong
           ><span class="bg-feature-detail"
             >: approval, interface comments, and requests</span
@@ -1874,7 +1859,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-signoff">
           <p class="eyebrow bg-feature-elements">Approve version · Undo</p>
-          <h3>
+          <h3 id="bg-signoff-heading">
             <strong>Sign-off</strong
             ><span class="bg-feature-detail">: approve a version</span>
           </h3>
@@ -1886,7 +1871,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-design-comments">
           <p class="eyebrow bg-feature-elements">Design mode · interface comment</p>
-          <h3>
+          <h3 id="bg-design-comments-heading">
             <strong>Design mode</strong
             ><span class="bg-feature-detail">: comment on the interface</span>
           </h3>
@@ -1901,7 +1886,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p class="eyebrow bg-feature-elements">
             lf-command · lf-task · lf-agent · lf-worktree · lf-operations · lf-operation
           </p>
-          <h3>
+          <h3 id="bg-request-lifecycle-heading">
             <strong>Requests</strong
             ><span class="bg-feature-detail">: send instructions to the host</span>
           </h3>
@@ -1923,7 +1908,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 ></lf-worktree>
               </lf-agent>
               <lf-decision id="bg-request-live-decision">
-                <h4>What should the sample host do?</h4>
+                <h4 id="bg-request-live-decision-heading">
+                  What should the sample host do?
+                </h4>
                 <lf-operations
                   id="bg-request-live"
                   target="bg-request-live-task"
@@ -1947,7 +1934,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-external-data">
         <p class="eyebrow bg-feature-elements">lf-source · lf-num</p>
-        <h2>
+        <h2 id="bg-external-data-heading">
           <strong>External data</strong
           ><span class="bg-feature-detail"
             >: live values, snapshots, and provenance</span
@@ -1956,7 +1943,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-source-captures">
           <p class="eyebrow bg-feature-elements">lf-source</p>
-          <h3>
+          <h3 id="bg-source-captures-heading">
             <strong>Source</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
@@ -1981,7 +1968,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-measurement-lag">
           <p class="eyebrow bg-feature-elements">lf-num</p>
-          <h3>
+          <h3 id="bg-measurement-lag-heading">
             <strong>Num</strong
             ><span class="bg-feature-detail">: provenance and stale data</span>
           </h3>
@@ -2002,7 +1989,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-default-presentation">
         <p class="eyebrow bg-feature-elements">Default package</p>
-        <h2>
+        <h2 id="bg-default-presentation-heading">
           <strong>Default presentation elements</strong
           ><span class="bg-feature-detail">: widgets for structured evidence</span>
         </h2>
@@ -2013,7 +2000,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-metrics-and-chart">
           <p class="eyebrow bg-feature-elements">lf-metrics · lf-metric · lf-chart</p>
-          <h3>
+          <h3 id="bg-metrics-and-chart-heading">
             <strong>Metrics</strong> and <strong>Chart</strong
             ><span class="bg-feature-detail">: values and trends</span>
           </h3>
@@ -2043,7 +2030,7 @@ run, baseline, candidate
           <p class="eyebrow bg-feature-elements">
             lf-code · lf-gloss · lf-note · lf-tree
           </p>
-          <h3>
+          <h3 id="bg-code-and-tree-heading">
             <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>, and
             <strong>Tree</strong
             ><span class="bg-feature-detail">: technical evidence</span>
@@ -2080,7 +2067,7 @@ gallery/
 
         <section id="bg-neutral-comparison">
           <p class="eyebrow bg-feature-elements">lf-compare · lf-variant · lf-chip</p>
-          <h3>
+          <h3 id="bg-neutral-comparison-heading">
             <strong>Compare</strong>, <strong>Variants</strong>, and
             <strong>Chips</strong
             ><span class="bg-feature-detail">: parallel alternatives</span>
@@ -2105,7 +2092,7 @@ gallery/
           <p class="eyebrow bg-feature-elements">
             lf-milestones · lf-milestone · lf-timeline · lf-event
           </p>
-          <h3>
+          <h3 id="bg-plans-and-history-heading">
             <strong>Milestones</strong>, <strong>Timeline</strong>, and
             <strong>Events</strong
             ><span class="bg-feature-detail">: state and history</span>
@@ -2145,7 +2132,7 @@ gallery/
 
         <section id="bg-workstream-tabs">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
-          <h3>
+          <h3 id="bg-workstream-tabs-heading">
             <strong>Tabs</strong
             ><span class="bg-feature-detail">: saved panel selection</span>
           </h3>
@@ -2166,7 +2153,7 @@ gallery/
           <p class="eyebrow bg-feature-elements">
             lf-specimen · lf-shot · lf-options · lf-option
           </p>
-          <h3>
+          <h3 id="bg-quoted-and-visual-heading">
             <strong>Specimen</strong> and <strong>Shot</strong
             ><span class="bg-feature-detail">: fiction and before/after images</span>
           </h3>
@@ -2195,9 +2182,9 @@ gallery/
 
       <section id="bg-version-changes">
         <p class="eyebrow bg-feature-elements">Version picker · Change Button</p>
-        <h2>
-          <strong>Change Disclosure</strong
-          ><span class="bg-feature-detail">: version evidence</span>
+        <h2 id="bg-version-changes-heading">
+          <strong>Version changes</strong
+          ><span class="bg-feature-detail">: comparison evidence</span>
         </h2>
         <p id="bg-version-guide">
           Open the version picker and press Δ beside v1. The Change Button appears by
@@ -2210,8 +2197,8 @@ gallery/
         <p class="eyebrow bg-feature-elements">
           lf-board · lf-column · lf-card · delivery Buttons
         </p>
-        <h2>
-          <strong>Board</strong> and <strong>delivery Buttons</strong
+        <h2 id="bg-delivery-heading">
+          <strong>Board</strong> and <strong>delivery state</strong
           ><span class="bg-feature-detail">: work and handoff state</span>
         </h2>
         <p id="bg-delivery-guide">

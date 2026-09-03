@@ -560,7 +560,7 @@ export function createLivingMargin(dependencies) {
   let suppressingOptionsArrival = false;
   let highlighted = null;
   let rovingFrame = 0;
-  let sheetActivation = false;
+  let sheetCloseOwnsFocus = false;
   let sheetFrom = null;
   let sheetTarget = null;
   // The cascade owns available room: panels and trays change the body's named
@@ -1312,8 +1312,37 @@ export function createLivingMargin(dependencies) {
     return true;
   }
 
-  // One destination opens the complete Page map at every width. The rail is a compact
-  // projection of that map, not a second destination with a one-digit address ceiling.
+  function pageMapItems() {
+    return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
+  }
+
+  function openPageMapItem(item) {
+    const entry = item?.lfEntry;
+    if (!entry?.target) return;
+    scrollToElement(entry.target, undefined, "nearest");
+    const marker = rows.get(entry.key);
+    if (marker && !marker.hidden) {
+      if (compact.matches) openSheet(entry);
+      else {
+        // A pointer focuses the marker before its click. Reproduce that arrival, then let
+        // the control's own click remain the one semantic path into its preview.
+        marker.focus({ preventScroll: true });
+        marker.click();
+      }
+      return;
+    }
+    const action = [...item.querySelectorAll(".lf-margin-action")].find(
+      (control) =>
+        control !== marker &&
+        !control.disabled &&
+        !control.hidden &&
+        control.checkVisibility(),
+    );
+    if (action) focusForNavigation(action);
+  }
+
+  // The direct destination opens the complete map. Its lowercase address list separately
+  // reaches the first nine locations without claiming the sheet ends there.
   function enterPageMap() {
     openSheet();
   }
@@ -1326,7 +1355,9 @@ export function createLivingMargin(dependencies) {
 
   const pageMapIsActive = () => sheet.open || availableRows().includes(focused());
   function leavePageMap() {
-    if (sheet.open) sheet.close();
+    if (!sheet.open) return;
+    sheetCloseOwnsFocus = true;
+    sheet.close();
   }
 
   function focusMapControl(entry = null) {
@@ -2310,7 +2341,7 @@ export function createLivingMargin(dependencies) {
       setOptionsOpen(entry, false);
     closePreview(false);
     if (sheet.open) {
-      sheetActivation = true;
+      sheetCloseOwnsFocus = true;
       sheet.close();
     }
     if (focusMap) focusMapControl(entry);
@@ -2458,7 +2489,7 @@ export function createLivingMargin(dependencies) {
       const control = button.lfMapControl;
       if (!control) return;
       const from = sheetFrom;
-      sheetActivation = true;
+      sheetCloseOwnsFocus = true;
       sheet.close();
       // Closing the native modal is synchronous; preserve the source interaction and
       // forward the press before a later state render can retire its real control.
@@ -2592,8 +2623,8 @@ export function createLivingMargin(dependencies) {
   sheetSearch.addEventListener("input", filterSheet);
   sheet.addEventListener("close", () => {
     const from = sheetFrom;
-    const activated = sheetActivation;
-    sheetActivation = false;
+    const focusOwned = sheetCloseOwnsFocus;
+    sheetCloseOwnsFocus = false;
     // A dialog delivers `close` in a task of its own, so a reader who reopens the sheet
     // in the same breath — Esc off the overflow route and straight back onto the Button
     // that named it — is standing in the next opening by the time this arrives. That
@@ -2605,7 +2636,7 @@ export function createLivingMargin(dependencies) {
     sheetFrom = null;
     sheetTarget = null;
     paintKeys();
-    if (activated) return;
+    if (focusOwned) return;
     if (from?.isConnected && from.checkVisibility())
       from.focus({ preventScroll: true });
     else focusMapControl();
@@ -2716,6 +2747,8 @@ export function createLivingMargin(dependencies) {
     marginTargetAt,
     openButtonOptions,
     openInlineThread,
+    openPageMapItem,
+    pageMapItems,
     pageMapIsActive,
     presentedControl,
     render,

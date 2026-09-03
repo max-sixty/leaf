@@ -279,6 +279,65 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     direct.close()
 
 
+def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):
+    """An eyebrow is the heading's label, so its small bottom margin is the room inside
+    the title while the heading level's larger top margin remains outside the pair.
+
+    The contents widget inserts a zero-height fragment target before an id-less heading.
+    That generated node must not split the same authored pair into a different layout."""
+    source = leaf_page(
+        "eyebrow title rhythm",
+        """
+<h1>Two labeled sections</h1>
+<lf-toc id="contents"></lf-toc>
+<p id="before-two">First section follows.</p>
+<section id="section-two">
+  <p class="eyebrow">release shape</p>
+  <h2 id="title-two">Prepare the readers</h2>
+  <p>Take a snapshot.</p>
+</section>
+<p id="before-three">A subsection follows.</p>
+<section id="section-three">
+  <p class="eyebrow">first cohort</p>
+  <h3>Move the readers</h3>
+  <p>Shift one cohort at a time.</p>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    rhythm = page.evaluate(
+        """() => Object.fromEntries([
+          ['h2', ['section-two', 'before-two']],
+          ['h3', ['section-three', 'before-three']],
+        ].map(([level, [sectionId, beforeId]]) => {
+          const section = document.getElementById(sectionId);
+          const eyebrow = section.querySelector(':scope > .eyebrow');
+          const heading = section.querySelector(`:scope > ${level}`);
+          const before = document.getElementById(beforeId);
+          const between = [];
+          for (let node = eyebrow.nextElementSibling; node !== heading;
+               node = node.nextElementSibling) between.push(node.className);
+          const eyebrowBox = eyebrow.getBoundingClientRect();
+          const headingBox = heading.getBoundingClientRect();
+          return [level, {
+            outer: eyebrowBox.top - before.getBoundingClientRect().bottom,
+            inner: headingBox.top - eyebrowBox.bottom,
+            between,
+          }];
+        }))"""
+    )
+    assert rhythm == {
+        "h2": {"outer": 48, "inner": 10, "between": []},
+        "h3": {
+            "outer": 32,
+            "inner": 10,
+            "between": ["lf-toc-target lf-ui"],
+        },
+    }
+    assert errors == []
+    page.close()
+
+
 def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     """A map link creates an ordinary fragment-history entry on the root scrollport.
 
@@ -845,6 +904,32 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
+    affordance = gloss.evaluate(
+        """el => {
+          const phrase = getComputedStyle(el);
+          const mark = el.querySelector('.lf-gloss-mark');
+          const badge = getComputedStyle(mark);
+          const tokens = document.createElement('span');
+          tokens.style.cssText = 'color: var(--accent); background: var(--card)';
+          document.body.append(tokens);
+          const tokenStyle = getComputedStyle(tokens);
+          const accent = tokenStyle.color;
+          const card = tokenStyle.backgroundColor;
+          tokens.remove();
+          return {
+            accent,
+            card,
+            underline: phrase.textDecorationColor,
+            mark: mark.textContent,
+            markBackground: badge.backgroundColor,
+            markColor: badge.color,
+          };
+        }"""
+    )
+    assert affordance["mark"] == "i"
+    assert affordance["underline"] == affordance["accent"]
+    assert affordance["markBackground"] == affordance["accent"]
+    assert affordance["markColor"] == affordance["card"]
     gloss.hover()
     expect(bubble).to_be_visible()
     expect(bubble).to_have_text("A thin, end-to-end path through the real system.")

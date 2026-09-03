@@ -7,6 +7,7 @@ fixture can move between those owners without making test modules coordinate it.
 
 from interact_support import COMMAND_HUB_PACKAGE, SHIPPED_PACKAGES, record_claim
 from render_cases_interaction import (
+    ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
     BOXLESS_SECTION_PAGE,
     CHANGE_SHAPES_PAGE,
@@ -363,6 +364,7 @@ __all__ = (
     "AIM_SEAM",
     "AIM_SEAM_PAGE",
     "ASKS_IN_A_ROW_PAGE",
+    "ASK_IN_A_CARD_PAGE",
     "ASTRAL_PAGE",
     "AT_THE_HANDOVER",
     "AUTHORED_LINES_PAGE",

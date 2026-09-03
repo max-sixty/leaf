@@ -639,6 +639,35 @@ ASKS_IN_A_ROW_PAGE = leaf_page(
 {"".join(f"<p id='ar-tail-{i}'>Later note {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
 """,
 )
+
+
+# An ask inside a scroller of its own, below that scroller's own band. The arrival places
+# the region, and the box that moves for a region is whichever one scrolls it — for a
+# region out on the page, never this card's. So the ask has to be brought into its card by
+# the reveal that runs first, or the ring and focus land on a change the card hides.
+#
+# The card holds no text block before the ask, which is what puts the region outside it:
+# the spacer is a bare div, so the nearest candidate is the section's own heading. With a
+# paragraph in there the region would be inside the card and that region's own reveal
+# would scroll the card, whatever the arrival did — the shape this page exists to avoid.
+ASK_IN_A_CARD_PAGE = leaf_page(
+    "ask in a card",
+    f"""
+<h1 id="ac-h">Bracket order</h1>
+{"".join(f"<p id='ac-lead-{i}'>Earlier note {i}. " + "Background. " * 14 + "</p>" for i in range(3))}
+<section id="ac-section">
+  <h2 id="ac-heading">Feeders</h2>
+  <div id="ac-card" style="overflow: auto; max-height: 90px; border: 1px solid">
+    <div id="ac-spacer" style="height: 260px"></div>
+    <lf-suggestion id="ac-sug">
+      <lf-old><p id="ac-was">Refill every feeder each morning.</p></lf-old>
+      <lf-new><p id="ac-now">Refill a feeder when its camera says so.</p></lf-new>
+    </lf-suggestion>
+  </div>
+</section>
+{"".join(f"<p id='ac-tail-{i}'>Later note {i}. " + "Background. " * 14 + "</p>" for i in range(6))}
+""",
+)
 # The decision the walk is standing on. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is

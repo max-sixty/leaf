@@ -21,6 +21,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from leaf.render_gate.browser import launch_browser
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -526,7 +527,7 @@ def main() -> None:
         try:
             waiter = DemoWaiter(page_dir)
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(channel="chrome")
+                browser, _ = launch_browser(playwright)
                 context = browser.new_context(
                     viewport={"width": GIF_SIZE[0], "height": GIF_SIZE[1]},
                     color_scheme="light",

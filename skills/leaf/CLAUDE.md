@@ -1429,10 +1429,12 @@ The same task boundary decides who puts focus back. A surface's own close route 
 the reader to the control that opened it, which is right for a press on that control and
 wrong for a keyboard entry: the dispatcher captured the reader's exact place before the
 command ran and restores it synchronously, so a return route delivered a task later
-overwrites the restore and leaves them holding a door they never touched. A close the
-dispatcher is unwinding therefore says so — `leavePageMap` and the flag its `close`
-handler reads — and the frame's restore stands. Every other close still runs the
-surface's own route.
+overwrites the restore and leaves them holding a door they never touched. A close that
+places the reader itself therefore says so, by raising the flag the `close` handler
+reads: `leavePageMap` unwinding the dispatcher's frame, so that frame's restore stands,
+and the two activation routes that land the reader on the map control or on the control
+the row forwards to. A close that raises nothing — the Close button, the platform's own
+dismissal — still runs the surface's own route.
 
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it

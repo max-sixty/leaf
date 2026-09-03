@@ -15,10 +15,15 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
-  outcome: { label: "Outcome", icon: "check", priority: 3 },
-  sent: { label: "Sent", icon: "sent", priority: 3 },
-  pickup: { label: "Picked up", icon: "pickup", priority: 3 },
-  waiting: { label: "Waiting for pickup", icon: "waiting", priority: 3 },
+  outcome: { label: "Outcome", icon: "check", priority: 3, indication: true },
+  sent: { label: "Sent", icon: "sent", priority: 3, indication: true },
+  pickup: { label: "Picked up", icon: "pickup", priority: 3, indication: true },
+  waiting: {
+    label: "Waiting for pickup",
+    icon: "waiting",
+    priority: 3,
+    indication: true,
+  },
   activity: { label: "Active", icon: "activity", priority: 4 },
 };
 
@@ -29,7 +34,7 @@ const KINDS = {
 const offeredItems = new Set();
 const offerListeners = new Set();
 const ACTION_TONES = new Set(["neutral", "positive", "negative"]);
-const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options"]);
+const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options", "receipt"]);
 const ACTION_STATES = new Set(["idle", "engaged", "busy", "failed", "settled"]);
 const ACTION_ROLES = new Set([
   "complete",
@@ -111,7 +116,9 @@ const changedOffers = () => {
 };
 
 const visibleButtonLabel = ({ behavior, label }) =>
-  behavior === "action" || label.endsWith("…") ? label : `${label}…`;
+  (behavior !== "disclosure" && behavior !== "options") || label.endsWith("…")
+    ? label
+    : `${label}…`;
 
 function buttonRecord(control) {
   const record = control?.[BUTTON_RECORD];
@@ -207,9 +214,17 @@ export function marginAction(
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
   marginActionState(control, state);
-  if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
+  const opens = behavior === "disclosure" || behavior === "options";
+  if (opens && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
-  if (behavior === "action") control.removeAttribute("aria-expanded");
+  if (!opens) control.removeAttribute("aria-expanded");
+  if (behavior === "receipt") {
+    control.setAttribute("role", "status");
+    control.tabIndex = -1;
+  } else if (control.getAttribute("role") === "status") {
+    control.removeAttribute("role");
+    control.removeAttribute("tabindex");
+  }
   let glyphNode = control.querySelector(
     ":scope > :is(.lf-margin-action-glyph, .lf-margin-action-icon)",
   );
@@ -1342,7 +1357,7 @@ export function createLivingMargin(dependencies) {
   }
 
   // The direct destination opens the complete map. Its lowercase address list separately
-  // reaches the first nine locations without claiming the sheet ends there.
+  // numbers the visible locations without claiming the sheet ends there.
   function enterPageMap() {
     openSheet();
   }
@@ -1354,6 +1369,11 @@ export function createLivingMargin(dependencies) {
   }
 
   const pageMapIsActive = () => sheet.open || availableRows().includes(focused());
+  // The dispatcher's own way out of the `g M` frame, and the one close that owes the
+  // reader nothing: it captured where they stood before the press and restores it in the
+  // same press. That restore is synchronous while `close` arrives in a task of its own,
+  // so the door's return route below would run a frame later and put the reader on the
+  // Map control instead of the ask row or the reading place they asked to come back to.
   function leavePageMap() {
     if (!sheet.open) return;
     sheetCloseOwnsFocus = true;
@@ -1377,9 +1397,23 @@ export function createLivingMargin(dependencies) {
   }
 
   // The rail holds one tab stop: the way in from the page, not the reading position,
-  // which the walk, the numbered addresses, and the pointer all reach without it.
+  // which the walk, the numbered addresses, and the pointer all reach without it. A
+  // receipt reports a move already made, so the stop passes to the nearest marker that
+  // still offers a press.
   function holdTabStop(next) {
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    const available = availableRows();
+    const acts = (row) => row.dataset.lfBehavior !== "receipt";
+    let stop = next;
+    if (stop && !acts(stop)) {
+      const at = available.indexOf(stop);
+      stop = available.reduce((nearest, row, index) => {
+        if (!acts(row)) return nearest;
+        if (!nearest) return { row, distance: Math.abs(index - at) };
+        const distance = Math.abs(index - at);
+        return distance < nearest.distance ? { row, distance } : nearest;
+      }, null)?.row;
+    }
+    for (const row of rows.values()) row.tabIndex = row === stop ? 0 : -1;
   }
 
   function syncRoving() {
@@ -1473,6 +1507,17 @@ export function createLivingMargin(dependencies) {
     },
   ];
 
+  function pressMarker(event) {
+    const marker = event.currentTarget;
+    const choice = primaryReading(marker.lfEntry);
+    if (!choice) return;
+    if (choice.kind !== "comment") {
+      activate(choice.items[0], marker.lfEntry);
+      return;
+    }
+    openThreadChoice(marker.lfEntry, marker);
+  }
+
   function paintMarker(row, entry, primary) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
     const choice = primaryReading(entry);
@@ -1483,10 +1528,11 @@ export function createLivingMargin(dependencies) {
       key: `reading:${choice?.key ?? "none"}`,
       icon: face.icon,
       label,
-      behavior: "disclosure",
+      behavior: face.indication ? "receipt" : "disclosure",
       role: "reading",
       state: readingState(choice),
     });
+    row.onclick = face.indication ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     syncActionCount(row, markerCount);
@@ -1976,15 +2022,6 @@ export function createLivingMargin(dependencies) {
           behavior: "disclosure",
           role: "reading",
         });
-        marker.onclick = () => {
-          const choice = primaryReading(marker.lfEntry);
-          if (!choice) return;
-          if (choice.kind !== "comment") {
-            activate(choice.items[0], marker.lfEntry);
-            return;
-          }
-          openThreadChoice(marker.lfEntry, marker);
-        };
         keys(
           host,
           "In the page map",

@@ -2888,9 +2888,7 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "loopback bind: this URL opens only from a browser on this machine" in (
-            started.output
-        )
+        assert "access   loopback only" in started.output
         assert "--host NAME" in started.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
@@ -2906,7 +2904,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "loopback bind" not in started.output
+        assert "access   loopback" not in started.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -2928,8 +2926,11 @@ def test_the_loopback_line_follows_the_lifetime_line(page_dir):
 
     lines = hosting_model.startup_note(page_dir).splitlines()
 
-    assert lines[0].startswith("standing server:")
-    assert lines[1].startswith("loopback bind:")
+    assert lines[:3] == [
+        "server   standing",
+        f"stop     leaf server stop {page_dir}",
+        "access   loopback only (re-serve with --host NAME for remote readers)",
+    ]
 
 
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
@@ -2940,9 +2941,9 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     try:
         assert started.exit_code == 0, started.output
         identity = registry_storage.layer_metadata(page_dir)
-        assert f"page: {page_dir}" in started.output
-        assert f"layer: {identity['fingerprint']}" in started.output
-        assert f"leaf: {schema_model.PLUGIN_ROOT}" in started.output
+        assert f"page     {page_dir}" in started.output
+        assert f"layer    {identity['fingerprint']}" in started.output
+        assert f"runtime  {schema_model.PLUGIN_ROOT}" in started.output
 
         state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
         assert state.exit_code == 0, state.output
@@ -2968,7 +2969,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
 
     note = hosting_model.startup_note(page_dir)
 
-    assert "leaf: unknown payload (unknown source)" in note
+    assert "runtime  unknown payload (unknown source)" in note
     assert str(schema_model.PLUGIN_ROOT) not in note
 
 

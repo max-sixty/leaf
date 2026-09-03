@@ -98,7 +98,8 @@ the root, body's layout shell, and the chrome's paint hosts out of the containin
 document-positioned chrome. It also keeps page-attached paint below covering workspaces
 and paint for chrome targets above them;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
-room left after the panel and trays, and page repaint caused by shell motion or reflow;
+room left after the panel and trays, the final-layout column motion between workspace
+states, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -199,8 +200,8 @@ choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
 rendered chrome, and writes only chrome boxes. `layoutSizes` watches
 `document.body`'s content-box size without deriving a posture from it. A width
-change schedules `syncLayout` and page repaint in the following frame while a
-panel's eased margin narrows the page; a height-only content reflow calls
+change schedules `syncLayout` and page repaint in the following frame after a
+workspace lands its final shell; a height-only content reflow calls
 `pageShifted` during observer delivery so page paint follows targets that moved.
 That direct path may write only unobserved paint hosts and state or queue work for
 a frame. A `ResizeObserver` callback must not resize the box it observes, directly
@@ -937,6 +938,28 @@ or draft heading remain quotable while runtime controls stay outside the
 passage. `relabel` writes the said marker; `offer` writes the control marker.
 They are independent facts and neither clears the other.
 
+A label copied off another element on the page is a route to those words rather
+than a second place the page says them. Say it once: a contents link, a roster
+row naming a worker, any generated index entry stays chrome, and the passage
+lives where the page speaks it. Two copies of one label carry the same text and,
+being fenced, the same empty context, so neither can be told from the other and
+a drag across either detaches.
+
+A route a widget builds outside any control needs nothing further: chrome carries
+no offer marker, so no medium takes its words away (`lf-toc`'s rows). A route that
+is a control declares itself with `says: "echo"`, `relabel`'s third answer, and
+this is the one place the two questions the marker pair answers come apart. An
+echo is no passage, and it is still what its row is about: a roster row is a name
+and a chip, and a sheet that dropped the name would print the chip alone.
+`data-lf-echo` therefore strikes the paper bargain `data-lf-said` strikes — the
+press goes, the words stay — without entering the `says` reading. Paper is the
+medium that bargain holds in. A copy still divides on the value `offer` wrote: an
+echoed route is empty-valued and stays a live fragment link, but an echo on a
+`button` would be removed with its words, because the pass that keeps a press's
+words in a copy reads `data-lf-said` alone. The first widget to echo a label off a
+real press is what makes that reachable, and what teaches those two passes the
+third answer.
+
 ### Data projections
 
 The page has three kinds of visible words:
@@ -999,10 +1022,11 @@ consumer names its tag. Export preserves the rendered elements and their labels 
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.
 
-The three visual voices are prose, apparatus, and evidence. Page prose uses the
-serif, labels and controls use the sans, and literal evidence uses the mono
-face. Typography is presentation, not passage permission. A chip may look like
-apparatus and still be a page word the reader can quote.
+The three visual voices are prose, apparatus, and evidence. Body prose uses the
+serif; labels, controls, and annotations embedded in evidence use the sans; and
+literal evidence uses the mono face. Typography is presentation, not passage
+permission. A chip or code annotation may look like apparatus and still be a
+page word the reader can quote.
 
 `renderSaid` materializes words that CSS would otherwise paint through
 `content: attr(...)`. A visible word must exist in a text node if the reader can
@@ -1359,8 +1383,9 @@ chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline
 container, `main` composes its left and right claims, and queries grant or withdraw
 margin postures. JavaScript may hear the shell's content-box size without deriving a
 posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-repaint after a width change, because a panel's eased margin keeps narrowing the box a
-float stands in after `setPanel` returns. A height-only change sends `pageShifted`
+repaint after a width change. `moveShell` lands the final responsive shell in one pass,
+then animates only the reading column's presentation offset and repaints page-attached
+chrome along that route. A height-only change sends `pageShifted`
 directly so a content reflow re-places document-attached paint without re-running
 chrome reservation.
 
@@ -1425,6 +1450,17 @@ dialog is open again and gives that reopening its state back rather than taking 
 have cleared is what the surface is read by, and losing it is silent — the sheet still
 stands, still says its name, and the next press inside it means something else.
 
+The same task boundary decides who puts focus back. A surface's own close route returns
+the reader to the control that opened it, which is right for a press on that control and
+wrong for a keyboard entry: the dispatcher captured the reader's exact place before the
+command ran and restores it synchronously, so a return route delivered a task later
+overwrites the restore and leaves them holding a door they never touched. A close that
+places the reader itself therefore says so, by raising the flag the `close` handler
+reads: `leavePageMap` unwinding the dispatcher's frame, so that frame's restore stands,
+and the two activation routes that land the reader on the map control or on the control
+the row forwards to. A close that raises nothing — the Close button, the platform's own
+dismissal — still runs the surface's own route.
+
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every
@@ -1449,7 +1485,7 @@ outcomes, changes, or agent activity.
 At rest a cluster has a two-Button budget: the primary and one peer, or the primary
 and `…` when there are at least two peers. Hiding one peer costs the same fitting as
 showing it and adds a press, so it is not overflow. With no contributed control,
-standing information supplies the primary disclosure Button.
+standing information supplies the primary Button in the fitting declared by its face.
 
 The expanded budget is six fittings, including the primary or visible reading marker
 where one exists; a target made only of peer choices uses all six. A larger set shows
@@ -1481,7 +1517,9 @@ lets go of the destination the walk put down.
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
-action's standing outcome supplies the same retained target cluster throughout. A
+action's standing outcome supplies the same retained target cluster throughout. The
+first three phases and the standing outcome report a move already made, so the Button
+wears the flat `receipt` behavior below. **Active** raises it back into a press. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
 the full conversation; an **Active** claim joins that engaged cluster as an exposed
 peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
@@ -1503,7 +1541,7 @@ Every press in a contribution is built with
 reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
-the promise before the press. Behavior, tone, and state are independent axes: never
+what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
 `marginAction` also establishes the canonical Button record: key, face, label,
@@ -1519,16 +1557,20 @@ activation owner.
 - `disclosure` has the ordinary ring, carries `aria-expanded` when it controls
   persistent context, and opens or closes that context without settling it;
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
-  place.
+  place;
+- `receipt` reports a move already made and offers no press. It keeps its icon and its
+  seat in the cluster, but gives up its ring, fill, hover lift, pointer, and tab stop. It
+  remains a `status` in the accessibility tree so the Page map can still land there and
+  name the phase.
 
-Ring weight carries that distinction; the shape and soft border color stay shared,
-with no chevron. A lone non-thread informational Button reveals its target directly.
-Each additional non-thread reading gets its own peer Button under `…`; pressing one reveals that
-reading directly rather than collecting readings in a card. All threads at one target
-share one Thread Button and one conversation card. That card opens only on a press,
-never merely on focus or hover; when the document cannot leave it room beside the
-source, the same press opens the full Threads surface. The thread card is the only
-generated contextual pane, not a generic container for alternatives.
+Ring weight distinguishes the three controls; a receipt has no ring. The shape stays
+shared, with no chevron. A lone non-thread informational Button reveals its target
+directly. Each additional non-thread reading gets its own peer Button under `…`;
+pressing one reveals that reading directly rather than collecting readings in a card.
+All threads at one target share one Thread Button and one conversation card. That card
+opens only on a press, never merely on focus or hover; when the document cannot leave
+it room beside the source, the same press opens the full Threads surface. The thread
+card is the only generated contextual pane, not a generic container for alternatives.
 
 Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
 rings, fills, and state marks keep their shared neutral treatment. State has a
@@ -1574,11 +1616,12 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Every Button rests as a circle. Its label appears as transient chrome on hover or
+Every Button keeps one circular fitting, whether or not it draws the circle. Its label
+appears as transient chrome on hover or
 keyboard focus without changing the cluster's geometry; an open disclosure keeps its
-label visible. Labels for `disclosure` and `options` end in an ellipsis, while immediate
-action labels do not. The complete label remains in the DOM, and its accessible name
-tracks the action.
+label visible. Labels for `disclosure` and `options` end in an ellipsis because they open
+something; action and receipt labels do not. The complete label remains in the DOM, and
+its accessible name tracks the fitting.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it
@@ -1608,12 +1651,12 @@ where the box is `display: none` is not a measurement.
 
 That ordered target collection is the Page map's complete location count and the source
 for the `g m` address list. A location's disclosure Button announces its position in the
-complete collection. The numbered chord exposes the collection's first nine locations;
-`g M` and the banner's Map control open the complete sheet, so later locations remain
-reachable without making a one-digit chord ambiguous. The sheet projects the same
-currently available contributed controls, in the same owner and role order, plus readings
-that have no direct control. An offered reading that merely describes its owner's controls
-is omitted there rather than becoming a parallel “open action” beside the real verbs.
+complete collection. The numbered chord exposes up to nine locations in the visible
+window, starting at one. `g M` and the banner's Map control open the complete sheet,
+which projects the same currently available contributed controls in owner and role order,
+plus readings that have no direct control. An offered reading that merely describes its
+owner's controls is omitted there rather than becoming a parallel “open action” beside the
+real verbs.
 Ordinary entry focuses the sheet's filter, so a large map is searchable by Button name,
 concise target name, or the visible passage containing that target without tabbing through
 every preceding action. A spill opens this complete sheet focused on the first control the
@@ -1631,7 +1674,7 @@ already opens. At wide widths it is the conversation itself, measured eight pixe
 beside the pressed Thread Button in the same turn it is shown or changes size. While
 that Button keeps focus, `c` enters the card's one reply box; several roots leave the
 destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
-open panel waits for the body's strip motion before choosing the card posture. When the
+open panel waits for the column's workspace motion before choosing the card posture. When the
 document cannot leave the card room beside its Button, the press opens the full Threads
 surface instead.
 
@@ -1829,10 +1872,11 @@ settled group reserves the same column on the cards behind its disclosure.
 
 ### Typography and scoped chrome
 
-`--serif` is the page's prose, `--sans` is apparatus and runtime chrome, and
-`--mono` is literal evidence. `.lf-ui` reads `--sans`. Form-control normalization
-lives in the `lf-reset` cascade layer so an unlayered semantic type choice can
-override it without specificity contests.
+Typography follows [Data projections](#data-projections). An authored `lf-note`
+inside `lf-code` takes `--sans` because the module presents it as a review row
+inside evidence; its words remain selectable page prose. `.lf-ui` also reads
+`--sans`. Form-control normalization lives in the `lf-reset` cascade layer so an
+unlayered semantic type choice can override it without specificity contests.
 
 The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private
 class names do not escape that root. The global vocabulary is deliberately
@@ -2613,7 +2657,7 @@ region.
 | Form | Meaning | Current routes |
 | --- | --- | --- |
 | `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map |
-| `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of its first nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
+| `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of up to nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
 
 Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
 `g m` starts the numbered Page-map location list, while `g M` completes a direct trip to
@@ -2635,7 +2679,7 @@ page-list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
-- its members in stable address order;
+- its ordered members and whether the numbered window follows the viewport;
 - how to arrive at one member.
 
 A list's capability is not declared: it is whether the list is non-empty, read
@@ -2653,8 +2697,8 @@ line and paints `data-lf-goto` on the body, so the contents map can reveal its l
 it does on hover. Each row shows its complete chord. Each visible numbered member shows its
 complete address, such as `g h 1`. A direct mnemonic completes the travel and moves
 focus inside its destination. A numbered-list mnemonic narrows the inline hints to that
-list's first nine members without changing their labels or geometry. The following digit
-selects immediately. Escape backs out to the list menu before it closes the mode.
+list's current numbered window without changing their labels or geometry. The following
+digit selects immediately. Escape backs out to the list menu before it closes the mode.
 
 Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
 remains one decision point and is spoken as “g or G”; a sequence's accessible label says
@@ -2666,12 +2710,14 @@ every route with all steps neutral because it describes rather than enacts them.
 line and page chips apply that progress to each complete route. The reference combines
 the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
 
-Numbered addresses are stable within the document and capped at nine per list. The
-first nine members do not change identity as the reader scrolls. Chips are painted
-only for addressable members whose `shownRect` is visible, but an off-screen member
-within that prefix remains reachable by the same address. Chips live in runtime
-chrome rather than authored markup. They sit above their targets and move inside the
-viewport below the banner before overlapping chips are removed.
+Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
+nine document members, so those identities do not change as the reader scrolls and an
+off-screen member within that prefix remains reachable. Page-map locations instead
+number the visible window from one; their complete searchable identity lives in the
+Page map sheet. That window stays fixed during a scroll and is read again at
+`scrollend`. Chips live in runtime chrome rather than authored markup. They sit above
+their targets and move inside the viewport below the banner before overlapping chips
+are removed.
 
 `LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
 immediate word for their next press. An addressed fold lands on its summary after
@@ -3018,8 +3064,9 @@ inside it.
 
 Print asks a stricter question than export because nothing on paper is
 interactive. `data-lf-offer` identifies injected controls to remove, while
-`data-lf-said` preserves a decision word the page speaks through a control. What
-`data-lf-said` keeps is the word and not the shape: a control that survives paper
+`data-lf-said` preserves a decision word the page speaks through a control and
+`data-lf-echo` a name a control copies off the row it routes to. What the two word
+markers keep is the word and not the shape: a control that survives paper
 gives up its ground, corner, border, underline, marker and pointer hand, because
 nothing on a sheet can answer the press they promise. Colour stays, being part of
 what the control says.

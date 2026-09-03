@@ -29,6 +29,16 @@ the geometry it claims:
 6. Switch versions with a draft unsent.
 7. Emulate print and compare with the screen reading.
 
+Watch the route into and out of each state, not only the frame after it settles. Motion
+starts inside the gesture that causes it and `motion()` cancels each animation a
+microtask after it finishes, so hold it before driving rather than on noticing:
+`open_page(..., init_script=HOLD_MOTION)`, using the hold from
+`tests/render_cases_interaction.py`, pauses every `motion()` animation at time zero to
+seek. CSS animations run outside that patch, so sample their geometry frame by frame
+instead. Record the endpoints and the path. A route that reverses, overshoots its
+settled boxes, or repeatedly changes responsive posture is a finding even when both
+endpoints are sound.
+
 ## Judge
 
 Read the frames against skills/leaf/CLAUDE.md — each norm there is a checklist row —

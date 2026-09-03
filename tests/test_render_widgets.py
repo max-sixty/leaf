@@ -79,6 +79,42 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
+    source = leaf_page(
+        "milestone marker alignment",
+        """
+<h1>Release plan</h1>
+<style>#rail { width: 160px; }</style>
+<lf-milestones id="rail">
+  <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
+</lf-milestones>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    centres = page.locator("#publish").evaluate(
+        """item => {
+          const titleNode = item.querySelector(':scope > strong');
+          const title = titleNode.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(titleNode).lineHeight);
+          const box = item.getBoundingClientRect();
+          const marker = getComputedStyle(item, '::before');
+          const border = marker.boxSizing === 'content-box'
+            ? parseFloat(marker.borderTopWidth) + parseFloat(marker.borderBottomWidth)
+            : 0;
+          return {
+            title: title.top + lineHeight / 2,
+            titleLines: title.height / lineHeight,
+            marker: box.top + parseFloat(marker.top)
+              + (parseFloat(marker.height) + border) / 2,
+          };
+        }"""
+    )
+    assert centres["titleLines"] >= 2, centres
+    assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
+    assert errors == []
+    page.close()
+
+
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
     """Hoisted decision rows keep source order through upgrade and reconnection."""
     source = leaf_page(
@@ -1036,6 +1072,34 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     context.close()
 
 
+def test_a_gloss_aim_box_does_not_make_its_table_scroll_sideways(browser, serve):
+    """The mark's aim box is outside layout but not outside overflow. A gloss that ends
+    a cell puts the badge against the table's inline edge, and an aim box straddling the
+    badge would hang half its width past that edge — leaving a table the reader can drag
+    sideways over a target nothing draws."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "gloss at the edge",
+                """
+<h1>Areas</h1>
+<table id="edge-table" style="width: fit-content">
+  <tbody><tr><td style="padding: 0"><lf-gloss
+    tip="The test reads the index before and after."
+    >byte-identical</lf-gloss></td></tr></tbody>
+</table>
+""",
+            )
+        ),
+    )
+    expect(page.locator("#edge-table .lf-gloss-mark")).to_be_visible()
+    room = page.locator("#edge-table").evaluate("el => el.scrollWidth - el.clientWidth")
+    assert room <= 1, f"the table scrolls {room}px sideways"
+    assert errors == []
+    page.close()
+
+
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     """A nested control owns its click even when its platform contract is an ARIA role."""
     page, errors = open_page(
@@ -1248,11 +1312,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
-    # The panel gives the room back on an eased margin, and the column re-wraps for the
-    # whole of it. Read on the way, this assertion passed on a layout that lasted a fifth
-    # of a second: the rows sat under their blocks in the narrow column the page was
-    # leaving, and the settled one dropped the in-card row back onto the sentence's last
-    # line. Only a loaded machine was slow enough to reach the settled layout first.
+    # The panel gives the room back in one responsive layout, then carries the column to
+    # it. Wait for that route before reading the rows against their settled blocks.
     panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
@@ -2083,30 +2144,44 @@ def test_a_wait_the_reader_would_notice_says_so_and_a_short_one_says_nothing(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     resting = page.locator("[data-lf-for='sug-refill']").bounding_box()
-    # Pressed and sampled inside the page, on the browser's own clock: what painted
-    # and when is not a fact the browser reports outward, and a reading taken over a
-    # CDP round trip would be racing the delay rather than measuring it. The window is
-    # the rule's own — 200ms of delay and 140ms of fade — with room after it, since a
-    # send held in the wire states no fact to wait on.
+    # Pressed and sampled inside the page: what painted and when is not a fact the
+    # browser reports outward, and a reading taken over a CDP round trip would be
+    # racing the delay rather than measuring it. Each frame is placed on the rule's
+    # own clock rather than on the wall clock the press was made on — the animation
+    # starts at the frame the busy attribute is first painted in, and what the press
+    # does between the two is the layer's own work, not this rule's. Timed from the
+    # press the whole 200ms delay and 140ms fade all but fill a fixed window, and a
+    # loaded machine spends the remainder before the first frame; timed from the
+    # animation, the delay and the fade are the only durations being read.
     frames = page.evaluate(
         """async () => {
           const el = document.getElementById('sug-refill');
           const out = [];
-          const t0 = performance.now();
           let stop = false;
-          const tick = (t) => {
-            out.push([t - t0, Number(getComputedStyle(el).opacity)]);
+          const tick = () => {
+            // Opacity first: reading it flushes the style that starts the animation,
+            // so the frame it begins in reports the animation rather than nothing.
+            const painted = Number(getComputedStyle(el).opacity);
+            const [busy] = el.getAnimations();
+            out.push([
+              busy ? Number(busy.currentTime) : null,
+              busy ? busy.playState : null,
+              painted,
+            ]);
             if (!stop) requestAnimationFrame(tick);
           };
           requestAnimationFrame(tick);
           document.querySelector("[data-lf-for='sug-refill'] .lf-sug-accept").click();
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 700));
           stop = true;
           return out;
         }"""
     )
-    early = [o for t, o in frames if t < 150]
-    late = [o for t, o in frames if t > 400]
+    # Before the rule has anything to say: the frames the press had not yet reached,
+    # and the ones inside its delay. Once it has said it: the frames after the fade
+    # has run, which the animation states as its own end rather than as a deadline.
+    early = [o for elapsed, _state, o in frames if elapsed is None or elapsed < 150]
+    late = [o for _elapsed, state, o in frames if state == "finished"]
     assert early and set(early) == {1}, (
         f"the wait was announced before it was one: {early}"
     )

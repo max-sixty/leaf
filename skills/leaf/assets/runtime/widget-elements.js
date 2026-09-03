@@ -322,12 +322,30 @@ export function installReachedForWordsGuard() {
 // once the strip exists. One element wears both over its life, so the kind is
 // restated on every write rather than settled at birth.
 //
-// This writes one marker and one only: data-lf-said, the page speaking. Anchoring
-// takes it over the `.lf-ui` box around it — that box is a look, the chrome face, and
-// it was standing in for a permission the user has no category for — and paper
-// reads it beside data-lf-offer to keep a control whose label is one of the page's own
-// words. data-lf-gen goes on either way, because the diff parses the base version
+// This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
+// `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
+// in for a permission the user has no category for — and paper reads it beside
+// data-lf-offer to keep a control whose label is one of the page's own words.
+// data-lf-gen goes on either way, because the diff parses the base version
 // unupgraded and would read any label as text that version lacked.
+//
+// Those are two questions with one answer until a label is a copy of words the page
+// says somewhere else — a roster row naming a worker, a generated index entry, any
+// route built out of its target's own words. Such a label must not anchor, because two
+// passages carrying the same text and the same empty context cannot be told apart and
+// both detach; and it must still print, because it is the only thing naming the row it
+// stands in. `says: "echo"` is that third answer, and it writes data-lf-echo: no
+// passage, and the same bargain on paper that data-lf-said strikes — the press goes,
+// the words stay. Paper is the medium that bargain holds in. A copy divides on the
+// marker's *value* instead, which is a fact about the tag and not about this
+// declaration: bake removes a press by the value `offer` wrote, so an echoed route is
+// empty-valued, slips that pass and stays a real fragment link — while an echo on an
+// `offer("button", …)` would go out of the copy with its words inside it, and nothing
+// would report the loss, because the static-ising pass that would have kept them reads
+// data-lf-said alone. Unreachable while `button()` is the only caller and builds an `a`.
+// The second widget to echo a label off a real press is what makes it reachable, and
+// what has to teach standalone.js's two passes the third answer; it does not belong
+// here, where the label is only being worded.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it
@@ -343,13 +361,15 @@ export function installReachedForWordsGuard() {
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
 export function relabel(node, label, { says } = {}) {
-  if (typeof says !== "boolean")
+  if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(
-      `relabel(${label}): say whether this label is the page speaking`,
+      `relabel(${label}): say whether this label is the page speaking — ` +
+        `true, false, or "echo" for a copy of words it says elsewhere`,
     );
   node.textContent = label;
   node.dataset.lfGen = "1";
-  node.toggleAttribute("data-lf-said", says);
+  node.toggleAttribute("data-lf-said", says === true);
+  node.toggleAttribute("data-lf-echo", says === "echo");
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will

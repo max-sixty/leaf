@@ -38,14 +38,18 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 lf-gloss > .lf-gloss-mark { background: var(--accent); color: var(--card); }
 /* The compact badge stands in a line of prose, so its visible box cannot be the thing a
  * reader aims at: growing it to a usable size would open the line it is set in, which is
- * the one thing a mark this small must not do. The aim is a box of its own,
- * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
- * it belongs to, which costs nothing, because hovering that same phrase already reveals
- * the same explanation. */
+ * the one thing a mark this small must not do. The aim is a box of its own, outside
+ * layout entirely — it overlaps the tail of the phrase it belongs to, which costs
+ * nothing, because hovering that same phrase already reveals the same explanation. It
+ * ends where the badge ends rather than straddling it: an absolutely positioned box is
+ * outside layout but still inside its ancestors' scrollable overflow, so a box centred
+ * on a badge that sits near a cell's inline edge makes that table scroll sideways by
+ * the half it hangs over. Reaching back over the phrase costs nothing; reaching past
+ * the edge the badge itself fits inside does. */
 .lf-gloss-mark::after {
-  content: ""; position: absolute; top: 50%; left: 50%;
+  content: ""; position: absolute; top: 50%; inset-inline-end: 0;
   width: var(--aim-floor); height: var(--aim-floor);
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
 }
 .lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
@@ -957,7 +961,8 @@ lf-milestones { display: block; margin: 14px 0 14px 8px; }
 lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
                border-left: 2px solid var(--rule); --lf-frame: 1; }
 lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
-lf-milestone::before { content: ""; position: absolute; left: -7px; top: 3px;
+lf-milestone::before { content: ""; position: absolute; left: -7px;
+                       top: calc(0.5lh - 7px);
                        width: 10px; height: 10px; border-radius: 50%;
                        background: var(--paper); border: 2px solid var(--muted); }
 lf-milestone[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
@@ -1223,8 +1228,13 @@ lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotframe { outline: var(--here-ring);
-    --lf-here-ring: shot-frame; outline-offset: 1px; }
+/* The rail and the frame are one card, so the ring goes round the card. Drawn on the
+   frame alone it ran along the rail's foot instead of round anything, and the rail's
+   own surface stands where its top run is. lf-shot paints nothing of its own, so the
+   radius here is the card's outer corners lent to the outline and reaches nothing
+   else. */
+lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline: var(--here-ring);
+    --lf-here-ring: shot; outline-offset: 1px; border-radius: var(--r); }
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
@@ -1351,8 +1361,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                              line-height: 1.2; max-height: 2.4em; }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }
-    lf-toc a:focus-visible { outline: 2px solid var(--accent);
-                             outline-offset: -2px; }
+    lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
+                             outline-offset: calc(-1 * var(--here-ring-w)); }
     lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) {
       --lf-toc-label-opacity: 1;
     }
@@ -1638,25 +1648,22 @@ lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
              content: counter(lf-code-line); display: inline-block; width: 38px;
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
-             border-right: 1px solid var(--code-border); text-align: right;
+             border-right: 1px solid var(--code-border); background: var(--code-chrome);
+             text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
 lf-code .lf-code-line.hi { background: var(--hi-tint); }
 lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
-/* A note is the author's sentence about a line, so it leaves the mono the block
-   is set in and comes back to the document's own voice — it is prose, and a
-   user quotes it like any other. Stated here rather than in the apparatus
-   rule for that reason, and because it has a `pre`'s mono to escape either way.
-
-   It is the one box in this file holding the page's prose that states a size, and the
-   step down is the point: a note is about the line above it, so it is set under the page
-   rather than at it. Left to inherit it would take the block's 13px mono; taken to --t-4
-   it would stand a third larger than the code it annotates and read as the subject rather
-   than the remark. --t-5 is the rung between, and the note is why that rung is stated
-   here rather than deleted the way a card's was. */
-lf-code .lf-code-note { margin: 4px 8px 6px 46px; padding: 6px 10px;
-             background: var(--field); border: 1px solid var(--rule);
-             border-radius: var(--r); font-family: var(--serif);
-             font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
+/* A note is prose about a source line, not another source line. It follows the
+   code-review convention: a sans-serif row spanning the source frame, with its text
+   aligned to the code after the 46px gutter. Horizontal rules mark the insertion
+   without inventing author metadata the note does not carry. Sticky positioning holds
+   that row to a horizontal scrollport; unlike a max-content line, its prose still wraps. */
+lf-code .lf-code-note { position: sticky; inset-inline-start: 0;
+             margin: 5px 0 6px; padding: 7px 14px 8px 46px;
+             background: var(--pre-bg); border: 0;
+             border-block: 1px solid var(--code-border); border-radius: 0;
+             color: var(--code-ink); font-family: var(--sans);
+             font-size: var(--t-5); line-height: 1.5; white-space: normal; --lf-frame: 1; }
 lf-code lf-note { display: block; }
 
 /* lf-source: captured text with the provenance needed to identify the immutable

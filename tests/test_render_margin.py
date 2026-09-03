@@ -1,10 +1,15 @@
 """The document's shared, semantic margin map."""
 
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
+from click.testing import CliRunner
+from leaf import cli as cli_model
 from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import session as session_model
 from playwright.sync_api import expect
 from render_support import (
     BOTH_STAMPS,
@@ -26,9 +31,11 @@ from render_support import (
     resized,
     round_trip,
     select,
+    stamp_page,
     ticked,
     told,
     undo,
+    wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
@@ -48,6 +55,12 @@ OUTCOME_ON_DECISION = {
     "action": "choose",
     "detail": {"options": ["br-steel"]},
     "generated": [],
+}
+RECEIPT_PHASES = {
+    "Sent": "sent",
+    "Waiting for pickup": "waiting",
+    "Picked up": "pickup",
+    "Outcome": "check",
 }
 COMMENT_ON_SUGGESTION = {
     "kind": "comment",
@@ -456,6 +469,9 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     resized(page, width, 900)
     margins_laid_out(page)
 
+    # Twice: the gallery's core surfaces open on a decision, which is the page's first
+    # ask and carries no address of its own, and the suggestions this case is about
+    # begin after it.
     page.keyboard.press("a")
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
@@ -815,22 +831,43 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_addresses_nine_and_g_shift_m_opens_the_complete_page_map(browser, serve):
-    """The numbered prefix stays short while the complete Map keeps every location."""
+def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
+    browser, serve
+):
+    """Visible locations start at one while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
-    resized(page, 1440, 900)
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    resized(page, 1440, 300)
 
     page.keyboard.press("g")
     page.keyboard.press("m")
     route = page.locator(
         '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1–9"])
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
+    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+
+    # When the motion settles, number the newly visible window from one. Location 11 is
+    # outside the document's old one-digit prefix.
+    page.evaluate(
+        """() => new Promise(resolve => {
+          addEventListener('scrollend', resolve, {once: true});
+          const target = document.querySelector('#map-11');
+          document.scrollingElement.scrollTo(0, target.offsetTop - 100);
+        })"""
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
+    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    page.keyboard.press("1")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_contain_text("Map note 11")
     page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
     page.keyboard.press("Escape")
 
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    before_sheet = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
@@ -846,7 +883,38 @@ def test_g_m_addresses_nine_and_g_shift_m_opens_the_complete_page_map(browser, s
     expect(sheet.locator(".lf-page-map-group:visible")).to_contain_text("Map note 12")
     search.fill("")
     expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(12)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
+    assert errors == []
+    page.close()
+
+
+def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve):
+    """A late action-only location is reachable while it is visible."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    page.evaluate(
+        """() => new Promise(resolve => {
+          addEventListener('scrollend', resolve, {once: true});
+          const heading = document.querySelector('#bg-quoted-and-visual-heading');
+          document.scrollingElement.scrollTo(0, heading.offsetTop - 100);
+        })"""
+    )
+    page.locator("body").focus()
+    shot = page.get_by_role(
+        "button", name="Show after — a sample run list with and without a status column"
+    )
+    expect(shot).to_be_visible()
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    route = page.locator(
+        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
+    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    page.keyboard.press("1")
+    expect(shot).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1490,6 +1558,167 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
         assert "percent down" in button["name"], button
     for button in buttons:
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
+
+    assert errors == []
+    page.close()
+
+
+def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser, serve):
+    """A Button's look states its promise, and a receipt promises nothing to press.
+
+    Sent, Waiting for pickup, Picked up, and the standing Outcome all report a move
+    already made, so the Button is sewn flat and leaves the accessibility tree as a
+    status rather than a control. The walk still arrives, because the phase is what a
+    reader listening came for. Only a real claim — work the reader can watch — raises
+    the same Button back into a press, in the same seat, so the cluster's identity
+    survives the change of promise.
+    """
+    page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
+    page_dir = serve.page_dir
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    logged_action = next(
+        event
+        for event in reversed(events_model.read_events(page_dir))
+        if event.get("widget") == "jobs" and event.get("action") == "choose"
+    )
+    marker.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+
+    def face():
+        return marker.evaluate(
+            """node => {
+              const style = getComputedStyle(node);
+              return {
+                behavior: node.dataset.lfBehavior,
+                role: node.getAttribute('role'),
+                icon: node.querySelector(':scope > .lf-margin-action-icon')
+                  .dataset.lfIcon,
+                word: node.querySelector(':scope > .lf-margin-action-label').textContent,
+                tabIndex: node.tabIndex,
+                cursor: style.cursor,
+                background: style.backgroundColor,
+                border: style.borderTopColor,
+                ink: style.color,
+              };
+            }"""
+        )
+
+    muted = page.evaluate(
+        "() => getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--muted').trim()"
+    )
+    expected_ink = page.evaluate(
+        "muted => { const probe = document.createElement('span');"
+        " probe.style.color = muted; document.body.append(probe);"
+        " const read = getComputedStyle(probe).color; probe.remove(); return read; }",
+        muted,
+    )
+
+    def assert_receipt(phase):
+        expect(marker).to_have_attribute("data-identity-probe", "kept")
+        current = face()
+        assert current == {
+            "behavior": "receipt",
+            "role": "status",
+            "icon": RECEIPT_PHASES[phase],
+            "word": phase,
+            "tabIndex": -1,
+            "cursor": "default",
+            "background": "rgba(0, 0, 0, 0)",
+            "border": "rgba(0, 0, 0, 0)",
+            "ink": expected_ink,
+        }
+        named = re.compile(rf"^{re.escape(phase)},")
+        expect(page.get_by_role("button", name=named)).to_have_count(0)
+        expect(page.get_by_role("status", name=named)).to_have_count(1)
+        # The pointer finds nothing to lift, and the seat keeps the cluster's fitting.
+        marker.hover()
+        assert face() == current
+        assert marker.evaluate("node => getComputedStyle(node).width") == "32px"
+
+    assert_receipt("Sent")
+    result = Axe().run(
+        page,
+        options={
+            "runOnly": {"type": "tag", "values": ["wcag2a", "wcag2aa", "wcag21a"]},
+            "resultTypes": ["violations"],
+        },
+    )
+    assert [
+        violation["id"]
+        for violation in result.response["violations"]
+        if violation["impact"] in {"serious", "critical"}
+    ] == []
+    assert page.locator(".lf-margin-marker:visible").evaluate_all(
+        "rows => rows.some(row => row.tabIndex === 0)"
+    ), "no Button is left for Tab to enter the rail by"
+
+    # The reader listening still reaches the phase by its numbered address.
+    place = int(re.search(r"(\d+) of ", marker.get_attribute("aria-label")).group(1))
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press(str(place))
+    expect(marker).to_be_focused()
+
+    # Standing there is not the same as being the way in. A repaint under the reader
+    # leaves the rail's one stop on a Button that acts, and the receipt without one.
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame("
+        "() => requestAnimationFrame(done)))"
+    )
+    expect(marker).to_be_focused()
+    stops = page.locator(".lf-margin-marker:visible").evaluate_all(
+        "rows => rows.map(row => [row.dataset.lfBehavior, row.tabIndex])"
+    )
+    assert ["receipt", -1] in stops, stops
+    assert [behavior for behavior, index in stops if index == 0] == ["disclosure"], (
+        stops
+    )
+
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
+    assert_receipt("Waiting for pickup")
+
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(transaction, [logged_action])
+    told(page)
+    assert_receipt("Picked up")
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(page_dir),
+            "working",
+            "checking the mounts",
+            "--on",
+            "jobs",
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+
+    expect(marker).to_have_attribute("data-identity-probe", "kept")
+    active = face()
+    assert active["behavior"] == "disclosure"
+    assert active["role"] is None
+    assert active["icon"] == "activity"
+    assert active["cursor"] == "pointer"
+    assert active["background"] != "rgba(0, 0, 0, 0)"
+    assert active["border"] != "rgba(0, 0, 0, 0)"
+    expect(page.get_by_role("button", name=re.compile(r"^Active,"))).to_have_count(1)
+
+    honored = DECISION_PAGE.replace(
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+    )
+    stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))
+    wait_for_revision(page, 2)
+    assert_receipt("Outcome")
 
     assert errors == []
     page.close()
@@ -2488,7 +2717,12 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
 def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     browser, serve
 ):
-    """The shipped exchange fits beside its source and the contents sidebar."""
+    """The shipped exchange fits beside its source and the contents sidebar.
+
+    Ship review now stands a contents map, and a sidebar claims the opposite strip: the
+    thread margin waits for 1472px of shell there rather than 1208px (theme.css), so
+    1440 is a window this page opens Threads in rather than the one this case is
+    about."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
     resized_shell(page, 1536, 900)
@@ -2536,6 +2770,10 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardRight"] <= geometry["shellWidth"], geometry
+    # Narrower than the 460px --thread-card the pages without a sidebar get, and it is
+    # the strip's arithmetic rather than this window: a sidebar page keeps the document
+    # exactly --thread-margin (520px) from the right edge at every width, and the marker,
+    # the gutter beside it and the card's own 8px inset all come out of that 520.
     assert geometry["cardWidth"] >= 439, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
@@ -2592,6 +2830,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_visible()
     expect(preview.locator("textarea")).to_be_focused()
 
+    # 1208 plus the sidebar's 264: the floor a page standing a contents map waits for.
     resized_shell(page, 1472, 900)
     beside = page.evaluate(
         """() => {
@@ -2607,6 +2846,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
     assert beside["cardLeft"] == pytest.approx(beside["markerRight"] + 8, abs=0.5)
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
+    # At the sidebar floor the document is down to its own 640px floor and the strip is
+    # exactly --thread-margin, so the card takes what the marker, the gutter, main's
+    # 24px padding and its own 8px inset leave of that 520.
     assert beside["cardWidth"] >= 423, beside
 
     resized(page, 1471, 900)

@@ -21,6 +21,7 @@ from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
+    open_session_turn,
     owned_pages,
     unacknowledged,
 )
@@ -284,16 +285,22 @@ def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
     )
 
 
-def _deliver_batch(reading: PageTick) -> None:
-    """Write one page's complete batch and record its direct pickup."""
+def _deliver_batch(reading: PageTick) -> bool:
+    """Write one page's complete batch and record its direct pickup.
+
+    Answers that a turn opened, because under this carrier the handoff is the
+    opening: `leaf wait` returns with the batch on stdout and the words are in
+    model context before anything else runs.
+    """
     print(batch_jsonl(reading), flush=True)
     record_pickup(reading.transaction, reading.batch)
+    return True
 
 
 def read_watch_pass(
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None] = _deliver_batch,
+    deliver: Callable[[PageTick], bool] = _deliver_batch,
 ) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
@@ -321,7 +328,17 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
-            deliver(reading)
+            # Whether handing the batch over opens a turn is the carrier's to
+            # answer rather than something read off it. A direct wait says yes:
+            # leaving the Stop hook's stamp standing through the turn it exits
+            # into is what had the page telling the reader the agent had left
+            # and to nudge it, two minutes into a turn spent answering them. The
+            # Codex adapter says no; its own docstring holds why. The prompt
+            # hook stamps the openings no delivery carries. The Stop hook closed
+            # the turn across the session's pages, so an opening here reopens
+            # the same set.
+            if deliver(reading) and watch.session_id:
+                open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(

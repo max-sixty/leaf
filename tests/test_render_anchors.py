@@ -61,6 +61,7 @@ from render_support import (
     stamp_version_file,
     ticked,
     told,
+    wait_for_pending_mark,
     wait_for_revision,
 )
 
@@ -235,7 +236,11 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
     # Focusing the immediate field collapses the browser Selection; the durable pending
-    # paint proves the drag selected the words the widget actually says.
+    # paint proves the drag selected the words the widget actually says. The release
+    # queues the capture rather than performing it, so the paint is what says the gesture
+    # has been read — reading the highlight straight off the mouseup reads the frame
+    # before it and reports every drag as a drag that selected nothing.
+    wait_for_pending_mark(page)
     assert pending_text(page).strip() == "In flight", (
         "a drag across the heading selected nothing — it is painted, not said"
     )
@@ -418,10 +423,11 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page, errors = open_page(browser, live_url(serve(CONTROL_LABEL_PAGE)))
 
     tab = page.get_by_role("tab", name="Heated bird bath")
-    box = tab.bounding_box()
+    box = tab.locator("[data-lf-said]").bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
+    wait_for_pending_mark(page)
     assert pending_text(page).strip() == "Heated bird bath", (
         "a drag across the tab's name selected nothing"
     )
@@ -473,6 +479,7 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
+    wait_for_pending_mark(page)
     assert "Refill" in pending_text(page)
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
@@ -1100,6 +1107,62 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "the tinted line is the one that says it, and it says it once"
     )
 
+    appearance = page.evaluate("""() => {
+      const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
+      const block = document.querySelector('#walk-code pre');
+      const line = document.querySelector('#walk-code .lf-code-line');
+      const note = document.querySelector('#walk-code .lf-code-note');
+      const noteStyle = getComputedStyle(note);
+      const blockRect = block.getBoundingClientRect();
+      const noteRect = note.getBoundingClientRect();
+      return {
+        page: channels(getComputedStyle(document.body).backgroundColor),
+        block: channels(getComputedStyle(block).backgroundColor),
+        gutter: channels(getComputedStyle(line, '::before').backgroundColor),
+        note: channels(noteStyle.backgroundColor),
+        noteBorderBlock: noteStyle.borderBlock,
+        noteBorderLeftWidth: noteStyle.borderLeftWidth,
+        noteRadius: noteStyle.borderRadius,
+        noteFont: noteStyle.fontFamily,
+        sansFont: getComputedStyle(document.documentElement)
+          .getPropertyValue('--sans').trim(),
+        noteInset: {
+          left: noteRect.left - blockRect.left,
+          right: blockRect.right - noteRect.right,
+        },
+      };
+    }""")
+    assert appearance["block"] == [255, 255, 255], appearance
+    assert all(
+        channel > page_channel
+        for channel, page_channel in zip(appearance["block"], appearance["page"])
+    ), f"the code canvas is not whiter than the document: {appearance}"
+    assert appearance["gutter"] != appearance["block"], appearance
+    assert appearance["note"] == appearance["block"], appearance
+    assert appearance["noteBorderBlock"].startswith("1px solid"), appearance
+    assert appearance["noteBorderLeftWidth"] == "0px", appearance
+    assert appearance["noteRadius"] == "0px", appearance
+    assert appearance["noteFont"] == appearance["sansFont"], appearance
+    assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
+
+    scrolled_note = page.evaluate("""() => {
+      const block = document.querySelector('#walk-code pre');
+      const note = block.querySelector('.lf-code-note');
+      block.querySelector('.lf-code-line').style.width = '1600px';
+      block.scrollLeft = 500;
+      const blockRect = block.getBoundingClientRect();
+      const noteRect = note.getBoundingClientRect();
+      return {
+        scrollLeft: block.scrollLeft,
+        inset: {
+          left: noteRect.left - blockRect.left,
+          right: blockRect.right - noteRect.right,
+        },
+      };
+    }""")
+    assert scrolled_note["scrollLeft"] == 500, scrolled_note
+    assert scrolled_note["inset"] == {"left": 1, "right": 1}, scrolled_note
+
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
     post_event(
         page,
@@ -1320,9 +1383,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         leafFontSize,
         leafLineHeight,
         leafBackground,
-        backgroundIsNearlyNeutral:
-          Math.max(...backgroundChannels) - Math.min(...backgroundChannels) <= 3,
-        backgroundLeansWarm: backgroundChannels[0] > backgroundChannels[2],
+        backgroundIsWhite: backgroundChannels.every(channel => channel === 255),
         backgroundIsSeparateFromPage: leafBackground !== pageBackground,
       };
     }""")
@@ -1340,8 +1401,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["fontSize"] == reading["leafFontSize"] == "12.5px", reading
     assert reading["lineHeight"] == reading["leafLineHeight"] == "19px", reading
     assert reading["background"] == reading["leafBackground"], reading
-    assert reading["backgroundIsNearlyNeutral"], reading
-    assert reading["backgroundLeansWarm"], reading
+    assert reading["backgroundIsWhite"], reading
     assert reading["backgroundIsSeparateFromPage"], reading
 
     py = by_path["gateway/limits.py"]

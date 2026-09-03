@@ -226,9 +226,25 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
 
             captured = None
 
-            def capture(reading) -> None:
+            def capture(reading) -> bool:
+                """Persist the batch, and answer that no turn has opened.
+
+                This carrier hands a pointer to Codex's durable same-task queue,
+                and a queue item is started by the loaded client or by nobody:
+                an unloaded task keeps it standing until Codex reopens the task,
+                which the adapter never does. Even the queue acceptance this
+                capture precedes by a loop iteration proves only that the item
+                was taken. So clearing the turn-ended stamp here would put
+                "Codex is working" over a task nobody has reopened, for the
+                fifteen minutes until the claim's own age caught it, in place of
+                a line dating the last turn's end truthfully. Leaving it standing
+                costs the loaded case nothing the reader keeps: the turn that
+                does start writes a status past the stamp, which is what carries
+                a claim across a turn boundary the session cannot write over.
+                """
                 nonlocal captured
                 captured = capture_intent(identity["id"], reading)
+                return False
 
             reading = read_watch_pass(watch, None, deliver=capture)
             if captured is not None:

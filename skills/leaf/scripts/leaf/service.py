@@ -20,7 +20,7 @@ from leaf.host import (
     session_lifetime,
     state_home,
 )
-from leaf.locations import page_key
+from leaf.locations import page_key, paths_same
 from leaf.schema import EVENTS_FILE
 
 
@@ -95,8 +95,9 @@ class PageTransaction:
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
-            # When this session's last turn ended. None until one has, and reset
-            # by nothing: a claim taken again is a new record. See close_turn.
+            # When this session's last turn ended. None until one has, and
+            # cleared again when a batch delivered to this session opens the
+            # next turn. See close_turn and open_turn.
             "turn_closed": None,
         }
         write_json(path, claim)
@@ -143,6 +144,41 @@ class PageTransaction:
         claim = self.claim
         if claim and claim["released"] is None and claim["id"] == session_id:
             write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
+
+    def open_turn(self, session_id: str) -> None:
+        """Record that a turn of this session's is running again.
+
+        `close_turn` is stamped by the Stop hook, and until this it was stamped
+        by nothing else — so the page could see a turn end but never see the
+        next one begin. That is not symmetric bookkeeping for its own sake: two
+        minutes past the stamp the browser stops believing the claim under it
+        (`droppedAt`), and a session that came back and worked for longer than
+        that without writing a status was read as one that had walked away. The
+        reader was told the agent left when its turn ended and to nudge it in
+        the terminal, over a turn that was running.
+
+        Two things observe the beginning. A prompt is one: the hook that mirrors
+        the Stop hook fires with the turn already running, whoever caused it —
+        including the reader who did the thing the banner told them to and
+        nudged in the terminal, leaving no batch for any delivery to carry. A
+        delivery is the other, and whether it is belongs to the carrier that
+        makes it: the direct watcher exits into model context, so its handoff is
+        the turn; the Codex adapter hands a pointer to a durable queue an
+        unloaded task leaves standing, so its handoff is not, and it declines
+        this.
+
+        Nothing else about the claim moves. What the agent said it was doing
+        stays the agent's to write, and the fifteen-minute grace on that claim's
+        own age still catches a turn that ends without a Stop to stamp it.
+        """
+        claim = self.claim
+        if (
+            claim
+            and claim["released"] is None
+            and claim["id"] == session_id
+            and claim.get("turn_closed") is not None
+        ):
+            write_json(claim_path(self.page_dir), {**claim, "turn_closed": None})
 
     @property
     def status(self) -> dict:
@@ -248,6 +284,37 @@ def restore_page_claim(
     previous, expected = transition
     with PageTransaction(page_dir) as page:
         page.restore_claim(expected, previous)
+
+
+def open_session_turn(
+    session_id: str, delivered: PageTransaction | None = None
+) -> None:
+    """Clear the turn-ended stamp on every page one session holds.
+
+    A turn belongs to the session, not to the page whose batch opened it. The
+    Stop hook stamps the ending across `owned_pages`, so an opening that clears
+    only one page leaves every sibling claim stamped through a turn that is
+    demonstrably running: the reader comments on one leaf, and two minutes later
+    the next leaf tells its own reader the agent left when its turn ended and to
+    nudge it in the terminal.
+
+    A delivery names the page its batch came from, which is already open under
+    the transaction the batch left under — clearing it there is what keeps it
+    from being read between the two. A prompt names none: nothing was delivered,
+    so every page the session holds is a sibling. Each sibling takes its own
+    transaction, the way the Stop hook takes them, and a sibling the turn never
+    touches still falls to the fifteen-minute grace on its own claim age.
+    """
+    if delivered is not None:
+        delivered.open_turn(session_id)
+    for page_dir in owned_pages(session_id):
+        if delivered is not None and paths_same(page_dir, delivered.page_dir):
+            continue
+        try:
+            with PageTransaction(page_dir) as page:
+                page.open_turn(session_id)
+        except FileNotFoundError:
+            continue
 
 
 def owned_pages(session_id: str | None) -> list:

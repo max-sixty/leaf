@@ -498,14 +498,15 @@ def main() -> None:
     # the state home knows about, so recording on a machine with pages open puts a
     # control in the picture that the staged scene never had — and one that takes its
     # width out of everything left of it, so the whole row lands somewhere else than
-    # the alt text describes. Whose machine recorded it is not a fact about the
-    # product. Set before the first leaf command, so every one of them and the
-    # server they start inherit it.
+    # the alt text describes. The host's open pages and agent identity are not facts
+    # about the product. Set both before any leaf command so each command and its server
+    # inherit the staged values.
     state_dir = page_dir.parent / f"{page_dir.name}-state"
     if state_dir.exists():
         shutil.rmtree(state_dir)
     state_dir.mkdir()
     os.environ["XDG_STATE_HOME"] = str(state_dir)
+    os.environ["LEAF_AGENT"] = "Claude"
 
     # Two scopes because there are two things to give back and they start at
     # different moments: the staging directory exists from here on, the processes

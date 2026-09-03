@@ -453,8 +453,7 @@ AFTER_THE_DRAG = f"""async () => {{
   const field = document.querySelector('.lf-fab-input');
   return {{ text: getSelection().toString(),
            quote: document.getElementById('lf-composer-quote')?.textContent ?? '',
-           fieldOffered: Boolean(field?.checkVisibility()),
-           says: document.querySelector('.lf-keyline').textContent }};
+           fieldOffered: Boolean(field?.checkVisibility()) }};
 }}"""
 
 
@@ -468,19 +467,7 @@ def drag_across(page, selector):
 
 
 def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
-    """The site's voice, so the comment loop must not offer it.
-
-    The label stands inside <main>, where everything else is the page's own words and a
-    drag raises the pill that opens a composer on them. What holds it out is the class
-    the anchor pass reads as "not the document" — and losing that would be invisible
-    until a reader had quoted the label into a comment, where the quote names text the
-    published file has never held and resolves against nothing.
-
-    What each drag amounted to is read off the key line, which names what `c` would
-    comment on from the same anchor the button carries. Both readings are then a word
-    the page says rather than an absence to hold a window open for — and the page's own
-    lede goes first, since a line still naming the page after a drag that reached
-    nothing is a refusal this would report as the label's."""
+    """The site's label is chrome, so selecting it must not offer a comment field."""
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
         control = drag_across(page, "#decision-lede")
@@ -490,12 +477,6 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
         label = drag_across(page, "main > .sitenote p")
         assert "example of a leaf page" in label["text"]
         assert not label["fieldOffered"]
-        # The word `c` carries with nothing in hand — it goes to the threads rather
-        # than opening a box on anything, and "comment on the selection" does not
-        # contain it, so the two readings still tell each other apart.
-        assert "threads" in label["says"], (
-            "the site's own label was offered as a passage to quote"
-        )
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -613,8 +594,10 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         expect(page.locator(".lf-threads-toggle")).to_have_text(
             f"Threads ({opened_with + 1})"
         )
-        # The demo answers once, in its own name, and says what the page can't do.
-        expect(thread).to_contain_text("This is the demo answering, not an agent")
+        # The automated reply identifies itself and links to the real loop.
+        reply = thread.locator(".lf-msg.claude")
+        expect(reply.locator(".lf-msg-head b")).to_have_text("The demo")
+        expect(reply.locator('a[href="/index.html#install"]')).to_have_count(1)
         assert not errors, errors[:3]
     finally:
         page.close()

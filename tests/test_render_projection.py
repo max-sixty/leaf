@@ -4608,7 +4608,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     stopped.locator(":scope > summary").click()
     names = page.locator("#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li > a")
     expect(names).to_have_count(10)
-    expect(fleet.locator("li > a").first).to_have_text("atlas-lead")
+    expect(fleet.locator("li > a").first).to_have_text("§ atlas-lead")
     expect(stopped.locator("li > a").first).to_have_text("Choose the additive schema")
     rows = """() => [...document.querySelectorAll(
          '#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li')]

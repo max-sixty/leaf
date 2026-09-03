@@ -1480,13 +1480,27 @@ def panel_settled(page, open=True):
     covering sheet, a pre-stamp load, reduced motion — reports empty and returns at
     once. Waiting a duration instead would encode a number the stylesheet is free to
     change, and still be a guess on a loaded machine; the frame-sampling this replaced
-    is the failure CLAUDE.md's wait norm is named for."""
+    is the failure CLAUDE.md's wait norm is named for.
+
+    Finish that carry rather than sit out its clock. The carry is presentation only —
+    the layout it ends on is the layout the state change already installed — so its end
+    frame is the settled page either way, and this is the one wait a test can be holding
+    the clock still for: `HOLD_MOTION` pauses every animation the page starts at time
+    zero, which leaves a page whose reading column is parked mid-carry and a list that
+    never empties. Under it the panel is a step on the way to the gesture the test is
+    about, so the helper takes the carry to its end instead of waiting for a clock the
+    test has stopped. Finishing polls because the carry starts in the gesture's own
+    task: one that has not been made yet is finished on the next turn."""
     page.wait_for_function(
         "(open) => document.querySelector('.lf-panel').classList.contains('open') === open",
         arg=open,
     )
     page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
+        """() => {
+          const main = document.querySelector('body > main');
+          for (const carry of main.getAnimations()) carry.finish();
+          return main.getAnimations().length === 0;
+        }"""
     )
 
 

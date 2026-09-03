@@ -464,6 +464,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert 64 <= nav_box["y"] <= 68
     assert nav_box["height"] >= 790, f"the reading map used only {nav_box['height']}px"
     assert abs(nav_box["y"] + nav_box["height"] - 876) <= 1
+    prepare_box = page.locator("#prepare").bounding_box()
+    assert prepare_box is not None
+    assert nav_box["width"] == pytest.approx(292, abs=1)
+    assert prepare_box["x"] - nav_box["x"] - nav_box["width"] == pytest.approx(
+        24, abs=1
+    )
+
+    resized(page, 1800, 900)
+    expect(nav).to_have_css("width", "320px")
+    resized(page, 1152, 900)
+    expect(nav).to_have_css("width", "240px")
+    resized(page, 1400, 900)
+    assert nav.bounding_box() == nav_box
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
         """items => items.map(item => {
           const style = getComputedStyle(item, '::before');

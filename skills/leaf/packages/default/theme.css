@@ -1293,7 +1293,14 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc { position: fixed;
              left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
              top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-             width: calc(var(--sidebar) - var(--sp-4));
+             /* The generic sidebar guarantees a 240px map and its gutter. Once the
+              * reading column can stay centred with room left over, spend that empty
+              * margin on shorter labels until the map reaches 320px. */
+             width: clamp(
+               calc(var(--sidebar) - var(--sp-4)),
+               calc((100cqi - min(var(--col), var(--lf-room))) / 2
+                 + var(--lf-shift) - 2 * var(--sp-4)),
+               320px);
              height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
              margin: 0; }
     body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }

@@ -957,7 +957,8 @@ lf-milestones { display: block; margin: 14px 0 14px 8px; }
 lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
                border-left: 2px solid var(--rule); --lf-frame: 1; }
 lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
-lf-milestone::before { content: ""; position: absolute; left: -7px; top: 3px;
+lf-milestone::before { content: ""; position: absolute; left: -7px;
+                       top: calc(0.5lh - 7px);
                        width: 10px; height: 10px; border-radius: 50%;
                        background: var(--paper); border: 2px solid var(--muted); }
 lf-milestone[status="done"]::before   { background: var(--ok); border-color: var(--ok); }

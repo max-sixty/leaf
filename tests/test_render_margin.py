@@ -866,7 +866,12 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
     expect(preview).to_be_hidden()
     page.keyboard.press("Escape")
 
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    page.evaluate(
+        """() => new Promise(resolve => {
+          addEventListener('scrollend', resolve, {once: true});
+          document.scrollingElement.scrollTo(0, 0);
+        })"""
+    )
     before_sheet = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -901,10 +906,10 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
         })"""
     )
     page.locator("body").focus()
-    shot = page.get_by_role(
+    show_after = page.get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
-    expect(shot).to_be_visible()
+    expect(show_after).to_be_visible()
 
     page.keyboard.press("g")
     page.keyboard.press("m")
@@ -914,7 +919,12 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
     expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
     page.keyboard.press("1")
-    expect(shot).to_be_focused()
+    expect(
+        page.get_by_role(
+            "button",
+            name="Show before — a sample run list with and without a status column",
+        )
+    ).to_be_focused()
     assert errors == []
     page.close()
 

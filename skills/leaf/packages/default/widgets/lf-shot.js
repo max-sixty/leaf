@@ -8,7 +8,9 @@
  * scripted Button and keeps the native image control, so a standalone copy still
  * flips with a click or Space. Print stacks both frames and drops the controls.
  *
- * Captions are generated page words, retained on paper and available to selection.
+ * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
+ * labels are generated page words, available to selection, and become the order key
+ * above the two stacked frames on paper.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
   PRESS,
@@ -36,6 +38,19 @@ customElements.define(
       const alt = this.getAttribute("alt");
       const shots = [];
 
+      const rail = document.createElement("div");
+      rail.className = "lf-shotrail";
+      rail.dataset.lfGen = "1";
+      for (const state of ["before", "after"]) {
+        const caption = document.createElement("span");
+        caption.className = "lf-shotcap";
+        caption.dataset.lfGen = "1";
+        caption.dataset.lfState = state;
+        caption.textContent = state;
+        rail.append(caption);
+      }
+      this.append(rail);
+
       for (const state of ["before", "after"]) {
         const frame = document.createElement("div");
         frame.className = "lf-shotframe";
@@ -46,11 +61,7 @@ customElements.define(
         img.src = this.getAttribute(state);
         img.alt = `${state}: ${alt}`;
         shots.push(img);
-        const caption = document.createElement("span");
-        caption.className = "lf-shotcap";
-        caption.dataset.lfGen = "1";
-        caption.textContent = state;
-        frame.append(img, caption);
+        frame.append(img);
         this.append(frame);
       }
 

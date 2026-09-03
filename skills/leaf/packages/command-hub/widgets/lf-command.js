@@ -431,8 +431,10 @@ function renderFleet(snapshot) {
     const item = document.createElement("li");
     item.append(
       button(
-        worker.element.querySelector(":scope > strong")?.textContent.trim() ||
-          worker.element.id,
+        `§ ${
+          worker.element.querySelector(":scope > strong")?.textContent.trim() ||
+          worker.element.id
+        }`,
         worker.element,
       ),
     );

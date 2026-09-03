@@ -171,6 +171,41 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     page.close()
 
 
+def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
+    browser, serve
+):
+    """Re-laying docked controls cannot pull a reader back from the bottom."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 700, 500)
+    margins_laid_out(page)
+    assert page.locator(".lf-margin-item.lf-docked").count() >= 10
+
+    position = page.evaluate(
+        """async () => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+          window.scrollTo(0, document.documentElement.scrollHeight);
+          await frame();
+          const reading = () => ({
+            y: window.scrollY,
+            end: document.documentElement.scrollHeight - window.innerHeight,
+          });
+          const before = reading();
+          const laidOut = new Promise(resolve =>
+            document.addEventListener('lf-margin-layout', resolve, {once: true})
+          );
+          document.dispatchEvent(new CustomEvent('lf-actions'));
+          await laidOut;
+          await frame();
+          return {before, after: reading()};
+        }"""
+    )
+
+    assert position["before"]["y"] == position["before"]["end"]
+    assert position["after"] == position["before"]
+    assert errors == []
+    page.close()
+
+
 def test_a_docked_cluster_keeps_later_margin_buttons_beside_their_targets(
     browser, serve
 ):
@@ -275,9 +310,9 @@ def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1440, 390])
-def test_dense_gallery_labels_cover_no_neighboring_button(browser, serve, width):
+def test_dense_suggestion_labels_cover_no_neighboring_button(browser, serve, width):
     """Every label in a tightly stacked real cluster finds a clear side."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page, errors = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
     resized(page, width, 900)
     page.locator("#bg-neighbors").scroll_into_view_if_needed()
     for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
@@ -382,6 +417,16 @@ BUTTON_KEYBOARD_PAGE = SUGGESTION_PAGE.replace(
     1,
 )
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
+DENSE_SUGGESTIONS_PAGE = leaf_page(
+    "Dense suggestions",
+    """<p id="bg-neighbors">Pack
+  <lf-suggestion id="bg-neighbor-a"><lf-old>two</lf-old><lf-new>three</lf-new></lf-suggestion>
+  pencils,
+  <lf-suggestion id="bg-neighbor-b"><lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion>
+  paper, and a
+  <lf-suggestion id="bg-neighbor-c"><lf-old>large</lf-old><lf-new>small</lf-new></lf-suggestion>
+  map.</p>""",
+)
 PAGE_MAP_PAGE = leaf_page(
     "Twelve Page-map locations",
     "".join(
@@ -411,6 +456,8 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     resized(page, width, 900)
     margins_laid_out(page)
 
+    page.keyboard.press("a")
+    expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
     expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
@@ -513,19 +560,21 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.close()
 
 
-def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve):
-    """Each Button promise and the live example that keeps it share one section."""
+def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
+    browser, serve
+):
+    """One compact sample collects the Button grammar; feature sections keep examples."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
         "bg-changes": (
-            "Action Buttons: accept or reject suggestions",
+            "Suggestions: proposed text changes",
             "#bg-changes-guide",
             "#bg-replace",
         ),
         "bg-editing": (
-            "Disclosure Buttons: edit and inspect",
+            "Drafts: editable passages and history",
             "#bg-editing-guide",
             "#bg-draft",
         ),
@@ -535,22 +584,17 @@ def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve
             "#bg-thread-text",
         ),
         "bg-reactions": (
-            "Reaction Buttons: short verdicts",
+            "Reactions: short verdicts on a passage",
             "#bg-reactions-guide",
             "#bg-react-ok",
         ),
-        "bg-clusters": (
-            "Options Buttons: related controls",
-            "#bg-clusters-guide",
-            "#bg-crowded",
-        ),
         "bg-readings": (
-            "Reading Disclosures: Asks and Outcomes",
+            "Outcomes: recorded decisions",
             "#bg-readings-guide",
             "#bg-outcome-ask",
         ),
         "bg-version-changes": (
-            "Change Disclosure: version evidence",
+            "Version changes: comparison evidence",
             "#bg-version-guide",
             "#bg-change",
         ),
@@ -560,6 +604,17 @@ def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve
         expect(section.get_by_role("heading", name=heading, exact=True)).to_be_visible()
         expect(section.locator(guide_selector)).to_be_visible()
         expect(section.locator(example_selector)).to_be_visible()
+
+    change_forms = page.locator("#bg-change-forms")
+    expect(change_forms.locator(":scope > span")).to_have_count(3)
+    expect(change_forms.locator("#bg-replace, #bg-insert, #bg-delete")).to_have_count(3)
+    expect(page.locator("#bg-changes lf-suggestion")).to_have_count(3)
+
+    headings = page.locator("main section :is(h2, h3)").all_text_contents()
+    assert [
+        " ".join(heading.split()) for heading in headings if "Button" in heading
+    ] == ["Buttons: actions, disclosures, and states"]
+    expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
 
     feature_headings = page.locator(
         "main section h2:has(> .bg-feature-detail), "
@@ -600,13 +655,12 @@ def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve
     ]
     assert not unclear, unclear
 
+    button_sample = '[data-lf-margin-for="bg-crowded"]'
     examples = {
-        "action": page.locator('[data-lf-margin-for="bg-replace"] .lf-sug-accept'),
-        "disclosure": page.locator(
-            '[data-lf-margin-for="bg-thread-text"] .lf-margin-marker'
-        ),
-        "options": page.locator('[data-lf-margin-for="bg-crowded"] > .lf-margin-more'),
-        "settled": page.locator('[data-lf-margin-for="bg-react-ok"] .lf-react-mark'),
+        "action": page.locator(f"{button_sample} .lf-sug-accept"),
+        "disclosure": page.locator(f"{button_sample} .lf-margin-marker"),
+        "options": page.locator(f"{button_sample} > .lf-margin-more"),
+        "settled": page.locator(f"{button_sample} .lf-react-mark").first,
     }
     for behavior in ("action", "disclosure", "options"):
         expect(examples[behavior]).to_have_attribute("data-lf-behavior", behavior)
@@ -699,7 +753,7 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     proxy = sheet.get_by_role("button", name="Inspect source", exact=True)
     expect(proxy).to_be_visible()
@@ -761,13 +815,24 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_opens_the_complete_page_map_beyond_nine_locations(browser, serve):
-    """The Map destination never projects an arbitrary numbered prefix."""
+def test_g_m_addresses_nine_and_g_shift_m_opens_the_complete_page_map(browser, serve):
+    """The numbered prefix stays short while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, 1440, 900)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
+
     page.keyboard.press("g")
     page.keyboard.press("m")
+    route = page.locator(
+        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    )
+    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1–9"])
+    expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-group")).to_have_count(12)
@@ -786,9 +851,9 @@ def test_g_m_opens_the_complete_page_map_beyond_nine_locations(browser, serve):
     page.close()
 
 
-def test_g_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve):
+def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, serve):
     """Late action-only targets keep their verbs in the complete Page map."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page, errors = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
     resized(page, 1440, 900)
     page.evaluate(
         """() => {
@@ -799,7 +864,7 @@ def test_g_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve)
     )
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
     for title, word in (
@@ -2423,10 +2488,10 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
 def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     browser, serve
 ):
-    """The shipped exchange stays beside its source without covering the document."""
+    """The shipped exchange fits beside its source and the contents sidebar."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
-    resized(page, 1440, 900)
+    resized_shell(page, 1536, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
     ).locator(":scope > .lf-margin-marker")
@@ -2460,6 +2525,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   markerMiddle: (marker.top + marker.bottom) / 2,
                   cardLeft: card.left, cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
+                  shellWidth: document.body.getBoundingClientRect().width,
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
@@ -2469,8 +2535,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     )
     assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardRight"] <= 1440, geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardRight"] <= geometry["shellWidth"], geometry
+    assert geometry["cardWidth"] >= 439, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
@@ -2486,7 +2552,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     expect(send).to_be_focused()
 
-    resized(page, 1440, 480)
+    resized_shell(page, 1536, 480)
     capped = preview.evaluate(
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
@@ -2498,7 +2564,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
-    resized(page, 1440, 900)
+    resized_shell(page, 1536, 900)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
@@ -2526,7 +2592,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_visible()
     expect(preview.locator("textarea")).to_be_focused()
 
-    resized_shell(page, 1208, 900)
+    resized_shell(page, 1472, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -2541,9 +2607,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
     assert beside["cardLeft"] == pytest.approx(beside["markerRight"] + 8, abs=0.5)
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
-    assert beside["cardWidth"] >= 447, beside
+    assert beside["cardWidth"] >= 423, beside
 
-    resized(page, 1207, 900)
+    resized(page, 1471, 900)
     expect(preview).to_be_hidden()
     expect(marker).to_have_attribute("aria-controls", "lf-threads")
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
@@ -2833,7 +2899,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     if opener == "keyboard":
         page.keyboard.press("g")
         expect(page.locator(".lf-keyline")).to_contain_text("Page map")
-        page.keyboard.press("m")
+        page.keyboard.press("Shift+m")
     else:
         toggle.click()
     sheet = page.locator(".lf-page-map-sheet")
@@ -2859,7 +2925,8 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 
     page.keyboard.press("Escape")
     expect(sheet).to_be_hidden()
-    expect(toggle).to_be_focused()
+    return_focus = page.locator("body") if opener == "keyboard" else toggle
+    expect(return_focus).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert errors == []
     page.close()

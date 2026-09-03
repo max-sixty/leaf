@@ -1606,18 +1606,18 @@ while `print` matches is refused whole and taken once the screen is back. It is 
 thread list's head-room rule on the layer's other measuring surface: a reading taken
 where the box is `display: none` is not a measurement.
 
-That ordered target collection is the Page map's complete location count. A location's
-disclosure Button announces its position in the collection, while `g m` and the banner's
-Map control both open the same complete sheet. The collection is not a numbered address
-list: a one-digit route would silently make every location after the ninth unreachable.
-The sheet projects the same currently available contributed controls, in the same owner
-and role order, plus readings that have no direct control. An offered reading that merely
-describes its owner's controls is omitted there rather than becoming a parallel “open
-action” beside the real verbs. Ordinary entry focuses the sheet's filter, so a large map
-is searchable by Button name, concise target name, or the visible passage containing
-that target without tabbing through every preceding action. A spill opens this complete
-sheet focused on the first control the compact cluster omitted; it does not make a
-smaller overflow-only menu.
+That ordered target collection is the Page map's complete location count and the source
+for the `g m` address list. A location's disclosure Button announces its position in the
+complete collection. The numbered chord exposes the collection's first nine locations;
+`g M` and the banner's Map control open the complete sheet, so later locations remain
+reachable without making a one-digit chord ambiguous. The sheet projects the same
+currently available contributed controls, in the same owner and role order, plus readings
+that have no direct control. An offered reading that merely describes its owner's controls
+is omitted there rather than becoming a parallel “open action” beside the real verbs.
+Ordinary entry focuses the sheet's filter, so a large map is searchable by Button name,
+concise target name, or the visible passage containing that target without tabbing through
+every preceding action. A spill opens this complete sheet focused on the first control the
+compact cluster omitted; it does not make a smaller overflow-only menu.
 
 Live reconciliation retains the DOM identity of each surviving Button and each of its
 hit-tested descendants, including a count badge. State-feed refreshes can arrive between
@@ -2009,10 +2009,9 @@ visible control chips, while Tab enters the widget's own local scopes. `j`/`k` s
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
-from words the surface says: `w` narrows to threads waiting on the reader, while direct
-destinations use a mnemonic after `g`: `g T`, `g A`, and `g L` go to Threads, Asks,
-and All leaves, and `g m` opens the complete Page map. A key spelling something nothing
-on screen says is a key nobody reaches for twice.
+from words the surface says: `w` narrows to threads waiting on the reader, while the
+[Go-to chord](#go-to-chord) uses case to separate complete destinations from numbered
+lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
 a conditional chord mnemonic must not share its final key
@@ -2532,7 +2531,7 @@ Both entry controls call the same tray setter.
 Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
 `g L` may exchange a standing panel or tray for another; their return frame restores
 that prior workspace and re-resolves its semantic row when reconciliation rebuilt it.
-`g M` uses the same frame for the Page-map rail or compact sheet. Direct destinations
+`g M` uses the same frame for the complete Page-map sheet. Direct destinations
 therefore restore both exact standing and workspace state rather than merely focusing
 the destination's banner control after closing it.
 
@@ -2609,9 +2608,19 @@ region.
 
 ### Go-to chord
 
-`g` opens one destination mode. `T`, `A`, `L`, and `m` complete a direct trip to
-Threads, Asks, All leaves, and the complete Page map. `t`, `h`, and `f` name the page's
-numbered tab, hyperlink, and fold lists, and one digit names a member. `g g` and
+`g` opens one destination mode. For mnemonic letters, case determines the production:
+
+| Form | Meaning | Current routes |
+| --- | --- | --- |
+| `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map |
+| `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of its first nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
+
+Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
+`g m` starts the numbered Page-map location list, while `g M` completes a direct trip to
+the searchable Page map sheet. Each form contributes its own command row; its capability
+and landing behavior remain independent.
+
+`g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2620,9 +2629,9 @@ An edge is one place, so the second key completes the route; because every page 
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 Completing a direct destination exchanges the transient chord for one return frame;
 Escape restores the exact standing and workspace captured before `g` armed.
-`DIRECT_DESTINATIONS` is the direct-destination vocabulary. Each entry declares its
-mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
-vocabulary. Each entry declares:
+`DIRECT_DESTINATIONS` is the uppercase direct-destination vocabulary. Each entry declares
+its mnemonic, words, capability, and landing. `ADDRESSES` is the lowercase numbered
+page-list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
@@ -2636,7 +2645,8 @@ The page-level `g` row promises only the mode; destinations and ranges belong to
 the rows inside it. Completing an address runs that list's destination: a tab selects
 and takes focus, a same-document hyperlink follows and leaves focus on its fragment
 target, an external hyperlink names the browser tab it opens, a fold opens and takes
-focus. The complete Page map is a direct destination rather than a numbered list.
+focus, and a Page-map location opens its information or focuses its first available
+action. The complete Page map remains a direct destination beside that numbered prefix.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
 line and paints `data-lf-goto` on the body, so the contents map can reveal its labels as

@@ -23,8 +23,11 @@ surface must come from its owning runtime and theme through a shipped example or
 fixture; page-local HTML and CSS may frame it, but must not imitate it. Call an
 unimplemented imitation a sketch, not a preview. Confirm the expected content,
 review the changed surface at a representative viewport, and check the browser
-console. Hand off that URL and keep its process alive. Use the Codex review pane
-when feedback belongs to a source line.
+console. Navigate to the heading that owns the changed surface and hand off the
+exact URL including its fragment. Use a stable authored heading id; if the heading
+has none, add one to the source rather than relying on `lf-toc`'s position-derived
+target. Keep the process alive. Use the Codex review pane when feedback belongs to
+a source line.
 
 ## Preview a shipped example
 
@@ -32,8 +35,8 @@ when feedback belongs to a source line.
    long-running command or terminal session. Keep it alive and retain the exact
    served URL. The script replaces `.tmp/preview`, so one checkout has one active
    example preview.
-2. In Codex, call `mcp__codex_app__open_in_codex` with the URL as a browser
-   target and `placement: "right"`.
+2. In Codex, call `mcp__codex_app__open_in_codex` with that heading's fragment
+   URL as a browser target and `placement: "right"`.
 3. Run `<root>/bin/leaf codex start <root>/.tmp/preview` so Leaf comments return
    to the current task.
 4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
@@ -53,8 +56,9 @@ scripts/preview.py --source <source.html> --runtime <candidate-root> \
 
 Each command verifies the checkout launcher, vendors an independent page, starts
 its service, and prints its exact URL. Exercise the same journey and viewport at
-both URLs, check both browser consoles, then open both as Codex browser targets.
-Hand off the labeled URL pair and the action that reveals the difference.
+both URLs, check both browser consoles, then navigate both to the same authored
+heading id and open those exact fragment URLs as Codex browser targets. Hand off
+the labeled URL pair and the action that reveals the difference.
 
 ## Author or revise a page
 

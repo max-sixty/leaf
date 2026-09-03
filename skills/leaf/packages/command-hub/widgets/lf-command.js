@@ -52,8 +52,17 @@ function speakingOffer(tag, label, cls = "") {
   return node;
 }
 
+// A route to a row, not a second place the page says its name. The label is copied off
+// the target's own <strong>, and both copies stand fenced — the roster item is generated
+// words, and the row's name sits between the state chip and the remit the widget builds —
+// so two passages carried the same text and the same empty context, and neither could be
+// told from the other: a drag across a worker's name detached instead of anchoring, on the
+// name and on the row alike. Chrome, like the contents sidebar's links, which name every
+// heading on the page and say none of them. The words stay quotable where the page says
+// them, which is the row this points at.
 function button(label, target, cls = "") {
-  const node = speakingOffer("a", label, cls);
+  const node = offer("a", cls);
+  relabel(node, label, { says: false });
   node.href = `#${target.id}`;
   node.addEventListener("click", () => {
     if (commandRole(target, "worker")) {

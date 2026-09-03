@@ -937,6 +937,13 @@ or draft heading remain quotable while runtime controls stay outside the
 passage. `relabel` writes the said marker; `offer` writes the control marker.
 They are independent facts and neither clears the other.
 
+A label copied off another element on the page is a route to those words rather
+than a second place the page says them. Say it once: a contents link, a roster
+row naming a worker, any generated index entry stays chrome, and the passage
+lives where the page speaks it. Two copies of one label carry the same text and,
+being fenced, the same empty context, so neither can be told from the other and
+a drag across either detaches.
+
 ### Data projections
 
 The page has three kinds of visible words:

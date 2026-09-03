@@ -2009,11 +2009,9 @@ visible control chips, while Tab enters the widget's own local scopes. `j`/`k` s
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
-from words the surface says: `w` narrows to threads waiting on the reader, while direct
-destinations use an uppercase mnemonic after `g`: `g T`, `g A`, `g L`, and `g M` go to
-Threads, Asks, All leaves, and the complete Page map. Lowercase `g m` starts the Page-map
-location addresses. A key spelling something nothing on screen says is a key nobody
-reaches for twice.
+from words the surface says: `w` narrows to threads waiting on the reader, while the
+[Go-to chord](#go-to-chord) uses case to separate complete destinations from numbered
+lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
 a conditional chord mnemonic must not share its final key
@@ -2610,10 +2608,19 @@ region.
 
 ### Go-to chord
 
-`g` opens one destination mode. `T`, `A`, `L`, and `M` complete a direct trip to
-Threads, Asks, All leaves, and the complete Page map. `m`, `t`, `h`, and `f` name the
-page's numbered Page-map location, tab, hyperlink, and fold lists, and one digit names a
-member. `g g` and
+`g` opens one destination mode. For mnemonic letters, case determines the production:
+
+| Form | Meaning | Current routes |
+| --- | --- | --- |
+| `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map |
+| `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of its first nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
+
+Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
+`g m` starts the numbered Page-map location list, while `g M` completes a direct trip to
+the searchable Page map sheet. Each form contributes its own command row; its capability
+and landing behavior remain independent.
+
+`g g` and
 `g G` complete the chord themselves, gliding to the top and bottom of the visible
 scroller. When a thread holds focus, `g k` and `g j`
 place that card at the top or bottom of its list without moving the page. From a
@@ -2622,9 +2629,9 @@ An edge is one place, so the second key completes the route; because every page 
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 Completing a direct destination exchanges the transient chord for one return frame;
 Escape restores the exact standing and workspace captured before `g` armed.
-`DIRECT_DESTINATIONS` is the direct-destination vocabulary. Each entry declares its
-mnemonic, words, capability, and landing. `ADDRESSES` is the numbered page-list
-vocabulary. Each entry declares:
+`DIRECT_DESTINATIONS` is the uppercase direct-destination vocabulary. Each entry declares
+its mnemonic, words, capability, and landing. `ADDRESSES` is the lowercase numbered
+page-list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;

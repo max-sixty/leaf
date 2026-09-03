@@ -276,6 +276,12 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     )
     settled.click()
     round_trip(page)
+    # The withdrawal applied, and not merely delivered, before the raise below stands its
+    # choices inside the target's Buttons. A state that lands after that fold is open
+    # re-renders the cluster, and the margin says so on `lf-button-options-closed`, which
+    # is exactly what disarms the response mode the digit below is pressed into: the
+    # press then reaches nothing, and the read finds the withdrawal still last in the log.
+    told(page)
     select_paragraph(page, "#bg-react-ok")
     page.evaluate("() => document.body.focus()")
     page.keyboard.press("r")
@@ -286,7 +292,13 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in key_line(page)
 
+    sends = _traffic(page).sends
     page.keyboard.press("2")
+    # The digit's own gesture in the wire before the log is read. `round_trip` waits on
+    # what the page has sent, and a post the press has not made yet is not pending, so
+    # the read that follows it answers with whatever stood last — here the withdrawal
+    # above, which reads as the digit having chosen a token nobody pressed.
+    _until(page, lambda traffic: traffic.sends > sends, "sent the reaction 2 chose")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "no"

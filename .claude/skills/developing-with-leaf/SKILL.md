@@ -11,6 +11,9 @@ continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
 Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow.
+When a visual or content artifact would help the developer judge the work,
+generally put a draft in front of them during exploration or at handoff rather
+than relying on a description alone.
 Preview a shipped example when the request names one or that handoff requires
 interactive proof. Otherwise author or revise a page.
 

@@ -2717,13 +2717,20 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
         """() => {
           const card = document.getElementById('ac-card');
           const box = document.getElementById('ac-sug').getBoundingClientRect();
+          const head = document.getElementById('ac-heading').getBoundingClientRect();
+          const se = document.scrollingElement;
+          const clear = parseFloat(getComputedStyle(se).scrollPaddingTop) || 0;
           const inside = card.querySelector(
             'p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary');
           return card.scrollHeight > card.clientHeight &&
                  box.top > card.getBoundingClientRect().bottom &&
+                 box.bottom - head.top <= se.clientHeight - clear &&
                  !(inside && !inside.closest('lf-suggestion'));
         }"""
-    ), "the fixture's card either shows the change already or holds a block before it"
+    ), (
+        "the fixture's card shows the change already, holds a block before it, or has "
+        "grown past the heading's reach — the region would then be the change itself"
+    )
 
     page.keyboard.press("a")
     expect(page.locator("#ac-sug")).to_be_focused()

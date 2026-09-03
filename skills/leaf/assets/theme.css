@@ -863,6 +863,14 @@ dd { margin: 0 0 8px 0; }
 
 .eyebrow { font-size: var(--t-6); letter-spacing: .1em; text-transform: uppercase;
            color: var(--muted); font-weight: 500; margin: 0 0 10px; }
+/* An eyebrow and the heading below it are one title: the heading level's large top
+   margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
+   inside it. The contents map may put its zero-height fragment target between the two;
+   generated navigation must not change the authored rhythm. */
+.eyebrow:has(+ h2), .eyebrow:has(+ .lf-toc-target + h2) { margin-top: 48px; }
+.eyebrow:has(+ h3), .eyebrow:has(+ .lf-toc-target + h3) { margin-top: 32px; }
+.eyebrow + :is(h2, h3),
+.eyebrow + .lf-toc-target + :is(h2, h3) { margin-top: 0; }
 /* The one paragraph a reader is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;

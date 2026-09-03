@@ -6,7 +6,7 @@
 
 /* ---------- element-widgets ---------- */
 
-/* lf-gloss: the prose stays prose; the small raised mark is the keyboard and touch
+/* lf-gloss: the prose stays prose; the small raised info badge is the keyboard and touch
  * handle for the same explanation hover reveals. The underline is deliberately quieter
  * than a link — this phrase goes nowhere — while the top-layer card uses the page's
  * ordinary paper, ink, and rule rather than inventing a tooltip palette. Static copies
@@ -21,20 +21,24 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   html:not(.lf-copy) lf-gloss {
     text-decoration-line: underline;
     text-decoration-style: dotted;
-    text-decoration-color: var(--border-2);
-    text-underline-offset: .16em;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: .18em;
     cursor: help;
   }
 }
 .lf-gloss-mark {
-  display: inline-block; margin-left: 1px; border-radius: 3px;
-  color: var(--accent); font-size: .72em; line-height: 1;
-  vertical-align: super; cursor: help;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box; width: 1.05em; height: 1.05em; margin-left: 3px;
+  border-radius: 50%;
+  font-family: var(--sans); font-size: .64em; font-weight: 750; line-height: 1;
+  vertical-align: .48em; cursor: help;
   position: relative;
 }
-/* The glyph is six pixels wide and stands in a line of prose, so its box cannot be the
- * thing a reader aims at: growing it to a usable size would open the line it is set in,
- * which is the one thing a mark this small must not do. The aim is a box of its own,
+lf-gloss > .lf-gloss-mark { background: var(--accent); color: var(--card); }
+/* The compact badge stands in a line of prose, so its visible box cannot be the thing a
+ * reader aims at: growing it to a usable size would open the line it is set in, which is
+ * the one thing a mark this small must not do. The aim is a box of its own,
  * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
  * it belongs to, which costs nothing, because hovering that same phrase already reveals
  * the same explanation. */

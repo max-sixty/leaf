@@ -96,7 +96,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-decisions").click()
     asks = page.locator("button.lf-decisions-row")
-    expect(asks).to_have_count(9)
+    expect(asks).to_have_count(6)
     expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
         "Which map should the sample team carry?"

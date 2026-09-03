@@ -79,11 +79,43 @@ function placeRows(columnRect) {
 export function layoutMarginRows() {
   cancelAnimationFrame(pending);
   pending = 0;
+  // A compact page keeps every margin row in document flow. Pulling those rows out to
+  // re-measure the same posture briefly shortens the document, so a browser clamps a
+  // reader standing at its end before the rows return. Read the current posture as one
+  // batch and leave rows whose owner still says they cannot hang where they are.
+  const dockedRows = [...rows].filter(
+    ([row]) => row.isConnected && row.classList.contains("lf-docked"),
+  );
+  const staysDocked = new Set();
+  if (dockedRows.length) {
+    const postureColumnRect = marginColumn().getBoundingClientRect();
+    const postureRoom = document.body.getBoundingClientRect().right;
+    for (const [row, options] of dockedRows) {
+      const anchor =
+        typeof options.anchor === "function" ? options.anchor() : options.anchor;
+      const shown =
+        options.shown?.(anchor) ??
+        (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility());
+      if (
+        shown &&
+        !(
+          options.hangs?.(
+            row,
+            row.getBoundingClientRect(),
+            postureColumnRect,
+            postureRoom,
+          ) ?? true
+        )
+      )
+        staysDocked.add(row);
+    }
+  }
   for (const [row, options] of rows) {
     if (!row.isConnected) {
       rows.delete(row);
       continue;
     }
+    if (staysDocked.has(row)) continue;
     if (row.classList.contains("lf-docked")) options.float?.(row);
     row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";

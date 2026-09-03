@@ -1662,10 +1662,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         and provides a live example.
       </p>
       <p id="bg-start">
-        Hover over a Button for its label. Tab into a Button group and use ← / → and
-        Enter. Press a to move through Asks; when one is focused, press 1–9 to run a
-        numbered action. Use the contents spine or open Map from the top bar. Changes
-        persist on reload.
+        Use the contents spine or Map to find a feature; each eyebrow lists its element
+        names. Press <kbd>a</kbd> to move through Asks. Hover over a margin Button for
+        its label, or Tab into a group and use ← / → and Enter. Changes persist on
+        reload.
       </p>
 
       <section id="bg-core-surfaces">
@@ -1692,38 +1692,40 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         </lf-decision>
         <p id="bg-core-controls-guide">
           The top bar also shows the status line, <strong>Threads</strong>, the version
-          picker, <strong>Map</strong> (<kbd>g</kbd> then <kbd>m</kbd>), the keyboard
-          reference (<kbd>?</kbd> twice), and <strong>All leaves</strong> when another
-          Leaf page is live.
+          picker, <strong>Map</strong> (<kbd>g</kbd> then <kbd>Shift+M</kbd>), the
+          keyboard reference (<kbd>?</kbd> twice), and <strong>All leaves</strong> when
+          another Leaf page is live.
         </p>
       </section>
 
       <section id="bg-changes">
         <p class="eyebrow bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
         <h2 id="bg-changes-heading">
-          <strong>Action Buttons</strong
-          ><span class="bg-feature-detail">: accept or reject suggestions</span>
+          <strong>Suggestions</strong
+          ><span class="bg-feature-detail">: proposed text changes</span>
         </h2>
         <p id="bg-changes-guide">
-          A heavy ring marks an immediate action. Accept applies the suggested text;
-          Reject keeps the original. Undo reverses either decision.
+          Accept applies the proposed text; Reject keeps the original. Undo reverses
+          either decision.
         </p>
-        <p id="bg-replace-line">
-          <strong>Replace one word.</strong> The sample meeting starts at
-          <lf-suggestion id="bg-replace"
-            ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
+        <p id="bg-change-forms">
+          <span id="bg-replace-line"
+            ><strong>Replace.</strong> The sample meeting starts at
+            <lf-suggestion id="bg-replace"
+              ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
+            ></span
           >
-        </p>
-        <p id="bg-insert-line">
-          <strong>Insert a sentence.</strong> Bring a notebook.
-          <lf-suggestion id="bg-insert"
-            ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
+          <span id="bg-insert-line"
+            ><strong>Insert.</strong> Bring a notebook.
+            <lf-suggestion id="bg-insert"
+              ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
+            ></span
           >
-        </p>
-        <p id="bg-delete-line">
-          <strong>Delete a sentence.</strong> The room is upstairs.
-          <lf-suggestion id="bg-delete"
-            ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
+          <span id="bg-delete-line"
+            ><strong>Delete.</strong> The room is upstairs.
+            <lf-suggestion id="bg-delete"
+              ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
+            ></span
           >
         </p>
       </section>
@@ -1731,8 +1733,8 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       <section id="bg-editing">
         <p class="eyebrow bg-feature-elements">lf-draft</p>
         <h2 id="bg-editing-heading">
-          <strong>Disclosure Buttons</strong
-          ><span class="bg-feature-detail">: edit and inspect</span>
+          <strong>Drafts</strong
+          ><span class="bg-feature-detail">: editable passages and history</span>
         </h2>
         <p id="bg-editing-guide">
           Edit opens a draft. Save records the new text; Cancel closes the editor.
@@ -1779,8 +1781,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       <section id="bg-reactions">
         <p class="eyebrow bg-feature-elements">Reaction Button · reaction picker</p>
         <h2 id="bg-reactions-heading">
-          <strong>Reaction Buttons</strong
-          ><span class="bg-feature-detail">: short verdicts</span>
+          <strong>Reactions</strong
+          ><span class="bg-feature-detail">: short verdicts on a passage</span>
         </h2>
         <p id="bg-reactions-guide">
           Select words and press R to add a reaction. A square Button shows a saved
@@ -1807,50 +1809,33 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-clusters">
-        <p class="eyebrow bg-feature-elements">Options Button · Page map</p>
+        <p class="eyebrow bg-feature-elements">
+          Action Button · Disclosure Button · Options Button · Reaction Button
+        </p>
         <h2 id="bg-clusters-heading">
-          <strong>Options Buttons</strong
-          ><span class="bg-feature-detail">: related controls</span>
+          <strong>Buttons</strong
+          ><span class="bg-feature-detail">: actions, disclosures, and states</span>
         </h2>
-        <p id="bg-clusters-guide">
-          Press ⋯, or Tab into the group, to show up to six Buttons. Use ← / → and
-          Enter; Escape folds the group. More opens the remaining Buttons in Map.
-        </p>
-        <lf-suggestion id="bg-crowded">
-          <lf-old><p>Use the courtyard for the practice session.</p></lf-old>
-          <lf-new><p>Use the covered terrace for the practice session.</p></lf-new>
-        </lf-suggestion>
-        <p id="bg-neighbors-guide">
-          These close edits show whether each Button stays with the right words.
-        </p>
-        <p id="bg-neighbors">
-          Pack
-          <lf-suggestion id="bg-neighbor-a"
-            ><lf-old>two</lf-old><lf-new>three</lf-new></lf-suggestion
+        <p id="bg-buttons-line">
+          <strong>One shared target.</strong> Use the
+          <lf-suggestion id="bg-crowded"
+            ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
-          pencils,
-          <lf-suggestion id="bg-neighbor-b"
-            ><lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion
-          >
-          paper, and a
-          <lf-suggestion id="bg-neighbor-c"
-            ><lf-old>large</lf-old><lf-new>small</lf-new></lf-suggestion
-          >
-          map.
+          for the practice session. Accept and Reject act immediately; Thread opens its
+          conversation; reaction marks show settled verdicts; and ⋯ exposes the group.
         </p>
       </section>
 
       <section id="bg-readings">
         <p class="eyebrow bg-feature-elements">
-          Ask Disclosure · Outcome Disclosure · lf-decision
+          Outcome Disclosure · lf-decision · lf-options · lf-option
         </p>
         <h2 id="bg-readings-heading">
-          <strong>Reading Disclosures</strong
-          ><span class="bg-feature-detail">: Asks and Outcomes</span>
+          <strong>Outcomes</strong
+          ><span class="bg-feature-detail">: recorded decisions</span>
         </h2>
         <p id="bg-readings-guide">
-          ? opens an unanswered Ask. The check below opens a recorded Outcome. Both show
-          decision state without changing it.
+          The check opens the recorded choice below without changing it.
         </p>
         <lf-decision id="bg-outcome-ask">
           <h3 id="bg-outcome-ask-heading">Where should the sample group meet?</h3>
@@ -2198,8 +2183,8 @@ gallery/
       <section id="bg-version-changes">
         <p class="eyebrow bg-feature-elements">Version picker · Change Button</p>
         <h2 id="bg-version-changes-heading">
-          <strong>Change Disclosure</strong
-          ><span class="bg-feature-detail">: version evidence</span>
+          <strong>Version changes</strong
+          ><span class="bg-feature-detail">: comparison evidence</span>
         </h2>
         <p id="bg-version-guide">
           Open the version picker and press Δ beside v1. The Change Button appears by
@@ -2213,7 +2198,7 @@ gallery/
           lf-board · lf-column · lf-card · delivery Buttons
         </p>
         <h2 id="bg-delivery-heading">
-          <strong>Board</strong> and <strong>delivery Buttons</strong
+          <strong>Board</strong> and <strong>delivery state</strong
           ><span class="bg-feature-detail">: work and handoff state</span>
         </h2>
         <p id="bg-delivery-guide">

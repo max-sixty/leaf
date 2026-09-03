@@ -61,6 +61,7 @@ from render_support import (
     stamp_version_file,
     ticked,
     told,
+    wait_for_pending_mark,
     wait_for_revision,
 )
 
@@ -235,7 +236,11 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
     # Focusing the immediate field collapses the browser Selection; the durable pending
-    # paint proves the drag selected the words the widget actually says.
+    # paint proves the drag selected the words the widget actually says. The release
+    # queues the capture rather than performing it, so the paint is what says the gesture
+    # has been read — reading the highlight straight off the mouseup reads the frame
+    # before it and reports every drag as a drag that selected nothing.
+    wait_for_pending_mark(page)
     assert pending_text(page).strip() == "In flight", (
         "a drag across the heading selected nothing — it is painted, not said"
     )
@@ -422,6 +427,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
+    wait_for_pending_mark(page)
     assert pending_text(page).strip() == "Heated bird bath", (
         "a drag across the tab's name selected nothing"
     )
@@ -473,6 +479,7 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
+    wait_for_pending_mark(page)
     assert "Refill" in pending_text(page)
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 

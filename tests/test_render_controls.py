@@ -25,6 +25,8 @@ from render_support import (
     DEFINE_BOXES,
     DIFF_PAGE,
     EXAMPLES,
+    FEATURE_GALLERY,
+    HOLD_MOTION,
     LONG_PAGE,
     MANY_DECISIONS_PAGE,
     NEIGHBOUR,
@@ -352,6 +354,85 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-signoff").count() == 0
     # Approval takes the slot beside Threads where a page asks for one, so the absence
     # above is the whole fact: the row is a control short rather than a control longer.
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("width", [1440, 1600])
+def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
+    browser, serve, width
+):
+    """Opening Threads never makes the page visit intermediate responsive postures.
+
+    The gallery composes a left sidebar with the right living margin. At 1440px the
+    final shell withdraws the sidebar; at 1600px it withdraws the full conversation
+    margin. Animating the shell's width crossed either breakpoint in mid-flight, which
+    made the column jump or reverse direction.
+
+    Hold the runtime motion and seek it deterministically. The shell should already
+    have its final width and responsive state at the opening frame, while the column
+    starts where the reader left it and travels monotonically to its final position.
+    """
+    page, errors = open_page(browser, serve(FEATURE_GALLERY), init_script=HOLD_MOTION)
+    resized(page, width, 900)
+    initial = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          return {
+            x: main.getBoundingClientRect().x,
+            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
+            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
+              .getPropertyValue('--lf-sidebar-posture').trim(),
+          };
+        }"""
+    )
+
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    assert page.evaluate("() => window.__lfHeld.length") == 1, (
+        "opening the workspace did not produce one controllable column motion"
+    )
+    final_layout = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          return {
+            shell: document.body.getBoundingClientRect().width,
+            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
+            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
+              .getPropertyValue('--lf-sidebar-posture').trim(),
+          };
+        }"""
+    )
+    assert final_layout["shell"] == width - 420
+    assert (initial["claim"], initial["sidebar"]) != (
+        final_layout["claim"],
+        final_layout["sidebar"],
+    ), "the fixture crossed no responsive posture, so it cannot expose the regression"
+
+    positions = page.evaluate(
+        """() => {
+          const motion = window.__lfHeld[0];
+          const duration = motion.effect.getComputedTiming().duration;
+          return [0, .25, .5, .75, 1].map(part => {
+            motion.currentTime = duration * part;
+            return document.querySelector('main').getBoundingClientRect().x;
+          });
+        }"""
+    )
+    assert positions[0] == pytest.approx(initial["x"], abs=1)
+    if positions[-1] < positions[0]:
+        assert positions == sorted(positions, reverse=True), positions
+    else:
+        assert positions == sorted(positions), positions
+    assert all(
+        min(positions[0], positions[-1]) <= position <= max(positions[0], positions[-1])
+        for position in positions
+    ), f"the reading column overshot its two settled positions: {positions}"
+
+    page.evaluate("() => window.__lfHeld[0].finish()")
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
     assert errors == []
     page.close()
 
@@ -2345,9 +2426,15 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(page.locator(".lf-others-panel")).to_be_focused()
     expect(page.locator(".lf-keyline")).not_to_contain_text("walk the leaves")
     assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
-    # Nothing live left to open: the button stands while the panel does and stands
-    # down with it, which is the count's other half.
+    # Two presses in, two Escapes out. The second `g L` entered a tray that was already
+    # standing, so its own Escape gives that press back and leaves the workspace it
+    # found; the tray the first press stood up closes on the one after. Nothing live left
+    # to open: the button stands while the panel does and stands down with it, which is
+    # the count's other half.
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).not_to_be_visible()
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
@@ -2357,8 +2444,9 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     """The tray is a list, and a reader walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
-    at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
-    to the button that opened it. The go-to menu names the panel, and the key line names
+    at the ends, Enter opens the focused one in its own tab, and Esc gives that press
+    back — the reader is returned to the reading place they pressed `g L` from, not left
+    holding the button that names the tray. The go-to menu names the panel, and the key line names
     the tray's own keys once focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
@@ -2399,9 +2487,11 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     expect(tab).to_have_url(destination)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
-    # Closing while focus is inside would drop the reader on the body; it lands on
-    # the one control that reopens what just closed.
-    expect(btn).to_be_focused()
+    # One press in, one Escape out, and what the Escape gives back is exactly what the
+    # press took: the reading place `g L` was pressed from. Landing on the tray's own
+    # button instead would leave a reader who never touched it holding a control, one
+    # press from reopening what they had just put down.
+    assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
@@ -3917,27 +4007,32 @@ RING_SCOPE_CONTROL = {
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn
 # under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
-# where the document leaves room beside the source and opens Threads otherwise. Every
-# other scope is read at the width the page opened at.
+# where the document leaves room beside the source and opens Threads otherwise. That room
+# is the wider of the two floors here, because the card's walk is ship review and ship
+# review stands a contents map: a page with a sidebar waits for 1472px of shell rather
+# than 1208px (theme.css). Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # The one scope whose surface the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
-RING_SCOPE_WIDTH = {"a thread card": 1440, "the page map sheet": 760}
+RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
 # enters the page. Twelve stops instead of thirty-three, with every ring the page's own
 # widgets draw unread and the walk reporting itself complete.
 RING_WALK_START = "() => document.body.focus()"
-# A new stop, read on a rendered frame. Held by identity, since two buttons in a row can
-# say the same words at the same scroll and are still two stops.
+# What the walk is standing on, read on a rendered frame: a stop it has not stood on, one
+# it has, or nothing at all. Held by identity, since two buttons in a row can say the same
+# words at the same scroll and are still two stops. The three answers are one reading
+# rather than two, because only the middle one ends a walk and a boolean spelt the other
+# two the same way.
 RING_NEW_STOP = f"""async () => {{
   await ({RENDERED})();
   const e = ({DEEP_FOCUS})();
-  if (!e || e === document.body || e === document.documentElement) return false;
-  if (window.__lfSeen.has(e)) return false;
+  if (!e || e === document.body || e === document.documentElement) return "empty";
+  if (window.__lfSeen.has(e)) return "seen";
   window.__lfSeen.add(e);
-  return true;
+  return "new";
 }}"""
 
 
@@ -4250,17 +4345,27 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             for _ in range(400):
                 if walked or empty:
                     page.keyboard.press("Tab")
-                if not page.evaluate(RING_NEW_STOP):
-                    # The key that opened the scope may have landed focus on nothing, so
-                    # the first read is allowed to come back empty; a repeat after the
-                    # walk has started is the order having come round. Two, not the cap:
-                    # a walk that never starts otherwise spends four hundred frames
-                    # saying so and reads as a slow test rather than a broken one.
+                stop = page.evaluate(RING_NEW_STOP)
+                if stop == "seen":
+                    came_round = True
+                    break
+                if stop == "empty":
+                    # Nothing to stand on, which is two different things and neither of
+                    # them the end of the walk. The key that opened the scope may have
+                    # landed focus on nothing; and the tab order runs off the end of the
+                    # document and comes back in through it, so a scope the walk joins
+                    # part-way down its own order — the Page-map sheet, which it enters at
+                    # the list — keeps the stops above its starting point on the far side
+                    # of that crossing. Walking through it is how they are reached at all;
+                    # the order still ends where it comes round to a stop already stood
+                    # on. Two in a row is the cap, not four hundred: a walk that never
+                    # starts should say so rather than read as a slow test.
                     empty += 1
-                    if walked or empty > 2:
+                    if empty > 2:
                         came_round = True
                         break
                     continue
+                empty = 0
                 walked, stops = walked + 1, stops + 1
                 if (lost := page.evaluate(SEEN_STOP)) is not None:
                     unseen.add(f"{where}: {lost}")

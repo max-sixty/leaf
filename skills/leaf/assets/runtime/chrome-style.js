@@ -34,6 +34,14 @@ export function chromeStyle({
   TRAY_PROP,
 }) {
   return `
+  /* Workspace state changes the shell's size immediately; only this presentation
+     offset moves. Registering the length lets Web Animations interpolate it while
+     container queries continue to read the one final shell width. */
+  @property --lf-shell-motion-x {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
   /* The browser's root remains the document scrollport. That keeps native fragments,
      history restoration, wheel/touch input, and browser chrome on one shared reading
      position. Body is only the layout shell: its margins yield columns to standing
@@ -112,16 +120,6 @@ export function chromeStyle({
     :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
   body { position: static; box-sizing: border-box; }
-  /* The strip the panel takes is given up as motion rather than as a jump, so the eye
-     can follow the sentence it was reading to where it went. Keyed on the stamp that
-     says the document is done becoming itself, because until then every margin the
-     page has is one it arrived with: a panel restored open would otherwise slide into
-     place on load, and a version switch is a load, so every revision would arrive
-     sliding sideways under a user who asked for a revision and not for motion.
-     The stamp lands at the end of the start chain, long after the restore. Reduced
-     motion is handled globally by the theme's guard. */
-  body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] {
-    transition: margin-right .18s ease, margin-left .18s ease; }
   /* The strip itself, and — where there is no room to yield one — the page locking its
      root scrollport while the sheet covers it. Body's margin narrows the layout shell
      without replacing the browser's document scroller. Under a covering sheet one wheel
@@ -135,9 +133,9 @@ export function chromeStyle({
      The strip comes out of the page rather than being held aside for it, which makes
      opening the panel the largest movement in the product: the column re-centres by half
      the panel's width, and on a window narrow enough to lose width as well it rewraps
-     every line. Both are carried as motion rather than as a jump — the transition above,
-     keyed on the stamp for the reasons given there — because an eye can follow a sentence
-     that slides and cannot find one that teleports.
+     every line. The cascade lands that final responsive layout in one pass. moveShell
+     carries the column from its old horizontal position so the eye can follow it without
+     making every container query answer a series of transient shell widths.
 
      Locking the root drops its standing bar, which the reserved gutter this replaced would
      have held open under hidden too. So where the platform draws classic bars, the strip
@@ -154,13 +152,6 @@ export function chromeStyle({
   @media screen and ${COVERING} {
     :where(html:not(.lf-copy)):has(body[data-lf-panel]) { overflow-y: hidden; }
   }
-  /* The slide stands down for as long as the reader is holding the edge. A drag is a hand
-     on that edge, and 180ms of easing behind it is the page sliding out from under the
-     gesture that is moving it — the panel's own box follows the pointer exactly, so an
-     eased margin is the two edges of one edge coming apart. Every other way the margin
-     moves still wants the slide, an arrow step on the edge included: a step is one
-     discrete move the eye can follow, which is what the rule above is for. */
-  body[data-lf-sizing] { transition: none; }
   /* A tray that takes its room out of the page takes it the same way as the right panel:
      a body margin narrows and moves the layout shell while page-attached chrome keeps the
      document origin above it. The inset gives viewport-fixed page furniture that same
@@ -207,10 +198,7 @@ export function chromeStyle({
      buttons, and the attribute wireInput sets, which is the only one a span press can
      wear. */
   .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-  .lf-btn.on,
-  .lf-btn.lf-workspace[aria-expanded="true"] {
-    border-color: var(--accent); color: var(--accent); background: var(--chip);
-  }
+  .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
      Target actions use .lf-margin-action below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */
@@ -620,32 +608,39 @@ ${MARK_RULES}
      the chrome that would have to chase it down every scroll, reflow and drag. */
   [${PAGE_PAINT_ATTRIBUTE.decision}] { outline: var(--here-ring); --lf-here-ring: decision; outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
-     and the box that holds controls. What stays is a control whose label is one of
-     the page's own words — a pick mark reading "chosen" is the only place the page
-     says which option it carries — which is why this keys on the declaration each
-     label makes (see relabel) rather than on .lf-ui, whose question is anchoring's.
+     and the box that holds controls. What stays is a control whose label is words the
+     page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only
+     place the page says which option it carries), or one it echoes off another element
+     (data-lf-echo: a roster row is nothing but its worker's name and a chip) — which is
+     why this keys on the declaration each label makes (see relabel) rather than on
+     .lf-ui, whose question is anchoring's. The two markers part on that question alone:
+     an echo is no passage, and on a sheet the distinction has nothing to stand on.
      Asked of the control itself, not of what it holds: a settled group's disclosure
      names the chosen card, and that word is worth keeping on screen where the row is
      the only place it stands and worth dropping on paper, where the cards are open
-     underneath saying it themselves. An exported copy strikes the same bargain on the
-     same two markers, and takes the control out of the document rather than hiding it,
-     which paper cannot do (BAKE). The runtime's own layer hides as one thing, in the
+     underneath saying it themselves. An exported copy strikes the same bargain, and
+     takes the control out of the document rather than hiding it, which paper cannot do
+     (BAKE) — it asks the marker's value there, so an echoed route is a link the browser
+     still owns and keeps working. The runtime's own layer hides as one thing, in the
      @scope block below. */
   @media print {
-    [data-lf-offer]:not([data-lf-said]) { display: none !important; }
-    [data-lf-offer][data-lf-said] {
+    [data-lf-offer]:not([data-lf-said], [data-lf-echo]) { display: none !important; }
+    [data-lf-offer]:is([data-lf-said], [data-lf-echo]) {
       background: none !important; border: 0 !important; border-radius: 0 !important;
       box-shadow: none !important; padding-inline: 0 !important;
       cursor: default !important; text-decoration: none !important;
       list-style: none !important;
     }
-    [data-lf-offer][data-lf-said]::-webkit-details-marker { display: none !important; }
+    [data-lf-offer]:is([data-lf-said], [data-lf-echo])::-webkit-details-marker {
+      display: none !important;
+    }
     /* And the ones that stay give up the promise of a press. Twenty of the corpus's 236
        injected controls survive that first rule, every one of them because it speaks —
        and each was arriving on paper still dressed as a control: a chip background and a
        999px radius, a pointer cursor, a summary's marker, a link's underline. The words
-       are what data-lf-said keeps; the shape was never part of the bargain, and on a
-       sheet where nothing can be pressed it is a promise the page cannot answer.
+       are what the two word markers keep; the shape was never part of the bargain,
+       and on a sheet where nothing can be pressed it is a promise the page cannot
+       answer.
        Colour is left alone, because a chip that is red for a reason is saying something
        too and that is the same declaration's business. */
   }
@@ -813,6 +808,14 @@ ${MARK_RULES}
        here for the same reason the page map says it: hidden is a display of its own. */
     .lf-banner-more[hidden] { display: none; }
     .lf-banner-more[data-lf-news] { border-color: var(--accent); color: var(--accent); }
+    /* The open workspace wears the same accent face, from the state it already
+       publishes: showTray and the Threads toggle keep aria-expanded true on exactly
+       the one workspace standing, so the tint is that fact painted rather than a
+       second class to keep in step. Scoped, because lf-workspace is worn only by the
+       banner's own controls — All leaves, Asks, Threads — and a rule for it at
+       document level would widen the shared vocabulary by a name no widget wears. */
+    .lf-btn.lf-workspace[aria-expanded="true"] {
+      border-color: var(--accent); color: var(--accent); background: var(--chip); }
     /* Anchored under its own press, and every side it does not name said out loud. The
        popover UA rule is inset: 0 with margin: auto, so a rule that states only top and
        left leaves bottom and right at zero with automatic margins to resolve the
@@ -1505,13 +1508,21 @@ ${MARK_RULES}
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
       color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
+    /* The open sheet is a column so its one scroller takes whatever room the head and the
+       search box leave, rather than a height computed against the window: the list ran to
+       calc(100vh - 150px) while the box it sits in stops at min(720px, 100vh - 24px), so
+       on a short window the list was taller than the sheet, hung out of its rounded corner
+       and off the bottom edge, and its own focus ring was drawn outside the card. Said on
+       [open] because the author sheet would otherwise beat the UA's display:none for a
+       dialog that is shut. */
+    .lf-page-map-sheet[open] { display: flex; flex-direction: column; }
     .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
     .lf-page-map-search { width: 100%; box-sizing: border-box; margin-top: 10px;
       padding: 7px 9px; border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--paper); color: var(--ink); font: inherit; }
     .lf-page-map-search:focus-visible { outline: var(--here-ring);
       --lf-here-ring: page-map-search; outline-offset: 2px; }
-    .lf-page-map-list { margin-top: 6px; overflow: auto; max-height: calc(100vh - 150px); }
+    .lf-page-map-list { margin-top: 6px; overflow: auto; min-height: 0; }
     .lf-page-map-empty { margin: 18px 8px 8px; color: var(--muted); text-align: center; }
     .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
     .lf-page-map-group:first-child { border-top: 0; }

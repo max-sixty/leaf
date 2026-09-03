@@ -47,6 +47,7 @@ export function createChromeLayout({
   focused,
   foldShelf,
   keylineEl,
+  motion,
   pageShifted,
   paintHere,
   panel,
@@ -74,6 +75,7 @@ export function createChromeLayout({
   // makes that cheap: buildThreads walks the log and the page, and a second walk every two
   // seconds would answer nothing the last one didn't.
   let panelOpen = false;
+  let shellMotion = null;
   const panelIsOpen = () => panelOpen;
   // Whether the panel stands over the page rather than beside it — the same fact as which
   // of the two rules that take the strip the page is under, and as which region the
@@ -215,6 +217,52 @@ export function createChromeLayout({
     if (syncReactLayout()) return;
     refreshFab();
   }
+  // A workspace state is a responsive-layout boundary, not a sequence of temporary
+  // viewport sizes. Apply the state first, so every container query reads the final
+  // shell in one pass, then carry the reading column from the box it occupied before
+  // the change. Animating body's margin made the shell itself pass through every layout
+  // breakpoint: on the gallery the 520px conversation claim disappeared mid-flight and
+  // sent the column back the way it had come; one window down, the authored sidebar did
+  // the same. The offset moves only paint already laid out against the final shell.
+  function moveShell(change) {
+    const main = document.querySelector("body > main");
+    const before = main?.getBoundingClientRect();
+    // A second workspace can replace the first before its motion finishes. Preserve the
+    // currently drawn position, then release the old effect before reading the next
+    // layout; otherwise two animations would both own the same offset.
+    if (shellMotion) {
+      shellMotion.cancel();
+      shellMotion = null;
+    }
+    change();
+    if (!main || !before) {
+      scheduleShellRepaint();
+      return null;
+    }
+    const after = main.getBoundingClientRect();
+    const distance = before.left - after.left;
+    const moved = Math.abs(distance) >= 0.5;
+    const played = moved
+      ? motion(
+          main,
+          [
+            { "--lf-shell-motion-x": `${distance}px` },
+            { "--lf-shell-motion-x": "0px" },
+          ],
+          180,
+        )
+      : null;
+    shellMotion = played;
+    if (played) {
+      const settled = () => {
+        if (shellMotion === played) shellMotion = null;
+        scheduleShellRepaint();
+      };
+      played.finished.then(settled, settled);
+    }
+    scheduleShellRepaint();
+    return played;
+  }
   function setPanel(open) {
     if (open && currentTray()) showTray(null);
     // Closing while focus is inside would drop it on body, the user's place
@@ -229,7 +277,7 @@ export function createChromeLayout({
     // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
     // body, where page CSS can see it without naming private chrome.
     panel.classList.toggle("open", open);
-    document.body.toggleAttribute("data-lf-panel", open);
+    moveShell(() => document.body.toggleAttribute("data-lf-panel", open));
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {
       // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
@@ -275,12 +323,9 @@ export function createChromeLayout({
       if (repaintPage) pageShifted();
     });
   };
-  // Body's own box is the first of them, because the strip the page yields to a workspace
-  // is an eased margin: a state writer returns while the box and every page target keep
-  // moving for another fifth of a second. Width observation handles taking or returning
-  // room. Margin-transition frames handle an equal-width swap from a left tray to the
-  // right panel, where the shell translates without resizing. The attribute observation
-  // supplies the final reading when reduced motion removes the transition altogether.
+  // Body's own box is the first of them, because a workspace lands its final shell width
+  // before the column finishes moving there. Width observation handles taking or
+  // returning room; moveShell's frames keep page-attached paint with the carried column.
   //
   // A height-only body resize is repaint-only. An image or font can move a later target
   // without resizing that target or mutating the DOM, while sending that ordinary page
@@ -316,34 +361,15 @@ export function createChromeLayout({
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(keylineEl);
 
-  const movingMargins = new Set();
   let shellFrame = 0;
-  const marginProperty = (event) =>
-    event.target === document.body &&
-    (event.propertyName === "margin-left" || event.propertyName === "margin-right");
   function repaintMovingShell() {
     shellFrame = 0;
     pageShifted();
-    if (movingMargins.size) shellFrame = requestAnimationFrame(repaintMovingShell);
+    if (shellMotion?.playState === "running")
+      shellFrame = requestAnimationFrame(repaintMovingShell);
   }
   function scheduleShellRepaint() {
     if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
   }
-  document.body.addEventListener("transitionrun", (event) => {
-    if (!marginProperty(event)) return;
-    movingMargins.add(event.propertyName);
-    scheduleShellRepaint();
-  });
-  for (const type of ["transitionend", "transitioncancel"])
-    document.body.addEventListener(type, (event) => {
-      if (!marginProperty(event)) return;
-      movingMargins.delete(event.propertyName);
-      scheduleShellRepaint();
-    });
-  new MutationObserver(scheduleShellRepaint).observe(document.body, {
-    attributes: true,
-    attributeFilter: ["data-lf-panel", "data-lf-tray"],
-  });
-
-  return { inPanel, panelCovers, panelIsOpen, setPanel, syncLayout };
+  return { inPanel, moveShell, panelCovers, panelIsOpen, setPanel, syncLayout };
 }

@@ -23,8 +23,8 @@ preference.addEventListener("change", (event) => {
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. The board's FLIP and the folds (FOLD_MS) are the motions the product makes;
-// they share one ease and one held-end-frame contract.
+// state. The board's FLIP, the shell carry, and the folds (FOLD_MS) are the motions the
+// product makes; they share one ease and one held-end-frame contract.
 export function motion(el, keyframes, ms) {
   // First replay happens behind the presentation boundary. Its state should be the
   // first frame the reader sees, not a motion from authored state they never saw; it
@@ -45,10 +45,11 @@ export function motion(el, keyframes, ms) {
   // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
   // that frame true in DOM/CSS, then release the effect. The extra microtask is the
   // ordering: our reaction was registered first, so cancelling in it would expose the
-  // unanimated box before the caller removed, hid or restated it. A FLIP has no cleanup
-  // because its underlying placement already is its last frame; it still leaves no
-  // filled animation behind. Cancellation is already the release, and the rejection
-  // arm consumes it so an interrupted move reports no unhandled promise.
+  // unanimated box before the caller removed, hid or restated it. Presentation offsets
+  // such as a FLIP or shell carry need no cleanup because their underlying placement
+  // already is their last frame; they still leave no filled animation behind.
+  // Cancellation is already the release, and the rejection arm consumes it so an
+  // interrupted move reports no unhandled promise.
   played.finished.then(
     () =>
       queueMicrotask(() => {

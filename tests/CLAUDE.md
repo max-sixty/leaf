@@ -656,7 +656,16 @@ within one final state proves nothing about motion between those reads.
 A frame is one held state. `HOLD_MOTION` pauses animations so a short-lived midpoint
 can remain available while Playwright inspects it. Step or release every held animation
 after the assertion so completion handlers run and teardown is not left waiting on a
-promise that cannot settle.
+promise that cannot settle. `window.__lfHeld` is what is still held: a released
+animation leaves it, so a count reads as the gesture's own motions and an index keeps
+pointing at the one it was taken for. A motion the page cancels stays, because a
+cancelled move is evidence a gesture was taken back.
+
+A gesture on the way to the one under test still has to reach its end state under that
+hold, and the harness helper for the gesture owns it — `panel_settled` and
+`edge_settled` finish the shell carry rather than waiting out a clock the test has
+stopped. Every workspace gesture starts that same carry, so a test holding motion that
+opens a panel or a tray by hand needs the same, or it reads a page parked mid-carry.
 
 A sequence is ordered evidence across frames. A fold can have correct start, midpoint,
 and final values yet flash its unanimated state for one frame when the effect expires.

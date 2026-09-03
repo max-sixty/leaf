@@ -476,25 +476,20 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     readings = page.evaluate(
         """() => new Promise(resolve => {
-          const body = document.body;
+          const main = document.querySelector('body > main');
           const readings = [];
-          let sampling = false;
           const sample = () => {
             const target = document.getElementById('lq-keep').getBoundingClientRect();
             const aim = document.querySelector('.lf-aim');
             const box = aim.getBoundingClientRect();
             readings.push({shown: aim.checkVisibility(), dx: box.left - target.left,
                            dy: box.top - target.top});
-            if (body.getAnimations().some(animation => animation.playState === 'running'))
+            if (main.getAnimations().some(animation => animation.playState === 'running'))
               requestAnimationFrame(sample);
             else resolve(readings);
           };
-          body.addEventListener('transitionrun', event => {
-            if (sampling || !event.propertyName.startsWith('margin-')) return;
-            sampling = true;
-            requestAnimationFrame(sample);
-          });
           document.querySelector('.lf-threads-toggle').click();
+          requestAnimationFrame(sample);
         })"""
     )
     page.keyboard.up("Alt")
@@ -1403,7 +1398,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     same space: it sat in viewport space once, with the scroll added on top, and stood a
     screen below its box on any page scrolled at all. The aim is one more of the
     chrome's promises over the same page, so the reflow doors repaint it too
-    (pageShifted): it once kept its old coordinates through the panel's slide, a box
+    (pageShifted): it once kept its old coordinates through the panel's column motion, a box
     and name floating half a panel to the right of the element they claimed."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("i")
@@ -1427,7 +1422,8 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     page.wait_for_function(
-        "() => document.body.getAnimations().every(a => a.playState !== 'running')"
+        "() => document.querySelector('body > main').getAnimations()"
+        ".every(a => a.playState !== 'running')"
     )
     page.wait_for_function(LEGEND_TRUE)
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed

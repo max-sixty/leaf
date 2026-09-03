@@ -1660,7 +1660,9 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     page.locator(f"{edge.region} .lf-edge").press(
         "ArrowRight" if edge.side == "right" else "ArrowLeft"
     )
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
     stepped = geometry(page, edge)
 
     page.reload(wait_until="load")
@@ -1713,11 +1715,15 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     drawn = geometry(page, edge)
 
     resized(page, narrow, 900)
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
     squeezed = geometry(page, edge)
 
     resized(page, 1400, 900)
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
     roomy = geometry(page, edge)
     page.close()
 
@@ -1789,7 +1795,9 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 
     page.locator(".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_hidden()
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
     given_back = page.evaluate(posture)
     page.close()
 
@@ -1802,23 +1810,13 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 
 
 def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
-    """The room a wide exhibit may take is the page's box less the strips the chrome
-    holds, and for the fifth of a second a strip takes to arrive that box is neither the
-    width the page has nor the one it is going to. Written as the box minus the strip the
-    margin has not taken yet, the two readings are in different number systems — a client
-    box is an integer and a transitioning margin is not — and the sum landed a pixel either
-    way on alternate frames.
+    """The shell adopts a workspace's final room in one layout pass.
 
-    A pixel is nothing to look at and the flicker is not the failure. Each flip is a
-    relayout of every exhibit on the page, made from inside the observation that asked for
-    it, and Chrome answers a loop of those on the window's error channel and nowhere else:
-    the first sight of it was a press sweep going red on one example with nothing on screen
-    to say why.
-
-    So the reading is of the property rather than of anything laid out from it, and what it
-    asks is that the room never returns to a value it has left. That is true of a slide
-    both ways — arriving, the room is stated at once and holds; leaving, it grows back
-    frame by frame — and it is false the moment two readings disagree by a pixel."""
+    The first sample precedes the press. Every later frame should read the final room while
+    the presentation offset carries the column there. More than those two values means the
+    shell is moving through transient widths and making its container queries repeatedly
+    lay out the page.
+    """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
     page.evaluate(ROOM_EVERY_FRAME, 60)
@@ -1832,9 +1830,9 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     assert len(steps) > 1, (
         f"the tray took no room out of the page, so nothing here was measured: {steps}"
     )
-    assert len(steps) == len(set(steps)), (
-        "the room went back to a width it had already left, which is a relayout of every "
-        f"exhibit on the page on alternate frames: {steps}"
+    assert len(steps) == 2, (
+        "the workspace made the page visit intermediate shell widths instead of landing "
+        f"its final responsive layout once: {steps}"
     )
     assert errors == []
 

@@ -1233,7 +1233,9 @@ def managed_server(spawn):
             text=True,
         )
         assert process.stdout.readline().startswith("http://127.0.0.1:")
-        assert "session server" in process.stderr.readline()
+        assert process.stderr.readline().strip() == (
+            "server   session (stops with its agent session)"
+        )
         return process
 
     return start
@@ -1282,7 +1284,7 @@ def standing_server(spawn, sessionless):
             text=True,
         )
         assert process.stdout.readline().startswith("http://127.0.0.1:")
-        assert "standing server" in process.stderr.readline()
+        assert process.stderr.readline().strip() == "server   standing"
         return process
 
     return start

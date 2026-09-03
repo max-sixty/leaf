@@ -86,7 +86,14 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             assert result.returncode == 0, (
                 f"slot {slot}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )
-            urls.append(result.stdout.splitlines()[-1])
+            output = result.stdout.splitlines()
+            assert output[:2] == [
+                "prepared shared-preview (1 version)",
+                "",
+            ]
+            assert "initialized" not in result.stdout
+            assert "stamped" not in result.stdout
+            urls.append(output[-1])
 
         assert urls[0] != urls[1]
         assert all(

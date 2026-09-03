@@ -38,14 +38,18 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 lf-gloss > .lf-gloss-mark { background: var(--accent); color: var(--card); }
 /* The compact badge stands in a line of prose, so its visible box cannot be the thing a
  * reader aims at: growing it to a usable size would open the line it is set in, which is
- * the one thing a mark this small must not do. The aim is a box of its own,
- * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
- * it belongs to, which costs nothing, because hovering that same phrase already reveals
- * the same explanation. */
+ * the one thing a mark this small must not do. The aim is a box of its own, outside
+ * layout entirely — it overlaps the tail of the phrase it belongs to, which costs
+ * nothing, because hovering that same phrase already reveals the same explanation. It
+ * ends where the badge ends rather than straddling it: an absolutely positioned box is
+ * outside layout but still inside its ancestors' scrollable overflow, so a box centred
+ * on a badge that sits near a cell's inline edge makes that table scroll sideways by
+ * the half it hangs over. Reaching back over the phrase costs nothing; reaching past
+ * the edge the badge itself fits inside does. */
 .lf-gloss-mark::after {
-  content: ""; position: absolute; top: 50%; left: 50%;
+  content: ""; position: absolute; top: 50%; inset-inline-end: 0;
   width: var(--aim-floor); height: var(--aim-floor);
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
 }
 .lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
@@ -957,7 +961,8 @@ lf-milestones { display: block; margin: 14px 0 14px 8px; }
 lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
                border-left: 2px solid var(--rule); --lf-frame: 1; }
 lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
-lf-milestone::before { content: ""; position: absolute; left: -7px; top: 3px;
+lf-milestone::before { content: ""; position: absolute; left: -7px;
+                       top: calc(0.5lh - 7px);
                        width: 10px; height: 10px; border-radius: 50%;
                        background: var(--paper); border: 2px solid var(--muted); }
 lf-milestone[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
@@ -1223,8 +1228,13 @@ lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotframe { outline: var(--here-ring);
-    --lf-here-ring: shot-frame; outline-offset: 1px; }
+/* The rail and the frame are one card, so the ring goes round the card. Drawn on the
+   frame alone it ran along the rail's foot instead of round anything, and the rail's
+   own surface stands where its top run is. lf-shot paints nothing of its own, so the
+   radius here is the card's outer corners lent to the outline and reaches nothing
+   else. */
+lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline: var(--here-ring);
+    --lf-here-ring: shot; outline-offset: 1px; border-radius: var(--r); }
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
@@ -1293,7 +1303,14 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc { position: fixed;
              left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
              top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-             width: calc(var(--sidebar) - var(--sp-4));
+             /* The generic sidebar guarantees a 240px map and its gutter. Once the
+              * reading column can stay centred with room left over, spend that empty
+              * margin on shorter labels until the map reaches 320px. */
+             width: clamp(
+               calc(var(--sidebar) - var(--sp-4)),
+               calc((100cqi - min(var(--col), var(--lf-room))) / 2
+                 + var(--lf-shift) - 2 * var(--sp-4)),
+               320px);
              height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
              margin: 0; }
     body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
@@ -1343,8 +1360,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                              line-height: 1.2; max-height: 2.4em; }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }
-    lf-toc a:focus-visible { outline: 2px solid var(--accent);
-                             outline-offset: -2px; }
+    lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
+                             outline-offset: calc(-1 * var(--here-ring-w)); }
     lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) {
       --lf-toc-label-opacity: 1;
     }

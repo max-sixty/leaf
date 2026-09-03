@@ -415,7 +415,13 @@ main {
   max-width: var(--col);
   margin: 0 auto;
   padding: 72px var(--col-pad) 96px;
-  left: var(--lf-shift);
+  /* A workspace changes the shell's responsive state in one layout pass. The runtime
+   * then carries this final column from its old horizontal position to its new one
+   * through --lf-shell-motion-x. Keeping that presentation offset out of the shell's
+   * inline size prevents container-query postures from appearing and disappearing in
+   * the middle of the motion. A static copy has no runtime registration and reads the
+   * zero fallback. */
+  left: calc(var(--lf-shift) + var(--lf-shell-motion-x, 0px));
   position: relative;
   --lf-frame: 1;
   --lf-column: 1;

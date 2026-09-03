@@ -285,16 +285,22 @@ def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
     )
 
 
-def _deliver_batch(reading: PageTick) -> None:
-    """Write one page's complete batch and record its direct pickup."""
+def _deliver_batch(reading: PageTick) -> bool:
+    """Write one page's complete batch and record its direct pickup.
+
+    Answers that a turn opened, because under this carrier the handoff is the
+    opening: `leaf wait` returns with the batch on stdout and the words are in
+    model context before anything else runs.
+    """
     print(batch_jsonl(reading), flush=True)
     record_pickup(reading.transaction, reading.batch)
+    return True
 
 
 def read_watch_pass(
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None] = _deliver_batch,
+    deliver: Callable[[PageTick], bool] = _deliver_batch,
 ) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
@@ -322,14 +328,16 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
-            deliver(reading)
-            # Handing the batch over is the turn opening. The Stop hook stamped
-            # the last ending; leaving that stamp standing through the turn this
-            # delivery starts is what had the page telling the reader the agent
-            # had left and to nudge it, two minutes into a turn spent answering
-            # them. The Stop hook closed the turn across the session's pages, so
-            # the delivery that answers it reopens the same set.
-            if watch.session_id:
+            # The carrier that hands the batch over is the one thing that knows
+            # whether a turn is opening, exactly as the Stop hook is the one
+            # thing that knows one is over — so it answers rather than being
+            # read. A direct wait says yes: leaving the Stop hook's stamp
+            # standing through the turn it exits into is what had the page
+            # telling the reader the agent had left and to nudge it, two minutes
+            # into a turn spent answering them. The Codex adapter says no; its
+            # own docstring holds why. The Stop hook closed the turn across the
+            # session's pages, so a delivery that opens one reopens the same set.
+            if deliver(reading) and watch.session_id:
                 open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:

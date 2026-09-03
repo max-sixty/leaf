@@ -2290,6 +2290,79 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     assert intent_payload.exists()
 
 
+def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """A direct wait's handoff is the turn opening, because the batch is in model
+    context the moment the command returns. This carrier's is not: it hands a pointer
+    to Codex's durable same-task queue, which the loaded client starts and an unloaded
+    task leaves standing until someone reopens it — and the adapter never reopens one.
+
+    So the stamp the Stop hook left is still true after acceptance, and clearing it
+    would put "Codex is working" over a task nobody has read the delivery in. The
+    cursor advancing and the intent being spent are what says the delivery went
+    through: the assertion is that a completed queue delivery moved everything except
+    this."""
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "working", "answering the last comment")
+    started = under_codex(
+        shlex.join(
+            [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+
+    # As in the delivery test above: the fake Codex wrapper exits with its one
+    # command, and the task's own lifetime has to outlive it for the carrier to
+    # stay live.
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if (
+                codex_model.adapter_is_live("codex-thread")
+                and page_state(page)["listening"]
+            ):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the detached Codex carrier did not remain live")
+
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        closed = service_model.page_claim(page)["turn_closed"]
+        assert closed
+
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if (
+                files_model.read_json(page / "cursor.json") == {"seq": 1}
+                and not codex_model.delivery_path("codex-thread").exists()
+            ):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the adapter did not acknowledge its batch")
+
+        assert service_model.page_claim(page)["turn_closed"] == closed
+        session_model.cmd_status(page, "idle", "")
+    finally:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+
+
 def test_adding_a_page_cannot_race_the_codex_adapter_exit(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):

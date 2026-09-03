@@ -157,12 +157,13 @@ class PageTransaction:
         reader was told the agent left when its turn ended and to nudge it in
         the terminal, over a turn that was running.
 
-        Delivery is where the beginning is observable. A batch reaching the
-        agent is what starts the turn that answers it under either carrier —
-        the direct watcher exits into model context, the Codex adapter queues a
-        turn in the same task — so the carrier that hands one over is the one
-        thing that knows a turn is opening, exactly as the Stop hook is the one
-        thing that knows one is over.
+        A delivery is where the beginning can be observable, and whether it is
+        belongs to the carrier that makes it. The direct watcher exits into
+        model context, so its handoff is the turn; the Codex adapter hands a
+        pointer to a durable queue an unloaded task leaves standing, so its
+        handoff is not, and it declines this. The carrier is the one thing that
+        knows a turn is opening, exactly as the Stop hook is the one thing that
+        knows one is over.
 
         Nothing else about the claim moves. What the agent said it was doing
         stays the agent's to write, and the fifteen-minute grace on that claim's

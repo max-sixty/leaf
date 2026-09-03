@@ -38,11 +38,15 @@ A claim also has an end the page can observe rather than outwait. The Stop hook
 stamps `turn_closed` on the claim record when the turn that could have renewed it
 ends, and the banner stops believing a claim older than that stamp after a short
 grace — much shorter than the claim's own, because it is reached by evidence
-instead of by a clock. The opening of the next turn is stamped by the carrier that
-causes it: handing a batch to the agent is what starts the turn that answers it,
-so a delivery clears the stamp under the same lock the batch left under. Both
-stamps are the session's rather than the page's, and both span its pages: the
-Stop hook closes the turn on every page the session holds, so a delivery reopens
+instead of by a clock. The opening of the next turn is stamped by the carrier
+that causes it, and only where that carrier's handoff is the opening. A direct
+wait's is: it exits with the batch in model context, so it clears the stamp under
+the same lock the batch left under. The Codex adapter's is not: its pointer waits
+in a durable queue that a loaded client starts and an unloaded task leaves
+standing, so it leaves the stamp alone and the turn that does start carries the
+claim the ordinary way, by writing a status past it. Both stamps are the
+session's rather than the page's, and both span its pages: the Stop hook closes
+the turn on every page the session holds, so a delivery that opens one reopens
 that same set, each sibling under its own transaction. Without that clearing the
 page reads a session that came back and worked as one that walked away, and tells
 the reader to nudge a turn that is running — a leaf whose own batch was never the

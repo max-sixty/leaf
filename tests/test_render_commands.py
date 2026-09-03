@@ -477,8 +477,9 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
 
     Both state labels keep their corresponding sides while the active rule moves.
     Repeated presses keep their target and focus. The Button names the next frame
-    after either route and answers both native activation keys. The render gate also
-    checks selectable captions and the two-frame print view."""
+    after either route and answers both native activation keys. Arriving by Tab rings
+    the whole card, rail included. The render gate also checks selectable captions and
+    the two-frame print view."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -594,6 +595,46 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     expect(
         page.get_by_role("button", name="Show after — the navigation rail")
     ).to_be_visible()
+
+    # The rail and the frame are one card, so the ring a reader arriving by Tab leaves
+    # goes round the card. Drawn on the frame alone it ran three pixels up inside the
+    # rail, which is a rule across the card rather than a ring round the thing in hand,
+    # and the rail's own surface stands where that run is. Asked here as well as in the
+    # corpus ring walk because that walk is nightly and reports its first fault only.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if box.evaluate("flip => flip === document.activeElement"):
+            break
+    expect(box).to_be_focused()
+    ring = page.locator("lf-shot").evaluate(
+        """shot => {
+          const cs = getComputedStyle(shot);
+          const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+          const b = shot.getBoundingClientRect();
+          const card = [...shot.querySelectorAll('.lf-shotrail, .lf-shotframe')]
+            .map((part) => part.getBoundingClientRect());
+          return {
+            name: cs.getPropertyValue('--lf-here-ring').trim(),
+            width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
+            top: b.top - grow,
+            bottom: b.bottom + grow,
+            card_top: Math.min(...card.map((part) => part.top)),
+            card_bottom: Math.max(...card.map((part) => part.bottom)),
+            corners: [cs.borderTopLeftRadius, cs.borderBottomRightRadius],
+            card_corners: [
+              getComputedStyle(shot.querySelector('.lf-shotrail')).borderTopLeftRadius,
+              getComputedStyle(shot.querySelector('.lf-shotframe'))
+                .borderBottomRightRadius,
+            ],
+          };
+        }"""
+    )
+    assert ring["name"] == "shot" and ring["width"] > 0
+    assert ring["top"] < ring["card_top"] and ring["bottom"] > ring["card_bottom"]
+    # An outline follows its own box's corners, and lf-shot draws no border of its own
+    # to have rounded them, so the ring's corners are asked against the rail's top and
+    # the frame's foot — the card's own outer corners.
+    assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
     assert errors == []
     page.close()
 

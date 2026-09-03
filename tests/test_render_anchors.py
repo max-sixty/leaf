@@ -1145,6 +1145,24 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["noteFont"] == appearance["sansFont"], appearance
     assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
 
+    scrolled_note = page.evaluate("""() => {
+      const block = document.querySelector('#walk-code pre');
+      const note = block.querySelector('.lf-code-note');
+      block.querySelector('.lf-code-line').style.width = '1600px';
+      block.scrollLeft = 500;
+      const blockRect = block.getBoundingClientRect();
+      const noteRect = note.getBoundingClientRect();
+      return {
+        scrollLeft: block.scrollLeft,
+        inset: {
+          left: noteRect.left - blockRect.left,
+          right: blockRect.right - noteRect.right,
+        },
+      };
+    }""")
+    assert scrolled_note["scrollLeft"] == 500, scrolled_note
+    assert scrolled_note["inset"] == {"left": 1, "right": 1}, scrolled_note
+
     # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
     post_event(
         page,

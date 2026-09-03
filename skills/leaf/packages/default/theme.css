@@ -1657,8 +1657,10 @@ lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the 46px gutter. Horizontal rules mark the insertion
-   without inventing author metadata the note does not carry. */
-lf-code .lf-code-note { margin: 5px 0 6px; padding: 7px 14px 8px 46px;
+   without inventing author metadata the note does not carry. Sticky positioning holds
+   that row to a horizontal scrollport; unlike a max-content line, its prose still wraps. */
+lf-code .lf-code-note { position: sticky; inset-inline-start: 0;
+             margin: 5px 0 6px; padding: 7px 14px 8px 46px;
              background: var(--pre-bg); border: 0;
              border-block: 1px solid var(--code-border); border-radius: 0;
              color: var(--code-ink); font-family: var(--sans);

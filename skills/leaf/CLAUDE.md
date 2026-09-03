@@ -1022,10 +1022,11 @@ consumer names its tag. Export preserves the rendered elements and their labels 
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.
 
-The three visual voices are prose, apparatus, and evidence. Page prose uses the
-serif, labels and controls use the sans, and literal evidence uses the mono
-face. Typography is presentation, not passage permission. A chip may look like
-apparatus and still be a page word the reader can quote.
+The three visual voices are prose, apparatus, and evidence. Body prose uses the
+serif; labels, controls, and annotations embedded in evidence use the sans; and
+literal evidence uses the mono face. Typography is presentation, not passage
+permission. A chip or code annotation may look like apparatus and still be a
+page word the reader can quote.
 
 `renderSaid` materializes words that CSS would otherwise paint through
 `content: attr(...)`. A visible word must exist in a text node if the reader can
@@ -1864,10 +1865,11 @@ settled group reserves the same column on the cards behind its disclosure.
 
 ### Typography and scoped chrome
 
-`--serif` is the page's prose, `--sans` is apparatus and runtime chrome, and
-`--mono` is literal evidence. `.lf-ui` reads `--sans`. Form-control normalization
-lives in the `lf-reset` cascade layer so an unlayered semantic type choice can
-override it without specificity contests.
+Typography follows [Data projections](#data-projections). An authored `lf-note`
+inside `lf-code` takes `--sans` because the module presents it as a review row
+inside evidence; its words remain selectable page prose. `.lf-ui` also reads
+`--sans`. Form-control normalization lives in the `lf-reset` cascade layer so an
+unlayered semantic type choice can override it without specificity contests.
 
 The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private
 class names do not escape that root. The global vocabulary is deliberately

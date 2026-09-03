@@ -4344,6 +4344,20 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             walked, empty, came_round = 0, 0, False
             for _ in range(400):
                 if walked or empty:
+                    # On the settled page, not merely on a rendered frame. Standing on a
+                    # control scrolls the page to it, and the living margin answers that
+                    # scroll by re-placing its clusters — which moves the page's own
+                    # Buttons, since a widget's Button is contributed to a cluster rather
+                    # than left where the widget built it. A Tab pressed while that is in
+                    # flight is answered in the order the previous frame had, so the
+                    # walk's next stop is read off one arrangement and its next press
+                    # made against another: measured under the suite's own load, the
+                    # order stepped over the whole of lf-shot — its transparent flip and
+                    # the keyboard proxy beside it — and the walk stood on the shot's
+                    # Button instead, leaving the `shot` ring painted nowhere the corpus
+                    # could be walked to while every control involved was focusable
+                    # before the press and after it.
+                    page_at_rest(page)
                     page.keyboard.press("Tab")
                 stop = page.evaluate(RING_NEW_STOP)
                 if stop == "seen":

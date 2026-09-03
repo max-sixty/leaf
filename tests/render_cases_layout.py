@@ -533,12 +533,12 @@ def edge_settled(page, edge):
     """Wait for the region to stand and for the page to finish making room for it.
 
     Two animations, on two elements, and `panel_settled`'s reasoning covers both: the
-    strip the page yields is a transition on body, and the region's arrival is its own
-    slide. A geometry read between them is a read of a box still under a transform.
+    final shell carries `main` into place, and the region's arrival is its own slide. A
+    geometry read between them is a read of a box still under a presentation offset.
     """
     expect(page.locator(edge.region)).to_be_visible()
     page.wait_for_function(
-        "(region) => document.body.getAnimations().length === 0"
+        "(region) => document.querySelector('body > main').getAnimations().length === 0"
         " && document.querySelector(region).getAnimations().length === 0",
         arg=edge.region,
     )
@@ -581,15 +581,16 @@ def draw_edge(page, edge, by):
     page.mouse.down()
     page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
     page.mouse.up()
-    # The slide stands down for the length of a drag and comes back at its end, so what
-    # is waited on is the page holding still rather than a transition finishing — which
-    # `panel_settled` reads the same way, and which is empty here on both counts.
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    # A drag follows the hand directly, so it starts no carried column motion. What is
+    # waited on is the page holding still, which is empty here on both counts.
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
 
 
-# The room, sampled every frame for as long as a slide lasts. The shell owns the value in
-# CSS, so a harmless probe resolves the custom-property expression to the width a wide
-# exhibit would actually receive.
+# The room sampled across a workspace motion. The shell owns the value in CSS, so a
+# harmless probe resolves the custom-property expression to the width a wide exhibit
+# would actually receive.
 ROOM_EVERY_FRAME = """(frames) => {
   window.__room = [];
   const main = document.querySelector('main');

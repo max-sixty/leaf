@@ -422,10 +422,12 @@ def shoot_stills(
         page.locator(".lf-banner .lf-threads-toggle").click()
         page.wait_for_selector(".lf-thread .lf-msg.claude")
         page.locator("#top").scroll_into_view_if_needed()
-        # The panel's margin transition, asked of the transition rather than waited out:
-        # a finished one has left the list, and this context asks for reduced motion, so
-        # the move it would have covered runs untransitioned and the wait returns at once.
-        page.wait_for_function("() => document.body.getAnimations().length === 0")
+        # Ask the shared motion lifecycle rather than waiting a duration: a finished move
+        # has left the list, and this context asks for reduced motion, so the carried
+        # column move is omitted and the wait returns at once.
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations().length === 0"
+        )
         page.screenshot(
             path=into / f"session-{scheme}.png", animations="disabled", caret="hide"
         )

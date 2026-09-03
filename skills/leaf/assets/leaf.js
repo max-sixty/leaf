@@ -669,7 +669,8 @@ let chromeLayout;
 let livingMargin = null;
 const syncLayout = (...args) => chromeLayout.syncLayout(...args);
 const setPanel = (...args) => chromeLayout.setPanel(...args);
-const drawnEdge = createDrawnEdge({ el, keys, readerStore, syncLayout });
+const moveShell = (...args) => chromeLayout.moveShell(...args);
+const drawnEdge = createDrawnEdge({ el, keys, moveShell, readerStore, syncLayout });
 // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
 // the reader's choice in their own store rather than the tab's, because where a reader
 // keeps their conversations, and how much of the page they will give a tray, is the
@@ -731,6 +732,7 @@ const {
   el,
   keys,
   leavesOffered: () => leavesOffered(),
+  moveShell,
   motion,
   openDecisions,
   pagePresented,
@@ -1215,6 +1217,7 @@ chromeLayout = createChromeLayout({
     foldShelf();
   },
   keylineEl,
+  motion,
   pageShifted: (...args) => pageShifted(...args),
   paintHere,
   panel,

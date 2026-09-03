@@ -98,7 +98,8 @@ the root, body's layout shell, and the chrome's paint hosts out of the containin
 document-positioned chrome. It also keeps page-attached paint below covering workspaces
 and paint for chrome targets above them;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
-room left after the panel and trays, and page repaint caused by shell motion or reflow;
+room left after the panel and trays, the final-layout column motion between workspace
+states, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -199,8 +200,8 @@ choose their postures from the room actually left by panels and trays.
 `syncLayout` measures only chrome whose placement or reservation depends on
 rendered chrome, and writes only chrome boxes. `layoutSizes` watches
 `document.body`'s content-box size without deriving a posture from it. A width
-change schedules `syncLayout` and page repaint in the following frame while a
-panel's eased margin narrows the page; a height-only content reflow calls
+change schedules `syncLayout` and page repaint in the following frame after a
+workspace lands its final shell; a height-only content reflow calls
 `pageShifted` during observer delivery so page paint follows targets that moved.
 That direct path may write only unobserved paint hosts and state or queue work for
 a frame. A `ResizeObserver` callback must not resize the box it observes, directly
@@ -1359,8 +1360,9 @@ chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline
 container, `main` composes its left and right claims, and queries grant or withdraw
 margin postures. JavaScript may hear the shell's content-box size without deriving a
 posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-repaint after a width change, because a panel's eased margin keeps narrowing the box a
-float stands in after `setPanel` returns. A height-only change sends `pageShifted`
+repaint after a width change. `moveShell` lands the final responsive shell in one pass,
+then animates only the reading column's presentation offset and repaints page-attached
+chrome along that route. A height-only change sends `pageShifted`
 directly so a content reflow re-places document-attached paint without re-running
 chrome reservation.
 
@@ -1631,7 +1633,7 @@ already opens. At wide widths it is the conversation itself, measured eight pixe
 beside the pressed Thread Button in the same turn it is shown or changes size. While
 that Button keeps focus, `c` enters the card's one reply box; several roots leave the
 destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
-open panel waits for the body's strip motion before choosing the card posture. When the
+open panel waits for the column's workspace motion before choosing the card posture. When the
 document cannot leave the card room beside its Button, the press opens the full Threads
 surface instead.
 

@@ -467,9 +467,10 @@ SHORT_SUGGESTION = leaf_page(
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — the folds and the board's FLIP, each started synchronously
-# inside the gesture that causes it. CSS animations run outside it and are never seen,
-# `grow` among them. Installed before anything runs, so the first frame is already held.
+# caller of `animate` — folds, the board's FLIP, and final-layout shell motion, each
+# started synchronously inside the gesture that causes it. CSS animations run outside it
+# and are never seen, `grow` among them. Installed before anything runs, so the first
+# frame is already held.
 HOLD_MOTION = """
   window.__lfHeld = [];
   const inner = Element.prototype.animate;

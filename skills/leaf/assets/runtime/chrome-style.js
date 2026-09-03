@@ -34,6 +34,14 @@ export function chromeStyle({
   TRAY_PROP,
 }) {
   return `
+  /* Workspace state changes the shell's size immediately; only this presentation
+     offset moves. Registering the length lets Web Animations interpolate it while
+     container queries continue to read the one final shell width. */
+  @property --lf-shell-motion-x {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
   /* The browser's root remains the document scrollport. That keeps native fragments,
      history restoration, wheel/touch input, and browser chrome on one shared reading
      position. Body is only the layout shell: its margins yield columns to standing
@@ -112,16 +120,6 @@ export function chromeStyle({
     :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
   body { position: static; box-sizing: border-box; }
-  /* The strip the panel takes is given up as motion rather than as a jump, so the eye
-     can follow the sentence it was reading to where it went. Keyed on the stamp that
-     says the document is done becoming itself, because until then every margin the
-     page has is one it arrived with: a panel restored open would otherwise slide into
-     place on load, and a version switch is a load, so every revision would arrive
-     sliding sideways under a user who asked for a revision and not for motion.
-     The stamp lands at the end of the start chain, long after the restore. Reduced
-     motion is handled globally by the theme's guard. */
-  body[${PAGE_PAINT_ATTRIBUTE.upgraded}="1"] {
-    transition: margin-right .18s ease, margin-left .18s ease; }
   /* The strip itself, and — where there is no room to yield one — the page locking its
      root scrollport while the sheet covers it. Body's margin narrows the layout shell
      without replacing the browser's document scroller. Under a covering sheet one wheel
@@ -135,9 +133,9 @@ export function chromeStyle({
      The strip comes out of the page rather than being held aside for it, which makes
      opening the panel the largest movement in the product: the column re-centres by half
      the panel's width, and on a window narrow enough to lose width as well it rewraps
-     every line. Both are carried as motion rather than as a jump — the transition above,
-     keyed on the stamp for the reasons given there — because an eye can follow a sentence
-     that slides and cannot find one that teleports.
+     every line. The cascade lands that final responsive layout in one pass. moveShell
+     carries the column from its old horizontal position so the eye can follow it without
+     making every container query answer a series of transient shell widths.
 
      Locking the root drops its standing bar, which the reserved gutter this replaced would
      have held open under hidden too. So where the platform draws classic bars, the strip
@@ -154,13 +152,6 @@ export function chromeStyle({
   @media screen and ${COVERING} {
     :where(html:not(.lf-copy)):has(body[data-lf-panel]) { overflow-y: hidden; }
   }
-  /* The slide stands down for as long as the reader is holding the edge. A drag is a hand
-     on that edge, and 180ms of easing behind it is the page sliding out from under the
-     gesture that is moving it — the panel's own box follows the pointer exactly, so an
-     eased margin is the two edges of one edge coming apart. Every other way the margin
-     moves still wants the slide, an arrow step on the edge included: a step is one
-     discrete move the eye can follow, which is what the rule above is for. */
-  body[data-lf-sizing] { transition: none; }
   /* A tray that takes its room out of the page takes it the same way as the right panel:
      a body margin narrows and moves the layout shell while page-attached chrome keeps the
      document origin above it. The inset gives viewport-fixed page furniture that same

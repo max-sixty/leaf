@@ -1185,25 +1185,37 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 }
 
 /* lf-shot: both frames share one grid cell sized by the taller image, so a flip
- * moves nothing below it. The transparent native checkbox covers only the frame;
- * the shared margin Button supplies the visible control. CSS owns image visibility,
- * keeping image clicks and Space live in script-free exports. Print stacks both. */
+ * moves nothing below it. The rail keeps before and after at fixed ends while a short
+ * accent rule names the visible state. The transparent native checkbox covers only
+ * the frame; the shared margin Button supplies the second control. CSS owns image
+ * visibility, keeping image clicks and Space live in script-free exports. Print stacks
+ * both. */
 lf-shot { display: block; margin: 16px 0; }
-lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
-    border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden;
+lf-shot .lf-shotframe { position: relative; grid-area: 2 / 1;
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r); overflow: hidden;
     background: var(--card); }
 lf-shot:has(.lf-shotframe) { display: grid; }
-lf-shot .lf-shotframe img { display: block; width: 100%; height: auto; }
+lf-shot .lf-shotframe img { display: block; width: 100%; height: auto;
+    background: var(--card); }
 lf-shot .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
 lf-shot:has(input:checked) .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
 lf-shot:has(input:checked) .lf-shotframe[data-lf-state="after"] { visibility: visible; }
-lf-shot .lf-shotcap { position: absolute; top: 6px; left: 6px;
-    font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
-    padding: 2px 7px; border-radius: 999px; background: var(--veil);
-    border: 1px solid var(--rule); color: var(--muted); }
+lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
+    justify-content: space-between; height: 34px; padding: 0 11px;
+    border: 1px solid var(--rule); border-bottom: 0;
+    border-radius: var(--r) var(--r) 0 0; color: var(--muted);
+    background: var(--card); }
+lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
+    font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
+    letter-spacing: .04em; }
+lf-shot .lf-shotcap[data-lf-state="before"],
+lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] { color: var(--ink);
+    box-shadow: inset 0 -2px var(--accent); }
+lf-shot:has(input:checked) .lf-shotcap[data-lf-state="before"] {
+    color: var(--muted); box-shadow: none; }
 /* The image is itself the native target, so a click never forwards focus to a
    distant label or control and scrolls a tall comparison out from under the reader. */
-lf-shot > input.lf-shotflip { grid-area: 1 / 1; z-index: 2;
+lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
@@ -1212,8 +1224,14 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotf
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
+  lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
+    border-radius: var(--r); margin-bottom: var(--sp-2); }
+  lf-shot .lf-shotcap { color: var(--ink) !important; box-shadow: none !important; }
+  lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
+  lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   lf-shot > input.lf-shotflip { display: none; }
-  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
+  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
+    border-radius: var(--r); }
 }
 
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy

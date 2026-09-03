@@ -66,7 +66,7 @@ export class OptionAddition {
     this.#input.type = "text";
     this.#input.placeholder = ANOTHER;
     this.#input.setAttribute("aria-label", ANOTHER);
-    this.#add = offer("button", "lf-btn", "Add");
+    this.#add = offer("button", "lf-btn", "↵");
     this.#add.type = "submit";
     this.#add.setAttribute("aria-label", "Add option");
     const shortcut = offer("span", "lf-address", this.#shortcut);

@@ -38,6 +38,53 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
     second.close()
 
 
+def test_the_add_field_previews_the_option_it_will_make(browser, serve):
+    """The reader writes on the same line and in the same voice as the options.
+
+    The trailing return glyph submits the field without borrowing the selection mark's
+    circle, and remains a full-sized pointer target with an accessible action name.
+    """
+    page, errors = open_page(browser, serve(DECISION_PAGE))
+    option = page.locator("#job-camera")
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    add = form.get_by_role("button", name="Add option", exact=True)
+
+    typography = """el => { const s = getComputedStyle(el);
+                             return [s.fontFamily, s.fontSize, s.lineHeight]; }"""
+    assert field.evaluate(typography) == option.evaluate(typography)
+    option_text_x = option.evaluate(
+        """el => {
+             const text = [...el.childNodes].find(
+               n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+             const range = document.createRange();
+             range.selectNodeContents(text);
+             return range.getBoundingClientRect().x;
+           }"""
+    )
+    assert abs(field.bounding_box()["x"] - option_text_x) < 0.5
+    inner_height = """el => { const s = getComputedStyle(el);
+                               return el.getBoundingClientRect().height
+                                 - parseFloat(s.borderTopWidth)
+                                 - parseFloat(s.borderBottomWidth); }"""
+    assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
+
+    card_words = page.locator("#br-steel > strong")
+    card_field = page.locator("#bracket > .lf-another input")
+    assert card_field.evaluate(typography) == card_words.evaluate(typography)
+    assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
+
+    expect(add).to_have_text("↵")
+    aim_floor = page.locator("html").evaluate(
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--aim-floor'))"
+    )
+    add_box = add.bounding_box()
+    assert add_box["width"] >= aim_floor
+    assert add_box["height"] >= aim_floor
+    assert errors == []
+    page.close()
+
+
 def test_enter_keeps_another_option_separate_from_a_clarification_thread(
     browser, serve
 ):

@@ -208,7 +208,7 @@ export function chromeStyle({
      wear. */
   .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
   .lf-btn.on,
-  .lf-btn:is(.lf-others, .lf-decisions, .lf-threads-toggle)[aria-expanded="true"] {
+  .lf-btn.lf-workspace[aria-expanded="true"] {
     border-color: var(--accent); color: var(--accent); background: var(--chip);
   }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.

@@ -2551,6 +2551,11 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
         token_colour(page, "--chip"),
     ]
     resting = {name: face(control) for name, control in controls.items()}
+    for control in controls.values():
+        expect(control).to_have_class(re.compile(r"\blf-workspace\b"))
+    expect(
+        page.locator(".lf-version.lf-workspace, .lf-banner-more.lf-workspace")
+    ).to_have_count(0)
 
     def expect_open(name):
         page.mouse.move(0, page.viewport_size["height"] - 1)

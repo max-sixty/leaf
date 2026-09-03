@@ -814,7 +814,7 @@ const {
   style,
   syncLayout,
 });
-const toggleBtn = el("button", "lf-btn lf-threads-toggle", "Threads");
+const toggleBtn = el("button", "lf-btn lf-workspace lf-threads-toggle", "Threads");
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 const approveBtn = el("button", "lf-btn primary lf-signoff", "Approve version");

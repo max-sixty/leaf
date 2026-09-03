@@ -1649,25 +1649,22 @@ lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
              content: counter(lf-code-line); display: inline-block; width: 38px;
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
-             border-right: 1px solid var(--code-border); text-align: right;
+             border-right: 1px solid var(--code-border); background: var(--code-chrome);
+             text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
 lf-code .lf-code-line.hi { background: var(--hi-tint); }
 lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
-/* A note is the author's sentence about a line, so it leaves the mono the block
-   is set in and comes back to the document's own voice — it is prose, and a
-   user quotes it like any other. Stated here rather than in the apparatus
-   rule for that reason, and because it has a `pre`'s mono to escape either way.
-
-   It is the one box in this file holding the page's prose that states a size, and the
-   step down is the point: a note is about the line above it, so it is set under the page
-   rather than at it. Left to inherit it would take the block's 13px mono; taken to --t-4
-   it would stand a third larger than the code it annotates and read as the subject rather
-   than the remark. --t-5 is the rung between, and the note is why that rung is stated
-   here rather than deleted the way a card's was. */
-lf-code .lf-code-note { margin: 4px 8px 6px 46px; padding: 6px 10px;
-             background: var(--field); border: 1px solid var(--rule);
-             border-radius: var(--r); font-family: var(--serif);
-             font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
+/* A note is prose about a source line, not another source line. It follows the
+   code-review convention: a sans-serif row spanning the source frame, with its text
+   aligned to the code after the 46px gutter. Horizontal rules mark the insertion
+   without inventing author metadata the note does not carry. Sticky positioning holds
+   that row to a horizontal scrollport; unlike a max-content line, its prose still wraps. */
+lf-code .lf-code-note { position: sticky; inset-inline-start: 0;
+             margin: 5px 0 6px; padding: 7px 14px 8px 46px;
+             background: var(--pre-bg); border: 0;
+             border-block: 1px solid var(--code-border); border-radius: 0;
+             color: var(--code-ink); font-family: var(--sans);
+             font-size: var(--t-5); line-height: 1.5; white-space: normal; --lf-frame: 1; }
 lf-code lf-note { display: block; }
 
 /* lf-source: captured text with the provenance needed to identify the immutable

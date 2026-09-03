@@ -509,6 +509,27 @@ def test_the_feature_gallery_indexes_its_authored_elements():
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
 
+def test_each_long_example_version_has_one_contents_sidebar():
+    """The registry's default is visible on the pages that demonstrate the product."""
+    missing = []
+    for example in CORPUS_SOURCES:
+        for version in example_versions(example):
+            markup = version.read_text()
+            if len(re.findall(r"<h[2-6](?:\s|>)", markup)) < 2:
+                continue
+            parser = parse_structure(markup)
+            contents = [
+                element for element in parser.lf_elements if element["tag"] == "lf-toc"
+            ]
+            if (
+                len(contents) != 1
+                or contents[0]["parent"] != "aside"
+                or '<aside class="sidebar"' not in markup
+            ):
+                missing.append(version.name)
+    assert not missing, f"long example versions without one contents sidebar: {missing}"
+
+
 def test_shipped_widget_purposes_live_in_their_descriptions():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     titled = [
@@ -528,6 +549,9 @@ def test_corpus_is_generated_from_the_examples():
     spec.loader.exec_module(corpus)
     committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
+    assert "<lf-toc" not in committed, (
+        "a source page's document map becomes a repeated whole-corpus outline in a tab"
+    )
     committed_data = json.loads(
         (Path(__file__).parent.parent / "examples" / "corpus.data.json").read_text()
     )
@@ -606,7 +630,7 @@ def test_no_example_writes_another_example_s_sentences():
     examples = {
         p.stem: p.read_text(encoding="utf-8")
         for p in sorted((ROOT / "examples").glob("*.html"))
-        # corpus.html embeds every sibling verbatim, so it shares everything by
+        # corpus.html embeds every sibling's prose, so it shares everything by
         # construction; scripts/corpus.py is what holds it true.
         if p.stem != "corpus"
     }

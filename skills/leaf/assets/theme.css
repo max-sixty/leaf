@@ -884,9 +884,9 @@ dd { margin: 0 0 8px 0; }
    prose's line boxes untouched; the shell's left claim is the room the box uses.
 
    The claim is page-wide because a sticky box may occupy any height while the reader
-   scrolls. That also gives a wide exhibit no invitation to paint through it: --lf-room
-   is resolved after the strip has been taken. A sidebar and a sidenote together wait
-   for 1416px of shell, the ordinary
+   scrolls. A wide exhibit therefore gives up its left growth while the sidebar stands;
+   subtracting the strip from --lf-room alone still lets symmetric growth cross the
+   gutter. A sidebar and a sidenote together wait for 1416px of shell, the ordinary
    1152px margin floor plus the sidebar's 264px; granting both at the ordinary floor
    shrank the prose to 504px. The paired number is held to those two tokens in
    test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
@@ -918,6 +918,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
     --lf-shift: calc(
       max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
       - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
+    & [data-lf-wide] { --lf-grow-l: 0px; }
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
@@ -934,6 +935,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy)
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--sidebar);
+    & [data-lf-wide] { --lf-grow-l: 0px; }
   }
   html:not(.lf-copy) main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {

@@ -212,7 +212,7 @@ anchor sweep can't catch it, because that sweep writes its own anchors.
 `resolves` is reachable now that a comment can stand in a shipped log, and no
 example uses it, deliberately. The attribute would have to go in the markup, and
 the markup travels further than the log: `scripts/corpus.py` embeds each
-example's `<main>` verbatim, the corpus's own directory has no seed, and
+example's authored content, the corpus's own directory has no seed, and
 `version check` would refuse the corpus over an id naming no comment in *its*
 log. Seeding a log costs the example nothing; hanging markup off that log couples
 the markup to every page built from it.

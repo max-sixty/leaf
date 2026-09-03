@@ -3,9 +3,9 @@
 
 The corpus is derived test content — edit the public examples or the developer
 feature gallery and rerun this script (tests fail on a stale corpus). Each page's
-<main> body is embedded with its ids unchanged; snapshot selectors are rebased onto
-the combined data log. Every source must therefore keep its ids disjoint, which this
-script enforces.
+<main> body keeps its ids but not its document-level contents sidebar, and snapshot
+selectors are rebased onto the combined data log. Every source must therefore keep
+its ids disjoint, which this script enforces.
 Usage: corpus.py  (no arguments; writes examples/corpus.html)
 """
 
@@ -33,6 +33,10 @@ PUBLIC_TABS = [
     ("log-retention", "Retention"),
 ]
 FEATURE_GALLERY = EXAMPLES_DIR / "developer" / "feature-gallery.html"
+CONTENTS_SIDEBAR = re.compile(
+    r'\s*<aside class="sidebar" id="[^"]+">\s*'
+    r'<lf-toc id="[^"]+"></lf-toc>\s*</aside>'
+)
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
     (FEATURE_GALLERY, "Features"),
@@ -173,6 +177,10 @@ def build() -> str:
         # there is no strip — unupgraded, in print, in a copy — the theme paints the
         # label back onto the panel. The eyebrow is the copy that has nowhere to be.
         body = re.sub(r'^<p class="eyebrow">[^<]*</p>\s*', "", body)
+        # lf-toc maps its closest main. After composition that is the corpus's outer
+        # document, so retaining a source page's map would repeat one whole-corpus
+        # outline in every tab rather than navigate that source page.
+        body = CONTENTS_SIDEBAR.sub("", body)
         tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
     return HEAD + "\n" + "\n".join(tabs) + "\n" + FOOT

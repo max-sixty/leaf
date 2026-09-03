@@ -1881,13 +1881,13 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     which decides who pays. A control that grows moves itself and everything to its
     *left*; everything to its right keeps its place. So `Threads (9)` becoming
     `Threads (10)` — a comment posted from the terminal while the user reads —
-    slid the version chooser 6px left, and the ✓ Accept all a second tab's decision puts
+    slid the version chooser 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
-    # Three pending suggestions, so the ✓ Accept all count has somewhere to go before it
+    # Three pending suggestions, so the Accept all count has somewhere to go before it
     # runs out; sign-off asked, so the row is the full one; nine comments already, so the
     # tenth crosses a digit; and pinned, so a v2 landing leaves the page where it is and
     # offers the chip rather than following it.
@@ -1957,7 +1957,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
             lambda: decide("sug-refill", "sug-thistle"),
             (
                 f"() => document.querySelector('{accept_all}')"
-                ".textContent === '\\u2713 Accept all (1)'"
+                ".textContent === 'Accept all (1)'"
             ),
         ),
         (
@@ -2519,23 +2519,70 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
 
 @pytest.mark.parametrize("width", [500, 1200])
-def test_workspaces_replace_each_other_instead_of_stacking(browser, serve, width):
-    """Threads and trays are alternate workspaces at every width."""
+def test_workspaces_replace_each_other_and_name_the_open_one(
+    browser, serve, other_leaf, width
+):
+    """Threads and trays are alternate workspaces at every width.
+
+    The open workspace keeps its semantic expanded state and also wears the banner's
+    active face. Its peers return to rest as it takes their place, so the tint names
+    exactly the workspace the reader can see rather than merely the last one pressed.
+    """
     page, errors = open_page(browser, serve(MANY_DECISIONS_PAGE))
     resized(page, width, 700)
     decisions = page.locator(".lf-decisions-panel")
     comments = page.locator(".lf-panel")
+    controls = {
+        "leaves": page.locator(".lf-others"),
+        "decisions": page.locator(".lf-decisions"),
+        "threads": page.locator(".lf-threads-toggle"),
+    }
+
+    def face(control):
+        return control.evaluate(
+            """el => { const style = getComputedStyle(el); return [
+              style.borderColor, style.color, style.backgroundColor
+            ]; }"""
+        )
+
+    active = [
+        token_colour(page, "--accent"),
+        token_colour(page, "--accent"),
+        token_colour(page, "--chip"),
+    ]
+    resting = {name: face(control) for name, control in controls.items()}
+    for control in controls.values():
+        expect(control).to_have_class(re.compile(r"\blf-workspace\b"))
+    expect(
+        page.locator(".lf-version.lf-workspace, .lf-banner-more.lf-workspace")
+    ).to_have_count(0)
+
+    def expect_open(name):
+        page.mouse.move(0, page.viewport_size["height"] - 1)
+        for peer, control in controls.items():
+            expect(control).to_have_attribute(
+                "aria-expanded", "true" if peer == name else "false"
+            )
+            assert face(control) == (active if peer == name else resting[peer])
 
     page.locator(".lf-decisions").click()
     expect(decisions).to_have_class(re.compile(r"\bopen\b"))
+    expect_open("decisions")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(decisions).not_to_have_class(re.compile(r"\bopen\b"))
+    expect_open("threads")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect_open("leaves")
 
     page.locator(".lf-decisions").click()
     panel_settled(page, open=False)
     expect(decisions).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
+    expect_open("decisions")
     assert errors == []
     page.close()
 

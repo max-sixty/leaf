@@ -191,6 +191,7 @@ export function createTrays({
   // published.
   function trayIs(key, panel, btn, paint) {
     trays.set(key, { panel, btn, paint });
+    btn.classList.add("lf-workspace");
     btn.onclick = () => showTray(openTray(key) ? null : key);
     btn.setAttribute("aria-expanded", "false");
   }

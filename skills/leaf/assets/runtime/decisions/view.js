@@ -96,7 +96,7 @@ export function createDecisionView({
       versionBtn.before(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncDecisions writes, measured in the face it will render in (see reserve).
-      reserve(btn, [`✓ ${label} all (999)`]);
+      reserve(btn, [`${label} all (999)`]);
     }
   }
 
@@ -150,7 +150,7 @@ export function createDecisionView({
     if (openTray("decisions")) renderDecisions(decisions);
     for (const { btn, label, n } of blanketAnswers(decisions)) {
       showNews(btn, Boolean(n));
-      btn.textContent = `✓ ${label} all (${n})`;
+      btn.textContent = `${label} all (${n})`;
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words

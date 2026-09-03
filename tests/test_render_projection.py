@@ -4712,7 +4712,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     d = serve.page_dir
     fleet = page.locator("#hub-plan > .lf-fleet-view")
     fleet.locator(":scope > summary").click()
-    worker = fleet.get_by_role("link", name="w-1", exact=True)
+    worker = fleet.get_by_role("link", name="§ w-1", exact=True)
     worker.focus()
     sent = CliRunner().invoke(
         cli_model.cli,

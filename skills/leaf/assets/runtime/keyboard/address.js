@@ -50,9 +50,9 @@ export function createAddress({
   // ---------- the g chord: the page's destinations ----------
   // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
   // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a lowercase list
-  // mnemonic takes a following digit (`g m 2` reaches the second Page-map location,
-  // `g t 2` selects the second tab, `g h 3` follows the third hyperlink, and `g f 2`
-  // opens the second fold).
+  // mnemonic takes a following digit (`g m 2` presses the first Button at the second
+  // Page-map location, `g t 2` selects the second tab, `g h 3` follows the third hyperlink,
+  // and `g f 2` opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
   // t/T and a/A, so those categories do not also carry numbered addresses.
   //
@@ -191,7 +191,7 @@ export function createAddress({
       id: "navigation.page-map-item",
       key: "m",
       word: "Page map locations",
-      does: "Go to the nth Page map location",
+      does: "Press the first Button at the nth Page map location",
       list: pageMapItems,
       go: openPageMapItem,
       viewport: true,

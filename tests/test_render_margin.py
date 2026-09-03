@@ -919,6 +919,57 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     page.close()
 
 
+def test_g_m_presses_the_first_button_at_each_location(browser, serve):
+    """A location address has the same native press as its first available Button."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Page-map Button behavior",
+                """
+<p>Replace
+  <lf-suggestion id="address-action">
+    <lf-old>the first phrase</lf-old><lf-new>the second phrase</lf-new>
+  </lf-suggestion>.</p>
+<lf-draft id="address-disclosure"><pre>Keep this text editable.</pre></lf-draft>
+""",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    action = page.get_by_role(
+        "button", name="Accept the suggested change: the second phrase", exact=True
+    )
+    disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
+    sends = _traffic(page).sends
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press("1")
+    _until(
+        page, lambda traffic: traffic.sends > sends, "accepted the addressed suggestion"
+    )
+    round_trip(page)
+    expect(page.locator("#address-action lf-old")).to_be_hidden()
+    expect(page.locator("#address-action lf-new")).to_be_visible()
+
+    sends = _traffic(page).sends
+    page.keyboard.press("z")
+    _until(page, lambda traffic: traffic.sends > sends, "undid the addressed action")
+    round_trip(page)
+    expect(action).to_be_visible()
+    expect(page.locator("#address-action lf-old")).to_be_visible()
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press("2")
+    expect(page.locator("#address-disclosure textarea")).to_be_focused()
+    expect(disclosure).to_be_hidden()
+
+    assert errors == []
+    page.close()
+
+
 def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, serve):
     """Late action-only targets keep their verbs in the complete Page map."""
     page, errors = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
@@ -2345,12 +2396,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     marker.hover()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_hidden()
+    expect(marker.locator(".lf-margin-action-label")).to_be_visible()
     marker.focus()
     expect(preview).to_be_hidden()
 
     marker.click()
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
+    expect(marker.locator(".lf-margin-action-label")).to_be_hidden()
     expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()

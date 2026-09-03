@@ -1617,11 +1617,11 @@ have left, and would send a press already on its way to a Button they were not s
 on.
 
 Every Button keeps one circular fitting, whether or not it draws the circle. Its label
-appears as transient chrome on hover or
-keyboard focus without changing the cluster's geometry; an open disclosure keeps its
-label visible. Labels for `disclosure` and `options` end in an ellipsis because they open
-something; action and receipt labels do not. The complete label remains in the DOM, and
-its accessible name tracks the fitting.
+appears as transient chrome on hover or keyboard focus without changing the cluster's
+geometry. An open disclosure suppresses the label because the context it opened now
+names the Button's result. Labels for `disclosure` and `options` end in an ellipsis
+because they open something; action and receipt labels do not. The complete label
+remains in the DOM, and its accessible name tracks the fitting.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it
@@ -2689,8 +2689,8 @@ The page-level `g` row promises only the mode; destinations and ranges belong to
 the rows inside it. Completing an address runs that list's destination: a tab selects
 and takes focus, a same-document hyperlink follows and leaves focus on its fragment
 target, an external hyperlink names the browser tab it opens, a fold opens and takes
-focus, and a Page-map location opens its information or focuses its first available
-action. The complete Page map remains a direct destination beside that numbered prefix.
+focus, and a Page-map location presses its first available Button. The complete Page map
+remains a direct destination beside that numbered prefix.
 
 Arming the mode shows the available direct destinations and numbered lists in the key
 line and paints `data-lf-goto` on the body, so the contents map can reveal its labels as

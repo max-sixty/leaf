@@ -970,6 +970,25 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
 
+    disclosure.evaluate(
+        """button => {
+          button.setAttribute('aria-disabled', 'true');
+          button.dataset.lfState = 'busy';
+          button.tabIndex = -1;
+        }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press("2")
+    expect(page.locator("#address-disclosure textarea")).to_have_count(0)
+
+    disclosure.evaluate(
+        """button => {
+          button.setAttribute('aria-disabled', 'false');
+          button.dataset.lfState = 'idle';
+          button.tabIndex = 0;
+        }"""
+    )
     page.keyboard.press("g")
     page.keyboard.press("m")
     page.keyboard.press("2")

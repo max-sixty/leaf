@@ -1339,13 +1339,7 @@ export function createLivingMargin(dependencies) {
     const control =
       marker && !marker.hidden
         ? marker
-        : [...item.querySelectorAll(".lf-margin-action")].find(
-            (candidate) =>
-              candidate !== marker &&
-              !candidate.disabled &&
-              !candidate.hidden &&
-              candidate.checkVisibility(),
-          );
+        : clusterButtons(item).find((candidate) => candidate !== marker);
     if (!control) return;
     // Arrive before activation, then use the control's own press so this abbreviated
     // Page-map route has the same meaning as its Button in the complete map.

@@ -25,6 +25,8 @@ from render_support import (
     DEFINE_BOXES,
     DIFF_PAGE,
     EXAMPLES,
+    FEATURE_GALLERY,
+    HOLD_MOTION,
     LONG_PAGE,
     MANY_DECISIONS_PAGE,
     NEIGHBOUR,
@@ -352,6 +354,85 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-signoff").count() == 0
     # Approval takes the slot beside Threads where a page asks for one, so the absence
     # above is the whole fact: the row is a control short rather than a control longer.
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("width", [1440, 1600])
+def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
+    browser, serve, width
+):
+    """Opening Threads never makes the page visit intermediate responsive postures.
+
+    The gallery composes a left sidebar with the right living margin. At 1440px the
+    final shell withdraws the sidebar; at 1600px it withdraws the full conversation
+    margin. Animating the shell's width crossed either breakpoint in mid-flight, which
+    made the column jump or reverse direction.
+
+    Hold the runtime motion and seek it deterministically. The shell should already
+    have its final width and responsive state at the opening frame, while the column
+    starts where the reader left it and travels monotonically to its final position.
+    """
+    page, errors = open_page(browser, serve(FEATURE_GALLERY), init_script=HOLD_MOTION)
+    resized(page, width, 900)
+    initial = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          return {
+            x: main.getBoundingClientRect().x,
+            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
+            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
+              .getPropertyValue('--lf-sidebar-posture').trim(),
+          };
+        }"""
+    )
+
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    assert page.evaluate("() => window.__lfHeld.length") == 1, (
+        "opening the workspace did not produce one controllable column motion"
+    )
+    final_layout = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          return {
+            shell: document.body.getBoundingClientRect().width,
+            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
+            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
+              .getPropertyValue('--lf-sidebar-posture').trim(),
+          };
+        }"""
+    )
+    assert final_layout["shell"] == width - 420
+    assert (initial["claim"], initial["sidebar"]) != (
+        final_layout["claim"],
+        final_layout["sidebar"],
+    ), "the fixture crossed no responsive posture, so it cannot expose the regression"
+
+    positions = page.evaluate(
+        """() => {
+          const motion = window.__lfHeld[0];
+          const duration = motion.effect.getComputedTiming().duration;
+          return [0, .25, .5, .75, 1].map(part => {
+            motion.currentTime = duration * part;
+            return document.querySelector('main').getBoundingClientRect().x;
+          });
+        }"""
+    )
+    assert positions[0] == pytest.approx(initial["x"], abs=1)
+    if positions[-1] < positions[0]:
+        assert positions == sorted(positions, reverse=True), positions
+    else:
+        assert positions == sorted(positions), positions
+    assert all(
+        min(positions[0], positions[-1]) <= position <= max(positions[0], positions[-1])
+        for position in positions
+    ), f"the reading column overshot its two settled positions: {positions}"
+
+    page.evaluate("() => window.__lfHeld[0].finish()")
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
     assert errors == []
     page.close()
 

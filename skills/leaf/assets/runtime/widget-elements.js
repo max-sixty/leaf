@@ -336,8 +336,16 @@ export function installReachedForWordsGuard() {
 // both detach; and it must still print, because it is the only thing naming the row it
 // stands in. `says: "echo"` is that third answer, and it writes data-lf-echo: no
 // passage, and the same bargain on paper that data-lf-said strikes — the press goes,
-// the words stay. A copy is not the medium this divides: bake removes presses by the
-// marker's value, so an echoed route is a real fragment link there and stays one.
+// the words stay. Paper is the medium that bargain holds in. A copy divides on the
+// marker's *value* instead, which is a fact about the tag and not about this
+// declaration: bake removes a press by the value `offer` wrote, so an echoed route is
+// empty-valued, slips that pass and stays a real fragment link — while an echo on an
+// `offer("button", …)` would go out of the copy with its words inside it, and nothing
+// would report the loss, because the static-ising pass that would have kept them reads
+// data-lf-said alone. Unreachable while `button()` is the only caller and builds an `a`.
+// The second widget to echo a label off a real press is what makes it reachable, and
+// what has to teach standalone.js's two passes the third answer; it does not belong
+// here, where the label is only being worded.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it

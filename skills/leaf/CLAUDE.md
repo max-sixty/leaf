@@ -951,7 +951,13 @@ this is the one place the two questions the marker pair answers come apart. An
 echo is no passage, and it is still what its row is about: a roster row is a name
 and a chip, and a sheet that dropped the name would print the chip alone.
 `data-lf-echo` therefore strikes the paper bargain `data-lf-said` strikes — the
-press goes, the words stay — without entering the `says` reading.
+press goes, the words stay — without entering the `says` reading. Paper is the
+medium that bargain holds in. A copy still divides on the value `offer` wrote: an
+echoed route is empty-valued and stays a live fragment link, but an echo on a
+`button` would be removed with its words, because the pass that keeps a press's
+words in a copy reads `data-lf-said` alone. The first widget to echo a label off a
+real press is what makes that reachable, and what teaches those two passes the
+third answer.
 
 ### Data projections
 

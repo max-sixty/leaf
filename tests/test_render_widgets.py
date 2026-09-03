@@ -2041,30 +2041,44 @@ def test_a_wait_the_reader_would_notice_says_so_and_a_short_one_says_nothing(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     resting = page.locator("[data-lf-for='sug-refill']").bounding_box()
-    # Pressed and sampled inside the page, on the browser's own clock: what painted
-    # and when is not a fact the browser reports outward, and a reading taken over a
-    # CDP round trip would be racing the delay rather than measuring it. The window is
-    # the rule's own — 200ms of delay and 140ms of fade — with room after it, since a
-    # send held in the wire states no fact to wait on.
+    # Pressed and sampled inside the page: what painted and when is not a fact the
+    # browser reports outward, and a reading taken over a CDP round trip would be
+    # racing the delay rather than measuring it. Each frame is placed on the rule's
+    # own clock rather than on the wall clock the press was made on — the animation
+    # starts at the frame the busy attribute is first painted in, and what the press
+    # does between the two is the layer's own work, not this rule's. Timed from the
+    # press the whole 200ms delay and 140ms fade all but fill a fixed window, and a
+    # loaded machine spends the remainder before the first frame; timed from the
+    # animation, the delay and the fade are the only durations being read.
     frames = page.evaluate(
         """async () => {
           const el = document.getElementById('sug-refill');
           const out = [];
-          const t0 = performance.now();
           let stop = false;
-          const tick = (t) => {
-            out.push([t - t0, Number(getComputedStyle(el).opacity)]);
+          const tick = () => {
+            // Opacity first: reading it flushes the style that starts the animation,
+            // so the frame it begins in reports the animation rather than nothing.
+            const painted = Number(getComputedStyle(el).opacity);
+            const [busy] = el.getAnimations();
+            out.push([
+              busy ? Number(busy.currentTime) : null,
+              busy ? busy.playState : null,
+              painted,
+            ]);
             if (!stop) requestAnimationFrame(tick);
           };
           requestAnimationFrame(tick);
           document.querySelector("[data-lf-for='sug-refill'] .lf-sug-accept").click();
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 700));
           stop = true;
           return out;
         }"""
     )
-    early = [o for t, o in frames if t < 150]
-    late = [o for t, o in frames if t > 400]
+    # Before the rule has anything to say: the frames the press had not yet reached,
+    # and the ones inside its delay. Once it has said it: the frames after the fade
+    # has run, which the animation states as its own end rather than as a deadline.
+    early = [o for elapsed, _state, o in frames if elapsed is None or elapsed < 150]
+    late = [o for _elapsed, state, o in frames if state == "finished"]
     assert early and set(early) == {1}, (
         f"the wait was announced before it was one: {early}"
     )

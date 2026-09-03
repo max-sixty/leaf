@@ -4313,11 +4313,23 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # a control arrived at that way wears no ring and reads exactly like one
                 # whose rule is missing. Step out and back so the walk's first stop is a
                 # keyboard stop like every stop after it.
+                #
+                # These two are read on a rendered frame rather than on the settled page
+                # the walk below presses against, and they carry the same exposure: the
+                # scroll the opening click caused may still be being answered when the
+                # Shift+Tab lands, so it can be answered in a stale order. What that
+                # costs is bounded, which is why the weaker wait is left here — the
+                # `page_at_rest` below runs before the first stop is read, and the walk
+                # runs until the order comes round, so a stale step out and back moves
+                # where the walk starts rather than what it covers.
                 page.keyboard.press("Tab")
                 page.evaluate(RENDERED)
                 page.keyboard.press("Shift+Tab")
             else:
-                # Each press read on a rendered frame, the way every Tab below it is. A
+                # Each press read on a rendered frame, rather than on the settled page
+                # every Tab below it is pressed against: what the next key of the
+                # sequence needs is the focus the last press left, and the scope's own
+                # arrival is waited for once below before the first stop is read. A
                 # key that opens a layer hands the reader their place in it from the
                 # platform's own event rather than from the press — a popover lands focus
                 # on a row from `toggle`, which is queued — so the next key of the

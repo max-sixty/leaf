@@ -67,6 +67,13 @@ you have. Sort on what the failure is.
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
 
+## Weekly: interface sweep
+
+Run `/ui-sweep` before dependency maintenance. This is the discovery pass for visual
+and interaction behavior the suite has no stated invariant for yet. Follow its
+**Fix and pin** route: a reproduced defect becomes a tested repair, while a design
+judgment stays in the run report.
+
 ## Weekly: vendored browser dependencies
 
 `.github/dependabot.yml` watches the action refs and `uv.lock`. It cannot watch

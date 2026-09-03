@@ -29,6 +29,11 @@ the geometry it claims:
 6. Switch versions with a draft unsent.
 7. Emulate print and compare with the screen reading.
 
+Watch the route into and out of each state, not only the frame after it settles. When
+motion looks unstable, pause and seek its Web Animation or sample geometry each frame;
+record the endpoints and the path. A route that reverses, overshoots its settled boxes,
+or repeatedly changes responsive posture is a finding even when both endpoints are sound.
+
 ## Judge
 
 Read the frames against skills/leaf/CLAUDE.md — each norm there is a checklist row —

@@ -78,7 +78,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(
         page.get_by_role(
             "heading",
-            name="The main Asks panel gathers unfinished decisions",
+            name="Asks: unfinished decisions",
             exact=True,
         )
     ).to_be_visible()
@@ -131,7 +131,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(
         page.get_by_role(
             "heading",
-            name="The main Asks panel gathers unfinished decisions",
+            name="Asks: unfinished decisions",
             exact=True,
         )
     ).to_be_in_viewport()

@@ -520,37 +520,37 @@ def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
         "bg-changes": (
-            "Action Buttons change something now",
+            "Action Buttons: accept or reject suggestions",
             "#bg-changes-guide",
             "#bg-replace",
         ),
         "bg-editing": (
-            "A Disclosure opens context first",
+            "Disclosure Buttons: edit and inspect",
             "#bg-editing-guide",
             "#bg-draft",
         ),
         "bg-conversations": (
-            "Thread is another Disclosure",
+            "Threads: anchored conversations",
             "#bg-conversations-guide",
             "#bg-thread-text",
         ),
         "bg-reactions": (
-            "Reaction Actions leave a short verdict",
+            "Reaction Buttons: short verdicts",
             "#bg-reactions-guide",
             "#bg-react-ok",
         ),
         "bg-clusters": (
-            "Options unfolds peer Buttons in place",
+            "Options Buttons: related controls",
             "#bg-clusters-guide",
             "#bg-crowded",
         ),
         "bg-readings": (
-            "Reading Disclosures report without acting",
+            "Reading Disclosures: Asks and Outcomes",
             "#bg-readings-guide",
             "#bg-outcome-ask",
         ),
         "bg-version-changes": (
-            "Change Disclosure points to evidence",
+            "Change Disclosure: version evidence",
             "#bg-version-guide",
             "#bg-change",
         ),
@@ -560,6 +560,45 @@ def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve
         expect(section.get_by_role("heading", name=heading, exact=True)).to_be_visible()
         expect(section.locator(guide_selector)).to_be_visible()
         expect(section.locator(example_selector)).to_be_visible()
+
+    feature_headings = page.locator(
+        "main section h2:has(> .bg-feature-detail), "
+        "main section h3:has(> .bg-feature-detail)"
+    )
+    emphasis = feature_headings.evaluate_all(
+        """headings => headings.map(heading => {
+          const detail = heading.querySelector('.bg-feature-detail');
+          const names = [...heading.children].filter(child => child.tagName === 'STRONG');
+          const eyebrow = heading.parentElement.querySelector(
+            ':scope > .eyebrow.bg-feature-elements'
+          );
+          return {
+            label: heading.textContent.trim(),
+            detailCount: heading.querySelectorAll('.bg-feature-detail').length,
+            nameWeights: names.map(name => Number.parseInt(
+              getComputedStyle(name).fontWeight, 10
+            )),
+            detailWeight: detail
+              ? Number.parseInt(getComputedStyle(detail).fontWeight, 10)
+              : null,
+            eyebrow: eyebrow?.textContent.trim() || '',
+          };
+        })"""
+    )
+    assert emphasis
+    unclear = [
+        heading
+        for heading in emphasis
+        if not (
+            heading["detailCount"] == 1
+            and heading["nameWeights"]
+            and all(
+                weight > heading["detailWeight"] for weight in heading["nameWeights"]
+            )
+            and heading["eyebrow"]
+        )
+    ]
+    assert not unclear, unclear
 
     examples = {
         "action": page.locator('[data-lf-margin-for="bg-replace"] .lf-sug-accept'),

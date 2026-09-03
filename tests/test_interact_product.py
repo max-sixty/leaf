@@ -493,6 +493,22 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     )
 
 
+def test_the_feature_gallery_indexes_its_authored_elements():
+    """A developer can find a specimen by its literal custom-element name."""
+    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    tags = set(re.findall(r"<(lf-[a-z-]+)[\s>]", authored))
+    eyebrows = " ".join(
+        re.findall(
+            r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+            authored,
+            flags=re.DOTALL,
+        )
+    )
+    indexed = set(re.findall(r"lf-[a-z-]+", eyebrows))
+    assert tags
+    assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
+
+
 def test_shipped_widget_purposes_live_in_their_descriptions():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     titled = [

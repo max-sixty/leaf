@@ -207,10 +207,7 @@ export function chromeStyle({
      buttons, and the attribute wireInput sets, which is the only one a span press can
      wear. */
   .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-  .lf-btn.on,
-  .lf-btn.lf-workspace[aria-expanded="true"] {
-    border-color: var(--accent); color: var(--accent); background: var(--chip);
-  }
+  .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
      Target actions use .lf-margin-action below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */
@@ -813,6 +810,14 @@ ${MARK_RULES}
        here for the same reason the page map says it: hidden is a display of its own. */
     .lf-banner-more[hidden] { display: none; }
     .lf-banner-more[data-lf-news] { border-color: var(--accent); color: var(--accent); }
+    /* The open workspace wears the same accent face, from the state it already
+       publishes: showTray and the Threads toggle keep aria-expanded true on exactly
+       the one workspace standing, so the tint is that fact painted rather than a
+       second class to keep in step. Scoped, because lf-workspace is worn only by the
+       banner's own controls — All leaves, Asks, Threads — and a rule for it at
+       document level would widen the shared vocabulary by a name no widget wears. */
+    .lf-btn.lf-workspace[aria-expanded="true"] {
+      border-color: var(--accent); color: var(--accent); background: var(--chip); }
     /* Anchored under its own press, and every side it does not name said out loud. The
        popover UA rule is inset: 0 with margin: auto, so a rule that states only top and
        left leaves bottom and right at zero with automatic margins to resolve the

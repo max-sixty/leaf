@@ -122,9 +122,10 @@ the tab mark cannot say whether the page is working, waiting, or offline.
 ## A theme change
 
 Tokens change every surface that reads them: `--accent`, `--r`, the three faces
-`--serif` (the page's prose), `--sans` (the chrome and every injected control) and
-`--mono` (evidence). Ordinary selectors tune one element or widget. A shape the project
-reuses across pages is an idiom — declare it under `$idioms` in the package's
+`--serif` (body prose), `--sans` (apparatus: chrome, injected controls, and annotations
+embedded in evidence), and `--mono` (literal evidence). Ordinary selectors tune one
+element or widget. A shape the project reuses across pages is an idiom — declare it
+under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
 Presentation unique to one page stays in that version's `<style>`.

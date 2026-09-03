@@ -125,9 +125,10 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g m` opens the complete Page map through the same door as the banner's Map control.
- * A following digit names a member of a document list, so `g h 3` is the third
- * hyperlink; `g g` and `g G` are the page's top and bottom edges.
+ * `g M` opens the complete Page map through the same door as the banner's Map control.
+ * A lowercase mnemonic starts a numbered document list, so `g m 3` is the third
+ * Page-map location and `g h 3` is the third hyperlink; `g g` and `g G` are the page's
+ * top and bottom edges.
  * Arming shows every complete route in the key line. Pressed keys use the blue face and
  * pending keys use the ordinary face. Visible members show the same complete route in
  * adjacent fixed keycaps. A list letter narrows those inline hints without moving the
@@ -2081,8 +2082,10 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   keylineEl,
   leavesOffered,
   letGo,
+  openPageMapItem: (item) => livingMargin?.openPageMapItem(item),
   othersLinks,
   othersPanel,
+  pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
   paintHere,
   panelCovers,

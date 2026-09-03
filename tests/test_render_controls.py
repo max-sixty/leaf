@@ -2345,9 +2345,15 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(page.locator(".lf-others-panel")).to_be_focused()
     expect(page.locator(".lf-keyline")).not_to_contain_text("walk the leaves")
     assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
-    # Nothing live left to open: the button stands while the panel does and stands
-    # down with it, which is the count's other half.
+    # Two presses in, two Escapes out. The second `g L` entered a tray that was already
+    # standing, so its own Escape gives that press back and leaves the workspace it
+    # found; the tray the first press stood up closes on the one after. Nothing live left
+    # to open: the button stands while the panel does and stands down with it, which is
+    # the count's other half.
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).not_to_be_visible()
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
@@ -2357,8 +2363,9 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     """The tray is a list, and a reader walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
-    at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
-    to the button that opened it. The go-to menu names the panel, and the key line names
+    at the ends, Enter opens the focused one in its own tab, and Esc gives that press
+    back — the reader is returned to the reading place they pressed `g L` from, not left
+    holding the button that names the tray. The go-to menu names the panel, and the key line names
     the tray's own keys once focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
@@ -2399,9 +2406,11 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     expect(tab).to_have_url(destination)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
-    # Closing while focus is inside would drop the reader on the body; it lands on
-    # the one control that reopens what just closed.
-    expect(btn).to_be_focused()
+    # One press in, one Escape out, and what the Escape gives back is exactly what the
+    # press took: the reading place `g L` was pressed from. Landing on the tray's own
+    # button instead would leave a reader who never touched it holding a control, one
+    # press from reopening what they had just put down.
+    assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
@@ -3882,15 +3891,18 @@ RING_SCOPE_WIDTH = {"a thread card": 1440, "the page map sheet": 760}
 # enters the page. Twelve stops instead of thirty-three, with every ring the page's own
 # widgets draw unread and the walk reporting itself complete.
 RING_WALK_START = "() => document.body.focus()"
-# A new stop, read on a rendered frame. Held by identity, since two buttons in a row can
-# say the same words at the same scroll and are still two stops.
+# What the walk is standing on, read on a rendered frame: a stop it has not stood on, one
+# it has, or nothing at all. Held by identity, since two buttons in a row can say the same
+# words at the same scroll and are still two stops. The three answers are one reading
+# rather than two, because only the middle one ends a walk and a boolean spelt the other
+# two the same way.
 RING_NEW_STOP = f"""async () => {{
   await ({RENDERED})();
   const e = ({DEEP_FOCUS})();
-  if (!e || e === document.body || e === document.documentElement) return false;
-  if (window.__lfSeen.has(e)) return false;
+  if (!e || e === document.body || e === document.documentElement) return "empty";
+  if (window.__lfSeen.has(e)) return "seen";
   window.__lfSeen.add(e);
-  return true;
+  return "new";
 }}"""
 
 
@@ -4203,17 +4215,27 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             for _ in range(400):
                 if walked or empty:
                     page.keyboard.press("Tab")
-                if not page.evaluate(RING_NEW_STOP):
-                    # The key that opened the scope may have landed focus on nothing, so
-                    # the first read is allowed to come back empty; a repeat after the
-                    # walk has started is the order having come round. Two, not the cap:
-                    # a walk that never starts otherwise spends four hundred frames
-                    # saying so and reads as a slow test rather than a broken one.
+                stop = page.evaluate(RING_NEW_STOP)
+                if stop == "seen":
+                    came_round = True
+                    break
+                if stop == "empty":
+                    # Nothing to stand on, which is two different things and neither of
+                    # them the end of the walk. The key that opened the scope may have
+                    # landed focus on nothing; and the tab order runs off the end of the
+                    # document and comes back in through it, so a scope the walk joins
+                    # part-way down its own order — the Page-map sheet, which it enters at
+                    # the list — keeps the stops above its starting point on the far side
+                    # of that crossing. Walking through it is how they are reached at all;
+                    # the order still ends where it comes round to a stop already stood
+                    # on. Two in a row is the cap, not four hundred: a walk that never
+                    # starts should say so rather than read as a slow test.
                     empty += 1
-                    if walked or empty > 2:
+                    if empty > 2:
                         came_round = True
                         break
                     continue
+                empty = 0
                 walked, stops = walked + 1, stops + 1
                 if (lost := page.evaluate(SEEN_STOP)) is not None:
                     unseen.add(f"{where}: {lost}")

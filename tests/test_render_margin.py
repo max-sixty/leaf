@@ -2807,7 +2807,16 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 
     page.keyboard.press("Escape")
     expect(sheet).to_be_hidden()
-    expect(toggle).to_be_focused()
+    # Each route gives back exactly what it took. A press on the door is the reader
+    # holding that control, so the modal hands it back to them. `g m` was pressed from
+    # the page, and the dispatcher captured that place before the sheet stood up, so its
+    # one Escape returns them there rather than leaving them on a button they never
+    # touched (skills/leaf/CLAUDE.md, "The keyboard is a stack"). The door's own return
+    # route stands down for that press alone; every other close still runs it.
+    if opener == "keyboard":
+        assert page.evaluate("() => document.activeElement === document.body")
+    else:
+        expect(toggle).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert errors == []
     page.close()

@@ -561,6 +561,7 @@ export function createLivingMargin(dependencies) {
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
+  let sheetReturning = false;
   let sheetFrom = null;
   let sheetTarget = null;
   // The cascade owns available room: panels and trays change the body's named
@@ -1325,8 +1326,15 @@ export function createLivingMargin(dependencies) {
   }
 
   const pageMapIsActive = () => sheet.open || availableRows().includes(focused());
+  // The dispatcher's own way out of the `g m` frame, and the one close that owes the
+  // reader nothing: it captured where they stood before the press and restores it in the
+  // same press. That restore is synchronous while `close` arrives in a task of its own,
+  // so the door's return route below would run a frame later and put the reader on the
+  // Map control instead of the ask row or the reading place they asked to come back to.
   function leavePageMap() {
-    if (sheet.open) sheet.close();
+    if (!sheet.open) return;
+    sheetReturning = true;
+    sheet.close();
   }
 
   function focusMapControl(entry = null) {
@@ -2593,7 +2601,9 @@ export function createLivingMargin(dependencies) {
   sheet.addEventListener("close", () => {
     const from = sheetFrom;
     const activated = sheetActivation;
+    const returning = sheetReturning;
     sheetActivation = false;
+    sheetReturning = false;
     // A dialog delivers `close` in a task of its own, so a reader who reopens the sheet
     // in the same breath — Esc off the overflow route and straight back onto the Button
     // that named it — is standing in the next opening by the time this arrives. That
@@ -2605,7 +2615,7 @@ export function createLivingMargin(dependencies) {
     sheetFrom = null;
     sheetTarget = null;
     paintKeys();
-    if (activated) return;
+    if (activated || returning) return;
     if (from?.isConnected && from.checkVisibility())
       from.focus({ preventScroll: true });
     else focusMapControl();

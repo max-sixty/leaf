@@ -1502,13 +1502,21 @@ ${MARK_RULES}
       max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
       color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
+    /* The open sheet is a column so its one scroller takes whatever room the head and the
+       search box leave, rather than a height computed against the window: the list ran to
+       calc(100vh - 150px) while the box it sits in stops at min(720px, 100vh - 24px), so
+       on a short window the list was taller than the sheet, hung out of its rounded corner
+       and off the bottom edge, and its own focus ring was drawn outside the card. Said on
+       [open] because the author sheet would otherwise beat the UA's display:none for a
+       dialog that is shut. */
+    .lf-page-map-sheet[open] { display: flex; flex-direction: column; }
     .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
     .lf-page-map-search { width: 100%; box-sizing: border-box; margin-top: 10px;
       padding: 7px 9px; border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--paper); color: var(--ink); font: inherit; }
     .lf-page-map-search:focus-visible { outline: var(--here-ring);
       --lf-here-ring: page-map-search; outline-offset: 2px; }
-    .lf-page-map-list { margin-top: 6px; overflow: auto; max-height: calc(100vh - 150px); }
+    .lf-page-map-list { margin-top: 6px; overflow: auto; min-height: 0; }
     .lf-page-map-empty { margin: 18px 8px 8px; color: var(--muted); text-align: center; }
     .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
     .lf-page-map-group:first-child { border-top: 0; }

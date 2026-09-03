@@ -1568,11 +1568,15 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(ask).to_be_focused()
 
     # Page map has its own close step, but that does not waive the same workspace
-    # contract: leaving it restores the Asks row it displaced.
+    # contract: leaving it restores the Asks row it stood over. Its door is the one that
+    # can forget, because a dialog delivers `close` in a task of its own — a frame after
+    # the dispatcher has already put the reader back — so the door's own return route has
+    # to stand down for the press that is unwinding it.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    expect(page.locator(".lf-margin-marker:focus")).to_have_count(1)
+    page.keyboard.press("m")
+    expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
     page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog", name="Page map", exact=True)).not_to_be_visible()
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     expect(ask).to_be_focused()
 

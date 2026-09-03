@@ -490,11 +490,18 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
         label = drag_across(page, "main > .sitenote p")
         assert "example of a leaf page" in label["text"]
         assert not label["fieldOffered"]
-        # The word `c` carries with nothing in hand — it goes to the threads rather
-        # than opening a box on anything, and "comment on the selection" does not
-        # contain it, so the two readings still tell each other apart.
-        assert "threads" in label["says"], (
+        # The word `c` carries with nothing in hand — it names the page, the box a
+        # reader with nothing selected writes in, rather than the words the drag passed
+        # over. Both halves, because the reading only means anything against the other:
+        # the page's own lede says "the selection" from the same line, so a label that
+        # says "the page" is the layer declining to quote it rather than a line that
+        # never changes.
+        assert "comment on the page" in label["says"], (
             "the site's own label was offered as a passage to quote"
+        )
+        assert "comment on the selection" in control["says"], (
+            "the page's own words were not offered as a passage to quote, so the "
+            "label's reading above is evidence about nothing"
         )
         assert not errors, errors[:3]
     finally:

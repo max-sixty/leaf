@@ -17,9 +17,9 @@ leaf version stamp <page> --text "<what changed>"
 ```
 
 Leaf assigns the next public version number and maps it to that exact revision.
-Do not write `revisions/` or `versions/` yourself. A browser at the live root
-follows new revisions; a browser pinned to `/versions/vN.html` stays on that
-stamp. Re-enter the host's wait loop after the batch: `waiting` when the reader
+Do not write `revisions/` yourself. A browser at the live root follows new
+revisions; a browser pinned to `/versions/vN.html` stays on the revision mapped by
+that stamp. Re-enter the host's wait loop after the batch: `waiting` when the reader
 owns the next move, `working` while you continue.
 
 ## Sign-off and ending

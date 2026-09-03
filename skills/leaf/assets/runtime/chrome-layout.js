@@ -104,12 +104,13 @@ export function createChromeLayout({
   // so the invoker has to be given its focus back: raising the panel is not a request to
   // leave where the reader was standing, and the toggle that lost it would otherwise hold
   // aria-expanded with no ring on it and hand the reader's next Space to a button they
-  // never chose. A reader who asked to go in says so with the press that takes them — `c`
-  // focuses the list itself — and setPanel's own handoff is the other thing that moves them.
+  // never chose. A reader who asked to go in says so with the press that takes them —
+  // `g T` focuses the list and `c` focuses its requested box — and setPanel's own handoff
+  // is the other thing that moves them.
   function showPanelLayer() {
-    // `c` says "take me to the conversation" whether or not the panel is already up, so
-    // this is asked again about a panel that is already showing. Nothing to redo, and the
-    // focus below would otherwise fire against a reader already standing inside.
+    // Both a comment destination and Threads navigation may ask for a panel that is already
+    // showing. Nothing to redo, and the focus below would otherwise fire against a reader
+    // already standing inside.
     if (panel.open) return;
     const invoker = document.activeElement;
     panel.show();

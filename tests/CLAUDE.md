@@ -369,10 +369,11 @@ comes from a browser or product fact visible outside the page.
 Open ordinary browser pages through `open_page`. It installs `Traffic` and `watched`
 before navigation, waits for the load event, and then waits on `BOTH_STAMPS`:
 
-- `data-lf-upgraded="1"` says widget upgrade and anchor preparation finished.
+- `data-lf-upgraded="1"` says widget upgrade finished.
 - `data-lf-applied` says a replay pass applied the event log.
 - `data-lf-presented="1"` says the authoritative projection or offline fallback is
-  visible and interactive.
+  safe for recorded interaction. The anchor pass and anchored composer begin here;
+  authored HTML may have painted earlier.
 
 These are independent facts. The document and first state read run together, and the
 state answer remains unapplied until upgrade finishes. Network quiet does not imply
@@ -566,6 +567,12 @@ this for event requests, and `primed` lets a test prepare other routes. Enabling
 interception on an already-running Chromium page can let that POST reach the server
 without a route callback or Playwright request event. Early interception keeps the
 test's premise intact without retrying the reader's gesture.
+
+That escape is the browser arming interception rather than the pattern reaching it,
+so `open_page` arms each page it makes on a pattern nothing ever asks for: a route a
+test registers later, even a keystroke before the gesture it holds, only adds to a
+list the browser is already consulting. A page made another way is unarmed, and a
+request already in flight is past holding either way — both remain `primed`'s.
 
 A handler that appends a route to `held` has established only that the browser made
 the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a

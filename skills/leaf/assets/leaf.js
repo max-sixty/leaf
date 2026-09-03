@@ -64,10 +64,10 @@
  * messages and replies, and lf-draft actions.
  *
  * Versions: the live page at `/` follows the active working revision in the same document.
- * It fetches each immutable revision file, upgrades and replays it behind a view-transition
+ * It fetches each mapped immutable revision, upgrades and replays it behind a view-transition
  * boundary, then restores the reader's semantic landmark. Stamping that revision changes
  * its label without replacing the document. Picking a stamped version leaves the live page
- * for that immutable version URL, which stays pinned. One control on the bar holds all of
+ * for that virtual version URL, which stays pinned. One control on the bar holds all of
  * it — the revision being read, the stamped versions, and the press on an older one that
  * marks that change on the page.
  *
@@ -111,17 +111,12 @@
  * The stack the rule is about is the reader's, and every key here answers to it: a press
  * that takes the reader in pushes one layer, and Escape pops one. So the way out is as
  * deep as the way in and can be walked back without being counted — three presses to get
- * somewhere, three to come back, each giving up the press that earned it. A key that
- * opened a surface and then also stepped into something inside it puts two layers on for
- * one press, and Escape can only ever hand one of them back; the reader reads that as
- * Escape not undoing what the key did. `c` is the case that named the rule, having opened
- * the thread panel and landed in its general box together.
- *
- * Landing focus in what a press opened is arrival, not a second layer — a tray on its
- * first row, the versions menu on a version, the panel on its list. A second layer is a
- * box the surface does not shadow, and it earns a press of its own: `c` again, from the
- * panel this time. The layer that leaves between is where the surface's own keys can be
- * reached at all.
+ * somewhere, three to come back, each giving up the press that earned it. An entry row
+ * declares one return frame. The dispatcher captures the exact focus or reading block
+ * before the command and pushes only after its layer stands; Escape closes that frame and
+ * restores the capture. Revealing containing chrome and focusing the requested destination
+ * are one entry: page `c` enters the page-comment box, while `g T` enters the Threads list.
+ * A later `c` from that list is a second entry, so two Escapes unwind both in reverse.
  *
  * Two page modes make a destination explicit before acting on it. `s` draws short,
  * viewport-local hints on stable items and declared visual parts. `/` searches all page
@@ -130,8 +125,7 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g M` enters the Page map at its roving marker, or opens its sheet when empty or compact.
- * `g m 3` goes to the third page-map item in the right margin.
+ * `g m` opens the complete Page map through the same door as the banner's Map control.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
  * Arming shows every complete route in the key line. Pressed keys use the blue face and
@@ -139,9 +133,9 @@
  * adjacent fixed keycaps. A list letter narrows those inline hints without moving the
  * remaining routes. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
- * Escape is a binding like any other, and the rung is whichever scope in reach binds it
- * first, so backing out is one layer per press and the promise cannot drift from the
- * press.
+ * Escape is a binding like any other. A control-specific inner step precedes the latest
+ * active command frame, then generic focus and pointer fallbacks; the first live row owns
+ * exactly one step, so the promise cannot drift from the press.
  *
  * What a key would do right now is state the user can read, not recall. The quiet fixed key
  * line starts with the first live row of the innermost scope, then a promotable Escape or
@@ -245,6 +239,7 @@ import { DISCLOSE, createDisclosure } from "./runtime/keyboard/disclosure.js";
 import { createDispatch } from "./runtime/keyboard/dispatch.js";
 import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
+import { createReturnStack } from "./runtime/keyboard/return-stack.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
 import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
@@ -921,14 +916,14 @@ const needsBtn = el("button", "lf-btn lf-needs", "Waiting on you");
 needsBtn.setAttribute("aria-pressed", "false");
 findRow.append(findInput, needsBtn);
 const threadsBox = el("div", "lf-threads");
-// An Escape rung: backing out of the general box lands on the list (visible ring,
-// t/T walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
+// A stable panel landing for g T, for c entered from the list, and for pointer/Tab
+// fallbacks that have no command frame. -1 keeps it out of the Tab order.
 threadsBox.tabIndex = -1;
-// And a name, because `c` now lands a reader here rather than in the general box, whose
-// own label spoke for it. A page key's arrival has to say where it arrived — the two
-// landings this one matches are both named, a leaf row by its link text and a decision row by
-// the decision — or the press is silent to exactly the reader who cannot see the ring it
-// painted. The same reason the reference dialog carries a role and a label beside its -1.
+// And a name, because `g T` lands a reader here and the panel's visible heading alone does
+// not name a focusable container. A page key's arrival has to say where it arrived — the
+// other direct destinations are named by a leaf link, a decision row, or a Page-map marker
+// — or the press is silent to exactly the reader who cannot see the ring it painted. The
+// same reason the reference dialog carries a role and a label beside its -1.
 // `group` rather than `list`: the box holds run headings as well as threads, so a list
 // role fails `aria-required-children` outright and leaves a screen reader announcing a list
 // with no items. The name is what the landing needed; the role is only there because a bare
@@ -1048,6 +1043,11 @@ legendRoot.setAttribute("aria-hidden", "true");
 // so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
+// Numeric actions for the Ask the reader is standing in. These share the address face
+// but not the g chord's lifecycle: the decision view paints them whenever its semantic
+// focus and the dispatch stack leave the digit row reachable.
+const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
+decisionActionLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
 // the platform's rather than a keyboard mode's imitation of one.
@@ -1097,6 +1097,7 @@ chromeRoot.append(
   panel,
   legendRoot,
   addressLayer,
+  decisionActionLayer,
   selectionLayer,
   selectionSearch,
   aimBox,
@@ -1422,11 +1423,9 @@ const generalHint = () => (designOn ? "Comment on the layer" : "Comment on the p
 // paint and the whole layer stops on the reference. The comment above already calls the
 // two a pair; this is the pair being one thing rather than two that agree by hand.
 const PANEL_SAY = {
-  // The page's c brought the reader here; this one puts them in the box. Same letter
-  // twice because it is the same intent one scope further in, which is how the rest
-  // of the register reads too — g names a list and then a member of it. The box says
-  // the same key from its own placeholder, so the second press is discoverable from
-  // the panel without the reference open.
+  // From the Threads list this puts the reader in the page-comment box. Page c reaches
+  // the same box directly; this is the same contextual intent from a surface whose local
+  // w and / commands remain useful until the reader asks to write.
   id: "comment.write",
   keys: ["c"],
   does: () => generalHint(),
@@ -1448,6 +1447,12 @@ const PANEL_SAY = {
   // no box to be the nearer answer, and standingConversation reads the box rather than
   // the class, so the press there is the general box's after all.
   when: () => !fabAnchorAt() && !standingConversation(),
+  returnFrame: () => ({
+    active: () => generalRow.contains(documentFocused()),
+    close: () => generalInput.blur(),
+    does: "Return to the thread panel",
+    line: "back to threads",
+  }),
   run: () => generalInput.focus({ preventScroll: true }),
 };
 
@@ -1457,9 +1462,8 @@ const syncGeneral = wireInput(generalInput, {
   // design mode knows their remark is about the layer as a whole.
   hint: generalHint,
   // The box's own address: unfocused, the placeholder reads "Comment on the page · c".
-  // That c is the panel's own and the second press of the page's. One key rather than a
-  // chord, because this box is the panel's own and the scope that offers it is the one
-  // the reader is standing in.
+  // The same c reaches this box from the page or from the panel list. One key rather than
+  // a chord, because “comment” is the intent in both contexts.
   //
   // Read off the row that answers the press rather than spelled here, which is the rule
   // the reference states about itself: a fact about a binding written somewhere the
@@ -1542,14 +1546,11 @@ approveBtn.onclick = async () => {
 // whole keyboard under the reference overlay. Both walks read the one declaration, where
 // two guards in two functions had drifted.
 //
-// Escape is a binding like any other. It was a ladder of its own — a says/out pair per
-// branch of a scene() function, plus a hand-written sentence in the reference that listed
-// six of its eight rungs — and as a row the rung is whichever scope in reach binds it
-// first, said and run off one object. What that retires is a contract a widget used to
-// keep by hand: a control declaring its own Escape had to consume the press, or the
-// runtime's ladder ran behind it and closed the panel under a line that promised one
-// action. The dispatcher runs the innermost rung and no other, so the promise is
-// structural.
+// Escape is a binding like any other. A control's own inner step precedes the latest
+// command return frame; generic text and pointer/traversal fallbacks stand behind it.
+// The dispatcher runs the first live row and no other. It alone captures and pushes
+// command frames, and declaration validation refuses an incomplete return contract, so
+// an entry cannot restore at a different point on its key and reference routes.
 
 const pageParts = (sel) =>
   [...document.querySelectorAll(sel)].filter((el) => !inChrome(el));
@@ -1637,13 +1638,68 @@ const standingItem = () => {
 // which is what is left when they are standing nowhere in it. An element anchor answers in
 // its own word (a figure, a card), the way the panel names one.
 //
-// Three of the four are a box to write in and say so in the same sentence, so the sentence
-// is written once here and the word is what varies. The fourth is not a comment at all but
-// the room the comments are in, and states its own words rather than being bent to the
-// pattern — naming it by word alone is what produced "comment on the comments".
+// Every destination is a box to write in and says so in the same sentence; the word is
+// what varies.
 const commenting = (word) => ({
   does: `Comment on the ${word}`,
   line: `comment on the ${word}`,
+});
+function workspaceControlRoute(control) {
+  if (!control || control === document.body) return () => null;
+  const decision = control?.closest?.(".lf-decisions-row[data-lf-at]");
+  if (decision) {
+    const target = decision.dataset.lfAt;
+    return () =>
+      [...decisionsPanel.querySelectorAll(".lf-decisions-row[data-lf-at]")].find(
+        (row) => row.dataset.lfAt === target,
+      ) ?? null;
+  }
+  const thread = control?.closest?.(".lf-thread[data-id]");
+  if (thread) {
+    const id = thread.dataset.id;
+    return () =>
+      [...panel.querySelectorAll(".lf-thread[data-id]")].find(
+        (row) => row.dataset.id === id,
+      ) ?? null;
+  }
+  const leaf = control?.closest?.(".lf-others-panel a[href]");
+  if (leaf) {
+    const href = leaf.href;
+    return () =>
+      [...othersPanel.querySelectorAll("a[href]")].find((link) => link.href === href) ??
+      null;
+  }
+  return () => (control?.isConnected ? control : null);
+}
+const workspaceState = () => ({
+  panel: panelIsOpen(),
+  tray: currentTray(),
+  control: workspaceControlRoute(documentFocused()),
+});
+function restoreWorkspace(state) {
+  const { panel: hadPanel, tray } = state;
+  if (tray) showTray(tray);
+  else if (hadPanel) {
+    showTray(null);
+    setPanel(true);
+  } else {
+    showTray(null);
+    setPanel(false);
+  }
+  return state.control();
+}
+const composerReturnFrame = () => ({
+  active: () => composerOpen,
+  close: dismissFab,
+  does: "Return to where you were",
+  line: "back",
+});
+const boxReturnFrame = (held, box, does = "Return to the thread") => ({
+  active: () =>
+    held?.isConnected && (containsAcross(held, focused()) || box === focused()),
+  close: () => box.blur(),
+  does,
+  line: "back to thread",
 });
 const commentDestination = () => {
   const anchor = fabAnchorAt();
@@ -1653,31 +1709,39 @@ const commentDestination = () => {
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
       go: focusFabComment,
+      returnFrame: composerReturnFrame,
     };
   const inline = livingMargin?.activeInlineThread();
   const inlineBox = inline && conversationInput(inline);
   const said =
     standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
-  if (said) return { ...commenting("thread"), go: () => landIn(said) };
+  if (said)
+    return {
+      ...commenting("thread"),
+      go: () => landIn(said),
+      returnFrame: () => boxReturnFrame(said.held, said.box),
+    };
   const here = standingItem();
-  if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
-  // Standing nowhere the press can name, so it means "take me to the conversation" and
-  // lands on the list rather than in a box: the ring is visible, t/T walk on from it, and
-  // w and / are live, because the scope the reader is now standing in is the panel's
-  // rather than a text box's. Landing in the general box put them in the one place in the
-  // panel where the panel's own keys are all shadowed — TYPING claims a letter before
-  // PANEL can — so the reader who pressed c to reach the threads had to press Escape
-  // before they could use them. The box is one more c away (PANEL's own row), which is the
-  // shape of every other way in: a scope names its keys, and typing is a scope you enter.
+  if (here)
+    return {
+      ...commenting(itemWord(here)),
+      go: () => commentOnItem(here),
+      returnFrame: composerReturnFrame,
+    };
   return {
-    does: "Go to the threads",
-    // Not "threads": that is the t/T walk's word on the same line, and the two are
-    // different capabilities — one goes to the room, the other steps through what is in
-    // it. A line printing one word twice leaves the keycaps to say which is which.
-    line: "go to threads",
+    ...commenting("page"),
     go: () => {
       setPanel(true);
-      threadsBox.focus({ preventScroll: true });
+      generalInput.focus({ preventScroll: true });
+    },
+    returnFrame: () => {
+      const workspace = workspaceState();
+      return {
+        active: () => panelIsOpen() && generalRow.contains(documentFocused()),
+        close: () => restoreWorkspace(workspace),
+        does: "Return to where you were",
+        line: "back",
+      };
     },
   };
 };
@@ -1685,11 +1749,10 @@ const hasCapturedTarget = () => Boolean(fabAnchorAt());
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, an open thread the reader is
 // standing in gets its own reply box, the item they are standing in gets the box belonging
-// to it, and otherwise the conversation itself, the panel opening and the list taking the
-// focus — the general box being the panel's own c, one press further in. Never the panel's
-// collapse: c doubled as the toggle once, so with the panel standing open the one key that
-// promised "comment" answered "close", and no shortcut reached the box. Backing out is
-// Escape's, which already closes the panel rung by rung.
+// to it, and otherwise the page's general box. That box lives in Threads, but c names and
+// focuses the box directly; g T independently names the list. Never the panel's collapse:
+// c doubled as the toggle once, so with the panel standing open the key that promised
+// “comment” answered “close”. Backing out is the entry's return frame.
 //
 // Standing outranks the page and not the pointer: a reader who has just selected words or
 // raised the 💬 on something has said what they mean more recently than the focus they left
@@ -1753,9 +1816,9 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // two-step shelf, a text box) still own their deliberate unwind step.
 const browserDismissesTopLayer = () =>
   Boolean(document.querySelector(":popover-open, dialog:modal"));
-// The Escape ladder, one definition for every scope that reaches past the focused control,
-// so the thread's, the list's and the page's cannot disagree. It unwinds from where the
-// reader is standing, not from what happens to be open.
+// The fallback Escape reading for state reached without a registered keyboard entry:
+// pointer-opened workspaces, captured targets, and ordinary focus traversal. Commanded
+// entries use the return stack and never infer their inverse from this resulting scene.
 //
 // So the first rung is theirs: out on the page, the innermost thing they are in is the decision
 // they are standing on, and a panel behind them is a layer they are not in. Nothing said
@@ -1827,7 +1890,7 @@ const BACK_OUT = {
   // thing the reader just chose. Keep both on the short line and leave this row in the full
   // reference until the target is gone.
   promoteEscape: () => !hasCapturedTarget() || reactionTokens().length === 0,
-  when: () => !browserDismissesTopLayer() && Boolean(rung()),
+  when: () => !returnStack.current() && !browserDismissesTopLayer() && Boolean(rung()),
   run: () => rung().out(),
 };
 
@@ -1900,9 +1963,13 @@ const { decisionEntry, isAwaiting, projectedParent, unansweredDecisions } =
     tagsDeclaring,
   });
 
+// Dispatch is composed after the page table. Until then the decision view can paint its
+// ring but has no complete scope stack from which to claim that a digit is reachable.
+let decisionActionReachable = () => false;
 const {
   DECISION_CONTROL,
   DECISION_ROW,
+  actionRow,
   decisionPlace,
   buildBulkAnswers,
   goToDecision,
@@ -1916,6 +1983,8 @@ const {
   syncDecisions,
 } = createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
+  actionLayer: decisionActionLayer,
+  actionReachable: () => decisionActionReachable(),
   scrollBehavior,
   documentFocused,
   announce,
@@ -1934,9 +2003,11 @@ const {
     if (livingMargin) livingMargin.focusForNavigation(control);
     else control.focus({ preventScroll: true });
   },
+  focused,
   inChrome: (node) => inChrome(node),
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,
@@ -1945,6 +2016,8 @@ const {
   paintKeys,
   PRESS,
   panelIsOpen,
+  presentedActionControl: (control) =>
+    livingMargin?.presentedControl(control) ?? control,
   readableDestination: (...args) => readableDestination(...args),
   registry,
   reserve,
@@ -1998,6 +2071,7 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   claimsEsc,
   el,
   enterPageMap: () => livingMargin?.enterPageMap(),
+  leavePageMap: () => livingMargin?.leavePageMap(),
   focused,
   focusedThread,
   fragmentId,
@@ -2007,19 +2081,22 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   keylineEl,
   leavesOffered,
   letGo,
-  openPageMapItem: (item) => livingMargin?.openPageMapItem(item),
   othersLinks,
   othersPanel,
-  pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
   paintHere,
   panelCovers,
+  panelIsOpen,
+  pageMapIsActive: () => livingMargin?.pageMapIsActive() ?? false,
   placeThreadEdge,
   resolveAnchor,
   saying,
   seenScroller,
   setPanel,
   showTray,
+  currentTray,
+  workspaceState,
+  restoreWorkspace,
   startsAt,
   scrollToElement,
   threadsBox,
@@ -2240,12 +2317,11 @@ const inTheBox = () => panel.contains(documentFocused());
 // climbs further and answers for a seat on the page too — the two readings stayed apart
 // rather than one standing in for the other.
 const focusedThreadOf = () => documentFocused()?.closest?.(".lf-thread");
-// Where a box hands the reader back to, which is the rung `c` came down. It asked
-// `.lf-thread` and the panel alone, so the two boxes outside the chrome — a conversation
-// seated on the page, and each thread on that seat — had no way out but the page's own
-// "let go": one press in from the thread and one press out to nothing at all, which is
-// the arithmetic the keyboard-is-a-stack rule exists to keep. The climb is
-// `heldConversation`'s, so this is the same element `c` named on the way in.
+// Where a box reached by Tab or pointer hands the reader back. Keyboard entry carries its
+// own captured return frame before this fallback is reached. This once asked only for
+// `.lf-thread` and the panel, so the two boxes outside the chrome — a conversation seated
+// on the page, and each thread on that seat — had no relation to return through. The climb
+// is `heldConversation`'s, the same relation contextual `c` uses when it names a thread.
 //
 // A seat holding no thread yet has no standing place of its own. A widget control that
 // explicitly sends the reader into that box can supply its own return through
@@ -2340,14 +2416,12 @@ const TYPING = {
 // letters spent on a panel that might be shut, promised by the key line over prose the
 // presses said nothing about.
 //
-// `c` is the one row here whose subject is not this list, and it is the rule read one
-// step further rather than the rule bending: the page's `c` follows the reader and is
-// what lands them here, and this is the same intent one scope in, the way `g` names a
-// list and then a member of it. The row's own comment carries where it stands down, so
-// the page's answer is the one that runs wherever the page has a nearer one.
+// `c` is the one row here whose subject is not this list: it carries the page's contextual
+// comment intent into the general box. The row's own guard carries where it stands down,
+// so the page's nearer selection, item, or conversation answer wins there.
 //
 // Standing in the panel is where its focus is, not merely that it is open: the Threads
-// button is the banner's, so opening by pointer leaves the reader outside, and `c`, `t`,
+// button is the banner's, so opening by pointer leaves the reader outside, and `g T`, `t`,
 // Tab or a click on a thread is what puts them in. The same line `THREAD` draws one step
 // further in, which is why that scope sits before this one and its rows shadow these.
 // Whether the page has this scope at all is not a question the log answers: every page
@@ -2368,9 +2442,9 @@ const PANEL = {
       // so the reader learns one idea and reaches it two ways rather than learning
       // "needs you" beside it.
       //
-      // A narrowing is a mode, so the row states it as one: the sentence and the line
-      // both turn on whether it stands, and Escape takes it off through the rung ladder
-      // rather than through a second binding here. Dead while there is nothing waiting
+      // A narrowing is a mode, so the row states it as one: the sentence and line turn
+      // on whether it stands, and a successful keyboard activation pushes its return
+      // frame. The scene rung remains only for pointer activation. Dead while there is nothing waiting
       // and nothing hidden, which is the same fact that greys the control — and dead
       // before the log arrives, which is the one part of that the standing narrowing
       // cannot say for itself: `needsYou` is a flag the reader set, and it outlives a
@@ -2387,6 +2461,12 @@ const PANEL = {
         runtime.statePhase === "ready" &&
         (conversationRuntime.needsYou ||
           conversationRuntime.threadList.some(awaitsReader)),
+      returnFrame: () => ({
+        active: () => panelIsOpen() && conversationRuntime.needsYou,
+        close: () => needsBtn.click(),
+        does: "Show every thread again",
+        line: "show all",
+      }),
       run: () => needsBtn.click(),
     },
     {
@@ -2398,17 +2478,25 @@ const PANEL = {
       does: "Find in the threads",
       line: "find",
       also: findInput,
+      returnFrame: () => ({
+        active: () => panelIsOpen() && (findInput === documentFocused() || narrowed()),
+        close: () => {
+          if (widen()) return false;
+          findInput.blur();
+        },
+        does: () =>
+          narrowed() ? "Show every thread again" : "Leave the thread search",
+        line: () => (narrowed() ? "show all" : "back to threads"),
+      }),
       run: () => {
         findInput.focus();
         findInput.select();
       },
     },
-    // Last, because the first contextual chip is this scope's first live row. Standing
-    // here, `w` and `/` are the only rows that can ever hold that slot — inside a thread
-    // THREAD is nearer, inside a box TYPING claims the letters, outside the panel this scope
-    // is not standing — so a `c` in front of them is the two keys this landing exists to
-    // expose going unadvertised at the one place they work. The second press has a surface
-    // of its own: the box says the key in its placeholder.
+    // Last, because `w` and `/` are the list's own operations while this is a contextual
+    // route through it. The latest return frame already owns the first key-line slot; the
+    // remaining one should say what the list can do. The page-comment box advertises `c`
+    // in its own placeholder, and the complete reference retains this row.
     PANEL_SAY,
   ],
 };
@@ -2441,6 +2529,11 @@ const THREAD = {
             ':scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
           ),
         ),
+      returnFrame: () => {
+        const thread = focusedThread();
+        const box = thread && conversationInput(thread);
+        return box ? boxReturnFrame(thread, box) : null;
+      },
       // Find the thread's own compose row rather than the first textarea: a message may
       // contain a widget with an editor of its own before the reply box in DOM order.
       run: () => {
@@ -2637,6 +2730,7 @@ const REFERENCE = {
 };
 const PAGE = {
   rows: [
+    actionRow,
     // The two presses that say something back, first, because the resting line is the
     // only sentence a reader who has not pressed anything yet will read. It used to open
     // `/ search page · s select item`, which are both ways of *finding* a thing to act on
@@ -2651,13 +2745,9 @@ const PAGE = {
       keys: ["c"],
       // One key, four destinations, and the surfaces name the one in front of the reader:
       // a live selection, the item a click raised the 💬 on, the box belonging to whatever
-      // the reader is standing in, or — when none of those is in hand — the conversation
-      // itself. "Comment" covered them all and so promised none of them.
-      //
-      // The last of the four used to be "comment on the page" and put the reader straight
-      // into the general box; it now names the room, and the panel's own c names the box
-      // in it. Both words are stated beside the press they belong to, so the sentence, the
-      // key line and what the press does cannot come to disagree.
+      // the reader is standing in, or — when none of those is in hand — the page itself.
+      // "Comment" covered them all and so promised none of them. All four enter their
+      // actual box; the panel's contextual c reaches the same general box from its list.
       does: () => commentDestination().does,
       line: () => commentDestination().line,
       // A selection made before the anchor pass has run can't be quoted yet, and
@@ -2665,6 +2755,10 @@ const PAGE = {
       // waits, and the row's own liveness is where that is said rather than a refusal
       // inside run that no surface can see.
       when: () => anchoringReady || !pageSelection(),
+      returnFrame: () => {
+        updateFab();
+        return commentDestination().returnFrame?.() ?? null;
+      },
       run: commentKey,
     },
     {
@@ -2682,7 +2776,14 @@ const PAGE = {
           )} — for the selection, the item you are standing on, or the reply you are reading`,
       line: "react",
       when: () => reactionTokens().length > 0 && (anchoringReady || !pageSelection()),
-      run: () => setReact(true),
+      run: () => {
+        // Selection capture normally follows the pointer gesture in its queued turn.
+        // A fast `r` may arrive before that turn even though the native Selection is
+        // already complete. Capture it now so the command cannot advertise reaction
+        // digits while opening no corresponding choices.
+        if (pageSelection() && !fabAnchorAt()) updateFab();
+        setReact(true);
+      },
     },
     // Then the two ways of choosing what to say it about. They are one press from the
     // shelf and named in full by the reference, which is where a capability the reader
@@ -2842,10 +2943,12 @@ const PAGE = {
 };
 
 // The stack, innermost first, and the whole of what the runtime says about the order. The
-// element scopes splice in where ELEMENTS stands — between the two modes that suspend the page
-// and the page's own, because a widget's control shadows the page and nothing shadows an armed
-// chord or the reference — and every other reading is taken from here: the dispatcher and the
-// line walk it as it stands, the reference walks it backwards.
+// Element scopes splice in where ELEMENTS stands. RETURN follows that placeholder in this
+// canonical list; the dispatcher places it at the dynamic boundary after the exact control
+// and before generic typing and ancestor rows, so an input can clear its own query before
+// leaving while a plain composer returns in the one Escape its entry earned. Every reading
+// starts from this stack: the dispatcher and line walk it inward, and the reference walks it
+// backwards.
 //
 // Three lists said this, and the third was the reference's own, in its own order, holding the
 // same eight scopes by hand. A mode left out of that one was a mode the reference never named
@@ -2853,6 +2956,8 @@ const PAGE = {
 // not declared the way a widget's are. A list that must be edited in step with another is the
 // same bug waiting on the next mode.
 const ELEMENTS = Symbol("the scopes of the focused element");
+const returnStack = createReturnStack({ focused, paintHere, readingBlock });
+const { RETURN } = returnStack;
 const SCOPES = [
   HELP,
   SHORTCUT_SHELF,
@@ -2861,6 +2966,7 @@ const SCOPES = [
   REACT,
   SELECT,
   ELEMENTS,
+  RETURN,
   VERSIONS,
   COMPOSER,
   TYPING,
@@ -2938,6 +3044,8 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   paintHere,
   REACT,
   recoveredLabelFocus,
+  RETURN,
+  returnStack,
   SCOPES,
   scopesFor,
   setChord,
@@ -2945,6 +3053,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   takesLetters,
   TYPING,
 });
+decisionActionReachable = () => availableCommands().has(actionRow.id);
 const reference = createReference({
   byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
@@ -3521,6 +3630,7 @@ livingMargin = createLivingMargin({
   placedAt,
   quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
+  says,
   scrollBehavior,
   scrollToElement,
   setPanel,
@@ -3654,9 +3764,9 @@ createArrangements({
 // uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
 // still does, since Space on a button presses it rather than scrolling the document.
 //
-// Here rather than in the start block below, which runs asynchronous upgrades with the
-// chrome clickable throughout: a reader who took a control in that window would have it
-// taken back off them. Main is withheld from paint, and body can name the page now.
+// Here rather than in the start block below, which runs asynchronous upgrades while the
+// authored document is already readable: body can name the page now, and stateful widget
+// controls remain unavailable until presentPage crosses their semantic boundary.
 letGo();
 const { landArrival, savedView } = installArrival({
   fragmentId,
@@ -3667,18 +3777,39 @@ const { landArrival, savedView } = installArrival({
 const savedComposer = selectionComposerRuntime.pendingComposer();
 
 // ---------- start ----------
-// One positive fact for the one presentation boundary. Success has applied the log;
-// an unavailable first poll has painted the offline status and deliberately hands the
-// authored page back. A caught startup failure cannot make that promise, so it leaves
-// the fixed recovery surface in place rather than exposing decisions it never read. A fast
-// answer releases before the delayed waiting surface can paint; a slower answer releases
-// as soon as replay commits, so the explanation never holds a ready page behind it.
+// One positive fact for the semantic-interaction boundary. Authored HTML already paints.
+// Success has applied the log; an unavailable first poll has painted the offline status
+// and deliberately lets the authored state accept durable interaction. A caught startup
+// failure cannot make either promise, so controls and top-layer UI remain unavailable.
 function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  // Anchors are durable coordinates, so their pass and every route that can mint one
+  // begin only after replay has reconciled the authored document. An early native text
+  // selection can then resolve against the standing DOM, while a retired passage cannot
+  // leave a composer carrying its authored words.
+  anchoringReady = true;
+  try {
+    paintAnchors();
+  } catch (error) {
+    anchoringReady = false;
+    throw error;
+  }
+  // The stamp is the promise that every semantic prerequisite above succeeded, not merely
+  // that presentation was attempted. Keep it absent when a malformed widget makes the
+  // anchor reading fail, so durable controls remain withheld on that partial page.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
-  // Repaint state-dependent chrome in this same task. The presentation attribute opens
-  // the gate, replay is already complete, and no frame can expose the authored count or
-  // an empty persisted tray between those facts.
+  updateFab();
+  paintHere();
+  landArrival();
+  if (savedView && savedView.revision < runtime.currentRevision)
+    notice(`Updated to ${runtime.currentLabel}`);
+  if (savedComposer)
+    openComposer(savedComposer.anchor, savedComposer.text, {
+      suggest: Boolean(savedComposer.suggest),
+      about: savedComposer.about ?? null,
+    });
+  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
+  // is already complete, so the presented attribute opens interaction on the state it names.
   restoreTray();
   showNews(othersBtn, leavesOffered());
   paintKeys();
@@ -3688,9 +3819,9 @@ function presentPage() {
 }
 
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
-// never top-level await: boot first publishes every factory-built owner capability, then
-// imports the behavior modules that consume the public facade.
+// positions are re-found in the enhanced, replayed DOM rather than authored markup. An
+// async function, never top-level await: boot first publishes every factory-built owner
+// capability, then imports the behavior modules that consume the public facade.
 async function startPage() {
   const [upgraded] = await Promise.all([
     upgradeWidgets(),
@@ -3708,18 +3839,6 @@ async function startPage() {
   captureAuthoredFacets();
   buildBulkAnswers();
   syncDecisions();
-  anchoringReady = true;
-  paintAnchors(); // an early general post may already have loaded anchored threads
-  updateFab(); // an early selection is now read from the fully upgraded page
-  paintHere(); // c is live again, whether or not that selection raised the button
-  landArrival();
-  if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
-  if (savedComposer)
-    openComposer(savedComposer.anchor, savedComposer.text, {
-      suggest: Boolean(savedComposer.suggest),
-      about: savedComposer.about ?? null,
-    });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and
@@ -3735,9 +3854,8 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
-  // The boundary itself must fail visibly. The fixed recovery surface stays in front:
-  // this failure happened before the log was read, so the authored decisions underneath
-  // are not an honest page to release.
+  // The boundary itself must fail visibly. Authored HTML remains readable, while the
+  // status names the fault and the absent presented stamp keeps durable controls closed.
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

@@ -140,7 +140,7 @@ def page() -> None:
 def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     """Create or re-vendor a page directory.
 
-    Creates PAGE/revisions/ and PAGE/versions/, then vendors the widget layer.
+    Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
     --no-packages replaces them, and refuses vocabulary the page log can no longer
     read. A package may contain any subset of the package layout, including zero,

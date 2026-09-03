@@ -21,6 +21,7 @@ from interact_support import (
     add_test_widget,
     case_alias,
     check,
+    fixture_version_path,
     install_payload,
     record_claim,
     shipped_payload,
@@ -50,7 +51,6 @@ EXPECTED_PAGE_STATE_FILES = (
 )
 EXPECTED_PAGE_DIRECTORIES = (
     "revisions",
-    "versions",
     "runtime",
     "widgets",
     "vendor",
@@ -395,8 +395,9 @@ def test_init_help_names_the_source_revision_and_version_layout():
     )
 
     assert result.exit_code == 0
-    assert "Creates PAGE/revisions/ and PAGE/versions/" in result.output
-    assert "author writes PAGE/index.html" in result.output
+    help_text = " ".join(result.output.split())
+    assert "Creates PAGE/revisions/, then vendors" in help_text
+    assert "author writes PAGE/index.html" in help_text
     assert "--package" in result.output
 
 
@@ -2319,7 +2320,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         package / "vendor" / "callout-schema.json"
     ).read_text()
 
-    (page / "versions" / "v1.html").write_text(
+    fixture_version_path(page, 1).write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-callout id="custom-note">'
@@ -2553,7 +2554,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
     [
         ("theme.css", "status.json"),
         ("widgets", schema_model.MEDIA_DIR),
-        ("vendor", "versions"),
+        ("vendor", "revisions"),
     ],
 )
 def test_package_refuses_sources_aliased_to_page_owned_state(

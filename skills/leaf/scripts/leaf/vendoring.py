@@ -299,7 +299,6 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
     ]
     directories = {
         page_dir / "revisions",
-        page_dir / "versions",
         page_dir / MEDIA_DIR,
         *(page_dir / sub for sub in PACKAGE_DIRS),
     }

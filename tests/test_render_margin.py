@@ -17,11 +17,11 @@ from render_support import (
     _traffic,
     _until,
     compare_with,
-    key_line,
     leaf_page,
     live_url,
     margins_laid_out,
     open_page,
+    panel_comment,
     panel_settled,
     resized,
     round_trip,
@@ -56,13 +56,13 @@ COMMENT_ON_SUGGESTION = {
     "text": "Check this wording before accepting it.",
     "anchor": {"section": "sug-refill"},
 }
-
-PAGE_MAP_ITEM_HINT = '.lf-keyline .lf-key[data-lf-commands~="navigation.page-map-item"]'
-
-
-def address_span(count):
-    capped = min(count, 9)
-    return f"1–{capped}" if capped > 1 else "1"
+COMMENT_ON_SECOND_SUGGESTION = {
+    "kind": "comment",
+    "author": "agent",
+    "revision": 1,
+    "text": "This one can wait for the autumn order.",
+    "anchor": {"section": "sug-thistle"},
+}
 
 
 def test_margin_layout_batches_the_composed_page_without_refolding_controls(
@@ -118,20 +118,75 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     page.close()
 
 
+def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serve):
+    """A heartbeat refresh cannot force layout once per Page-map location."""
+    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
+    page, errors = open_page(browser, serve(corpus))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    assert page.locator(".lf-margin-item").count() >= 15
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    refreshes = 5
+    geometry_reads = page.evaluate(
+        """refreshes => {
+          const main = document.querySelector('main');
+          const rect = main.getBoundingClientRect.bind(main);
+          let reads = 0;
+          main.getBoundingClientRect = () => {
+            reads += 1;
+            return rect();
+          };
+          for (let i = 0; i < refreshes; i++)
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+          main.getBoundingClientRect = rect;
+          return reads;
+        }""",
+        refreshes,
+    )
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    work = {
+        name: after[name] - before[name]
+        for name in (
+            "LayoutCount",
+            "RecalcStyleCount",
+        )
+    }
+    # Browser bookkeeping can add a small number of layouts around the measured
+    # dispatches. The old interleaved pass forced 26 layouts and 44 style
+    # recalculations per refresh, so these process-independent bounds still separate
+    # the two architectures without turning shared-runner timing into a contract.
+    assert work["LayoutCount"] <= refreshes * 4, work
+    assert work["RecalcStyleCount"] <= refreshes * 18, work
+    assert geometry_reads == refreshes, geometry_reads
+    assert errors == []
+    page.close()
+
+
 def test_a_docked_cluster_keeps_later_margin_buttons_beside_their_targets(
     browser, serve
 ):
-    """Docking adds page height; later hanging Buttons use that final flow."""
+    """A wide cluster that has to dock stays with its target inside a section."""
     fixture = leaf_page(
         "Mixed margin postures",
-        '<p id="first">First target</p><p id="second">Second target</p>',
+        '<section><p id="first">First target</p>'
+        '<p id="between">Unrelated intervening prose</p>'
+        '<p id="second">Second target</p></section>',
     )
     page, errors = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
           const {offer, marginAction, registerMarginItem} =
             await import('/runtime/widget-api.js');
-          for (const [id, count] of [['first', 6], ['second', 1]]) {
+          for (const [id, count] of [['first', 8], ['second', 1]]) {
             const controls = document.createElement('span');
             for (let i = 0; i < count; i++) controls.append(
               marginAction(offer('button', ''), {
@@ -146,32 +201,148 @@ def test_a_docked_cluster_keeps_later_margin_buttons_beside_their_targets(
     )
     first = page.locator('[data-lf-margin-for="first"]')
     second = page.locator('[data-lf-margin-for="second"]')
-    for width in (1440, 1000, 1440):
+    for width in (1440, 1200, 1000, 1440):
         resized(page, width, 900)
         margins_laid_out(page)
-        assert ("lf-docked" in first.get_attribute("class")) == (width == 1000)
+        assert ("lf-docked" in first.get_attribute("class")) == (width <= 1000)
         expect(second).not_to_have_class(re.compile(r"\blf-docked\b"))
         assert second.bounding_box()["y"] == pytest.approx(
             page.locator("#second").bounding_box()["y"], abs=1
         )
+        if width <= 1000:
+            assert first.evaluate(
+                "item => item.previousElementSibling === document.querySelector('#first')"
+            ), "the docked controls were severed from their target by later prose"
+        else:
+            assert first.evaluate(
+                "item => item.parentElement === document.querySelector('main')"
+            )
     assert errors == []
     page.close()
 
 
-def expect_page_map_address(page, count, pressed):
-    key_line(page)
-    hint = page.locator(PAGE_MAP_ITEM_HINT)
-    expect(hint).to_have_count(1)
-    expect(hint).to_contain_text("page-map items")
-    keys = hint.locator(".lf-key-sequence > kbd")
-    assert keys.evaluate_all("keys => keys.map(key => key.textContent)") == [
-        "g",
-        "m",
-        address_span(count),
+def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
+    """A tooltip moves rather than covering a neighboring Button."""
+    fixture = leaf_page(
+        "Close margin labels",
+        '<p id="first">First target</p><p id="second">Second target</p>',
+    )
+    page, errors = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          for (const id of ['first', 'second']) {
+            registerMarginItem({key: id, target: document.getElementById(id),
+              controls: marginAction(offer('button', ''), {
+                key: 'act', icon: 'dot', label: `Act on ${id}`
+              })});
+          }
+        }"""
+    )
+    first = page.locator('[data-lf-margin-for="first"]')
+    second = page.locator('[data-lf-margin-for="second"]')
+    button = first.get_by_role("button", name="Act on first", exact=True)
+    button.hover()
+    expect(button).to_have_attribute("data-lf-label-side", re.compile(".+"))
+    label = button.locator(".lf-margin-action-label")
+    expect(label).to_be_visible()
+    button_box, label_box, second_box = [
+        locator.bounding_box() for locator in (button, label, second)
     ]
-    assert keys.evaluate_all("keys => keys.map(key => key.dataset.lfKeyState)") == [
-        "pressed"
-    ] * pressed + ["neutral"] * (3 - pressed)
+    default_label_box = {
+        "x": button_box["x"] + button_box["width"] - label_box["width"],
+        "y": button_box["y"] + button_box["height"] + 6,
+        "width": label_box["width"],
+        "height": label_box["height"],
+    }
+
+    def overlaps(left, right):
+        return (
+            left["x"] < right["x"] + right["width"]
+            and left["x"] + left["width"] > right["x"]
+            and left["y"] < right["y"] + right["height"]
+            and left["y"] + left["height"] > right["y"]
+        )
+
+    assert overlaps(default_label_box, second_box), (
+        "the fixture no longer exercises overlapping margin rows"
+    )
+    assert not overlaps(label_box, second_box)
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_dense_gallery_labels_cover_no_neighboring_button(browser, serve, width):
+    """Every label in a tightly stacked real cluster finds a clear side."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, width, 900)
+    page.locator("#bg-neighbors").scroll_into_view_if_needed()
+    for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
+        buttons = page.locator(
+            f'[data-lf-margin-for="{target}"] .lf-margin-action:visible'
+        )
+        for index in range(buttons.count()):
+            button = buttons.nth(index)
+            button.hover()
+            expect(button).to_have_attribute("data-lf-label-side", re.compile(".+"))
+            reading = button.evaluate(
+                """control => {
+                  const label = control.querySelector('.lf-margin-action-label');
+                  const box = label.getBoundingClientRect();
+                  const overlap = (left, right) => left.left < right.right &&
+                    left.right > right.left && left.top < right.bottom &&
+                    left.bottom > right.top;
+                  const neighbors = [...document.querySelectorAll('.lf-margin-action')]
+                    .filter(candidate => candidate !== control && candidate.checkVisibility())
+                    .map(candidate => candidate.getBoundingClientRect());
+                  return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
+                    box.top >= 4 && box.bottom <= innerHeight - 4,
+                    overlaps: neighbors.filter(neighbor => overlap(box, neighbor)).length};
+                }"""
+            )
+            assert reading == {"inside": True, "overlaps": 0}
+    assert errors == []
+    page.close()
+
+
+def test_an_unchanged_repaint_cannot_cancel_a_button_press(browser, serve):
+    """The retained Button keeps its hit-tested descendants through reconciliation."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Hold this Thread Button across a state repaint.",
+        "anchor": {"section": "how-cap"},
+    }
+    another = {
+        **comment,
+        "text": "Keep the count badge under the same pointer too.",
+    }
+    page, errors = open_page(browser, serve(PANEL_PAGE, events=[comment, another]))
+    resized(page, 1280, 900)
+    marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
+    icon = marker.locator(":scope > .lf-margin-action-icon")
+    badge = marker.locator(":scope > .lf-margin-count")
+    icon.evaluate("node => { window.__heldButtonIcon = node; }")
+    badge.evaluate("node => { window.__heldButtonBadge = node; }")
+    marker.evaluate(
+        """button => button.addEventListener('click', () => {
+          button.dataset.testClicks = String(Number(button.dataset.testClicks || 0) + 1);
+        })"""
+    )
+    box = badge.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    assert icon.evaluate("node => node === window.__heldButtonIcon")
+    assert badge.evaluate("node => node === window.__heldButtonBadge")
+    page.mouse.up()
+    expect(marker).to_have_attribute("data-test-clicks", "1")
+    assert errors == []
+    page.close()
 
 
 def resized_shell(page, inline_size, height):
@@ -231,7 +402,50 @@ PAGE_MAP_EVENTS = [
 ]
 
 
-@pytest.mark.parametrize("width", [1440, 700, 390])
+@pytest.mark.parametrize("width", [1200, 390])
+def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
+    browser, serve, width
+):
+    """A secondary action's visible proxy gets its canonical Ask address."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, width, 900)
+    margins_laid_out(page)
+
+    page.keyboard.press("a")
+    expect(page.locator("#bg-replace")).to_be_focused()
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
+    geometry = page.evaluate(
+        """() => {
+          const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
+          const boxes = (nodes) => nodes.map((node) => {
+            const box = node.getBoundingClientRect();
+            return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+          });
+          const controls = [...item.querySelectorAll('button')].filter((button) => {
+            const box = button.getBoundingClientRect();
+            return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
+          });
+          return {
+            controls: controls.map((control) => {
+              const box = control.getBoundingClientRect();
+              return {x: box.left, y: box.top};
+            }),
+            chips: boxes([...document.querySelectorAll(
+              '.lf-ask-addresses > .lf-ask-address'
+            )]),
+          };
+        }"""
+    )
+    assert len(geometry["controls"]) == len(geometry["chips"]) == 2, geometry
+    for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
+        assert abs(control["x"] - chip["x"]) <= 2, geometry
+        assert abs(control["y"] - chip["y"]) <= 2, geometry
+
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and dense overflow."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
@@ -285,9 +499,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         if event.get("token") == "this"
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
-    take_back = sheet.locator(
-        f'[data-lf-map-button$=":take-back:{reaction["id"]}:proxy"]'
-    )
+    take_back = sheet.locator(f'[data-lf-map-button$=":take-back:{reaction["id"]}"]')
     expect(take_back).to_have_attribute("aria-label", "this — take it back")
     sends = _traffic(page).sends
     take_back.click()
@@ -301,105 +513,309 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.close()
 
 
-def test_g_addresses_the_page_map_prefix_in_its_announced_order(browser, serve):
-    """The first nine Page-map locations keep their announced position as address."""
-    page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve):
+    """Each Button promise and the live example that keeps it share one section."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
-    marker = page.locator('[data-lf-margin-for="map-3"] > .lf-margin-marker')
-    address = page.evaluate(
-        """() => {
-          const marker = [...document.querySelectorAll('.lf-margin-marker')]
-            .find(candidate => candidate.lfEntry?.target?.id === 'map-3');
-          const position = marker.getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
-          const mapCount = document.querySelector('.lf-living-margin')
-            .getAttribute('aria-label').match(/(\\d+) locations/);
-          const targetTop = document.querySelector('#map-3')
-            .getBoundingClientRect().top;
-          return {number: Number(position[1]), count: Number(position[2]),
-            mapCount: Number(mapCount[1]), targetTop,
-            viewportHeight: innerHeight};
+    expect(page.locator("#bg-grammar")).to_have_count(0)
+    sections = {
+        "bg-changes": (
+            "Action Buttons change something now",
+            "#bg-changes-guide",
+            "#bg-replace",
+        ),
+        "bg-editing": (
+            "A Disclosure opens context first",
+            "#bg-editing-guide",
+            "#bg-draft",
+        ),
+        "bg-conversations": (
+            "Thread is another Disclosure",
+            "#bg-conversations-guide",
+            "#bg-thread-text",
+        ),
+        "bg-reactions": (
+            "Reaction Actions leave a short verdict",
+            "#bg-reactions-guide",
+            "#bg-react-ok",
+        ),
+        "bg-clusters": (
+            "Options unfolds peer Buttons in place",
+            "#bg-clusters-guide",
+            "#bg-crowded",
+        ),
+        "bg-readings": (
+            "Reading Disclosures report without acting",
+            "#bg-readings-guide",
+            "#bg-outcome-ask",
+        ),
+        "bg-version-changes": (
+            "Change Disclosure points to evidence",
+            "#bg-version-guide",
+            "#bg-change",
+        ),
+    }
+    for section_id, (heading, guide_selector, example_selector) in sections.items():
+        section = page.locator(f"#{section_id}")
+        expect(section.get_by_role("heading", name=heading, exact=True)).to_be_visible()
+        expect(section.locator(guide_selector)).to_be_visible()
+        expect(section.locator(example_selector)).to_be_visible()
+
+    examples = {
+        "action": page.locator('[data-lf-margin-for="bg-replace"] .lf-sug-accept'),
+        "disclosure": page.locator(
+            '[data-lf-margin-for="bg-thread-text"] .lf-margin-marker'
+        ),
+        "options": page.locator('[data-lf-margin-for="bg-crowded"] > .lf-margin-more'),
+        "settled": page.locator('[data-lf-margin-for="bg-react-ok"] .lf-react-mark'),
+    }
+    for behavior in ("action", "disclosure", "options"):
+        expect(examples[behavior]).to_have_attribute("data-lf-behavior", behavior)
+    expect(examples["action"]).to_have_attribute("data-lf-tone", "positive")
+    expect(examples["settled"]).to_have_attribute("data-lf-state", "settled")
+    assert page.locator("#bg-reactions p strong").all_text_contents() == [
+        "1 · ok · settled.",
+        "2 · no · wrong.",
+        "3 · lost · unclear.",
+        "4 · cut · too long.",
+        "5 · more · needs detail.",
+        "6 · this · look here.",
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_margin_registration_rejects_ambiguous_button_identity(browser, serve):
+    """One owner plus one Button key must identify exactly one activation source."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    message = page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const controls = document.createElement('span');
+          for (const label of ['First', 'Second'])
+            controls.append(marginAction(offer('button', ''), {
+              key: 'same', icon: 'dot', label
+            }));
+          try {
+            registerMarginItem({
+              key: 'ambiguous', target: document.querySelector('#how-cap'), controls
+            });
+          } catch (error) {
+            return error.message;
+          }
+          return null;
         }"""
     )
-    assert address["count"] == address["mapCount"]
-    assert address["count"] == 12
-    assert address["number"] <= 9
-    assert address["targetTop"] > address["viewportHeight"], (
-        "the target must begin off screen so this proves the address is page-wide"
+    assert message == 'Duplicate Button key "same" in margin item "ambiguous"'
+    expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, serve):
+    """One retained proxy follows Button semantics and ARIA without owning activation."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, marginActionState, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const control = marginAction(offer('button', ''), {
+            key: 'inspect', icon: 'question', label: 'Inspect source',
+            behavior: 'disclosure', tone: 'negative', role: 'reading',
+            state: 'engaged'
+          });
+          control.setAttribute('aria-controls', 'how-cap');
+          control.setAttribute('aria-expanded', 'true');
+          control.setAttribute('aria-haspopup', 'dialog');
+          control.setAttribute('aria-pressed', 'true');
+          control.onclick = () => window.lfCanonicalPresses += 1;
+          window.lfCanonicalPresses = 0;
+          window.lfCanonicalButton = {
+            control,
+            registration: registerMarginItem({
+              key: 'fixture', target: document.querySelector('#how-cap'), controls: control
+            }),
+            update() {
+              marginActionState(control, 'busy');
+              control.setAttribute('aria-expanded', 'false');
+              control.setAttribute('aria-haspopup', 'menu');
+              control.removeAttribute('aria-pressed');
+              this.registration.update({immediate: true});
+            }
+          };
+        }"""
     )
-    marker.evaluate(
-        """control => control.addEventListener('click', () => {
-          control.dataset.activationClicks =
-            String(Number(control.dataset.activationClicks || 0) + 1);
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    proxy = sheet.get_by_role("button", name="Inspect source", exact=True)
+    expect(proxy).to_be_visible()
+    assert proxy.evaluate(
+        """button => ({
+          behavior: button.dataset.lfBehavior,
+          tone: button.dataset.lfTone,
+          role: button.dataset.lfRole,
+          state: button.dataset.lfState,
+          label: button.querySelector('.lf-page-map-action-label').textContent,
+          expanded: button.getAttribute('aria-expanded'),
+          pressed: button.getAttribute('aria-pressed'),
+          popup: button.getAttribute('aria-haspopup'),
+          controls: button.getAttribute('aria-controls'),
         })"""
-    )
-
-    def activation_state():
-        return page.evaluate(
-            """() => {
-              const marker = document.querySelector(
-                '[data-lf-margin-for="map-3"] > .lf-margin-marker'
-              );
-              return {
-                focused: document.activeElement === document.querySelector(
-                  '.lf-margin-preview textarea'),
-                clicks: marker.dataset.activationClicks,
-                open: document.querySelector('.lf-margin-preview')
-                  .matches(':popover-open'),
-                expanded: marker.getAttribute('aria-expanded'),
-                target: document.querySelector('#map-3')
-                  .classList.contains('lf-margin-target'),
-              };
-            }"""
-        )
-
-    marker.click()
-    pointer_activation = activation_state()
-    assert pointer_activation == {
-        "focused": True,
-        "clicks": "1",
-        "open": True,
+    ) == {
+        "behavior": "disclosure",
+        "tone": "negative",
+        "role": "reading",
+        "state": "engaged",
+        "label": "Inspect source…",
         "expanded": "true",
-        "target": True,
+        "pressed": "true",
+        "popup": "dialog",
+        "controls": "how-cap",
     }
-    marker.click()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    proxy.evaluate("button => button.dataset.stableProof = 'same-proxy'")
+    proxy.focus()
+    page.evaluate("() => window.lfCanonicalButton.update()")
+    expect(proxy).to_be_focused()
+    expect(proxy).to_have_attribute("data-stable-proof", "same-proxy")
+    expect(proxy).to_have_attribute("data-lf-state", "busy")
+    expect(proxy).to_have_attribute("aria-busy", "true")
+    expect(proxy).to_have_attribute("aria-expanded", "false")
+    expect(proxy).to_have_attribute("aria-haspopup", "menu")
+    expect(proxy).not_to_have_attribute("aria-pressed", re.compile(".+"))
+
     page.evaluate(
         """() => {
-          document.body.focus();
-          document.scrollingElement.scrollTo(0, 0);
-          document.querySelector(
-            '[data-lf-margin-for="map-3"] > .lf-margin-marker'
-          ).dataset.activationClicks = '0';
+          const fixture = window.lfCanonicalButton;
+          fixture.control.setAttribute('aria-disabled', 'true');
+          fixture.registration.update({immediate: true});
         }"""
     )
-    expect(marker).not_to_be_focused()
+    expect(proxy).to_be_disabled()
+    page.evaluate(
+        """() => {
+          const fixture = window.lfCanonicalButton;
+          fixture.control.removeAttribute('aria-disabled');
+          fixture.registration.update({immediate: true});
+        }"""
+    )
+    expect(proxy).to_be_enabled()
+    proxy.click()
+    expect(sheet).to_be_hidden()
+    assert page.evaluate("() => window.lfCanonicalPresses") == 1
+    assert errors == []
+    page.close()
 
+
+def test_g_m_opens_the_complete_page_map_beyond_nine_locations(browser, serve):
+    """The Map destination never projects an arbitrary numbered prefix."""
+    page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, 1440, 900)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
-    expect_page_map_address(page, address["count"], 1)
     page.keyboard.press("m")
-    expect_page_map_address(page, address["count"], 2)
-    page.keyboard.press(str(address["number"]))
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+    expect(sheet.locator(".lf-page-map-group")).to_have_count(12)
+    expect(sheet).to_contain_text("Map note 12")
+    search = sheet.get_by_role(
+        "searchbox", name="Find a Button or location in Page map"
+    )
+    expect(search).to_be_focused()
+    search.fill("Map note 12")
+    expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(1)
+    expect(sheet.locator(".lf-page-map-group:visible")).to_contain_text("Map note 12")
+    search.fill("")
+    expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(12)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    assert errors == []
+    page.close()
 
-    preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
-    expect(preview).to_contain_text("Map note 3")
-    assert activation_state() == pointer_activation, (
-        "the page-map address and the marker's click leave different state"
+
+def test_g_m_exposes_the_inline_gallery_verdicts_as_real_buttons(browser, serve):
+    """Late action-only targets keep their verbs in the complete Page map."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => {
+          const prefix = document.createElement('span');
+          prefix.textContent = 'A deliberately long introduction places the remembered words later: ';
+          document.querySelector('#bg-neighbors').prepend(prefix);
+        }"""
     )
 
-    page.keyboard.press("Escape")
-    resized(page, 390, 760)
     page.keyboard.press("g")
     page.keyboard.press("m")
-    page.keyboard.press(str(address["number"]))
-    compact_item = page.locator(".lf-page-map-sheet .lf-page-map-action").filter(
-        has_text="Map note 3"
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+    for title, word in (
+        ("rewrite · two → three", "three"),
+        ("rewrite · red → blue", "blue"),
+        ("rewrite · large → small", "small"),
+    ):
+        group = sheet.locator(".lf-page-map-group").filter(has_text=title)
+        expect(
+            group.get_by_role("button", name=f"Accept the suggested change: {word}")
+        ).to_be_visible()
+        expect(
+            group.get_by_role("button", name=f"Reject the suggested change: {word}")
+        ).to_be_visible()
+
+    search = sheet.get_by_role(
+        "searchbox", name="Find a Button or location in Page map"
     )
-    expect(page.locator(".lf-page-map-sheet")).to_be_visible()
-    expect(compact_item).to_be_focused()
-    expect(compact_item).to_be_in_viewport()
-    page.keyboard.press("Escape")
-    expect(page.locator("#map-3")).to_be_in_viewport()
+    search.fill("Pack")
+    expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(3)
+    expect(sheet.locator(".lf-page-map-group:visible")).to_contain_text(
+        ["two → three", "red → blue", "large → small"]
+    )
+    sheet.locator(".lf-page-map-group:visible").first.get_by_role(
+        "button", name="Accept the suggested change: three"
+    ).focus()
+    page.evaluate(
+        """() => {
+          const passage = document.querySelector('#bg-neighbors');
+          const word = [...passage.childNodes].find(
+            node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Pack')
+          );
+          word.textContent = word.textContent.replace('Pack', 'Carry');
+          document.dispatchEvent(new CustomEvent('lf-actions'));
+        }"""
+    )
+    expect(search).to_be_focused()
+    expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(0)
+    expect(sheet.get_by_text("No matching Buttons or locations")).to_be_visible()
+    page.evaluate(
+        """() => {
+          const passage = document.querySelector('#bg-neighbors');
+          const word = [...passage.childNodes].find(
+            node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Carry')
+          );
+          word.textContent = word.textContent.replace('Carry', 'Pack');
+          document.dispatchEvent(new CustomEvent('lf-actions'));
+        }"""
+    )
+    expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(3)
+    search.fill("red → blue")
+    expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(1)
+    red = sheet.locator(".lf-page-map-group").filter(has_text="rewrite · red → blue")
+    reject = red.get_by_role(
+        "button", name="Reject the suggested change: blue", exact=True
+    )
+    reject.evaluate("button => button.dataset.testIdentity = 'held'")
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    expect(reject).to_have_attribute("data-test-identity", "held")
+    reject.focus()
+    page.keyboard.press("Enter")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["widget"], sent["action"]) == (
+        "action",
+        "bg-neighbor-b",
+        "reject",
+    )
     assert errors == []
     page.close()
 
@@ -499,6 +915,48 @@ def test_settling_a_secondary_button_exposes_its_lifecycle(browser, serve):
     expect(
         item.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     ).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+CLUSTER_SHAPE = """() => [...document.querySelectorAll('.lf-margin-item')].map(
+  (host) => [
+    host.dataset.lfMarginFor,
+    host.querySelectorAll('.lf-margin-action').length,
+    Boolean(host.querySelector('.lf-margin-options')?.hidden),
+  ])"""
+
+
+def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
+    """Paper takes every injected control out of the page, so the one
+    contributor-visibility reading a margin render is built on comes back empty there
+    and folds every cluster to nothing. That is a reading of the medium rather than of
+    the page: news arriving while the reader stands in the print preview leaves the
+    Buttons where they were, and reaches them when the screen comes back.
+
+    The shape is read as markup rather than as visibility, because on paper nothing in
+    the margin is visible either way; what the fold does is empty the option group and
+    take the Buttons out of the host."""
+    page, errors = open_page(
+        browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    standing = page.evaluate(CLUSTER_SHAPE)
+    assert [host for host in standing if host[1] > 1], (
+        f"no cluster here holds the Buttons a paper reading would fold away: {standing}"
+    )
+
+    page.emulate_media(media="print")
+    events_model.append_event(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
+    told(page)
+    assert page.evaluate(CLUSTER_SHAPE) == standing
+
+    page.emulate_media(media="screen")
+    thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
+    expect(thistle.locator(".lf-margin-marker")).to_have_attribute(
+        "aria-label", re.compile(r"^Thread, ")
+    )
     assert errors == []
     page.close()
 
@@ -737,21 +1195,6 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.mouse.move(0, 0)
     expect(edit.locator(".lf-margin-action-label")).to_be_hidden()
 
-    draft_address = draft_item.evaluate(
-        """item => {
-          const position = item.querySelector(':scope > .lf-margin-marker')
-            .getAttribute('aria-label').match(/(\\d+) of (\\d+)/);
-          return {number: Number(position[1]), count: Number(position[2])};
-        }"""
-    )
-    page.keyboard.press("g")
-    expect_page_map_address(page, draft_address["count"], 1)
-    page.keyboard.press("m")
-    expect_page_map_address(page, draft_address["count"], 2)
-    assert draft_address["number"] <= 9
-    page.keyboard.press(str(draft_address["number"]))
-    expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
-
     shapes = page.locator(
         ".lf-sug-accept:visible, .lf-draft-pencil:visible, .lf-margin-more:visible, "
         ".lf-margin-marker:visible"
@@ -810,9 +1253,6 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(options).to_be_visible()
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-action:visible")).to_have_count(6)
-    expect(reactions.locator(":scope > .lf-fab")).to_have_class(
-        re.compile(r"lf-margin-action")
-    )
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-action")
     )
@@ -908,12 +1348,6 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
-
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press(str(draft_address["number"]))
-    expect(draft_item.locator(".lf-draft-pencil")).to_be_focused()
-    expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
 
     assert errors == []
     page.close()
@@ -1172,6 +1606,38 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
     page.close()
 
 
+def test_a_reading_marker_counts_toward_the_expanded_button_budget(browser, serve):
+    """A reading-only target never grows a seventh fitting beside its marker."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this thread visible.", {"section": "how-cap"})
+    page, errors = open_page(browser, url)
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const controls = document.createElement('span');
+          for (let index = 0; index < 6; index += 1)
+            controls.append(marginAction(offer('button', ''), {
+              key: `peer-${index}`, icon: 'dot', label: `Peer ${index}`,
+              role: 'secondary'
+            }));
+          window.readingBudgetFixture = registerMarginItem({
+            key: 'reading-budget', target: document.querySelector('#how-cap'),
+            controls, side: 'after'
+          });
+        }"""
+    )
+    item = page.locator('[data-lf-margin-for="how-cap"]')
+    item.locator(":scope > .lf-margin-more").click()
+    expect(item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(item.locator(":scope > .lf-margin-marker")).to_be_visible()
+    expect(item.locator(".lf-margin-spill")).to_have_attribute(
+        "data-lf-spill-count", "2"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     browser, serve
 ):
@@ -1195,7 +1661,7 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     item.locator(".lf-margin-spill").click()
     sheet = page.locator(".lf-page-map-sheet")
-    sheet.locator("[data-lf-map-button]").filter(has_text="Thread").click()
+    sheet.get_by_role("button", name=re.compile("^Open thread:")).click()
     expect(sheet).to_be_hidden()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
@@ -2315,12 +2781,14 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     if opener == "keyboard":
         page.keyboard.press("g")
         expect(page.locator(".lf-keyline")).to_contain_text("Page map")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("m")
     else:
         toggle.click()
     sheet = page.locator(".lf-page-map-sheet")
     expect(sheet).to_be_visible()
-    expect(sheet.get_by_role("button", name="Close")).to_be_focused()
+    expect(
+        sheet.get_by_role("searchbox", name="Find a Button or location in Page map")
+    ).to_be_focused()
     expect(sheet.locator(".lf-page-map-action").first).to_have_css("min-height", "44px")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 
@@ -2345,6 +2813,25 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     page.close()
 
 
+def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
+    """A modal returns to the visible door that exposed its folded Map address."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 390, 700)
+    more = page.get_by_role("button", name="More page addresses", exact=True)
+    more.click()
+    toggle = page.locator(".lf-page-map-toggle")
+    expect(toggle).to_be_visible()
+    toggle.click()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(sheet).to_be_hidden()
+    expect(more).to_be_focused()
+    expect(more).to_have_attribute("aria-expanded", "false")
+    assert errors == []
+    page.close()
+
+
 def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve):
     """A responsive posture exposes one map surface, never both at once."""
     page, errors = open_page(
@@ -2364,8 +2851,8 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
     page.close()
 
 
-def test_crossing_to_the_wide_screen_retires_the_small_screen_sheet(browser, serve):
-    """The restored desktop rail replaces, rather than layers under, the mobile map."""
+def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
+    """The Page map is one destination while its compact rail changes posture."""
     page, errors = open_page(
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
@@ -2377,7 +2864,8 @@ def test_crossing_to_the_wide_screen_retires_the_small_screen_sheet(browser, ser
     resized(page, 1200, 900)
     expect(page.locator(".lf-living-margin")).to_be_visible()
     expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
-    expect(sheet).to_be_hidden()
+    expect(sheet).to_be_visible()
+    expect(sheet.locator(".lf-page-map-action")).to_have_count(4)
 
     assert errors == []
     page.close()

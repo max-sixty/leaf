@@ -1,4 +1,5 @@
 import { labelOf, spell } from "./bindings.js";
+import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { focusDestination } from "../widget-elements.js";
@@ -14,6 +15,7 @@ export function createAddress({
   claimsEsc,
   el,
   enterPageMap,
+  leavePageMap,
   focused,
   focusedThread,
   fragmentId,
@@ -23,32 +25,36 @@ export function createAddress({
   keylineEl,
   leavesOffered,
   letGo,
-  openPageMapItem,
   othersLinks,
   othersPanel,
-  pageMapItems,
   pageParts,
   paintHere,
   panelCovers,
+  panelIsOpen,
+  pageMapIsActive,
   placeThreadEdge,
   resolveAnchor,
   saying,
   seenScroller,
   setPanel,
   showTray,
+  currentTray,
+  workspaceState,
+  restoreWorkspace,
   startsAt,
   scrollToElement,
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
-  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a numbered list takes a
+  // g names one-off travel. A mnemonic completes a direct destination (`g T` Threads,
+  // `g A` Asks, `g L` All leaves, `g m` Page map), while a numbered list takes a
   // following digit (`g t 2` selects the second tab, `g h 3` follows the third hyperlink,
   // and `g f 2` opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
   // t/T and a/A, so those categories do not also carry numbered addresses.
   //
-  // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
+  // Which numbered lists there are is this table and nothing else. The complete Page map
+  // is a direct destination because a one-digit list would silently truncate it. The chord's scope, the chips, the
   // line's words and the reference are all readings of it, so a fourth list is an entry here
   // rather than an edit to four consumers, and nothing that reads the table asks which list
   // it is holding. An entry says its letter, the word every surface calls the list by, the
@@ -144,6 +150,7 @@ export function createAddress({
         setPanel(true);
         threadsBox.focus({ preventScroll: true });
       },
+      active: panelIsOpen,
     },
     {
       id: "navigation.panel.decisions",
@@ -155,6 +162,7 @@ export function createAddress({
         showTray("decisions");
         (decisionRows()[0] ?? decisionsPanel).focus({ preventScroll: true });
       },
+      active: () => currentTray() === "decisions",
     },
     {
       id: "navigation.panel.leaves",
@@ -166,25 +174,20 @@ export function createAddress({
         showTray("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
+      active: () => currentTray() === "leaves",
     },
     {
       id: "navigation.page-map",
-      key: "Shift+m",
+      key: "m",
       does: "Go to the Page map",
       line: "Page map",
       when: () => true,
       go: enterPageMap,
+      active: pageMapIsActive,
+      close: leavePageMap,
     },
   ];
   const ADDRESSES = [
-    {
-      id: "navigation.page-map-item",
-      key: "m",
-      word: "page-map items",
-      does: "Go to the nth page-map item",
-      list: pageMapItems,
-      go: openPageMapItem,
-    },
     {
       id: "navigation.tab",
       key: "t",
@@ -233,8 +236,7 @@ export function createAddress({
   ];
   // A list's addressable members, and the range its label names. Nine is the whole numbered
   // vocabulary: every member has one digit, every digit completes immediately, and every
-  // consumer below reads this same prefix rather than applying its own cap.
-  const MAX_NUMBERED_ADDRESSES = 9;
+  // numeric consumer reads this same prefix rather than applying its own cap.
   const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
   // How far the chord has come: `g`, and the list's letter once one has named a list. The
@@ -308,22 +310,18 @@ export function createAddress({
       addressLayer.replaceChildren();
       return;
     }
+    const placement = createAddressPlacement({ banner, keylineEl, startsAt });
     const chips = [];
-    const clips = new Map();
-    // The banner covers page content without clipping its boxes. Members hidden behind
-    // it have no chip; a partly visible member keeps its chip below the covered edge.
-    const covered = banner.getBoundingClientRect().bottom;
     for (const entry of aimedList ? [aimedList] : ADDRESSES) {
       for (const [i, member] of addressed(entry).entries()) {
-        const r = startsAt(member, clips);
-        if (!r || r.bottom <= covered) continue;
+        const r = placement.visibleBox(member);
+        if (!r) continue;
         const chip = addressChip(entry, i + 1);
         chip.style.left = `${r.left}px`;
         chip.style.top = `${r.top}px`;
         chips.push(chip);
       }
     }
-    addressLayer.replaceChildren(...chips);
     // A chip that lands on one already drawn is taken down. Two addressable things can start
     // within a chip's width of each other — footnote markers in a row, a link that is the
     // whole of a summary — and stacked chips do not read as two: the one underneath shows an
@@ -338,32 +336,8 @@ export function createAddress({
     // Clamp each complete face before checking collisions: bringing a chip on screen
     // can move it onto its neighbour. Measure every face before moving or removing one.
     // The key line reserves its own box first, so the chips cannot cover their legend.
-    const right = document.documentElement.clientWidth;
-    const bottom = document.documentElement.clientHeight;
-    const kept = [keylineEl.getBoundingClientRect()];
-    const measured = chips.map((chip) => [chip, chip.getBoundingClientRect()]);
-    for (const [chip, start] of measured) {
-      const box = new DOMRect(
-        Math.max(0, Math.min(start.left, right - start.width)),
-        Math.max(covered, Math.min(start.top, bottom - start.height)),
-        start.width,
-        start.height,
-      );
-      if (kept.some((standing) => overlaps(box, standing))) chip.remove();
-      else {
-        chip.style.left = `${box.left + box.width / 2}px`;
-        chip.style.top = `${box.bottom}px`;
-        kept.push(box);
-      }
-    }
+    placement.paint(addressLayer, chips);
   }
-  // Whether two boxes share any pixel. Touching edges do not, so two chips laid exactly a
-  // chip's width apart sit side by side rather than one of them being taken down. That
-  // boundary is the chip's own width and moves with it — the face is a little wider than it
-  // was — so what survives a crowded line is a fact about the face rather than a constant,
-  // and a page whose members used to clear it by a pixel is not promised to now.
-  const overlaps = (a, b) =>
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   // A page that moves under an armed window moves the boxes the chips were placed from, so
   // the chips follow it rather than standing where the page used to be. Capture, because the
   // panel's list and a board's own overflow scroll in boxes of their own and a scroll event
@@ -459,6 +433,18 @@ export function createAddress({
         does: destination.does,
         line: destination.line,
         when: () => !aimedList && destination.when(),
+        returnFrame: () => {
+          const workspace = workspaceState();
+          return {
+            active: destination.active,
+            close: () => {
+              destination.close?.();
+              return restoreWorkspace(workspace);
+            },
+            does: `Return from ${destination.line}`,
+            line: "back",
+          };
+        },
         run: () => {
           setChord(false);
           destination.go();
@@ -517,10 +503,9 @@ export function createAddress({
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
         // inside it. The complete routes stay fixed while that letter turns pressed, so one
-        // Escape gives the letter back and the next closes the window. It took both at once,
-        // which is the same drift `c` had at the panel: a reader who had narrowed to the
-        // wrong list wanted the other one, and cancelling put them back on the page, pressing
-        // `g` again to reach a window that had been standing the whole time.
+        // Escape gives the letter back and the next closes the window. Collapsing both at
+        // once stranded a reader who had narrowed to the wrong list back on the page, making
+        // them press `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
         chordControl: true,
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),

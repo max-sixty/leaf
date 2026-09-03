@@ -23,8 +23,9 @@ and its observed mode instead. If you open its browser page, the URL rule begins
 
 Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
 command takes the directory explicitly. A page holds mutable `index.html`,
-immutable valid revisions, stamped versions, the event log, service state, and
-its vendored layer. Export or copy anything that must outlive that live state.
+immutable valid revisions, event-backed stamped version aliases, the event log,
+service state, and its vendored layer. Export or copy anything that must outlive
+that live state.
 
 Resolve the directory containing this `SKILL.md`, then use its
 `../../bin/leaf` launcher for every command shown as `leaf`. In Claude Code that
@@ -76,7 +77,7 @@ incomplete. A checkout keeps it at `bin/leaf`.
 When input arrives, read `references/event-batches.md` before processing it and
 `references/conversation-threads.md` when a thread needs work. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only
-`index.html`; Leaf alone writes immutable revisions and versions.
+`index.html`; Leaf alone writes immutable revisions and public version mappings.
 
 ## Page contract
 

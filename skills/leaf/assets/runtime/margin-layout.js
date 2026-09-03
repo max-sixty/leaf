@@ -79,11 +79,12 @@ function placeRows(columnRect) {
 export function layoutMarginRows() {
   cancelAnimationFrame(pending);
   pending = 0;
-  for (const row of rows.keys()) {
+  for (const [row, options] of rows) {
     if (!row.isConnected) {
       rows.delete(row);
       continue;
     }
+    if (row.classList.contains("lf-docked")) options.float?.(row);
     row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";
   }
@@ -138,6 +139,7 @@ export function layoutMarginRows() {
       if (options.fallback === "hide") row.classList.add("lf-waiting");
       else {
         row.classList.add("lf-docked");
+        options.dock?.(row);
         docked = true;
       }
     } else inMargin.push(row);

@@ -41,6 +41,7 @@ export function createRequests(runtime, dependencies) {
   };
 
   const requestAvailable = (owner, action) =>
+    runtime.statePhase !== "waiting" &&
     !quoted(owner) &&
     requestMatches(owner, action) &&
     projectedLifecycle(owner).phase === "ready";
@@ -52,8 +53,7 @@ export function createRequests(runtime, dependencies) {
       );
       return null;
     }
-    if (!requestMatches(owner, action)) return null;
-    if (projectedLifecycle(owner).phase !== "ready") return null;
+    if (!requestAvailable(owner, action)) return null;
     return post({
       kind: "request",
       revision: runtime.currentRevision,

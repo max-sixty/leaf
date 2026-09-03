@@ -35,14 +35,16 @@
         <lf-toc id="bg-contents"></lf-toc>
       </aside>
       <p id="bg-start">
-        This gallery grows by feature, so a developer can add a focused specimen here
-        without inventing another example page. Start with Leaf’s own controls below,
-        then use the contents spine when it fits beside the page, or open Map. Undo
-        takes back a decision, and a live preview keeps experiments on reload.
+        Each section explains one promise beside the live control that makes it. Hover
+        over a Button for its label, or Tab into a cluster and use ← / → and Enter.
+        Press a to move through Asks; while an Ask itself is focused, 1–9 activate its
+        numbered actions. The contents spine jumps between specimens. In a narrow
+        window, open ⋯ in the top bar, then Map, to collect the page’s items. A live
+        preview keeps your experiments on reload.
       </p>
 
       <section id="bg-core-surfaces">
-        <h2>Start with the main Asks panel</h2>
+        <h2>The main Asks panel gathers unfinished decisions</h2>
         <p id="bg-core-surfaces-guide">
           The top bar is Leaf’s control surface, not part of this document. Open
           <strong>Asks</strong>—or press <kbd>g</kbd>, then <kbd>Shift+A</kbd>—choose
@@ -61,26 +63,174 @@
           Then tour the rest of the injected controls: the status line reports who is
           behind the page; <strong>Threads</strong> holds every conversation; the
           version picker opens v1 and its diff; <strong>Map</strong> collects page
-          locations (<kbd>g</kbd>, then <kbd>Shift+M</kbd>); and pressing
+          locations (<kbd>g</kbd>, then <kbd>m</kbd>); and pressing
           <strong>?</strong> twice opens the complete keyboard reference.
           <strong>All leaves</strong> appears when another Leaf page is live.
         </p>
       </section>
 
+      <section id="bg-changes">
+        <h2>Action Buttons change something now</h2>
+        <p id="bg-changes-guide">
+          A heavier ring means the press acts immediately. The green check accepts; the
+          red cross rejects. Try either verdict on each change, then use the Undo that
+          replaces it.
+        </p>
+        <p id="bg-replace-line">
+          <strong>Replace one word.</strong> The sample meeting starts at
+          <lf-suggestion id="bg-replace"
+            ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
+          >
+        </p>
+        <p id="bg-insert-line">
+          <strong>Insert a sentence.</strong> Bring a notebook.
+          <lf-suggestion id="bg-insert"
+            ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
+          >
+        </p>
+        <p id="bg-delete-line">
+          <strong>Delete a sentence.</strong> The room is upstairs.
+          <lf-suggestion id="bg-delete"
+            ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
+          >
+        </p>
+      </section>
+
+      <section id="bg-editing">
+        <h2>A Disclosure opens context first</h2>
+        <p id="bg-editing-guide">
+          Edit has a light ring and an ellipsis because it only opens the field. Once
+          the field is open, Save and Cancel have heavier rings because they act now;
+          both stay exposed until editing ends.
+        </p>
+        <lf-draft id="bg-draft">
+          <pre>
+Write a different invitation here. Try a few lines to see the editor grow.</pre>
+        </lf-draft>
+        <p id="bg-history-guide">
+          <strong>This saved draft shows two readings beside one item.</strong> Changes
+          opens its versions. Picked up reports that the saved edit reached an agent; it
+          does not repeat the edit. Restore acts on the version you choose.
+        </p>
+        <lf-draft id="bg-history">
+          <pre>The sample workshop is in the blue room.</pre>
+        </lf-draft>
+      </section>
+
+      <section id="bg-conversations">
+        <h2>Thread is another Disclosure</h2>
+        <p id="bg-conversations-guide">
+          The speech bubble identifies a Thread. Its light ring says that pressing it
+          opens the conversation without changing the document. Several conversations
+          share one Button and add a count.
+        </p>
+        <p id="bg-thread-text">
+          <strong>An existing conversation.</strong> The sample agenda has room for one
+          more topic. Open the speech-bubble Button, reply, then resolve the thread.
+        </p>
+        <p id="bg-resolved-text">
+          <strong>A resolved conversation.</strong> The room has a projector. Its
+          earlier question is resolved. Open Threads in the top bar, expand Resolved,
+          and try Reopen to bring its Button back to the page.
+        </p>
+        <p id="bg-new-thread">
+          <strong>A clean passage.</strong> Select some of these words, or Alt-click
+          this paragraph, to start a comment. Type into the floating field and send it.
+          Your comment becomes another thread Button at this passage.
+        </p>
+      </section>
+
+      <section id="bg-reactions">
+        <h2>Reaction Actions leave a short verdict</h2>
+        <p id="bg-reactions-guide">
+          Each selected reaction sits beside the words it marks. Its heavy ring means
+          pressing it acts immediately; its square corner means the reaction is settled.
+          Press it to take it back. To add one, select words and press R, then choose
+          with the matching digit or Button.
+        </p>
+        <p id="bg-react-ok">
+          <strong>1 · ok · settled.</strong> The spare key is with reception.
+        </p>
+        <p id="bg-react-no">
+          <strong>2 · no · wrong.</strong> This sample claims Tuesday follows Thursday.
+        </p>
+        <p id="bg-react-lost">
+          <strong>3 · lost · unclear.</strong> Bring the thing from the other place.
+        </p>
+        <p id="bg-react-cut">
+          <strong>4 · cut · too long.</strong> At this point in time, we can now begin.
+        </p>
+        <p id="bg-react-more">
+          <strong>5 · more · needs detail.</strong> The exercise involves a map.
+        </p>
+        <p id="bg-react-this">
+          <strong>6 · this · look here.</strong> The side entrance closes early.
+        </p>
+      </section>
+
+      <section id="bg-clusters">
+        <h2>Options unfolds peer Buttons in place</h2>
+        <p id="bg-clusters-guide">
+          The light-ring ⋯ is an Options Button, not a menu or dialog. Press it, or Tab
+          into the cluster, to expose up to six peer Buttons beside the same passage.
+          Use ← / → and Enter; Escape folds them. If they cannot all fit, More opens the
+          complete cluster in the Page map.
+        </p>
+        <lf-suggestion id="bg-crowded">
+          <lf-old><p>Use the courtyard for the practice session.</p></lf-old>
+          <lf-new><p>Use the covered terrace for the practice session.</p></lf-new>
+        </lf-suggestion>
+        <p id="bg-neighbors-guide">
+          These neighboring edits share very little vertical room. Move between their
+          Buttons and check that each action still belongs to the intended words.
+        </p>
+        <p id="bg-neighbors">
+          Pack
+          <lf-suggestion id="bg-neighbor-a"
+            ><lf-old>two</lf-old><lf-new>three</lf-new></lf-suggestion
+          >
+          pencils,
+          <lf-suggestion id="bg-neighbor-b"
+            ><lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion
+          >
+          paper, and a
+          <lf-suggestion id="bg-neighbor-c"
+            ><lf-old>large</lf-old><lf-new>small</lf-new></lf-suggestion
+          >
+          map.
+        </p>
+      </section>
+
+      <section id="bg-readings">
+        <h2>Reading Disclosures report without acting</h2>
+        <p id="bg-readings-guide">
+          The light-ring ? beside the map question above opens an unanswered Ask. The
+          light-ring check below opens a recorded Outcome. Press either to inspect its
+          choice; neither press changes the document.
+        </p>
+        <lf-decision id="bg-outcome-ask">
+          <h3>Where should the sample group meet?</h3>
+          <lf-options id="bg-outcome" choose>
+            <lf-option id="bg-outcome-door">At the door</lf-option>
+            <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
+          </lf-options>
+        </lf-decision>
+      </section>
+
       <section id="bg-reader-workflows">
-        <h2>Try the core reader workflows</h2>
+        <h2>Reader Actions cover the page, interface, and host</h2>
 
         <section id="bg-signoff">
-          <h3>Approve a version</h3>
+          <h3>Sign-off approves one immutable version</h3>
           <p id="bg-signoff-guide">
             This page declares sign-off, so <strong>Approve version</strong> is a real
-            Button in the top bar. Press it to record approval, then press
+            Action Button in the top bar. Press it to record approval, then press
             <kbd>z</kbd> to take that approval back. The page stays live either way.
           </p>
         </section>
 
         <section id="bg-design-comments">
-          <h3>Comment on the interface</h3>
+          <h3>Design mode redirects a press into a comment</h3>
           <p id="bg-design-guide">
             Press <kbd>i</kbd> to enter design mode, then click the
             <strong>Street map</strong> option above. The click opens a comment about
@@ -90,7 +240,7 @@
         </section>
 
         <section id="bg-request-lifecycle">
-          <h3>Run a request through failure and success</h3>
+          <h3>A Request exposes host delivery as a lifecycle</h3>
           <p id="bg-request-guide">
             These are typed host requests, not replayable page choices. A failed host
             receipt reopens this seat; a later request can succeed and close it. The
@@ -131,150 +281,11 @@
         </section>
       </section>
 
-      <section id="bg-changes">
-        <h2>Accept, reject, undo</h2>
-        <p id="bg-changes-guide">
-          The heavier ring means an immediate action. Try either verdict, then the Undo
-          beside its receipt. Each row below changes a different amount of text. Hover
-          over a Button for its label; Tab into a cluster, then use ← / → and Enter.
-        </p>
-        <p id="bg-replace-line">
-          <strong>Replace.</strong> The sample meeting starts at
-          <lf-suggestion id="bg-replace"
-            ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
-          >
-        </p>
-        <p id="bg-insert-line">
-          <strong>Insert.</strong> Bring a notebook.
-          <lf-suggestion id="bg-insert"
-            ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
-          >
-        </p>
-        <p id="bg-delete-line">
-          <strong>Delete.</strong> The room is upstairs.
-          <lf-suggestion id="bg-delete"
-            ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
-          >
-        </p>
-      </section>
-
-      <section id="bg-editing">
-        <h2>Edit, save, restore</h2>
-        <p id="bg-editing-guide">
-          Edit opens a field; Save commits its words; Cancel leaves them alone. While
-          the field is active, its completion Buttons stay exposed.
-        </p>
-        <lf-draft id="bg-draft">
-          <pre>
-Write a different invitation here. Try a few lines to see the editor grow.</pre>
-        </lf-draft>
-        <p id="bg-history-guide">
-          This second draft already has a saved edit. Open Changes, inspect its history,
-          then Restore the older wording or edit it again.
-        </p>
-        <lf-draft id="bg-history">
-          <pre>The sample workshop is in the blue room.</pre>
-        </lf-draft>
-      </section>
-
-      <section id="bg-conversations">
-        <h2>Open a thread, or start one</h2>
-        <p id="bg-thread-text">
-          <strong>An existing conversation.</strong> The sample agenda has room for one
-          more topic. Open the speech-bubble Button, reply, then resolve the thread.
-        </p>
-        <p id="bg-resolved-text">
-          <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, expand Resolved,
-          and try Reopen to bring its Button back to the page.
-        </p>
-        <p id="bg-new-thread">
-          <strong>A clean passage.</strong> Select some of these words, or Alt-click
-          this paragraph, to start a comment. Type into the floating field and send it.
-          Your comment becomes another thread Button at this passage.
-        </p>
-      </section>
-
-      <section id="bg-reactions">
-        <h2>Leave a mark</h2>
-        <p id="bg-reactions-guide">
-          Each row starts with a different standing reaction. Its small square marks it
-          as selected; press the same reaction to withdraw it. To try another, focus the
-          row’s Button and press R, or use the comment field’s reaction control.
-        </p>
-        <p id="bg-react-ok">
-          <strong>Settled.</strong> The spare key is with reception.
-        </p>
-        <p id="bg-react-no">
-          <strong>Wrong.</strong> This sample claims Tuesday follows Thursday.
-        </p>
-        <p id="bg-react-lost">
-          <strong>Unclear.</strong> Bring the thing from the other place.
-        </p>
-        <p id="bg-react-cut">
-          <strong>Too long.</strong> At this point in time, we can now begin.
-        </p>
-        <p id="bg-react-more">
-          <strong>Needs detail.</strong> The exercise involves a map.
-        </p>
-        <p id="bg-react-this">
-          <strong>Attention.</strong> The side entrance closes early.
-        </p>
-      </section>
-
-      <section id="bg-clusters">
-        <h2>One item, many Buttons</h2>
-        <p id="bg-clusters-guide">
-          The change below has a thread and all six reactions. At rest it stays compact.
-          Press … to unfold it, or Tab into it. When the row cannot fit every Button,
-          More opens the remaining controls in the Page map. Escape returns to the row.
-        </p>
-        <lf-suggestion id="bg-crowded">
-          <lf-old><p>Use the courtyard for the practice session.</p></lf-old>
-          <lf-new><p>Use the covered terrace for the practice session.</p></lf-new>
-        </lf-suggestion>
-        <p id="bg-neighbors-guide">
-          These neighboring edits share very little vertical room. Move between their
-          Buttons and check that each action still belongs to the intended words.
-        </p>
-        <p id="bg-neighbors">
-          Pack
-          <lf-suggestion id="bg-neighbor-a"
-            ><lf-old>two</lf-old><lf-new>three</lf-new></lf-suggestion
-          >
-          pencils,
-          <lf-suggestion id="bg-neighbor-b"
-            ><lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion
-          >
-          paper, and a
-          <lf-suggestion id="bg-neighbor-c"
-            ><lf-old>large</lf-old><lf-new>small</lf-new></lf-suggestion
-          >
-          map.
-        </p>
-      </section>
-
-      <section id="bg-readings">
-        <h2>Read a recorded outcome</h2>
-        <p id="bg-readings-guide">
-          A Map Button can describe an item as well as offer an action. This settled
-          choice has an Outcome instead of an Ask. Open it to inspect the recorded
-          choice. It only changes the sample page.
-        </p>
-        <lf-decision id="bg-outcome-ask">
-          <h3>Where should the sample group meet?</h3>
-          <lf-options id="bg-outcome" choose>
-            <lf-option id="bg-outcome-door">At the door</lf-option>
-            <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
-          </lf-options>
-        </lf-decision>
-      </section>
-
       <section id="bg-external-data">
-        <h2>Exercise external data</h2>
+        <h2>Data bindings keep evidence current or frozen</h2>
 
         <section id="bg-source-captures">
-          <h3>Compare a live source with a frozen snapshot</h3>
+          <h3>A Source can follow live data or freeze a snapshot</h3>
           <p id="bg-source-guide">
             Both views bind the same captured text document. The live view follows a
             later <code>leaf data set</code>; the snapshot stays on capture 1. Their
@@ -297,7 +308,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-measurement-lag">
-          <h3>Find a measured number whose source ran again</h3>
+          <h3>Number provenance reveals a stale measurement</h3>
           <p id="bg-measurement-guide">
             <strong>Stale measurement.</strong> The authored benchmark is
             <lf-num
@@ -314,14 +325,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-default-presentation">
-        <h2>Tour the default presentation elements</h2>
+        <h2>Default presentation elements give evidence its shape</h2>
         <p id="bg-default-guide">
           Each subsection uses the shipped default widgets directly. The content is
           synthetic so the gallery can favor feature coverage over a user story.
         </p>
 
         <section id="bg-metrics-and-chart">
-          <h3>Metrics and chart</h3>
+          <h3>Metrics isolate scalars; a Chart reveals their shape</h3>
+          <p id="bg-metrics-guide">
+            The cards keep individual values scannable; the chart makes the three-run
+            comparison visible without turning it into prose.
+          </p>
           <lf-metrics id="bg-metrics">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
@@ -342,7 +357,7 @@ run, baseline, candidate
         </section>
 
         <section id="bg-code-and-tree">
-          <h3>Annotated code, glossary, and file tree</h3>
+          <h3>Code, Gloss, Notes, and Trees annotate technical evidence</h3>
           <p id="bg-gloss-line">
             The sample uses a
             <lf-gloss
@@ -374,7 +389,11 @@ gallery/
         </section>
 
         <section id="bg-neutral-comparison">
-          <h3>Neutral comparison with chips</h3>
+          <h3>Compare, Variants, and Chips keep alternatives parallel</h3>
+          <p id="bg-compare-guide">
+            Each variant gets the same frame, while chips pull its short attributes out
+            of the prose.
+          </p>
           <lf-compare id="bg-compare">
             <lf-variant id="bg-variant-paper">
               <lf-chip>power: none</lf-chip><lf-chip tone="ok">weight: low</lf-chip>
@@ -389,7 +408,11 @@ gallery/
         </section>
 
         <section id="bg-plans-and-history">
-          <h3>Milestones and event timeline</h3>
+          <h3>Milestones show state; a Timeline orders Events</h3>
+          <p id="bg-plans-guide">
+            Milestones describe what is done, active, or planned. The timeline records
+            what happened and when without implying that every event is a phase.
+          </p>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
               <strong>Survey the route</strong> Marked the crossings.
@@ -420,7 +443,7 @@ gallery/
         </section>
 
         <section id="bg-workstream-tabs">
-          <h3>Workstream tabs</h3>
+          <h3>Tabs remember one compact workstream view</h3>
           <p id="bg-tabs-guide">
             Switch panels, reload, and confirm that this browser tab remembers its view.
           </p>
@@ -435,7 +458,7 @@ gallery/
         </section>
 
         <section id="bg-quoted-and-visual">
-          <h3>Quoted specimen and before/after shot</h3>
+          <h3>A Specimen labels fiction; a Shot flips before and after</h3>
           <lf-specimen id="bg-specimen" label="an inert sample decision">
             <lf-options id="bg-specimen-options" choose>
               <lf-option id="bg-specimen-paper">
@@ -460,31 +483,28 @@ gallery/
       </section>
 
       <section id="bg-version-changes">
-        <h2>Changed since the earlier version</h2>
+        <h2>Change Disclosure points to evidence</h2>
         <p id="bg-version-guide">
-          Open the version picker in the top bar and use Δ beside v1. The changed
-          passage below gets a Change marker; press it to find the changed passage.
-          Choose v1 in the picker to read the earlier wording, then return to the latest
-          version. Turn comparison off to clear the marker.
+          Open the version picker in the top bar and use Δ beside v1. Opposing arrows
+          then appear beside the changed passage. Their light ring promises navigation:
+          pressing the Button points to the evidence without changing the document.
         </p>
         <p id="bg-change">The sample walk follows the river to the footbridge.</p>
       </section>
 
       <section id="bg-delivery">
-        <h2>What happens after a press</h2>
+        <h2>Board grips move work; delivery Buttons report the handoff</h2>
         <p id="bg-delivery-guide">
-          Sending can briefly show a busy mark. A definitive refusal offers Retry and
-          Cancel; an uncertain connection keeps the same attempt pending. The request
-          lifecycle above shows the terminal host outcomes, while this board supplies a
-          local work seat. Sent, Picked up, and Active describe the handoff to an agent,
-          not a second action.
+          Drag the card to Tried, or focus its grip and use Enter plus the arrows. A
+          send can briefly show a busy mark; a definitive refusal offers Retry and
+          Cancel. Sent, Picked up, and Active report the handoff to an agent rather than
+          offering a second action.
         </p>
         <lf-board id="bg-work-board">
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
               ><strong>Check the sample route</strong>
-              Drag this card to Tried, or use its grip with Enter and the arrows. An
-              agent’s live work claim can put an Active Button here.
+              An agent’s live work claim can put an Active Button here.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>

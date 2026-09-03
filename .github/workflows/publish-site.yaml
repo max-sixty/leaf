@@ -33,7 +33,7 @@ jobs:
       # own. `uv` is the whole of what the build needs, for `page init` and the check
       # each example passes on the way past.
       - name: 🖼 Build site
-        run: scripts/site.py
+        run: uv run scripts/site.py
 
       - uses: actions/upload-pages-artifact@v5
         with:

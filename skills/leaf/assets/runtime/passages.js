@@ -353,7 +353,7 @@ export function createPassages(dependencies) {
   // asks about where a node sits — which section, which block, which passage cell, whether
   // it is chrome — is asked of the page, and a climb that stops at a shadow root answers
   // about the widget's own markup instead.
-  const upFrom = (node) => node.parentElement ?? node.getRootNode()?.host ?? null;
+  const upFrom = (node) => node?.parentElement ?? node?.getRootNode()?.host ?? null;
 
   // contains() stops at a boundary the same way, and this is the one that decides whether a
   // quote is found at all: a section holding an x-shadow widget does not contain the words

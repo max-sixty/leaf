@@ -544,7 +544,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(pinned.locator(".lf-banner-more")).not_to_have_attribute(
         "data-lf-news", re.compile(r".*")
     )
-    (serve.page_dir / "versions" / "v2.html").write_text(html)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
     stamp_version_file(serve.page_dir, 2, "two")
     expect(pinned.locator(".lf-latest-chip")).to_have_class(
         re.compile(r"lf-news-shown")
@@ -731,7 +731,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     # the reader to the next standing address instead of silently dropping them on body.
     page, errors = open_page(browser, url, pin=True)
     resized(page, 1200, 900)
-    (serve.page_dir / "versions" / "v2.html").write_text(html)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
     stamp_version_file(serve.page_dir, 2, "two")
     expect(page.locator(".lf-latest-chip")).to_have_class(re.compile(r"lf-news-shown"))
     answer_all = page.locator(".lf-answer-all")
@@ -1906,7 +1906,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page_at_rest(page)
 
     def publish_v2():
-        (d / "versions" / "v2.html").write_text(html)
+        (d / ".fixture-versions" / "v2.html").write_text(html)
         stamp_version_file(d, 2, "two")
 
     # The same events a second tab's presses would have posted, which is the only way one
@@ -2107,7 +2107,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     destination = link.get_attribute("href")
     tab = opened_tab(page, link.click)
     # The new tab keeps the other page's live root, authorized by the key its link
-    # carried, rather than being redirected onto one immutable version.
+    # carried, rather than being redirected onto one stamped version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     expect(tab).to_have_url(destination)
     # The press left this tab alone, tray still standing.
@@ -2827,9 +2827,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `c` lands the reader, and the box it
-    # used to land in is one press further in.
-    page.keyboard.press("c")
+    # The panel, and then its list — which is where `g T` lands the reader; `c` there
+    # enters its page comment box.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
     sweep("standing on the comment list")
     page.keyboard.press("c")
@@ -3011,7 +3012,8 @@ def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve
     the page and the line is capped clear of it instead."""
     page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
     resized(page, 420, 900)
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-page-strip .lf-react-trigger")).to_be_visible()
 
@@ -3391,7 +3393,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         )
         .replace('id="quota-ready" chosen', 'id="quota-ready"')
     )
-    (serve.page_dir / "versions" / "v2.html").write_text(quota_v2)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(quota_v2)
     stamp_version_file(serve.page_dir, 2, "same plan")
     told(current)
     expect(current.locator(".lf-version")).to_contain_text("v2")
@@ -3845,8 +3847,8 @@ def offered(page, selector):
 # the rest. Without this a key that stops working leaves the walk re-walking the page and
 # contributing nothing, which the coverage floor catches only where that scope is a
 # rule's sole home: one guard over seven setup steps. The page and the comments raise no
-# surface of their own; `c` and `g T` land on the list, which the walk's own first stop
-# reads.
+# surface of their own; `g T` lands on the Threads list, which the walk's own first stop
+# reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),

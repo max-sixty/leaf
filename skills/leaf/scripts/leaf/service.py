@@ -20,7 +20,7 @@ from leaf.host import (
     session_lifetime,
     state_home,
 )
-from leaf.locations import page_key
+from leaf.locations import page_key, paths_same
 from leaf.schema import EVENTS_FILE
 
 
@@ -281,6 +281,32 @@ def restore_page_claim(
     previous, expected = transition
     with PageTransaction(page_dir) as page:
         page.restore_claim(expected, previous)
+
+
+def open_session_turn(session_id: str, delivered: PageTransaction) -> None:
+    """Clear the turn-ended stamp on every page one session holds.
+
+    A turn belongs to the session, not to the page whose batch opened it. The
+    Stop hook stamps the ending across `owned_pages`, so a delivery that clears
+    only its own page leaves every sibling claim stamped through a turn that is
+    demonstrably running: the reader comments on one leaf, and two minutes later
+    the next leaf tells its own reader the agent left when its turn ended and to
+    nudge it in the terminal.
+
+    The delivering page is cleared under the transaction its batch left under,
+    so it cannot be read between the two. Each sibling takes its own, the way
+    the Stop hook takes them, and a sibling the turn never touches still falls
+    to the fifteen-minute grace on its own claim age.
+    """
+    delivered.open_turn(session_id)
+    for page_dir in owned_pages(session_id):
+        if paths_same(page_dir, delivered.page_dir):
+            continue
+        try:
+            with PageTransaction(page_dir) as page:
+                page.open_turn(session_id)
+        except FileNotFoundError:
+            continue
 
 
 def owned_pages(session_id: str | None) -> list:

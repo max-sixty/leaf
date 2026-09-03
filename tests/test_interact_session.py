@@ -3022,6 +3022,62 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     lease.close()
 
 
+def test_delivering_a_batch_opens_the_turn_on_every_page_the_session_holds(
+    claimed, tmp_path, capsys
+):
+    """The turn is the session's, not the delivering page's. The Stop hook closes it
+    across every page the session holds, so the delivery that answers it has to reach
+    the same set: a session holding two leaves would otherwise leave the sibling
+    stamped through a turn that is demonstrably running, and two minutes later that
+    leaf tells its own reader the agent left when its turn ended.
+
+    The sibling here never speaks — the batch is the other page's, and the wait ends
+    on the first page that delivers. That is exactly the page whose stamp nothing else
+    would clear."""
+    sibling = tmp_path / "sibling"
+    vendoring_model.cmd_init(sibling)
+    capsys.readouterr()
+    session_model.cmd_status(claimed, "working", "answering the first comment")
+    session_model.cmd_status(sibling, "working", "reading the sibling")
+    serving(claimed, 1)
+    serving(sibling, 2)
+    assert service_model.claim_page(sibling)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert service_model.page_claim(sibling)["turn_closed"]
+
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
+    )
+    assert session_model.cmd_wait() == 0
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert service_model.page_claim(sibling)["turn_closed"] is None
+
+    # A page another session holds is not this turn's to speak for.
+    others = tmp_path / "others"
+    vendoring_model.cmd_init(others)
+    capsys.readouterr()
+    session_model.cmd_status(others, "working", "another session's page")
+    serving(others, 3)
+    assert service_model.claim_page(others)
+    claim = service_model.page_claim(others)
+    files_model.write_json(
+        service_model.claim_path(others), {**claim, "id": "s2", "turn_closed": "then"}
+    )
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert session_model.cmd_wait() == 0
+    capsys.readouterr()
+    assert service_model.page_claim(others)["turn_closed"] == "then"
+    session_model.cmd_status(sibling, "idle", "")
+    session_model.cmd_status(others, "idle", "")
+
+
 def test_delivering_a_batch_opens_the_turn_the_stop_hook_closed(claimed, capsys):
     """The Stop hook stamps the ending of a turn; a delivery is the one observable
     beginning of the next one, and until it cleared the stamp nothing did.

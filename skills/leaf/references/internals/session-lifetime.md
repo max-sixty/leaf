@@ -40,9 +40,13 @@ ends, and the banner stops believing a claim older than that stamp after a short
 grace — much shorter than the claim's own, because it is reached by evidence
 instead of by a clock. The opening of the next turn is stamped by the carrier that
 causes it: handing a batch to the agent is what starts the turn that answers it,
-so a delivery clears the stamp under the same lock the batch left under. Without
-that clearing the page reads a session that came back and worked as one that
-walked away, and tells the reader to nudge a turn that is running.
+so a delivery clears the stamp under the same lock the batch left under. Both
+stamps are the session's rather than the page's, and both span its pages: the
+Stop hook closes the turn on every page the session holds, so a delivery reopens
+that same set, each sibling under its own transaction. Without that clearing the
+page reads a session that came back and worked as one that walked away, and tells
+the reader to nudge a turn that is running — a leaf whose own batch was never the
+one delivered included.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant whose lifetime has ended settles the question

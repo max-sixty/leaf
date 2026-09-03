@@ -21,6 +21,7 @@ from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
+    open_session_turn,
     owned_pages,
     unacknowledged,
 )
@@ -326,10 +327,10 @@ def read_watch_pass(
             # the last ending; leaving that stamp standing through the turn this
             # delivery starts is what had the page telling the reader the agent
             # had left and to nudge it, two minutes into a turn spent answering
-            # them. Under the lock the batch left under, so the page cannot be
-            # read between the delivery and the claim it revises.
+            # them. The Stop hook closed the turn across the session's pages, so
+            # the delivery that answers it reopens the same set.
             if watch.session_id:
-                reading.transaction.open_turn(watch.session_id)
+                open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(

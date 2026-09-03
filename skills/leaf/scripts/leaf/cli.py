@@ -309,8 +309,8 @@ def check(dir: str, render: bool) -> None:
     """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in the
-    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE names, else the
-    installed Chrome.
+    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
+    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
     """
     sys.exit(cmd_check(resolve_dir(dir), render))
 

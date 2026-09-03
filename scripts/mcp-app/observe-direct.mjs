@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -40,12 +41,45 @@ const playwrightPackage = execFileSync(
   { encoding: "utf8" },
 ).trim();
 const { chromium } = require(playwrightPackage);
-const browser = await chromium.launch({
-  ...(process.env.LEAF_BROWSER_EXECUTABLE
-    ? { executablePath: process.env.LEAF_BROWSER_EXECUTABLE }
-    : { channel: "chrome" }),
-  headless: true,
-});
+// The same three readings, in the same order, as leaf's own launch
+// (skills/leaf/scripts/leaf/render_gate/browser.py): a variable the host set, the
+// installed Chrome channel, then PATH. This probe drives the real runtime, so a
+// Chromium-only host has to reach it here on the terms it reaches the gates on.
+const namedBrowser = ["LEAF_BROWSER_EXECUTABLE", "CHROME_PATH", "CHROME_BIN"]
+  .map((name) => process.env[name])
+  .find(Boolean);
+const onPath = (command) => {
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
+    const candidate = path.join(dir, command);
+    try {
+      fsSync.accessSync(candidate, fsSync.constants.X_OK);
+      return candidate;
+    } catch {
+      // not here
+    }
+  }
+  return undefined;
+};
+const launch = async () => {
+  if (namedBrowser)
+    return chromium.launch({ executablePath: namedBrowser, headless: true });
+  try {
+    return await chromium.launch({ channel: "chrome", headless: true });
+  } catch (error) {
+    const discovered = [
+      "google-chrome",
+      "google-chrome-stable",
+      "chrome",
+      "chromium",
+      "chromium-browser",
+    ]
+      .map(onPath)
+      .find(Boolean);
+    if (!discovered) throw error;
+    return chromium.launch({ executablePath: discovered, headless: true });
+  }
+};
+const browser = await launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   page.setDefaultTimeout(30_000);

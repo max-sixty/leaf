@@ -15,6 +15,7 @@ from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
+from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
     LONG_PAGE,
@@ -204,6 +205,36 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         exporting_model.export_page(
             primed(browser, break_probe), root_url, serve.page_dir, "v1.html"
         )
+
+
+def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(
+    browser, tmp_path
+):
+    """`bake()` ends in `root.getHTML({ serializableShadowRoots: true })`, which
+    Chromium grew in 125. The render gate never bakes, so an older browser passes
+    `--render` and then dies inside the probe with `root.getHTML is not a function` —
+    which the export reports as a probe module it could not load, sending the reader
+    to Leaf's own instrumentation rather than to the browser their host handed over.
+    Asking the browser's age before the page is opened replaces that with one
+    sentence naming the floor and the version.
+
+    The old browser is a reading rather than an install, because what is under test
+    is which sentence a host gets and every browser this suite can reach is younger
+    than the floor. The suite's own is the control: a floor that refused it would
+    turn every export in the corpus into that sentence, so the check that it does not
+    is what keeps the refusal from being free."""
+
+    class Old:
+        version = "122.0.6261.128"
+
+    with pytest.raises(
+        SystemExit,
+        match=r"v1\.html needs Chromium 125 or later to copy, and this browser is "
+        r"122\.0\.6261\.128",
+    ):
+        exporting_model.export_page(Old(), "http://unused", tmp_path, "v1.html")
+
+    assert browser_model.below_export_floor(browser) is None
 
 
 def test_a_table_of_contents_keeps_native_links_in_a_static_copy(

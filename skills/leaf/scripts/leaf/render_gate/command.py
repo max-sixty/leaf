@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from .browser import browser_hint, launch_browser, launched_name
+from .browser import browser_hint, launch_browser
 from .preview import preview_server
 from .version import render_version
 
@@ -44,7 +44,7 @@ def render_check(
         sync_playwright() as p,
     ):
         try:
-            browser = launch_browser(p)
+            browser, browser_name = launch_browser(p)
         except PlaywrightError as error:
             print(
                 "✗ render check failed — no browser launched: "
@@ -65,7 +65,7 @@ def render_check(
             print(f"  - {f}", file=sys.stderr)
         return 1
     print(
-        f"✓ index.html: renders clean in {launched_name()}, light and dark — no "
+        f"✓ index.html: renders clean in {browser_name}, light and dark — no "
         "console errors, every widget takes space, no words on top of other words, code that reads "
         "against the block it is on, boxes showing the inset they draw, nothing past the "
         "column, no sideways scroll"

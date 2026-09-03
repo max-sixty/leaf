@@ -125,8 +125,7 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g M` enters the Page map at its roving marker, or opens its sheet when empty or compact.
- * `g m 3` goes to the third page-map item in the right margin.
+ * `g m` opens the complete Page map through the same door as the banner's Map control.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
  * Arming shows every complete route in the key line. Pressed keys use the blue face and
@@ -2082,10 +2081,8 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   keylineEl,
   leavesOffered,
   letGo,
-  openPageMapItem: (item) => livingMargin?.openPageMapItem(item),
   othersLinks,
   othersPanel,
-  pageMapItems: () => livingMargin?.pageMapItems() ?? [],
   pageParts,
   paintHere,
   panelCovers,
@@ -2779,7 +2776,14 @@ const PAGE = {
           )} — for the selection, the item you are standing on, or the reply you are reading`,
       line: "react",
       when: () => reactionTokens().length > 0 && (anchoringReady || !pageSelection()),
-      run: () => setReact(true),
+      run: () => {
+        // Selection capture normally follows the pointer gesture in its queued turn.
+        // A fast `r` may arrive before that turn even though the native Selection is
+        // already complete. Capture it now so the command cannot advertise reaction
+        // digits while opening no corresponding choices.
+        if (pageSelection() && !fabAnchorAt()) updateFab();
+        setReact(true);
+      },
     },
     // Then the two ways of choosing what to say it about. They are one press from the
     // shelf and named in full by the reference, which is where a capability the reader
@@ -3626,6 +3630,7 @@ livingMargin = createLivingMargin({
   placedAt,
   quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
+  says,
   scrollBehavior,
   scrollToElement,
   setPanel,

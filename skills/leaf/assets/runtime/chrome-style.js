@@ -370,6 +370,9 @@ export function chromeStyle({
     transform: translateY(-2px);
     transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
   }
+  .lf-margin-action[data-lf-label-side] > .lf-margin-action-label {
+    inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
+  }
   .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])
     > .lf-margin-action-label {
     opacity: 1; visibility: visible; transform: translateY(0);
@@ -1500,7 +1503,13 @@ ${MARK_RULES}
       border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
       color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
     .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
-    .lf-page-map-list { margin-top: 10px; overflow: auto; max-height: calc(100vh - 110px); }
+    .lf-page-map-search { width: 100%; box-sizing: border-box; margin-top: 10px;
+      padding: 7px 9px; border: 1px solid var(--border-2); border-radius: var(--r);
+      background: var(--paper); color: var(--ink); font: inherit; }
+    .lf-page-map-search:focus-visible { outline: var(--here-ring);
+      --lf-here-ring: page-map-search; outline-offset: 2px; }
+    .lf-page-map-list { margin-top: 6px; overflow: auto; max-height: calc(100vh - 150px); }
+    .lf-page-map-empty { margin: 18px 8px 8px; color: var(--muted); text-align: center; }
     .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
     .lf-page-map-group:first-child { border-top: 0; }
     .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }

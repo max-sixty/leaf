@@ -247,6 +247,12 @@ customElements.define(
           label: control.querySelector(":scope > .lf-margin-action-label")?.textContent,
         })),
       );
+      // Establish availability before the action watcher makes its first synchronous
+      // reading, which no longer notifies. Every later transition this paints — failed,
+      // sending, engaged — already runs through a notifying `#paintButtons`, so the
+      // watcher's own callback would fan one shared refresh out through every draft for
+      // a projection none of them changed.
+      this.#paintButtons();
       measure(this.#row, () => {
         // The engaged cluster is Save + Cancel; reserve that complete fitting while
         // the detached measurement row contains its direct controls, before resting
@@ -365,7 +371,7 @@ customElements.define(
       return button;
     }
 
-    #paintButtons() {
+    #paintButtons({ notify = true } = {}) {
       marginAction(this.#save, {
         key: this.#failed ? "retry" : "save",
         icon: this.#failed ? "retry" : "check",
@@ -396,12 +402,14 @@ customElements.define(
         this.#failureReceipt?.remove();
         delete this.#row.dataset.lfMarginReceipt;
       }
-      this.#margin?.update();
-      this.#decisionActions?.update();
+      if (notify) {
+        this.#margin?.update();
+        this.#decisionActions?.update();
+      }
     }
 
     #paintAvailability = () => {
-      if (this.#pencil) this.#paintButtons();
+      if (this.#pencil) this.#paintButtons({ notify: false });
     };
 
     #delta(before, after, cache = true) {

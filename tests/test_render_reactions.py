@@ -12,6 +12,7 @@ from render_cases_navigation import pending_text
 from render_harness import leaf_page
 from render_support import (
     BOTH_STAMPS,
+    FEATURE_GALLERY,
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
     PROPOSED_PAGE,
@@ -263,6 +264,33 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
+    assert errors == []
+    page.close()
+
+
+def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
+    """The shortcut line never advertises digits behind a still-collapsed ellipsis."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    settled = page.locator(
+        '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="ok"]'
+    )
+    settled.click()
+    round_trip(page)
+    select_paragraph(page, "#bg-react-ok")
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.press("r")
+
+    surface = page.locator(".lf-margin-reactions")
+    expect(surface).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(surface.locator(":scope > .lf-react-trigger:visible")).to_have_count(0)
+    expect(surface.locator(".lf-react:visible")).to_have_count(6)
+    assert "1–6" in key_line(page)
+
+    page.keyboard.press("2")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment" and sent["token"] == "no"
+    assert sent["anchor"]["section"] == "bg-react-ok"
     assert errors == []
     page.close()
 
@@ -571,13 +599,17 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
 
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
-    first = sheet.locator("[data-lf-map-button]").nth(0)
-    second = sheet.locator("[data-lf-map-button]").nth(1)
+    first = sheet.locator("[data-lf-map-button]:focus")
     expect(first).to_be_focused()
+    first_key = first.get_attribute("data-lf-map-button")
+    assert ":responses:reaction:" in first_key
     page.keyboard.press("Tab")
+    second = sheet.locator("[data-lf-map-button]:focus")
     expect(second).to_be_focused()
+    second_key = second.get_attribute("data-lf-map-button")
+    assert ":responses:reaction:" in second_key
     page.keyboard.press("Shift+Tab")
-    expect(first).to_be_focused()
+    expect(sheet.locator(f'[data-lf-map-button="{first_key}"]')).to_be_focused()
     page.keyboard.press("Escape")
     expect(sheet).to_be_hidden()
     expect(spill).to_be_focused()
@@ -585,8 +617,10 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
 
     page.keyboard.press("Enter")
     expect(sheet).to_be_visible()
+    first = sheet.locator(f'[data-lf-map-button="{first_key}"]')
     expect(first).to_be_focused()
     page.keyboard.press("Tab")
+    second = sheet.locator(f'[data-lf-map-button="{second_key}"]')
     expect(second).to_be_focused()
     token = second.get_attribute("aria-label").split(" — ")[0]
     sends = _traffic(page).sends
@@ -594,7 +628,7 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
         second.click()
     else:
         page.keyboard.press("Enter")
-    # Page map forwards the press on the next frame; there is no trip to await yet.
+    # Page map forwards the press synchronously; its network trip is still asynchronous.
     _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]

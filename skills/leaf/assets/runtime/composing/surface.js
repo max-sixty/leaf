@@ -397,6 +397,14 @@ export function createSelectionSurface({
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
     if (anchor?.quote.length >= MIN_QUOTE) {
+      // A fast keyboard action can capture this completed native selection before the
+      // pointer gesture's queued update arrives. That later update is the same target,
+      // not a request to reopen its Comment composer: reopening calls closeReactions
+      // and used to collapse choices immediately after `r` exposed them.
+      if (sameAnchor(anchor, fabAnchor)) {
+        placeFab();
+        return;
+      }
       // Selecting words is still the browser's gesture. Open Leaf's response field beside
       // them without moving focus into it, so the live Selection remains available to Copy
       // and the native context menu. An explicit Comment press uses the same field and

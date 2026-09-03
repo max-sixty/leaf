@@ -25,10 +25,8 @@ export function createAddress({
   keylineEl,
   leavesOffered,
   letGo,
-  openPageMapItem,
   othersLinks,
   othersPanel,
-  pageMapItems,
   pageParts,
   paintHere,
   panelCovers,
@@ -48,14 +46,15 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
-  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a numbered list takes a
+  // g names one-off travel. A mnemonic completes a direct destination (`g T` Threads,
+  // `g A` Asks, `g L` All leaves, `g m` Page map), while a numbered list takes a
   // following digit (`g t 2` selects the second tab, `g h 3` follows the third hyperlink,
   // and `g f 2` opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
   // t/T and a/A, so those categories do not also carry numbered addresses.
   //
-  // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
+  // Which numbered lists there are is this table and nothing else. The complete Page map
+  // is a direct destination because a one-digit list would silently truncate it. The chord's scope, the chips, the
   // line's words and the reference are all readings of it, so a fourth list is an entry here
   // rather than an edit to four consumers, and nothing that reads the table asks which list
   // it is holding. An entry says its letter, the word every surface calls the list by, the
@@ -179,7 +178,7 @@ export function createAddress({
     },
     {
       id: "navigation.page-map",
-      key: "Shift+m",
+      key: "m",
       does: "Go to the Page map",
       line: "Page map",
       when: () => true,
@@ -189,14 +188,6 @@ export function createAddress({
     },
   ];
   const ADDRESSES = [
-    {
-      id: "navigation.page-map-item",
-      key: "m",
-      word: "page-map items",
-      does: "Go to the nth page-map item",
-      list: pageMapItems,
-      go: openPageMapItem,
-    },
     {
       id: "navigation.tab",
       key: "t",

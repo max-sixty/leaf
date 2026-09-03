@@ -1064,6 +1064,13 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
 .facts dd { margin: 0; }
+@media screen and (max-width: 640px) {
+  /* A long term must not spend most of a phone's line on the first column and leave
+     its explanation as a one-word ribbon. Stack each fact while the reading column is
+     narrow; later terms keep the ordinary block rhythm through the row gap. */
+  .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .facts dd + dt { margin-top: var(--sp-2); }
+}
 /* A column of quantities lines up on its last digit — the comparison a table of
    numbers is there for, and one tabular figures alone don't make. Said per cell,
    heading included, because which column holds quantities is the author's to
@@ -1378,6 +1385,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+.lf-margin-item:is(:hover, :focus-within) { z-index: 3; }
 .lf-margin-item::before { content: ""; position: absolute; right: 100%; top: 16px;
     width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
     pointer-events: none; }
@@ -1395,9 +1403,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 .lf-margin-item.lf-docked::before { display: none; }
-.lf-margin-item.lf-docked .lf-margin-action > .lf-margin-action-label {
-    inset-inline: 0 auto;
-}
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }

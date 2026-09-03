@@ -202,6 +202,11 @@ customElements.define(
             ? this
             : this.parentElement,
         controls: this.#row,
+        // The slots use tint and strike/insert paint to carry their relationship on the
+        // page. Away from that paint, concatenating them turns `red` → `blue` into the
+        // meaningless `redblue`; give the shared Page-map projection the same relation
+        // in words without teaching it this widget's tags.
+        subject: () => this.#subject(),
         state: () =>
           this.#failed
             ? "failed"
@@ -393,6 +398,15 @@ customElements.define(
         this.querySelector(":scope > lf-new") || this.querySelector(":scope > lf-old");
       const text = (slot && says(slot)) || this.id;
       return text.length > 48 ? text.slice(0, 48) + "…" : text;
+    }
+
+    #subject() {
+      const cut = this.querySelector(":scope > lf-old");
+      const put = this.querySelector(":scope > lf-new");
+      const before = cut ? says(cut) : "";
+      const after = put ? says(put) : "";
+      if (before && after) return `${before} → ${after}`;
+      return before || after || this.id;
     }
 
     accept() {

@@ -67,6 +67,20 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_missing_node_has_no_passage_location(browser, serve):
+    """No DOM node means no passage location, rather than a runtime error."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    found = page.evaluate(
+        """async () => {
+          const {closestAcross} = await import('/runtime/passages.js');
+          return closestAcross(null, 'main');
+        }"""
+    )
+    assert found is None
+    assert errors == []
+    page.close()
+
+
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
     """The document reserves exactly the head covered by the painted banner.
 

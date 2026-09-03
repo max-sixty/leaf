@@ -937,6 +937,28 @@ or draft heading remain quotable while runtime controls stay outside the
 passage. `relabel` writes the said marker; `offer` writes the control marker.
 They are independent facts and neither clears the other.
 
+A label copied off another element on the page is a route to those words rather
+than a second place the page says them. Say it once: a contents link, a roster
+row naming a worker, any generated index entry stays chrome, and the passage
+lives where the page speaks it. Two copies of one label carry the same text and,
+being fenced, the same empty context, so neither can be told from the other and
+a drag across either detaches.
+
+A route a widget builds outside any control needs nothing further: chrome carries
+no offer marker, so no medium takes its words away (`lf-toc`'s rows). A route that
+is a control declares itself with `says: "echo"`, `relabel`'s third answer, and
+this is the one place the two questions the marker pair answers come apart. An
+echo is no passage, and it is still what its row is about: a roster row is a name
+and a chip, and a sheet that dropped the name would print the chip alone.
+`data-lf-echo` therefore strikes the paper bargain `data-lf-said` strikes — the
+press goes, the words stay — without entering the `says` reading. Paper is the
+medium that bargain holds in. A copy still divides on the value `offer` wrote: an
+echoed route is empty-valued and stays a live fragment link, but an echo on a
+`button` would be removed with its words, because the pass that keeps a press's
+words in a copy reads `data-lf-said` alone. The first widget to echo a label off a
+real press is what makes that reachable, and what teaches those two passes the
+third answer.
+
 ### Data projections
 
 The page has three kinds of visible words:
@@ -3031,8 +3053,9 @@ inside it.
 
 Print asks a stricter question than export because nothing on paper is
 interactive. `data-lf-offer` identifies injected controls to remove, while
-`data-lf-said` preserves a decision word the page speaks through a control. What
-`data-lf-said` keeps is the word and not the shape: a control that survives paper
+`data-lf-said` preserves a decision word the page speaks through a control and
+`data-lf-echo` a name a control copies off the row it routes to. What the two word
+markers keep is the word and not the shape: a control that survives paper
 gives up its ground, corner, border, underline, marker and pointer hand, because
 nothing on a sheet can answer the press they promise. Colour stays, being part of
 what the control says.

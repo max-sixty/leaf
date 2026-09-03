@@ -3926,12 +3926,14 @@ RING_SCOPE_CONTROL = {
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn
 # under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
-# where the document leaves room beside the source and opens Threads otherwise. Every
-# other scope is read at the width the page opened at.
+# where the document leaves room beside the source and opens Threads otherwise. That room
+# is the wider of the two floors here, because the card's walk is ship review and ship
+# review stands a contents map: a page with a sidebar waits for 1472px of shell rather
+# than 1208px (theme.css). Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # The one scope whose surface the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
-RING_SCOPE_WIDTH = {"a thread card": 1440, "the page map sheet": 760}
+RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never

@@ -456,6 +456,9 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     resized(page, width, 900)
     margins_laid_out(page)
 
+    # Twice: the gallery's core surfaces open on a decision, which is the page's first
+    # ask and carries no address of its own, and the suggestions this case is about
+    # begin after it.
     page.keyboard.press("a")
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
@@ -2540,7 +2543,12 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
 def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     browser, serve
 ):
-    """The shipped exchange fits beside its source and the contents sidebar."""
+    """The shipped exchange fits beside its source and the contents sidebar.
+
+    Ship review now stands a contents map, and a sidebar claims the opposite strip: the
+    thread margin waits for 1472px of shell there rather than 1208px (theme.css), so
+    1440 is a window this page opens Threads in rather than the one this case is
+    about."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
     resized_shell(page, 1536, 900)
@@ -2588,6 +2596,10 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardRight"] <= geometry["shellWidth"], geometry
+    # Narrower than the 460px --thread-card the pages without a sidebar get, and it is
+    # the strip's arithmetic rather than this window: a sidebar page keeps the document
+    # exactly --thread-margin (520px) from the right edge at every width, and the marker,
+    # the gutter beside it and the card's own 8px inset all come out of that 520.
     assert geometry["cardWidth"] >= 439, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
@@ -2644,6 +2656,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_visible()
     expect(preview.locator("textarea")).to_be_focused()
 
+    # 1208 plus the sidebar's 264: the floor a page standing a contents map waits for.
     resized_shell(page, 1472, 900)
     beside = page.evaluate(
         """() => {
@@ -2659,6 +2672,9 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
     assert beside["cardLeft"] == pytest.approx(beside["markerRight"] + 8, abs=0.5)
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
+    # At the sidebar floor the document is down to its own 640px floor and the strip is
+    # exactly --thread-margin, so the card takes what the marker, the gutter, main's
+    # 24px padding and its own 8px inset leave of that 520.
     assert beside["cardWidth"] >= 423, beside
 
     resized(page, 1471, 900)

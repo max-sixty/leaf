@@ -1,7 +1,11 @@
 /* One reply draft and send lifecycle shared by every view of a thread. */
+import { heldConversation, revealConversation } from "./landing.js";
+
 export function createReplies({
+  focused,
   landTyping,
   loadDraft,
+  mayLandTyping,
   mirrorDraft,
   post,
   runtime,
@@ -55,11 +59,8 @@ export function createReplies({
     }
   }
 
-  // One reply draft and one send path, however many views the thread has. The panel can
-  // reveal a sent message immediately; textual views receive it through reconciliation.
-  // Everything else — persistence, mirroring, the wire event and focus landing — is the
-  // thread's and is stated once.
-  function wireReply(t, input, send, { landed } = {}) {
+  // One reply draft, send, and typing continuation across every view of a thread.
+  function wireReply(t, input, send) {
     const draftCtx = "reply:" + t.root.id;
     input[REPLY_DRAFT_CONTEXT] = draftCtx;
     input.value = loadDraft(draftCtx) ?? "";
@@ -76,10 +77,36 @@ export function createReplies({
         tellDraft(draftCtx, v);
       },
       send: async (text, raw) => {
-        const sent = await sendReply(t, text, raw, () => input.value === raw);
-        if (!sent) return;
-        landed?.(sent);
-        landTyping(input);
+        // Scrolling away or leaving the window can keep the old editor's focus. Both
+        // withdraw this send's continuation, while its draft and delivery still settle.
+        const continuation = new AbortController();
+        const listening = { capture: true, passive: true, signal: continuation.signal };
+        const leave = () => continuation.abort();
+        addEventListener("blur", leave, { signal: continuation.signal });
+        document.addEventListener("wheel", leave, listening);
+        document.addEventListener("touchmove", leave, listening);
+        document.addEventListener(
+          "pointerdown",
+          (event) => {
+            const path = event.composedPath();
+            if (!path.includes(input) && !path.includes(send)) leave();
+          },
+          listening,
+        );
+        try {
+          const sent = await sendReply(t, text, raw, () => input.value === raw);
+          if (
+            !sent ||
+            continuation.signal.aborted ||
+            (focused() !== input && focused() !== send) ||
+            !mayLandTyping(input)
+          )
+            return;
+          landTyping(input);
+          revealConversation(heldConversation(), input);
+        } finally {
+          continuation.abort();
+        }
       },
     });
     sync();

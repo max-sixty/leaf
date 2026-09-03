@@ -21,6 +21,7 @@ import { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { notice } from "./notifications.js";
 import {
+  authored,
   closestAcross,
   containsAcross,
   inChrome,
@@ -199,13 +200,13 @@ export function createVersion({
   // restores focus to on a hide is the element that had it when the popover showed — not
   // the `source`, which buys the anchor and the invoker relationship and nothing about
   // focus — so every door into this menu shows it from the button and the way back out is
-  // the platform's on all of them: the pointer because the press focuses the button first,
-  // `v` because the row focuses it before running that same press, and the reference
-  // because it stands a layer back up from that layer's invoker. Scoping the handback to
-  // the door rather than to the state is what keeps it off a light dismissal, which
-  // restores nothing on purpose: a reader who pressed away into the page is left where
-  // they pressed rather than moved to the chooser they pressed away from. Leaf is left
-  // with the close, which is the only end state it asks for.
+  // the platform's for pointer entry, because that press focuses the button first. Keyboard
+  // `v` clicks the same invoker without moving focus and its return frame restores the real
+  // origin; the reference stands a layer back up from that invoker before restoring its own
+  // origin. Scoping the platform handback to its door rather than to the state is what keeps
+  // it off a light dismissal, which restores nothing on purpose: a reader who pressed away
+  // into the page is left where they pressed rather than moved to the chooser they pressed
+  // away from. Leaf is left with the close, which is the only end state it asks for.
   function closeVersionMenu() {
     if (versionMenuIsOpen()) versionMenu.hidePopover();
   }
@@ -324,7 +325,8 @@ export function createVersion({
   );
   // The mode represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
-  // not provide. Escape and light dismissal stay native.
+  // not provide. A keyboard-opened menu has CHOOSER's exact return frame; Escape and light
+  // dismissal remain native for pointer-opened menus.
   const VERSIONS = {
     title: "In the versions menu",
     when: versionsOffered,
@@ -371,12 +373,10 @@ export function createVersion({
     ],
   };
 
-  // v names the chooser, the control wearing the version number, and the menu it opens
-  // takes the letter again for the current page — one motion whose second half is a key of
-  // the scope the first half stood up, so it costs the page's table no row and holds whether
-  // or not this page is behind. Named, because the chip that jumps straight to the current
-  // page spells that motion in its tooltip, and because the closed control's own title says
-  // the press beside what pressing it does.
+  // v names the chooser, the control wearing the version number, and the menu it opens.
+  // Named, because the chip that jumps straight to the current page spells that motion in
+  // its tooltip, and because the closed control's own title says the press beside what
+  // pressing it does.
   const CHOOSER = {
     id: "version.open",
     keys: ["v"],
@@ -386,16 +386,16 @@ export function createVersion({
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
-    // The control's own press, so the key and the pointer are one gesture: the menu is a
-    // popover the button declares, and the browser's invoker is what makes a second press a
-    // close. The focus first is what makes the handback the same on both doors — a popover
-    // restores focus to whatever had it when it showed, which the pointer leaves as the
-    // button of its own accord and this key would otherwise leave as the body, putting a
-    // reader who pressed `v` and then Escape on the page rather than back on the chooser.
-    run: () => {
-      versionBtn.focus();
-      versionBtn.click();
-    },
+    // The popover is the control's own press, while the keyboard register owns the route
+    // back to the place that pressed v. Programmatically focusing the chooser first made
+    // the browser return there instead, discarding the real origin before the menu opened.
+    returnFrame: () => ({
+      active: versionMenuIsOpen,
+      close: closeVersionMenu,
+      does: "Return from the versions menu",
+      line: "back",
+    }),
+    run: () => versionBtn.click(),
   };
 
   let lastVersionsKey = "";
@@ -623,6 +623,7 @@ export function createVersion({
   function diffBlocks(root) {
     const pairs = [];
     const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
+    const authoredHere = authored(root);
     for (const b of root.querySelectorAll(blocks)) {
       if (inChrome(b) || b.closest(opaque)) continue;
       if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
@@ -644,7 +645,7 @@ export function createVersion({
     // so text can't compare — but a widget the base didn't have still marks.
     for (const w of root.querySelectorAll(opaque)) {
       // parentElement, not w itself: an svg a widget rendered stays its widget's.
-      if (inChrome(w) || w.parentElement?.closest(opaque)) continue;
+      if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
       const entry = registry[w.localName] ?? {};
       // A data selection is authored semantics even though the generated children
       // of an upgraded widget are opaque to comparison.

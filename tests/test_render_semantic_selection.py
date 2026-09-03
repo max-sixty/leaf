@@ -520,7 +520,8 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
 
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("/")
     thread_search = page.get_by_role("searchbox", name="Find in threads")
@@ -538,7 +539,8 @@ def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
     html = leaf_page("empty scoped slash", "<p>Searchable page words.</p>")
     page, errors = open_page(browser, serve(html))
 
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     threads = page.locator(".lf-threads")
     expect(threads).to_be_focused()
     expect(page.locator(".lf-keyline")).not_to_contain_text("search page")
@@ -746,7 +748,7 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
 
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    page.locator("p").click()
+    page.locator("main p").click()
     page.keyboard.press("/")
     expect(page.locator(".lf-keyline")).to_contain_text("close search")
     expect(page.locator(".lf-keyline")).not_to_contain_text("back to hints")

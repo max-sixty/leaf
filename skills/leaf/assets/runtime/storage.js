@@ -1,5 +1,5 @@
-// ---------- where a page's versions are ----------
-// A page directory's versions are served as siblings under its own root:
+// ---------- where a page's public version addresses are ----------
+// A page's mapped revisions are served at sibling addresses under its own root:
 // versions/v1.html, v2.html… Three things read that path — which version this document
 // is, where another version of it is, and which page a tab's working state belongs
 // to — so the shape is spelled once here rather than three times, and a document served
@@ -15,8 +15,8 @@ export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 // read off, which is the one form that cannot disagree with what this document is.
 export const versionUrl = (version) =>
   `${location.pathname.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
-// The live root follows the active revision in place; an immutable version file, served
-// under the path above, stays pinned.
+// The live root follows the active revision in place; a virtual version address under
+// the path above stays pinned to its mapped revision.
 export const LIVE_ROOT = location.pathname.endsWith("/");
 // Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
 // server serves one page at its own root, so every key below is spelled exactly as it was.

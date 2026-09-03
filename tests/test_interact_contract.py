@@ -40,6 +40,7 @@ from interact_support import (
     decide,
     declare_data_input,
     fetch,
+    fixture_version_path,
     live_versions,
     logged,
     publish,
@@ -133,7 +134,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
         },
     )
     spk = passages_model.spoken(
-        (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
+        (page_dir / ".fixture-versions" / "v1.html").read_text(encoding="utf-8"),
         registry_storage.require_registry(page_dir),
     )
     threads = event_folds_model.build_threads(
@@ -362,7 +363,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     The re-vendor is refused rather than offering a way to discard that history."""
     # This models a page made under an older registry where lf-draft declared
     # `decide`: the tag and widget id survive, but the incoming verb does not.
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "<h2>Plan</h2>",
@@ -398,7 +399,7 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-decision></lf-task></lf-command>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -449,7 +450,7 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-decision></lf-task></lf-command>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -546,7 +547,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
     """Another tag using the same verb cannot keep a retired contract alive."""
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", board + "\n</section>")
     )
@@ -593,7 +594,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
     """Keeping a verb's spelling is not enough if its payload no longer replays."""
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", board + "\n</section>")
     )
@@ -636,7 +637,7 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
         '<lf-option id="route-authored">Authored route</lf-option>'
         "</lf-options></lf-decision>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", options + "</section>")
     )
@@ -695,7 +696,7 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
         '<lf-option id="rs-column">Column</lf-option>'
         "</lf-options></lf-decision>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", options + "\n</section>")
     )
@@ -738,7 +739,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     incoming layer that drops the widget's x-report verb strands every recorded
     report, and the stamp refuses the re-vendor rather than let them fall
     silent."""
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -771,7 +772,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
 
 def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
     """A re-vendored provider must keep every semantic target the log names."""
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             '<lf-diagram id="flow">',
@@ -915,7 +916,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
     page_dir, server, monkeypatch
 ):
     registry = json.loads((page_dir / "registry.json").read_text())
-    version = page_dir / "versions/v1.html"
+    version = fixture_version_path(page_dir, 1)
     version.write_text(
         version.read_text().replace(
             "</section>", registry["lf-board"]["x-example"] + "\n</section>"
@@ -1260,7 +1261,7 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
 
 
 def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
-    """Clearing a replaceable value does not erase the meaning an immutable version
+    """Clearing a replaceable value does not erase the meaning a stamped version
     gave its source id. An incoming layer must still understand that binding because a
     pinned reader can keep consuming the page's current data store."""
     declare_data_input(
@@ -1544,7 +1545,7 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
 
     The words are the control: they must differ, or `spoken({})` would be the
     whole reading and the distinction this rests on would not exist."""
-    html = (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
+    html = (page_dir / ".fixture-versions" / "v1.html").read_text(encoding="utf-8")
     registry = registry_storage.require_registry(page_dir)
     full = passages_model.spoken(html, registry)
     assert passages_model.enclosing_ids(html) == passages_model.enclosing_of(full)
@@ -1656,7 +1657,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     gone. The <p class="note"> is the control: an ordinary class is the author's
     to write, and the count below is exact so a reservation that swallowed it
     would be caught here rather than in a page that stopped rendering."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><div class="lf-chrome"><p id="w">words</p></div>'
@@ -1687,7 +1688,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["properties"]["choose"] = subschema
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("<lf-options>", '<lf-options id="opts" choose>')
     )
@@ -2402,7 +2403,7 @@ def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
     a family like this one got every part of the loop except this: the door
     refused the declaration outright rather than let the honoring version fail
     here with "ids dropped"."""
-    (trial_page / "versions" / "v2.html").write_text(
+    (trial_page / ".fixture-versions" / "v2.html").write_text(
         trial_version(ADOPTED, TRIAL_LOG, PILOT_PURGE)
     )
 
@@ -2426,14 +2427,14 @@ def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
     half is the page's own words, which only the reader's own `adopt` consents
     to losing, so a version dropping that is refused while the same version's
     withdrawal stands."""
-    (trial_page / "versions" / "v2.html").write_text(
+    (trial_page / ".fixture-versions" / "v2.html").write_text(
         trial_version(TRIAL_CACHE, SHELVED, PILOT_PURGE)
     )
     withdrawn = check(trial_page, version=2)
     assert withdrawn.exit_code == 0, withdrawn.output
 
     # v2 published nothing, so v3 stands against v1 like v2 did.
-    (trial_page / "versions" / "v3.html").write_text(
+    (trial_page / ".fixture-versions" / "v3.html").write_text(
         trial_version(TRIAL_CACHE, PILOT_PURGE)
     )
     result = check(trial_page, version=3)
@@ -2455,7 +2456,7 @@ def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(
     what differs is the pair — which is the shape the licensing reads, and the
     reason the declaration sits on the widget that holds the slot rather than on
     the slot."""
-    (trial_page / "versions" / "v2.html").write_text(
+    (trial_page / ".fixture-versions" / "v2.html").write_text(
         trial_version(TRIAL_CACHE, TRIAL_LOG)
     )
 
@@ -3018,14 +3019,14 @@ def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
 def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
     """The gate is about decisions, so it holds nothing against a version that
     rewrites a widget the user never acted on."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-draft id="d1"><pre>First words.</pre></lf-draft>',
         )
     )
     publish(page_dir)
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-draft id="d1"><pre>Quite different words.</pre></lf-draft>',
@@ -3036,8 +3037,8 @@ def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
 
 def test_check_requires_the_vendored_layer(tmp_path):
     d = tmp_path / "bare"
-    (d / "versions").mkdir(parents=True)
-    (d / "versions" / "v1.html").write_text(PAGE)
+    (d / ".fixture-versions").mkdir(parents=True)
+    (d / ".fixture-versions" / "v1.html").write_text(PAGE)
     result = check(d)
     assert result.exit_code == 1
     assert "run `leaf page init` to vendor the layer" in result.output
@@ -3045,7 +3046,7 @@ def test_check_requires_the_vendored_layer(tmp_path):
 
 def test_check_takes_column_width_from_vendored_theme(page_dir):
     # theme.css sets a 720px main column; a wider fixed-width element must fail.
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>", '<h2>Plan</h2><svg width="900" height="10"></svg>'
         )
@@ -3053,6 +3054,41 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "exceeds column (720px)" in result.output
+
+
+def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
+    """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
+    theme = page_dir / "theme.css"
+    original = theme.read_text()
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><p style="width: var(--pin)">Measured.</p>',
+        )
+    )
+
+    def activate(css):
+        theme.write_text(original + css)
+        return revisioning_model.activate_source(page_dir, [])
+
+    css = ":root { --pin: 700px; --col: 720px } main { --lf-column: 1; max-width: var(--col) }"
+    initial = activate(css)
+    assert initial.error is None
+    assert activate(css).check.errors == []
+
+    overwide = activate(css.replace("700px", "900px"))
+    assert "inline style width: 900px (column is 720px)" in overwide.error
+    assert overwide.revision == initial.revision
+
+    wider_column = css.replace("700px", "900px").replace("720px", "960px")
+    widened = activate(wider_column)
+    assert widened.error is None
+    assert widened.check.column == 960
+    assert not widened.created
+
+    broken = activate(wider_column + " .broken { color red }")
+    assert "theme.css syntax error" in broken.error
+    assert activate(wider_column).error is None
 
 
 def test_check_reads_a_column_the_theme_states_as_a_token():
@@ -3134,7 +3170,7 @@ def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
     the reading resolves it against the layer the page vendored — the order the cascade
     reads the two roots in. Without the layer behind it, a page could take any width the
     theme names and never be measured for it."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><p id="w" style="width: var(--wide)">Wide by name.</p>',
@@ -3187,14 +3223,14 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     status, body = fetch(server + url)
     assert (status, body) == (200, shot.read_bytes())
     # And nothing else out of the directory: the log is not a served path.
-    assert fetch(server + "/comments.jsonl")[0] == 404
+    assert fetch(server + "/events.jsonl")[0] == 404
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
     """A broken image is silent in the file and obvious on the page. The render gate
     would see the 404, but it runs once; this runs on every version, and whether a
     file is there is as deterministic as whether an id is."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><p><img alt="x" src="/media/deadbeefdeadbeef.png"></p>',
@@ -3207,7 +3243,7 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
     # A mention is not a reference: a page explaining leaf writes one of these
     # paths in its prose, and reading the markup rather than the attributes would
     # send its author hunting for a screenshot the page never asks for.
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><p>Write it as <code>"/media/deadbeefdeadbeef.png"</code>.</p>',
@@ -3229,7 +3265,7 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
         "<h2>Plan</h2>",
         f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
     )
-    (page_dir / "versions" / "v1.html").write_text(html)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     parser = structure_model._StructParser()
     parser.feed(html)
     parser.close()
@@ -3247,7 +3283,7 @@ def test_check_reads_a_page_stylesheet_as_css(page_dir):
     read the sheet as one flat run of blocks would attribute to the query."""
 
     def checked(css):
-        (page_dir / "versions" / "v1.html").write_text(styled(css))
+        (page_dir / ".fixture-versions" / "v1.html").write_text(styled(css))
         return check(page_dir)
 
     assert (
@@ -3263,7 +3299,7 @@ def test_check_reads_a_page_stylesheet_as_css(page_dir):
 def test_check_reports_css_syntax_errors_in_every_authored_source(page_dir):
     theme = page_dir / "theme.css"
     theme.write_text(theme.read_text() + "\n.theme { color red; }\n")
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
             '<p style="color red">All three CSS inputs are malformed.</p>',
@@ -3286,7 +3322,7 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     CSS measure every screen element against 2000px and pass the page. It can overflow
     one, because a pin is a risk rather than a baseline: it is too wide whenever its
     condition holds."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
             "main { --lf-column: 1; max-width: 760px }"
             " @media print { main { --lf-column: 1; max-width: 2000px } }",
@@ -3298,7 +3334,7 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     assert '<svg width="900"> exceeds column (760px)' in result.output
 
     # And nesting is not a condition: a column stated on a rule that also wraps one stands.
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
             "main { --lf-column: 1; max-width: 1000px; & p { color: red } }",
             '<svg width="900" height="10"></svg>',
@@ -3311,12 +3347,12 @@ def test_check_counts_only_a_width_fixed_in_pixels(page_dir):
     """A length is a typed value, not a string ending in `px`. A percentage or a vw
     scales to whatever contains it, and a calc() with a px term inside it is arithmetic
     rather than a pin — only a lone pixel length can overflow the column."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(".a { width: 200% } .b { width: 90vw } .c { width: calc(100% - 900px) }")
     )
     assert check(page_dir).exit_code == 0
 
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(".d { width: 900px !important }")
     )
     assert "sets width: 900px" in check(page_dir).output
@@ -3330,7 +3366,7 @@ def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
     that only sets a width sets a width: which rule is the measure everything else is
     read against is a thing a stylesheet says, not a thing a reader works out from how
     the rule is spelled."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
             "main { --lf-column: 1; max-width: 1000px }",
             '<svg width="900" height="10"></svg>',
@@ -3343,7 +3379,7 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
     """A width is what an attribute or a <style> block states. Scanning the file's text
     for one instead read a rule quoted in the page's prose as a rule the page applies,
     and never saw a style="" written with the other quote character."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>", "<h2>Plan</h2><div style='width:900px'>wide</div>"
         )
@@ -3352,7 +3388,7 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
     assert result.exit_code == 1
     assert "inline style width: 900px (column is 720px)" in result.output
 
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2><p>Write it as <code>.wide { width: 900px }</code>.</p>",
@@ -3422,7 +3458,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
         ],
     )
     assert selected.exit_code == 0, selected.output
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         PAGE.replace(
             "</section>",
@@ -3455,7 +3491,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
 
 
 def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -3533,7 +3569,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         '<lf-shot id="ps-shot" alt="the panel before and after" '
         'before="/media/nope.png" after="/media/gone.png"></lf-shot>'
     )
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</main>", shot + "</main>")
     )
     refused = check(page_dir)
@@ -3543,7 +3579,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"{refused.output}"
     )
 
-    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     opened = CliRunner().invoke(
         cli_model.cli, ["comment", str(page_dir), "--text", "show me?"]

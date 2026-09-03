@@ -26,9 +26,10 @@ export class OptionAddition {
   #adding = false;
   #stopDraftWatch = null;
 
-  constructor(host, { offered, commit, shortcut }) {
+  constructor(host, { offered, available, commit, shortcut }) {
     this.#host = host;
     this.#offered = offered;
+    this.available = available;
     this.#commit = commit;
     this.#shortcut = shortcut;
     this.#context = `option:${host.id}`;
@@ -55,13 +56,17 @@ export class OptionAddition {
     return this.#input;
   }
 
+  refresh() {
+    if (this.#form) this.#sync();
+  }
+
   #buildForm() {
     this.#form = offer("form", "lf-another");
     this.#input = offer("input");
     this.#input.type = "text";
     this.#input.placeholder = ANOTHER;
     this.#input.setAttribute("aria-label", ANOTHER);
-    this.#add = offer("button", "lf-btn", "Add");
+    this.#add = offer("button", "lf-btn", "↵");
     this.#add.type = "submit";
     this.#add.setAttribute("aria-label", "Add option");
     const shortcut = offer("span", "lf-address", this.#shortcut);
@@ -81,7 +86,7 @@ export class OptionAddition {
   }
 
   #sync() {
-    const disabled = this.#adding || !this.#input.value.trim();
+    const disabled = this.#adding || !this.available() || !this.#input.value.trim();
     this.#add.setAttribute("aria-disabled", String(disabled));
     if (this.#adding) this.#add.setAttribute("aria-busy", "true");
     else this.#add.removeAttribute("aria-busy");
@@ -120,7 +125,7 @@ export class OptionAddition {
   }
 
   async #submit() {
-    if (this.#adding) return;
+    if (this.#adding || !this.available()) return;
     const raw = this.#input.value;
     const text = raw.trim();
     if (!text) return notice("Nothing to add — the field is empty");

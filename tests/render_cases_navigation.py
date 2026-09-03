@@ -854,19 +854,16 @@ FIRST_PRESENTATION = """
     if (old) {
       const box = old.getBoundingClientRect();
       window.__lfPresentation.frames.push({
-        stale: old.checkVisibility({
+        authoredPainted: old.checkVisibility({
           opacityProperty: true,
           visibilityProperty: true,
         }),
-        interactive: old.contains(document.elementFromPoint(
+        authoredHit: old.contains(document.elementFromPoint(
           box.left + box.width / 2,
           box.top + box.height / 2,
         )),
         height: old.getBoundingClientRect().height,
-        note: getComputedStyle(document.body, "::after").content,
-        waitingPainted:
-          getComputedStyle(document.body, "::after").visibility !== "hidden"
-          && Number(getComputedStyle(document.body, "::after").opacity) > 0,
+        startupSheet: getComputedStyle(document.body, "::after").content,
       });
     }
     if (document.body?.dataset.lfPresented === undefined)

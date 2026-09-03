@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare an example as a live page or a standalone review file.
+"""Prepare an example or developer fixture as a live page or review file.
 
 An example is a page body, not a page directory: it links /theme.css and
 /leaf.js at the server root, which is where `page init` vendors them. Opening one
@@ -22,7 +22,7 @@ same page-bound external data a real host would replace through `leaf data set`.
 Vendoring runs fresh each time, so an edit to the theme, the registry, or a
 widget shows up on the next run. `version stamp` lints the example on the way
 past. The browser gate a page normally passes before its URL goes out is left to
-the suite: `version check --render` and `test_example_renders` drive the same
+the suite: `version check --render` and `test_page_fixture_renders` drive the same
 `render_version` over the same files, so running it here would only repeat what
 the suite has already said about these exact pages.
 
@@ -30,7 +30,7 @@ Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
 starts the page service and returns its URL instead of holding the terminal.
 
-Usage: preview.py [example] [options]  (default: design-decision)
+Usage: preview.py [page] [options]  (default: design-decision)
 """
 
 import argparse
@@ -48,22 +48,39 @@ ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
 PAGE = TMP / "preview"  # gitignored, and stable so the port persists
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
+NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer")
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 
-def leaf(launcher: Path, runtime: Path, *args, check=True, input_text=None):
-    return subprocess.run(
+def leaf(
+    launcher: Path,
+    runtime: Path,
+    *args,
+    check: bool = True,
+    input_text: str | None = None,
+    show_output: bool = False,
+):
+    """Hide successful chatter; checked failures replay their stdout."""
+    result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
-        check=check,
+        check=False,
         input=input_text,
-        text=input_text is not None,
+        stdout=None if show_output else subprocess.PIPE,
+        text=True,
     )
+    if check and result.returncode != 0:
+        if not show_output and result.stdout:
+            print(result.stdout, end="", flush=True)
+        result.check_returncode()
+    return result
 
 
-def seed_data(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
+def seed_data(
+    operations: list[dict], page: Path, launcher: Path, runtime: Path
+) -> None:
     """Apply each page-bound data operation shipped beside an example."""
-    for operation in data_operations(source):
+    for operation in operations:
         if operation["kind"] == "set":
             args = ["data", "set", str(page), operation["source"]]
             if operation["capture_label"] is not None:
@@ -105,7 +122,7 @@ def seed_log(source: Path, page: Path) -> None:
     seed = source.with_suffix(".jsonl")
     if not seed.exists():
         return
-    with (page / "comments.jsonl").open("a", encoding="utf-8") as f:
+    with (page / "events.jsonl").open("a", encoding="utf-8") as f:
         f.write(seed.read_text(encoding="utf-8"))
 
 
@@ -123,7 +140,7 @@ def acknowledge_log(source: Path, page: Path) -> None:
     # An event's seq is its line number, so the last line's number is the cursor.
     # Split on the writer's own separator, never splitlines(), whose wider class
     # reads a U+2028 inside a comment's text as a break.
-    log = (page / "comments.jsonl").read_text(encoding="utf-8")
+    log = (page / "events.jsonl").read_text(encoding="utf-8")
     lines = [n for n in log.split("\n") if n.strip()]
     (page / "cursor.json").write_text(
         json.dumps({"seq": len(lines)}) + "\n", encoding="utf-8"
@@ -140,12 +157,12 @@ def slot_name(value: str) -> str:
 
 def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser = argparse.ArgumentParser(
-        description="Prepare a shipped example or authored source with a Leaf runtime."
+        description="Prepare a public example or developer fixture with a Leaf runtime."
     )
     parser.add_argument(
         "example",
         nargs="?",
-        help="shipped example name (default: design-decision)",
+        help="public example or developer fixture name (default: design-decision)",
     )
     parser.add_argument("--source", type=Path, help="authored HTML source to preview")
     parser.add_argument(
@@ -211,16 +228,21 @@ def authored_source(
             parser.error(f"no authored source at {selected}")
         return selected
     name = (example or "design-decision").removesuffix(".html")
-    selected = ROOT / "examples" / f"{name}.html"
-    if selected.is_file():
-        return selected
+    candidates = [root / f"{name}.html" for root in NAMED_SOURCE_DIRS]
+    found = [path for path in candidates if path.is_file()]
+    if len(found) == 1:
+        return found[0]
+    if len(found) > 1:
+        parser.error(f"{name} names more than one preview source: {found}")
+    available = sorted(
+        path.stem for root in NAMED_SOURCE_DIRS for path in root.glob("*.html")
+    )
     parser.error(
-        f"no example named {name}; examples/ holds "
-        + ", ".join(sorted(p.stem for p in (ROOT / "examples").glob("*.html")))
+        f"no preview source named {name}; available pages: " + ", ".join(available)
     )
 
 
-def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
+def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[int, int]:
     """Build one page from the selected runtime and the source's fixtures."""
     package_manifest = source.parent / "layer.json"
     if not package_manifest.is_file():
@@ -235,12 +257,16 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )
     media = source.parent / "media"
+    if not media.is_dir() and source.parent == ROOT / "examples" / "developer":
+        media = ROOT / "examples" / "media"
     if media.is_dir():
         shutil.copytree(media, page / "media", dirs_exist_ok=True)
-    seed_data(source, page, launcher, runtime)
+    operations = data_operations(source)
+    seed_data(operations, page, launcher, runtime)
     # Each authored version in order, through the real stamp boundary, so a revised
     # example arrives with the chooser, the marks and the notes a reader travels by.
-    for order, version in enumerate(example_versions(source)):
+    versions = example_versions(source)
+    for order, version in enumerate(versions):
         (page / "index.html").write_text(
             version.read_text(encoding="utf-8"), encoding="utf-8"
         )
@@ -256,6 +282,18 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> None:
         if order == 0:
             seed_log(source, page)
     acknowledge_log(source, page)
+    return len({operation["source"] for operation in operations}), len(versions)
+
+
+def preparation_note(source: Path, data_sources: int, versions: int) -> str:
+    """Summarize successful setup without replaying each child command."""
+    details = []
+    if data_sources:
+        data_label = "data source" if data_sources == 1 else "data sources"
+        details.append(f"{data_sources} {data_label}")
+    version_label = "version" if versions == 1 else "versions"
+    details.append(f"{versions} {version_label}")
+    return f"prepared {source.stem} ({', '.join(details)})"
 
 
 def mark_preview(source: Path, page: Path, runtime: Path) -> None:
@@ -284,11 +322,12 @@ def main() -> None:
         TMP.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
             page = Path(staging) / "page"
-            prepare(source, page, launcher, runtime)
+            data_sources, versions = prepare(source, page, launcher, runtime)
             suffix = f"-{args.slot}" if args.slot else ""
             out = TMP / f"example-{source.stem}{suffix}.html"
             out.unlink(missing_ok=True)
             leaf(launcher, runtime, "version", "export", str(page), "-o", str(out))
+        print(preparation_note(source, data_sources, versions), end="\n\n")
         print(out.resolve())
         return
 
@@ -297,10 +336,11 @@ def main() -> None:
     if page.exists():  # a previous preview may still hold the port
         leaf(launcher, runtime, "server", "stop", str(page), check=False)
         shutil.rmtree(page)
-    prepare(source, page, launcher, runtime)
+    data_sources, versions = prepare(source, page, launcher, runtime)
     mark_preview(source, page, runtime)
+    print(preparation_note(source, data_sources, versions), end="\n\n", flush=True)
     command = "start" if args.background else "run"
-    leaf(launcher, runtime, "server", command, str(page))
+    leaf(launcher, runtime, "server", command, str(page), show_output=True)
 
 
 if __name__ == "__main__":

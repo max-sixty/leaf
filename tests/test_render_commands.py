@@ -14,6 +14,7 @@ from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.render_gate import browser as browser_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
@@ -47,6 +48,17 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def unnamed_browser():
+    """This process's environment with every browser variable cleared, for a child
+    whose subject is the launch a host that named none gets.
+
+    Unnaming means clearing all of them, not leaf's alone: `named_executable` reads
+    three, and empty is none in each. The GitHub runner image really does export
+    CHROME_BIN, so a test that cleared one and inherited the rest would run the named
+    arm twice and never reach the channel it meant to check."""
+    return os.environ | dict.fromkeys(browser_model.VARIABLES, "")
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
@@ -202,18 +214,21 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     unstamped — refusing it before `version stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
-    Twice over the clean source, once through each browser a host can supply: the
-    installed Chrome the default channel finds, and the executable
-    LEAF_BROWSER_EXECUTABLE names. The default arm states the empty value rather
-    than inheriting whatever the developer or the job exported, since a set variable
-    would otherwise turn the channel this arm exists to cover into a second run of
-    the other one. Each arm's success line has to name the browser that drew the
-    page: a clean gate telling a Chromium host that Chrome drew it is the same false
-    claim on the way out that the failure messages stopped making."""
+    Over the clean source once through each browser a host can supply: the installed
+    Chrome the default channel finds, and the executable a browser variable names —
+    leaf's own and one of the two that predate it, since a host that set CHROME_PATH
+    for another tool has named this browser too. The default arm states every
+    variable empty rather than inheriting whatever the developer or the job
+    exported, since a set one would otherwise turn the channel this arm exists to
+    cover into a second run of the other. A runner image really does export
+    CHROME_BIN, so unnaming leaf's alone is not unnaming. Each arm's success line
+    has to name the browser that drew the page: a clean gate telling a Chromium host
+    that Chrome drew it is the same false claim on the way out that the failure
+    messages stopped making."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate(*args, executable=""):
+    def gate(*args, variable=None, executable=""):
         return subprocess.run(
             [
                 *LEAF_COMMAND,
@@ -226,16 +241,17 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
-            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+            env=unnamed_browser() | ({variable: executable} if variable else {}),
         )
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
     assert "renders clean in Chrome" in ok.stdout
 
-    named = gate(executable=headless_shell)
-    assert named.returncode == 0, named.stderr
-    assert f"renders clean in {headless_shell}" in named.stdout
+    for variable in ("LEAF_BROWSER_EXECUTABLE", "CHROME_PATH"):
+        named = gate(variable=variable, executable=headless_shell)
+        assert named.returncode == 0, named.stderr
+        assert f"renders clean in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -248,16 +264,22 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
-    """LEAF_BROWSER_EXECUTABLE is the whole of what a host says about its browser, so
-    a value naming no browser has to come back as that variable and that value rather
+    """A browser variable is the whole of what a host says about its browser, so a
+    value naming no browser has to come back as that variable and that value rather
     than as Chrome, which the host never asked for. Both user-path launches answer for
     it, and they have to move together: `serving-pages.md` names export as the fallback
     for when no network route reaches the page, so a host whose browser cannot launch
-    loses the page twice over."""
+    loses the page twice over.
+
+    Whichever variable the host set is the one the message names. Reporting a
+    CHROME_PATH browser as LEAF_BROWSER_EXECUTABLE's would be a false statement about
+    the host's own configuration, and it points the reader at a variable they never
+    set — so the second half checks the other two by their own names, through the
+    check alone, both launches having already been shown to move together."""
     serve(LONG_PAGE)
     d = serve.page_dir
     missing = tmp_path / "not-a-browser"
-    named = os.environ | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
+    named = unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
 
     checked = subprocess.run(
         [*LEAF_COMMAND, "version", "check", str(d), "--render"],
@@ -291,6 +313,79 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         "LEAF_BROWSER_EXECUTABLE" in exported.stderr and str(missing) in exported.stderr
     )
     assert "export needs Chrome" not in exported.stderr
+
+    for variable in ("CHROME_PATH", "CHROME_BIN"):
+        answered = subprocess.run(
+            [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {variable: str(missing)},
+        )
+        assert answered.returncode == 1, answered.stdout + answered.stderr
+        assert variable in answered.stderr and str(missing) in answered.stderr
+        assert "LEAF_BROWSER_EXECUTABLE" not in answered.stderr
+
+
+def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
+    monkeypatch, tmp_path
+):
+    """With no variable set, PATH is the host's own statement of where its programs
+    are, and a hardcoded candidate list is not: a list needs an entry per
+    distribution and can never name a `/nix/store/<hash>-chromium-*/bin/chromium`.
+
+    It is asked second, after the Chrome channel rather than before it, and that
+    order is the whole of what keeps this from moving a host that works today: a box
+    with both a Google Chrome and a distro Chromium goes on getting the Chrome the
+    channel finds. So the launch is driven twice over one PATH holding one browser —
+    once where the channel answers, once where it raises what Playwright raises on a
+    host with no Chrome installed — and the assertion is the calls that were made,
+    since a test reading only the browser back cannot see which of the two produced
+    it."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    chromium = tmp_path / "bin" / "chromium"
+    chromium.parent.mkdir()
+    chromium.write_text("#!/bin/sh\nexec true\n")
+    chromium.chmod(0o755)
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("PATH", str(chromium.parent))
+
+    calls = []
+
+    class Chromium:
+        def __init__(self, channel_answers):
+            self.channel_answers = channel_answers
+
+        def launch(self, **kwargs):
+            calls.append(kwargs)
+            if "channel" in kwargs and not self.channel_answers:
+                raise PlaywrightError(
+                    "BrowserType.launch: Chromium distribution 'chrome' is not found "
+                    "at /opt/google/chrome/chrome"
+                )
+            return "a browser"
+
+    class Playwright:
+        def __init__(self, channel_answers):
+            self.chromium = Chromium(channel_answers)
+
+    launched, name = browser_model.launch_browser(Playwright(True))
+    assert (launched, name) == ("a browser", "Chrome")
+    assert calls == [{"channel": "chrome"}], "the channel keeps the hosts it has"
+
+    calls.clear()
+    launched, name = browser_model.launch_browser(Playwright(False))
+    assert (launched, name) == ("a browser", str(chromium))
+    assert calls == [{"channel": "chrome"}, {"executable_path": str(chromium)}]
+
+    # And the same reading is what the failed-launch line says, so a host with
+    # neither is told what was looked for rather than named a variable twice.
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert browser_model.discovered_executable() is None
+    hint = browser_model.browser_hint()
+    assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
 
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
@@ -343,7 +438,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
             capture_output=True,
             text=True,
             check=False,
-            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
         )
         assert rendered.returncode == 0, rendered.stderr
         assert "renders clean" in rendered.stdout
@@ -378,16 +473,13 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
 
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """The comparison lf-shot makes is a flip: two registered frames in one grid cell,
-    one of them showing. What the gate covers on the way past is the rest of the
-    widget's bargain — the captions naming each frame are the page's words and stay
-    selectable, the switch is chrome and takes no space in the user's reading, and
-    a printed copy keeps both frames and both captions.
+    """Image clicks and the target's Button flip the same fixed frame.
 
-    The image is the target, so both presses land on one point and the pointer never
-    moves: a comparison is many alternations, and the whole worth of a flip is that
-    the eye can hold still through them. Pressing the switch instead would assert the
-    state swaps while saying nothing about what it costs to swap it."""
+    Both state labels keep their corresponding sides while the active rule moves.
+    Repeated presses keep their target and focus. The Button names the next frame
+    after either route and answers both native activation keys. Arriving by Tab rings
+    the whole card, rail included. The render gate also checks selectable captions and
+    the two-frame print view."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -395,11 +487,62 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     assert render_gate_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
+    rail = page.locator("lf-shot .lf-shotrail")
+    expect(rail).to_have_count(1)
+    expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
+    before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
+    after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
+    assert before_bounds is not None and after_bounds is not None
+    before_face = rail.evaluate(
+        """rail => [...rail.children].map(cap => ({
+          state: cap.dataset.lfState,
+          ink: getComputedStyle(cap).color,
+          rule: getComputedStyle(cap).boxShadow,
+        }))"""
+    )
+    assert before_face[0]["ink"] != before_face[1]["ink"]
+    assert before_face[0]["rule"] != "none"
+    assert before_face[1]["rule"] == "none"
+    page.emulate_media(media="print")
+    assert shown_frames(page) == ["before", "after"]
+    assert (
+        rail.locator('[data-lf-state="before"]').evaluate(
+            "cap => getComputedStyle(cap, '::after').content"
+        )
+        == '" · top"'
+    )
+    assert (
+        rail.locator('[data-lf-state="after"]').evaluate(
+            "cap => getComputedStyle(cap, '::after').content"
+        )
+        == '" · bottom"'
+    )
+    page.emulate_media(media="screen")
     assert shown_frames(page) == ["before"]
     at = flip_point(page)
     page.mouse.click(*at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
+    after_face = rail.evaluate(
+        """rail => [...rail.children].map(cap => ({
+          state: cap.dataset.lfState,
+          ink: getComputedStyle(cap).color,
+          rule: getComputedStyle(cap).boxShadow,
+        }))"""
+    )
+    assert after_face[0]["ink"] == before_face[1]["ink"]
+    assert after_face[1]["ink"] == before_face[0]["ink"]
+    assert after_face[0]["rule"] == "none"
+    assert after_face[1]["rule"] != "none"
+    for locator, bounds in (
+        (rail.locator('[data-lf-state="before"]'), before_bounds),
+        (rail.locator('[data-lf-state="after"]'), after_bounds),
+    ):
+        flipped_bounds = locator.bounding_box()
+        assert flipped_bounds is not None
+        assert {key: flipped_bounds[key] for key in ("x", "width", "height")} == {
+            key: bounds[key] for key in ("x", "width", "height")
+        }
     box = page.locator("lf-shot input[type=checkbox]")
     expect(box).to_be_focused()
     assert "show before" in key_line(page)
@@ -411,39 +554,94 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert shown_frames(page) == ["before"]
-    # The visible instruction sits under the same native overlay. A repeated held press
-    # there keeps both focus and the screenshot key line stable too.
-    text_label = page.locator("lf-shot .lf-shotpick label")
-    label_bounds = text_label.bounding_box()
-    assert label_bounds is not None
-    text_at = (
-        label_bounds["x"] + label_bounds["width"] - 2,
-        label_bounds["y"] + label_bounds["height"] / 2,
+    button = page.get_by_role("button", name="Show after — the navigation rail")
+    expect(page.locator(".lf-margin-item").filter(has=button)).to_be_visible()
+    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "compare-before"
     )
-    assert box.evaluate(
-        "(control, point) => document.elementFromPoint(...point) === control",
-        text_at,
+    button_bounds = button.bounding_box()
+    assert button_bounds is not None
+    button_at = (
+        button_bounds["x"] + button_bounds["width"] / 2,
+        button_bounds["y"] + button_bounds["height"] / 2,
     )
-    page.mouse.move(*text_at)
-    page.mouse.down()
-    expect(box).to_be_focused()
-    assert "show after" in key_line(page)
-    page.mouse.up()
+    page.mouse.click(*button_at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
-    # The same full target is the keyboard's native handle.
+    button = page.get_by_role("button", name="Show before — the navigation rail")
+    expect(button).to_be_focused()
+    assert "show before" in key_line(page)
+    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+        "data-lf-icon", "compare-after"
+    )
+    assert button.bounding_box() == button_bounds
+    page.mouse.down()
+    expect(button).to_be_focused()
+    page.mouse.up()
+    assert shown_frames(page) == ["before"]
+    page.keyboard.press("Enter")
+    assert shown_frames(page) == ["after"]
+    page.keyboard.press("Space")
+    assert shown_frames(page) == ["before"]
+
+    # Image activation updates the Button too; Space still works at the image.
+    page.mouse.click(*at)
+    expect(
+        page.get_by_role("button", name="Show before — the navigation rail")
+    ).to_be_visible()
     box.focus()
     page.keyboard.press(" ")
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
+    expect(
+        page.get_by_role("button", name="Show after — the navigation rail")
+    ).to_be_visible()
+
+    # The rail and the frame are one card, so the ring a reader arriving by Tab leaves
+    # goes round the card. Drawn on the frame alone it ran three pixels up inside the
+    # rail, which is a rule across the card rather than a ring round the thing in hand,
+    # and the rail's own surface stands where that run is. Asked here as well as in the
+    # corpus ring walk because that walk is nightly and reports its first fault only.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if box.evaluate("flip => flip === document.activeElement"):
+            break
+    expect(box).to_be_focused()
+    ring = page.locator("lf-shot").evaluate(
+        """shot => {
+          const cs = getComputedStyle(shot);
+          const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+          const b = shot.getBoundingClientRect();
+          const card = [...shot.querySelectorAll('.lf-shotrail, .lf-shotframe')]
+            .map((part) => part.getBoundingClientRect());
+          return {
+            name: cs.getPropertyValue('--lf-here-ring').trim(),
+            width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
+            top: b.top - grow,
+            bottom: b.bottom + grow,
+            card_top: Math.min(...card.map((part) => part.top)),
+            card_bottom: Math.max(...card.map((part) => part.bottom)),
+            corners: [cs.borderTopLeftRadius, cs.borderBottomRightRadius],
+            card_corners: [
+              getComputedStyle(shot.querySelector('.lf-shotrail')).borderTopLeftRadius,
+              getComputedStyle(shot.querySelector('.lf-shotframe'))
+                .borderBottomRightRadius,
+            ],
+          };
+        }"""
+    )
+    assert ring["name"] == "shot" and ring["width"] > 0
+    assert ring["top"] < ring["card_top"] and ring["bottom"] > ring["card_bottom"]
+    # An outline follows its own box's corners, and lf-shot draws no border of its own
+    # to have rounded them, so the ring's corners are asked against the rail's top and
+    # the frame's foot — the card's own outer corners.
+    assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
     assert errors == []
     page.close()
 
 
 def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
-    """A tall comparison may put its instruction row more than a viewport below the
-    point being inspected. Both the image and that row are the native checkbox itself,
-    so a click changes state without label activation focusing some distant box and
-    centring it in the viewport. The same causal gesture is checked on a desk and phone."""
+    """Clicking a tall comparison must not focus a remote control and scroll away
+    from the image. The same causal gesture is checked on a desk and phone."""
     before = solid_png(390, 844, (232, 226, 213))
     after = solid_png(390, 844, (214, 226, 235))
     url = serve(
@@ -453,10 +651,9 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
     page, errors = open_page(browser, url)
     box = page.locator("lf-shot > input.lf-shotflip")
     expect(box).to_have_accessible_name(
-        "flip — or click the image — the navigation rail"
+        "Compare before and after — the navigation rail"
     )
     frame = page.locator('lf-shot .lf-shotframe[data-lf-state="before"]')
-    row = page.locator("lf-shot .lf-shotpick")
 
     for width in (1200, 390):
         resized(page, width, 900)
@@ -477,34 +674,6 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         was_checked = box.is_checked()
         scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*image_point)
-        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
-        assert box.is_checked() is not was_checked
-        assert (
-            abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
-            <= 1
-        )
-
-        # Put the instruction just inside the viewport, then remove the focus left by
-        # the image gesture. An implementation covering only the image would route this
-        # press through the label to a remote checkbox and reproduce the same jump.
-        page.evaluate(
-            """() => { document.activeElement.blur();
-                       const r = document.querySelector('lf-shot .lf-shotpick')
-                                         .getBoundingClientRect();
-                       document.scrollingElement.scrollBy(0, r.bottom - innerHeight + 60); }"""
-        )
-        row_point = row.evaluate(
-            "el => { const r = el.getBoundingClientRect();"
-            "        return [r.left + 10, r.top + r.height / 2]; }"
-        )
-        assert page.evaluate(
-            "([x, y]) => document.elementFromPoint(x, y) === "
-            "document.querySelector('lf-shot > input.lf-shotflip')",
-            row_point,
-        )
-        was_checked = box.is_checked()
-        scroll_before = page.evaluate("document.scrollingElement.scrollTop")
-        page.mouse.click(*row_point)
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
         assert box.is_checked() is not was_checked
         assert (
@@ -577,6 +746,8 @@ def test_a_shot_still_flips_with_every_script_removed(
     assert shown_frames(loose) == ["before"]
     loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
+    loose.keyboard.press("Space")
+    assert shown_frames(loose) == ["before"]
     loose.close()
 
 

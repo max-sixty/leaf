@@ -21,6 +21,7 @@ from render_support import (
     CHIPS,
     CODE_PAGE,
     CONTROL_LABEL_PAGE,
+    CORPUS_SOURCES,
     DIFF_PAGE,
     DRIFT_V1,
     DRIFT_V2,
@@ -34,7 +35,6 @@ from render_support import (
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
-    SOURCE_EXAMPLES,
     SUGGESTION_PAGE,
     TAIL_PAGE,
     THIN_V1,
@@ -61,10 +61,25 @@ from render_support import (
     stamp_version_file,
     ticked,
     told,
+    wait_for_pending_mark,
     wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_missing_node_has_no_passage_location(browser, serve):
+    """No DOM node means no passage location, rather than a runtime error."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    found = page.evaluate(
+        """async () => {
+          const {closestAcross} = await import('/runtime/passages.js');
+          return closestAcross(null, 'main');
+        }"""
+    )
+    assert found is None
+    assert errors == []
+    page.close()
 
 
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
@@ -94,13 +109,13 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     assert errors == [], errors
 
 
-@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
-def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
     """Anchoring has to work on the pages people actually write, not on a fixture built
     to suit it. Every failure here has been a place where what the reader selects and
     what the search reads come apart — an uppercased header, a widget's own chrome, the
     stylesheet a rendered diagram carries — and a hand-built page has none of them. So
-    this drags across every pair of adjacent blocks in every source example, which is
+    this drags across every pair of adjacent blocks in every source page, which is
     the shape a real selection takes, and asks for the highlight the composer promises.
 
     The generated corpus is not another authored input: scripts/corpus.py derives a
@@ -114,7 +129,7 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     the class, the sweep that proves every passage is quotable structurally could not see
     the passages that weren't. Across the source corpus it reaches attribute-rendered
     headings, settled summaries, and the tab names in live-progress."""
-    page, errors = open_page(browser, serve(example))
+    page, errors = open_page(browser, serve(source))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
@@ -186,15 +201,15 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
         return {missed, skipped, astray};
     }""")
     assert result["missed"] == [], (
-        f"{len(result['missed'])} passages in {example.stem} quote text the page "
+        f"{len(result['missed'])} passages in {source.stem} quote text the page "
         f"can't find: {result['missed']}"
     )
     assert result["skipped"] == [], (
-        f"{len(result['skipped'])} passages in {example.stem} raised no Comment button, "
+        f"{len(result['skipped'])} passages in {source.stem} raised no Comment button, "
         f"so this sweep never tested them: {result['skipped']}"
     )
     assert result["astray"] == [], (
-        f"{len(result['astray'])} passages in {example.stem} painted outside what was "
+        f"{len(result['astray'])} passages in {source.stem} painted outside what was "
         f"selected: {result['astray']}"
     )
     assert errors == []
@@ -221,7 +236,11 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
     # Focusing the immediate field collapses the browser Selection; the durable pending
-    # paint proves the drag selected the words the widget actually says.
+    # paint proves the drag selected the words the widget actually says. The release
+    # queues the capture rather than performing it, so the paint is what says the gesture
+    # has been read — reading the highlight straight off the mouseup reads the frame
+    # before it and reports every drag as a drag that selected nothing.
+    wait_for_pending_mark(page)
     assert pending_text(page).strip() == "In flight", (
         "a drag across the heading selected nothing — it is painted, not said"
     )
@@ -242,7 +261,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     # and the anchor is on a word only the runtime puts there, so it has to be found
     # again in the version the user now has.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         SAID_PAGE.replace("Waiting on the importer.", "Unblocked; starting Thursday.")
     )
     stamp_version_file(d, 2, "two")
@@ -265,7 +284,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
 
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve):
     """Module-only words may sit between authored parts, but they cannot give the
-    browser more context than the version file can confirm."""
+    browser more context than the mapped revision can confirm."""
     page, errors = open_page(browser, serve(FENCED_CAPTURE_PAGE))
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
@@ -408,6 +427,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
+    wait_for_pending_mark(page)
     assert pending_text(page).strip() == "Heated bird bath", (
         "a drag across the tab's name selected nothing"
     )
@@ -429,7 +449,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         CONTROL_LABEL_PAGE.replace(
             "the south pair waits on brackets", "the brackets arrived"
         )
@@ -459,6 +479,7 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
+    wait_for_pending_mark(page)
     assert "Refill" in pending_text(page)
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
@@ -1015,7 +1036,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
     # The harm that outlives the stray button: a page mid-composition stays put.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         INLINE_PAGE.replace('<h1 id="t">Inline</h1>', '<h1 id="t">Inline II</h1>')
     )
     stamp_version_file(d, 2, "two")
@@ -1025,7 +1046,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
 
 def test_code_is_colored_without_a_word_moving(browser, serve):
-    """Colouring is spans, and the anchor pass is what spans break: the version file holds
+    """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
     block the file knows nothing about, and what keeps `leaf comment` able to quote
@@ -2262,7 +2283,7 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(DRIFT_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(DRIFT_V2)
     stamp_version_file(d, 2, "revised")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
@@ -2560,7 +2581,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(THIN_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(THIN_V2)
     stamp_version_file(d, 2, "revised")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
@@ -2617,12 +2638,81 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 
     # And the older document is a real destination, not just a row: choosing it pins
-    # the reader to the immutable file the chooser named.
+    # the reader to the virtual version address the chooser named.
     page.locator(".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(page.locator(".lf-version")).to_have_text("v1 ▾")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
+    browser, serve
+):
+    """Opaque graphics use the same authoredness boundary as compared prose."""
+    first = leaf_page(
+        "Graphics in a revision",
+        """
+        <h1>Route review</h1>
+        <p id="route">The route crosses the park.</p>
+        <lf-suggestion id="departure">
+          <lf-old>Leave at nine.</lf-old><lf-new>Leave at ten.</lf-new>
+        </lf-suggestion>
+        <svg id="old-map" viewBox="0 0 20 20" width="40" height="40">
+          <path d="M2 2L18 18" />
+        </svg>
+        <lf-decoration id="decoration"></lf-decoration>
+        """,
+    )
+    second = first.replace("crosses the park", "follows the river").replace(
+        "</main>",
+        """<svg id="new-map" viewBox="0 0 20 20" width="40" height="40">
+          <circle cx="10" cy="10" r="6" />
+        </svg></main>""",
+    )
+    url = serve(
+        first,
+        layer_registry={
+            "lf-decoration": {
+                "description": "Generated prose and a graphic with its own marker.",
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+                },
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "prose",
+                "x-upgrade": True,
+                "x-example": '<lf-decoration id="decoration"></lf-decoration>',
+            }
+        },
+        layer_widgets={
+            "lf-decoration.js": """
+                import {once} from '/runtime/widget-api.js';
+                customElements.define('lf-decoration', class extends HTMLElement {
+                  connectedCallback() {
+                    if (!once(this)) return;
+                    this.innerHTML = `
+                      <p data-lf-gen>Generated caption.</p>
+                      <svg id="decoration-icon" data-lf-gen viewBox="0 0 20 20"
+                           width="40" height="40"><path d="M2 18L18 2" /></svg>`;
+                  }
+                });
+            """
+        },
+    )
+    _publish(serve.page_dir, 2, second, "New route and map")
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    assert page.locator("main .lf-margin-action-icon").count() >= 2
+    expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
+
+    compare_with(page, 1)
+    expect(page.locator("#route")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    assert page.eval_on_selector_all(
+        ".lf-ins-block", "els => els.map(e => e.id).sort()"
+    ) == ["new-map", "route"]
     assert errors == []
     page.close()
 
@@ -2699,7 +2789,17 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    expect(page.locator(".lf-version")).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # A keyboard-opened popover returns to the real origin, not to the chooser used as
+    # its implementation door.
+    origin = page.locator("h1")
+    origin.evaluate("node => node.tabIndex = -1")
+    origin.focus()
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(origin).to_be_focused()
 
     # The pointer's door reaches the same layer, and the same key ends it.
     page.locator(".lf-version").click()

@@ -26,6 +26,9 @@ from pathlib import Path
 import pytest
 from example_data import example_versions
 from interact_support import SHIPPED_PACKAGES
+from leaf.event_log import _parse_events
+from leaf.events import bare_reaction, build_threads
+from leaf.passages import enclosing_ids
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -169,9 +172,9 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
         # somewhere to travel; the index forwards to the newest of them.
         for number, authored in enumerate(example_versions(source), start=1):
             version = site / "examples" / source.stem / "versions" / f"v{number}.html"
-            assert version.read_text() == site_build.eager_example(
-                authored.read_text()
-            ), f"{authored.name} changed beyond the static showcase's root marker"
+            assert version.read_text() == authored.read_text(), (
+                f"{authored.name} changed while it was published"
+            )
         newest = site_build.newest_version(source)
         index = site / "examples" / source.stem / "index.html"
         assert f"versions/{newest}" in index.read_text()
@@ -204,8 +207,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
 ):
     """Every authored example appears once as a real preview and a standalone route.
 
-    The absence checks are held by positive populations: nine catalog entries, nine
-    loaded images, and the independently derived authored files. A vanished catalog
+    The absence checks are held by positive populations: catalog entries, loaded
+    images, and the independently derived authored files. A vanished catalog
     cannot pass merely because it also contains no iframe or tab widget.
     """
     expected = {source.stem for source in authored_examples()}
@@ -247,7 +250,10 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             ]
 
         assert page.locator("iframe, lf-tabs").count() == 0
-        assert not (site / "examples" / "corpus").exists()
+        published = {
+            path.name for path in (site / "examples").iterdir() if path.is_dir()
+        }
+        assert published == expected
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -294,7 +300,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
     page.route("**/data.json", lambda route: seeds.append(route))
-    page.route("**/comments.jsonl", lambda route: seeds.append(route))
+    page.route("**/events.jsonl", lambda route: seeds.append(route))
 
     try:
         with page.expect_request("**/leaf.js"):
@@ -303,7 +309,6 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
         expect(page.locator("h1")).to_be_visible()
 
         assert boot, "the positive control did not hold the site boot module"
-        assert page.locator("html").get_attribute("data-lf-eager") == ""
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
@@ -356,7 +361,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             # If /leaf.js never started, do not let releasing it create new held seed
             # requests after the cleanup snapshot below.
             page.unroute("**/data.json")
-            page.unroute("**/comments.jsonl")
+            page.unroute("**/events.jsonl")
         for route in boot:
             route.continue_()
         for route in seeds:
@@ -448,8 +453,7 @@ AFTER_THE_DRAG = f"""async () => {{
   const field = document.querySelector('.lf-fab-input');
   return {{ text: getSelection().toString(),
            quote: document.getElementById('lf-composer-quote')?.textContent ?? '',
-           fieldOffered: Boolean(field?.checkVisibility()),
-           says: document.querySelector('.lf-keyline').textContent }};
+           fieldOffered: Boolean(field?.checkVisibility()) }};
 }}"""
 
 
@@ -463,19 +467,7 @@ def drag_across(page, selector):
 
 
 def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
-    """The site's voice, so the comment loop must not offer it.
-
-    The label stands inside <main>, where everything else is the page's own words and a
-    drag raises the pill that opens a composer on them. What holds it out is the class
-    the anchor pass reads as "not the document" — and losing that would be invisible
-    until a reader had quoted the label into a comment, where the quote names text the
-    published file has never held and resolves against nothing.
-
-    What each drag amounted to is read off the key line, which names what `c` would
-    comment on from the same anchor the button carries. Both readings are then a word
-    the page says rather than an absence to hold a window open for — and the page's own
-    lede goes first, since a line still naming the page after a drag that reached
-    nothing is a refusal this would report as the label's."""
+    """The site's label is chrome, so selecting it must not offer a comment field."""
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
         control = drag_across(page, "#decision-lede")
@@ -485,12 +477,6 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
         label = drag_across(page, "main > .sitenote p")
         assert "example of a leaf page" in label["text"]
         assert not label["fieldOffered"]
-        # The word `c` carries with nothing in hand — it goes to the threads rather
-        # than opening a box on anything, and "comment on the selection" does not
-        # contain it, so the two readings still tell each other apart.
-        assert "threads" in label["says"], (
-            "the site's own label was offered as a passage to quote"
-        )
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -510,19 +496,23 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
     with no error anywhere."""
     page, errors = open_page(browser, example_url(hosted, "ship-review"))
     try:
-        # Counted off the log rather than typed, so a seed that grows a thread does
-        # not red this on a number nobody meant to assert.
-        # The comments that opened a thread: a reaction is a comment carrying a token
-        # in place of words, and it opens none until somebody replies to it.
-        threads = sum(
-            json.loads(line)["kind"] == "comment" and "token" not in json.loads(line)
-            for line in (ROOT / "examples" / "ship-review.jsonl")
-            .read_text(encoding="utf-8")
-            .split("\n")
-            if line.strip()
-        )
-        expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({threads})")
+        source = EXAMPLES / "ship-review.html"
+        events = _parse_events(source.with_suffix(".jsonl").read_bytes())
+        conversations = [
+            thread
+            for thread in build_threads(
+                events, enclosing_ids(source.read_text(encoding="utf-8"))
+            ).values()
+            if not bare_reaction(thread)
+        ]
+        opened = sum(not thread["resolved"] for thread in conversations)
+        resolved = len(conversations) - opened
+        assert opened and resolved, "the shipped seed must cover both thread states"
+        expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({opened})")
         page.locator(".lf-threads-toggle").click()
+        expect(page.locator(".lf-panel .lf-details > summary")).to_have_text(
+            f"Resolved ({resolved})"
+        )
         # Named rather than taken first: the assertion follows the shipped objection,
         # independent of where a later seed might place another thread.
         thread = page.locator(".lf-panel .lf-thread").filter(
@@ -604,8 +594,10 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         expect(page.locator(".lf-threads-toggle")).to_have_text(
             f"Threads ({opened_with + 1})"
         )
-        # The demo answers once, in its own name, and says what the page can't do.
-        expect(thread).to_contain_text("This is the demo answering, not an agent")
+        # The automated reply identifies itself and links to the real loop.
+        reply = thread.locator(".lf-msg.claude")
+        expect(reply.locator(".lf-msg-head b")).to_have_text("The demo")
+        expect(reply.locator('a[href="/index.html#install"]')).to_have_count(1)
         assert not errors, errors[:3]
     finally:
         page.close()

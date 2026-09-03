@@ -369,10 +369,11 @@ comes from a browser or product fact visible outside the page.
 Open ordinary browser pages through `open_page`. It installs `Traffic` and `watched`
 before navigation, waits for the load event, and then waits on `BOTH_STAMPS`:
 
-- `data-lf-upgraded="1"` says widget upgrade and anchor preparation finished.
+- `data-lf-upgraded="1"` says widget upgrade finished.
 - `data-lf-applied` says a replay pass applied the event log.
 - `data-lf-presented="1"` says the authoritative projection or offline fallback is
-  visible and interactive.
+  safe for recorded interaction. The anchor pass and anchored composer begin here;
+  authored HTML may have painted earlier.
 
 These are independent facts. The document and first state read run together, and the
 state answer remains unapplied until upgrade finishes. Network quiet does not imply
@@ -561,6 +562,18 @@ and Playwright reported none of the lost ones. Reach for a repeat only with that
 evidence in hand — the browser's own record showing the subject did its part — and
 say so where the repeat is written.
 
+Install a hold on the page's first POST before navigation: `held_events` supplies
+this for event requests, and `primed` lets a test prepare other routes. Enabling
+interception on an already-running Chromium page can let that POST reach the server
+without a route callback or Playwright request event. Early interception keeps the
+test's premise intact without retrying the reader's gesture.
+
+That escape is the browser arming interception rather than the pattern reaching it,
+so `open_page` arms each page it makes on a pattern nothing ever asks for: a route a
+test registers later, even a keystroke before the gesture it holds, only adds to a
+list the browser is already consulting. A page made another way is unarmed, and a
+request already in flight is past holding either way — both remain `primed`'s.
+
 A handler that appends a route to `held` has established only that the browser made
 the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a
 request event, or another fact named by the handler. Some resources are requested
@@ -643,7 +656,16 @@ within one final state proves nothing about motion between those reads.
 A frame is one held state. `HOLD_MOTION` pauses animations so a short-lived midpoint
 can remain available while Playwright inspects it. Step or release every held animation
 after the assertion so completion handlers run and teardown is not left waiting on a
-promise that cannot settle.
+promise that cannot settle. `window.__lfHeld` is what is still held: a released
+animation leaves it, so a count reads as the gesture's own motions and an index keeps
+pointing at the one it was taken for. A motion the page cancels stays, because a
+cancelled move is evidence a gesture was taken back.
+
+A gesture on the way to the one under test still has to reach its end state under that
+hold, and the harness helper for the gesture owns it — `panel_settled` and
+`edge_settled` finish the shell carry rather than waiting out a clock the test has
+stopped. Every workspace gesture starts that same carry, so a test holding motion that
+opens a panel or a tray by hand needs the same, or it reads a page parked mid-carry.
 
 A sequence is ordered evidence across frames. A fold can have correct start, midpoint,
 and final values yet flash its unanimated state for one frame when the effect expires.

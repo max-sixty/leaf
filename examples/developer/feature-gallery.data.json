@@ -1,0 +1,25 @@
+{
+  "$captures": {
+    "gallery-source": {
+      "file": "feature-gallery-source.toml",
+      "label": "feature-gallery-source.toml at sample-1",
+      "lines": "1:4"
+    }
+  },
+  "gallery-worktrees": {
+    "bg-request-live-tree": {
+      "branch": "gallery/ready",
+      "base": "a1b2c3d",
+      "head": "d4e5f6a",
+      "ahead": 2,
+      "behind": 0,
+      "additions": 24,
+      "deletions": 3,
+      "commits": 2,
+      "tests": "running",
+      "observedAt": "2026-09-02T09:10:00-07:00",
+      "files": "gallery/\n  ready.py  +24 -3"
+    }
+  },
+  "gallery-latency": 184
+}

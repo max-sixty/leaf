@@ -16,6 +16,8 @@ export function createDispatch({
   paintHere,
   REACT,
   recoveredLabelFocus,
+  RETURN,
+  returnStack,
   SCOPES,
   scopesFor,
   setChord,
@@ -50,11 +52,19 @@ export function createDispatch({
     const typing = takesLetters(active);
     return SCOPES.flatMap((scope) => {
       if (scope === ELEMENTS) {
-        if (!typing) return elementStack;
+        if (!typing) return [...elementStack, RETURN];
         const own = elementStack.filter(({ el }) => el === active);
         const ancestors = elementStack.filter(({ el }) => el !== active);
-        return [...own, TYPING, ...ancestors];
+        // A control's own state is the innermost layer. The command frame that entered
+        // it comes next, before the generic text-box escape and any containing widget:
+        // `/` in Threads can clear its query before returning, while `c` into a plain
+        // composer returns in the same one Escape that entered it.
+        return [...own, RETURN, TYPING, ...ancestors];
       }
+      // RETURN is declared in SCOPES so every projection sees it. The element placeholder
+      // above has already placed it at the dynamic boundary between the exact control and
+      // the generic/ancestor scopes, so the static slot contributes no second copy.
+      if (scope === RETURN) return [];
       if (scope === TYPING && typing) return [];
       return scope;
     }).filter(standing);
@@ -130,8 +140,10 @@ export function createDispatch({
         if (!matched.row.native) ev.preventDefault();
         if (ev.repeat && !matched.row.repeat) return true;
         beforeCommand?.(matched.row);
-        if (matched.row.run) matched.row.run(matched.binding);
-        else recovered.click();
+        returnStack.invoke(matched.row, matched.binding, () => {
+          if (matched.row.run) return matched.row.run(matched.binding);
+          return recovered.click();
+        });
         return true;
       }
       nearer.past(scope);
@@ -192,11 +204,16 @@ export function createDispatch({
     }
     return available;
   }
-  function executeCommand(id) {
+  function executeCommand(id, origin = null) {
     const command = commandFor(id);
     if (!command) return false;
     beforeCommand?.(command.row);
-    command.row.run(command.binding);
+    returnStack.invoke(
+      command.row,
+      command.binding,
+      () => command.row.run(command.binding),
+      origin,
+    );
     return true;
   }
 

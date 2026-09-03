@@ -6,7 +6,7 @@
 
 /* ---------- element-widgets ---------- */
 
-/* lf-gloss: the prose stays prose; the small raised mark is the keyboard and touch
+/* lf-gloss: the prose stays prose; the small raised info badge is the keyboard and touch
  * handle for the same explanation hover reveals. The underline is deliberately quieter
  * than a link — this phrase goes nowhere — while the top-layer card uses the page's
  * ordinary paper, ink, and rule rather than inventing a tooltip palette. Static copies
@@ -21,27 +21,35 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   html:not(.lf-copy) lf-gloss {
     text-decoration-line: underline;
     text-decoration-style: dotted;
-    text-decoration-color: var(--border-2);
-    text-underline-offset: .16em;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: .18em;
     cursor: help;
   }
 }
 .lf-gloss-mark {
-  display: inline-block; margin-left: 1px; border-radius: 3px;
-  color: var(--accent); font-size: .72em; line-height: 1;
-  vertical-align: super; cursor: help;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box; width: 1.05em; height: 1.05em; margin-left: 3px;
+  border-radius: 50%;
+  font-family: var(--sans); font-size: .64em; font-weight: 750; line-height: 1;
+  vertical-align: .48em; cursor: help;
   position: relative;
 }
-/* The glyph is six pixels wide and stands in a line of prose, so its box cannot be the
- * thing a reader aims at: growing it to a usable size would open the line it is set in,
- * which is the one thing a mark this small must not do. The aim is a box of its own,
- * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
- * it belongs to, which costs nothing, because hovering that same phrase already reveals
- * the same explanation. */
+lf-gloss > .lf-gloss-mark { background: var(--accent); color: var(--card); }
+/* The compact badge stands in a line of prose, so its visible box cannot be the thing a
+ * reader aims at: growing it to a usable size would open the line it is set in, which is
+ * the one thing a mark this small must not do. The aim is a box of its own, outside
+ * layout entirely — it overlaps the tail of the phrase it belongs to, which costs
+ * nothing, because hovering that same phrase already reveals the same explanation. It
+ * ends where the badge ends rather than straddling it: an absolutely positioned box is
+ * outside layout but still inside its ancestors' scrollable overflow, so a box centred
+ * on a badge that sits near a cell's inline edge makes that table scroll sideways by
+ * the half it hangs over. Reaching back over the phrase costs nothing; reaching past
+ * the edge the badge itself fits inside does. */
 .lf-gloss-mark::after {
-  content: ""; position: absolute; top: 50%; left: 50%;
+  content: ""; position: absolute; top: 50%; inset-inline-end: 0;
   width: var(--aim-floor); height: var(--aim-floor);
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
 }
 .lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
@@ -699,9 +707,25 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
       outline-offset: calc(-1 * var(--here-ring-w));
     }
   .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another:not([hidden]) { min-height: var(--aim-floor); }
   .lf-another > .lf-address { top: 0; bottom: 0; margin: auto 0; }
-  .lf-another input { flex: 1; min-width: 0; padding: 0; border: 0;
-                     outline: none; background: transparent; color: inherit; font: inherit; }
+  /* The field holds the option before it is recorded, so its words use the document's
+   * face just as they will after the module turns them into an lf-option. The return
+   * remains a real button: its visible word is compact, while the box keeps the pointer
+   * target and accessible Add option name. Positioned over room the input reserves, it
+   * does not make a compact row taller than its neighbours. */
+  .lf-another input { flex: 1; min-width: 0; padding: 0;
+                     padding-inline-end: calc(var(--aim-floor) + var(--sp-1));
+                     border: 0; outline: none; background: transparent; color: inherit;
+                     font: var(--t-4)/1.6 var(--serif); }
+  .lf-another > .lf-btn { position: absolute; inset-inline-end: var(--sp-1);
+                     top: 50%; transform: translateY(-50%);
+                     display: flex; align-items: center; justify-content: center;
+                     width: var(--aim-floor); height: var(--aim-floor); padding: 0;
+                     border: 0; border-radius: 4px; background: transparent;
+                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); }
+  .lf-another > .lf-btn[aria-disabled="false"] { color: var(--ink); cursor: pointer; }
+  .lf-another > .lf-btn[aria-disabled="false"]:hover { background: var(--chip); }
   /* The leading column holds the keyboard address and the gap before the option's
    * words. The address starts at the ordinary 8px inset and takes
    * --lf-key-box, so changing the utility type grows the
@@ -759,7 +783,7 @@ html.lf-copy lf-options > .lf-another { display: none; }
 lf-options:not(:has(> lf-option > strong)) > lf-option {
                      position: relative;
                      display: table; width: 100%; box-sizing: border-box;
-                     border-spacing: var(--sp-2) 0;
+                     border-spacing: var(--lf-row-gap) 0;
                      padding: 5px 0; --lf-frame: 1; }
 /* The mark's own column, and every child of the group opens after it — the options and
  * the cell the reader writes their own option in alike, because the one thing that makes
@@ -776,11 +800,18 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * than be reset by it. Without `choose` there is no address column and the mark's is
  * the whole of it. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
-                     --lf-pick-col: 17px;
+                     --lf-pick-col: 17px; --lf-row-gap: var(--sp-2);
                      padding-inline-start: var(--lf-pick-col); }
 lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
                      > :is(lf-option, .lf-another) {
                      padding-inline-start: calc(var(--lf-address-col) + var(--lf-pick-col)); }
+/* A row's table spacing holds its prose off the mark column. The form has no anonymous
+ * table cell to supply that space, so its input takes the same named gap. Matching the
+ * option's vertical inset makes the draft and the option it becomes one stable row. */
+lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
+                     gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
+lf-options:not(:has(> lf-option > strong)) > .lf-another input {
+                     margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
  * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
@@ -788,8 +819,8 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
  * use the compact spacing token when the group's own box is narrow; the cells retain a
  * visible gap without clipping the mark the reader presses. */
 @container (max-width: 20rem) {
-  lf-options:not(:has(> lf-option > strong)) > lf-option {
-                     border-spacing: var(--sp-1) 0; }
+  lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+                     --lf-row-gap: var(--sp-1); }
 }
 /* The row's own ground: a corner to round and a wash to say its status in, both of which
  * are answers to standing alone. A joined row is a cell that butts its neighbours and
@@ -930,7 +961,8 @@ lf-milestones { display: block; margin: 14px 0 14px 8px; }
 lf-milestone { display: block; position: relative; padding: 0 0 16px 26px;
                border-left: 2px solid var(--rule); --lf-frame: 1; }
 lf-milestone:last-child { border-left-color: transparent; padding-bottom: 2px; }
-lf-milestone::before { content: ""; position: absolute; left: -7px; top: 3px;
+lf-milestone::before { content: ""; position: absolute; left: -7px;
+                       top: calc(0.5lh - 7px);
                        width: 10px; height: 10px; border-radius: 50%;
                        background: var(--paper); border: 2px solid var(--muted); }
 lf-milestone[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
@@ -1161,67 +1193,69 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
   lf-tabs.lf-rendered > lf-tab { content-visibility: visible !important; }
 }
 
-/* lf-shot: a before/after pair of screenshots, one on screen at a time. Both
- * frames occupy the same grid cell, so the box is the taller of the two and
- * flipping between them moves nothing under it — which is the whole point, the
- * change being the only thing that shifts. The target is the frame: one transparent
- * checkbox fills it and its instruction row, so a click works the native control exactly
- * where the pointer rests. That avoids the look away and re-aim a switch under the image
- * charged every alternation. The state is a checkbox and one :has(:checked) rule, so it
- * needs no script — which is what keeps it flipping in an exported copy, where every
- * handler has gone and `version export` leaves a control the browser drives alone
- * for exactly this. Print shows both frames stacked, since paper has nothing to
- * press — the checkbox and the switch row drop with the other offers and the captions,
- * which are the only words saying which frame is which, stay. */
+/* lf-shot: both frames share one grid cell sized by the taller image, so a flip
+ * moves nothing below it. The rail keeps before and after at fixed ends while a short
+ * accent rule names the visible state. The transparent native checkbox covers only
+ * the frame; the shared margin Button supplies the second control. CSS owns image
+ * visibility, keeping image clicks and Space live in script-free exports. Print stacks
+ * both. */
 lf-shot { display: block; margin: 16px 0; }
-lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
-    border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden;
+lf-shot .lf-shotframe { position: relative; grid-area: 2 / 1;
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r); overflow: hidden;
     background: var(--card); }
 lf-shot:has(.lf-shotframe) { display: grid; }
-lf-shot .lf-shotframe img { display: block; width: 100%; height: auto; }
+lf-shot .lf-shotframe img { display: block; width: 100%; height: auto;
+    background: var(--card); }
 lf-shot .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
 lf-shot:has(input:checked) .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
 lf-shot:has(input:checked) .lf-shotframe[data-lf-state="after"] { visibility: visible; }
-lf-shot .lf-shotcap { position: absolute; top: 6px; left: 6px;
-    font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
-    padding: 2px 7px; border-radius: 999px; background: var(--veil);
-    border: 1px solid var(--rule); color: var(--muted); }
-/* The native checkbox covers both grid rows rather than being activated through a label
-   elsewhere in the layout. That keeps focus — and therefore the viewport — exactly at
-   the point the reader clicked. It carries no ink of its own: the cursor and words below
-   say the image is live without drawing over the change. */
-lf-shot > input.lf-shotflip { grid-area: 1 / 1 / 3 / 2; z-index: 2;
+lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
+    justify-content: space-between; height: 34px; padding: 0 11px;
+    border: 1px solid var(--rule); border-bottom: 0;
+    border-radius: var(--r) var(--r) 0 0; color: var(--muted);
+    background: var(--card); }
+lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
+    font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
+    letter-spacing: .04em; }
+lf-shot .lf-shotcap[data-lf-state="before"],
+lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] { color: var(--ink);
+    box-shadow: inset 0 -2px var(--accent); }
+lf-shot:has(input:checked) .lf-shotcap[data-lf-state="before"] {
+    color: var(--muted); box-shadow: none; }
+/* The image is itself the native target, so a click never forwards focus to a
+   distant label or control and scrolls a tall comparison out from under the reader. */
+lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-lf-shot .lf-shotpick { grid-area: 2 / 1; display: flex;
-    align-items: center; margin-top: var(--sp-2); font-size: var(--t-5);
-    color: var(--muted); }
-lf-shot .lf-shotpick label { display: inline-flex; gap: 5px; align-items: center;
-    cursor: pointer; }
-lf-shot .lf-shotpick label::before { content: ""; display: inline-grid; place-items: center;
-    box-sizing: border-box; width: 13px; height: 13px; flex: none;
-    border: 1px solid var(--border-2); border-radius: 2px; background: var(--card); }
-lf-shot:has(> input.lf-shotflip:checked) .lf-shotpick label::before { content: "✓";
-    border-color: var(--accent); background: var(--accent); color: var(--paper);
-    font-size: 10px; line-height: 1; }
-lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotframe { outline: var(--here-ring);
-    --lf-here-ring: shot-frame; outline-offset: 1px; }
+/* The rail and the frame are one card, so the ring goes round the card. Drawn on the
+   frame alone it ran along the rail's foot instead of round anything, and the rail's
+   own surface stands where its top run is. lf-shot paints nothing of its own, so the
+   radius here is the card's outer corners lent to the outline and reaches nothing
+   else. */
+lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline: var(--here-ring);
+    --lf-here-ring: shot; outline-offset: 1px; border-radius: var(--r); }
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
+  lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
+    border-radius: var(--r); margin-bottom: var(--sp-2); }
+  lf-shot .lf-shotcap { color: var(--ink) !important; box-shadow: none !important; }
+  lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
+  lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   lf-shot > input.lf-shotflip { display: none; }
-  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
+  lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
+    border-radius: var(--r); }
 }
 
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
  * margin form is a reading map: the widget gives each row the length of the section it
  * leads, flex lays those shares down the full available height, and the darker lens on
  * the spine shows the band currently in view. The markers therefore describe the page
- * while every repeated heading is quiet. Pointer or keyboard entry fades the labels in
- * without changing any row's box. The transparent first layer receives the revealing
- * gesture, then the links become pointer targets when that fade is complete; an unseen
- * label cannot navigate on the gesture that discovers it.
+ * while every repeated heading is quiet. Pointer entry, keyboard entry, or the go-to
+ * chord fades the labels in without changing any row's box. The transparent first layer
+ * receives the revealing gesture, then the links become pointer targets when that fade
+ * is complete; an unseen label cannot navigate on the gesture that discovers it.
  *
  * The start row repeats the page title in that map, and on paper, where the outline is
  * the one reading of the route and keeps every word the map says; the open outline on
@@ -1269,7 +1303,14 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc { position: fixed;
              left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
              top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-             width: calc(var(--sidebar) - var(--sp-4));
+             /* The generic sidebar guarantees a 240px map and its gutter. Once the
+              * reading column can stay centred with room left over, spend that empty
+              * margin on shorter labels until the map reaches 320px. */
+             width: clamp(
+               calc(var(--sidebar) - var(--sp-4)),
+               calc((100cqi - min(var(--col), var(--lf-room))) / 2
+                 + var(--lf-shift) - 2 * var(--sp-4)),
+               320px);
              height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
              margin: 0; }
     body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
@@ -1319,12 +1360,12 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                              line-height: 1.2; max-height: 2.4em; }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }
-    lf-toc a:focus-visible { outline: 2px solid var(--accent);
-                             outline-offset: -2px; }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) {
+    lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
+                             outline-offset: calc(-1 * var(--here-ring-w)); }
+    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) {
       --lf-toc-label-opacity: 1;
     }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       animation: lf-toc-enable-links 0s .24s forwards;
     }
     /* When the labels themselves would make the track overflow, the track stays a map:
@@ -1342,7 +1383,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       -webkit-line-clamp: 1;
     }
     lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       opacity: 0; animation: none; pointer-events: none;
     }
     lf-toc[data-lf-dense] .lf-toc-nav:hover
@@ -1356,10 +1397,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   lf-toc a { transition: none; }
   @container style(--lf-sidebar-posture: margin) {
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       animation: none; pointer-events: auto;
     }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
       opacity: 0; pointer-events: none;
     }
     lf-toc[data-lf-dense] .lf-toc-nav:hover

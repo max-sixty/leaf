@@ -12,7 +12,12 @@ from .schema import (
     PREVIEW_FILE,
 )
 from .served_state.page import full_state
-from .service import PageTransaction, owned_pages, unacknowledged
+from .service import (
+    PageTransaction,
+    open_session_turn,
+    owned_pages,
+    unacknowledged,
+)
 
 
 def unanswered_decisions(events: list, cursor: int, within: dict) -> list:
@@ -229,6 +234,16 @@ def cmd_hook(payload: dict) -> None:
                     page.close_turn(sid)
             except FileNotFoundError:
                 continue
+    if event == "UserPromptSubmit":
+        # The mirror of the branch above, and ahead of the same early returns.
+        # A prompt is the turn opening as plainly as Stop is the turn ending,
+        # and it is the only evidence of the opening the reader themself can
+        # produce: told by the banner to nudge in the terminal, they answer
+        # there rather than on the page, so no batch exists for a delivery to
+        # carry and nothing else would clear the stamp — the page would go on
+        # telling them to do the thing they just did until the agent happened to
+        # write a status.
+        open_session_turn(sid)
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with

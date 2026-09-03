@@ -18,6 +18,7 @@ export function createProjection(runtime, dependencies) {
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     answeredContext,
+    authored,
     decisionEntry,
     containsAcross,
     dress,
@@ -57,28 +58,38 @@ export function createProjection(runtime, dependencies) {
   // state survived a recordless rebuild or a thread reconcile; node identity can. A
   // coordinate with no winner is committed too, once its authored baseline stands.
   const committedProjection = new Map();
-  // An id-bearing element's state as markup can say it: tag, attributes, and
-  // place among its id-bearing kin. Text is deliberately absent — words are the
+  // An authored, id-bearing element's state as markup can say it: tag, attributes,
+  // and place among its authored id-bearing kin. Generated chrome is deliberately
+  // absent. Text is deliberately absent — words are the
   // static gate's subject (restatement_errors); this is the rest, the state no
-  // version file can speak. What the runtime itself paints onto page elements —
+  // authored document can speak. What the runtime itself paints onto page elements —
   // exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
   // and looking away from them keeps a reading taken from the live DOM equal to
   // one taken from the file without hiding a widget's own data-lf state. Diffed around each replay batch to
-  // record what replay wrote, and imported by version check --render to read the version
-  // files with the same eyes, so the two readings cannot drift.
+  // record what replay wrote, and imported by version check --render to read version
+  // documents with the same eyes, so the two readings cannot drift.
   function shallowSigs(root) {
     const sigs = new Map();
+    const siblingPositions = new Map();
+    const isAuthored = (el) => Boolean(el.id) && authored(el)(el);
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
-      if (!el.id) continue;
+      if (!isAuthored(el)) continue;
       const attrs = [...el.attributes]
         .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
         .map((a) => `${a.name}=${a.value}`)
         .sort()
         .join(" ");
-      const kin = [...(el.parentElement?.children ?? [])].filter((c) => c.id);
+      const parent = el.parentElement;
+      let positions = siblingPositions.get(parent);
+      if (!positions) {
+        positions = new Map();
+        for (const sibling of parent?.children ?? [])
+          if (isAuthored(sibling)) positions.set(sibling, positions.size);
+        siblingPositions.set(parent, positions);
+      }
       sigs.set(
         el.id,
-        `${el.tagName} [${attrs}] in=${el.parentElement?.id ?? ""}#${kin.indexOf(el)}`,
+        `${el.tagName} [${attrs}] in=${parent && isAuthored(parent) ? parent.id : ""}#${positions.get(el) ?? -1}`,
       );
     }
     return sigs;
@@ -762,8 +773,7 @@ export function createProjection(runtime, dependencies) {
         );
       }
       renderQuiet(document.body);
-      paintPending();
-      projection = stateProjection();
+      paintPending(projection);
       document.body.setAttribute(
         PAGE_PAINT_ATTRIBUTE.applied,
         String(projectionCoverage(projection)),
@@ -793,10 +803,13 @@ export function createProjection(runtime, dependencies) {
   // state back to the author. A decided suggestion has no record form to agree
   // with (honoring retires the wrapper), so it stays marked while the wrapper
   // stands.
-  function paintPending() {
-    for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
-      for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-    const projection = stateProjection();
+  function paintPending(projection) {
+    const marks = new Map(
+      [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
+        attr,
+        new Set(),
+      ]),
+    );
     for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;
@@ -809,7 +822,13 @@ export function createProjection(runtime, dependencies) {
         e.kind === "action"
           ? PAGE_PAINT_ATTRIBUTE.pending
           : PAGE_PAINT_ATTRIBUTE.reported;
-      el.setAttribute(attr, "1");
+      marks.get(attr).add(el);
+    }
+    for (const [attr, wanted] of marks) {
+      for (const el of pageQueryAll(`[${attr}]`))
+        if (!wanted.has(el)) el.removeAttribute(attr);
+      for (const el of wanted)
+        if (el.getAttribute(attr) !== "1") el.setAttribute(attr, "1");
     }
   }
 

@@ -107,7 +107,7 @@ def structure_errors(parser: _StructParser) -> list:
 
 
 def page_boundary_errors(parser: _StructParser) -> list:
-    """Authored content lies under the same element the presentation gate owns."""
+    """Authored content lies under the page's one main content boundary."""
     errors = []
     direct = [line for line, is_direct in parser.main_elements if is_direct]
     if (

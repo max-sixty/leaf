@@ -533,13 +533,28 @@ def edge_settled(page, edge):
     """Wait for the region to stand and for the page to finish making room for it.
 
     Two animations, on two elements, and `panel_settled`'s reasoning covers both: the
-    strip the page yields is a transition on body, and the region's arrival is its own
-    slide. A geometry read between them is a read of a box still under a transform.
+    final shell carries `main` into place, and the region's arrival is its own slide. A
+    geometry read between them is a read of a box still under a presentation offset.
+
+    Both are finished rather than waited out, which is that reasoning in full. Each is
+    presentation over a layout the gesture already installed, so the end frame is the
+    settled page either way, and finishing is the only thing that terminates when the
+    test is holding the clock still — `showTray` and a drawn edge reach the same shell
+    carry the panel does, so a held-motion test that came through here would sit out the
+    same stopped clock. Polling, because a carry starts inside the gesture's own task
+    and a finished fill leaves `getAnimations` a turn later.
     """
     expect(page.locator(edge.region)).to_be_visible()
     page.wait_for_function(
-        "(region) => document.body.getAnimations().length === 0"
-        " && document.querySelector(region).getAnimations().length === 0",
+        """(region) => {
+          const carried = [
+            document.querySelector('body > main'),
+            document.querySelector(region),
+          ];
+          for (const box of carried)
+            for (const move of box.getAnimations()) move.finish();
+          return carried.every((box) => box.getAnimations().length === 0);
+        }""",
         arg=edge.region,
     )
 
@@ -581,15 +596,16 @@ def draw_edge(page, edge, by):
     page.mouse.down()
     page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
     page.mouse.up()
-    # The slide stands down for the length of a drag and comes back at its end, so what
-    # is waited on is the page holding still rather than a transition finishing — which
-    # `panel_settled` reads the same way, and which is empty here on both counts.
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    # A drag follows the hand directly, so it starts no carried column motion. What is
+    # waited on is the page holding still, which is empty here on both counts.
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
 
 
-# The room, sampled every frame for as long as a slide lasts. The shell owns the value in
-# CSS, so a harmless probe resolves the custom-property expression to the width a wide
-# exhibit would actually receive.
+# The room sampled across a workspace motion. The shell owns the value in CSS, so a
+# harmless probe resolves the custom-property expression to the width a wide exhibit
+# would actually receive.
 ROOM_EVERY_FRAME = """(frames) => {
   window.__room = [];
   const main = document.querySelector('main');
@@ -1128,7 +1144,8 @@ def live_leaf(tmp_path, monkeypatch):
         d = host_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
-        (d / "versions" / "v1.html").write_text(
+        (d / ".fixture-versions").mkdir()
+        (d / ".fixture-versions" / "v1.html").write_text(
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
         )
         stamp_version_file(d, 1, "t")

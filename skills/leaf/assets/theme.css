@@ -49,8 +49,6 @@
      to be a fixed size under a finger — a margin action, the key line's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
-  /* A fast first presentation never paints the waiting explanation. */
-  --lf-presentation-delay: 300ms;
   /* --rail has no authored value: the shared margin measures its widest target item
      after content modules have contributed their controls, then states that width on
      the root. The rule that spends it is beside .lf-margin-item below. */
@@ -340,91 +338,44 @@ body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
- /* The document arrives with authored initial state while the log may already hold
- * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
- * after the first poll has either replayed the log or said the server is offline, so a
- * version navigation never presents the old decision for one fetch-width and then
- * replaces it. Visibility keeps the ordinary case out of the accessibility and hit-test
- * trees, opacity closes the paint boundary under descendants that explicitly make
- * themselves visible, and interactivity makes the whole flat-tree subtree inert even if
- * one of those descendants opts back into focus or pointer handling. All three preserve
- * every box: replay measures the page it will reveal rather than a display:none document
- * with no geometry.
+/* Authored HTML is the page's useful initial condition, so it paints from stylesheet
+ * parse while JavaScript upgrades widgets and reads the standing log. Presentation is a
+ * semantic boundary, not a paint gate: until the first read has applied (or established
+ * the offline fallback), Leaf suppresses arrival transitions and withholds authored
+ * dialogs and popovers. Those top-layer elements can otherwise escape their ancestors'
+ * stacking and inertness; ordinary prose, links, scrolling, and layout stay available.
  *
- * The canonical module tag opts a live page into the hold as soon as the stylesheet can
- * paint. The static showcase sets data-lf-eager in its published HTML: its immutable
- * authored document remains ordinary readable HTML while illustrative state, widgets,
- * and controls progressively arrive. Runtime chrome is deliberately outside main, so
- * Threads remains usable on a held live page. A scriptless rendering stays ordinary
- * prose, while a live module that fails before reading the log leaves a fixed recovery
- * message rather than unread authored decisions. Screen only: paper and an exported copy
- * carry no live log to wait for. */
-/* The anonymous layer is first in the merged theme, so its important declarations
-   outrank every later layer and unlayered stylesheet declaration without reserving a
-   named layer custom CSS could append to. Inline importance ranks higher still, so the
-   version gate refuses it on the properties that protect visibility below. */
+ * The anonymous layer is first in the merged theme, so these important declarations
+ * outrank every later layer and unlayered stylesheet declaration without reserving a
+ * named layer custom CSS could append to. Inline importance ranks higher still, so the
+ * version gate refuses it on the protected top-layer properties below. */
 @layer {
   @media screen {
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]),
+    html:has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main,
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main * {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main *,
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) .lf-ui {
+      transition: none !important;
+    }
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main :is(dialog, [popover]) {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
       interactivity: inert !important;
-      pointer-events: none !important;
     }
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main *::backdrop {
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main :is(dialog, [popover])::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
-      pointer-events: none !important;
-    }
-    /* The main gate above stops page transitions. These selectors do the same for the
-       shell and runtime chrome outside main while reader state is restored. */
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]),
-    html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) .lf-ui {
-      transition: none !important;
     }
   }
 }
-@media screen {
-  html:not([data-lf-eager]):has(script[type="module"][src="/leaf.js"])
-    body:not([data-lf-presented])::after {
-    content: "Applying current decisions\2026  If this stays, reload the page.";
-    visibility: visible;
-    opacity: 0;
-    animation: lf-presentation-wait 1ms step-start
-      var(--lf-presentation-delay) forwards;
-    position: fixed;
-    inset: var(--lf-banner-h, 0px) 0 0;
-    z-index: 8800;
-    /* This fixed sheet is also the pointer boundary. A descendant can override an
-       inherited visibility or pointer-events value; it cannot paint through its
-       ancestor's opacity or receive a pointer through a higher stacking layer. Leaf's
-       banner and panels stand above it, so discussion remains usable while authored
-       content waits. */
-    pointer-events: auto;
-    display: grid;
-    place-items: center;
-    box-sizing: border-box;
-    padding: 24px;
-    background: var(--paper);
-    color: var(--muted);
-    font: var(--t-5)/1.5 var(--sans);
-    text-align: center;
-  }
-}
- @keyframes lf-presentation-wait {
-  from,
-  to {
-     opacity: 1;
-   }
- }
 /* Positioned so it is the containing block for anything a widget hangs in the
  * page margin (lf-suggestion's controls): `left: 100%` then means the column's
  * right edge, and `anchor()` reaches the anchor names declared inside it.
@@ -464,7 +415,13 @@ main {
   max-width: var(--col);
   margin: 0 auto;
   padding: 72px var(--col-pad) 96px;
-  left: var(--lf-shift);
+  /* A workspace changes the shell's responsive state in one layout pass. The runtime
+   * then carries this final column from its old horizontal position to its new one
+   * through --lf-shell-motion-x. Keeping that presentation offset out of the shell's
+   * inline size prevents container-query postures from appearing and disappearing in
+   * the middle of the motion. A static copy has no runtime registration and reads the
+   * zero fallback. */
+  left: calc(var(--lf-shift) + var(--lf-shell-motion-x, 0px));
   position: relative;
   --lf-frame: 1;
   --lf-column: 1;
@@ -912,6 +869,14 @@ dd { margin: 0 0 8px 0; }
 
 .eyebrow { font-size: var(--t-6); letter-spacing: .1em; text-transform: uppercase;
            color: var(--muted); font-weight: 500; margin: 0 0 10px; }
+/* An eyebrow and the heading below it are one title: the heading level's large top
+   margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
+   inside it. The contents map may put its zero-height fragment target between the two;
+   generated navigation must not change the authored rhythm. */
+.eyebrow:has(+ h2), .eyebrow:has(+ .lf-toc-target + h2) { margin-top: 48px; }
+.eyebrow:has(+ h3), .eyebrow:has(+ .lf-toc-target + h3) { margin-top: 32px; }
+.eyebrow + :is(h2, h3),
+.eyebrow + .lf-toc-target + :is(h2, h3) { margin-top: 0; }
 /* The one paragraph a reader is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
@@ -933,9 +898,9 @@ dd { margin: 0 0 8px 0; }
    prose's line boxes untouched; the shell's left claim is the room the box uses.
 
    The claim is page-wide because a sticky box may occupy any height while the reader
-   scrolls. That also gives a wide exhibit no invitation to paint through it: --lf-room
-   is resolved after the strip has been taken. A sidebar and a sidenote together wait
-   for 1416px of shell, the ordinary
+   scrolls. A wide exhibit therefore gives up its left growth while the sidebar stands;
+   subtracting the strip from --lf-room alone still lets symmetric growth cross the
+   gutter. A sidebar and a sidenote together wait for 1416px of shell, the ordinary
    1152px margin floor plus the sidebar's 264px; granting both at the ordinary floor
    shrank the prose to 504px. The paired number is held to those two tokens in
    test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
@@ -967,6 +932,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
     --lf-shift: calc(
       max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
       - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
+    & [data-lf-wide] { --lf-grow-l: 0px; }
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
@@ -983,6 +949,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy)
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--sidebar);
+    & [data-lf-wide] { --lf-grow-l: 0px; }
   }
   html:not(.lf-copy) main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
@@ -1113,6 +1080,13 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
 .facts dd { margin: 0; }
+@media screen and (max-width: 640px) {
+  /* A long term must not spend most of a phone's line on the first column and leave
+     its explanation as a one-word ribbon. Stack each fact while the reading column is
+     narrow; later terms keep the ordinary block rhythm through the row gap. */
+  .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .facts dd + dt { margin-top: var(--sp-2); }
+}
 /* A column of quantities lines up on its last digit — the comparison a table of
    numbers is there for, and one tabular figures alone don't make. Said per cell,
    heading included, because which column holds quantities is the author's to
@@ -1183,6 +1157,10 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
 .lf-say textarea { flex: 1; min-width: 0; }
+.lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
+.lf-conversation-actions, .lf-conversation-resolved { display: flex;
+          align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.lf-conversation-actions .lf-resolve { margin-left: auto; }
 .lf-conversation > .lf-say { margin-top: 0; }
 .lf-conversation-thread + .lf-conversation-thread {
           border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
@@ -1196,7 +1174,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
-.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
+.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
    that subject. This is the panel-local and frozen-conversation fallback; page targets
@@ -1423,6 +1401,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+.lf-margin-item:is(:hover, :focus-within) { z-index: 3; }
 .lf-margin-item::before { content: ""; position: absolute; right: 100%; top: 16px;
     width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
     pointer-events: none; }
@@ -1440,9 +1419,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 .lf-margin-item.lf-docked::before { display: none; }
-.lf-margin-item.lf-docked .lf-margin-action > .lf-margin-action-label {
-    inset-inline: 0 auto;
-}
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
@@ -1463,7 +1439,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-reading-option { position: relative; }
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
-.lf-margin-marker:is(:hover, :focus-visible, [aria-expanded="true"]),
+/* A marker reporting a receipt is excluded here as it is from the runtime's press
+ * styles: it is sewn flat, so neither the pointer nor the keyboard raises its ring. The
+ * focus outline still says where the walk has landed. */
+.lf-margin-marker:not([data-lf-behavior="receipt"]):is(:hover, :focus-visible, [aria-expanded="true"]),
 .lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
 .lf-margin-change { color: var(--accent); }
@@ -1498,12 +1477,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen {
-  /* 1208px leaves the document's 640px evidence floor beside the 520px thread
-     margin and the two 24px page gutters. Below it the marker offers a compact
-     handoff rather than covering the source. */
+  /* A live page can receive its first comment at any moment. Reserve conversation
+     room before that gesture so sending and resolving never move the passage.
+     1208px leaves the 640px evidence floor, 520px margin, and two 24px gutters.
+     Static copies need the strip only where they carry a thread marker. */
   @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
+      :where(.lf-chrome, .lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1514,7 +1494,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
   body:has(
-      :where(.lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
+      :where(.lf-chrome, .lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;

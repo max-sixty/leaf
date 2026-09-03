@@ -11,6 +11,8 @@ from playwright.sync_api import expect
 from render_cases_navigation import pending_text
 from render_harness import leaf_page
 from render_support import (
+    BOTH_STAMPS,
+    FEATURE_GALLERY,
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
     PROPOSED_PAGE,
@@ -262,6 +264,33 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
+    assert errors == []
+    page.close()
+
+
+def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
+    """The shortcut line never advertises digits behind a still-collapsed ellipsis."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    settled = page.locator(
+        '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="ok"]'
+    )
+    settled.click()
+    round_trip(page)
+    select_paragraph(page, "#bg-react-ok")
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.press("r")
+
+    surface = page.locator(".lf-margin-reactions")
+    expect(surface).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(surface.locator(":scope > .lf-react-trigger:visible")).to_have_count(0)
+    expect(surface.locator(".lf-react:visible")).to_have_count(6)
+    assert "1–6" in key_line(page)
+
+    page.keyboard.press("2")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment" and sent["token"] == "no"
+    assert sent["anchor"]["section"] == "bg-react-ok"
     assert errors == []
     page.close()
 
@@ -570,13 +599,17 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
 
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
-    first = sheet.locator("[data-lf-map-button]").nth(0)
-    second = sheet.locator("[data-lf-map-button]").nth(1)
+    first = sheet.locator("[data-lf-map-button]:focus")
     expect(first).to_be_focused()
+    first_key = first.get_attribute("data-lf-map-button")
+    assert ":responses:reaction:" in first_key
     page.keyboard.press("Tab")
+    second = sheet.locator("[data-lf-map-button]:focus")
     expect(second).to_be_focused()
+    second_key = second.get_attribute("data-lf-map-button")
+    assert ":responses:reaction:" in second_key
     page.keyboard.press("Shift+Tab")
-    expect(first).to_be_focused()
+    expect(sheet.locator(f'[data-lf-map-button="{first_key}"]')).to_be_focused()
     page.keyboard.press("Escape")
     expect(sheet).to_be_hidden()
     expect(spill).to_be_focused()
@@ -584,8 +617,10 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
 
     page.keyboard.press("Enter")
     expect(sheet).to_be_visible()
+    first = sheet.locator(f'[data-lf-map-button="{first_key}"]')
     expect(first).to_be_focused()
     page.keyboard.press("Tab")
+    second = sheet.locator(f'[data-lf-map-button="{second_key}"]')
     expect(second).to_be_focused()
     token = second.get_attribute("aria-label").split(" — ")[0]
     sends = _traffic(page).sends
@@ -593,7 +628,7 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
         second.click()
     else:
         page.keyboard.press("Enter")
-    # Page map forwards the press on the next frame; there is no trip to await yet.
+    # Page map forwards the press synchronously; its network trip is still asynchronous.
     _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -603,6 +638,68 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
         {"section": "sug-refill"},
     )
     expect(sheet).to_be_hidden()
+    expect(item.locator(".lf-margin-reactions")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_a_map_reopened_before_its_close_lands_still_presses_its_button(browser, serve):
+    """A dialog hands `close` to a task of its own, so a reopen can arrive first.
+
+    A reader who leaves the overflow route and returns to it in the same breath is
+    standing in the second opening before the first one's close is delivered. That
+    opening owns the return route and the target the sheet is read as, so the late
+    close takes neither with it: a press inside the reopened sheet still reaches the
+    Button the overflow named rather than standing the reaction down.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 390, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(".lf-sug-accept").focus()
+    page.keyboard.press("r")
+    spill = item.locator(".lf-margin-spill")
+    expect(spill).to_be_visible()
+    spill.click()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+
+    # The ordering Esc-then-press reaches by luck, stated: close and reopen in one task,
+    # then hold until the first close has been delivered to the second opening. The
+    # listener is added after the runtime's, so the page has answered it by then. It
+    # records the delivery as a synchronous fact rather than resolving a promise the
+    # `evaluate` awaits: a close that never arrives would be a wait nothing bounds,
+    # spending the worker's whole step, while the poll's deadline names this test.
+    page.evaluate(
+        """() => {
+          const sheet = document.querySelector("dialog.lf-page-map-sheet");
+          window.__lfLateClose = false;
+          sheet.addEventListener(
+            "close",
+            () => { window.__lfLateClose = true; },
+            { once: true },
+          );
+          sheet.close();
+          document
+            .querySelector('[data-lf-margin-for="sug-refill"] .lf-margin-spill')
+            .click();
+        }"""
+    )
+    page.wait_for_function("() => window.__lfLateClose")
+    expect(sheet).to_be_visible()
+    expect(item.locator(".lf-margin-reactions")).to_be_visible()
+
+    button = sheet.locator("[data-lf-map-button]").nth(1)
+    token = button.get_attribute("aria-label").split(" — ")[0]
+    sends = _traffic(page).sends
+    button.click()
+    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["token"], sent["anchor"]) == (
+        "comment",
+        token,
+        {"section": "sug-refill"},
+    )
     expect(item.locator(".lf-margin-reactions")).to_have_count(0)
     assert errors == []
     page.close()
@@ -875,6 +972,81 @@ def test_the_response_field_grows_as_a_rounded_rectangle_and_leaves_the_ellipsis
         wide,
         bounds,
     )  # the field gave the room
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("covered_width", [390, 450])
+def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
+    browser, serve, covered_width
+):
+    """A covered composer cannot retain an invisible typing destination.
+
+    The panel can leave a usable page strip, no strip, or less room than the response
+    controls occupy. Resizing through those postures preserves the draft, withdraws its
+    unavailable surface, and hands the keyboard to the visible conversation workspace.
+    """
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    initial_events = events_model.read_events(serve.page_dir)
+    resized(page, 700, 900)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page)
+    field = page.locator(".lf-fab-input")
+    bar = page.locator(".lf-fab-bar")
+
+    def enter_passage():
+        box = page.locator("#how-cap").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 6),
+            (box["x"] + 190, box["y"] + 6),
+        )
+        expect(field).to_be_visible()
+        field.click()
+        expect(field).to_be_focused()
+
+    enter_passage()
+    draft = "Keep this unsent review attached to the capped store."
+    field.fill(draft)
+    bounds = bar.bounding_box()
+    panel = page.locator(".lf-panel").bounding_box()
+    assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
+
+    # Retiring a background draft must not interrupt an unrelated typing surface.
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.focus()
+    resized(page, covered_width, 900)
+    expect(bar).to_be_hidden()
+    expect(search).to_be_focused()
+    resized(page, 700, 900)
+    enter_passage()
+    expect(field).to_have_value(draft)
+
+    resized(page, covered_width, 900)
+    expect(bar).to_be_hidden()
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.insert_text("Invisible typing must not change the draft.")
+    expect(field).to_have_value(draft)
+    assert events_model.read_events(serve.page_dir) == initial_events
+
+    # A fresh reading proves the text survived in the draft store, rather than merely
+    # remaining in the hidden textarea. The same passage regains it when room returns.
+    resized(page, 700, 900)
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(field).to_be_visible()
+    expect(field).to_have_value(draft)
+    page.keyboard.press("Escape")
+    expect(bar).to_be_hidden()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    enter_passage()
+    expect(field).to_have_value(draft)
+    bounds = bar.bounding_box()
+    panel = page.locator(".lf-panel").bounding_box()
+    assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
+    field.press("End")
+    field.press_sequentially(" It is visible again.")
+    expect(field).to_have_value(draft + " It is visible again.")
     assert errors == []
     page.close()
 

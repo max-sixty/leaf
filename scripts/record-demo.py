@@ -21,6 +21,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from leaf.render_gate.browser import launch_browser
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -163,7 +164,7 @@ def stop_server(page_dir: Path) -> None:
 
 def wait_for_comment(page_dir: Path) -> str:
     deadline = time.monotonic() + 10
-    log = page_dir / "comments.jsonl"
+    log = page_dir / "events.jsonl"
     while time.monotonic() < deadline:
         events = [
             json.loads(line) for line in log.read_text().splitlines() if line.strip()
@@ -398,7 +399,7 @@ def shoot_stills(
     # once: neither shot posts anything, so the log is the same for both.
     actions = sum(
         json.loads(line)["kind"] == "action"
-        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (page_dir / "events.jsonl").read_text().splitlines()
         if line.strip()
     )
 
@@ -421,10 +422,12 @@ def shoot_stills(
         page.locator(".lf-banner .lf-threads-toggle").click()
         page.wait_for_selector(".lf-thread .lf-msg.claude")
         page.locator("#top").scroll_into_view_if_needed()
-        # The panel's margin transition, asked of the transition rather than waited out:
-        # a finished one has left the list, and this context asks for reduced motion, so
-        # the move it would have covered runs untransitioned and the wait returns at once.
-        page.wait_for_function("() => document.body.getAnimations().length === 0")
+        # Ask the shared motion lifecycle rather than waiting a duration: a finished move
+        # has left the list, and this context asks for reduced motion, so the carried
+        # column move is omitted and the wait returns at once.
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations().length === 0"
+        )
         page.screenshot(
             path=into / f"session-{scheme}.png", animations="disabled", caret="hide"
         )
@@ -526,7 +529,7 @@ def main() -> None:
         try:
             waiter = DemoWaiter(page_dir)
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(channel="chrome")
+                browser, _ = launch_browser(playwright)
                 context = browser.new_context(
                     viewport={"width": GIF_SIZE[0], "height": GIF_SIZE[1]},
                     color_scheme="light",

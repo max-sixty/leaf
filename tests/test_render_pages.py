@@ -8,10 +8,12 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
+from leaf import events as conversation_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.passages import enclosing_ids
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
@@ -20,6 +22,7 @@ from render_support import (
     BOTH_STAMPS,
     BROKEN_DIAGRAM_PAGE,
     CHROME_ROOM,
+    CORPUS_SOURCES,
     DIAGRAM_AND_RAIL_PAGE,
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
@@ -42,7 +45,6 @@ from render_support import (
     RAIL_FIT,
     REPLY_HOST_PAGE,
     ROOM_GEOMETRY,
-    SOURCE_EXAMPLES,
     TOKEN,
     TWIN_V1,
     TWIN_V2,
@@ -118,7 +120,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     real exchange rather than an empty panel.
 
     The anchor in that log is the part that can rot quietly. It is captured from
-    the version file, and it has to name the same passage once the browser has
+    the mapped revision, and it has to name the same passage once the browser has
     built the page; a rewritten sentence leaves the quote resolving to nothing and
     the thread standing there detached, which is a broken demo and no error
     anywhere. The corpus's own anchor sweep does not cover it, because that sweep
@@ -140,8 +142,8 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
 
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
-    seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
-    assert seeded, "no example ships a log; this gate is reading nothing"
+    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
     decided = []
     read_as = {}  # widget id -> how it reads with the log's decision standing
@@ -160,16 +162,45 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
 
         page, errors = open_page(browser, url)
-        # A reaction nobody has answered is a mark and not a thread: its anchor paints
-        # through its own registry entry and a glyph seated at its block, and it takes
-        # no card. Split here so each half is read against the paint it owes.
-        answered = {e["parent"] for e in events if e.get("parent")}
+        logged = events_model.read_events(serve.page_dir)
+        previous = set()
+        for event in logged:
+            references = [
+                event[key]
+                for key in ("parent", "undoes", "message", "request")
+                if key in event
+            ] + event.get("events", [])
+            assert set(references) <= previous, (
+                f"{example.stem}: {event['id']} refers to missing earlier events: "
+                f"{set(references) - previous}"
+            )
+            assert event["id"] not in previous, (
+                f"{example.stem}: duplicate {event['id']}"
+            )
+            previous.add(event["id"])
+        assert {event["id"] for event in events} <= previous
+        # Read standing roots through the same fold as the page. A resolved root keeps
+        # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
+        threads = conversation_model.build_threads(
+            logged, enclosing_ids(example.read_text())
+        )
         reacted = [
-            e
-            for e in events
-            if e["kind"] == "comment" and e.get("token") and e["id"] not in answered
+            thread["root"]
+            for thread in threads.values()
+            if conversation_model.bare_reaction(thread)
+            and not thread["resolved"]
+            and thread["root"].get("anchor")
         ]
-        anchored = [e for e in events if e.get("anchor") and e not in reacted]
+        conversations = [
+            thread
+            for thread in threads.values()
+            if not conversation_model.bare_reaction(thread)
+        ]
+        anchored = [
+            thread["root"]
+            for thread in conversations
+            if not thread["resolved"] and thread["root"].get("anchor")
+        ]
         # The thread node first, because it arrives whether or not the quote found a
         # home — a stranded one renders wearing `detached`. Waiting on the mark here
         # instead spends the whole timeout on exactly the failure this gate is for
@@ -179,17 +210,58 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # also paints a mark. Counting threads against the anchored ones would red
         # this gate the day a seed carries a general comment, which is a thing a page
         # may hold.
-        expect(page.locator(".lf-thread")).to_have_count(
-            len([e for e in events if e["kind"] == "comment" and not e.get("token")])
-        )
+        expect(page.locator(".lf-thread")).to_have_count(len(conversations))
+        open_targets = {event["anchor"]["section"] for event in anchored}
+        for thread in conversations:
+            if not thread["resolved"]:
+                continue
+            card = page.locator(f'.lf-thread[data-id="{thread["root"]["id"]}"]')
+            expect(
+                card.get_by_role(
+                    "button", name="Reopen", exact=True, include_hidden=True
+                )
+            ).to_have_count(1)
+            anchor = thread["root"].get("anchor")
+            if anchor and anchor["section"] not in open_targets:
+                item = page.locator(f'[data-lf-margin-for="{anchor["section"]}"]')
+                expect(
+                    item.locator(
+                        '.lf-margin-marker[data-lf-kinds~="comment"], '
+                        '[data-lf-button-key="reading:threads"]'
+                    )
+                ).to_have_count(0)
         for reaction in reacted:
             glyph = page.locator(
                 f'.lf-reacts > .lf-react-mark[data-event="{reaction["id"]}"]'
             )
-            expect(glyph).to_be_visible()
+            expect(glyph).to_have_count(1)
             expect(glyph.locator("..")).to_have_attribute(
                 "data-lf-for", reaction["anchor"]["section"]
             )
+            # A crowded target may expose this exact reaction through overflow. Follow
+            # its visible route rather than requiring every fitting to stand at rest.
+            item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
+            visible = item.locator(
+                f'[data-lf-button-key="take-back:{reaction["id"]}"]:visible, '
+                f'[data-lf-button-key="take-back:{reaction["id"]}:proxy"]:visible'
+            )
+            more = item.locator(":scope > .lf-margin-more")
+            if not visible.count() and more.is_visible():
+                more.click()
+                expect(item).to_have_attribute("data-lf-options-open", "")
+            if visible.count():
+                expect(visible).to_be_visible()
+            else:
+                item.locator(".lf-margin-spill").click()
+                sheet = page.get_by_role("dialog", name="Page map", exact=True)
+                expect(
+                    sheet.locator(
+                        f'[data-lf-map-button$=":take-back:{reaction["id"]}"], '
+                        f'[data-lf-map-button$=":take-back:{reaction["id"]}:proxy"]'
+                    )
+                ).to_be_visible()
+                page.keyboard.press("Escape")
+                expect(sheet).to_be_hidden()
             if reaction["anchor"].get("quote"):
                 painted = re.sub(
                     r"\s",
@@ -277,7 +349,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # The panel is open, which is the only state in which a widget a message
         # carries has a box at all — so this is where the gate's own geometry readings
         # can be put to one. They cannot be put there by the gate: `version check
-        # --render` is pointed at a version file and never opens the panel, and a fault
+        # --render` is pointed at a version document and never opens the panel, and a fault
         # in a frozen fragment is not one the version's author could edit away, so a
         # finding there would red their handover for good. The readings are the
         # product's own rather than test-side copies, for the reason tests/CLAUDE.md
@@ -287,7 +359,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # shut panel has no boxes at all. Every other geometry reading passes over the
         # panel structurally, by `.lf-chrome` or by starting at `main`, and stays
         # passed over. The gate cannot make up the difference: it is pointed at a
-        # version file and never opens the panel, and a fault in markup frozen in the
+        # version document and never opens the panel, and a fault in markup frozen in the
         # log is not one that version's author could edit away — a finding there would
         # red their handover with no edit that clears it. Here the panel is open,
         # which is the one state in which such a widget has a box to be wrong about.
@@ -393,9 +465,11 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     )
 
 
-@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
-def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, example):
-    """The claim `leaf comment` makes is that a quote read out of the version file
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
+    browser, serve, source
+):
+    """The claim `leaf comment` makes is that a quote read out of the mapped revision
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
@@ -408,12 +482,12 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     # every example that ever ships one would read as painting text it does not
     # name. The seeded anchor has its own reader in
     # test_a_shipped_log_opens_its_example_on_a_live_thread.
-    html = example.read_text()
-    url = serve(example, seed_log=False)
+    html = source.read_text()
+    url = serve(source, seed_log=False)
     d = serve.page_dir
     anchors = written_anchors(d, html)
     assert len(anchors) >= 10, (
-        f"only {len(anchors)} anchors over {example.stem}; sweep too thin"
+        f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )
     for i, (_, anchor) in enumerate(anchors):
         events_model.append_event(
@@ -435,7 +509,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
         ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
     )
     assert detached == [], (
-        f"{len(detached)} anchors resolved to nothing in {example.stem}: {detached}"
+        f"{len(detached)} anchors resolved to nothing in {source.stem}: {detached}"
     )
     # And that the homes are the right ones. Painted in thread order, one range per
     # segment, so the passages concatenate: whitespace aside, because a quote's is
@@ -449,7 +523,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
         ),
     )
     wanted = re.sub(r"\s", "", "".join(quote for quote, _ in anchors))
-    assert painted == wanted, f"anchors in {example.stem} painted text they don't name"
+    assert painted == wanted, f"anchors in {source.stem} painted text they don't name"
     assert errors == []
     page.close()
 
@@ -479,7 +553,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
 
     page, errors = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    (d / "versions" / "v2.html").write_text(TWIN_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
     stamp_version_file(d, 2, "a twin")
     wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -739,7 +813,9 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     wide content: the widget's own box scrolls sideways and the document does not."""
     page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
-    resized(page, 1600, 900)
+    # A live page reserves conversation room before its first comment. This width
+    # still leaves the complete drawing room on both supported font platforms.
+    resized(page, 1920, 900)
     wide = page.evaluate(DIAGRAM_ROOM)
     assert wide["natural"] > wide["wide"], (
         f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
@@ -875,10 +951,10 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a reader follows the graph from."""
     page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    # Linux's DejaVu labels draw this graph at 1217px, while its classic scrollbar
-    # leaves only 1187px of room at 1500. Use a width where both supported platforms
-    # actually reach the non-scrolling state this half of the test is about.
-    resized(page, 1600, 900)
+    # Linux's DejaVu labels draw this graph at 1217px. The live page also reserves
+    # conversation room before its first thread, so use a width where the drawing
+    # fits after that strip and a classic scrollbar have both been taken.
+    resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert not at["docked"], (
@@ -1199,7 +1275,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     widget may take a strip of that box at any moment at all. The one above takes it while
     upgrading, and the call at the end of the upgrade chain is what answers that; a widget
     that takes one a frame later was answered by nothing, and the page went on stating the
-    room of a box 160px wider than the one its exhibit was standing in — silently, since a
+    room of a wider box than the one its exhibit was standing in — silently, since a
     room too wide is a board that fits everywhere except the page it is on.
 
     The list of the ways the box was known to move is what made that possible, and a list
@@ -1234,9 +1310,10 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     at_stamp = page.evaluate("() => window.__handover")
-    assert at_stamp["rail"] == "0px", (
-        "the margin was taken before the page was handed over, which is the case the "
-        f"call at the end of upgrade already covers: {at_stamp['rail']}"
+    initial_rail = float(at_stamp["rail"].removesuffix("px"))
+    assert 0 < initial_rail < 160, (
+        "the page must start with only its reserved Button rail, not the widget's "
+        f"later claim, or the post-handover case is never reached: {at_stamp['rail']}"
     )
     # Container queries answer the new shell width in the same layout pass. Wait on the
     # geometry the contract promises, rather than on a JavaScript-written token.
@@ -1254,9 +1331,14 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     assert fit["rail"] == "160px", (
         f"the widget never took its margin, so nothing here is tested: {fit['rail']}"
     )
+    assert at_stamp["content"] - fit["content"] == 160 - initial_rail, (
+        "the claim must enlarge the existing rail to 160px, not add a second "
+        f"strip or leave the page unchanged: before {at_stamp}, after {fit}"
+    )
     assert fit["past"] <= 1, (
         f"the board stands {fit['past']:.0f}px outside the page's own box, holding the "
-        f"room of the box the widget then took 160px out of ({at_stamp['room']} at the "
+        f"room of the box the widget then took another {160 - initial_rail:g}px out of "
+        f"({at_stamp['room']} at the "
         f"handover, {fit['room']} now): {fit['widget']:.0f}px of widget in "
         f"{fit['content']:.0f}px of page"
     )
@@ -1944,6 +2026,10 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
             f"{medium} lost the note entirely, so this proves nothing about the margin"
         )
         note = wide["note"]
+        assert wide["later"]["width"] > wide["column"]["width"] + 1, (
+            f"{medium} never grows the unobstructed board past prose, so neither "
+            f"exhibit asks to share the note's margin: {wide}"
+        )
         for name in ("board", "later"):
             exhibit = wide[name]
             across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
@@ -1975,15 +2061,14 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     page.close()
 
 
-def test_a_note_sets_the_page_axis_with_its_whole_strip(browser, serve):
-    """The strip a note claims comes out of body's right padding and the column centres
-    in what is left, so the page's axis sits half a strip left of the window's. The note
-    keeps that axis even on a window whose ordinary centring already left room beside the
-    prose: this is a page with a right margin, not a centred page spending spare room.
+def test_a_note_shares_the_page_axis_with_the_widest_right_margin(browser, serve):
+    """The right-side claims share one strip, whose widest claim sets the page's axis.
 
-    Both widths matter. The wide one proves the claim is the axis rather than only the
-    shortfall, and the tighter one proves that keeping the whole claim still leaves the
-    note on the page without horizontal scrolling.
+    Below the conversation-margin floor, the note's whole 384px strip wins over the
+    Button rail. Above it, the live page reserves 520px for conversations before the
+    first comment, so the note adds no second strip. Both cases retain readable prose
+    and the complete note on the page. Neither an always-384px expectation nor two
+    roomy readings would exercise both sides of this shared reservation.
 
     Every reading is against the page's box rather than the window, the two being the
     same width only where a scrollbar takes no room. Body owns the document's scroll and
@@ -1995,32 +2080,21 @@ def test_a_note_sets_the_page_axis_with_its_whole_strip(browser, serve):
     url = serve(NOTE_AND_WIDE_PAGE)
     page, errors = open_page(browser, url)
 
-    resized(page, 1600, 900)
-    roomy = page.evaluate(ROOM_GEOMETRY)
-    axis = roomy["pageBox"]["left"] + (roomy["pageBox"]["width"] - 384) / 2
-    assert abs(roomy["column"]["centre"] - axis) <= 1, (
-        f"the right strip did not set the page's axis: column centred at "
-        f"{roomy['column']['centre']:.0f}px of a "
-        f"{roomy['pageBox']['width']:.0f}px page"
-    )
-    assert roomy["note"]["right"] <= roomy["pageBox"]["right"], (
-        f"the note is off the right edge of a "
-        f"{roomy['pageBox']['width']:.0f}px page: {roomy['note']['right']:.0f}px"
-    )
-
-    resized(page, NOTE_BAND, 900)
-    tight = page.evaluate(ROOM_GEOMETRY)
-    axis = tight["pageBox"]["left"] + (tight["pageBox"]["width"] - 384) / 2
-    assert abs(tight["column"]["centre"] - axis) <= 1, (
-        f"the tighter page lost the note-set axis: column centred at "
-        f"{tight['column']['centre']:.0f}px of a "
-        f"{tight['pageBox']['width']:.0f}px page"
-    )
-    assert tight["note"]["right"] <= tight["pageBox"]["right"], (
-        f"the note is off the right edge of a "
-        f"{tight['pageBox']['width']:.0f}px page: {tight['note']['right']:.0f}px"
-    )
-    assert tight["sideways"] == 0
+    for width, strip in ((1190, 384), (1600, 520)):
+        resized(page, width, 900)
+        at = page.evaluate(ROOM_GEOMETRY)
+        axis = at["pageBox"]["left"] + (at["pageBox"]["width"] - strip) / 2
+        assert abs(at["column"]["centre"] - axis) <= 1, (
+            f"the widest right claim ({strip}px) did not set the page's axis: "
+            f"column centred at {at['column']['centre']:.0f}px of a "
+            f"{at['pageBox']['width']:.0f}px page"
+        )
+        assert at["note"]["width"] > 0, "the note must still stand in its margin"
+        assert at["note"]["right"] <= at["pageBox"]["right"], (
+            f"the note is off the right edge of a {at['pageBox']['width']:.0f}px "
+            f"page: {at['note']['right']:.0f}px"
+        )
+        assert at["sideways"] == 0
 
     assert errors == []
     page.close()
@@ -2108,7 +2182,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.locator(".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.body.getAnimations().length === 0
+        """() => document.querySelector('body > main').getAnimations().length === 0
           && document.querySelector('.lf-decisions-panel').getAnimations().length === 0
           && document.querySelector('lf-toc').getAnimations().length === 0"""
     )

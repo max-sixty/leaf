@@ -16,6 +16,7 @@ from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
+import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
@@ -25,6 +26,7 @@ from interact_support import (
     check,
     declare_data_input,
     fetch,
+    live_versions,
     neighbour_page,
     publish,
     record_claim,
@@ -43,6 +45,7 @@ from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -73,7 +76,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
-    (page_dir / "versions" / "v1.html").write_text(parted)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(parted)
     publish(page_dir)
 
     valid = {
@@ -290,7 +293,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     )
     assert stamp.exit_code != 0
     assert files_model.list_revisions(page_dir) == [1]
-    assert files_model.list_versions(page_dir) == [1]
+    assert live_versions(page_dir) == []
     assert event_model.read_events(page_dir) == []
 
     (page_dir / "index.html").write_text(
@@ -299,6 +302,58 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     recovered = json.loads(fetch(f"{server}/api/state")[1])
     assert recovered["active"]["revision"] == 2
     assert recovered["source_error"] is None
+
+
+def test_state_validation_follows_css_edits_and_recovers_cached_readings(
+    server, page_dir, monkeypatch
+):
+    """State reads reuse CSS work, while edits still change syntax and width checks."""
+    parsed = []
+    parse_stylesheet = tinycss2.parse_stylesheet
+
+    def counted(css, **options):
+        parsed.append(css)
+        return parse_stylesheet(css, **options)
+
+    monkeypatch.setattr(tinycss2, "parse_stylesheet", counted)
+    source = PAGE.replace(
+        "</head>",
+        "<style>:root { --probe-width: 700px } "
+        ".probe { width: var(--probe-width) }</style></head>",
+    )
+    path = page_dir / "index.html"
+    path.write_text(source)
+    initial = json.loads(fetch(f"{server}/api/state")[1])
+    assert initial["source_error"] is None
+    parsed_count = len(parsed)
+    assert parsed_count > 0, "the changed source never reached the CSS parser"
+    comment = {
+        "kind": "comment",
+        "revision": initial["active"]["revision"],
+        "text": "Keep the readable width.",
+        "anchor": {"section": "plan"},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
+    assert status == 200, body
+    assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
+    assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
+
+    theme_path = page_dir / "theme.css"
+    theme = theme_path.read_text()
+    theme_path.write_text(theme.replace("--col: 720px", "--col: 600px"))
+    assert (
+        "column is 600px" in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
+    )
+    theme_path.write_text(theme)
+    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
+
+    path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
+    assert (
+        "page <style> syntax error"
+        in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
+    )
+    path.write_text(source)
+    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
 
 
 def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
@@ -411,7 +466,7 @@ def test_server_round_trip(server, page_dir):
         ["version", "stamp", str(page_dir), "--text", "cut"],
     )
     assert stamped.exit_code == 0, stamped.output
-    # The handover address is the live page, not an alias for one immutable file.
+    # The handover address is the live page, not a pinned revision address.
     # It stays put while the browser adopts later versions, so the first response
     # must contain the version itself rather than redirecting the address away.
     peer = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
@@ -432,6 +487,9 @@ def test_server_round_trip(server, page_dir):
         < body.index(marker)
         < body.index(b'<script type="module" src="/leaf.js"></script>')
     )
+    pinned_status, pinned = fetch(f"{server}/versions/v1.html")
+    assert pinned_status == 200 and b"lf-board" in pinned and marker in pinned
+    assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
     for path in [
         "/leaf.js",
@@ -443,7 +501,7 @@ def test_server_round_trip(server, page_dir):
     ]:
         assert fetch(server + path)[0] == 200, path
     for path in [
-        "/comments.jsonl",
+        "/events.jsonl",
         "/data.json",
         "/vendor/..",
         "/status.json",
@@ -642,7 +700,7 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
     source = PAGE.replace(
         "<title>t</title>", "<title>Backfill plan\u2028Q3</title>"
     ).replace(script, "  " + script)
-    (page_dir / "versions" / "v1.html").write_text(source, encoding="utf-8")
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source, encoding="utf-8")
     assert check(page_dir).exit_code == 0
     publish(page_dir)
 
@@ -680,7 +738,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         "<title>t</title>",
         '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     )
-    (page_dir / "versions" / "v2.html").write_text(signoff)
+    (page_dir / ".fixture-versions" / "v2.html").write_text(signoff)
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
@@ -763,7 +821,15 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
 
     # Mutable validation may have changed before a replacement tab retries. The
     # accepted record is authoritative even after its version is no longer live.
-    (page_dir / "versions" / "v1.html").unlink()
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<title>t</title>", "<title>Later draft</title>")
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, event_model.read_events(page_dir)
+    )
+    assert activated.error is None and activated.revision == 2
+    files_model.revision_path(page_dir, 1).unlink()
+    assert live_versions(page_dir) == []
     status, body = fetch(f"{server}/api/event", data=json.dumps(first).encode())
     assert status == 200
     assert (
@@ -804,7 +870,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     assert status == 400
     assert json.loads(body)["error"] == "comment revision must be one of [1]"
 
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Moved</title>")
     )
     publish(page_dir, 2)
@@ -854,7 +920,7 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
 
 
 def test_action_door_owns_generated_child_snapshots(server, page_dir):
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -919,7 +985,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
     name the event accepted by this same POST response and the same sequence boundary.
     """
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -965,7 +1031,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     """The DOM need not re-fold the log to know a prior action will reappear."""
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -1085,7 +1151,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     Later writes may land while its immutable base document is loading. The on-demand
     view therefore names the already-observed sequence and projects no event beyond it.
     """
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -1145,7 +1211,7 @@ def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
 def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
     publish(page_dir, 1)
     for version in (2, 3):
-        (page_dir / "versions" / f"v{version}.html").write_text(
+        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
             PAGE.replace("<title>t</title>", f"<title>v{version}</title>")
         )
         publish(page_dir, version)
@@ -1181,13 +1247,13 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     original = served_page.full_state
 
     def own_state(*args, **kwargs):
-        assert leases_model.lock_is_held(page_dir / "comments.jsonl")
+        assert leases_model.lock_is_held(page_dir / "events.jsonl")
         own_state_read.set()
         return original(*args, **kwargs)
 
     def neighbours(directory):
         assert directory == page_dir
-        assert not leases_model.lock_is_held(page_dir / "comments.jsonl")
+        assert not leases_model.lock_is_held(page_dir / "events.jsonl")
         scanned.set()
         return []
 
@@ -1324,7 +1390,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
     publish(page_dir, version=1)
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace("</section>", board + "\n</section>")
     )
     publish(page_dir, version=2)
@@ -1393,7 +1459,7 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-decision></lf-task></lf-command>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -1471,7 +1537,7 @@ def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, pa
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-decision></lf-task></lf-command>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -1517,7 +1583,7 @@ def test_server_refuses_a_second_request_while_the_first_is_pending(server, page
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
         "</lf-operations></lf-decision></lf-task></lf-command>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -1585,7 +1651,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
         "</lf-operations></lf-decision></lf-task></lf-command>"
     )
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -1641,7 +1707,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
     assert closed_status == 400, closed_body
     assert "already completed request" in json.loads(closed_body)["error"]
 
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         version.read_text().replace("What next?", "What next now?")
     )
     publish(page_dir, 2)
@@ -1658,7 +1724,7 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir)
@@ -1708,8 +1774,8 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
 
     first_status, first_body = ask(1)
     assert first_status == 200, first_body
-    (page_dir / "versions" / "v2.html").write_text(
-        (page_dir / "versions" / "v1.html")
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
+        (page_dir / ".fixture-versions" / "v1.html")
         .read_text()
         .replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
     )
@@ -1729,7 +1795,7 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir)
@@ -1910,7 +1976,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
         "requires": {"target": "self", "awaiting": True},
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -2005,7 +2071,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
         "awaiting": True,
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -2113,7 +2179,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     (page_dir / "widgets" / "lf-quota.js").write_text("export default class {}\n")
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -2488,7 +2554,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     assert [e["text"] for e in events] == [text]
     # One physical line per event under any line-splitting reader, so what
     # `wait` and `events` print stays one event per line for every consumer.
-    raw = (page_dir / "comments.jsonl").read_text()
+    raw = (page_dir / "events.jsonl").read_text()
     assert raw.splitlines() == raw.rstrip("\n").split("\n")
 
 
@@ -2499,7 +2565,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
     )
-    with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
+    with open(page_dir / "events.jsonl", "a", encoding="utf-8") as f:
         f.write('{"kind": "comm')  # the tear: no trailing newline
     event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "after"}
@@ -2510,7 +2576,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     # A tear lands mid-character as easily as mid-line — ensure_ascii=False
     # writes multi-byte UTF-8 — and a strict whole-file decode would raise
     # before any line-level tolerance could reach it.
-    with open(page_dir / "comments.jsonl", "ab") as f:
+    with open(page_dir / "events.jsonl", "ab") as f:
         f.write('{"kind": "comment", "text": "café'.encode()[:-1])
     event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "again"}
@@ -2822,9 +2888,7 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "loopback bind: this URL opens only from a browser on this machine" in (
-            started.output
-        )
+        assert "access   loopback only" in started.output
         assert "--host NAME" in started.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
@@ -2840,7 +2904,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "loopback bind" not in started.output
+        assert "access   loopback" not in started.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -2862,8 +2926,11 @@ def test_the_loopback_line_follows_the_lifetime_line(page_dir):
 
     lines = hosting_model.startup_note(page_dir).splitlines()
 
-    assert lines[0].startswith("standing server:")
-    assert lines[1].startswith("loopback bind:")
+    assert lines[:3] == [
+        "server   standing",
+        f"stop     leaf server stop {page_dir}",
+        "access   loopback only (re-serve with --host NAME for remote readers)",
+    ]
 
 
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
@@ -2874,9 +2941,9 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     try:
         assert started.exit_code == 0, started.output
         identity = registry_storage.layer_metadata(page_dir)
-        assert f"page: {page_dir}" in started.output
-        assert f"layer: {identity['fingerprint']}" in started.output
-        assert f"leaf: {schema_model.PLUGIN_ROOT}" in started.output
+        assert f"page     {page_dir}" in started.output
+        assert f"layer    {identity['fingerprint']}" in started.output
+        assert f"runtime  {schema_model.PLUGIN_ROOT}" in started.output
 
         state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
         assert state.exit_code == 0, state.output
@@ -2902,7 +2969,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
 
     note = hosting_model.startup_note(page_dir)
 
-    assert "leaf: unknown payload (unknown source)" in note
+    assert "runtime  unknown payload (unknown source)" in note
     assert str(schema_model.PLUGIN_ROOT) not in note
 
 
@@ -3244,7 +3311,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # A neighbour something corrupted: its log no longer parses, and the fault
     # stays its own — skipped, rather than 500ing every other page's poll.
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
-    (pages / "corrupt" / "comments.jsonl").write_text('{"kind": "note", "author"')
+    (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
     # malformed private claim on another page must not make this page's poll fail.
     malformed = pages / "malformed-status"
@@ -3369,7 +3436,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     writer = threading.Thread(target=resolve_then_claim)
     writer.start()
     assert writer_entered.wait(5)
-    assert leases_model.lock_is_held(page_dir / "comments.jsonl")
+    assert leases_model.lock_is_held(page_dir / "events.jsonl")
     release.set()
     reader.join(5)
     writer.join(5)
@@ -3427,7 +3494,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     """The stronger send is one comment, not a comment followed by a pause action.
     Its target is therefore checked at the comment door against the same declaration
     that rendered the control, or a forged field could pause any id on the page."""
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         PAGE.replace(
             "</section>",
@@ -3474,7 +3541,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
 def test_a_version_response_comment_requires_its_declared_exact_section(
     server, page_dir
 ):
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -3525,7 +3592,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     note. Otherwise the successor can go live without ever being checked against
     the decision that replays onto it."""
     html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / "versions" / "v1.html").write_text(html)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
         html.replace("<title>t</title>", "<title>next</title>")
@@ -3625,7 +3692,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             ),
         },
     )
-    log = page_dir / "comments.jsonl"
+    log = page_dir / "events.jsonl"
     lines = log.read_text(encoding="utf-8").split("\n")
     torn = next(i for i, line in enumerate(lines) if '"id": "c-lost"' in line)
     lines[torn] = lines[torn][: len(lines[torn]) // 2]  # the tear a crash leaves

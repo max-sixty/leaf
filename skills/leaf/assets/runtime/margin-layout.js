@@ -24,7 +24,7 @@ export function reserveRail() {
 }
 
 function scheduleMarginLayout() {
-  cancelAnimationFrame(pending);
+  if (pending) return;
   pending = requestAnimationFrame(layoutMarginRows);
 }
 
@@ -69,19 +69,56 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
+function placeRows(columnRect) {
+  const placements = [...rows].map(([row, options]) =>
+    options.place?.(row, columnRect),
+  );
+  for (const place of placements) place?.();
+}
+
 export function layoutMarginRows() {
+  cancelAnimationFrame(pending);
   pending = 0;
-  const column = marginColumn();
-  const columnRect = column.getBoundingClientRect();
-  const room = document.body.getBoundingClientRect().right;
+  // A compact page keeps every margin row in document flow. Pulling those rows out to
+  // re-measure the same posture briefly shortens the document, so a browser clamps a
+  // reader standing at its end before the rows return. Read the current posture as one
+  // batch and leave rows whose owner still says they cannot hang where they are.
+  const dockedRows = [...rows].filter(
+    ([row]) => row.isConnected && row.classList.contains("lf-docked"),
+  );
+  const staysDocked = new Set();
+  if (dockedRows.length) {
+    const postureColumnRect = marginColumn().getBoundingClientRect();
+    const postureRoom = document.body.getBoundingClientRect().right;
+    for (const [row, options] of dockedRows) {
+      const anchor =
+        typeof options.anchor === "function" ? options.anchor() : options.anchor;
+      const shown =
+        options.shown?.(anchor) ??
+        (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility());
+      if (
+        shown &&
+        !(
+          options.hangs?.(
+            row,
+            row.getBoundingClientRect(),
+            postureColumnRect,
+            postureRoom,
+          ) ?? true
+        )
+      )
+        staysDocked.add(row);
+    }
+  }
   for (const [row, options] of rows) {
     if (!row.isConnected) {
       rows.delete(row);
       continue;
     }
+    if (staysDocked.has(row)) continue;
+    if (row.classList.contains("lf-docked")) options.float?.(row);
     row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";
-    options.place?.(row, columnRect);
   }
   if (!rows.size) {
     observer?.disconnect();
@@ -89,43 +126,60 @@ export function layoutMarginRows() {
     observedColumn = null;
   }
 
+  // Each phase reads every row before writing any. A placement callback returns
+  // its writer so target measurements never flush the previous row's changes.
+  const columnRect = marginColumn().getBoundingClientRect();
+  const room = document.body.getBoundingClientRect().right;
+  placeRows(columnRect);
   const measured = [...rows].map(([row, options]) => {
     const anchor =
       typeof options.anchor === "function" ? options.anchor() : options.anchor;
     const rect = row.getBoundingClientRect();
-    return {
-      row,
-      options,
-      rect,
-      hangs: options.hangs?.(row, rect, columnRect, room) ?? true,
-      shown:
-        options.shown?.(anchor) ??
-        (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility()),
-    };
-  });
-  for (const { row, options, rect } of measured) {
     const width =
       typeof options.claim === "function"
         ? options.claim(row, rect)
         : options.claim
           ? rect.width
           : 0;
-    if (!width) continue;
+    const claim = width
+      ? Math.ceil(width + (parseFloat(getComputedStyle(row).marginLeft) || 0))
+      : 0;
+    return {
+      row,
+      options,
+      rect,
+      claim,
+      hangs: options.hangs?.(row, rect, columnRect, room) ?? true,
+      shown:
+        options.shown?.(anchor) ??
+        (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility()),
+    };
+  });
+  const claim = Math.max(0, ...measured.map(({ claim }) => claim));
+  if (claim) {
     reserveRail();
-    const margin = parseFloat(getComputedStyle(row).marginLeft) || 0;
-    const claim = Math.ceil(width + margin);
-    if (claim <= claimedRail) continue;
-    claimedRail = claim;
-    document.documentElement.style.setProperty("--rail", `${claimedRail}px`);
+    if (claim > claimedRail) {
+      claimedRail = claim;
+      document.documentElement.style.setProperty("--rail", `${claimedRail}px`);
+    }
   }
   const inMargin = [];
+  let docked = false;
   for (const { row, options, rect, shown, hangs } of measured) {
     if (!shown) row.classList.add("lf-waiting");
     else if (!hangs || rect.right > room) {
       if (options.fallback === "hide") row.classList.add("lf-waiting");
-      else row.classList.add("lf-docked");
+      else {
+        row.classList.add("lf-docked");
+        options.dock?.(row);
+        docked = true;
+      }
     } else inMargin.push(row);
   }
+
+  // Docked rows enter document flow and move every later target. Measure those
+  // targets in the final flow before packing the rows that still hang beside them.
+  if (docked) placeRows(marginColumn().getBoundingClientRect());
 
   const placed = inMargin
     .map((row) => ({
@@ -145,11 +199,18 @@ export function layoutMarginRows() {
     bands.push({ top, bottom: top + rect.height });
   }
 
-  for (const el of document.querySelectorAll("[data-lf-wide]")) {
+  const wide = [...document.querySelectorAll("[data-lf-wide]")].map((el) => {
     const box = el.getBoundingClientRect();
-    if (bands.some((band) => band.top < box.bottom && band.bottom > box.top))
-      el.setAttribute("data-lf-yield", "r");
-    else el.removeAttribute("data-lf-yield");
+    return {
+      el,
+      yieldRight: bands.some((band) => band.top < box.bottom && band.bottom > box.top),
+    };
+  });
+  for (const { el, yieldRight } of wide) {
+    if (yieldRight) {
+      if (el.getAttribute("data-lf-yield") !== "r")
+        el.setAttribute("data-lf-yield", "r");
+    } else if (el.hasAttribute("data-lf-yield")) el.removeAttribute("data-lf-yield");
   }
   document.dispatchEvent(new CustomEvent("lf-margin-layout"));
 }

@@ -57,7 +57,9 @@ from render_support import (
     CutOff,
     _until,
     actions,
+    banner_address,
     compare_with,
+    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -75,6 +77,42 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
+    source = leaf_page(
+        "milestone marker alignment",
+        """
+<h1>Release plan</h1>
+<style>#rail { width: 160px; }</style>
+<lf-milestones id="rail">
+  <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
+</lf-milestones>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    centres = page.locator("#publish").evaluate(
+        """item => {
+          const titleNode = item.querySelector(':scope > strong');
+          const title = titleNode.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(titleNode).lineHeight);
+          const box = item.getBoundingClientRect();
+          const marker = getComputedStyle(item, '::before');
+          const border = marker.boxSizing === 'content-box'
+            ? parseFloat(marker.borderTopWidth) + parseFloat(marker.borderBottomWidth)
+            : 0;
+          return {
+            title: title.top + lineHeight / 2,
+            titleLines: title.height / lineHeight,
+            marker: box.top + parseFloat(marker.top)
+              + (parseFloat(marker.height) + border) / 2,
+          };
+        }"""
+    )
+    assert centres["titleLines"] >= 2, centres
+    assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
+    assert errors == []
+    page.close()
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -277,6 +315,65 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     direct.close()
 
 
+def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):
+    """An eyebrow is the heading's label, so its small bottom margin is the room inside
+    the title while the heading level's larger top margin remains outside the pair.
+
+    The contents widget inserts a zero-height fragment target before an id-less heading.
+    That generated node must not split the same authored pair into a different layout."""
+    source = leaf_page(
+        "eyebrow title rhythm",
+        """
+<h1>Two labeled sections</h1>
+<lf-toc id="contents"></lf-toc>
+<p id="before-two">First section follows.</p>
+<section id="section-two">
+  <p class="eyebrow">release shape</p>
+  <h2 id="title-two">Prepare the readers</h2>
+  <p>Take a snapshot.</p>
+</section>
+<p id="before-three">A subsection follows.</p>
+<section id="section-three">
+  <p class="eyebrow">first cohort</p>
+  <h3>Move the readers</h3>
+  <p>Shift one cohort at a time.</p>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    rhythm = page.evaluate(
+        """() => Object.fromEntries([
+          ['h2', ['section-two', 'before-two']],
+          ['h3', ['section-three', 'before-three']],
+        ].map(([level, [sectionId, beforeId]]) => {
+          const section = document.getElementById(sectionId);
+          const eyebrow = section.querySelector(':scope > .eyebrow');
+          const heading = section.querySelector(`:scope > ${level}`);
+          const before = document.getElementById(beforeId);
+          const between = [];
+          for (let node = eyebrow.nextElementSibling; node !== heading;
+               node = node.nextElementSibling) between.push(node.className);
+          const eyebrowBox = eyebrow.getBoundingClientRect();
+          const headingBox = heading.getBoundingClientRect();
+          return [level, {
+            outer: eyebrowBox.top - before.getBoundingClientRect().bottom,
+            inner: headingBox.top - eyebrowBox.bottom,
+            between,
+          }];
+        }))"""
+    )
+    assert rhythm == {
+        "h2": {"outer": 48, "inner": 10, "between": []},
+        "h3": {
+            "outer": 32,
+            "inner": 10,
+            "between": ["lf-toc-target lf-ui"],
+        },
+    }
+    assert errors == []
+    page.close()
+
+
 def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     """A map link creates an ordinary fragment-history entry on the root scrollport.
 
@@ -403,6 +500,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert 64 <= nav_box["y"] <= 68
     assert nav_box["height"] >= 790, f"the reading map used only {nav_box['height']}px"
     assert abs(nav_box["y"] + nav_box["height"] - 876) <= 1
+    prepare_box = page.locator("#prepare").bounding_box()
+    assert prepare_box is not None
+    assert nav_box["width"] == pytest.approx(292, abs=1)
+    assert prepare_box["x"] - nav_box["x"] - nav_box["width"] == pytest.approx(
+        24, abs=1
+    )
+
+    resized(page, 1800, 900)
+    expect(nav).to_have_css("width", "320px")
+    resized(page, 1152, 900)
+    expect(nav).to_have_css("width", "240px")
+    resized(page, 1400, 900)
+    assert nav.bounding_box() == nav_box
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
         """items => items.map(item => {
           const style = getComputedStyle(item, '::before');
@@ -458,6 +568,27 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
         "return [r.x, r.y, r.width, r.height]; })"
     )
+
+    # The go-to menu reveals the same labels without moving focus into the rail.
+    page.keyboard.press("g")
+    for link in nav.locator("a").all():
+        expect(link).to_have_css("opacity", "1")
+        expect(link).to_have_css("pointer-events", "auto")
+    assert (
+        nav.locator(".lf-toc-start, li, a").evaluate_all(
+            "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
+            "return [r.x, r.y, r.width, r.height]; })"
+        )
+        == hidden_boxes
+    )
+    assert nav.evaluate("node => !node.contains(document.activeElement)")
+    page.keyboard.press("h")
+    expect(prepare).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    expect(prepare).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
 
     prepare.evaluate(
         "node => node.addEventListener('pointerdown', () => { window.lfTocPressed = true; }, { once: true })"
@@ -594,7 +725,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.emulate_media(media="print")
     page.evaluate(RENDERED)
     expect(prepare).to_have_css("opacity", "1")
-    expect(start).to_be_hidden()
+    expect(start).to_be_visible()
 
     page.emulate_media(media="screen")
     page.evaluate(RENDERED)
@@ -822,6 +953,32 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
+    affordance = gloss.evaluate(
+        """el => {
+          const phrase = getComputedStyle(el);
+          const mark = el.querySelector('.lf-gloss-mark');
+          const badge = getComputedStyle(mark);
+          const tokens = document.createElement('span');
+          tokens.style.cssText = 'color: var(--accent); background: var(--card)';
+          document.body.append(tokens);
+          const tokenStyle = getComputedStyle(tokens);
+          const accent = tokenStyle.color;
+          const card = tokenStyle.backgroundColor;
+          tokens.remove();
+          return {
+            accent,
+            card,
+            underline: phrase.textDecorationColor,
+            mark: mark.textContent,
+            markBackground: badge.backgroundColor,
+            markColor: badge.color,
+          };
+        }"""
+    )
+    assert affordance["mark"] == "i"
+    assert affordance["underline"] == affordance["accent"]
+    assert affordance["markBackground"] == affordance["accent"]
+    assert affordance["markColor"] == affordance["card"]
     gloss.hover()
     expect(bubble).to_be_visible()
     expect(bubble).to_have_text("A thin, end-to-end path through the real system.")
@@ -871,6 +1028,34 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert touch_errors == []
     touch.close()
     context.close()
+
+
+def test_a_gloss_aim_box_does_not_make_its_table_scroll_sideways(browser, serve):
+    """The mark's aim box is outside layout but not outside overflow. A gloss that ends
+    a cell puts the badge against the table's inline edge, and an aim box straddling the
+    badge would hang half its width past that edge — leaving a table the reader can drag
+    sideways over a target nothing draws."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "gloss at the edge",
+                """
+<h1>Areas</h1>
+<table id="edge-table" style="width: fit-content">
+  <tbody><tr><td style="padding: 0"><lf-gloss
+    tip="The test reads the index before and after."
+    >byte-identical</lf-gloss></td></tr></tbody>
+</table>
+""",
+            )
+        ),
+    )
+    expect(page.locator("#edge-table .lf-gloss-mark")).to_be_visible()
+    room = page.locator("#edge-table").evaluate("el => el.scrollWidth - el.clientWidth")
+    assert room <= 1, f"the table scrolls {room}px sideways"
+    assert errors == []
+    page.close()
 
 
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
@@ -1085,11 +1270,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
-    # The panel gives the room back on an eased margin, and the column re-wraps for the
-    # whole of it. Read on the way, this assertion passed on a layout that lasted a fifth
-    # of a second: the rows sat under their blocks in the narrow column the page was
-    # leaving, and the settled one dropped the in-card row back onto the sentence's last
-    # line. Only a loaded machine was slow enough to reach the settled layout first.
+    # The panel gives the room back in one responsive layout, then carries the column to
+    # it. Wait for that route before reading the rows against their settled blocks.
     panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
@@ -1920,30 +2102,44 @@ def test_a_wait_the_reader_would_notice_says_so_and_a_short_one_says_nothing(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     resting = page.locator("[data-lf-for='sug-refill']").bounding_box()
-    # Pressed and sampled inside the page, on the browser's own clock: what painted
-    # and when is not a fact the browser reports outward, and a reading taken over a
-    # CDP round trip would be racing the delay rather than measuring it. The window is
-    # the rule's own — 200ms of delay and 140ms of fade — with room after it, since a
-    # send held in the wire states no fact to wait on.
+    # Pressed and sampled inside the page: what painted and when is not a fact the
+    # browser reports outward, and a reading taken over a CDP round trip would be
+    # racing the delay rather than measuring it. Each frame is placed on the rule's
+    # own clock rather than on the wall clock the press was made on — the animation
+    # starts at the frame the busy attribute is first painted in, and what the press
+    # does between the two is the layer's own work, not this rule's. Timed from the
+    # press the whole 200ms delay and 140ms fade all but fill a fixed window, and a
+    # loaded machine spends the remainder before the first frame; timed from the
+    # animation, the delay and the fade are the only durations being read.
     frames = page.evaluate(
         """async () => {
           const el = document.getElementById('sug-refill');
           const out = [];
-          const t0 = performance.now();
           let stop = false;
-          const tick = (t) => {
-            out.push([t - t0, Number(getComputedStyle(el).opacity)]);
+          const tick = () => {
+            // Opacity first: reading it flushes the style that starts the animation,
+            // so the frame it begins in reports the animation rather than nothing.
+            const painted = Number(getComputedStyle(el).opacity);
+            const [busy] = el.getAnimations();
+            out.push([
+              busy ? Number(busy.currentTime) : null,
+              busy ? busy.playState : null,
+              painted,
+            ]);
             if (!stop) requestAnimationFrame(tick);
           };
           requestAnimationFrame(tick);
           document.querySelector("[data-lf-for='sug-refill'] .lf-sug-accept").click();
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 700));
           stop = true;
           return out;
         }"""
     )
-    early = [o for t, o in frames if t < 150]
-    late = [o for t, o in frames if t > 400]
+    # Before the rule has anything to say: the frames the press had not yet reached,
+    # and the ones inside its delay. Once it has said it: the frames after the fade
+    # has run, which the animation states as its own end rather than as a deadline.
+    early = [o for elapsed, _state, o in frames if elapsed is None or elapsed < 150]
+    late = [o for _elapsed, state, o in frames if state == "finished"]
     assert early and set(early) == {1}, (
         f"the wait was announced before it was one: {early}"
     )
@@ -2037,7 +2233,7 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     expect(decisions).to_have_text("Asks (4)")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
-    expect(page.locator(".lf-answer-all")).to_have_text("✓ Accept all (1)")
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
 
     # Answering one takes it out. A pick is state the page itself carries, so the
     # count follows the click; the suggestion's outcome is in the log alone, so that
@@ -2067,7 +2263,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     The landing is marked on the ask and stands the reader on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
     control instead put them on whatever the decision's context and evidence had pushed
-    off the bottom of the screen. The controls that answer it are the next Tab stops."""
+    off the bottom of the screen. Its contributed actions are directly addressable there;
+    the controls themselves remain the next Tab stops."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     decisions = page.locator(".lf-decisions")
     expect(decisions).to_have_text("Asks (4)")
@@ -2235,16 +2432,151 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         "the arrival did not leave the Decision's context above its options"
     )
 
-    # And the answer is one press away, in the order the options are written. Read after
+    # Tab remains the complementary route into the widget's local controls. Read after
     # the landing above, because a Tab onto a control below the fold scrolls to it and
     # would take the arrival's own geometry with it.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.
     page.keyboard.press("Escape")
     expect(page.locator("#storage-decision")).not_to_have_attribute("tabindex", "-1")
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
+    """a lands semantic focus on the Ask; digits work its exact action list there.
+
+    The list is contributed by the decision widget rather than inferred from generated
+    descendants: options own controls inside the Ask, while a suggestion's Buttons are
+    hoisted into the shared margin. Core gives either list the same stable numeric
+    projection, and pressing a digit activates the native control without first moving
+    focus into the widget.
+    """
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 900, 900)
+
+    page.keyboard.press("a")
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    assert "1–2\nKeep the store / Signed tokens" in key_line(page)
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
+
+    page.keyboard.press("2")
+    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+
+    page.keyboard.press("a")
+    expect(page.locator("#sug-refill")).to_be_focused()
+    assert "1–2\nAccept / Reject" in key_line(page)
+    page.keyboard.press("2")
+    round_trip(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serve):
+    """Ask and local-scope digits name one stable place on each option card."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    resized(page, 900, 900)
+
+    page.keyboard.press("a")
+    ask = page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    expect(ask).to_have_text(["1", "2"])
+    ask_centers = ask.evaluate_all(
+        """nodes => nodes.map(node => {
+          const box = node.getBoundingClientRect();
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+        })"""
+    )
+
+    page.keyboard.press("Tab")
+    local = page.locator("#live-question > lf-option > .lf-address")
+    expect(local).to_have_text(["1", "2"])
+    local_centers = local.evaluate_all(
+        """nodes => nodes.map(node => {
+          const box = node.getBoundingClientRect();
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+        })"""
+    )
+    assert len(ask_centers) == len(local_centers) == 2
+    for ask_point, local_point in zip(ask_centers, local_centers, strict=True):
+        assert ask_point["x"] == pytest.approx(local_point["x"], abs=0.5)
+        assert ask_point["y"] == pytest.approx(local_point["y"], abs=0.5)
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
+    """A clamped action chip yields to the legend that explains its digit."""
+    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    resized(page, 900, 520)
+
+    page.keyboard.press("a")
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("k")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("k")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_count(1)
+    geometry = page.evaluate(
+        """() => {
+          const read = node => {
+            const box = node.getBoundingClientRect();
+            return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
+          };
+          return {
+            line: read(document.querySelector('.lf-keyline')),
+            chips: [...document.querySelectorAll(
+              '.lf-ask-addresses > .lf-ask-address, [data-lf-ask-address]'
+            )].map(read),
+          };
+        }"""
+    )
+    assert geometry["chips"], "the fixture did not leave an Ask address on screen"
+    assert all(
+        chip["right"] <= geometry["line"]["left"]
+        or geometry["line"]["right"] <= chip["left"]
+        or chip["bottom"] <= geometry["line"]["top"]
+        or geometry["line"]["bottom"] <= chip["top"]
+        for chip in geometry["chips"]
+    ), geometry
+
+    assert errors == []
+    page.close()
+
+
+def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
+    source = leaf_page(
+        "needed draft address",
+        """
+<h1>Supply the copy</h1>
+<lf-decision id="copy-ask"><h2>What should the invitation say?</h2>
+  <lf-draft id="copy" needed><pre>Draft invitation</pre></lf-draft>
+</lf-decision>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+
+    page.keyboard.press("a")
+    expect(page.locator("#copy-ask")).to_be_focused()
+    assert "1\nEdit" in key_line(page)
+    page.keyboard.press("1")
+    expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
+
     assert errors == []
     page.close()
 
@@ -2712,7 +3044,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     # had the blocks in question.
     expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
 
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         CONVERSATION_DIFF_PAGE.replace(
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>',
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>\n'
@@ -3040,7 +3372,7 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
     # correctly behind an opaque surface.
     resized(page, 560, 620)
-    page.locator(".lf-decisions").click()
+    banner_address(page, ".lf-decisions").click()
     expect(page.locator(".lf-decisions-panel")).to_be_visible()
 
     # The last of the four, which a short window leaves well off screen.

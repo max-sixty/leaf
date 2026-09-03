@@ -524,7 +524,7 @@ customElements.define(
 
     async draw() {
       // Inside the try with everything else: dataBody reaches for a <pre> both markup
-      // doors require, and a version file hand-edited past them threw out of here instead
+      // doors require, and an authored document hand-edited past them threw out of here instead
       // of failing soft, leaving the reader the body's raw text and no error at all.
       let source = "";
       try {

@@ -65,7 +65,7 @@ export const missingConversations = (widgets) =>
 
 // Attributes standing on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and
-// the static lint holds a version file to it. What no reading of a file can see is the
+// the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`chosen`, `status`), which is what makes the write

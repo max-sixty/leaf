@@ -44,15 +44,17 @@ Codex opens the full Leaf page in its browser pane, or in a local browser when
 the pane is unavailable. It uses the same theme, package widgets, anchored
 comments, and version travel as Claude Code. A detached adapter delivers page
 input into later turns of the same Codex task; the page directory and
-`comments.jsonl` remain the durable record.
+`events.jsonl` remain the durable record.
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (the plugin is a
 uv project, and the first run syncs its environment through whatever index you have
 already configured), plus a browser on the same machine as the session. Render checks
-and export launch Google Chrome by default; on a host that has another Chromium
-instead, set `LEAF_BROWSER_EXECUTABLE` to that executable's path and both use it.
+and export launch whichever executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or
+`CHROME_BIN` names, else Google Chrome where it is installed, else the first
+`google-chrome`, `google-chrome-stable`, `chrome`, `chromium`, or `chromium-browser` on
+`PATH`. Export needs Chromium 125 or later, and says so by name on an older one.
 
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
@@ -98,5 +100,9 @@ contract.
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes. They are live in the visual index at
 <https://leaf.page/examples.html>; every example opens as its own complete page.
-From a checkout, `scripts/site.py --serve` previews that catalog and all its routes;
+From a checkout, `uv run scripts/site.py --serve` previews that catalog and all its routes;
 `scripts/preview.py triage-board` serves one page with the real agent loop behind it.
+Synthetic feature specimens live together in
+[`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
+`scripts/preview.py feature-gallery` serves that developer playground without adding
+it to the public catalog.

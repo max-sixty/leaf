@@ -213,7 +213,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         "Check the fallback before cutover.</lf-card>\n"
         '</lf-column></lf-board>\n<lf-diagram id="flow">',
     )
-    (page_dir / "versions" / "v1.html").write_text(work_page)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
     publish(page_dir)
 
     claimed = _status(
@@ -238,7 +238,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
 
     # A new version that leaves the widget alone does not settle the claim by mere
     # chronology. It publishes normally and the same local work remains standing.
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v2</title>")
     )
     unrelated = stamp(page_dir, 2, "Elsewhere")
@@ -252,7 +252,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert claim["disposition"] == "effective"
 
     # Settlement is explicit and durable on the version note.
-    (page_dir / "versions" / "v3.html").write_text(
+    (page_dir / ".fixture-versions" / "v3.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
     settled = stamp(page_dir, 3, "Rollout checked", completes=("rollout-card",))
@@ -292,7 +292,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         count=1,
         flags=re.DOTALL,
     )
-    (page_dir / "versions" / "v4.html").write_text(without_seat)
+    (page_dir / ".fixture-versions" / "v4.html").write_text(without_seat)
     changed = stamp(page_dir, 4, "Changed presentation")
     assert changed.exit_code == 0, changed.output
 
@@ -305,7 +305,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         count=1,
         flags=re.DOTALL,
     )
-    (page_dir / "versions" / "v5.html").write_text(without_target)
+    (page_dir / ".fixture-versions" / "v5.html").write_text(without_target)
     dropped = stamp(page_dir, 5, "Removed")
     assert dropped.exit_code == 1
     assert (
@@ -317,7 +317,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert finished.exit_code == 0, finished.output
 
     # Naming no active widget claim is an unearned settlement, not inert metadata.
-    (page_dir / "versions" / "v6.html").write_text(
+    (page_dir / ".fixture-versions" / "v6.html").write_text(
         without_target.replace("<title>t</title>", "<title>t · v6</title>")
     )
     unearned = stamp(page_dir, 6, "Again", completes=("rollout-card",))
@@ -337,7 +337,7 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
         '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
         '</lf-column></lf-board>\n<lf-diagram id="flow">',
     )
-    (page_dir / "versions" / "v1.html").write_text(work_page)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
     publish(page_dir)
     claimed = _status(
         page_dir, "working", "checking the rollout", "--on", "rollout-card"
@@ -376,9 +376,9 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     work_page = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
     )
-    (page_dir / "versions" / "v1.html").write_text(work_page)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
     publish(page_dir)
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v2</title>")
     )
     advanced = stamp(page_dir, 2, "Checked the surrounding plan")
@@ -404,7 +404,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
         page_dir, "working", "checking the completed choice", "--on", "plan-choice"
     )
     assert claimed.exit_code == 0, claimed.output
-    (page_dir / "versions" / "v3.html").write_text(
+    (page_dir / ".fixture-versions" / "v3.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
     answered = stamp(page_dir, 3, "Answered the completed choice")
@@ -426,7 +426,7 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     """A content model says what authors may put inside a widget, not whether core
     may add local chrome there. Inline prose has no block slot, and a prose option is
     itself the click target of its holder; neither becomes a seat by inference."""
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         PAGE.replace(
             "<lf-chip>effort: low</lf-chip>",
@@ -564,7 +564,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     assert [e["events"] for e in pickups] == [["c1", shown[1]["id"]], ["c2"]]
     stored = [
         json.loads(line)
-        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (page_dir / "events.jsonl").read_text().splitlines()
     ]
     assert all("seq" not in event for event in stored if event["kind"] == "pickup")
     session_model.cmd_status(page_dir, "working", "revising the plan")
@@ -723,7 +723,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir)
@@ -816,7 +816,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     """A sent widget lives in one conversation and may answer another. The raw
     event is stored once, while exact selection and wait expose both semantic
     memberships without duplicating the event in a delivered batch."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     target = events_model.append_event(
@@ -889,7 +889,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     """A host request is meaningful only beside the message that declared its
     package widget. Keep that message even when a long conversation would normally
     elide it from the delivery envelope."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
@@ -993,7 +993,7 @@ SETTLING_ACCEPT = {
 
 def _settling_page(page_dir):
     events_model.append_event(page_dir, dict(SETTLING_DECISION))
-    (page_dir / "versions" / "v1.html").write_text(SETTLING_PAGE)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(SETTLING_PAGE)
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     publish(page_dir)
@@ -1136,7 +1136,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     no page to be seen. Both arms assert the two readings agree; the arms differ
     in what they agree on, so neither can be passing on a delivery that never
     settles anything."""
-    versions = page_dir / "versions"
+    versions = page_dir / ".fixture-versions"
     versions.joinpath("v1.html").write_text(PICKS_PAGE)
     versions.joinpath("v2.html").write_text(PICKS_PAGE)
     serving(page_dir, 1)
@@ -1207,7 +1207,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
     truncation is to rerun, and a rerun prints the same oversize header. So the
     digest keeps the message that opened the thread and the most recent, and
     says how many it dropped between."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     markup = (
@@ -1269,7 +1269,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     nowhere but the log. So a long conversation whose question sits early would
     otherwise deliver `choose m-cap` with nothing saying what `gm` asked or what
     `m-cap` said — the defect this reading exists to fix, surviving the bound."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
@@ -2148,7 +2148,10 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
     try:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}:
+            if (
+                files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
+                and not codex_model.delivery_path("codex-thread").exists()
+            ):
                 break
             time.sleep(0.05)
         else:
@@ -2157,7 +2160,6 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
         assert [json.loads(line) for line in log.read_text().splitlines()] == [
             ["queue", "--help"]
         ]
-        assert not codex_model.delivery_path("codex-thread").exists()
     finally:
         session_model.cmd_status(page, "idle", "")
         with service_model.PageTransaction(page) as transaction:
@@ -2232,14 +2234,21 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
+            if (
+                files_model.read_json(page / "cursor.json") == {"seq": 1}
+                and not codex_model.delivery_path("codex-thread").exists()
+            ):
                 break
             time.sleep(0.05)
         else:
-            record = files_model.read_json(
-                codex_model.adapter_record_path("codex-thread")
+            intent = files_model.read_json(codex_model.delivery_path("codex-thread"))
+            log_text = codex_model.adapter_log_path("codex-thread").read_text(
+                encoding="utf-8"
             )
-            pytest.fail(f"the adapter did not acknowledge its batch: {record}")
+            pytest.fail(
+                "the adapter did not acknowledge its batch: "
+                f"intent={intent!r}; log={log_text!r}"
+            )
 
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert calls[0] == ["queue", "--help"]
@@ -2265,7 +2274,6 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert "hello adapter" in payload["batch_jsonl"]
         assert str(page) in payload["batch_jsonl"]
         assert len(prompt.encode()) < 4096
-        assert not codex_model.delivery_path("codex-thread").exists()
         assert intent_payload.exists()
         assert codex_model.adapter_is_live("codex-thread")
 
@@ -2280,6 +2288,79 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         time.sleep(0.05)
     assert not codex_model.adapter_is_live("codex-thread")
     assert intent_payload.exists()
+
+
+def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """A direct wait's handoff is the turn opening, because the batch is in model
+    context the moment the command returns. This carrier's is not: it hands a pointer
+    to Codex's durable same-task queue, which the loaded client starts and an unloaded
+    task leaves standing until someone reopens it — and the adapter never reopens one.
+
+    So the stamp the Stop hook left is still true after acceptance, and clearing it
+    would put "Codex is working" over a task nobody has read the delivery in. The
+    cursor advancing and the intent being spent are what says the delivery went
+    through: the assertion is that a completed queue delivery moved everything except
+    this."""
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "working", "answering the last comment")
+    started = under_codex(
+        shlex.join(
+            [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+
+    # As in the delivery test above: the fake Codex wrapper exits with its one
+    # command, and the task's own lifetime has to outlive it for the carrier to
+    # stay live.
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if (
+                codex_model.adapter_is_live("codex-thread")
+                and page_state(page)["listening"]
+            ):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the detached Codex carrier did not remain live")
+
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        closed = service_model.page_claim(page)["turn_closed"]
+        assert closed
+
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if (
+                files_model.read_json(page / "cursor.json") == {"seq": 1}
+                and not codex_model.delivery_path("codex-thread").exists()
+            ):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the adapter did not acknowledge its batch")
+
+        assert service_model.page_claim(page)["turn_closed"] == closed
+        session_model.cmd_status(page, "idle", "")
+    finally:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
 
 
 def test_adding_a_page_cannot_race_the_codex_adapter_exit(
@@ -3014,6 +3095,147 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     lease.close()
 
 
+def test_delivering_a_batch_opens_the_turn_on_every_page_the_session_holds(
+    claimed, tmp_path, capsys
+):
+    """The turn is the session's, not the delivering page's. The Stop hook closes it
+    across every page the session holds, so the delivery that answers it has to reach
+    the same set: a session holding two leaves would otherwise leave the sibling
+    stamped through a turn that is demonstrably running, and two minutes later that
+    leaf tells its own reader the agent left when its turn ended.
+
+    The sibling here never speaks — the batch is the other page's, and the wait ends
+    on the first page that delivers. That is exactly the page whose stamp nothing else
+    would clear."""
+    sibling = tmp_path / "sibling"
+    vendoring_model.cmd_init(sibling)
+    capsys.readouterr()
+    session_model.cmd_status(claimed, "working", "answering the first comment")
+    session_model.cmd_status(sibling, "working", "reading the sibling")
+    serving(claimed, 1)
+    serving(sibling, 2)
+    assert service_model.claim_page(sibling)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert service_model.page_claim(sibling)["turn_closed"]
+
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
+    )
+    assert session_model.cmd_wait() == 0
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert service_model.page_claim(sibling)["turn_closed"] is None
+
+    # A page another session holds is not this turn's to speak for.
+    others = tmp_path / "others"
+    vendoring_model.cmd_init(others)
+    capsys.readouterr()
+    session_model.cmd_status(others, "working", "another session's page")
+    serving(others, 3)
+    assert service_model.claim_page(others)
+    claim = service_model.page_claim(others)
+    files_model.write_json(
+        service_model.claim_path(others), {**claim, "id": "s2", "turn_closed": "then"}
+    )
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert session_model.cmd_wait() == 0
+    capsys.readouterr()
+    assert service_model.page_claim(others)["turn_closed"] == "then"
+    session_model.cmd_status(sibling, "idle", "")
+    session_model.cmd_status(others, "idle", "")
+
+
+def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
+    claimed, tmp_path, capsys
+):
+    """A delivery is not the only observable opening, and it is not the one the
+    banner sends the reader to. The `quiet` banner says to nudge in the terminal;
+    a reader who does that answers where no batch is written, so no carrier ever
+    hands one over and nothing would clear the stamp — the page would go on telling
+    them to do the thing they just did.
+
+    `UserPromptSubmit` is the literal mirror of the `Stop` branch that stamps the
+    ending: same sweep over `owned_pages`, same place ahead of the early returns,
+    same session scope."""
+    sibling = tmp_path / "sibling"
+    vendoring_model.cmd_init(sibling)
+    capsys.readouterr()
+    session_model.cmd_status(claimed, "working", "answering the first comment")
+    session_model.cmd_status(sibling, "working", "reading the sibling")
+    serving(claimed, 1)
+    serving(sibling, 2)
+    assert service_model.claim_page(sibling)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"]
+    assert service_model.page_claim(sibling)["turn_closed"]
+
+    status_before = (claimed / "status.json").read_bytes()
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert service_model.page_claim(sibling)["turn_closed"] is None
+    # Only the stamp moves: what the agent said it was doing stays the agent's.
+    assert (claimed / "status.json").read_bytes() == status_before
+
+    # Another session's prompt says nothing about this one's pages.
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    closed = service_model.page_claim(claimed)["turn_closed"]
+    assert closed
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] == closed
+    session_model.cmd_status(sibling, "idle", "")
+
+
+def test_delivering_a_batch_opens_the_turn_the_stop_hook_closed(claimed, capsys):
+    """The Stop hook stamps the ending of a turn; a delivery is the one observable
+    beginning of the next one, and until it cleared the stamp nothing did.
+
+    That asymmetry was reader-facing. Two minutes past the stamp the browser stops
+    believing the `working` claim under it, so a session that came back, took its
+    batch and spent longer than that answering it read exactly like one that had
+    walked away: the banner said the agent left when its turn ended and told the
+    reader to nudge it in the terminal, over a turn that was running. Only the stamp
+    moves — what the agent said it was doing stays the agent's to write.
+    """
+    session_model.cmd_status(claimed, "working", "answering the first comment")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"]
+
+    serving(claimed, 1)
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
+    )
+    status_before = (claimed / "status.json").read_bytes()
+
+    assert session_model.cmd_wait(claimed) == 0
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert (claimed / "status.json").read_bytes() == status_before
+
+    # A batch this session never took says nothing about its turn: the successor
+    # that delivers it is the one whose turn opened.
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    capsys.readouterr()
+    closed = service_model.page_claim(claimed)["turn_closed"]
+    assert closed
+    events_model.append_event(
+        claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
+    )
+    with service_model.PageTransaction(claimed) as page:
+        page.open_turn("s2")
+    assert service_model.page_claim(claimed)["turn_closed"] == closed
+
+
 def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
     """Every ts a seat dates is written here, while the reader's `Date.now()` is
     another machine's opinion. The payload states the writer's clock so the reading is
@@ -3161,7 +3383,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     The unrewritten arm is the control: the pick still stands, the thread reads
     answered, and the hook must say nothing. Without it a guard that blocked on
     every acknowledged comment would pass the other arm."""
-    versions = claimed / "versions"
+    versions = claimed / ".fixture-versions"
     versions.joinpath("v1.html").write_text(PICKS_PAGE)
     versions.joinpath("v2.html").write_text(PICKS_PAGE)
     session_model.cmd_status(claimed, "waiting", "")
@@ -3326,7 +3548,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
 def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns_it(
     claimed, capsys
 ):
-    version = claimed / "versions" / "v1.html"
+    version = claimed / ".fixture-versions" / "v1.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
     publish(claimed)
     session_model.cmd_status(claimed, "waiting", "")
@@ -3512,7 +3734,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     # A background job's claim names the job's record and no process at all, so the
     # pid the environment states — dead here — is nothing to this reader. Claimed
     # through the real door, which asks for an initialized page.
-    (page / "comments.jsonl").write_bytes(b"")
+    (page / "events.jsonl").write_bytes(b"")
     job = tmp_path / "job"
     job.mkdir()
     files_model.write_json(job / "state.json", {"sessionId": "guarded"})
@@ -3530,7 +3752,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     # records are still walked, and the live one is still the session's page.
     other = tmp_path / "other"
     other.mkdir()
-    (other / "comments.jsonl").write_bytes(b"")
+    (other / "events.jsonl").write_bytes(b"")
     record_claim(other, id="guarded")
     assert service_model.owned_pages("guarded") == [other.resolve()]
 
@@ -3666,20 +3888,20 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     """
     session_model.cmd_status(page_dir, "waiting", "comment on the prototype")
     marker = page_dir / "status-lock-requested"
-    comments = open(  # noqa: SIM115 - held across the child transition
-        page_dir / "comments.jsonl", "a+b"
+    events = open(  # noqa: SIM115 - held across the child transition
+        page_dir / "events.jsonl", "a+b"
     )
-    fcntl.flock(comments, fcntl.LOCK_EX)
+    fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
 from leaf import service as service_model
 
 original_flocked = service_model.flocked
-comments = Path(os.environ["COMMENTS"]).resolve()
+events = Path(os.environ["EVENTS"]).resolve()
 marker = Path(os.environ["MARKER"])
 
 @contextlib.contextmanager
 def observed_flocked(path, **kwargs):
-    if Path(path).resolve() == comments:
+    if Path(path).resolve() == events:
         marker.write_text("requested", encoding="utf-8")
     with original_flocked(path, **kwargs) as stream:
         yield stream
@@ -3692,7 +3914,7 @@ cli_model.cli()
         spawn,
         page_dir,
         probe,
-        COMMENTS=page_dir / "comments.jsonl",
+        EVENTS=page_dir / "events.jsonl",
         MARKER=marker,
     )
 
@@ -3700,17 +3922,17 @@ cli_model.cli()
     while not marker.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
     if not marker.exists():
-        comments.close()
+        events.close()
         process.kill()
         process.communicate()
-        pytest.fail("the idle command never requested the held comments-log lock")
+        pytest.fail("the idle command never requested the held event-log lock")
 
     # The marker is immediately before the command's lock acquisition. In the
     # broken ordering it appears only after the empty pending read; in the fixed
     # ordering it appears before that read. Appending while this process owns the
     # lock therefore makes the old command idle and the fixed command refuse.
-    comments.seek(0, os.SEEK_END)
-    comments.write(
+    events.seek(0, os.SEEK_END)
+    events.write(
         (
             events_model.jsonl_line(
                 {
@@ -3723,10 +3945,10 @@ cli_model.cli()
             + "\n"
         ).encode()
     )
-    comments.flush()
-    os.fsync(comments.fileno())
-    fcntl.flock(comments, fcntl.LOCK_UN)
-    comments.close()
+    events.flush()
+    os.fsync(events.fileno())
+    fcntl.flock(events, fcntl.LOCK_UN)
+    events.close()
 
     out, err = process.communicate(timeout=60)
     assert process.returncode == 1, f"{out}{err}"
@@ -3847,7 +4069,7 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     assert started.returncode == 0, started.stderr
     url = started.stdout.strip()
     assert url.startswith("http://127.0.0.1:")
-    assert "session server" in started.stderr
+    assert "server   session" in started.stderr
     info = server_model.running_server(page_dir)
     assert info and info["url"] == url
     # The child claims only after its refusal and bind checks, which is what lets
@@ -3875,7 +4097,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     process's own words, carried out with its exit status."""
     standing = start_through_the_launcher(page_dir, "--standing")
     assert standing.returncode == 0, standing.stderr
-    assert "standing server" in standing.stderr
+    assert "server   standing" in standing.stderr
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
 
@@ -3927,7 +4149,7 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     )
     url = old_server.stdout.readline().strip()
     assert url.startswith("http://127.0.0.1:")
-    assert f"{lifetime} server" in old_server.stderr.readline()
+    assert old_server.stderr.readline().startswith(f"server   {lifetime}")
     prior_status = files_model.read_json(page_dir / "status.json")
     prior_owner = service_model.page_claim(page_dir)
 
@@ -4129,7 +4351,7 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
         text=True,
     )
     assert process.stdout.readline().startswith("http://127.0.0.1:")
-    assert "standing server" in process.stderr.readline()
+    assert process.stderr.readline().strip() == "server   standing"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
 
@@ -4170,7 +4392,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     hosting_model.cmd_serve(page_dir)
     served = capsys.readouterr()
     assert served.out.strip() == launched["url"]
-    assert "standing server" in served.err
+    assert "server   standing" in served.err
 
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
 

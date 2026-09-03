@@ -33,6 +33,7 @@ export function createSelectionSurface({
   paintHere,
   panel,
   panelCovers,
+  panelList,
   paintStanding,
   pointerAt,
   reactionContextContains,
@@ -59,6 +60,8 @@ export function createSelectionSurface({
     (panelCovers()
       ? innerWidth - panel.offsetWidth
       : Math.min(innerWidth, document.body.getBoundingClientRect().right)) - 8;
+  const fabFits = () =>
+    rightEdge() > 8 && fabBar.scrollWidth <= Math.ceil(rightEdge() - 8);
   // The floats live in the document — they scroll with the passage they stand beside —
   // while every caller reasons in viewport terms: rects, the pointer, the banner's own
   // band. The fixed floor covers the ordinary one-line banner; its live box takes over
@@ -198,6 +201,11 @@ export function createSelectionSurface({
   // Keep the bar beside that whole block, or above/below it when the rail is too narrow.
   function placeFab(target = anchorBox(fabAnchor)) {
     if (!fabAnchor || !target) return false;
+    const room = rightEdge() - 8;
+    // A covering workspace may leave no page band, or less than the controls can
+    // shrink into. Report failed placement instead of assigning negative CSS sizes
+    // and leaving a focused textarea behind that workspace.
+    if (room <= 0) return false;
     const block = fabAnchor.quote && fabTargetAt();
     const clips = new Map();
     const keepClear =
@@ -208,7 +216,7 @@ export function createSelectionSurface({
             .filter(Boolean),
         )) ||
       target;
-    fabBar.style.setProperty("--lf-float-w", `${rightEdge() - 8}px`);
+    fabBar.style.setProperty("--lf-float-w", `${room}px`);
     if (composerIsOpen()) {
       // CSS owns content sizing. Geometry contributes only the real room the field
       // can use, including the bar's other controls, before deciding where it stands.
@@ -219,9 +227,10 @@ export function createSelectionSurface({
       );
       fabBar.style.setProperty(
         "--lf-response-room",
-        `${besideRoom >= minimum ? besideRoom : rightEdge() - 8 - controls}px`,
+        `${Math.max(0, besideRoom >= minimum ? besideRoom : room - controls)}px`,
       );
     }
+    if (!fabFits()) return false;
     const left =
       keepClear.right + 6 + fabBar.offsetWidth <= rightEdge()
         ? keepClear.right + 6
@@ -247,6 +256,7 @@ export function createSelectionSurface({
     const previous = fabAnchor;
     const previousOrigin = fabOrigin;
     const leavingBar = !anchor && fabBar.contains(document.activeElement);
+    const returnToPanel = leavingBar && panelCovers() && !fabFits();
     const returnTarget =
       leavingBar && previous && !previous.quote
         ? previousOrigin?.isConnected
@@ -289,7 +299,8 @@ export function createSelectionSurface({
     if (!sameAnchor(previous, fabAnchor)) paintAnchors();
     paintHere(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
-      if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
+      if (returnToPanel) panelList.focus({ preventScroll: true });
+      else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
         returnTarget.focus({ preventScroll: true });
       else if (
         leavingBar ||
@@ -386,6 +397,14 @@ export function createSelectionSurface({
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
     if (anchor?.quote.length >= MIN_QUOTE) {
+      // A fast keyboard action can capture this completed native selection before the
+      // pointer gesture's queued update arrives. That later update is the same target,
+      // not a request to reopen its Comment composer: reopening calls closeReactions
+      // and used to collapse choices immediately after `r` exposed them.
+      if (sameAnchor(anchor, fabAnchor)) {
+        placeFab();
+        return;
+      }
       // Selecting words is still the browser's gesture. Open Leaf's response field beside
       // them without moving focus into it, so the live Selection remains available to Copy
       // and the native context menu. An explicit Comment press uses the same field and

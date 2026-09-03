@@ -289,7 +289,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     # The generated check is not authored text, so rewording another option marks only
     # that option in the version comparison.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
+    (d / ".fixture-versions" / "v2.html").write_text(
         CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best")
     )
     stamp_version_file(d, 2, "two")

@@ -662,9 +662,10 @@ pointing at the one it was taken for. A motion the page cancels stays, because a
 cancelled move is evidence a gesture was taken back.
 
 A gesture on the way to the one under test still has to reach its end state under that
-hold, and the harness helper for the gesture owns it — `panel_settled` finishes the
-shell carry rather than waiting out a clock the test has stopped. A test holding motion
-that opens a panel by hand needs the same, or it reads a page parked mid-carry.
+hold, and the harness helper for the gesture owns it — `panel_settled` and
+`edge_settled` finish the shell carry rather than waiting out a clock the test has
+stopped. Every workspace gesture starts that same carry, so a test holding motion that
+opens a panel or a tray by hand needs the same, or it reads a page parked mid-carry.
 
 A sequence is ordered evidence across frames. A fold can have correct start, midpoint,
 and final values yet flash its unanimated state for one frame when the effect expires.

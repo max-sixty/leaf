@@ -79,6 +79,42 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
+    source = leaf_page(
+        "milestone marker alignment",
+        """
+<h1>Release plan</h1>
+<style>#rail { width: 160px; }</style>
+<lf-milestones id="rail">
+  <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
+</lf-milestones>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    centres = page.locator("#publish").evaluate(
+        """item => {
+          const titleNode = item.querySelector(':scope > strong');
+          const title = titleNode.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(titleNode).lineHeight);
+          const box = item.getBoundingClientRect();
+          const marker = getComputedStyle(item, '::before');
+          const border = marker.boxSizing === 'content-box'
+            ? parseFloat(marker.borderTopWidth) + parseFloat(marker.borderBottomWidth)
+            : 0;
+          return {
+            title: title.top + lineHeight / 2,
+            titleLines: title.height / lineHeight,
+            marker: box.top + parseFloat(marker.top)
+              + (parseFloat(marker.height) + border) / 2,
+          };
+        }"""
+    )
+    assert centres["titleLines"] >= 2, centres
+    assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
+    assert errors == []
+    page.close()
+
+
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
     """Hoisted decision rows keep source order through upgrade and reconnection."""
     source = leaf_page(

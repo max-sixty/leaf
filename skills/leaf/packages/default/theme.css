@@ -699,6 +699,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
       outline-offset: calc(-1 * var(--here-ring-w));
     }
   .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another:not([hidden]) { min-height: var(--aim-floor); }
   .lf-another > .lf-address { top: 0; bottom: 0; margin: auto 0; }
   /* The field holds the option before it is recorded, so its words use the document's
    * face just as they will after the module turns them into an lf-option. The return
@@ -714,7 +715,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      display: flex; align-items: center; justify-content: center;
                      width: var(--aim-floor); height: var(--aim-floor); padding: 0;
                      border: 0; border-radius: 4px; background: transparent;
-                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); opacity: 1; }
+                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); }
   .lf-another > .lf-btn[aria-disabled="false"] { color: var(--ink); cursor: pointer; }
   .lf-another > .lf-btn[aria-disabled="false"]:hover { background: var(--chip); }
   /* The leading column holds the keyboard address and the gap before the option's

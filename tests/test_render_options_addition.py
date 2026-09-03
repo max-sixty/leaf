@@ -75,12 +75,22 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
     expect(add).to_have_text("↵")
+    expect(add).to_have_css("opacity", "0.55")
+    field.fill("Portrait sketch")
+    expect(add).to_have_css("opacity", "1")
     aim_floor = page.locator("html").evaluate(
         "el => parseFloat(getComputedStyle(el).getPropertyValue('--aim-floor'))"
     )
     add_box = add.bounding_box()
     assert add_box["width"] >= aim_floor
     assert add_box["height"] >= aim_floor
+
+    page.locator("html").evaluate("el => el.style.setProperty('--aim-floor', '44px')")
+    form_box = form.bounding_box()
+    add_box = add.bounding_box()
+    assert form_box["height"] >= 44
+    assert add_box["y"] >= form_box["y"]
+    assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
     assert errors == []
     page.close()
 

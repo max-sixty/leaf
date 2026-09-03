@@ -142,6 +142,36 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.close()
 
 
+def test_the_feature_gallery_headings_are_stable_preview_destinations(browser, serve):
+    """A preview can name its subject directly instead of asking the reader to find it."""
+    root = live_url(serve(FEATURE_GALLERY))
+    destination = "#bg-quoted-and-visual-heading"
+    page, errors = open_page(browser, root + destination)
+
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    targets = links.evaluate_all(
+        """links => links.map(link => {
+          const href = link.getAttribute('href');
+          const target = document.getElementById(decodeURIComponent(href.slice(1)));
+          return {href, tag: target?.localName || null,
+                  generated: target?.dataset.lfGen === '1'};
+        })"""
+    )
+    assert targets and all(
+        target["tag"] in {"h1", "h2", "h3", "h4", "h5", "h6"}
+        and not target["generated"]
+        for target in targets
+    ), targets
+    assert len({target["href"] for target in targets}) == len(targets), targets
+
+    target = page.locator(destination)
+    expect(page).to_have_url(root + destination)
+    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
+    expect(target).to_be_in_viewport()
+    assert errors == []
+    page.close()
+
+
 def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     """Sign-off, layer comments, and request outcomes are real gallery journeys."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))

@@ -34,6 +34,48 @@ export function createWidgetLoader({
       }
   }
 
+  // The one import-on-demand door: a page loads the modules its own markup uses and no
+  // others. The vocabulary is the layer's and the page is one document in it, so
+  // importing every declared tag made every page pay for the whole layer — a triage
+  // board with no diff anywhere on it fetched Pierre's 1.7MB renderer on every load,
+  // which was more than half the bytes that page moved.
+  //
+  // Three boundaries can bring a tag into the document and all three ask here: startup,
+  // a version activation, and the panel's instantiation of the frozen markup an agent
+  // message carries. Each of them holds the markup it is about to upgrade, so each can
+  // name what it needs; a MutationObserver could only import after the element was
+  // already connected, which is the one order the startup contract forbids.
+  //
+  // A tag is asked for once per tab and the same promise answers every later caller, so
+  // a version that keeps a tag, a second diff in a second reply, and a poll that sees
+  // the same conversation again all cost nothing.
+  const modules = new Map();
+  const presentTags = (scope, holds) =>
+    tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
+
+  async function importWidgets(scope) {
+    // Before the modules import, because a widget's first render asks for these rules and
+    // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
+    // Asked of the same scope for the same reason, and that is what makes the narrowing
+    // safe: `shadowStage` is reachable only from a module, a module loads only where its
+    // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
+    // same call. The theme is read once for the tab however many scopes ask.
+    if (presentTags(scope, (entry) => entry["x-shadow"]).length)
+      await loadShadowRules();
+    await Promise.all(
+      presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
+        if (!modules.has(tag))
+          modules.set(
+            tag,
+            import(`/widgets/${tag}.js`).catch((err) =>
+              reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
+            ),
+          );
+        return modules.get(tag);
+      }),
+    );
+  }
+
   async function upgradeWidgets() {
     const response = await fetch("/registry.json");
     if (!response.ok)
@@ -59,16 +101,7 @@ export function createWidgetLoader({
     rememberAuthoredMarkup();
     markDeclared(document.body, MARKED_IN_PAGE);
     watchExternalLinks(document.body);
-    // Before the modules import, because a widget's first render asks for these rules and
-    // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
-    if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
-    await Promise.all(
-      tagsDeclaring((entry) => entry["x-upgrade"]).map((tag) =>
-        import(`/widgets/${tag}.js`).catch((err) =>
-          reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
-        ),
-      ),
-    );
+    await importWidgets(document);
     settle(dress(document.body));
     // Importing defined the elements and ran their connectedCallbacks; async ones
     // registered their work via settle(). Wait it out so geometry is final.
@@ -80,6 +113,7 @@ export function createWidgetLoader({
   }
 
   return {
+    importWidgets,
     opaquePassageParts,
     opaquePassageRoots,
     rememberPassageParts,

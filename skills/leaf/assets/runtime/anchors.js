@@ -970,26 +970,19 @@ export function createAnchors(dependencies) {
     for (const [at, held] of seats) {
       const roots = [...held.before, ...held.inside];
       let record = reactionSeats.get(at);
+      const changed =
+        !record ||
+        record.roots.length !== roots.length ||
+        roots.some(
+          (root, index) =>
+            root.id !== record.roots[index]?.id ||
+            root.token !== record.roots[index]?.token,
+        );
       if (!record) {
         const seat = el("span", `lf-ui ${SEAT}`);
         seat.dataset.lfGen = "1";
-        record = { seat, roots: [], margin: null };
+        record = { seat, roots, margin: null };
         reactionSeats.set(at, record);
-        record.margin = registerMarginItem({
-          target: at,
-          controls: seat,
-          items: () =>
-            record.roots.map((root) => ({
-              id: `reaction:${root.id}`,
-              text: `Take back ${root.token}`,
-              activate: () =>
-                record.seat
-                  .querySelector(`[data-event="${CSS.escape(root.id)}"]`)
-                  ?.focus({ preventScroll: true }),
-            })),
-          side: "after",
-          claim: false,
-        });
       }
       const { seat } = record;
       record.roots = roots;
@@ -1003,8 +996,11 @@ export function createAnchors(dependencies) {
         if (!mark) {
           const entry = registry.$reactions.tokens[root.token];
           mark = marginAction(offer("button", "lf-react-mark"), {
+            key: `take-back:${root.id}`,
             glyph: entry?.glyph ?? root.token,
             label: root.token,
+            role: "secondary",
+            state: "settled",
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;
@@ -1019,7 +1015,30 @@ export function createAnchors(dependencies) {
         if (seat.children[i] !== mark)
           seat.insertBefore(mark, seat.children[i] ?? null);
       });
-      record.margin.update();
+      if (!record.margin)
+        record.margin = registerMarginItem({
+          key: "standing-reactions",
+          target: at,
+          controls: seat,
+          items: () =>
+            record.roots.map((root) => ({
+              id: `reaction:${root.id}`,
+              text: `Take back ${root.token}`,
+              activate: () =>
+                record.seat
+                  .querySelector(`[data-event="${CSS.escape(root.id)}"]`)
+                  ?.focus({ preventScroll: true }),
+            })),
+          side: "after",
+          claim: false,
+        });
+      else if (changed) {
+        // Anchor repainting replaces Range objects even when the standing reactions
+        // have not changed. A margin update rebuilds every page-map entry, so telling
+        // it about that no-op once per seat made a composed gallery spend whole frames
+        // rebuilding the same map. Only the ids and tokens affect this contribution.
+        record.margin.update();
+      }
     }
     for (const [at, record] of reactionSeats)
       if (!kept.has(at)) {

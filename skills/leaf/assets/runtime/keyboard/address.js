@@ -1,6 +1,7 @@
 import { labelOf, spell } from "./bindings.js";
+import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";
-import { isExternalPageLink } from "../presentation.js";
+import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { focusDestination } from "../widget-elements.js";
 
 export function createAddress({
@@ -14,6 +15,7 @@ export function createAddress({
   claimsEsc,
   el,
   enterPageMap,
+  leavePageMap,
   focused,
   focusedThread,
   fragmentId,
@@ -30,25 +32,32 @@ export function createAddress({
   pageParts,
   paintHere,
   panelCovers,
+  panelIsOpen,
+  pageMapIsActive,
   placeThreadEdge,
   resolveAnchor,
   saying,
   seenScroller,
   setPanel,
   showTray,
+  currentTray,
+  workspaceState,
+  restoreWorkspace,
   startsAt,
   scrollToElement,
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
   // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
-  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a numbered list takes a
-  // following digit (`g t 2` selects the second tab, `g h 3` follows the third hyperlink,
-  // and `g f 2` opens the second fold).
+  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a lowercase list
+  // mnemonic takes a following digit (`g m 2` reaches the second Page-map location,
+  // `g t 2` selects the second tab, `g h 3` follows the third hyperlink, and `g f 2`
+  // opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
   // t/T and a/A, so those categories do not also carry numbered addresses.
   //
-  // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
+  // Which numbered lists there are is this table and nothing else. The complete Page map
+  // remains a direct destination because this one-digit list stops at nine. The chord's scope, the chips, the
   // line's words and the reference are all readings of it, so a fourth list is an entry here
   // rather than an edit to four consumers, and nothing that reads the table asks which list
   // it is holding. An entry says its letter, the word every surface calls the list by, the
@@ -62,15 +71,11 @@ export function createAddress({
   // the markup ended up — a diff stages a <details> per file in a root they tab straight
   // into.
   //
-  // The whole document and not the parts on screen, which is the tempting reading and the
-  // wrong one twice over. An address that counted what is in the window is an address that
-  // means a different link at every scroll position, so a reader who has just learnt that the
-  // PR is `g h 2` is wrong a moment later; and it would put the key line's own truth on the
-  // scroll, since a row that goes dead as the page moves is a row the line has to be
-  // repainted to stop promising — a paint measured at 1.3ms on the corpus, on every scroll
-  // frame of every page, for one row. The numbered route therefore keeps document order
-  // stable and offers its first nine members; later members remain in the document's own
-  // navigation rather than making a one-digit address ambiguous.
+  // Tabs, links, and folds use addresses as durable identities: a link the reader learnt
+  // as `g h 2` must not change when the page scrolls. Page-map addresses answer a spatial
+  // question instead. A location already in front of the reader is the useful numeric
+  // window, while its complete, searchable identity lives in the Page map sheet. That
+  // window stays fixed during a scroll and is read again only when scrolling settles.
   //
   // Above the table rather than beside the other readings below it, because an entry
   // holds the function itself and the array literal reads it as the module evaluates.
@@ -144,6 +149,7 @@ export function createAddress({
         setPanel(true);
         threadsBox.focus({ preventScroll: true });
       },
+      active: panelIsOpen,
     },
     {
       id: "navigation.panel.decisions",
@@ -155,6 +161,7 @@ export function createAddress({
         showTray("decisions");
         (decisionRows()[0] ?? decisionsPanel).focus({ preventScroll: true });
       },
+      active: () => currentTray() === "decisions",
     },
     {
       id: "navigation.panel.leaves",
@@ -166,6 +173,7 @@ export function createAddress({
         showTray("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
+      active: () => currentTray() === "leaves",
     },
     {
       id: "navigation.page-map",
@@ -174,16 +182,19 @@ export function createAddress({
       line: "Page map",
       when: () => true,
       go: enterPageMap,
+      active: pageMapIsActive,
+      close: leavePageMap,
     },
   ];
   const ADDRESSES = [
     {
       id: "navigation.page-map-item",
       key: "m",
-      word: "page-map items",
-      does: "Go to the nth page-map item",
+      word: "Page map locations",
+      does: "Go to the nth Page map location",
       list: pageMapItems,
       go: openPageMapItem,
+      viewport: true,
     },
     {
       id: "navigation.tab",
@@ -232,10 +243,30 @@ export function createAddress({
     },
   ];
   // A list's addressable members, and the range its label names. Nine is the whole numbered
-  // vocabulary: every member has one digit, every digit completes immediately, and every
-  // consumer below reads this same prefix rather than applying its own cap.
-  const MAX_NUMBERED_ADDRESSES = 9;
-  const addressed = (entry) => entry.list().slice(0, MAX_NUMBERED_ADDRESSES);
+  // vocabulary: every member has one digit and every digit completes immediately. Ordinary
+  // lists take the stable document prefix. A viewport list takes the visible prefix and
+  // holds that reading for the duration of a scroll.
+  let viewportWindows = new Map();
+  function currentAddressed(entry) {
+    const members = entry.list();
+    if (!entry.viewport) return members.slice(0, MAX_NUMBERED_ADDRESSES);
+    const placement = createAddressPlacement({ banner, keylineEl, startsAt });
+    return members
+      .filter((member) => placement.visibleBox(member))
+      .slice(0, MAX_NUMBERED_ADDRESSES);
+  }
+  function refreshViewportWindows() {
+    viewportWindows = new Map(
+      ADDRESSES.filter((entry) => entry.viewport).map((entry) => [
+        entry,
+        currentAddressed(entry),
+      ]),
+    );
+  }
+  const addressed = (entry) =>
+    entry.viewport && chordArmed
+      ? (viewportWindows.get(entry) ?? [])
+      : currentAddressed(entry);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
   // How far the chord has come: `g`, and the list's letter once one has named a list. The
   // key line and page chips combine that progress with each full route; the reference shows
@@ -260,6 +291,7 @@ export function createAddress({
   // other inside the functions that hold both.
   let chordArmed = false;
   let aimedList = null;
+  let scrolling = false;
   // Arming, aiming and disarming are one call, because they are one window: naming a list
   // re-opens it rather than starting a second.
   //
@@ -274,8 +306,12 @@ export function createAddress({
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the chord's cancel — so the chord refuses to arm there at all.
     if (on && !chordArmed && claimsEsc(focused())) return;
+    if (on) refreshViewportWindows();
+    else viewportWindows.clear();
     chordArmed = on;
     aimedList = on ? list : null;
+    scrolling = false;
+    document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     // The chips are the eye's copy; the window itself is spoken, or the mode change is
     // silent to exactly the reader who can't see them. Off the rows either way, since the
     // rows are what the window answers now — the letters at the first stage, the named
@@ -303,29 +339,26 @@ export function createAddress({
   // member's rect read after one is a layout forced per member, on every scroll frame a
   // numbered-list window stands through.
   function paintAddresses() {
+    if (!chordArmed) {
+      addressLayer.replaceChildren();
+      return;
+    }
+    // A state render or version activation can replace Page-map hosts without scrolling.
+    // Refresh at every resting presentation boundary; a live scroll keeps the old window
+    // until its own `scrollend` boundary below.
+    if (!scrolling) refreshViewportWindows();
+    const placement = createAddressPlacement({ banner, keylineEl, startsAt });
     const chips = [];
-    if (chordArmed) {
-      const clips = new Map();
-      // The banner stands over the page rather than in it, so shownRect says nothing about
-      // it — that reading is what the page's own boxes clip, and the bar clips none of them.
-      // The chip is the one thing that has to care, being drawn above the bar: placed on a
-      // corner the bar has taken, it is an address floating over the status line, naming
-      // nothing the reader can see there. So it rides the covered edge, and a member with
-      // nothing left below that edge wears no chip at all.
-      const covered = banner.getBoundingClientRect().bottom;
-      for (const entry of aimedList ? [aimedList] : ADDRESSES) {
-        for (const [i, member] of addressed(entry).entries()) {
-          const r = startsAt(member, clips);
-          if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
-          const chip = addressChip(entry, i + 1);
-          if (r.top < covered) chip.classList.add("lf-in");
-          chip.style.left = `${r.left}px`;
-          chip.style.top = `${Math.max(r.top, covered)}px`;
-          chips.push(chip);
-        }
+    for (const entry of aimedList ? [aimedList] : ADDRESSES) {
+      for (const [i, member] of addressed(entry).entries()) {
+        const r = placement.visibleBox(member);
+        if (!r) continue;
+        const chip = addressChip(entry, i + 1);
+        chip.style.left = `${r.left}px`;
+        chip.style.top = `${r.top}px`;
+        chips.push(chip);
       }
     }
-    addressLayer.replaceChildren(...chips);
     // A chip that lands on one already drawn is taken down. Two addressable things can start
     // within a chip's width of each other — footnote markers in a row, a link that is the
     // whole of a summary — and stacked chips do not read as two: the one underneath shows an
@@ -337,32 +370,11 @@ export function createAddress({
     // is the same answer, given to a member the page has no room to say it about rather than
     // to one that has scrolled away.
     //
-    // Every box is read after the one write and every removal made after the last read, so
-    // the pass stays at the single layout the write already cost.
-    //
-    // The key line is standing in that same corner and goes in first, so a chip loses to it
-    // the way it loses to a chip already drawn. It is the legend saying what these digits
-    // mean, on screen exactly as long as they are, so covering it is the one collision that
-    // takes away the reader's answer rather than one of its members. The bar at the other
-    // edge is dodged earlier and by clamping, because a chip has somewhere to go there: the
-    // covered edge is above the member, while sliding clear of a line at the foot would put
-    // the chip on a member it no longer sits on.
-    const kept = [keylineEl.getBoundingClientRect()];
-    const piled = [];
-    for (const chip of chips) {
-      const box = chip.getBoundingClientRect();
-      if (kept.some((standing) => overlaps(box, standing))) piled.push(chip);
-      else kept.push(box);
-    }
-    for (const chip of piled) chip.remove();
+    // Clamp each complete face before checking collisions: bringing a chip on screen
+    // can move it onto its neighbour. Measure every face before moving or removing one.
+    // The key line reserves its own box first, so the chips cannot cover their legend.
+    placement.paint(addressLayer, chips);
   }
-  // Whether two boxes share any pixel. Touching edges do not, so two chips laid exactly a
-  // chip's width apart sit side by side rather than one of them being taken down. That
-  // boundary is the chip's own width and moves with it — the face is a little wider than it
-  // was — so what survives a crowded line is a fact about the face rather than a constant,
-  // and a page whose members used to clear it by a pixel is not promised to now.
-  const overlaps = (a, b) =>
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   // A page that moves under an armed window moves the boxes the chips were placed from, so
   // the chips follow it rather than standing where the page used to be. Capture, because the
   // panel's list and a board's own overflow scroll in boxes of their own and a scroll event
@@ -374,11 +386,29 @@ export function createAddress({
   // that repaints on every scroll of every page would be repainting for nobody. Armed, the
   // paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
   // one door is what stops the chips having a repaint set of their own to keep in step.
-  addEventListener("scroll", () => chordArmed && paintHere(), {
-    capture: true,
-    passive: true,
+  addEventListener(
+    "scroll",
+    () => {
+      if (!chordArmed) return;
+      scrolling = true;
+      paintHere();
+    },
+    { capture: true, passive: true },
+  );
+  addEventListener(
+    "scrollend",
+    () => {
+      if (!chordArmed || !scrolling) return;
+      scrolling = false;
+      paintHere();
+    },
+    { capture: true, passive: true },
+  );
+  addEventListener("resize", () => {
+    if (!chordArmed) return;
+    scrolling = false;
+    paintHere();
   });
-  addEventListener("resize", () => chordArmed && paintHere());
 
   // The chord: one scope, a row per panel and addressable list, a row for the page's two
   // edges, and the window's own way out. A panel's mnemonic completes its travel. A list
@@ -458,6 +488,18 @@ export function createAddress({
         does: destination.does,
         line: destination.line,
         when: () => !aimedList && destination.when(),
+        returnFrame: () => {
+          const workspace = workspaceState();
+          return {
+            active: destination.active,
+            close: () => {
+              destination.close?.();
+              return restoreWorkspace(workspace);
+            },
+            does: `Return from ${destination.line}`,
+            line: "back",
+          };
+        },
         run: () => {
           setChord(false);
           destination.go();
@@ -516,10 +558,9 @@ export function createAddress({
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
         // inside it. The complete routes stay fixed while that letter turns pressed, so one
-        // Escape gives the letter back and the next closes the window. It took both at once,
-        // which is the same drift `c` had at the panel: a reader who had narrowed to the
-        // wrong list wanted the other one, and cancelling put them back on the page, pressing
-        // `g` again to reach a window that had been standing the whole time.
+        // Escape gives the letter back and the next closes the window. Collapsing both at
+        // once stranded a reader who had narrowed to the wrong list back on the page, making
+        // them press `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
         chordControl: true,
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),

@@ -12,7 +12,7 @@
  * `prepareActivation` fetches the revision a state names ahead of the commit that
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
- * `comparisonChanges`); and `blocksOnScreen`, the reading the decision walk starts from.
+ * `comparisonChanges`); and `readingBlock`, the block the decision walk starts from.
  */
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";
@@ -21,6 +21,7 @@ import { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { notice } from "./notifications.js";
 import {
+  authored,
   closestAcross,
   containsAcross,
   inChrome,
@@ -78,6 +79,7 @@ export function createVersion({
   el,
   elementById,
   focused,
+  importWidgets,
   landedAt,
   midComposition,
   pageText,
@@ -198,13 +200,13 @@ export function createVersion({
   // restores focus to on a hide is the element that had it when the popover showed — not
   // the `source`, which buys the anchor and the invoker relationship and nothing about
   // focus — so every door into this menu shows it from the button and the way back out is
-  // the platform's on all of them: the pointer because the press focuses the button first,
-  // `v` because the row focuses it before running that same press, and the reference
-  // because it stands a layer back up from that layer's invoker. Scoping the handback to
-  // the door rather than to the state is what keeps it off a light dismissal, which
-  // restores nothing on purpose: a reader who pressed away into the page is left where
-  // they pressed rather than moved to the chooser they pressed away from. Leaf is left
-  // with the close, which is the only end state it asks for.
+  // the platform's for pointer entry, because that press focuses the button first. Keyboard
+  // `v` clicks the same invoker without moving focus and its return frame restores the real
+  // origin; the reference stands a layer back up from that invoker before restoring its own
+  // origin. Scoping the platform handback to its door rather than to the state is what keeps
+  // it off a light dismissal, which restores nothing on purpose: a reader who pressed away
+  // into the page is left where they pressed rather than moved to the chooser they pressed
+  // away from. Leaf is left with the close, which is the only end state it asks for.
   function closeVersionMenu() {
     if (versionMenuIsOpen()) versionMenu.hidePopover();
   }
@@ -238,6 +240,11 @@ export function createVersion({
     "New page available → open v999",
   );
   latestChip.onclick = () => goActive();
+  // The one address on this row whose arrival a reader must not miss: what they are
+  // reading has been replaced. Every other address is standing information, and being
+  // behind the row's menu costs it nothing; this one is news, so the menu's door says so
+  // while it holds it (banner-shelf.js, paintDoor).
+  latestChip.dataset.lfUrgent = "1";
   if (!LIVE_ROOT) reserveNewsSlot(latestChip);
   const arriving = (label) => `New page available → open ${label}`;
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
@@ -318,7 +325,8 @@ export function createVersion({
   );
   // The mode represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
-  // not provide. Escape and light dismissal stay native.
+  // not provide. A keyboard-opened menu has CHOOSER's exact return frame; Escape and light
+  // dismissal remain native for pointer-opened menus.
   const VERSIONS = {
     title: "In the versions menu",
     when: versionsOffered,
@@ -335,11 +343,15 @@ export function createVersion({
     // statement rather than a suspension the surfaces have to be told about separately.
     claims: allButTheReference,
     rows: [
+      // Two rows, both live at either end of a one-row menu, so the line prints both at
+      // once — and while they shared a word it printed it twice, leaving the reader to
+      // tell them apart by their keycaps. The direction is the whole difference between
+      // them and it is what each says.
       {
         id: "version.leave-forward",
         keys: ["Tab"],
         does: "Leave the versions menu forward",
-        line: "leave versions",
+        line: "leave forward",
         native: true,
         // A held Tab is still one continuous trip through the controls. When its repeated
         // keydown reaches the boundary, closing is part of that press just as it is for a
@@ -352,7 +364,7 @@ export function createVersion({
         id: "version.leave-backward",
         keys: ["Shift+Tab"],
         does: "Leave the versions menu backward",
-        line: "leave versions",
+        line: "leave backward",
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
@@ -361,12 +373,10 @@ export function createVersion({
     ],
   };
 
-  // v names the chooser, the control wearing the version number, and the menu it opens
-  // takes the letter again for the current page — one motion whose second half is a key of
-  // the scope the first half stood up, so it costs the page's table no row and holds whether
-  // or not this page is behind. Named, because the chip that jumps straight to the current
-  // page spells that motion in its tooltip, and because the closed control's own title says
-  // the press beside what pressing it does.
+  // v names the chooser, the control wearing the version number, and the menu it opens.
+  // Named, because the chip that jumps straight to the current page spells that motion in
+  // its tooltip, and because the closed control's own title says the press beside what
+  // pressing it does.
   const CHOOSER = {
     id: "version.open",
     keys: ["v"],
@@ -376,16 +386,16 @@ export function createVersion({
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
-    // The control's own press, so the key and the pointer are one gesture: the menu is a
-    // popover the button declares, and the browser's invoker is what makes a second press a
-    // close. The focus first is what makes the handback the same on both doors — a popover
-    // restores focus to whatever had it when it showed, which the pointer leaves as the
-    // button of its own accord and this key would otherwise leave as the body, putting a
-    // reader who pressed `v` and then Escape on the page rather than back on the chooser.
-    run: () => {
-      versionBtn.focus();
-      versionBtn.click();
-    },
+    // The popover is the control's own press, while the keyboard register owns the route
+    // back to the place that pressed v. Programmatically focusing the chooser first made
+    // the browser return there instead, discarding the real origin before the menu opened.
+    returnFrame: () => ({
+      active: versionMenuIsOpen,
+      close: closeVersionMenu,
+      does: "Return from the versions menu",
+      line: "back",
+    }),
+    run: () => versionBtn.click(),
   };
 
   let lastVersionsKey = "";
@@ -613,6 +623,7 @@ export function createVersion({
   function diffBlocks(root) {
     const pairs = [];
     const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
+    const authoredHere = authored(root);
     for (const b of root.querySelectorAll(blocks)) {
       if (inChrome(b) || b.closest(opaque)) continue;
       if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
@@ -634,7 +645,7 @@ export function createVersion({
     // so text can't compare — but a widget the base didn't have still marks.
     for (const w of root.querySelectorAll(opaque)) {
       // parentElement, not w itself: an svg a widget rendered stays its widget's.
-      if (inChrome(w) || w.parentElement?.closest(opaque)) continue;
+      if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
       const entry = registry[w.localName] ?? {};
       // A data selection is authored semantics even though the generated children
       // of an upgraded widget are opaque to comparison.
@@ -995,6 +1006,13 @@ export function createVersion({
       return null;
     }
     if (doc === null) return { stale: true };
+    // Step 4 of the startup order, at the boundary that runs the same passes: this
+    // version may introduce a tag the standing document never carried, and insertion is
+    // where its connectedCallback runs. Fetched here, on the same background stretch as
+    // the document itself, so the install below spends none of its view transition on a
+    // module fetch and the page the reader is still looking at is whole for the length
+    // of the import. activateRevision has no other caller, so this is the one import.
+    await importWidgets(doc.querySelector("body > main"));
     return {
       stale: false,
       activates: () =>
@@ -1043,6 +1061,11 @@ export function createVersion({
       if (rect.height && rect.bottom > bannerBottom) yield [block, rect];
     }
   }
+  // The one block the reader is on, which is the first the walk above yields. Two
+  // things outside ask it — where a decision walk starts, and where the keyboard
+  // reference hands a reader back to — and they were asking it in two places with the
+  // same expression written out twice.
+  const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 
   // The quote and the section it's searched in come from the same block, or the search is
   // filtered to a section the text isn't in and can only ever fail — restore then falls back
@@ -1211,13 +1234,13 @@ export function createVersion({
     CHOOSER,
     NEWEST,
     VERSIONS,
-    blocksOnScreen,
     closeVersionMenu,
     comparisonBase,
     comparisonChanges,
     installArrival,
     latestChip,
     prepareActivation,
+    readingBlock,
     renderVersions,
     versionBtn,
     versionLabels,

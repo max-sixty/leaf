@@ -1,20 +1,31 @@
 # The examples
 
-Each authored HTML file is both a complete page and an integration fixture. The
-website publishes those pages with the same vendored layer. `corpus.html` and
-`corpus.data.json` are generated internal views; edit the individual example and
-regenerate the corpus instead of patching either output.
+Each top-level authored HTML file is both a complete user page and an integration
+fixture. The website publishes those pages with the same vendored layer. Synthetic
+feature scenarios have one home: `developer/feature-gallery.html`. Extend that
+omnibus page instead of adding another developer page. Every core Leaf feature must
+be directly exercisable there. A change that adds or materially changes a core feature
+must add or update its focused specimen in the same change; coverage in a public
+example does not substitute for the developer surface. Incidental presence does not
+count: a focused specimen names the real control or gesture, seeds the state it needs,
+and tells the developer what result to inspect. For injected chrome whose state comes
+from outside one document, name that condition and exercise it in the gallery's browser
+test. The gallery uses the same companion version, log, and data conventions as an
+example, but the website does not publish it.
+`corpus.html` and `corpus.data.json` are generated from both sets; edit the source page
+and regenerate the corpus instead of patching either output.
 
 ## Every widget and idiom in the vocabulary stands here
 
 The nightly run uses this corpus in two ways. Page-sensitive contracts run every
-fixture, including the generated corpus: each renders in both palettes,
+public example, the feature gallery, and the generated corpus: each renders in both
+palettes,
 passes axe, and exports with its scripts gone. Authored-content sweeps quote every
 source passage and resolve anchors written from every source file; the corpus
 generation check proves those sources are what the derived view carries. Shared
 runtime mechanisms use causal representatives instead of repeating the same gesture
 over every page, and each representative has a non-vacuity floor naming the reason it
-stands there. So a widget that stands in no source example is one the whole-page
+stands there. So a widget that stands in no source page is one the whole-page
 contracts have never seen. That gap is easy to miss, because the widget's own tests
 are green — the missing coverage reads as coverage.
 
@@ -24,7 +35,7 @@ not read `docs/`, so the sweep that reads both palettes never reached one, and
 nothing could say whether a specimen's gutter was painted in the dark palette
 until a fixture was written for it by hand
 (`test_the_specimen_gutter_is_painted_in_both_schemes`).
-`test_every_widget_in_the_vocabulary_stands_in_an_example` is the floor now: it
+`test_every_widget_in_the_vocabulary_stands_in_a_corpus_source` is the floor now: it
 reads the widget list off the registry, so the next widget joins the corpus by
 being declared. Which registry is the other half of that question, and it is read
 off `layer.json` (`SHIPPED_PACKAGES`) rather than written into the test. A floor
@@ -36,7 +47,7 @@ at all.
 Idioms — the catalog's other half — sit under the same floor, and holding them
 there takes a second test. An idiom is declared as a CSS selector rather than as
 a tag name, so whether the corpus holds one is a question for a layout engine
-rather than for a regex. `test_every_idiom_in_the_catalog_stands_in_an_example`
+rather than for a regex. `test_every_idiom_in_the_catalog_stands_in_a_corpus_source`
 therefore puts every idiom key to Chrome, matched against the authored markup.
 The authored markup, not the upgraded page: a `<table>` a module builds
 demonstrates nothing about the shape an author is being pointed at. Asking Chrome
@@ -102,15 +113,16 @@ place across it are the page's largest body of behaviour with no authored page
 behind it, and a widget's gap read the same way: green tests over a surface the
 corpus never composed.
 
-So an example that was revised ships each earlier version as
-`examples/versions/<stem>.vN.html`. `example_versions` in `scripts/example_data.py`
+So a page fixture that was revised ships each earlier version in its sibling
+`versions/` directory as `<stem>.vN.html`. `example_versions` in
+`scripts/example_data.py`
 is the one reader of that list — the ordering is the filename's, not a manifest's,
 because every builder already writes its own stamp text — and each builder walks it
 oldest first through the real `version stamp`: `scripts/preview.py`,
 `publish_pages` in `scripts/site.py`, `serve` in `tests/render_harness.py`, and
-`test_examples_pass_check`, which lints every version rather than only the current
-one. The prior versions live under `versions/` so that the `examples/*.html` glob
-every one of those builders starts from keeps reading exactly the examples.
+`test_page_fixtures_pass_check`, which lints every version rather than only the current
+one. The prior versions live under `versions/` so top-level `*.html` discovery in
+either source directory never reads a version as a page fixture.
 
 Three orderings hold, and each of them was a bug first. The seed goes in after the
 first stamp and before any later one, so a revised example reads the way it
@@ -148,7 +160,7 @@ is the one thing no markup describes, so an example that wants to show one ships
 its events as `<stem>.jsonl` beside the page, the way an example that wants a
 screenshot ships the image bytes beside it. Every place that builds a page
 directory out of an example lays the log in: `scripts/preview.py`,
-`publish_pages` in `scripts/site.py`, `test_examples_pass_check`, and `serve` in
+`publish_pages` in `scripts/site.py`, `test_page_fixtures_pass_check`, and `serve` in
 `tests/render_support.py`. That last one is the browser corpus, and it laid an example's
 media in while leaving its log out — so the corpus sweeps read every example as a
 page with nothing standing on it, which is not a page anybody is served. `serve`
@@ -171,10 +183,9 @@ captures first and then current values through `leaf data capture` and `leaf dat
 so binding, contract validation, revisioning, live preview, browser sweeps, and the
 static site all exercise the real doors. `scripts/corpus.py` composes those companions
 into `corpus.data.json`; edit the individual example's files and regenerate rather
-than patching the corpus copies. A selected snapshot number must stay valid both in
-its own page and in corpus composition, so the first capture in the first contributing
-example owns snapshot `1`; grow this fixture convention only when another capture
-actually needs to compose.
+than patching the corpus copies. Composition rebases each selected `snapshot` to that
+capture's revision in the combined data log, so each source page owns only its local
+snapshot numbers; contributors do not coordinate a corpus-wide sequence.
 
 A large unified diff stays in its `.patch` source file. Capture it with
 `"format": "unified-diff"`; the public capture door validates and splits it into the
@@ -201,7 +212,7 @@ anchor sweep can't catch it, because that sweep writes its own anchors.
 `resolves` is reachable now that a comment can stand in a shipped log, and no
 example uses it, deliberately. The attribute would have to go in the markup, and
 the markup travels further than the log: `scripts/corpus.py` embeds each
-example's `<main>` verbatim, the corpus's own directory has no seed, and
+example's authored content, the corpus's own directory has no seed, and
 `version check` would refuse the corpus over an id naming no comment in *its*
 log. Seeding a log costs the example nothing; hanging markup off that log couples
 the markup to every page built from it.
@@ -288,7 +299,7 @@ An `lf-shot` needs image bytes a single file can't hold. `examples/media/`
 carries them, content-addressed exactly as `leaf page media` names them in a page
 directory, and every place that builds a page directory out of an example lays
 them in: `serve` and `test_an_installed_payload_passes_its_real_browser_gate` in
-the browser test modules, `test_examples_pass_check`, `publish_pages` in
+the browser test modules, `test_page_fixtures_pass_check`, `publish_pages` in
 `scripts/site.py`, and `scripts/preview.py`. A publisher that forgets fails
 loudly, because `version check` refuses a `/media/` reference the directory can't
 answer.
@@ -300,9 +311,8 @@ blank space — draw both at one height. The frame scales an image to its own
 width, so draw the file at twice the width the shot will get where it stands; for
 the JWT pair that is the ~494px the option card leaves once the `.facts` rail has
 taken its share, and it is a width to measure rather than a number to carry over.
-`.lf-shotcap` sits absolutely at the frame's top-left, so a mock whose own title
-starts at the top edge publishes with BEFORE painted across it — leave that
-corner clear. And take the palette from the pair already here.
+The state rail has its own band above the image, so the mock can use its whole
+canvas. Take the palette from the pair already here.
 
 The script that draws a mock belongs in scratch, not in `scripts/`.
 `scripts/record-demo.py` earns its place there because the stills it draws depict
@@ -312,9 +322,9 @@ and the generator has to stay around to re-run. A mock depicts a console that
 doesn't exist: nothing here can make it false, and nothing would ever re-run its
 generator.
 
-## Previewing an example
+## Previewing a page fixture
 
-Run `scripts/preview.py [example]` to create a fresh vendored page, copy its
+Run `scripts/preview.py [page]` to create a fresh vendored page, copy its
 companion log, data, and media, and serve it at a local URL. Add `--export` to
 write the rendered page as a standalone review file. Use `page init` and the
 normal server commands for an authored page outside this corpus.

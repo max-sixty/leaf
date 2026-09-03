@@ -1,7 +1,20 @@
-# Claude Code wait loop
+# Claude Code handoff and wait loop
 
-Read this immediately before starting Claude Code's wait loop for a page, and
-when recovering that wait process.
+Read this immediately before handing a page over in Claude Code, and when
+recovering its wait process.
+
+## Serve the page
+
+```bash
+leaf server start <page>
+```
+
+It prints the page's keyed URL on stdout and returns. Hand that exact string
+back. `leaf server run` prints the same URL but never exits, so nothing it says
+reaches you and there is no turn to end. `references/serving-pages.md` owns the
+key, the address it binds, and a URL the reader cannot reach.
+
+## Wait loop
 
 One unnamed `leaf wait` watches every page the host session owns. A batch begins
 with `{"page": …, "threads": […]}` and continues with that page's events. Name a
@@ -34,3 +47,14 @@ that status:
 Empty stdout alone is not evidence that the host stopped the process. Start a
 replacement unnamed wait only when the host itself reports that it canceled or
 killed the command.
+
+## Review fixtures
+
+A page put up to be looked at — a preview of an example, a fixture for a visual
+check — is not a handoff, so it owes no watcher. `scripts/preview.py` in a Leaf
+checkout marks every page it builds as a preview, and the per-turn reminder to
+start one skips those. Nothing else is exempt: a comment left on a preview is a
+delivery this session owes like any other, and the reminder says so.
+
+Do not idle a fixture to quiet the loop. `idle` closes the page in the browser,
+which changes the banner a visual check may be reading.

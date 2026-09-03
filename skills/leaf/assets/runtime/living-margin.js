@@ -1,23 +1,30 @@
 import {
   layoutMarginRows,
   registerMarginRow,
+  reserveRail,
   scheduleMarginLayout,
   unregisterMarginRow,
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
+import { landInConversation } from "./conversation/landing.js";
 
 const KINDS = {
-  action: { label: "Action", symbol: "·", priority: -1 },
-  change: { label: "Change", symbol: "Δ", priority: 0 },
-  comment: { label: "Thread", symbol: "💬", priority: 1 },
-  decision: { label: "Ask", symbol: "?", priority: 2 },
-  outcome: { label: "Outcome", symbol: "✓", priority: 3 },
-  sent: { label: "Sent", symbol: "✓", priority: 3 },
-  pickup: { label: "Picked up", symbol: "✓", priority: 3 },
-  waiting: { label: "Waiting for pickup", symbol: "○", priority: 3 },
-  activity: { label: "Active", symbol: "●", priority: 4 },
+  action: { label: "Action", icon: "dot", priority: -1 },
+  change: { label: "Change", icon: "change", priority: 0 },
+  comment: { label: "Thread", icon: "comment", priority: 1 },
+  decision: { label: "Ask", icon: "question", priority: 2 },
+  outcome: { label: "Outcome", icon: "check", priority: 3, indication: true },
+  sent: { label: "Sent", icon: "sent", priority: 3, indication: true },
+  pickup: { label: "Picked up", icon: "pickup", priority: 3, indication: true },
+  waiting: {
+    label: "Waiting for pickup",
+    icon: "waiting",
+    priority: 3,
+    indication: true,
+  },
+  activity: { label: "Active", icon: "activity", priority: 4 },
 };
 
 // Content modules contribute what their target offers; this projection decides where
@@ -27,11 +34,134 @@ const KINDS = {
 const offeredItems = new Set();
 const offerListeners = new Set();
 const ACTION_TONES = new Set(["neutral", "positive", "negative"]);
-const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options"]);
+const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options", "receipt"]);
+const ACTION_STATES = new Set(["idle", "engaged", "busy", "failed", "settled"]);
+const ACTION_ROLES = new Set([
+  "complete",
+  "escape",
+  "primary",
+  "secondary",
+  "reading",
+  "overflow",
+]);
+const ACTIVE_STATES = new Set(["engaged", "busy", "failed"]);
+const STATE_PRIORITY = new Map([
+  ["failed", 0],
+  ["busy", 1],
+  ["engaged", 2],
+  ["settled", 3],
+  ["idle", 3],
+]);
+const ROLE_PRIORITY = new Map([
+  ["complete", 0],
+  ["escape", 1],
+  ["primary", 2],
+  ["secondary", 3],
+  ["reading", 4],
+  ["overflow", 5],
+]);
+const RESTING_BUTTON_BUDGET = 2;
+const EXPANDED_BUTTON_BUDGET = 6;
+const BUTTON_RECORD = Symbol("Leaf Button record");
+const FORWARDED_BUTTON_ATTRIBUTES = [
+  "aria-busy",
+  "aria-controls",
+  "aria-disabled",
+  "aria-expanded",
+  "aria-haspopup",
+  "aria-pressed",
+];
+
+// Built-in Button faces use one stroked, currentColor icon vocabulary. Reaction tokens
+// are authored content and may still supply a glyph; platform emoji never supplies a
+// structural Leaf face, so line weight and baseline stay the same across systems.
+const ICONS = {
+  activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
+  change:
+    '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
+  check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
+  comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
+  "compare-before":
+    '<circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11Z" fill="currentColor" stroke="none"/>',
+  "compare-after":
+    '<circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor" stroke="none"/>',
+  cross: '<path d="m4 4 8 8M12 4l-8 8"/>',
+  dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
+  edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
+  more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
+  all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
+  pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
+  question:
+    '<path d="M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2"/><circle cx="8" cy="12.35" r=".7" fill="currentColor" stroke="none"/>',
+  retry: '<path d="M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9"/>',
+  sent: '<path d="M2.75 3.25 13.25 8 2.75 12.75l1.2-4L9 8 3.95 7.25z"/>',
+  undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',
+  waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
+};
+
+export function iconElement(icon, className = "lf-margin-action-icon") {
+  if (!ICONS[icon]) throw new TypeError(`Unknown Leaf icon: ${icon}`);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add(className);
+  svg.dataset.lfIcon = icon;
+  svg.innerHTML = ICONS[icon];
+  return svg;
+}
 
 const changedOffers = () => {
   for (const listener of offerListeners) listener();
 };
+
+const visibleButtonLabel = ({ behavior, label }) =>
+  (behavior !== "disclosure" && behavior !== "options") || label.endsWith("…")
+    ? label
+    : `${label}…`;
+
+function buttonRecord(control) {
+  const record = control?.[BUTTON_RECORD];
+  if (!record) throw new TypeError("A contributed Button must use marginAction");
+  return record;
+}
+
+function marginControls(controls) {
+  if (!(controls instanceof Element)) return [];
+  if (controls.matches(".lf-margin-action")) return [controls];
+  return [...controls.querySelectorAll(".lf-margin-action")];
+}
+
+function validateMarginControls(offered) {
+  const keys = new Set();
+  for (const control of marginControls(offered.controls)) {
+    const record = buttonRecord(control);
+    if (keys.has(record.key))
+      throw new TypeError(
+        `Duplicate Button key "${record.key}" in margin item "${offered.key}"`,
+      );
+    if (record.owner && record.owner !== offered.key)
+      throw new TypeError(
+        `Button "${record.key}" already belongs to margin item "${record.owner}"`,
+      );
+    keys.add(record.key);
+    record.owner = offered.key;
+    control.dataset.lfButtonOwner = offered.key;
+  }
+}
+
+function syncForwardedButtonState(projection, source) {
+  const label = source.getAttribute("aria-label");
+  if (label == null) projection.removeAttribute("aria-label");
+  else projection.setAttribute("aria-label", label);
+  projection.disabled =
+    source.disabled || source.getAttribute("aria-disabled") === "true";
+  for (const attribute of FORWARDED_BUTTON_ATTRIBUTES) {
+    const value = source.getAttribute(attribute);
+    if (value == null) projection.removeAttribute(attribute);
+    else projection.setAttribute(attribute, value);
+  }
+}
 
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
@@ -41,65 +171,169 @@ const changedOffers = () => {
 // face, so this anatomy owns the only visual tooltip too.
 export function marginAction(
   control,
-  { glyph, label, behavior = "action", tone = "neutral" },
+  {
+    glyph = null,
+    icon = null,
+    key,
+    label,
+    behavior = "action",
+    tone = "neutral",
+    role = "primary",
+    state = "idle",
+  },
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin action needs an Element control");
-  if (!String(glyph ?? "").trim()) throw new TypeError("A margin action needs a glyph");
+  if (!String(key ?? "").trim()) throw new TypeError("A margin action needs a key");
+  if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
+    throw new TypeError("A margin action needs exactly one glyph or icon");
   if (!String(label ?? "").trim()) throw new TypeError("A margin action needs a label");
   if (!ACTION_TONES.has(tone))
     throw new TypeError(`Unknown margin-action tone: ${tone}`);
   if (!ACTION_BEHAVIORS.has(behavior))
     throw new TypeError(`Unknown margin-action behavior: ${behavior}`);
-  const labelText = String(label);
+  if (!ACTION_ROLES.has(role))
+    throw new TypeError(`Unknown margin-action role: ${role}`);
+  const record = control[BUTTON_RECORD] ?? {};
+  Object.assign(record, {
+    key: String(key),
+    glyph: glyph == null ? null : String(glyph),
+    icon,
+    label: String(label),
+    behavior,
+    tone,
+    role,
+    state,
+  });
+  control[BUTTON_RECORD] = record;
 
   control.classList.add("lf-margin-action");
   control.removeAttribute("title");
-  control.dataset.lfBehavior = behavior;
-  control.dataset.lfTone = tone;
-  if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
+  control.dataset.lfButtonKey = record.key;
+  control.dataset.lfBehavior = record.behavior;
+  control.dataset.lfTone = record.tone;
+  control.dataset.lfRole = record.role;
+  marginActionState(control, state);
+  const opens = behavior === "disclosure" || behavior === "options";
+  if (opens && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
-  if (behavior === "action") control.removeAttribute("aria-expanded");
-  let glyphNode = control.querySelector(":scope > .lf-margin-action-glyph");
+  if (!opens) control.removeAttribute("aria-expanded");
+  if (behavior === "receipt") {
+    control.setAttribute("role", "status");
+    control.tabIndex = -1;
+  } else if (control.getAttribute("role") === "status") {
+    control.removeAttribute("role");
+    control.removeAttribute("tabindex");
+  }
+  let glyphNode = control.querySelector(
+    ":scope > :is(.lf-margin-action-glyph, .lf-margin-action-icon)",
+  );
   let spaceNode = control.querySelector(":scope > .lf-margin-action-space");
   let labelNode = control.querySelector(":scope > .lf-margin-action-label");
-  if (!glyphNode) glyphNode = document.createElement("span");
+  if (icon) {
+    if (!(glyphNode instanceof SVGSVGElement) || glyphNode.dataset.lfIcon !== icon)
+      glyphNode = iconElement(icon);
+  } else {
+    if (!(glyphNode instanceof HTMLSpanElement))
+      glyphNode = document.createElement("span");
+    if (glyphNode.className !== "lf-margin-action-glyph")
+      glyphNode.className = "lf-margin-action-glyph";
+    if (glyphNode.hasAttribute("data-lf-icon"))
+      glyphNode.removeAttribute("data-lf-icon");
+    if (glyphNode.textContent !== glyph) glyphNode.textContent = glyph;
+  }
   if (!spaceNode) spaceNode = document.createElement("span");
   if (!labelNode) labelNode = document.createElement("span");
-  glyphNode.className = "lf-margin-action-glyph";
-  glyphNode.setAttribute("aria-hidden", "true");
-  glyphNode.textContent = glyph;
-  spaceNode.className = "lf-margin-action-space";
-  spaceNode.setAttribute("aria-hidden", "true");
-  spaceNode.textContent = " ";
-  labelNode.className = "lf-margin-action-label";
-  labelNode.textContent =
-    behavior === "action" || labelText.endsWith("…") ? labelText : `${labelText}…`;
-  control.replaceChildren(glyphNode, spaceNode, labelNode);
+  if (glyphNode.getAttribute("aria-hidden") !== "true")
+    glyphNode.setAttribute("aria-hidden", "true");
+  if (spaceNode.className !== "lf-margin-action-space")
+    spaceNode.className = "lf-margin-action-space";
+  if (spaceNode.getAttribute("aria-hidden") !== "true")
+    spaceNode.setAttribute("aria-hidden", "true");
+  if (spaceNode.textContent !== " ") spaceNode.textContent = " ";
+  if (labelNode.className !== "lf-margin-action-label")
+    labelNode.className = "lf-margin-action-label";
+  const visibleLabel = visibleButtonLabel(record);
+  if (labelNode.textContent !== visibleLabel) labelNode.textContent = visibleLabel;
+  // A reading with several members adds one retained count badge. It remains part of
+  // the same hit target, so a heartbeat between pointerdown and pointerup must preserve
+  // it along with the icon and label.
+  const countNode = control.querySelector(":scope > .lf-margin-count");
+  const anatomy = [glyphNode, spaceNode, labelNode, ...(countNode ? [countNode] : [])];
+  if (
+    control.childNodes.length !== anatomy.length ||
+    anatomy.some((node, index) => control.childNodes[index] !== node)
+  )
+    control.replaceChildren(...anatomy);
   if (!control.hasAttribute("aria-label"))
-    control.setAttribute("aria-label", labelText);
+    control.setAttribute("aria-label", record.label);
+  return control;
+}
+
+function syncActionCount(control, count) {
+  let badge = control.querySelector(":scope > .lf-margin-count");
+  if (count <= 1) {
+    badge?.remove();
+    return;
+  }
+  if (!badge) badge = document.createElement("span");
+  if (badge.className !== "lf-margin-count") badge.className = "lf-margin-count";
+  if (badge.getAttribute("aria-hidden") !== "true")
+    badge.setAttribute("aria-hidden", "true");
+  if (badge.textContent !== String(count)) badge.textContent = count;
+  if (control.lastChild !== badge) control.append(badge);
+}
+
+export function marginActionState(control, state) {
+  if (!(control instanceof Element) || !control.classList.contains("lf-margin-action"))
+    throw new TypeError("A margin-action state needs a margin action");
+  if (!ACTION_STATES.has(state))
+    throw new TypeError(`Unknown margin-action state: ${state}`);
+  buttonRecord(control).state = state;
+  control.dataset.lfState = state;
+  if (state === "busy") control.setAttribute("aria-busy", "true");
+  else control.removeAttribute("aria-busy");
   return control;
 }
 
 export function registerMarginItem({
+  key,
   target,
   controls,
   items = () => [],
-  engaged = false,
+  subject = null,
+  state = "idle",
   side = "before",
   claim = true,
   reserve = 0,
 }) {
+  if (!String(key ?? "").trim()) throw new TypeError("A margin item needs a key");
   if (!new Set(["before", "after"]).has(side))
     throw new TypeError(`Unknown margin-item side: ${side}`);
-  if (typeof engaged !== "boolean" && typeof engaged !== "function")
-    throw new TypeError("A margin item's engaged state must be a boolean or function");
+  if (typeof state !== "string" && typeof state !== "function")
+    throw new TypeError("A margin item's state must be a string or function");
+  if (subject != null && typeof subject !== "string" && typeof subject !== "function")
+    throw new TypeError("A margin item's subject must be a string or function");
+  if (typeof state === "string" && !ACTION_STATES.has(state))
+    throw new TypeError(`Unknown margin-item state: ${state}`);
   if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
-  const offered = { target, controls, items, engaged, side, claim, reserve };
+  const offered = {
+    key: String(key),
+    target,
+    controls,
+    items,
+    subject,
+    state,
+    side,
+    claim,
+    reserve,
+  };
+  validateMarginControls(offered);
   offeredItems.add(offered);
   changedOffers();
   return {
     update({ immediate = false } = {}) {
+      validateMarginControls(offered);
       changedOffers();
       if (immediate) layoutMarginRows();
     },
@@ -109,6 +343,11 @@ export function registerMarginItem({
       // guard is active. Removing it first can synchronously fire focusout, whose
       // fold render moves that same node before Element.remove completes.
       changedOffers();
+      for (const control of marginControls(controls)) {
+        const record = buttonRecord(control);
+        if (record.owner === offered.key) delete record.owner;
+        control.removeAttribute("data-lf-button-owner");
+      }
       controls?.remove();
     },
   };
@@ -192,7 +431,6 @@ export function createLivingMargin(dependencies) {
     anchorLabel,
     acknowledgments,
     announce,
-    approveBtn,
     blockAt,
     chromeRoot,
     claimState,
@@ -206,6 +444,7 @@ export function createLivingMargin(dependencies) {
     el,
     elementById,
     focused,
+    foldShelf,
     goToDecision,
     inChrome,
     itemSays,
@@ -218,6 +457,7 @@ export function createLivingMargin(dependencies) {
     placedAt,
     quietSince,
     renderMarginThread,
+    says,
     scrollBehavior,
     scrollToElement,
     setPanel,
@@ -225,13 +465,14 @@ export function createLivingMargin(dependencies) {
     stateProjection,
     threadPanel,
     threads,
-    toggleBtn,
     updateSequence,
     versionBtn,
     waitingForPickupSince,
   } = dependencies;
 
   const nav = el("nav", "lf-ui lf-living-margin");
+  // Every live page can gain an anchored comment, including one made entirely of prose.
+  reserveRail();
   nav.dataset.lfGen = "1";
   nav.setAttribute("aria-label", "Page map");
   const toolbar = el("div", "lf-margin-toolbar");
@@ -240,43 +481,41 @@ export function createLivingMargin(dependencies) {
   nav.append(toolbar);
   chromeRoot.append(nav);
 
-  function placeMargin(
+  function measureMargin(
     columnRect = document.querySelector("main")?.getBoundingClientRect(),
   ) {
     const main = document.querySelector("main");
     if (!main || !columnRect) return;
     const at = documentPoint(columnRect.left, columnRect.top);
-    nav.style.left = `${at.left}px`;
-    nav.style.top = `${at.top}px`;
-    nav.style.width = `${columnRect.width}px`;
-    nav.style.height = `${main.scrollHeight}px`;
+    const height = main.scrollHeight;
+    return () => {
+      nav.style.left = `${at.left}px`;
+      nav.style.top = `${at.top}px`;
+      nav.style.width = `${columnRect.width}px`;
+      nav.style.height = `${height}px`;
+    };
   }
 
   const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
   mapButton.type = "button";
   mapButton.hidden = true;
   mapButton.title = "Open the page map";
-  function placeMapButton() {
-    if (compact.matches)
-      (approveBtn.isConnected ? approveBtn : toggleBtn).after(mapButton);
-    else versionBtn.before(mapButton);
-  }
   function changePosture() {
     const marginHeld =
       toolbar.contains(document.activeElement) ||
       preview.contains(document.activeElement);
-    const sheetHeld = sheet.contains(document.activeElement);
-    placeMapButton();
     if (compact.matches && preview.matches(":popover-open")) closePreview(false);
     if (compact.matches && marginHeld) requestAnimationFrame(() => focusMapControl());
-    if (!compact.matches && sheet.open) {
-      sheetActivation = true;
-      sheet.close();
-      if (sheetHeld) requestAnimationFrame(() => focusMapControl());
-    }
     render();
   }
-  placeMapButton();
+  // One seat in the banner's one order, taken once: the map stands with the page's other
+  // destinations, just before the version chooser. It used to take the far side of
+  // approval under the compact query and be re-placed on every crossing of it, which was
+  // the same address at two different places on one row — and, because a blanket answer
+  // that had arrived in between claims that same seat, the seat it landed in depended on
+  // which way the reader had last crossed 900px. Placed at build, before any of them.
+  versionBtn.before(mapButton);
+  foldShelf();
   compact.addEventListener("change", changePosture);
 
   const preview = el("aside", "lf-ui lf-margin-preview");
@@ -303,12 +542,20 @@ export function createLivingMargin(dependencies) {
   sheetClose.type = "button";
   sheetClose.onclick = () => sheet.close();
   sheetHead.append(sheetClose);
+  const sheetSearch = el("input", "lf-page-map-search");
+  sheetSearch.type = "search";
+  sheetSearch.placeholder = "Find a Button or location";
+  sheetSearch.setAttribute("aria-label", "Find a Button or location in Page map");
   const sheetList = el("div", "lf-page-map-list");
-  sheet.append(sheetHead, sheetList);
+  const sheetEmpty = el("p", "lf-page-map-empty", "No matching Buttons or locations");
+  sheetEmpty.hidden = true;
+  sheetEmpty.setAttribute("role", "status");
+  sheet.append(sheetHead, sheetSearch, sheetList, sheetEmpty);
   chromeRoot.append(sheet);
 
   const rows = new Map();
   const moreButtons = new Map();
+  const spillButtons = new Map();
   const optionGroups = new Map();
   const controlProxies = new WeakMap();
   const readingButtons = new Map();
@@ -323,12 +570,14 @@ export function createLivingMargin(dependencies) {
   let pinnedKey = null;
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
+  let hoveredKey = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
   let rovingFrame = 0;
-  let sheetActivation = false;
-  let previewRequest = 0;
+  let sheetCloseOwnsFocus = false;
+  let sheetFrom = null;
+  let sheetTarget = null;
   // The cascade owns available room: panels and trays change the body's named
   // container, while an authored sidebar claims the page's left strip. Read the
   // posture it resolved instead of asking the viewport a different question.
@@ -337,25 +586,35 @@ export function createLivingMargin(dependencies) {
       .getPropertyValue("--lf-thread-beside")
       .trim() === "1";
   const markerNeedsPreview = (entry) => primaryReading(entry)?.kind === "comment";
-  const controlsOf = (offered) => {
-    const controls = offered.controls;
-    if (!(controls instanceof Element)) return [];
-    if (controls.matches(".lf-margin-action")) return [controls];
-    return [...controls.querySelectorAll(":scope > .lf-margin-action")];
-  };
+  const controlsOf = (offered) => marginControls(offered.controls);
   const offerReadings = (offered) => {
     const items = typeof offered.items === "function" ? offered.items() : offered.items;
     return items ?? [];
   };
-  const offerEngaged = (offered) =>
-    typeof offered.engaged === "function" ? offered.engaged() : offered.engaged;
-  // Engagement belongs to the whole target, not only to whichever contribution owns
-  // the primary control. An unresolved action acknowledgment is also an interaction
-  // still under way: keep its lifecycle face and every way out beside the outcome
-  // until the external handoff settles.
-  const entryEngaged = (entry) =>
-    entry.offers.some(offerEngaged) ||
-    entry.items.some((item) => item.acknowledgmentFace);
+  const offerState = (offered) => {
+    const state = typeof offered.state === "function" ? offered.state() : offered.state;
+    if (!ACTION_STATES.has(state))
+      throw new TypeError(`Unknown margin-item state: ${state}`);
+    return state;
+  };
+  // One target has one lifecycle reading. Failure outranks work in flight, which
+  // outranks an open interaction; a settled receipt and the ordinary idle state never
+  // force peers open. Generated acknowledgment readings join through the same state
+  // axis rather than a second engagement flag.
+  const entryState = (entry) => {
+    const states = [
+      ...entry.offers.map(offerState),
+      ...entry.items.map(
+        (item) => item.state ?? (item.acknowledgmentFace ? "busy" : "idle"),
+      ),
+    ];
+    return (
+      states.sort(
+        (left, right) => STATE_PRIORITY.get(left) - STATE_PRIORITY.get(right),
+      )[0] ?? "idle"
+    );
+  };
+  const entryEngaged = (entry) => ACTIVE_STATES.has(entryState(entry));
   // A modal or contextual thread surface temporarily owns focus without ending the
   // document interaction beneath it. Preserve that context so its commands remain
   // true and its owning Button can receive focus when the surface closes.
@@ -364,15 +623,45 @@ export function createLivingMargin(dependencies) {
     (Boolean(node.closest("dialog[open]")) ||
       preview.contains(node) ||
       (panelIsOpen() && threadPanel.contains(node)));
+  const compareOffers = (left, right) => {
+    const state =
+      STATE_PRIORITY.get(offerState(left)) - STATE_PRIORITY.get(offerState(right));
+    if (state) return state;
+    return left.key.localeCompare(right.key);
+  };
   const standingAfterOffers = (entry) =>
-    entry.offers.filter(
-      (offered) => offered.side === "after" && offerReadings(offered).length > 0,
-    );
+    entry.offers
+      .filter(
+        (offered) => offered.side === "after" && offerReadings(offered).length > 0,
+      )
+      .sort(compareOffers);
   const directOffers = (entry) => [
-    ...entry.offers.filter((offered) => offered.side === "before"),
+    ...entry.offers.filter((offered) => offered.side === "before").sort(compareOffers),
     ...standingAfterOffers(entry),
   ];
-  const directControls = (entry) => directOffers(entry).flatMap(controlsOf);
+  const compareControlRecords = (left, right) => {
+    const state =
+      STATE_PRIORITY.get(offerState(left.offered)) -
+      STATE_PRIORITY.get(offerState(right.offered));
+    if (state) return state;
+    const role =
+      ROLE_PRIORITY.get(buttonRecord(left.control).role) -
+      ROLE_PRIORITY.get(buttonRecord(right.control).role);
+    if (role) return role;
+    const offer = left.offered.key.localeCompare(right.offered.key);
+    if (offer) return offer;
+    return buttonRecord(left.control).key.localeCompare(
+      buttonRecord(right.control).key,
+    );
+  };
+  const directControlRecords = (entry) =>
+    directOffers(entry)
+      .flatMap((offered) =>
+        controlsOf(offered).map((control) => ({ control, offered })),
+      )
+      .sort(compareControlRecords);
+  const directControls = (entry) =>
+    directControlRecords(entry).map(({ control }) => control);
   const controlsShownByOwner = (controls) => {
     // The margin hides non-primary controls with `display: none`, so ask how this
     // batch paints while exempt from that rule. Write every exemption before the first
@@ -382,7 +671,13 @@ export function createLivingMargin(dependencies) {
     const wasPrimary = controls.map((control) =>
       control.hasAttribute("data-lf-button-primary"),
     );
-    for (const control of controls) control.setAttribute("data-lf-button-primary", "");
+    const wasOverflow = controls.map((control) =>
+      control.hasAttribute("data-lf-button-overflow"),
+    );
+    for (const control of controls) {
+      control.setAttribute("data-lf-button-primary", "");
+      control.removeAttribute("data-lf-button-overflow");
+    }
     let shown;
     try {
       shown = controls.filter((control) => {
@@ -392,15 +687,19 @@ export function createLivingMargin(dependencies) {
         );
       });
     } finally {
-      controls.forEach((control, index) =>
-        control.toggleAttribute("data-lf-button-primary", wasPrimary[index]),
-      );
+      controls.forEach((control, index) => {
+        control.toggleAttribute("data-lf-button-primary", wasPrimary[index]);
+        control.toggleAttribute("data-lf-button-overflow", wasOverflow[index]);
+      });
     }
     return shown;
   };
   function choosePrimary(entry) {
-    const controls = controlsShownByOwner(directControls(entry));
-    return controls[0] ?? null;
+    return (
+      directControlRecords(entry).find(({ control }) =>
+        entry.shownControls.has(control),
+      )?.control ?? null
+    );
   }
   function syncControlRoles(entry) {
     const primary = choosePrimary(entry);
@@ -433,7 +732,9 @@ export function createLivingMargin(dependencies) {
         text: threads[0].text,
       });
     return choices.sort(
-      (left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority,
+      (left, right) =>
+        KINDS[left.kind].priority - KINDS[right.kind].priority ||
+        left.key.localeCompare(right.key),
     );
   };
   const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
@@ -450,27 +751,37 @@ export function createLivingMargin(dependencies) {
     return choice ? (readingButtons.get(readingKey(entry, choice)) ?? null) : null;
   }
   const secondaryControls = (entry, primary) =>
-    controlsShownByOwner(directControls(entry)).filter(
-      (control) => control !== primary,
+    directControls(entry).filter(
+      (control) => control !== primary && entry.shownControls.has(control),
     );
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
-    entry.offers.filter(
-      (offered) =>
-        offered.side === "after" &&
-        offerReadings(offered).length === 0 &&
-        offered.controls &&
-        (!claimedOnly || offered.claim),
+    entry.offers
+      .filter(
+        (offered) =>
+          offered.side === "after" &&
+          offerReadings(offered).length === 0 &&
+          offered.controls &&
+          (!claimedOnly || offered.claim),
+      )
+      .sort(compareOffers);
+  const secondaryCount = (entry, primary, { claimedOnly = false } = {}) => {
+    const generated = secondaryReadings(entry, primary).length;
+    const contributed = secondaryControls(entry, primary).length;
+    const after = afterOffers(entry, { claimedOnly }).reduce(
+      (count, offered) =>
+        count +
+        controlsOf(offered).filter((control) => entry.shownControls.has(control))
+          .length,
+      0,
     );
-  const optionsOffered = (entry, primary, { claimedOnly = false } = {}) => {
-    // Generated readings are stable parts of the page map and claim their own `…`.
-    // Temporary choices still borrow room unless their contributing owner claims it.
-    if (secondaryReadings(entry, primary).length > 0) return true;
-    return (
-      (!claimedOnly || entry.offers.some((offered) => offered.claim)) &&
-      (secondaryControls(entry, primary).length > 0 ||
-        afterOffers(entry, { claimedOnly }).length > 0)
-    );
+    if (claimedOnly && !entry.offers.some((offered) => offered.claim)) return generated;
+    return generated + contributed + after;
   };
+  // One peer is not overflow. It costs the same second circle as `…`, but the peer says
+  // what it does and is immediately usable. Ellipsis earns its place only from the third
+  // Button onward.
+  const optionsOffered = (entry, primary, options = {}) =>
+    secondaryCount(entry, primary, options) > RESTING_BUTTON_BUDGET - 1;
 
   function markerFace(entry) {
     const kinds = kindsIn(entry, { markerOnly: true });
@@ -495,13 +806,24 @@ export function createLivingMargin(dependencies) {
     );
   }
 
+  function readingState(choice) {
+    return (
+      (choice?.items ?? [])
+        .map((item) => item.state ?? (item.acknowledgmentFace ? "busy" : "idle"))
+        .sort(
+          (left, right) => STATE_PRIORITY.get(left) - STATE_PRIORITY.get(right),
+        )[0] ?? "idle"
+    );
+  }
+
   function syncThreadRelation(control, isThread) {
     if (!isThread) {
       control.removeAttribute("aria-controls");
       control.removeAttribute("aria-expanded");
       return;
     }
-    const opensBeside = threadBeside() || forcedInlineKey === control.lfEntry?.key;
+    const opensBeside =
+      !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
     control.setAttribute("aria-controls", opensBeside ? preview.id : threadPanel.id);
     if (opensBeside)
       control.setAttribute("aria-expanded", String(previewButton === control));
@@ -524,7 +846,16 @@ export function createLivingMargin(dependencies) {
     )
       return;
     const marker = previewButton.getBoundingClientRect();
-    const besideLeft = Math.max(8, marker.right + 8);
+    // The stylesheet gives the card the room left to the right of this edge, so a marker
+    // standing near the window's own edge would leave a conversation too narrow to read
+    // or answer in. --thread-card-floor is where that room stops being a margin: past it
+    // the card comes off its marker and covers the page instead, which is the posture a
+    // bounded thread card is already allowed. An accepted comment opens its thread at
+    // every width, so this is the only place the width can be refused.
+    const floor = parseFloat(
+      getComputedStyle(preview).getPropertyValue("--thread-card-floor"),
+    );
+    const besideLeft = Math.max(8, Math.min(marker.right + 8, innerWidth - 8 - floor));
     preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
     const card = preview.getBoundingClientRect();
     const bannerBottom =
@@ -567,7 +898,9 @@ export function createLivingMargin(dependencies) {
       group = {
         key,
         target,
-        title: trimmed([word, itemSays(target)].filter(Boolean).join(" · "), 72),
+        word,
+        subject: null,
+        title: null,
         items: [],
         offers: [],
       };
@@ -725,13 +1058,26 @@ export function createLivingMargin(dependencies) {
         typeof offered.target === "function" ? offered.target() : offered.target;
       if (!target?.isConnected || inChrome(target)) continue;
       const group = groupFor(groups, target);
+      if (group.offers.some((candidate) => candidate.key === offered.key))
+        throw new TypeError(
+          `Duplicate margin-item key for ${target.id || targetPath(target)}: ${offered.key}`,
+        );
       group.offers.push(offered);
+      const subject =
+        typeof offered.subject === "function" ? offered.subject() : offered.subject;
+      if (String(subject ?? "").trim()) {
+        if (group.subject && group.subject !== String(subject).trim())
+          throw new TypeError(
+            `Conflicting margin-item subjects for ${target.id || targetPath(target)}`,
+          );
+        group.subject = String(subject).trim();
+      }
       const items =
         typeof offered.items === "function" ? offered.items() : offered.items;
       for (const item of items ?? []) {
         const kind = item.kind ?? "action";
         if (!KINDS[kind]) throw new TypeError(`Unknown margin-item kind: ${kind}`);
-        group.items.push({ marker: false, ...item, kind });
+        group.items.push({ marker: false, ...item, owner: offered.key, kind });
       }
     }
 
@@ -744,6 +1090,12 @@ export function createLivingMargin(dependencies) {
         );
         return {
           ...group,
+          title: trimmed(
+            [group.word, group.subject ?? itemSays(group.target)]
+              .filter(Boolean)
+              .join(" · "),
+            72,
+          ),
           items: group.items
             .filter(
               (item) =>
@@ -752,7 +1104,11 @@ export function createLivingMargin(dependencies) {
                 !represented.has(item.kind),
             )
             .sort(
-              (left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority,
+              (left, right) =>
+                KINDS[left.kind].priority - KINDS[right.kind].priority ||
+                // Threads at one target keep the conversation's log order, not
+                // the arbitrary spelling of their event identities.
+                (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
             ),
         };
       })
@@ -782,6 +1138,13 @@ export function createLivingMargin(dependencies) {
         const more = moreButtons.get(entry.key);
         if (more && optionsOffered(entry, primary, { claimedOnly: true }))
           stable.push(more);
+        const options = optionGroups.get(entry.key);
+        if (
+          options &&
+          !optionsOffered(entry, primary, { claimedOnly: true }) &&
+          secondaryCount(entry, primary, { claimedOnly: true }) > 0
+        )
+          stable.push(...clusterButtons(options));
         const widths = stable
           .map((part) => part.getBoundingClientRect().width)
           .filter(Boolean);
@@ -811,11 +1174,24 @@ export function createLivingMargin(dependencies) {
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
       hangs: () => !compact.matches,
+      // A wide row is hoisted into main's positioning context. If its live width no
+      // longer fits the rail, move the same node beside its target before static flow
+      // takes over; restore the hoist before measuring whether it fits again.
+      float: (item) => {
+        if (item.lfEntry?.offers.length) moveExternalHost(item, false);
+      },
+      dock: (item) => {
+        if (item.lfEntry?.offers.length) moveExternalHost(item, true);
+      },
       place: (item, column) => {
         const target = item.lfEntry?.target;
         if (!target) return;
-        if (nav.contains(item)) placeMargin(column);
-        item.style.top = `${Math.max(0, shownBox(target).top - column.top)}px`;
+        const place = nav.contains(item) ? measureMargin(column) : null;
+        const top = Math.max(0, shownBox(target).top - column.top);
+        return () => {
+          place?.();
+          item.style.top = `${top}px`;
+        };
       },
     };
   }
@@ -829,23 +1205,13 @@ export function createLivingMargin(dependencies) {
     return [...counts].map(([kind, count]) => ({ kind, count, ...KINDS[kind] }));
   }
 
-  function markerName(entry, index, anchored) {
+  function markerName(entry, index, anchored, position) {
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}`;
     const subject =
       count === 1 && choice.items[0].acknowledgmentFace ? choice.text : entry.title;
-    const main = document.querySelector("main");
-    const position =
-      entry.target && main?.scrollHeight
-        ? Math.round(
-            ((entry.target.getBoundingClientRect().top -
-              main.getBoundingClientRect().top) /
-              main.scrollHeight) *
-              100,
-          )
-        : null;
     return `${reading}, ${index + 1} of ${anchored}, ${subject}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
   }
 
@@ -862,10 +1228,6 @@ export function createLivingMargin(dependencies) {
     });
   }
 
-  function pageMapItems() {
-    return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
-  }
-
   function clusterButtons(host) {
     if (!host) return [];
     return [...host.querySelectorAll(".lf-margin-action")].filter(
@@ -873,6 +1235,16 @@ export function createLivingMargin(dependencies) {
         !button.disabled &&
         button.getAttribute("aria-disabled") !== "true" &&
         button.checkVisibility(),
+    );
+  }
+
+  const buttonHost = (target) =>
+    [...hosts.values()].find((host) => host.lfTarget === target) ?? null;
+
+  function buttonContextContains(target, node) {
+    return (
+      Boolean(buttonHost(target)?.contains(node)) ||
+      (sheet.open && sheetTarget === target && sheet.contains(node))
     );
   }
 
@@ -886,31 +1258,6 @@ export function createLivingMargin(dependencies) {
     buttons[(at + direction + buttons.length) % buttons.length].focus({
       preventScroll: true,
     });
-  }
-
-  function openPageMapItem(item) {
-    const entry = item?.lfEntry;
-    if (!entry?.target) return;
-    scrollToElement(entry.target, undefined, "nearest");
-    const marker = rows.get(entry.key);
-    if (marker && !marker.hidden) {
-      if (compact.matches) openSheet(entry);
-      else {
-        // A pointer focuses the marker before its click. Reproduce that arrival, then let
-        // the control's own click remain the one semantic path into its preview.
-        marker.focus({ preventScroll: true });
-        marker.click();
-      }
-      return;
-    }
-    const action = [...item.querySelectorAll(".lf-margin-action")].find(
-      (control) =>
-        control !== marker &&
-        !control.disabled &&
-        !control.hidden &&
-        control.checkVisibility(),
-    );
-    if (action) focusForNavigation(action);
   }
 
   function setOptionsOpen(
@@ -955,38 +1302,82 @@ export function createLivingMargin(dependencies) {
     }
   }
 
+  // A contributed control remains the action's canonical target even when the margin
+  // presents its secondary through a proxy in the unfolded cluster. Geometry belongs to
+  // what the reader can see; dispatch still belongs to the original control.
+  function presentedControl(control) {
+    if (control.checkVisibility()) return control;
+    const proxy = controlProxies.get(control);
+    return proxy?.checkVisibility() ? proxy : control;
+  }
+
   function openButtonOptions(target) {
     render();
     const entry = pageMapEntries.find((candidate) => candidate.target === target);
     const more = entry && moreButtons.get(entry.key);
     if (!entry || !more) return false;
-    if (expandedOptionsKey === entry.key) return true;
+    if (expandedOptionsKey === entry.key) {
+      const options = optionGroups.get(entry.key);
+      if (options?.isConnected && !options.hidden) return true;
+      expandedOptionsKey = null;
+      render();
+    }
     if (more.hidden) return false;
     setOptionsOpen(entry, true);
     return true;
   }
 
-  // Enter the rail without opening one addressed item. The roving marker is already the
-  // Page map's reading position; prefer its visible member so the Arrow/Home/End scope is
-  // live on arrival, and repair the tab stop when an earlier layout has not painted one.
-  function focusPageMap() {
-    const available = availableRows();
-    if (!available.length) return false;
-    const visible = visibleRows();
-    const candidates = visible.length ? visible : available;
-    const next = candidates.find((row) => row.tabIndex === 0) ?? candidates[0];
-    if (!visible.length && next.lfEntry?.target)
-      scrollToElement(next.lfEntry.target, "instant", "nearest");
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
-    next.focus({ preventScroll: true });
-    return true;
+  function pageMapItems() {
+    return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
   }
 
-  // The Page map has one capability and two responsive surfaces. The margin rail is the
-  // direct reading position where it has a member; the sheet is the complete map where
-  // the rail has deliberately left the layout or the map is empty.
+  function openPageMapItem(item) {
+    const entry = item?.lfEntry;
+    if (!entry?.target) return;
+    scrollToElement(entry.target, undefined, "nearest");
+    const marker = rows.get(entry.key);
+    if (marker && !marker.hidden) {
+      if (compact.matches) openSheet(entry);
+      else {
+        // A pointer focuses the marker before its click. Reproduce that arrival, then let
+        // the control's own click remain the one semantic path into its preview.
+        marker.focus({ preventScroll: true });
+        marker.click();
+      }
+      return;
+    }
+    const action = [...item.querySelectorAll(".lf-margin-action")].find(
+      (control) =>
+        control !== marker &&
+        !control.disabled &&
+        !control.hidden &&
+        control.checkVisibility(),
+    );
+    if (action) focusForNavigation(action);
+  }
+
+  // The direct destination opens the complete map. Its lowercase address list separately
+  // numbers the visible locations without claiming the sheet ends there.
   function enterPageMap() {
-    if (!focusPageMap()) openSheet();
+    openSheet();
+  }
+
+  function pageMapInvoker() {
+    const shelf = mapButton.closest(".lf-banner-menu");
+    if (shelf?.lfInvoker?.checkVisibility()) return shelf.lfInvoker;
+    return mapButton;
+  }
+
+  const pageMapIsActive = () => sheet.open || availableRows().includes(focused());
+  // The dispatcher's own way out of the `g M` frame, and the one close that owes the
+  // reader nothing: it captured where they stood before the press and restores it in the
+  // same press. That restore is synchronous while `close` arrives in a task of its own,
+  // so the door's return route below would run a frame later and put the reader on the
+  // Map control instead of the ask row or the reading place they asked to come back to.
+  function leavePageMap() {
+    if (!sheet.open) return;
+    sheetCloseOwnsFocus = true;
+    sheet.close();
   }
 
   function focusMapControl(entry = null) {
@@ -1005,11 +1396,31 @@ export function createLivingMargin(dependencies) {
     });
   }
 
+  // The rail holds one tab stop: the way in from the page, not the reading position,
+  // which the walk, the numbered addresses, and the pointer all reach without it. A
+  // receipt reports a move already made, so the stop passes to the nearest marker that
+  // still offers a press.
+  function holdTabStop(next) {
+    const available = availableRows();
+    const acts = (row) => row.dataset.lfBehavior !== "receipt";
+    let stop = next;
+    if (stop && !acts(stop)) {
+      const at = available.indexOf(stop);
+      stop = available.reduce((nearest, row, index) => {
+        if (!acts(row)) return nearest;
+        if (!nearest) return { row, distance: Math.abs(index - at) };
+        const distance = Math.abs(index - at);
+        return distance < nearest.distance ? { row, distance } : nearest;
+      }, null)?.row;
+    }
+    for (const row of rows.values()) row.tabIndex = row === stop ? 0 : -1;
+  }
+
   function syncRoving() {
     const available = availableRows();
     const visible = visibleRows();
     if (!available.length) {
-      for (const row of rows.values()) row.tabIndex = -1;
+      holdTabStop(null);
       return;
     }
     const focused = available.find((row) => row === document.activeElement);
@@ -1029,7 +1440,7 @@ export function createLivingMargin(dependencies) {
         };
         return distance(row) < distance(best) ? row : best;
       });
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
   }
 
   function scheduleRoving() {
@@ -1049,7 +1460,7 @@ export function createLivingMargin(dependencies) {
         : edge === "last"
           ? visible.at(-1)
           : clampedRow(visible, document.activeElement, direction);
-    for (const row of rows.values()) row.tabIndex = row === next ? 0 : -1;
+    holdTabStop(next);
     next.focus({ preventScroll: true });
   }
 
@@ -1096,51 +1507,76 @@ export function createLivingMargin(dependencies) {
     },
   ];
 
-  function paintMarker(row, entry, index, anchored, primary) {
+  function pressMarker(event) {
+    const marker = event.currentTarget;
+    const choice = primaryReading(marker.lfEntry);
+    if (!choice) return;
+    if (choice.kind !== "comment") {
+      activate(choice.items[0], marker.lfEntry);
+      return;
+    }
+    openThreadChoice(marker.lfEntry, marker);
+  }
+
+  function paintMarker(row, entry, primary) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
     const choice = primaryReading(entry);
     row.lfEntry = entry;
     row.hidden = markerKinds.length === 0 || Boolean(primary);
     row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
     marginAction(row, {
-      glyph: face.symbol,
+      key: `reading:${choice?.key ?? "none"}`,
+      icon: face.icon,
       label,
-      behavior: "disclosure",
+      behavior: face.indication ? "receipt" : "disclosure",
+      role: "reading",
+      state: readingState(choice),
     });
-    row.setAttribute("aria-label", markerName(entry, index, anchored));
+    row.onclick = face.indication ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
-    if (markerCount > 1) {
-      const count = el("span", "lf-margin-count");
-      count.setAttribute("aria-hidden", "true");
-      count.textContent = markerCount;
-      row.append(count);
-    }
+    syncActionCount(row, markerCount);
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
     }
   }
 
-  function externalPerch(target, main) {
+  function externalPerch(target, main, flow = compact.matches) {
     if (!main) return target;
-    // A wide item must be a child of main's own positioning context. In the
-    // compact flow it belongs immediately after the rendered block that owns its
-    // target: hoisting every item to a common section makes controls for its first
-    // paragraph appear after the section's last one. A declared shadow tree still
-    // contributes to that one document-owned layer: climb through its host before
-    // placing the item, otherwise the document stylesheet cannot give a plug-in's
-    // controls the common action shape.
-    let perch = compact.matches ? (blockAt(target) ?? target) : target;
+    // A hanging item must be a child of main's own positioning context. In flow it
+    // belongs immediately after the rendered block that owns its target. A declared
+    // shadow tree still contributes through its host, where document CSS can reach the
+    // controls.
+    let perch = flow ? (blockAt(target) ?? target) : target;
     while (!main.contains(perch)) {
       const root = perch.getRootNode();
       if (!(root instanceof ShadowRoot)) return target;
       perch = root.host;
     }
-    if (compact.matches) return perch;
+    if (flow) return perch;
     while (perch.parentElement !== main && main.contains(perch.parentElement))
       perch = perch.parentElement;
     return perch;
+  }
+
+  function moveExternalHost(host, flow) {
+    const main = document.querySelector("main");
+    const target = host.lfEntry?.target;
+    if (!main || !target || compact.matches) return;
+    const perch = externalPerch(target, main, flow);
+    let after = perch;
+    for (const entry of pageMapEntries) {
+      const candidate = hosts.get(entry.key);
+      if (candidate === host) break;
+      if (
+        candidate?.isConnected &&
+        externalPerch(entry.target, main, flow) === perch &&
+        candidate.parentNode === perch.parentNode
+      )
+        after = candidate;
+    }
+    if (after.nextSibling !== host) moveHost(host, () => after.after(host));
   }
 
   function optionControlNode(control, entry) {
@@ -1150,34 +1586,19 @@ export function createLivingMargin(dependencies) {
       node.type = "button";
       controlProxies.set(control, node);
     }
-    const glyph =
-      control.querySelector(":scope > .lf-margin-action-glyph")?.textContent || "·";
-    const label =
-      control.querySelector(":scope > .lf-margin-action-label")?.textContent ||
-      control.textContent.trim() ||
-      "Action";
+    const record = buttonRecord(control);
     marginAction(node, {
-      glyph,
-      label,
-      behavior: control.dataset.lfBehavior || "action",
-      tone: control.dataset.lfTone || "neutral",
+      key: `${record.key}:proxy`,
+      ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
+      label: record.label,
+      behavior: record.behavior,
+      tone: record.tone,
+      role: record.role,
+      state: record.state,
     });
-    node.setAttribute("aria-label", control.getAttribute("aria-label") || label);
+    syncForwardedButtonState(node, control);
     node.lfForwardedControl = control;
-    node.disabled =
-      control.disabled || control.getAttribute("aria-disabled") === "true";
-    for (const attribute of [
-      "aria-busy",
-      "aria-controls",
-      "aria-disabled",
-      "aria-expanded",
-      "aria-haspopup",
-      "aria-pressed",
-    ]) {
-      const value = control.getAttribute(attribute);
-      if (value == null) node.removeAttribute(attribute);
-      else node.setAttribute(attribute, value);
-    }
+    node.dataset.lfButtonOwner = record.owner;
     node.onclick = () => {
       control.click();
     };
@@ -1196,9 +1617,12 @@ export function createLivingMargin(dependencies) {
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
     marginAction(node, {
-      glyph: face.symbol,
+      key: `reading:${choice.key}`,
+      icon: face.icon,
       label,
       behavior: "disclosure",
+      role: "reading",
+      state: readingState(choice),
     });
     node.lfEntry = entry;
     node.lfChoice = choice;
@@ -1208,12 +1632,7 @@ export function createLivingMargin(dependencies) {
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
-    if (count > 1) {
-      const badge = el("span", "lf-margin-count");
-      badge.setAttribute("aria-hidden", "true");
-      badge.textContent = count;
-      node.append(badge);
-    }
+    syncActionCount(node, count);
     node.onclick = () => {
       if (node.lfChoice.kind !== "comment") {
         setOptionsOpen(node.lfEntry, false, { returnFocus: true });
@@ -1225,19 +1644,83 @@ export function createLivingMargin(dependencies) {
     return node;
   }
 
-  function syncOptionGroup(group, entry, primary, optionsOpen) {
-    const nodes = [
+  function optionNodes(entry, primary) {
+    return [
       ...secondaryControls(entry, primary).map((control) =>
         optionControlNode(control, entry),
       ),
       ...secondaryReadings(entry, primary).map((choice) =>
         readingOptionNode(entry, choice),
       ),
-      ...afterOffers(entry)
-        .map((offered) => offered.controls)
-        .filter(Boolean),
+      ...afterOffers(entry).flatMap((offered) =>
+        controlsOf(offered)
+          .filter((control) => entry.shownControls.has(control))
+          .map((control) => ({ control, offered }))
+          .sort(compareControlRecords)
+          .map(({ control }) => control),
+      ),
     ];
-    const wanted = [...new Set(nodes)];
+  }
+
+  function syncOptionGroup(group, entry, primary, optionsOpen) {
+    const allNodes = optionNodes(entry, primary);
+    const unique = [...new Set(allNodes)];
+    // Peers may use the whole cluster budget only when no fitting stands outside this
+    // group. Reaction mode is the common case: it has neither a primary nor a reading
+    // marker, so its six declared choices fit exactly. A reading-only target keeps its
+    // marker visible, and that fitting counts just as a contributed primary would.
+    const peerCapacity = Math.max(
+      0,
+      EXPANDED_BUTTON_BUDGET - (primary || markerFace(entry).kinds.length ? 1 : 0),
+    );
+    const needsSpill = unique.length > peerCapacity;
+    // The spill route consumes the last visible fitting; it does not increase the
+    // cluster beyond its budget. A fully expanded cluster is therefore either one
+    // primary plus five peers, or one primary plus four peers plus the Page map route.
+    const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
+    const hidden = Math.max(0, unique.length - visibleCapacity);
+    const visible = new Set(unique.slice(0, visibleCapacity));
+    const after = afterOffers(entry);
+    const afterControls = new Set(after.flatMap(controlsOf));
+    const wanted = unique.filter(
+      (node) => visible.has(node) && !afterControls.has(node),
+    );
+    // Keep contributor-owned groups intact: their keyboard scopes and event handlers
+    // belong to the real controls. Overflow hides individual fittings, not the owner.
+    for (const offered of after) {
+      const controls = controlsOf(offered);
+      for (const control of controls)
+        control.toggleAttribute("data-lf-button-overflow", !visible.has(control));
+      offered.controls.toggleAttribute(
+        "data-lf-button-overflow",
+        !controls.some((control) => visible.has(control)),
+      );
+      wanted.push(offered.controls);
+    }
+    let spill = spillButtons.get(entry.key);
+    if (needsSpill) {
+      if (!spill) {
+        spill = offer("button", "lf-margin-spill");
+        spill.type = "button";
+        spillButtons.set(entry.key, spill);
+      }
+      marginAction(spill, {
+        key: "all-options",
+        icon: "all",
+        label: `Show ${hidden} more in Page map`,
+        behavior: "disclosure",
+        role: "overflow",
+        state: "idle",
+      });
+      spill.dataset.lfSpillCount = String(hidden);
+      spill.lfFirstSpilledOption = unique[visibleCapacity];
+      spill.setAttribute("aria-label", `Show ${hidden} more in Page map`);
+      spill.onclick = () => openSheet(entry, { invoker: spill, focusSpill: true });
+      wanted.push(spill);
+    } else if (spill) {
+      spill.remove();
+      spillButtons.delete(entry.key);
+    }
     for (const child of [...group.children])
       if (!wanted.includes(child)) child.remove();
     wanted.forEach((child, position) => {
@@ -1266,15 +1749,18 @@ export function createLivingMargin(dependencies) {
       if (host.children[position] !== child)
         host.insertBefore(child, host.children[position] ?? null);
     });
+    const secondaries = secondaryCount(entry, primary);
     const hasOptions = optionsOffered(entry, primary);
     if (!hasOptions && expandedOptionsKey === entry.key) expandedOptionsKey = null;
     const optionsOpen =
-      hasOptions && (expandedOptionsKey === entry.key || entryEngaged(entry));
+      secondaries > 0 &&
+      (!hasOptions || expandedOptionsKey === entry.key || entryEngaged(entry));
     more.hidden = !hasOptions || optionsOpen;
     more.lfEntry = entry;
     more.setAttribute("aria-label", `More options for ${entry.title}`);
     more.setAttribute("aria-expanded", String(optionsOpen));
     host.toggleAttribute("data-lf-options-open", optionsOpen);
+    host.dataset.lfState = entryState(entry);
     // Replacing a focused proxy fires focusout synchronously. The render already owns
     // the resulting cluster state and transfers focus below, so do not let that event
     // start a nested render against the same child list.
@@ -1296,6 +1782,7 @@ export function createLivingMargin(dependencies) {
       // reading merely because the cluster stayed engaged and replaced its peers.
       const next =
         (forwardedControl?.checkVisibility() ? forwardedControl : null) ??
+        primary ??
         clusterButtons(options)[0] ??
         clusterButtons(host)[0];
       (next ?? document.body).focus({ preventScroll: true });
@@ -1332,6 +1819,7 @@ export function createLivingMargin(dependencies) {
       const controls = (side) =>
         offers
           .filter((offered) => offered.side === side)
+          .sort(compareOffers)
           .map((offered) => offered.controls);
       const wanted = [...controls("before"), ...controls("after")];
       for (const child of [...host.children])
@@ -1352,8 +1840,92 @@ export function createLivingMargin(dependencies) {
 
   function moveHost(host, move) {
     const held = host.contains(document.activeElement) ? document.activeElement : null;
-    move();
-    if (held?.isConnected) held.focus({ preventScroll: true });
+    // Moving a focused expanded cluster between the hanging rail and document flow
+    // synchronously emits focusout. That is a placement transition, not the reader
+    // leaving the cluster, so keep the options state machine from treating it as an
+    // instruction to fold the controls it just exposed.
+    const wasSettlingOptionsFocus = settlingOptionsFocus;
+    settlingOptionsFocus = true;
+    try {
+      move();
+      if (held?.isConnected) held.focus({ preventScroll: true });
+    } finally {
+      settlingOptionsFocus = wasSettlingOptionsFocus;
+    }
+  }
+
+  const labelRect = (name, left, top, label) => ({
+    name,
+    rect: {
+      left,
+      right: left + label.width,
+      top,
+      bottom: top + label.height,
+    },
+  });
+
+  const rectsOverlap = (left, right) =>
+    left.left < right.right &&
+    left.right > right.left &&
+    left.top < right.bottom &&
+    left.bottom > right.top;
+
+  function placeButtonLabel(control) {
+    const label = control.querySelector(":scope > .lf-margin-action-label");
+    if (!label || !control.checkVisibility()) return;
+    const buttonBox = control.getBoundingClientRect();
+    const labelBox = label.getBoundingClientRect();
+    const edgeAligned = Math.max(
+      4,
+      Math.min(buttonBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
+    );
+    const cluster = control.closest(".lf-margin-item") ?? control.parentElement;
+    const clusterButtons = [...(cluster?.querySelectorAll(".lf-margin-action") ?? [])]
+      .filter((candidate) => candidate.checkVisibility())
+      .map((candidate) => candidate.getBoundingClientRect());
+    const clusterLeft = Math.min(...clusterButtons.map((box) => box.left));
+    const clusterRight = Math.max(...clusterButtons.map((box) => box.right));
+    const centered = (buttonBox.top + buttonBox.bottom - labelBox.height) / 2;
+    const candidates = [
+      labelRect("below", edgeAligned, buttonBox.bottom + 6, labelBox),
+      labelRect("above", edgeAligned, buttonBox.top - 6 - labelBox.height, labelBox),
+      labelRect("after", clusterRight + 6, centered, labelBox),
+      labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
+    ];
+    const blockers = [
+      ...[...document.querySelectorAll(".lf-margin-action")].filter(
+        (candidate) => candidate !== control && candidate.checkVisibility(),
+      ),
+      ...document.querySelectorAll(".lf-banner, .lf-keyline"),
+    ].map((candidate) => candidate.getBoundingClientRect());
+    const fits = ({ rect }) =>
+      rect.left >= 4 &&
+      rect.right <= innerWidth - 4 &&
+      rect.top >= 4 &&
+      rect.bottom <= innerHeight - 4;
+    const choice =
+      candidates.find(
+        (candidate) =>
+          fits(candidate) &&
+          !blockers.some((blocker) => rectsOverlap(candidate.rect, blocker)),
+      ) ??
+      candidates.find(fits) ??
+      candidates[0];
+    control.dataset.lfLabelSide = choice.name;
+    label.style.setProperty("--lf-label-x", `${choice.rect.left - buttonBox.left}px`);
+    label.style.setProperty("--lf-label-y", `${choice.rect.top - buttonBox.top}px`);
+  }
+
+  let labelPlacementFrame = 0;
+  function scheduleButtonLabels() {
+    if (labelPlacementFrame) return;
+    labelPlacementFrame = requestAnimationFrame(() => {
+      labelPlacementFrame = 0;
+      for (const control of document.querySelectorAll(
+        '.lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])',
+      ))
+        placeButtonLabel(control);
+    });
   }
 
   function unfoldOpenThreadOwner(entry) {
@@ -1377,15 +1949,40 @@ export function createLivingMargin(dependencies) {
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
+  // Paper is not a posture this can be read in. Print hides every injected control
+  // (`[data-lf-offer]` in the chrome stylesheet's print block) and the living margin
+  // with it, so the one contributor-visibility reading a render is built on comes back
+  // empty: every cluster folds to nothing, and what has been written down is the medium
+  // rather than the page. Nobody sees it on the sheet, where the margin does not print
+  // at all, but the fold outlives the print preview and stands on screen until the next
+  // render repairs it. It is the panel's head-room rule on the other surface that
+  // measures: a reading taken where the box is `display: none` is not a measurement. So
+  // a render asked for on paper is refused whole and taken once the screen is back.
+  const onPaper = matchMedia("print");
+  onPaper.addEventListener("change", () => {
+    if (!onPaper.matches) render();
+  });
+
   function render() {
+    if (onPaper.matches) return;
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewButton;
     transferThreadFocus = false;
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
-    placeMargin(main?.getBoundingClientRect());
+    const mainRect = main?.getBoundingClientRect();
+    measureMargin(mainRect)?.();
     syncInlineOffers();
     pageMapEntries = collectEntries().filter((entry) => entry.target);
+    // Read contributor visibility once for the whole render, before folding any
+    // controls. Placement and option counts share this reading; probing again
+    // temporarily unfolds controls and forces style/layout work for every row.
+    const shownControls = new Set(
+      controlsShownByOwner([
+        ...new Set(pageMapEntries.flatMap((entry) => entry.offers.flatMap(controlsOf))),
+      ]),
+    );
+    for (const entry of pageMapEntries) entry.shownControls = shownControls;
     const live = new Set(pageMapEntries.map((entry) => entry.key));
     const liveReadingKeys = new Set(
       pageMapEntries.flatMap((entry) =>
@@ -1402,12 +1999,13 @@ export function createLivingMargin(dependencies) {
         host?.remove();
         rows.delete(key);
         moreButtons.delete(key);
+        spillButtons.delete(key);
         optionGroups.delete(key);
         hosts.delete(key);
       }
     const externalDocks = new Map();
     let corePosition = 0;
-    pageMapEntries.forEach((entry, index) => {
+    pageMapEntries.forEach((entry) => {
       let marker = rows.get(entry.key);
       let more = moreButtons.get(entry.key);
       let options = optionGroups.get(entry.key);
@@ -1418,19 +2016,12 @@ export function createLivingMargin(dependencies) {
         host.dataset.lfGen = "1";
         host.setAttribute("role", "group");
         marker = marginAction(offer("button", "lf-margin-marker"), {
-          glyph: "·",
+          key: "reading",
+          icon: "dot",
           label: "Open page details",
           behavior: "disclosure",
+          role: "reading",
         });
-        marker.onclick = () => {
-          const choice = primaryReading(marker.lfEntry);
-          if (!choice) return;
-          if (choice.kind !== "comment") {
-            activate(choice.items[0], marker.lfEntry);
-            return;
-          }
-          openThreadChoice(marker.lfEntry, marker);
-        };
         keys(
           host,
           "In the page map",
@@ -1440,9 +2031,11 @@ export function createLivingMargin(dependencies) {
         host.lfEntry = entry;
         rows.set(entry.key, marker);
         more = marginAction(offer("button", "lf-margin-more"), {
-          glyph: "…",
+          key: "options",
+          icon: "more",
           label: "More options",
           behavior: "options",
+          role: "overflow",
         });
         options = el("div", "lf-margin-options");
         options.id = `lf-margin-options-${++optionsOrdinal}`;
@@ -1472,6 +2065,25 @@ export function createLivingMargin(dependencies) {
           setOptionsOpen(current, true, {
             focusOption: control === more ? "last" : null,
           });
+        });
+        host.addEventListener("focusin", () => {
+          // A new keyboard destination outranks a pointer parked on the previous
+          // target. Real pointer movement can take ownership back without a press.
+          hoveredKey = null;
+          refreshHighlight();
+        });
+        host.addEventListener("focusout", () =>
+          requestAnimationFrame(refreshHighlight),
+        );
+        const hover = () => {
+          hoveredKey = host.lfEntry?.key ?? null;
+          refreshHighlight();
+        };
+        host.addEventListener("pointerenter", hover);
+        host.addEventListener("pointermove", hover);
+        host.addEventListener("pointerleave", () => {
+          if (hoveredKey === host.lfEntry?.key) hoveredKey = null;
+          refreshHighlight();
         });
         host.addEventListener("focusout", (event) => {
           const current = host.lfEntry;
@@ -1508,10 +2120,6 @@ export function createLivingMargin(dependencies) {
       host.setAttribute("aria-label", `Page actions for ${entry.title}`);
       marker.lfEntry = entry;
       const primary = syncControls(host, marker, more, options, entry);
-      host.toggleAttribute(
-        "data-lf-claims-rail",
-        entry.offers.some((offered) => offered.claim && offered.controls),
-      );
       if (entry.offers.length) {
         host.dataset.lfExternal = "1";
         const perch = externalPerch(entry.target, main);
@@ -1526,7 +2134,26 @@ export function createLivingMargin(dependencies) {
           );
         corePosition += 1;
       }
-      paintMarker(marker, entry, index, pageMapEntries.length, primary);
+      paintMarker(marker, entry, primary);
+    });
+    // Geometry is one read-only batch after every row has reconciled. Reading a target
+    // between two marker writes forced one full document layout per Page-map entry —
+    // including on the two-second heartbeat. The spoken positions use the main rect
+    // already read above and one final scroll height, then write every name together.
+    const mainHeight = main?.scrollHeight ?? 0;
+    const positions = pageMapEntries.map((entry) =>
+      entry.target && mainRect && mainHeight
+        ? Math.round(
+            ((entry.target.getBoundingClientRect().top - mainRect.top) / mainHeight) *
+              100,
+          )
+        : null,
+    );
+    pageMapEntries.forEach((entry, index) => {
+      const marker = rows.get(entry.key);
+      const name = markerName(entry, index, pageMapEntries.length, positions[index]);
+      if (marker?.getAttribute("aria-label") !== name)
+        marker?.setAttribute("aria-label", name);
     });
     mapButton.hidden = pageMapEntries.length === 0;
     mapButton.textContent = `Map (${pageMapEntries.length})`;
@@ -1536,7 +2163,7 @@ export function createLivingMargin(dependencies) {
     if (previewEntry) {
       const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
       if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
-        closePreview(false);
+        closePreview(preview.contains(document.activeElement));
       else if (forcedInlineKey !== fresh.key && !threadBeside()) {
         const threads = fresh.items.filter((item) => item.kind === "comment");
         closePreview(false);
@@ -1560,7 +2187,6 @@ export function createLivingMargin(dependencies) {
         else {
           transferThreadCard(owner, { returnFocus: threadOwnerHeld });
           buildThreadCard(fresh);
-          highlight(fresh.target);
           for (const row of rows.values())
             syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
           for (const reading of readingButtons.values())
@@ -1568,8 +2194,10 @@ export function createLivingMargin(dependencies) {
         }
       }
     }
+    refreshHighlight();
     scheduleMarginLayout();
     scheduleRoving();
+    scheduleButtonLabels();
     paintKeys();
   }
 
@@ -1631,6 +2259,18 @@ export function createLivingMargin(dependencies) {
     highlighted?.classList.add("lf-margin-target");
   }
 
+  function refreshHighlight() {
+    const active = focused();
+    const focusedHost = closestAcross(active, "[data-lf-margin-for]");
+    const key =
+      hoveredKey ??
+      focusedHost?.lfEntry?.key ??
+      (preview.contains(active) || preview.matches(":popover-open")
+        ? previewEntry?.key
+        : null);
+    highlight(pageMapEntries.find((entry) => entry.key === key)?.target ?? null);
+  }
+
   function showPreview(entry, button, retry = true) {
     if (!entry || designIsOn()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
@@ -1664,7 +2304,7 @@ export function createLivingMargin(dependencies) {
       }
     }
     placeThreadPreview();
-    highlight(entry.target);
+    refreshHighlight();
     for (const row of rows.values())
       syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
     for (const button of readingButtons.values())
@@ -1680,6 +2320,8 @@ export function createLivingMargin(dependencies) {
     }
     pinnedKey = entry.key;
     showPreview(entry, button);
+    const reply = previewList.querySelector("textarea");
+    if (reply) landInConversation(reply);
   }
 
   function closePreview(returnFocus) {
@@ -1690,7 +2332,7 @@ export function createLivingMargin(dependencies) {
     previewButton = null;
     button?.style.removeProperty("anchor-name");
     if (preview.matches(":popover-open")) preview.hidePopover();
-    highlight(null);
+    refreshHighlight();
     for (const row of rows.values())
       syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
     for (const reading of readingButtons.values())
@@ -1736,7 +2378,7 @@ export function createLivingMargin(dependencies) {
       setOptionsOpen(entry, false);
     closePreview(false);
     if (sheet.open) {
-      sheetActivation = true;
+      sheetCloseOwnsFocus = true;
       sheet.close();
     }
     if (focusMap) focusMapControl(entry);
@@ -1744,29 +2386,20 @@ export function createLivingMargin(dependencies) {
   }
 
   function openThreadChoice(entry, button) {
-    const open = () => {
-      if (expandedOptionsKey && expandedOptionsKey !== entry.key)
-        setOptionsOpen(entry, false);
-      const choice = threadReading(entry);
-      if (!choice) return;
-      if (!threadBeside()) {
-        setOptionsOpen(entry, false);
-        openThreads(choice.items, entry);
-        return;
-      }
-      togglePinned(entry, button);
-    };
+    const choice = threadReading(entry);
+    if (!choice) return;
     if (panelIsOpen()) {
-      const request = ++previewRequest;
-      setPanel(false);
-      const movements = document.body.getAnimations();
-      Promise.allSettled(movements.map((movement) => movement.finished)).then(() => {
-        if (request === previewRequest && button.isConnected) open();
-      });
+      activate(choice.items[0], entry, { focusMap: false });
       return;
     }
-    previewRequest += 1;
-    open();
+    if (expandedOptionsKey && expandedOptionsKey !== entry.key)
+      setOptionsOpen(entry, false);
+    if (!threadBeside()) {
+      setOptionsOpen(entry, false);
+      openThreads(choice.items, entry);
+      return;
+    }
+    togglePinned(entry, button);
   }
 
   function openThreads(threadItems, entry) {
@@ -1784,10 +2417,9 @@ export function createLivingMargin(dependencies) {
     const entry = pageMapEntries.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
-    if (!entry || designIsOn()) return null;
+    if (!entry || designIsOn() || panelIsOpen()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
-    if (panelIsOpen()) setPanel(false);
     let button = threadButton(entry);
     if (!button?.checkVisibility()) {
       setOptionsOpen(entry, true);
@@ -1796,7 +2428,6 @@ export function createLivingMargin(dependencies) {
     if (!button) return null;
     pinnedKey = entry.key;
     forcedInlineKey = entry.key;
-    buildThreadCard(entry);
     showPreview(entry, button);
     const item = [...previewList.children].find(
       (candidate) => candidate.dataset.lfMarginItem === itemId,
@@ -1805,49 +2436,201 @@ export function createLivingMargin(dependencies) {
     return item?.querySelector("textarea") ?? null;
   }
 
-  function renderSheet() {
-    const focusedItem = sheet.contains(document.activeElement)
-      ? document.activeElement.dataset.lfMapItem
-      : null;
-    const heldScroll = sheetList.scrollTop;
-    sheetList.replaceChildren(
-      ...pageMapEntries.map((entry) => {
-        const group = el("section", "lf-page-map-group");
-        group.append(el("h3", "", entry.title));
-        const actions = el("div", "lf-page-map-actions");
-        for (const item of entry.items) {
-          const button = el("button", "lf-page-map-action");
-          button.type = "button";
-          button.append(
-            el(
-              "span",
-              `lf-margin-kind lf-margin-${item.kind}`,
-              KINDS[item.kind].symbol,
-            ),
-            el("span", "", item.text || entry.title),
-          );
-          button.setAttribute(
-            "aria-label",
-            `Open ${KINDS[item.kind].label.toLowerCase()}: ${item.text || entry.title}`,
-          );
-          button.dataset.lfMapItem = item.id;
-          button.onclick = () => activate(item, entry);
-          actions.append(button);
-        }
-        group.append(actions);
-        return group;
-      }),
-    );
-    sheetList.scrollTop = heldScroll;
-    if (focusedItem) {
-      const replacement = [...sheetList.querySelectorAll("[data-lf-map-item]")].find(
-        (candidate) => candidate.dataset.lfMapItem === focusedItem,
-      );
-      (replacement ?? sheetClose).focus({ preventScroll: true });
-    }
+  function sheetControls(entry) {
+    const records = entry.offers
+      .flatMap((offered) =>
+        controlsOf(offered)
+          .filter((control) => entry.shownControls.has(control))
+          .map((control) => ({ control, offered })),
+      )
+      .sort(compareControlRecords);
+    return [...new Set(records.map(({ control }) => control))];
   }
 
-  function openSheet(entry = null) {
+  function sheetItemKey(entry, item) {
+    return `${entry.key}:item:${item.id}`;
+  }
+
+  function sheetControlKey(entry, control) {
+    const record = buttonRecord(control);
+    return `${entry.key}:${record.owner}:${record.key}`;
+  }
+
+  function syncSheetFace(button, { icon, glyph, label, visibleLabel = label }) {
+    let face = button.querySelector(":scope > .lf-margin-kind");
+    if (icon) {
+      if (!(face instanceof SVGSVGElement) || face.dataset.lfIcon !== icon)
+        face = iconElement(icon, "lf-margin-kind");
+    } else {
+      if (!(face instanceof HTMLSpanElement)) face = document.createElement("span");
+      if (face.className !== "lf-margin-kind") face.className = "lf-margin-kind";
+      if (face.hasAttribute("data-lf-icon")) face.removeAttribute("data-lf-icon");
+      if (face.textContent !== glyph) face.textContent = glyph;
+    }
+    let text = button.querySelector(":scope > .lf-page-map-action-label");
+    if (!text) text = el("span", "lf-page-map-action-label");
+    if (text.textContent !== visibleLabel) text.textContent = visibleLabel;
+    if (
+      button.childNodes.length !== 2 ||
+      button.childNodes[0] !== face ||
+      button.childNodes[1] !== text
+    )
+      button.replaceChildren(face, text);
+    if (button.getAttribute("aria-label") !== label)
+      button.setAttribute("aria-label", label);
+  }
+
+  function syncSheetItem(button, entry, item) {
+    button.lfMapEntry = entry;
+    button.lfMapItem = item;
+    delete button.lfMapControl;
+    button.dataset.lfMapItem = item.id;
+    delete button.dataset.lfMapButton;
+    const label = item.text || entry.title;
+    syncSheetFace(button, {
+      icon: KINDS[item.kind].icon,
+      label: `Open ${KINDS[item.kind].label.toLowerCase()}: ${label}`,
+      visibleLabel: label,
+    });
+    button.disabled = false;
+  }
+
+  function syncSheetControl(button, entry, control) {
+    button.lfMapEntry = entry;
+    button.lfMapControl = control;
+    delete button.lfMapItem;
+    delete button.dataset.lfMapItem;
+    button.dataset.lfMapButton = sheetControlKey(entry, control);
+    const record = buttonRecord(control);
+    button.dataset.lfBehavior = record.behavior;
+    button.dataset.lfTone = record.tone;
+    button.dataset.lfRole = record.role;
+    button.dataset.lfState = record.state;
+    syncSheetFace(button, {
+      ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
+      label: record.label,
+      visibleLabel: visibleButtonLabel(record),
+    });
+    syncForwardedButtonState(button, control);
+  }
+
+  function makeSheetAction(key) {
+    const button = el("button", "lf-page-map-action");
+    button.type = "button";
+    button.dataset.lfMapKey = key;
+    button.onclick = () => {
+      if (button.lfMapItem) {
+        activate(button.lfMapItem, button.lfMapEntry);
+        return;
+      }
+      const control = button.lfMapControl;
+      if (!control) return;
+      const from = sheetFrom;
+      sheetCloseOwnsFocus = true;
+      sheet.close();
+      // Closing the native modal is synchronous; preserve the source interaction and
+      // forward the press before a later state render can retire its real control.
+      if (from?.isConnected && from.checkVisibility())
+        from.focus({ preventScroll: true });
+      control.click();
+    };
+    return button;
+  }
+
+  function renderSheet() {
+    const active = sheet.contains(document.activeElement)
+      ? document.activeElement
+      : null;
+    const heldScroll = sheetList.scrollTop;
+    const groups = new Map(
+      [...sheetList.children].map((group) => [group.dataset.lfMapGroup, group]),
+    );
+    const wantedGroups = [];
+    for (const entry of pageMapEntries) {
+      let group = groups.get(entry.key);
+      if (!group) {
+        group = el("section", "lf-page-map-group");
+        group.dataset.lfMapGroup = entry.key;
+        group.append(el("h3"), el("div", "lf-page-map-actions"));
+      }
+      const heading = group.querySelector(":scope > h3");
+      if (heading.textContent !== entry.title) heading.textContent = entry.title;
+      const actions = group.querySelector(":scope > .lf-page-map-actions");
+      const existing = new Map(
+        [...actions.children].map((button) => [button.dataset.lfMapKey, button]),
+      );
+      const controls = sheetControls(entry);
+      const controlOwners = new Set(
+        controls.map((control) => buttonRecord(control).owner),
+      );
+      const items = entry.items.filter(
+        (item) => !item.owner || !controlOwners.has(item.owner),
+      );
+      const wantedActions = [];
+      for (const item of items) {
+        const key = sheetItemKey(entry, item);
+        const button = existing.get(key) ?? makeSheetAction(key);
+        syncSheetItem(button, entry, item);
+        wantedActions.push(button);
+      }
+      for (const control of controls) {
+        const key = `control:${sheetControlKey(entry, control)}`;
+        const button = existing.get(key) ?? makeSheetAction(key);
+        syncSheetControl(button, entry, control);
+        wantedActions.push(button);
+      }
+      for (const child of [...actions.children])
+        if (!wantedActions.includes(child)) child.remove();
+      wantedActions.forEach((button, index) => {
+        if (actions.children[index] !== button)
+          actions.insertBefore(button, actions.children[index] ?? null);
+      });
+      // A rewrite's own label says `old → new`, but the location a reader remembers
+      // is usually the sentence around it. Index the same text block the passage runtime
+      // uses for anchoring, alongside the visible Page-map labels, so a search for either
+      // the Button or its surrounding document words reaches this one group.
+      const passage = blockAt(entry.target);
+      group.lfMapSearch = [group.textContent, passage ? says(passage) : ""]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+      wantedGroups.push(group);
+    }
+    for (const child of [...sheetList.children])
+      if (!wantedGroups.includes(child)) child.remove();
+    wantedGroups.forEach((group, index) => {
+      if (sheetList.children[index] !== group)
+        sheetList.insertBefore(group, sheetList.children[index] ?? null);
+    });
+    filterSheet();
+    sheetList.scrollTop = heldScroll;
+    if (active && (!active.isConnected || !active.checkVisibility()))
+      sheetSearch.focus({ preventScroll: true });
+  }
+
+  function filterSheet() {
+    const query = sheetSearch.value.trim().toLocaleLowerCase();
+    let shown = 0;
+    for (const group of sheetList.children) {
+      const matches = !query || group.lfMapSearch.includes(query);
+      group.hidden = !matches;
+      if (matches) shown += 1;
+    }
+    sheetEmpty.textContent = query
+      ? "No matching Buttons or locations"
+      : "No Buttons or locations yet";
+    sheetEmpty.hidden = shown !== 0;
+  }
+
+  function openSheet(entry = null, { invoker = null, focusSpill = false } = {}) {
+    const from = invoker ?? pageMapInvoker();
+    sheetTarget = entry?.target ?? null;
+    // The command's door owns the return route, not incidental keyboard focus. Page
+    // addresses and the map chord use the Map toggle; overflow names its exact Button.
+    if (!sheet.open) {
+      sheetFrom = from;
+      sheetSearch.value = "";
+    }
     renderSheet();
     if (!sheet.open) sheet.showModal();
     const index = entry
@@ -1861,19 +2644,39 @@ export function createLivingMargin(dependencies) {
       else if (groupBox.bottom > listBox.bottom)
         sheetList.scrollTop += groupBox.bottom - listBox.bottom;
     }
-    (group?.querySelector(".lf-page-map-action") ?? sheetClose).focus({
-      preventScroll: true,
-    });
+    const spilled = focusSpill ? from.lfFirstSpilledOption : null;
+    const forwarded = spilled?.lfForwardedControl ?? spilled;
+    const destination = focusSpill
+      ? [...(group?.querySelectorAll(".lf-page-map-action") ?? [])].find(
+          (button) =>
+            button.lfMapControl === forwarded ||
+            spilled?.lfChoice?.items.some((item) => button.lfMapItem?.id === item.id),
+        )
+      : group?.querySelector(".lf-page-map-action");
+    (destination ?? sheetSearch).focus({ preventScroll: true });
     paintKeys();
   }
-  mapButton.onclick = () => openSheet();
+  mapButton.onclick = () => openSheet(null, { invoker: pageMapInvoker() });
+  sheetSearch.addEventListener("input", filterSheet);
   sheet.addEventListener("close", () => {
+    const from = sheetFrom;
+    const focusOwned = sheetCloseOwnsFocus;
+    sheetCloseOwnsFocus = false;
+    // A dialog delivers `close` in a task of its own, so a reader who reopens the sheet
+    // in the same breath — Esc off the overflow route and straight back onto the Button
+    // that named it — is standing in the next opening by the time this arrives. That
+    // opening owns the return route and the target the retained context is read from
+    // (buttonContextContains), so a late close must not take either with it: cleared,
+    // the reopened sheet stops counting as its target's own surface and the next press
+    // inside it stands the reaction down instead of sending it.
+    if (sheet.open) return;
+    sheetFrom = null;
+    sheetTarget = null;
     paintKeys();
-    if (sheetActivation) {
-      sheetActivation = false;
-      return;
-    }
-    focusMapControl();
+    if (focusOwned) return;
+    if (from?.isConnected && from.checkVisibility())
+      from.focus({ preventScroll: true });
+    else focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
   preview.addEventListener("toggle", (event) => {
@@ -1885,7 +2688,7 @@ export function createLivingMargin(dependencies) {
     previewEntry = null;
     previewButton = null;
     button?.style.removeProperty("anchor-name");
-    highlight(null);
+    refreshHighlight();
     for (const row of rows.values())
       syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
     for (const reading of readingButtons.values())
@@ -1903,6 +2706,17 @@ export function createLivingMargin(dependencies) {
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
+  // The margin packs its rows a frame after anything moves them — a row registering,
+  // the column resizing under a diagram that finished or a disclosure that opened — and
+  // the card beside a marker was placed once, when it opened. margin-layout.js says when
+  // it has moved the rows, and the card follows in that same frame, so a reader never
+  // sees it standing beside where its marker used to be.
+  document.addEventListener("lf-margin-layout", () => {
+    placeThreadPreview();
+    scheduleButtonLabels();
+  });
+  for (const event of ["pointerover", "focusin"])
+    document.addEventListener(event, scheduleButtonLabels, { capture: true });
   document.addEventListener(
     "pointerdown",
     (event) => {
@@ -1934,6 +2748,8 @@ export function createLivingMargin(dependencies) {
   render();
 
   return {
+    buttonChoices: (target) => clusterButtons(buttonHost(target)),
+    buttonContextContains,
     // The unfolded cluster, for a gesture that needs to know whether the fold standing
     // open is one it opened itself. The cluster and not a flag, because a fold open
     // somewhere is not the fold this gesture put on: the caller asks whose target it
@@ -1962,6 +2778,7 @@ export function createLivingMargin(dependencies) {
     },
     closePreview: () => closePreview(false),
     enterPageMap,
+    leavePageMap,
     focusForNavigation,
     keyboardRung,
     marginTargetAt,
@@ -1969,6 +2786,8 @@ export function createLivingMargin(dependencies) {
     openInlineThread,
     openPageMapItem,
     pageMapItems,
+    pageMapIsActive,
+    presentedControl,
     render,
   };
 }

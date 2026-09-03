@@ -20,9 +20,11 @@ export function createSelectionComposer(runtime, dependencies) {
     loadDraft,
     mayLandTyping,
     openInlineThread,
+    panelIsOpen,
     paintAnchors,
     paintHere,
     post,
+    refreshFab,
     saveDraft,
     sendDraft,
     showFab,
@@ -96,6 +98,7 @@ export function createSelectionComposer(runtime, dependencies) {
     sendBtn: composerSend,
     sendKey: "Enter",
     save: saveComposerDraft,
+    layout: refreshFab,
     send: async (text, raw) => {
       const anchor = structuredClone(pendingAnchor);
       const ctx = composerCtx(anchor);
@@ -125,17 +128,19 @@ export function createSelectionComposer(runtime, dependencies) {
         if (inFlight === flight) inFlight = null;
       }
       if (!sent) return;
-      // A later edit is still the reader's standing gesture. The earlier comment may
-      // render in another conversation view, but it may not close or move the composer
-      // holding that edit.
-      if (composerEpoch !== flight.epoch || loadDraft(ctx) !== null) return;
       let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
-      const shouldLand = mayLandTyping(reply, composerInput);
-      // Opening an inline view closes the panel and moves focus. Decide from the standing
-      // view first, so a later gesture in another reply box survives an earlier send.
-      const inlineReply = shouldLand ? openInlineThread(sent.id) : null;
+      // A later draft or selection keeps its focus. The accepted comment still belongs
+      // in an open panel, including when revealing it must widen the panel's filter.
+      const shouldLand =
+        composerEpoch === flight.epoch &&
+        loadDraft(ctx) === null &&
+        mayLandTyping(reply, composerInput);
+      // Continue in the surface already in use. Closing an open panel here reflows the
+      // passage just as the reader's comment moves across it to a new floating card.
+      const inlineReply =
+        shouldLand && !panelIsOpen() ? openInlineThread(sent.id) : null;
       reply = inlineReply ?? reply;
-      if (!inlineReply) {
+      if (!inlineReply && (shouldLand || panelIsOpen())) {
         showThread(sent.id, { stand: shouldLand });
         reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
       }

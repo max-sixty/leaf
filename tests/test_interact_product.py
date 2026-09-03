@@ -21,6 +21,7 @@ from interact_support import (
     check,
     comment,
     fetch,
+    fixture_version_path,
     fragment_errors,
     live_versions,
     page_state,
@@ -41,6 +42,12 @@ from leaf.registry import storage as registry_storage
 from leaf.structure import parse_structure
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
+
+PUBLIC_EXAMPLES = tuple(
+    path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
+)
+FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -70,7 +77,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     assert revision.read_text() == changed
 
 
-def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
+def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)
     runner = CliRunner()
@@ -81,7 +88,8 @@ def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
     assert first.exit_code == 0, first.output
     first_note = events_model.read_events(page_dir)[-1]
     assert (first_note["version"], first_note["revision"]) == (1, 1)
-    assert (page_dir / "versions" / "v1.html").read_text() == PAGE
+    assert files_model.revision_path(page_dir, 1).read_text() == PAGE
+    assert not (page_dir / "versions").exists()
 
     repeated = runner.invoke(
         cli_model.cli, ["version", "stamp", str(page_dir), "--text", "again"]
@@ -95,7 +103,6 @@ def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
     )
     assert refused.exit_code != 0
     assert files_model.list_revisions(page_dir) == [1]
-    assert not (page_dir / "versions" / "v2.html").exists()
     assert len(events_model.read_events(page_dir)) == 1
 
     changed = PAGE.replace("<title>t</title>", "<title>second</title>")
@@ -111,7 +118,8 @@ def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
         (1, 1),
         (2, 2),
     ]
-    assert (page_dir / "versions" / "v2.html").read_text() == changed
+    assert files_model.revision_path(page_dir, 2).read_text() == changed
+    assert not (page_dir / "versions").exists()
 
 
 def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir):
@@ -319,22 +327,22 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     group = '<lf-decision id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
     group += '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-decision>'
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
     publish(page_dir)
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
     )
     (page_dir / "index.html").write_bytes(
-        (page_dir / "versions" / "v2.html").read_bytes()
+        (page_dir / ".fixture-versions" / "v2.html").read_bytes()
     )
     assert checking_command.cmd_check(page_dir) == 0
     capsys.readouterr()
 
-    (page_dir / "versions" / "v2.html").write_text(PAGE)
+    (page_dir / ".fixture-versions" / "v2.html").write_text(PAGE)
     (page_dir / "index.html").write_bytes(
-        (page_dir / "versions" / "v2.html").read_bytes()
+        (page_dir / ".fixture-versions" / "v2.html").read_bytes()
     )
     assert checking_command.cmd_check(page_dir) == 0
     assert (
@@ -387,13 +395,13 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
-    """Every page fixture in examples/ lints clean against the shipped layer."""
+def test_page_fixtures_pass_check(tmp_path, monkeypatch, clone_initialized_page):
+    """Every public example and developer feature fixture passes the real check."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    examples = sorted(root.glob("*.html"))
-    assert examples
+    examples = [*PUBLIC_EXAMPLES, FEATURE_GALLERY, root / "corpus.html"]
+    assert FEATURE_GALLERY.is_file()
     selection_args = [arg for package in packages for arg in ("--package", package)]
 
     def initialize(target):
@@ -434,21 +442,21 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             # Preview and the published site append this file verbatim. Do the
             # same here: normalizing a stale event contract in the fixture would
             # let the shipped demo fail while its corpus gate stayed green.
-            (d / "comments.jsonl").write_bytes(seed.read_bytes())
+            (d / "events.jsonl").write_bytes(seed.read_bytes())
         # Every authored version, not only the current one. A prior version is markup
         # a builder stamps through the same door, so a fault in one stops preview and
         # the site build — which is a slow way to hear it from this gate.
         for number, version in enumerate(example_versions(example), start=1):
             markup = version.read_text()
             (d / "index.html").write_text(markup)
-            (d / "versions" / f"v{number}.html").write_text(markup)
+            fixture_version_path(d, number).write_text(markup)
             activated = revisioning_model.activate_source(d, [])
             assert activated.error is None
             result = check(d)
             assert result.exit_code == 0, f"{version.name}: {result.output}"
 
 
-def test_every_widget_in_the_vocabulary_stands_in_an_example():
+def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     """Eight sweeps in test_render.py read a widget inside a whole page, and their
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
@@ -457,17 +465,69 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
-    authored = " ".join(
-        p.read_text()
-        for p in (ROOT / "examples").glob("*.html")
-        if p.name != "corpus.html"
-    )
+    authored = " ".join(path.read_text() for path in CORPUS_SOURCES)
     tags = [tag for tag in registry if not tag.startswith("$")]
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
     undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not undemonstrated, (
-        f"no example holds {', '.join(undemonstrated)} — see examples/CLAUDE.md"
+        f"no corpus source holds {', '.join(undemonstrated)} — see examples/CLAUDE.md"
     )
+
+
+def test_every_default_widget_stands_in_the_feature_gallery():
+    """The developer surface owns default presentation coverage directly.
+
+    A public example may incidentally render the same widget, but that does not give a
+    leaf developer one feature-indexed place to find and exercise it.
+    """
+    registry = json.loads(
+        (schema_model.DEFAULT_PACKAGE / "registry.json").read_text(encoding="utf-8")
+    )
+    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    tags = [tag for tag in registry if tag.startswith("lf-")]
+    assert tags, "the default package declares no widgets"
+    missing = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
+    assert not missing, (
+        f"the feature gallery has no focused specimen for {', '.join(missing)} — "
+        "see examples/CLAUDE.md"
+    )
+
+
+def test_the_feature_gallery_indexes_its_authored_elements():
+    """A developer can find a specimen by its literal custom-element name."""
+    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    tags = set(re.findall(r"<(lf-[a-z-]+)[\s>]", authored))
+    eyebrows = " ".join(
+        re.findall(
+            r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+            authored,
+            flags=re.DOTALL,
+        )
+    )
+    indexed = set(re.findall(r"lf-[a-z-]+", eyebrows))
+    assert tags
+    assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
+
+
+def test_each_long_example_version_has_one_contents_sidebar():
+    """The registry's default is visible on the pages that demonstrate the product."""
+    missing = []
+    for example in CORPUS_SOURCES:
+        for version in example_versions(example):
+            markup = version.read_text()
+            if len(re.findall(r"<h[2-6](?:\s|>)", markup)) < 2:
+                continue
+            parser = parse_structure(markup)
+            contents = [
+                element for element in parser.lf_elements if element["tag"] == "lf-toc"
+            ]
+            if (
+                len(contents) != 1
+                or contents[0]["parent"] != "aside"
+                or '<aside class="sidebar"' not in markup
+            ):
+                missing.append(version.name)
+    assert not missing, f"long example versions without one contents sidebar: {missing}"
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():
@@ -489,11 +549,23 @@ def test_corpus_is_generated_from_the_examples():
     spec.loader.exec_module(corpus)
     committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
+    assert "<lf-toc" not in committed, (
+        "a source page's document map becomes a repeated whole-corpus outline in a tab"
+    )
     committed_data = json.loads(
         (Path(__file__).parent.parent / "examples" / "corpus.data.json").read_text()
     )
     assert corpus.build_data() == committed_data, (
         "example data changed — rerun scripts/corpus.py"
+    )
+    assert committed_data["$captures"]["gallery-source"]["file"] == (
+        "developer/feature-gallery-source.toml"
+    )
+    _, capture_revisions = corpus.composed_data()
+    gallery_snapshot = capture_revisions["gallery-source"]
+    assert (
+        f'source="gallery-source"\n            snapshot="{gallery_snapshot}"'
+        in committed
     )
 
 
@@ -558,7 +630,7 @@ def test_no_example_writes_another_example_s_sentences():
     examples = {
         p.stem: p.read_text(encoding="utf-8")
         for p in sorted((ROOT / "examples").glob("*.html"))
-        # corpus.html embeds every sibling verbatim, so it shares everything by
+        # corpus.html embeds every sibling's prose, so it shares everything by
         # construction; scripts/corpus.py is what holds it true.
         if p.stem != "corpus"
     }
@@ -632,7 +704,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir, version=2)
@@ -686,7 +758,7 @@ def declare_options_version_response(page_dir):
 
 def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     declare_options_version_response(page_dir)
-    version = page_dir / "versions" / "v1.html"
+    version = page_dir / ".fixture-versions" / "v1.html"
     unchosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     version.write_text(unchosen)
     publish(page_dir)
@@ -743,7 +815,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
 
     unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
-    (page_dir / "versions" / "v2.html").write_text(unrelated)
+    (page_dir / ".fixture-versions" / "v2.html").write_text(unrelated)
     publish(page_dir, version=2)
     still_unresolved = CliRunner().invoke(
         cli_model.cli,
@@ -760,7 +832,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
         '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
         1,
     )
-    (page_dir / "versions" / "v3.html").write_text(v3)
+    (page_dir / ".fixture-versions" / "v3.html").write_text(v3)
     publish(page_dir, version=3)
     resolved = CliRunner().invoke(
         cli_model.cli,
@@ -774,7 +846,7 @@ def test_an_already_answered_decision_still_requires_its_version_response(page_d
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
-    (page_dir / "versions" / "v1.html").write_text(chosen)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(chosen)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -788,7 +860,7 @@ def test_an_already_answered_decision_still_requires_its_version_response(page_d
         },
     )
 
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         chosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
     )
     publish(page_dir, version=2)
@@ -807,7 +879,7 @@ def test_an_already_answered_decision_still_requires_its_version_response(page_d
         '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
         1,
     )
-    (page_dir / "versions" / "v3.html").write_text(answered)
+    (page_dir / ".fixture-versions" / "v3.html").write_text(answered)
     publish(page_dir, version=3)
     resolved = CliRunner().invoke(
         cli_model.cli,
@@ -819,7 +891,7 @@ def test_an_already_answered_decision_still_requires_its_version_response(page_d
 def test_a_version_response_can_settle_a_standing_decision(page_dir):
     declare_options_version_response(page_dir)
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / "versions" / "v1.html").write_text(asking)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(asking)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -833,7 +905,7 @@ def test_a_version_response_can_settle_a_standing_decision(page_dir):
         },
     )
 
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         asking.replace(
             '<lf-options id="choice" choose>',
             '<lf-options id="choice" choose settled>',
@@ -852,7 +924,7 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
-    (page_dir / "versions" / "v1.html").write_text(chosen)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(chosen)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -870,7 +942,7 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
         '<lf-options id="choice" choose>',
         '<lf-options id="choice" choose settled>',
     )
-    (page_dir / "versions" / "v2.html").write_text(settled)
+    (page_dir / ".fixture-versions" / "v2.html").write_text(settled)
     publish(page_dir, version=2)
     resolved = CliRunner().invoke(
         cli_model.cli,
@@ -889,7 +961,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
 ):
     declare_options_version_response(page_dir)
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / "versions" / "v1.html").write_text(asking)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(asking)
     publish(page_dir)
     pick = {
         "kind": "action",
@@ -916,7 +988,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
     if pick_after_proposal:
         events_model.append_event(page_dir, pick)
 
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         asking.replace("</main>", "<p>Unrelated update.</p>\n</main>")
     )
     publish(page_dir, version=2)
@@ -931,7 +1003,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         in unresolved.output
     )
 
-    (page_dir / "versions" / "v3.html").write_text(
+    (page_dir / ".fixture-versions" / "v3.html").write_text(
         asking.replace(
             '<lf-options id="choice" choose>',
             '<lf-options id="choice" choose restated>',
@@ -1024,7 +1096,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace('<section id="plan">', '<section id="plan"><p id="q1">stolen</p>')
     )
     result = check(page_dir, version=2)
@@ -1039,7 +1111,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     and points ARIA at them. An authored id there would aim those references at the page
     instead, silently. One rule over both places an id can be authored: a version, and
     the widget markup in Claude's reply."""
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace(
             '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
         )
@@ -1159,7 +1231,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_dir):
-    source = page_dir / "versions" / "v1.html"
+    source = page_dir / ".fixture-versions" / "v1.html"
     source.write_text(
         source.read_text().replace(
             "</section>",
@@ -1297,6 +1369,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         [
             "reply",
+            "--json",
             str(page_dir),
             "--to",
             reader["id"],
@@ -1315,7 +1388,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     ]:
         result = CliRunner().invoke(
             cli_model.cli,
-            ["edit", str(page_dir), "--to", message["id"], "--text", text],
+            ["edit", str(page_dir), "--to", message["id"], "--text", text, "--json"],
         )
         assert result.exit_code == 0, result.output
         revisions.append(json.loads(result.output))
@@ -1536,7 +1609,7 @@ def test_export_prints_threads_and_versions(page_dir):
         },
     )
     # An abandoned newer draft is not the live page whose exchange is exported.
-    (page_dir / "versions" / "v2.html").write_text(
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
     )
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
@@ -1673,11 +1746,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     refused in a version, and until recently accepted in a reply. No seed carries one
     today, which is what a floor is for."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    seeded = [
-        p
-        for p in sorted((ROOT / "examples").glob("*.html"))
-        if p.with_suffix(".jsonl").exists()
-    ]
+    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
     selection_args = [arg for package in packages for arg in ("--package", package)]
@@ -1689,7 +1758,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "index.html").write_text(example.read_text())
-        (d / "versions" / "v1.html").write_text(example.read_text())
+        fixture_version_path(d, 1).write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
             if operation["kind"] == "set":

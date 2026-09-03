@@ -6,7 +6,6 @@ from pathlib import Path
 
 from leaf.event_log import flocked, require_cross_process_locking
 from leaf.host import state_home
-from leaf.locations import page_key
 
 try:
     import fcntl
@@ -50,11 +49,6 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
 def transition_lock(page_dir: Path) -> Path:
     """Serialize service changes, re-vendoring, and contract-bearing writes."""
     return page_lock(page_dir, "transition")
-
-
-def init_lock_path(page_dir: Path) -> Path:
-    """The lease serializing creation before a page has its own transaction."""
-    return state_home() / "init" / f"{page_key(page_dir)}.lock"
 
 
 def contract_writer(function):

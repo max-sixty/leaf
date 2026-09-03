@@ -39,6 +39,7 @@ export function createTrays({
   el,
   keys,
   leavesOffered,
+  moveShell,
   motion,
   openDecisions,
   pagePresented,
@@ -172,17 +173,14 @@ export function createTrays({
         if (panel.contains(document.activeElement)) btn.focus();
       }
     }
-    // Both of the page's answers to the tray are made here rather than left to the
-    // observation, for the reasons setPanel gives at the same two lines: the strip the
-    // idioms hang in is body's own padding, which the observation's writer may not touch,
-    // and a tray that covers the page moves body's box by nothing at all, so there is no
-    // observation to deliver.
-    syncLayout();
     readerStore.set(TRAY_KEY, key ?? "");
-    // Publish the tray this gesture chose so the stylesheet can say what it costs the
-    // page's own box.
-    if (key) document.body.dataset.lfTray = key;
-    else delete document.body.dataset.lfTray;
+    // Publish the tray through the shared shell boundary so responsive postures settle
+    // once and only the reading column's route to them is motion.
+    moveShell(() => {
+      if (key) document.body.dataset.lfTray = key;
+      else delete document.body.dataset.lfTray;
+    });
+    syncLayout();
     trayChanged();
     paintKeys();
   }
@@ -191,6 +189,7 @@ export function createTrays({
   // published.
   function trayIs(key, panel, btn, paint) {
     trays.set(key, { panel, btn, paint });
+    btn.classList.add("lf-workspace");
     btn.onclick = () => showTray(openTray(key) ? null : key);
     btn.setAttribute("aria-expanded", "false");
   }

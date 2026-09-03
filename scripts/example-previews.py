@@ -16,6 +16,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from leaf.render_gate.browser import launch_browser
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
@@ -55,7 +56,7 @@ def main() -> None:
 
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(channel="chrome")
+            browser, _ = launch_browser(playwright)
             page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))

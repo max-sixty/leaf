@@ -240,6 +240,14 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
+    if (row.returnFrame !== undefined && typeof row.returnFrame !== "function")
+      throw new Error(
+        `leaf: ${row.id ?? `row ${i} of ${where}`} has a returnFrame that is not a function`,
+      );
+    if (row.returnFrame && !row.run)
+      throw new Error(
+        `leaf: ${row.id ?? `row ${i} of ${where}`} declares a return frame but runs no entry`,
+      );
     if (row.native && !row.run)
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
@@ -280,10 +288,6 @@ export function checked(rows, where) {
     if (row.run && !row.line)
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,
-      );
-    if (row.linePriority != null && row.linePriority !== "persistent")
-      throw new Error(
-        `leaf: row ${i} of ${where} has unknown key-line priority ${String(row.linePriority)}`,
       );
     if (row.chordControl != null && row.chordControl !== true)
       throw new Error(

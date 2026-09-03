@@ -9,8 +9,8 @@ from render_harness import (
 )
 
 # ---------- anchors written without a browser ----------
-# `leaf comment` writes an anchor by reading the version file; the runtime
-# resolves it against the DOM that file becomes. Nothing static can check that those
+# `leaf comment` writes an anchor by reading the mapped revision; the runtime
+# resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
 # once the page is loaded.
@@ -471,6 +471,147 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 """,
 )
 
+# A patch with the two things the shipped review has and a one-hunk fixture cannot: more
+# than one hunk in a file, and a line far longer than the box it renders in. Every hunk is
+# the same six lines — one leading context, the change, three trailing — so the `@@` counts
+# are the same arithmetic each time and the line a walk should land on is the number in
+# the header beside it. The long line is a real one: 46 files of Rust and Markdown put the
+# worst overhang at 2,563px, and this is a comment sentence of about that width.
+_LONG = (
+    "The comparison base is the merge-base with the default branch, or with its "
+    "upstream when the branch was pushed from a fork, so a review reads the same "
+    "way whichever remote it came from and nothing here depends on the checkout."
+)
+
+
+def _hunk(start, was, now):
+    """One hunk: context, the change, three more context. Old and new both count five."""
+    return (
+        f"@@ -{start},5 +{start},5 @@\n"
+        f" def line_{start}():\n"
+        f"-    return {was}\n"
+        f"+    return {now}\n"
+        f"     # first tail\n"
+        f"     # second tail\n"
+        f"     # third tail\n"
+    )
+
+
+MULTI_HUNK_PATCH = (
+    "diff --git a/app/handlers.py b/app/handlers.py\n"
+    "--- a/app/handlers.py\n"
+    "+++ b/app/handlers.py\n"
+    + _hunk(1, '"old first"', '"new first"')
+    + _hunk(40, '"old second"', '"new second"')
+    + _hunk(80, '"old third"', f'"{_LONG}"')
+    + "diff --git a/app/routes.py b/app/routes.py\n"
+    "--- a/app/routes.py\n"
+    "+++ b/app/routes.py\n" + _hunk(200, '"old route"', '"new route"')
+)
+
+
+def _filler(name, count):
+    return "".join(
+        f"<p id='{name}-{n}'>The handler change, described at length, paragraph {n}.</p>"
+        for n in range(count)
+    )
+
+
+# Bound to a feed rather than written inline, because that is the form a review arrives in
+# and the only one whose lines are commentable data: `projectData` keys each row by file,
+# side and source line, which is the coordinate a remark on a line is recorded at.
+# Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
+# be scrolled to — a page whose whole diff fits on screen proves nothing about a header
+# staying put while its rows go past, and one whose diff ends at the document's foot
+# cannot be scrolled far enough to find out.
+LONG_LINE_DIFF_PAGE = leaf_page(
+    "patch",
+    "<h1 id='t'>Review</h1>"
+    + _filler("lead", 30)
+    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + _filler("tail", 30),
+)
+
+# The same review bound as a manifest of collapsed files, the form a captured patch
+# arrives in on the shipped walkthrough: the module draws the file rows from the manifest
+# alone and parses no line until a reader opens a file, which is where the renderer comes
+# in. One diff and nothing else that draws lines, so what the page asks for at load is
+# the manifest's answer and no other widget's.
+MANIFEST_DIFF_PAGE = leaf_page(
+    "manifest",
+    "<h1 id='t'>Review</h1>"
+    + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
+)
+
+# Which of a diff's source lines are cut off by the box they sit in. A row is one line of
+# the patch however many line boxes it takes, so scrollWidth past clientWidth is text the
+# reader cannot see without scrolling the file's own box sideways — and on paper, text
+# that is simply gone. `worst` and `widest` are for the failure to say which line and by
+# how much, since "some row overflows" sends its reader back to the browser.
+DIFF_CLIPPING = """() => {
+    const diff = document.querySelector('lf-diff');
+    const rows = [...diff.shadowRoot.querySelectorAll('[data-content] [data-line]')];
+    const cut = rows.filter((row) => row.scrollWidth > row.clientWidth);
+    return { rows: rows.length, cut: cut.length,
+             worst: rows.reduce((most, row) =>
+                 Math.max(most, row.scrollWidth - row.clientWidth), 0),
+             widest: cut.length
+               ? cut.reduce((a, b) =>
+                   a.scrollWidth - a.clientWidth > b.scrollWidth - b.clientWidth ? a : b
+                 ).textContent.slice(0, 70)
+               : null };
+}"""
+
+# Where each file's row starts against its own wrapper. The review press stands ahead of
+# the row and the row is pulled back up over it, so the row starts where it would with no
+# press at all — zero — on screen, and on paper, where an unreviewed press is not drawn
+# and there is nothing for the pull to take back.
+DIFF_ROW_PLACEMENT = """() => {
+    const root = document.querySelector('lf-diff').shadowRoot;
+    const files = [...root.querySelectorAll('.lf-diff-file')];
+    const lifts = files.map((file) => {
+        const row = file.querySelector(':scope > details, :scope > .lf-diff-rename');
+        return Math.round(row.getBoundingClientRect().top
+                          - file.getBoundingClientRect().top);
+    });
+    return { files: files.length, lift: Math.min(...lifts), drop: Math.max(...lifts) };
+}"""
+
+# Where the file the reader is in says its name, against the bar it has to clear, and
+# where the keyboard just landed. One pass, because every number here means something only
+# against the others. With nothing focused it answers for the first file, so the same
+# reading covers a page nobody has pressed a key on yet.
+# The first file's review press against its own header, and what a pointer at the
+# press's centre would reach. Read through the shadow root, which is the tree the press
+# is in.
+DIFF_PRESS = """() => {
+    const root = document.querySelector('lf-diff').shadowRoot;
+    const file = root.querySelector('.lf-diff-file');
+    const box = file.querySelector('.lf-diff-review').getBoundingClientRect();
+    const head = file.querySelector('summary').getBoundingClientRect();
+    const hit = root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { top: Math.round(box.top), bottom: Math.round(box.bottom),
+             headTop: Math.round(head.top),
+             fileBottom: Math.round(file.getBoundingClientRect().bottom),
+             hit: hit && hit.classList.contains('lf-diff-review') ? 'review'
+                : hit && (hit.localName + '.' + hit.className) };
+}"""
+
+DIFF_LANDING = """() => {
+    const diff = document.querySelector('lf-diff');
+    const at = diff.shadowRoot.activeElement;
+    const file =
+      (at && at.closest('details')) || diff.shadowRoot.querySelector('details');
+    const head = file && file.querySelector('summary');
+    const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+    return { stop: at && at.localName, line: at && at.dataset.line,
+             path: head && head.querySelector('.lf-diff-path').textContent,
+             top: at && Math.round(at.getBoundingClientRect().top),
+             headTop: head && Math.round(head.getBoundingClientRect().top),
+             headBottom: head && Math.round(head.getBoundingClientRect().bottom),
+             bannerBottom: Math.round(banner.bottom) };
+}"""
+
 # main's content box, body's, the page's own box, and where each named element stands in
 # them. Read together in one pass because the whole subject is their relation: a width
 # means nothing here except against the column it is or isn't wider than.
@@ -838,10 +979,10 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough that the note has its strip (1152px) and narrow enough that the room, not
-# the shared cap, is what decides the board's width — above about 1560px the cap binds
-# first and the two never compete. A window inside that band is where the question is live.
-NOTE_BAND = 1280
+# Wide enough for an exhibit to grow after the live page's 520px conversation strip,
+# but narrow enough that room, not the 1080px shared cap, binds in both live and copied
+# media. With no surplus over prose, a board never asks to share the note's margin.
+NOTE_BAND = 1400
 
 
 def _painted_line(page):

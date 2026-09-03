@@ -140,10 +140,13 @@ inlined into an export, so use fonts available on the reader's machine rather th
 remote font a standalone copy would have to fetch.
 
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
-offline fallback, is visible and interactive. Leaf disables transitions on page
-elements before that stamp, so package styles need no arrival guard. Scriptless pages
-and `data-lf-eager` showcases remain unchanged. A declared `x-shadow` widget gets the
-same protection when it builds its root with `shadowStage`.
+offline fallback, is safe for recorded interaction. Authored content is already visible:
+Leaf disables its arrival transitions and withholds dialogs, popovers, and durable widget
+actions before that stamp. Package styles need no arrival guard. A declared `x-shadow`
+widget gets the same transition and top-layer protection when it builds its root with
+`shadowStage`. A module must guard every optimistic mutation with `actionAvailable` or
+`requestAvailable`; the send door repeats the same check. Leaf's own anchored composer
+uses the same stamp before it can capture or post a passage coordinate.
 
 ## A widget
 
@@ -167,6 +170,17 @@ The widget still owns its implementation: supporting modules can sit beside its 
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
+
+A widget that can be an Ask calls `registerDecisionActions(source, read)` once at
+upgrade. `read` returns its current ordered `{control, label, address?}` actions; call the
+returned `update()` after replacing controls or changing their availability. `address`
+may name an address face the widget already positions for its local scope, so the Ask and
+local projections align; otherwise core paints at the visible control. The core gives the
+first nine actions contextual numeric keys and paints chips only for actions currently in
+view. Contribute the controls that actually answer or advance the Ask rather than scanning
+all offered descendants: evidence inside an option is not an answer, and shared-margin
+Buttons may sit outside the source. The control's own click remains the one activation
+path.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
@@ -373,7 +387,7 @@ revision. A widget without its snapshot attribute follows the current value; a w
 never stored or sent to readers.
 
 A source id keeps one contract for the lifetime of the page. Documents without a
-snapshot selection share the page's current value; immutable versions and widgets
+snapshot selection share the page's current value; stamped versions and widgets
 frozen into threads may instead select a retained capture. `data clear` removes the
 current value and unreferenced captures, but keeps captures selected by those durable
 documents and a contract-only tombstone that never releases the source id for a new
@@ -482,8 +496,8 @@ The reader's design mode (`i` in the browser) posts a comment about the layer ra
 than the page: `"about": "layer"`, anchored on the element they clicked or the words they
 selected. The anchor's `section` is a widget's id, or the id of a runtime part —
 `lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
-`lf-composer`, `lf-comment-button` (the margin's 💬), `lf-keyline`, `lf-help` — and
-`part` names the control the click landed on, where it landed on one (`✓ Accept`,
+`lf-composer`, `lf-comment-button` (the margin's Comment Button), `lf-keyline`, `lf-help` — and
+`part` names the control the click landed on, where it landed on one (`Accept`,
 `Threads (2)`).
 
 ```json

@@ -9,6 +9,7 @@ let publishedPassages;
 // a string that never varies.
 export const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
+export const authored = (...args) => publishedPassages.authored(...args);
 export const closestAcross = (...args) => publishedPassages.closestAcross(...args);
 export const containsAcross = (...args) => publishedPassages.containsAcross(...args);
 export const inChrome = (...args) => publishedPassages.inChrome(...args);
@@ -296,7 +297,7 @@ export function createPassages(dependencies) {
   };
   const authored = (root) => {
     const frame = frameOf(root);
-    return (n) => !overIn(elementOver(n), GENERATED, frame);
+    return (n) => !overIn(n.nodeType === 1 ? n : elementOver(n), GENERATED, frame);
   };
   // The composed tree, not the light one: a widget that renders the page's words into an
   // open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
@@ -352,7 +353,7 @@ export function createPassages(dependencies) {
   // asks about where a node sits — which section, which block, which passage cell, whether
   // it is chrome — is asked of the page, and a climb that stops at a shadow root answers
   // about the widget's own markup instead.
-  const upFrom = (node) => node.parentElement ?? node.getRootNode()?.host ?? null;
+  const upFrom = (node) => node?.parentElement ?? node?.getRootNode()?.host ?? null;
 
   // contains() stops at a boundary the same way, and this is the one that decides whether a
   // quote is found at all: a section holding an x-shadow widget does not contain the words

@@ -533,13 +533,28 @@ def edge_settled(page, edge):
     """Wait for the region to stand and for the page to finish making room for it.
 
     Two animations, on two elements, and `panel_settled`'s reasoning covers both: the
-    strip the page yields is a transition on body, and the region's arrival is its own
-    slide. A geometry read between them is a read of a box still under a transform.
+    final shell carries `main` into place, and the region's arrival is its own slide. A
+    geometry read between them is a read of a box still under a presentation offset.
+
+    Both are finished rather than waited out, which is that reasoning in full. Each is
+    presentation over a layout the gesture already installed, so the end frame is the
+    settled page either way, and finishing is the only thing that terminates when the
+    test is holding the clock still — `showTray` and a drawn edge reach the same shell
+    carry the panel does, so a held-motion test that came through here would sit out the
+    same stopped clock. Polling, because a carry starts inside the gesture's own task
+    and a finished fill leaves `getAnimations` a turn later.
     """
     expect(page.locator(edge.region)).to_be_visible()
     page.wait_for_function(
-        "(region) => document.body.getAnimations().length === 0"
-        " && document.querySelector(region).getAnimations().length === 0",
+        """(region) => {
+          const carried = [
+            document.querySelector('body > main'),
+            document.querySelector(region),
+          ];
+          for (const box of carried)
+            for (const move of box.getAnimations()) move.finish();
+          return carried.every((box) => box.getAnimations().length === 0);
+        }""",
         arg=edge.region,
     )
 
@@ -581,15 +596,16 @@ def draw_edge(page, edge, by):
     page.mouse.down()
     page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
     page.mouse.up()
-    # The slide stands down for the length of a drag and comes back at its end, so what
-    # is waited on is the page holding still rather than a transition finishing — which
-    # `panel_settled` reads the same way, and which is empty here on both counts.
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    # A drag follows the hand directly, so it starts no carried column motion. What is
+    # waited on is the page holding still, which is empty here on both counts.
+    page.wait_for_function(
+        "() => document.querySelector('body > main').getAnimations().length === 0"
+    )
 
 
-# The room, sampled every frame for as long as a slide lasts. The shell owns the value in
-# CSS, so a harmless probe resolves the custom-property expression to the width a wide
-# exhibit would actually receive.
+# The room sampled across a workspace motion. The shell owns the value in CSS, so a
+# harmless probe resolves the custom-property expression to the width a wide exhibit
+# would actually receive.
 ROOM_EVERY_FRAME = """(frames) => {
   window.__room = [];
   const main = document.querySelector('main');
@@ -696,10 +712,12 @@ NEIGHBOUR = (
 # nothing here to disturb.
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
-# The controls a press is aimed *past*: the ones sharing its parent, standing on the same
-# line, and on screen at both ends of the gesture. Held in a JS array rather than looked
-# up again afterwards, because identity has to survive a press that adds or removes a
-# sibling; measured with offset*, which is the layout box before any transform, so a card
+# The controls a press is aimed *past*: the ones sharing its row, standing on the same
+# line, and on screen at both ends of the gesture. A target Button's row is its cluster;
+# contribution and options wrappers do not split the visible row. Other controls use
+# their parent. Held in a JS array rather than looked up afterwards, because identity
+# has to survive a press that adds or removes a sibling; measured with offset*, which
+# is the layout box before any transform, so a card
 # still lifted under the pointer reads as the nothing it is.
 #
 # On screen is the load-bearing half. A control inside a fold the press opens was nowhere
@@ -723,9 +741,13 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
   window.__lfOnScreen = {ON_SCREEN};
-  window.__lfNeighbours = [...el.parentElement.children]
-      .filter((n) => n !== el && !n.contains(el))
-      .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]))
+  const cluster = el.closest('.lf-margin-item');
+  const candidates = cluster ? [...cluster.querySelectorAll(sel)]
+      : [...el.parentElement.children]
+          .filter((n) => n !== el && !n.contains(el))
+          .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]));
+  window.__lfNeighbours = candidates
+      .filter((n) => n !== el && !n.contains(el) && !el.contains(n))
       .filter((n) => window.__lfOnScreen(n) && sameLine(n));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
@@ -746,31 +768,45 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
 
 
 def unfolded_button(control):
-    """Press `…` and hand back the Button standing in for one folded contribution.
+    """Return a secondary Button, opening `…` only for a larger peer set.
 
-    A target's cluster rests with one primary Button; every other contributed control
-    is folded away and appears, once `…` is pressed, as a peer Button of its own. That
-    peer is what a reader can aim at — the owner keeps the row's record and never comes
-    out from behind the fold — so a test whose subject is a secondary gesture presses
-    the stand-in and lets it forward the press to its owner.
-
-    Named for the fold rather than for any one control, because which contribution is
-    primary is the layer's choice and not a test's: handed a control the cluster is
-    already resting, this presses `…` for nothing and finds no stand-in, which is the
-    honest failure rather than a quiet press of the wrong Button.
+    A single peer is already visible. In either posture the contribution's real
+    control stays with its owner and the visible proxy forwards the reader's press.
+    Asking this helper for a primary still fails: it has no secondary proxy.
     """
     item = control.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '),"
         " ' lf-margin-item ')][1]"
     )
     more = item.locator(":scope > .lf-margin-more")
-    expect(more).to_be_visible()
-    more.click()
+    if more.is_visible():
+        more.click()
     options = item.locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
     return options.get_by_role(
         "button", name=control.get_attribute("aria-label"), exact=True
     )
+
+
+def banner_address(page, selector):
+    """The banner address named, brought out from behind the row's menu if it is there.
+
+    A window too narrow to hold every address folds the ones it cannot into one menu, so
+    a test that presses an address by name has to say which of the two places it is
+    standing in. Nothing else about it changes: it is the same control, with the same
+    words, the same state paint and the same press. The reading is taken of the page as
+    it is rather than of a width the test assumed, so one call reads the same at 1440 and
+    at 320 — which is the point of there being one order at both.
+    """
+    control = page.locator(selector)
+    expect(control).to_have_count(1)
+    if control.evaluate("el => Boolean(el.closest('.lf-banner-menu'))"):
+        door = page.locator(".lf-banner-more")
+        expect(door).to_be_visible()
+        door.click()
+        expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(control).to_be_visible()
+    return control
 
 
 def page_at_rest(page):
@@ -1108,7 +1144,8 @@ def live_leaf(tmp_path, monkeypatch):
         d = host_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
-        (d / "versions" / "v1.html").write_text(
+        (d / ".fixture-versions").mkdir()
+        (d / ".fixture-versions" / "v1.html").write_text(
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
         )
         stamp_version_file(d, 1, "t")

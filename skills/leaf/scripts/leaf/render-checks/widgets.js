@@ -9,9 +9,18 @@ import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
   [...document.querySelectorAll(".lf-error")].map((el) => el.textContent.trim());
+// A widget this page uses whose module never defined its element. The page's own
+// occurrences are the population, because a page imports the modules its markup asks for
+// and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
+// every tag the page simply does not contain. `document`, not `main`, so a widget frozen
+// into an agent's reply answers here too. That a declared module exists at all is a layer
+// fact and `package check` holds it; this is the page's half.
 export const missingUpgrades = (widgets) =>
   Object.entries(widgets)
-    .filter(([tag, entry]) => entry["x-upgrade"] && !customElements.get(tag))
+    .filter(
+      ([tag, entry]) =>
+        entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
+    )
     .map(([tag]) => tag);
 export const missingVisualProviders = (widgets) =>
   Object.entries(widgets)
@@ -56,7 +65,7 @@ export const missingConversations = (widgets) =>
 
 // Attributes standing on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and
-// the static lint holds a version file to it. What no reading of a file can see is the
+// the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`chosen`, `status`), which is what makes the write

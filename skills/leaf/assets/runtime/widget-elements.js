@@ -168,8 +168,8 @@ export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
 // this container is made of (x-parent) — declared rather than listed, so the twelfth
 // widget is covered by its entry and a widget whose gesture lands on its own words rather
-// than on chrome (lf-draft's double-click) is covered with the rest. Inert ones go in with
-// them: a diagram is evidence the reader studies with the pointer on it, and which
+// than on chrome (a press on lf-draft's own box) is covered with the rest. Inert ones go
+// in with them: a diagram is evidence the reader studies with the pointer on it, and which
 // evidence happens to carry a control is nothing they can see.
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
@@ -230,9 +230,15 @@ export function offer(tag, cls, label) {
 // Put the reader on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
 // the lend leaves with the first blur, so a paragraph the address chord landed on is a
-// paragraph again once the reader moves off it. Two arrivals want this and neither owns
-// the element: a numbered address completing on a link's fragment, and a document swap
-// handing back the place the reader stood in.
+// paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
+// runtime leaves behind on an author's element. An element that already declares a stop
+// keeps its own. Four arrivals want this and none owns the element: a numbered address
+// completing on a fold, a heading or a link's fragment; a document swap handing back the
+// place the reader stood in; the reference handing a reader back to the block they were
+// reading; and the skip link landing on the banner when none of its controls will take
+// them. Each is "the reader is now here", and each needs the browser's sequential focus
+// navigation starting point to move with them, which is what `focus()` does and what
+// nothing else does.
 export function focusDestination(destination) {
   destination.focus({ preventScroll: true });
   if (destination.matches(":focus")) return;
@@ -316,17 +322,37 @@ export function installReachedForWordsGuard() {
 // once the strip exists. One element wears both over its life, so the kind is
 // restated on every write rather than settled at birth.
 //
-// This writes one marker and one only: data-lf-said, the page speaking. Anchoring
-// takes it over the `.lf-ui` box around it — that box is a look, the chrome face, and
-// it was standing in for a permission the user has no category for — and paper
-// reads it beside data-lf-offer to keep a control whose label is one of the page's own
-// words. data-lf-gen goes on either way, because the diff parses the base version
+// This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
+// `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
+// in for a permission the user has no category for — and paper reads it beside
+// data-lf-offer to keep a control whose label is one of the page's own words.
+// data-lf-gen goes on either way, because the diff parses the base version
 // unupgraded and would read any label as text that version lacked.
+//
+// Those are two questions with one answer until a label is a copy of words the page
+// says somewhere else — a roster row naming a worker, a generated index entry, any
+// route built out of its target's own words. Such a label must not anchor, because two
+// passages carrying the same text and the same empty context cannot be told apart and
+// both detach; and it must still print, because it is the only thing naming the row it
+// stands in. `says: "echo"` is that third answer, and it writes data-lf-echo: no
+// passage, and the same bargain on paper that data-lf-said strikes — the press goes,
+// the words stay. Paper is the medium that bargain holds in. A copy divides on the
+// marker's *value* instead, which is a fact about the tag and not about this
+// declaration: bake removes a press by the value `offer` wrote, so an echoed route is
+// empty-valued, slips that pass and stays a real fragment link — while an echo on an
+// `offer("button", …)` would go out of the copy with its words inside it, and nothing
+// would report the loss, because the static-ising pass that would have kept them reads
+// data-lf-said alone. Unreachable while `button()` is the only caller and builds an `a`.
+// The second widget to echo a label off a real press is what makes it reachable, and
+// what has to teach standalone.js's two passes the third answer; it does not belong
+// here, where the label is only being worded.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it
-// is worded, and three passes ask it (print, the drag guard above, the render gate).
-// Clearing it here made "paper drops this" the meaning and left the other two unable to
+// is worded, and four passes ask it (print, the drag guard above, the render gate, and
+// the theme's one pressable rule, which reads the value to tell a press from the rest of
+// what a widget builds).
+// Clearing it here made "paper drops this" the meaning and left the others unable to
 // see a control — a drag across a picked card's mark was a press again, and only
 // lf-options' own guard on the card stood between that and clearing the pick.
 //
@@ -335,13 +361,15 @@ export function installReachedForWordsGuard() {
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
 export function relabel(node, label, { says } = {}) {
-  if (typeof says !== "boolean")
+  if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(
-      `relabel(${label}): say whether this label is the page speaking`,
+      `relabel(${label}): say whether this label is the page speaking — ` +
+        `true, false, or "echo" for a copy of words it says elsewhere`,
     );
   node.textContent = label;
   node.dataset.lfGen = "1";
-  node.toggleAttribute("data-lf-said", says);
+  node.toggleAttribute("data-lf-said", says === true);
+  node.toggleAttribute("data-lf-echo", says === "echo");
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will
@@ -369,6 +397,13 @@ export function relabel(node, label, { says } = {}) {
 // asks again the first time there is a box. A floor of zero is not a missing
 // measurement to look at; it is the control holding no room at all.
 export function reserve(control, labels) {
+  // Standing the control out of flow hides it, and hiding a focused element takes the
+  // focus off it — onto body, silently, a frame after the reader put it here. The
+  // fitting is synchronous and invisible, and losing the reader's place is not part of
+  // what it was asked to do. Renewing the banner's reservations across a breakpoint is
+  // where this shows: a reader holding one address crosses 900px and is standing on
+  // nothing.
+  const held = document.activeElement === control;
   const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {
     minWidth: "0",
@@ -385,4 +420,6 @@ export function reserve(control, labels) {
   control.replaceChildren(...stood.nodes);
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
+  if (held && document.activeElement !== control)
+    control.focus({ preventScroll: true });
 }

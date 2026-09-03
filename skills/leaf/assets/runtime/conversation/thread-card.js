@@ -11,12 +11,12 @@ export function createThreadCards(dependencies) {
     paintReactStrips,
     panelCovers,
     placedAt,
-    post,
     PRESS,
     reachedForWords,
-    revealThread,
+    retainPanelLanding,
     scrollToThread,
     setPanel,
+    settlementControl,
     showThread,
     syncMsgNode,
     threadList,
@@ -96,47 +96,28 @@ export function createThreadCards(dependencies) {
       const input = document.createElement("textarea");
       const send = el("button", "lf-btn primary lf-thread-send", "Send");
       row.append(input);
-      wireReply(t, input, send, {
-        landed: (sent) => revealThread(sent.id),
-      });
+      wireReply(t, input, send);
       const actions = el("div", "lf-thread-actions");
-      const resolve = el("button", "lf-btn lf-resolve", "Resolve");
       // Resolving takes this node out of the open list and focus with it — the blind
       // drive fell to body here. Land where t would have gone: the thread that now
       // holds this one's place, else the previous, else the list. Which is read after
       // the trip, off the list the fold has already left (foldOut renames the node the
       // frame the log settles it), so the landing is a thread rather than the room the
       // pressed one is still giving back.
-      // Disabled for the flight (the bulk-answer buttons' shape): the r key repeats while
-      // held, and every repeat before the poll replaces this node would post the
-      // same resolve again. Re-enabled for the one path that keeps the node — a
-      // send that failed, where the press must stay pressable; where it went through,
-      // the fold has made the whole node inert and there is nothing to re-enable into.
-      resolve.onclick = async () => {
-        const at = openThreads().indexOf(div);
-        resolve.disabled = true;
-        paintKeys();
-        try {
-          await post({ kind: "resolve", parent: t.root.id });
-        } finally {
-          resolve.disabled = false;
-          paintKeys();
-        }
-        const kept = openThreads();
-        (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
-      };
-      keys(resolve, "On a thread's Resolve button", [
-        {
-          id: "thread.resolve",
-          keys: [...PRESS, "x"],
-          does: "Resolve it",
-          line: "resolve",
-          when: () => !resolve.disabled,
-          run: () => resolve.click(),
+      const resolve = settlementControl(t, {
+        prepareLanding: () => {
+          const mayLand = retainPanelLanding(div);
+          const at = openThreads().indexOf(div);
+          return () => {
+            if (!mayLand()) return;
+            const kept = openThreads();
+            (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
+          };
         },
-      ]);
+      });
       actions.append(send, resolve);
-      div.append(row, actions);
+      row.append(actions);
+      div.append(row);
     } else {
       const actions = el("div", "lf-thread-actions");
       const status = el("span");
@@ -149,31 +130,14 @@ export function createThreadCards(dependencies) {
         const by = t.resolved.agent || "Agent";
         status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
       }
-      const reopen = el("button", "lf-reopen lf-thread-action", "Reopen");
-      reopen.onclick = async () => {
-        reopen.disabled = true;
-        paintKeys();
-        try {
-          await post({ kind: "unresolve", parent: t.root.id });
-        } finally {
-          reopen.disabled = false;
-          paintKeys();
-        }
-        threadsBox
-          .querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`)
-          ?.focus({ preventScroll: true });
-        showThread(t.root.id);
-      };
-      keys(reopen, "On a resolved thread", [
-        {
-          id: "thread.reopen",
-          keys: [...PRESS, "x"],
-          does: "Reopen it",
-          line: "reopen",
-          when: () => !reopen.disabled,
-          run: () => reopen.click(),
+      const reopen = settlementControl(t, {
+        prepareLanding: () => {
+          const mayLand = retainPanelLanding(div);
+          return () => {
+            if (mayLand()) showThread(t.root.id);
+          };
         },
-      ]);
+      });
       actions.append(status, reopen);
       div.append(actions);
     }

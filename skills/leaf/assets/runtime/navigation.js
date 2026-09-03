@@ -99,9 +99,9 @@ export function createNavigation({
     thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }
 
-  // d and u move the reader 60% of a page down and up, leaving enough of the lines they
-  // were reading on screen to read on from. Space, Home/End and PageUp/Down stay the
-  // browser's own keys.
+  // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
+  // the active region and share one glide, so mixed or repeated presses add up from
+  // the pending goal. Space, Home/End and PageUp/Down stay the browser's own keys.
   //
   // They move the region the reader is reading, which is the thread list wherever the
   // reader stands in the panel or the panel covers the page. Scrolling a region the
@@ -113,11 +113,11 @@ export function createNavigation({
   // animator — but that animator is the compositor's and JS cannot ask for it, while
   // scrollTo's smooth takes three times as long over the same distance and has no dial,
   // which is what read as gradual when the step rode it. So the runtime drives the step
-  // itself: PAGE_MS of easing out, each write `instant` rather than `auto` since a page is
+  // itself: SCROLL_MS of easing out, each write `instant` rather than `auto` since a page is
   // free to set `scroll-behavior: smooth` on the box it scrolls (moveScrollerBy says the
   // same) and
   // a glide built from smooth writes would never land. A press mid-flight retargets from
-  // the goal, so two quick presses move exactly a page; the goal is clamped, so pressing on
+  // the goal, so quick presses add their full distances; the goal is clamped, so pressing on
   // at the foot banks no debt for u to press back through; and the step stands down the
   // moment the box moves under another hand — a wheel, a centering — because the reader's
   // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
@@ -130,7 +130,7 @@ export function createNavigation({
   // its top, so a reading-page step there is 60% of what is left rather than 60% of the
   // box, which is the answer the reader wants — a step that landed them under the heading
   // would be a step onto words they cannot read.
-  const PAGE_MS = 140;
+  const SCROLL_MS = 140;
   let glide = null; // {box, goal, wrote, raf}
   // The glide's claim on the box: it holds only while the box is where the glide last
   // wrote it. The tick asks before every write, and a press asks the same question before
@@ -151,11 +151,14 @@ export function createNavigation({
   // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
   // that never comes.
   const scrollerFor = (el) => (inChrome(el) ? threadsBox : pageScroller);
-  function stepPage(fraction) {
+  function stepReading(amount, unit) {
     const box = stepScroller();
-    const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    if (unit === "page") {
+      const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+      amount *= box.clientHeight - clear;
+    }
     const from = holding(box) ? glide.goal : box.scrollTop;
-    glideTo(box, from + fraction * (box.clientHeight - clear));
+    glideTo(box, from + amount);
   }
   // One eased travel to a goal, shared by the reading-page step and the chord's edges. The
   // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
@@ -182,7 +185,7 @@ export function createNavigation({
       // Floored as well as capped: a rAF timestamp is its frame's start, which can precede
       // the press that scheduled the tick, and an unfloored t walks the ease out past the
       // start — to a write the box clamps, which the next tick then read as another hand.
-      const t = Math.max(0, Math.min(1, (now - t0) / PAGE_MS));
+      const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
       box.scrollTo({
         top: goal - (goal - start) * (1 - t) ** 3,
         behavior: "instant",
@@ -202,7 +205,7 @@ export function createNavigation({
     placeThreadEdge,
     scrollerFor,
     seenScroller,
-    stepPage,
+    stepReading,
     stepThread,
   };
   publishedNavigation = navigation;

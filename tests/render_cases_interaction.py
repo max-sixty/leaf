@@ -228,7 +228,7 @@ SEATED_QUESTION_PAGE = leaf_page(
 def sent_events(page_dir):
     return [
         json.loads(line)
-        for line in (page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (page_dir / "events.jsonl").read_text().splitlines()
     ]
 
 
@@ -467,9 +467,21 @@ SHORT_SUGGESTION = leaf_page(
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — the folds and the board's FLIP, each started synchronously
-# inside the gesture that causes it. CSS animations run outside it and are never seen,
-# `grow` among them. Installed before anything runs, so the first frame is already held.
+# caller of `animate` — folds, the board's FLIP, and final-layout shell motion, each
+# started synchronously inside the gesture that causes it. CSS animations run outside it
+# and are never seen, `grow` among them. Installed before anything runs, so the first
+# frame is already held.
+#
+# `__lfHeld` is what is still held, which is what a test asks it: a count is "the gesture
+# started one motion", an index is "the motion this gesture started", and a sweep over it
+# steps or releases the frame the test is holding. A motion the test has already let go of
+# — a fold it finished, the shell carry `panel_settled` takes to its end on the way to the
+# gesture under test — answers none of those, and left standing it makes the count one too
+# many, the index one place out, and a sweep rewind a finished carry into the middle of a
+# move the page has made. So a motion drops out of the list when it finishes. Cancelling
+# is the other way to end one, and it stays: `motion()` cancels its own last frame after
+# the caller's cleanup, and a cancelled motion is the positive control for a gesture the
+# page took back, which the board's refusal case reads out of this list by play state.
 HOLD_MOTION = """
   window.__lfHeld = [];
   const inner = Element.prototype.animate;
@@ -478,6 +490,13 @@ HOLD_MOTION = """
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);
+    motion.finished.then(
+      () => {
+        const at = window.__lfHeld.indexOf(motion);
+        if (at >= 0) window.__lfHeld.splice(at, 1);
+      },
+      () => {},
+    );
     return motion;
   };
 """
@@ -824,11 +843,17 @@ def live_url(version_url):
 # address chord to count, and a decision whose pick mark the key line offers digits over.
 # The second revision adds a paragraph above everything and takes the middle link away,
 # so a restored place has moved and an address has gone; the third adds another.
+#
+# The first two links are set a clause apart rather than side by side. Two addresses
+# starting within a chip's width of each other stack, and the chord takes the second chip
+# down rather than draw a digit the reader would read off its neighbour — which is the
+# right answer to a crowded line and the wrong fixture for a test about a page moving
+# under a press, since the address it wanted to count was never on screen to count.
 LIVE_KEYS_V1 = leaf_page(
     "Live keys first",
     """
 <h1 id="lk-title">Live keys</h1>
-<p id="lk-lead">See <a id="lk-link-one" href="#lk-title">the title</a>, <a id="lk-link-two" href="#lk-lead">this lead</a>, and the decision below it.</p>
+<p id="lk-lead">See <a id="lk-link-one" href="#lk-title">the title</a> and the sentence that carries it, <a id="lk-link-two" href="#lk-lead">this lead</a>, and the decision below it.</p>
 <lf-decision id="lk-decision"><h2>Which one?</h2>
 <lf-options id="lk-options" choose>
   <lf-option id="lk-one">One</lf-option>
@@ -977,7 +1002,7 @@ def backdate_note(page_dir, version, hours):
     the version asserting it landed, and a version minted seconds ago cannot exercise
     it — so the log, which is a plain file the writer owns, is rewritten rather than
     waited out."""
-    path = page_dir / "comments.jsonl"
+    path = page_dir / "events.jsonl"
     when = (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )

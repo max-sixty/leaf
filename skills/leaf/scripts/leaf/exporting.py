@@ -9,12 +9,17 @@ from leaf.data import read_data
 from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
+    revision_path,
     version_name,
-    version_path,
     version_revisions,
 )
 from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
-from leaf.render_gate.browser import browser_hint, launch_browser
+from leaf.render_gate.browser import (
+    EXPORT_FLOOR,
+    below_export_floor,
+    browser_hint,
+    launch_browser,
+)
 from leaf.render_gate.preview import preview_server
 from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import parse_structure
@@ -80,9 +85,21 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
 
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page
-    whose board was rearranged copies rearranged."""
+    whose board was rearranged copies rearranged.
+
+    The browser's own age is read before the page is opened, because the bake this
+    ends in needs one younger than some of the browsers a host can hand over, and
+    the render gate — which never bakes — passes them. Refusing here says that in
+    one sentence, where the alternative is a TypeError from inside the probe."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    if old := below_export_floor(browser):
+        sys.exit(
+            f"{name} needs Chromium {EXPORT_FLOOR} or later to copy, and this "
+            f"browser is {old}. A copy is the drawn page, and the widgets draw "
+            "into shadow roots this browser cannot serialize."
+        )
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
     try:
@@ -163,14 +180,14 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
         )
     name = version_name(version)
     revision = version_revisions(events)[version]
-    source = version_path(page_dir, version).read_bytes()
+    source = revision_path(page_dir, revision).read_bytes()
 
     with (
         preview(page_dir, source, revision, version=version) as url,
         sync_playwright() as p,
     ):
         try:
-            browser = launch_browser(p)
+            browser, _ = launch_browser(p)
         except PlaywrightError as e:
             sys.exit(
                 "export needs a browser, and none launched "

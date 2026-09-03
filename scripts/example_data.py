@@ -4,8 +4,8 @@ import json
 import re
 from pathlib import Path
 
-# A prior version ships under examples/versions/, so no builder's `*.html` glob over
-# the top of examples/ reads one as an example of its own.
+# A prior version ships under the source directory's versions/, so a builder's
+# top-level `*.html` glob never reads one as a page of its own.
 PRIOR_VERSION = re.compile(r"\.v([1-9][0-9]*)$")
 
 
@@ -14,9 +14,9 @@ def example_versions(source: Path) -> list[Path]:
 
     The example's own file is its current version, and for most examples that is the
     whole list. One that was revised ships each earlier version as
-    `examples/versions/<stem>.vN.html`; every builder stamps this list in order, so
-    the page a reader opens carries the version chooser, the changes-since marks, and
-    a thread opened against the document before the revision.
+    the source directory's `versions/<stem>.vN.html`; every builder stamps this list in
+    order, so the page a reader opens carries the version chooser, the changes-since
+    marks, and a thread opened against the document before the revision.
     """
     priors = sorted(
         (source.parent / "versions").glob(f"{source.stem}.v*.html"),

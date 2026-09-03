@@ -48,7 +48,7 @@ customElements.define(
 
     #build() {
       const phrase = this.textContent.replace(/\s+/g, " ").trim();
-      this.#mark = offer("button", "lf-gloss-mark", "°");
+      this.#mark = offer("button", "lf-gloss-mark", "i");
       this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
       this.#mark.setAttribute("aria-expanded", "false");
 

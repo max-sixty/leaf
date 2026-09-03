@@ -1,9 +1,17 @@
-import { shownBox } from "../geometry.js";
+import { shownBox, shownRect } from "../geometry.js";
+import {
+  createAddressPlacement,
+  MAX_NUMBERED_ADDRESSES,
+} from "../keyboard/address-placement.js";
+import { bindings } from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
+import { decisionActions, watchDecisionActions } from "./actions.js";
 
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
+  actionLayer,
+  actionReachable,
   scrollBehavior,
   announce,
   decisionEntry,
@@ -13,15 +21,17 @@ export function createDecisionView({
   decisionsOffered,
   decisionsPanel,
   banner,
-  blocksOnScreen,
+  readingBlock,
   closeTray,
   documentFocused,
   el,
   elementById,
   focusForNavigation,
+  focused,
   inChrome,
   itemSays,
   itemWord,
+  keylineEl,
   keys,
   openDecisions,
   openTray,
@@ -30,6 +40,7 @@ export function createDecisionView({
   paintKeys,
   PRESS,
   panelIsOpen,
+  presentedActionControl,
   readableDestination,
   registry,
   reserve,
@@ -85,7 +96,7 @@ export function createDecisionView({
       versionBtn.before(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncDecisions writes, measured in the face it will render in (see reserve).
-      reserve(btn, [`✓ ${label} all (999)`]);
+      reserve(btn, [`${label} all (999)`]);
     }
   }
 
@@ -139,7 +150,7 @@ export function createDecisionView({
     if (openTray("decisions")) renderDecisions(decisions);
     for (const { btn, label, n } of blanketAnswers(decisions)) {
       showNews(btn, Boolean(n));
-      btn.textContent = `✓ ${label} all (${n})`;
+      btn.textContent = `${label} all (${n})`;
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words
@@ -175,13 +186,31 @@ export function createDecisionView({
   // is the element's own word and the words are the element's own text, so the twelfth
   // widget gets a row that reads properly on the day it declares x-awaits.
   const decisionRowsById = new Map();
+  // What the tray says when it is holding nothing, in the voice the thread panel's own
+  // empty note uses: what is true, then what would fill it. A reader who opens Asks on a
+  // page that is waiting on nobody was getting a blank panel, which says the same thing
+  // as a tray that has failed to render — and the two are worth telling apart, since one
+  // of them is the page being finished with them.
+  //
+  // The other half of the sentence is not a gesture, as it is next door: a reader makes
+  // their own threads and does not make their own asks, so what it names is the agent.
+  const emptyNote = el(
+    "div",
+    "lf-empty",
+    "Nothing is waiting on you. A question the page needs an answer for appears " +
+      "here when the agent asks one.",
+  );
   function renderDecisions(decisions) {
     let anchor = null;
     if (!openTray("decisions")) {
       for (const [, row] of decisionRowsById) row.remove();
       decisionRowsById.clear();
+      emptyNote.remove();
       return;
     }
+    // Out of the way before the rows place themselves, so `firstElementChild` below is a
+    // row or nothing and the note cannot become the thing a row is inserted after.
+    emptyNote.remove();
     for (const decision of decisions) {
       let row = decisionRowsById.get(decision.id);
       if (!row) {
@@ -237,6 +266,7 @@ export function createDecisionView({
         decisionRowsById.delete(id);
         if (held) (next ?? decisionsBtn).focus();
       }
+    if (!decisions.length) decisionsList.append(emptyNote);
   }
 
   // The walk over what the page is waiting on the reader for. It wraps at both ends,
@@ -331,6 +361,117 @@ export function createDecisionView({
       ) ?? null
     );
   }
+
+  // The Ask-local numeric map. The widget contributes the exact controls that work its
+  // decision source; this view owns only their stable addresses while semantic focus is
+  // on the Ask itself. Once Tab enters a control, the widget's nearer scope and native
+  // keys take over. The deep focus reading matters for a shadow widget: document focus is
+  // retargeted to its host, but a control inside it is still not the Ask itself.
+  function actionDecision() {
+    const decision = standingIn();
+    return decision && focused() === decision ? decision : null;
+  }
+  const availableActions = () => {
+    const decision = actionDecision();
+    if (!decision) return [];
+    return decisionActions(decisionSource(decision))
+      .filter(
+        ({ control }) =>
+          control.isConnected &&
+          !control.matches(":disabled") &&
+          control.getAttribute("aria-disabled") !== "true" &&
+          control.getAttribute("aria-busy") !== "true",
+      )
+      .slice(0, MAX_NUMBERED_ADDRESSES);
+  };
+  const actionBindings = () => availableActions().map((_, index) => String(index + 1));
+  const actionLabels = () => availableActions().map(({ label }) => label);
+  const actionRow = {
+    id: "decision.activate-nth",
+    keys: actionBindings,
+    label: () => {
+      const count = actionBindings().length;
+      return count > 1 ? `1–${count}` : "1";
+    },
+    does: () =>
+      `Activate an action in this Ask: ${actionLabels()
+        .map((label, index) => `${index + 1} ${label}`)
+        .join("; ")}`,
+    line: () => actionLabels().join(" / "),
+    when: () => availableActions().length > 0,
+    run: (binding) => availableActions()[Number(binding) - 1]?.control.click(),
+  };
+
+  // The chips are an eye's projection of the same row. A widget that already owns an
+  // address face lends that face and its exact placement; other actions get chrome at
+  // the visible Button's corner. Off-screen actions keep their working address and name
+  // on the key line but wear no chip. A nearer keyboard layer suppresses both the row and
+  // these chips through actionReachable, so a digit never stays painted after a chord,
+  // text box, or modal has taken it.
+  const wornAddresses = new Map();
+  function restoreAddress(address, { display, priority }) {
+    address.removeAttribute("data-lf-ask-address");
+    if (display) address.style.setProperty("display", display, priority);
+    else address.style.removeProperty("display");
+  }
+  function clearWornAddresses() {
+    for (const [address, previous] of wornAddresses) restoreAddress(address, previous);
+    wornAddresses.clear();
+  }
+  function paintActionAddresses() {
+    clearWornAddresses();
+    const actions = availableActions();
+    if (!actionReachable() || !bindings(actionRow).length) {
+      actionLayer.replaceChildren();
+      return;
+    }
+    const placement = createAddressPlacement({
+      banner,
+      keylineEl,
+      startsAt: shownRect,
+    });
+
+    // Reuse a widget's page-local address where it has one. Besides preserving the
+    // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
+    // the fixed key line above it. Hide a face that has no clear visible box, just as the
+    // general address pass drops a route chip where the screen cannot say it safely.
+    for (const { address } of actions) {
+      if (!address?.isConnected) continue;
+      const previous = {
+        display: address.style.getPropertyValue("display"),
+        priority: address.style.getPropertyPriority("display"),
+      };
+      address.setAttribute("data-lf-ask-address", "");
+      address.style.setProperty("display", "block", "important");
+      const box = address.checkVisibility() && placement.visibleBox(address);
+      if (!placement.reserve(box)) {
+        restoreAddress(address, previous);
+        continue;
+      }
+      wornAddresses.set(address, previous);
+    }
+
+    const chips = [];
+    for (const [index, { control, address }] of actions.entries()) {
+      if (address) continue;
+      const presented = presentedActionControl(control);
+      if (!presented.checkVisibility()) continue;
+      const box = placement.visibleBox(presented);
+      if (!box) continue;
+      const chip = el("span", "lf-address lf-ask-address", String(index + 1));
+      chip.setAttribute("aria-hidden", "true");
+      chip.style.left = `${box.left}px`;
+      chip.style.top = `${box.top}px`;
+      chips.push(chip);
+    }
+    placement.paint(actionLayer, chips);
+  }
+  watchDecisionActions(() => paintKeys());
+  addEventListener("scroll", () => actionReachable() && paintHere(), {
+    capture: true,
+    passive: true,
+  });
+  addEventListener("resize", () => actionReachable() && paintHere());
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and a decision
@@ -376,11 +517,12 @@ export function createDecisionView({
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.decision);
     // A control-less request can borrow its own tab stop while the broader x-decision
     // region wears the ring. Keep that stop until the reader leaves the region.
-    if (decisionLent !== (here && decisionSource(here))) lend(null);
+    const holder = here && decisionSource(here);
+    if (decisionLent && decisionLent !== here && decisionLent !== holder) lend(null);
     for (const marked of wearing)
       marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
+    paintActionAddresses();
   }
-  const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
   // this key started at the top of the page — select a paragraph and press `d` and you were
@@ -426,13 +568,18 @@ export function createDecisionView({
     });
     return dir > 0 ? (reach[0] ?? decisions[0]) : (reach.at(-1) ?? decisions.at(-1));
   }
-  // Where the reader stands when they are put on a decision: the control that works it —
-  // one inside the decision, or one the widget hoisted into the margin and pointed back at
-  // it — or the decision itself, lent a tab stop where it holds nothing to work. Named
-  // because two presses put a reader on a decision and one of them is not a walk: a widget
-  // rebuilt under the reader (rebuild) has to hand back the place they were standing,
-  // and a second answer to "where is that" would drift from this one the first time the
-  // control rule changed.
+  // Putting the reader back on the control they were working when a widget rebuilt itself
+  // underneath them (rebuild): the control that works this decision — one inside it, or
+  // one the widget hoisted into the margin and pointed back at it — or the decision
+  // itself, lent a tab stop where it holds nothing to work.
+  //
+  // This is not where an arrival lands, and the two parted when the scroll and the focus
+  // were measured against each other. Arrival puts the decision's opening at the top of
+  // the window, and the first control that answers it is as far down the decision as its
+  // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
+  // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
+  // the reader was told to look at one thing and stood on another, off the bottom of the
+  // screen, and their next Enter would have worked a control they could not see.
   function standOn(el) {
     const source = decisionSource(el);
     const control =
@@ -440,6 +587,26 @@ export function createDecisionView({
       document.querySelector(`[${DECISION_ROW}="${source.id}"] ${DECISION_CONTROL}`);
     if (!control) lend(source);
     focusForNavigation(control ?? source);
+  }
+  // Where an arrival lands: on the decision, which is what the scroll has just brought to
+  // the top of the window and what the ring is about to name. Its controls are then the
+  // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
+  // keeps its place in document order and everything inside a decision comes after it.
+  //
+  // The decision remains the semantic focus. Its widget-contributed actions are already
+  // directly addressable there; Tab is the complementary path into the widget's own
+  // local scope for walking or inspecting its controls.
+  function arriveAt(decision) {
+    decision.focus({ preventScroll: true });
+    if (decision.matches(":focus")) return;
+    lend(decision);
+    decision.focus({ preventScroll: true });
+    if (decision.matches(":focus")) return;
+    // A decision the page styles boxless generates nothing to stand on, and a lent stop
+    // does not change that. There the control that answers it is the only place the
+    // reader can be, which is where every arrival used to land.
+    lend(null);
+    standOn(decision);
   }
 
   // The screen the reader can use, and the distance two boxes stand apart in it. The
@@ -585,7 +752,7 @@ export function createDecisionView({
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
-    standOn(next);
+    arriveAt(next);
     // A page Decision starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. A thread
@@ -623,6 +790,7 @@ export function createDecisionView({
   return {
     DECISION_CONTROL,
     DECISION_ROW,
+    actionRow,
     decisionPlace,
     buildBulkAnswers,
     goToDecision,

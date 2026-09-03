@@ -23,8 +23,9 @@ and its observed mode instead. If you open its browser page, the URL rule begins
 
 Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
 command takes the directory explicitly. A page holds mutable `index.html`,
-immutable valid revisions, stamped versions, the event log, service state, and
-its vendored layer. Export or copy anything that must outlive that live state.
+immutable valid revisions, event-backed stamped version aliases, the event log,
+service state, and its vendored layer. Export or copy anything that must outlive
+that live state.
 
 Resolve the directory containing this `SKILL.md`, then use its
 `../../bin/leaf` launcher for every command shown as `leaf`. In Claude Code that
@@ -56,6 +57,10 @@ incomplete. A checkout keeps it at `bin/leaf`.
      `leaf version check <page> --render`, and fix every failure. Then stamp it
      with `leaf version stamp <page> --text "<changelog>"` before its URL first
      reaches the user.
+   - A page declaring `<meta name="lf-review" content="sign-off">` is a record,
+     whatever else it looks like: work will rely on the approval, and sign-off is
+     offered only on a stamped version. Give it the record's ceremony above
+     before its URL first reaches the user.
    - If a later stamp turns a quick page into a record, run that review before
      the stamp.
 4. Read `references/conversation-loop.md` and exactly one host contract:
@@ -72,7 +77,7 @@ incomplete. A checkout keeps it at `bin/leaf`.
 When input arrives, read `references/event-batches.md` before processing it and
 `references/conversation-threads.md` when a thread needs work. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only
-`index.html`; Leaf alone writes immutable revisions and versions.
+`index.html`; Leaf alone writes immutable revisions and public version mappings.
 
 ## Page contract
 
@@ -134,8 +139,9 @@ so a phase does not depend on discovering a chain of references.
 
 ### Serve or extend a page
 
-- `references/serving-pages.md`: for `--export`, an unreachable URL, `--host`, a
-  standing page, re-vendoring a served page, or resuming another session's page.
+- `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
+  URL, `--host`, a standing page, re-vendoring a served page, or resuming another
+  session's page.
 - `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
 

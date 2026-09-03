@@ -17,7 +17,7 @@ from .hosting import server_at
 from .http import Handler
 from .registry.contract import RegistryError
 from .registry.storage import layer_metadata
-from .schema import ASSETS
+from .schema import ASSETS, EVENTS_FILE
 from .served_state.service import PageStateService
 from .server import preview_metadata, running_server
 from .structure import parse_structure
@@ -201,7 +201,7 @@ class ProcessPageServer:
 def resolve_page(page: str | Path) -> Path:
     """Resolve one initialized page without letting presentation mint its log."""
     page_dir = Path(page).expanduser().resolve()
-    if not (page_dir / "comments.jsonl").is_file():
+    if not (page_dir / EVENTS_FILE).is_file():
         raise ToolError(
             f"{page_dir} is not an initialized Leaf page; run `leaf page init` first"
         )

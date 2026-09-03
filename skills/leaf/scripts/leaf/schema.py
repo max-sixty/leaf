@@ -13,7 +13,16 @@ ORPHAN_GRACE_SECS = 1
 # carry (`undo_error`): a token is a mark rather than speech, and while nothing
 # has answered it the mark is one press from off the page, which is what makes
 # it cheap. Nor is an undo itself, which would be a redo.
-UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
+#
+# `done` joins them because approval is the one press on the page with no second
+# step and the heaviest meaning: a reader who meant to press Threads and hit the
+# button beside it had signed the work off, and nothing on the page or in the log
+# would take it back. It is a mark rather than speech by the same reading a
+# reaction is — the agent is told the version is approved, not told something,
+# and the withdrawal is the whole of the correction. A request is still not
+# undoable, and for the reason it never was: its effect may be out of the page
+# before the receipt is.
+UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 ANSWER_DECISION_INSTRUCTION = (
     "`leaf page state <page>` lists each thread's current state, and "
@@ -458,25 +467,29 @@ MEDIA_TYPES = {
 }
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
+EVENTS_FILE = "events.jsonl"
 PREVIEW_FILE = "preview.json"
+VIEWED_FILE = "viewed.json"
 # One name, because there is one key (`host_key`). Cookies are scoped by host and
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
 KEY_COOKIE = "lf_key"
 PAGE_STATE_FILES = (
-    "comments.jsonl",
+    EVENTS_FILE,
     "status.json",
     DATA_FILE,
     "waiter.lock",
     "cursor.json",
+    VIEWED_FILE,
     "service.json",
     "server.lock",
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *PACKAGE_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", "versions", *PACKAGE_DIRS, MEDIA_DIR)
-# What the server exposes from a page directory: the browser layer, media, and
-# versions. Agent-side guidance stays vendored but is read only through the CLI.
+PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
+# What the server exposes from a page: the browser layer, media, immutable revisions,
+# and event-backed version addresses. Agent-side guidance stays vendored but is read
+# only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 _DIR_FILES = {

@@ -4,6 +4,7 @@ import hashlib
 import sys
 from pathlib import Path
 
+from leaf.files import replace_files
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 
 
@@ -18,7 +19,8 @@ def cmd_media(page_dir: Path, files: list) -> list:
     re-shows last version's screenshot re-uses the file rather than a second
     copy of it, which is what makes the version history cheap to keep."""
     out = []
-    (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
+    media_dir = page_dir / MEDIA_DIR
+    media_dir.mkdir(exist_ok=True)
     for src in files:
         if src.suffix.lower() not in MEDIA_TYPES:
             sys.exit(
@@ -26,6 +28,6 @@ def cmd_media(page_dir: Path, files: list) -> list:
             )
         data = src.read_bytes()
         name = hashlib.sha256(data).hexdigest()[:16] + src.suffix.lower()
-        (page_dir / MEDIA_DIR / name).write_bytes(data)
+        replace_files([(media_dir / name, data, False)])
         out.append((str(src), f"/{MEDIA_DIR}/{name}"))
     return out

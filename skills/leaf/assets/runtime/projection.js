@@ -5,6 +5,8 @@ import { stateSpecs } from "./registry.js";
 let publishedProjection;
 export const shallowSigs = (...args) => publishedProjection.shallowSigs(...args);
 export const standingState = (...args) => publishedProjection.standingState(...args);
+export const withdraw = (...args) => publishedProjection.withdraw(...args);
+export const undoableAction = (...args) => publishedProjection.undoableAction(...args);
 
 /* Declaration-driven state projection and reconciliation. */
 export function createProjection(runtime, dependencies) {
@@ -16,6 +18,7 @@ export function createProjection(runtime, dependencies) {
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     answeredContext,
+    authored,
     decisionEntry,
     containsAcross,
     dress,
@@ -46,6 +49,7 @@ export function createProjection(runtime, dependencies) {
     standOn,
     textNodesUnder,
     notice,
+    unaccountedGesture,
   } = dependencies;
   const { registry } = runtime;
 
@@ -54,28 +58,38 @@ export function createProjection(runtime, dependencies) {
   // state survived a recordless rebuild or a thread reconcile; node identity can. A
   // coordinate with no winner is committed too, once its authored baseline stands.
   const committedProjection = new Map();
-  // An id-bearing element's state as markup can say it: tag, attributes, and
-  // place among its id-bearing kin. Text is deliberately absent — words are the
+  // An authored, id-bearing element's state as markup can say it: tag, attributes,
+  // and place among its authored id-bearing kin. Generated chrome is deliberately
+  // absent. Text is deliberately absent — words are the
   // static gate's subject (restatement_errors); this is the rest, the state no
-  // version file can speak. What the runtime itself paints onto page elements —
+  // authored document can speak. What the runtime itself paints onto page elements —
   // exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
   // and looking away from them keeps a reading taken from the live DOM equal to
   // one taken from the file without hiding a widget's own data-lf state. Diffed around each replay batch to
-  // record what replay wrote, and imported by version check --render to read the version
-  // files with the same eyes, so the two readings cannot drift.
+  // record what replay wrote, and imported by version check --render to read version
+  // documents with the same eyes, so the two readings cannot drift.
   function shallowSigs(root) {
     const sigs = new Map();
+    const siblingPositions = new Map();
+    const isAuthored = (el) => Boolean(el.id) && authored(el)(el);
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
-      if (!el.id) continue;
+      if (!isAuthored(el)) continue;
       const attrs = [...el.attributes]
         .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
         .map((a) => `${a.name}=${a.value}`)
         .sort()
         .join(" ");
-      const kin = [...(el.parentElement?.children ?? [])].filter((c) => c.id);
+      const parent = el.parentElement;
+      let positions = siblingPositions.get(parent);
+      if (!positions) {
+        positions = new Map();
+        for (const sibling of parent?.children ?? [])
+          if (isAuthored(sibling)) positions.set(sibling, positions.size);
+        siblingPositions.set(parent, positions);
+      }
       sigs.set(
         el.id,
-        `${el.tagName} [${attrs}] in=${el.parentElement?.id ?? ""}#${kin.indexOf(el)}`,
+        `${el.tagName} [${attrs}] in=${parent && isAuthored(parent) ? parent.id : ""}#${positions.get(el) ?? -1}`,
       );
     }
     return sigs;
@@ -332,6 +346,16 @@ export function createProjection(runtime, dependencies) {
       // thread paints nothing, so there is nothing to offer the press. The server
       // refuses the same three (undo_error), this being the offer and that the door.
       if (e.token) return e;
+      // The approval, while it is the one the button is showing. Scoped the way
+      // paintApproval scopes what it reads, because a reader on v3 taking back their
+      // sign-off of v2 would be undoing a press whose result is nowhere on the page —
+      // and the button is the whole of what says the press happened.
+      if (
+        e.kind === "done" &&
+        e.revision === runtime.currentRevision &&
+        e.version === runtime.currentStamp
+      )
+        return e;
       // On the version it was made against: a later version may have been written
       // around the decision, and a press that paints nothing is not one to offer. What
       // *hearing* such an undo owes is reconciliation's, and is not the same answer.
@@ -346,6 +370,19 @@ export function createProjection(runtime, dependencies) {
     return null;
   }
 
+  // A local Undo names an action rather than walking to the newest one, but it has
+  // exactly the same authored-version and replayability boundary as the keyboard walk.
+  function undoableAction(widget, action) {
+    const candidate = (runtime.view?.undo ?? []).find(
+      ({ event }) =>
+        event.kind === "action" &&
+        event.widget === widget.id &&
+        event.action === action &&
+        (inChrome(widget) || event.revision === runtime.currentRevision),
+    );
+    return candidate && canUndoAction(candidate) ? candidate.event : null;
+  }
+
   // Said in the kinds this file owns, never in the verb the action carries: `move` and
   // `edit` read as nouns in that sentence and `choose` does not, and which of the two a
   // widget's word is is not core's to know. It is the same rule that keeps "accept" out
@@ -354,6 +391,7 @@ export function createProjection(runtime, dependencies) {
     resolve: "Reopened the thread",
     unresolve: "Resolved the thread again",
     action: "Took back your last change",
+    done: "Took back your approval",
   };
   // A reaction's word is the token, which is the layer's word rather than a widget's
   // verb — read off the event, as the bar and the strip read it.
@@ -376,11 +414,16 @@ export function createProjection(runtime, dependencies) {
   // reaction's glyph in the margin, its pill on a strip — and a press there takes back
   // exactly that event, which need not be the newest. Same door, same notice.
   async function withdraw(e) {
+    if (unaccountedGesture()) {
+      notice("Wait for the current change to finish before undoing");
+      return null;
+    }
     runtime.undoing = true;
     paintKeys();
     try {
-      if (await post({ kind: "undo", undoes: e.id }))
-        notice(`${undoWord(e)} — recorded`);
+      const accepted = await post({ kind: "undo", undoes: e.id });
+      if (accepted) notice(`${undoWord(e)} — recorded`);
+      return accepted;
     } finally {
       runtime.undoing = false;
       paintKeys();
@@ -730,8 +773,7 @@ export function createProjection(runtime, dependencies) {
         );
       }
       renderQuiet(document.body);
-      paintPending();
-      projection = stateProjection();
+      paintPending(projection);
       document.body.setAttribute(
         PAGE_PAINT_ATTRIBUTE.applied,
         String(projectionCoverage(projection)),
@@ -761,10 +803,13 @@ export function createProjection(runtime, dependencies) {
   // state back to the author. A decided suggestion has no record form to agree
   // with (honoring retires the wrapper), so it stays marked while the wrapper
   // stands.
-  function paintPending() {
-    for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
-      for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-    const projection = stateProjection();
+  function paintPending(projection) {
+    const marks = new Map(
+      [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
+        attr,
+        new Set(),
+      ]),
+    );
     for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;
@@ -777,7 +822,13 @@ export function createProjection(runtime, dependencies) {
         e.kind === "action"
           ? PAGE_PAINT_ATTRIBUTE.pending
           : PAGE_PAINT_ATTRIBUTE.reported;
-      el.setAttribute(attr, "1");
+      marks.get(attr).add(el);
+    }
+    for (const [attr, wanted] of marks) {
+      for (const el of pageQueryAll(`[${attr}]`))
+        if (!wanted.has(el)) el.removeAttribute(attr);
+      for (const el of wanted)
+        if (el.getAttribute(attr) !== "1") el.setAttribute(attr, "1");
     }
   }
 
@@ -812,6 +863,7 @@ export function createProjection(runtime, dependencies) {
     stateProjection,
     undoLast,
     undoable,
+    undoableAction,
     unitOf,
     withdraw,
   };

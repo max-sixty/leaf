@@ -1,6 +1,7 @@
 """Comment-panel ordering, narrowing, and thread-motion tests."""
 
 import re
+from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
@@ -12,7 +13,9 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     COVERED_TOP,
+    DECISION_PAGE,
     EDGES,
+    FEATURE_GALLERY,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -20,6 +23,11 @@ from render_support import (
     LONG_PAGE,
     PANEL_PAGE,
     RENDERED,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
+    SEATED_QUESTION_PAGE,
+    _traffic,
+    _until,
     draw_edge,
     edge_settled,
     in_threads_scrollport,
@@ -37,6 +45,236 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+@pytest.mark.parametrize("resolved", [False, True])
+def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved):
+    """A direct reply link opens the destination even inside the resolved disclosure."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-decision id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Put the mounts back</lf-option>'
+        '<lf-option id="camera">Install the camera</lf-option>'
+        "</lf-options></lf-decision>",
+    )
+    if resolved:
+        events_model.append_event(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+        )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-conversation-open").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread).to_be_visible()
+    expect(thread.locator("#first-job")).to_be_in_viewport()
+    expect(thread.locator(".lf-msg").last).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#mounts [role=checkbox]")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("response", ["reply", "version"])
+def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
+    browser, serve, response
+):
+    """A page seat keeps focus through settlement with or without a reply textarea."""
+    layer = deepcopy(SEATED_ASK_LAYER)
+    if response == "version":
+        entry = layer["lf-verdict"]
+        entry["properties"]["answer"] = {"type": "string", "enum": ["yes", "no"]}
+        entry["required"].append("answer")
+        entry["x-example"] = entry["x-example"].replace(" asks", ' answer="no" asks')
+        entry["x-state"]["settle"]["record"] = {
+            "kind": "value",
+            "attr": "answer",
+            "value": "answer",
+        }
+        entry["x-conversation"]["response"] = {"kind": "version", "verb": "settle"}
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Inline settlement",
+                '<h1>Review the plan</h1><lf-verdict id="proposal"'
+                + (' answer="no"' if response == "version" else "")
+                + " asks>"
+                "Should these jobs share a visit?</lf-verdict>"
+                '<label>Another thought <input id="later"></label>',
+            ),
+            layer_registry=layer,
+            layer_widgets=SEATED_ASK_WIDGETS,
+        ),
+    )
+    first = page.locator("#proposal > .lf-conversation > .lf-say")
+    first.locator("textarea").fill("Please combine the jobs.")
+    first.get_by_role("button", name="Send", exact=True).click()
+    round_trip(page)
+    root = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    assert root.get("response") == (
+        {"kind": "version", "verb": "settle"} if response == "version" else None
+    )
+    thread = page.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
+    destination = thread.locator("textarea") if response == "reply" else thread
+    expect(thread.locator("textarea")).to_have_count(1 if response == "reply" else 0)
+    thread.get_by_role("button", name="Resolve", exact=True).focus()
+    page.keyboard.press("x")
+    round_trip(page)
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    expect(thread).to_be_focused()
+    thread.get_by_role("button", name="Reopen").click()
+    round_trip(page)
+    expect(destination).to_be_focused()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    for action, pending in (("Resolve", "Resolving…"), ("Reopen", "Reopening…")):
+        with page.expect_request("**/api/event"):
+            thread.get_by_role("button", name=action, exact=True).click()
+        expect(thread.get_by_role("button", name=pending)).to_have_attribute(
+            "aria-busy", "true"
+        )
+        page.locator("#later").fill("Keep my later focus here.")
+        held.pop().continue_()
+        round_trip(page)
+        expect(page.locator("#later")).to_be_focused()
+    page.unroute("**/api/event")
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("view", ["inline", "panel"])
+def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
+    held_events, serve, view
+):
+    """Both thread views acknowledge a held request and allow a refused one to retry."""
+    browser, held = held_events
+    page, errors = open_page(
+        browser,
+        serve(
+            DECISION_PAGE,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Check whether these jobs can share one visit.",
+                    "anchor": {"section": "bracket"},
+                }
+            ],
+        ),
+    )
+    root = events_model.read_events(serve.page_dir)[0]["id"]
+    resized(page, 1440, 900)
+    if view == "inline":
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        thread = page.locator(".lf-margin-thread")
+    else:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    resolve = thread.get_by_role("button", name="Resolve", exact=True)
+    expect(resolve).to_be_visible()
+    resolve.scroll_into_view_if_needed()
+    before = resolve.bounding_box()
+    with page.expect_request("**/api/event"):
+        resolve.click()
+    busy = thread.get_by_role("button", name="Resolving…", exact=True)
+    expect(busy).to_be_disabled()
+    expect(busy).to_be_focused()
+    expect(busy).to_have_attribute("aria-busy", "true")
+    expect(busy).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
+    assert busy.bounding_box() == pytest.approx(before, abs=1)
+    assert not any(
+        event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
+    )
+    held.pop().fulfill(
+        json={"ok": False, "final": True, "error": "Please retry."},
+    )
+    expect(resolve).to_be_enabled()
+    expect(resolve).not_to_have_attribute("aria-busy", "true")
+    expect(resolve).to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
+    resolve.focus()
+    with page.expect_request("**/api/event"):
+        page.keyboard.press("x")
+    expect(busy).to_be_disabled()
+    if view == "panel":
+        page.locator(".lf-general textarea").fill("My next thought can keep its focus.")
+    held.pop().continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert [
+        event["parent"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "resolve"
+    ] == [root]
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_have_count(0)
+    if view == "inline":
+        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    else:
+        expect(page.locator(".lf-general textarea")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_settlement_controls_share_one_request_across_page_and_panel(
+    held_events, serve
+):
+    """Mirrored controls share pending delivery, resolution, and reopening."""
+    browser, held = held_events
+    url = serve(SEATED_QUESTION_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "These jobs can share one visit.",
+        },
+    )["id"]
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    panel = page.locator(f'.lf-thread[data-id="{root}"]')
+    with page.expect_request("**/api/event"):
+        inline.get_by_role("button", name="Resolve", exact=True).click()
+    for thread in (inline, panel):
+        expect(thread.get_by_role("button", name="Resolving…")).to_be_disabled()
+    panel.focus()
+    page.keyboard.press("x")
+    held.pop().continue_()
+    round_trip(page)
+    expect(inline.get_by_role("button", name="Reopen")).to_be_visible()
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "resolve"
+    ] == ["resolve"]
+    with page.expect_request("**/api/event"):
+        inline.get_by_role("button", name="Reopen").click()
+    expect(inline.get_by_role("button", name="Reopening…")).to_be_disabled()
+    held.pop().continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    for thread in (inline, panel):
+        expect(thread.get_by_role("button", name="Resolve", exact=True)).to_be_enabled()
+    expect(inline.locator("textarea")).to_be_visible()
+    expect(inline.locator("textarea")).to_be_focused()
+    assert errors == []
+    page.close()
 
 
 def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
@@ -634,7 +872,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
 
     page, errors = open_page(browser, url)
     # Slash belongs to the nearest search scope. Out on the prose it opens page search;
-    # Escape returns to the prose, and `c` is the route into the panel, where the same
+    # Escape returns to the prose, and `g T` is the route into the panel, where the same
     # press opens that list's own search instead. Read the two landings against each other.
     #
     # A plain paragraph rather than the body's own middle, which is a widget on this
@@ -649,7 +887,8 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-panel")).not_to_be_visible()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("/")
@@ -719,15 +958,16 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("w")
     expect(page.locator(".lf-panel")).not_to_be_visible()
 
-    # `c` stands the reader on the list, where the key is live and the line says so.
+    # `g T` stands the reader on the list, where the key is live and the line says so.
     # The control names it, off the row, so the two cannot come to spell it differently.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
     expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
-    # A second `c` is the general box, and there `w` is a character like any other —
+    # `c` from that list enters the general box, and there `w` is a character like any other —
     # the typing scope claims what types one, so the row stands down and the line drops
     # it. Escape backs out onto the list and it is live again. Both directions, because
     # a key that were live in the box would type nothing and read as a dead keyboard.
@@ -742,6 +982,21 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+
+    # Closing the owning surface retires both its narrowing frame and the g T frame below
+    # it. The narrowing itself stays set for a later reopen, but Escape on the page must
+    # neither advertise nor mutate a filter the reader cannot see.
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, False)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("show all")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    page.keyboard.press("w")
+    page.keyboard.press("w")
 
     # Answering the agent's comment takes it out of the reader's list and hands the
     # next word to the agent.
@@ -765,6 +1020,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
+
     assert errors == []
     page.close()
 
@@ -938,12 +1194,78 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
     expect(reopened).to_be_in_viewport()
-    expect(reopened).to_be_focused()
+    expect(reopened.locator("textarea")).to_be_focused()
     expect(reopened.locator("textarea")).to_have_count(1)
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
     expect(page.locator(".lf-details")).to_have_count(0)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
+@pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
+def test_a_thread_completion_keeps_the_readers_later_destination(
+    held_events, serve, kind, destination
+):
+    """A held thread operation may land only while its original intent still stands."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 390, 700)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = {
+        event["anchor"]["section"]: event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and "token" not in event
+    }
+    root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    if kind == "unresolve":
+        page.locator(".lf-details summary").click()
+    elif kind == "reply":
+        thread.locator("textarea").fill("A reply whose delivery is held.")
+
+    before = _traffic(page).sends
+    thread.get_by_role(
+        "button",
+        name={"unresolve": "Reopen", "resolve": "Resolve", "reply": "Send"}[kind],
+        exact=True,
+    ).click()
+    _until(page, lambda traffic: traffic.sends > before, "held the thread operation")
+
+    later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
+    changes = page.locator("#bg-history summary")
+    if destination == "page":
+        page.get_by_role("button", name="Close threads", exact=True).click()
+        changes.click()
+    elif destination == "other-thread":
+        later.click()
+        later.fill("The reader is working here now.")
+    elif destination == "other-focus":
+        # Accessibility and app focus travel need not emit a pointer or key gesture.
+        later.focus()
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    told(page)
+    page.wait_for_function(RENDERED)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == kind
+    if destination == "page":
+        assert not page.get_by_role("dialog").is_visible()
+        expect(changes).to_be_focused()
+        expect(page.locator("#bg-history details")).to_have_attribute("open", "")
+    elif destination in {"other-thread", "other-focus"}:
+        expect(later).to_be_focused()
+        expect(later).to_have_value(
+            "The reader is working here now." if destination == "other-thread" else ""
+        )
+    elif kind in {"reply", "unresolve"}:
+        expect(thread.locator("textarea")).to_be_focused()
+    else:
+        expect(page.locator(".lf-threads > .lf-thread").first).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1525,6 +1847,41 @@ def test_an_external_resolution_leaves_the_reader_on_the_thread_list(browser, se
     page.close()
 
 
+def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
+    """A direct jump uses the resolved card, even before its outgoing fold ends."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Pick the first job.",
+        '<lf-decision id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Mounts</lf-option>'
+        '<lf-option id="camera">Camera</lf-option>'
+        "</lf-options></lf-decision>",
+    )
+    page, errors = open_page(browser, url, init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    inline.get_by_role("button", name="Resolve", exact=True).click()
+    round_trip(page)
+    expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
+
+    inline.get_by_role("button", name="Open interactive reply in Threads").click()
+    expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
+    message = page.locator(f'.lf-details[open] .lf-msg[data-mid="{reply["id"]}"]')
+    expect(message).to_be_focused()
+    expect(message.locator("#first-job")).to_be_in_viewport()
+    # Its old animation completion must leave the canonical revealed card standing.
+    page.evaluate("window.__lfHeld.forEach(animation => animation.finish())")
+    expect(message).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
     """A fold is a sequence, and every other check here reads a state.
 
@@ -1777,6 +2134,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-pending",
         "lf-ins-block",
         "lf-mark-note",
+        "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
         "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
         "lf-over-item",
@@ -1794,11 +2152,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Target actions are contributed outside the chrome scope and share one complete
         # item. These names are the deliberate document-level half of that seam.
         "lf-margin-item",
+        "lf-margin-options",
         "lf-margin-contribution",
         "lf-margin-action",
         "lf-margin-action-glyph",
+        "lf-margin-action-icon",
         "lf-margin-action-space",
         "lf-margin-action-label",
+        "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",
@@ -2440,7 +2801,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "text": "the later plain reply",
         },
     )
-    log = d / "comments.jsonl"
+    log = d / "events.jsonl"
     lines = log.read_text(encoding="utf-8").split("\n")
     torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
     lines[torn] = lines[torn][: len(lines[torn]) // 2]
@@ -2514,7 +2875,8 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         # typed its keys into the box, which is exactly what the non-vacuity check at the
         # end caught: thirty-two landings asserted, none of them on a thread.
         page.evaluate("() => document.activeElement?.blur()")
-        page.keyboard.press("c")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
         expect(page.locator(".lf-threads")).to_be_focused()
         walked, faults = 0, []
         for key in ("t",) * threads + ("Shift+t",) * threads:
@@ -3189,7 +3551,8 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         # into it as characters. COVERED_TOP answers null for a focus outside the list,
         # so every one of those landings agreed with the invariant by never being asked.
         page.evaluate("() => document.activeElement?.blur()")
-        page.keyboard.press("c")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
         expect(page.locator(".lf-threads")).to_be_focused()
         faults = []
         for key in ("t",) * 8 + ("Shift+t",) * 8:
@@ -3215,15 +3578,14 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     browser, serve
 ):
     """The two contextual chips the line paints for a reader standing on the list have
-    to be the keys that act on the list; persistent page movement remains beside them.
+    to be its exact way back and its first local action: the line is two chips and the
+    More control, so an unrelated row in front of these is a row instead of them.
 
-    `c` brought them here so that `w` and `/` would be live — the general box is where
-    the typing scope claims every letter, which is the whole reason the press stops at
-    the list. This is the one focus position where those two rows can hold a chip at
-    all: inside a thread `THREAD` is nearer, inside a box `TYPING` claims the letters,
-    and outside the panel this scope is not standing. So a row in front of them here
-    spends the slot the landing exists to fill, which is what the panel's own `c` did
-    until it was moved to the end of the scope.
+    `g T` brought them here, so its return frame leads and `w` is the first local action.
+    The general box is where the typing scope claims every letter, which is the whole
+    reason the press stops at the list. Inside a thread `THREAD` is nearer, inside a box
+    `TYPING` claims the letters, and outside the panel this scope is not standing. So an
+    unrelated row in front of them here spends the slot the landing exists to fill.
 
     Read off `:not([hidden])`, because `renderLine` leaves every live row in the DOM and
     hides the ones it has no room to paint. `to_contain_text` on the line therefore
@@ -3250,15 +3612,15 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
 
     page, errors = open_page(browser, url)
     page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
-    expect(shown).to_have_count(3)
-    # The list's own key leads: something is waiting, so `w` is live and nearest.
-    expect(shown.nth(0)).to_contain_text("waiting on you")
-    expect(shown.nth(1)).to_contain_text("close threads")
-    expect(shown.nth(2).locator("kbd")).to_have_text("d / u")
+    expect(shown).to_have_count(2)
+    # The entry's exact inverse leads, then the list's first local key.
+    expect(shown.nth(0)).to_contain_text("back")
+    expect(shown.nth(1)).to_contain_text("waiting on you")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

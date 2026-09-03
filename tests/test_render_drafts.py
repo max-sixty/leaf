@@ -34,6 +34,8 @@ from render_support import (
     compose,
     composer_quote,
     held_stale,
+    hold_selection,
+    in_threads_scrollport,
     live_url,
     open_page,
     painted,
@@ -109,10 +111,9 @@ def test_page_round_trip(browser, serve):
     page.mouse.up()
     page.wait_for_selector("#col-done #card-x")  # the drop reparented the card
 
-    # Rewrite the draft through its fast path: double-click opens the text in
-    # place (winning over the word-selection the gesture makes — no comment
-    # button contests it), Save sends the whole new body. The text must have
-    # arrived without the source's indentation.
+    # Rewrite the draft through its own door: a press opens the text in place, Save
+    # sends the whole new body. The text must have arrived without the source's
+    # indentation.
     draft = page.locator("#draft-ops")
     assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
     draft.locator(".lf-draft-body").dblclick()
@@ -131,7 +132,7 @@ def test_page_round_trip(browser, serve):
     round_trip(page)
 
     # Claude ships v2 with the passage moved; the page follows on its next poll.
-    (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
     stamp_version_file(d, 2, "moved")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
@@ -156,7 +157,7 @@ def test_page_round_trip(browser, serve):
     # The trail those gestures left, exactly — kinds, authorship (the server
     # stamps browser events `user`), the anchor, and the move's placement.
     events = [
-        json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
+        json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
     assert [(e["kind"], e["author"], e["revision"]) for e in events] == [
         ("note", "claude", 1),
@@ -218,14 +219,14 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     and stretched a two-line draft — and text that jumps out from under a
     double-click is the user's aim thrown away.
 
-    The gesture: the word the browser would select is selected by the second
-    mousedown and painted before dblclick arrives, so the handler that cleared it
-    afterwards ran a frame late and the user saw a flash. That frame is
-    timing, and no assertion here reaches it; what is assertable is the outcome
-    on either side of it. Nothing on the page ends up selected, and the word the
-    gesture named opens selected in the box — which is what a double-click means
-    everywhere else, and what cancelling the default rather than undoing it is
-    for.
+    The gesture: a double press on a draft is two presses on two different boxes now.
+    The first opens the editor with a collapsed caret where it landed, so there is no
+    page selection to flash; the second lands in the textarea that first press put
+    there, where selecting a word is the browser's own behaviour in any text field.
+    What is assertable is the outcome on either side of that. Nothing on the page ends
+    up selected, and the word the gesture named opens selected in the box — which is
+    what a double-click means everywhere else, and is true here because the box is a
+    real text field rather than because the widget reimplemented word boundaries.
 
     The block around them counts too: the whole draft has to keep its shape, or a
     gesture aimed at one word is answered by everything under it moving. Cancel and
@@ -402,7 +403,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
     stamp_version_file(d, 2, "v2")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
@@ -442,7 +443,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     events = [
         json.loads(line)
-        for line in (d / "comments.jsonl").read_text().splitlines()
+        for line in (d / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert events[-1]["action"] == "edit"
@@ -483,7 +484,10 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft).to_have_attribute("aria-busy", "true")
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == sent
 
-    draft_controls(page).locator(".lf-draft-pencil").click()
+    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_disabled()
+    draft_controls(page).locator(".lf-draft-pencil").evaluate(
+        "button => button.click()"
+    )
     expect(draft.locator("textarea")).to_have_count(0)
     expect(page.locator(".lf-notice")).to_contain_text("Wait for the current edit")
 
@@ -495,7 +499,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     )
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
@@ -504,6 +508,54 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     assert errors == []
+    page.close()
+
+
+def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
+    browser, serve
+):
+    """Failure is an editable state, with Retry and Cancel at the same target."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    draft = page.locator("#draft-ops")
+    draft.locator(".lf-draft-body").dblclick()
+    editor = draft.locator("textarea")
+    editor.fill("Keep these unsent words.")
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    draft_controls(page).get_by_role("button", name="Save", exact=True).click()
+    item = page.locator('[data-lf-margin-for="draft-ops"]')
+    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
+    expect(item).to_have_attribute("data-lf-state", "failed")
+    expect(editor).to_have_value("Keep these unsent words.")
+    expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
+    expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    expect(item.locator(".lf-margin-more")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    editor.fill("Keep the revised unsent words.")
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(item).to_have_attribute("data-lf-state", "engaged")
+    item.get_by_role("button", name="Save", exact=True).click()
+    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
+    page.unroute("**/api/event")
+    item.get_by_role("button", name="Retry", exact=True).click()
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body")).to_have_text(
+        "Keep the revised unsent words."
+    )
+    edits = [
+        event for event in sent_events(serve.page_dir) if event.get("action") == "edit"
+    ]
+    assert [event["detail"] for event in edits] == [
+        {"text": "Keep the revised unsent words."}
+    ]
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -558,7 +610,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
 
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [edited]
@@ -770,35 +822,142 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.close()
 
 
-def test_a_held_reply_send_leaves_a_later_reply_box_focused(browser, serve):
-    """A reply box opened while another reply is in flight is the reader's later
-    gesture. When the first send lands, it must not take focus back from that box."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+@pytest.mark.parametrize("same_thread", [False, True])
+def test_a_held_reply_send_leaves_a_later_reply_box_focused(
+    held_events, serve, same_thread
+):
+    """A later draft keeps its focus and remains visible when a reply arrives.
+
+    The long sent message tests reflow above a draft in the same card; the distant
+    card tests a reader who has moved to another conversation.
+    """
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=8))
+    page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads > .lf-thread")
     first_id = threads.nth(0).get_attribute("data-id")
-    later_id = threads.nth(1).get_attribute("data-id")
+    later_id = first_id if same_thread else threads.last.get_attribute("data-id")
     first = page.locator(f'.lf-thread[data-id="{first_id}"] textarea')
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
-    first.fill("The first reply is in flight.")
+    first.fill("\n\n".join(["The first reply is in flight."] * 15))
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
         "button", name="Send", exact=True
     ).click()
     _until(page, lambda traffic: traffic.sends == 1, "held the first reply send")
 
     later.click()
-    later.fill("The later reply keeps the reader here.")
+    newer = "The later reply keeps the reader here.\n" * (14 if same_thread else 1)
+    later.fill(newer)
     expect(later).to_be_focused()
+    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
+    expect(
+        page.locator(f'.lf-thread[data-id="{first_id}"] .lf-msg').last
+    ).to_contain_text("The first reply is in flight.")
     expect(later).to_be_focused()
-    expect(later).to_have_value("The later reply keeps the reader here.")
+    expect(later).to_have_value(newer)
+    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("continue_inline", [False, True])
+def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_inline):
+    """Closing Threads during delivery is later than sending the reply."""
+    browser, held = held_events
+    url = serve(SEATED_QUESTION_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job comes first?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread")
+    reply = thread.locator("textarea")
+    reply.fill("Send this while I return to reading.")
+    thread.get_by_role("button", name="Send", exact=True).click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+
+    toggle.click()
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(toggle).to_be_focused()
+    inline = page.locator(
+        f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
+    )
+    newer = "Continue this reply beside the question."
+    if continue_inline:
+        inline.fill(newer)
+        inline.evaluate("box => box.setSelectionRange(9, 9)")
+        expect(reply).to_have_value(newer)
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(reply).to_have_value(newer if continue_inline else "")
+    expect(thread.locator(".lf-msg").last).to_contain_text(
+        "Send this while I return to reading."
+    )
+    expect(page.locator(".lf-panel")).not_to_be_visible()
+    if continue_inline:
+        expect(inline).to_be_focused()
+        expect(inline).to_have_value(newer)
+        assert inline.evaluate("box => box.selectionStart") == 9
+    else:
+        expect(toggle).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
+    """A wheel can move the reading place while leaving the old reply focused."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads > .lf-thread")
+    first = threads.first
+    later = threads.last
+    reply = first.locator("textarea")
+    reply.fill("A reply whose delivery is slow.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+
+    bounds = page.locator(".lf-threads").bounding_box()
+    page.mouse.move(
+        bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2
+    )
+    page.mouse.wheel(0, 3500)
+    expect(later).to_be_in_viewport()
+    expect(reply).to_be_focused()
+    before = later.evaluate("node => node.getBoundingClientRect().top")
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(reply).to_have_value("")
+    expect(first.locator(".lf-msg").last).to_contain_text(
+        "A reply whose delivery is slow."
+    )
+    expect(later).to_be_in_viewport()
+    assert later.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 
@@ -836,9 +995,11 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.close()
 
 
-def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
-    """A sent comment preserves the panel's narrowing while its inline conversation
-    takes the reader; reopening the overview keeps that filter intact."""
+@pytest.mark.parametrize("later_selection", [False, True])
+def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
+    browser, serve, later_selection
+):
+    """A new comment widens the panel's filter without taking a later selection."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -851,7 +1012,17 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
     page.locator(".lf-composer textarea").fill(
         "This comment starts outside the filter."
     )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
+    _until(page, lambda traffic: traffic.sends == 1, "held the filtered comment send")
+    if later_selection:
+        page.locator("#p2").click(click_count=3)
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        assert pending_text(page) == "A short second passage."
+
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
 
     sent = next(
@@ -859,16 +1030,18 @@ def test_a_comment_hidden_by_narrowing_opens_its_inline_reply(browser, serve):
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    inline = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
-    )
-    expect(inline.locator("textarea")).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-find-box")).to_have_value("Comment 0")
-    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_have_count(0)
+    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread).to_contain_text(sent["text"])
+    if later_selection:
+        assert pending_text(page) == "A short second passage."
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        expect(page.locator(".lf-fab-input")).not_to_be_focused()
+        assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    else:
+        expect(thread.locator("textarea")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -894,7 +1067,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     v2 = NOTED_PAGE.replace(
         "A short second passage.", "A revised short second passage."
     )
-    (d / "versions" / "v2.html").write_text(v2)
+    (d / ".fixture-versions" / "v2.html").write_text(v2)
     stamp_version_file(d, 2, "v2")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
@@ -905,7 +1078,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
     )
-    (d / "versions" / "v3.html").write_text(v3)
+    (d / ".fixture-versions" / "v3.html").write_text(v3)
     stamp_version_file(d, 3, "v3")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
@@ -916,7 +1089,9 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     page.close()
 
 
-def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, serve):
+def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
+    held_events, serve
+):
     """A comment's send must not take a newer passage selection with its focus handoff.
 
     The newer selection remains native and keeps its response field available while the
@@ -925,14 +1100,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     Held rather than raced: the window is one request's flight, and a machine quick
     enough closes it before the next gesture. A loaded CI runner is not, and it said so
     as a 💬 that never came up for the passage picked out after a send."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.locator("#p1").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
@@ -942,7 +1116,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, se
     expect(page.locator(".lf-fab-input")).to_have_value("")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -1719,20 +1893,19 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     assert again_errors == []
 
 
-def test_a_held_selection_comment_preserves_a_newer_exact_draft(browser, serve):
+def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):
     """A selection send owns one serialized composer generation, not its box."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(LONG_PAGE))
     old = "The selected passage needs this first comment."
     newer = "  A newer selection comment remains in the composer.  "
     compose(page, "#p3", old)
     box = page.locator(".lf-composer textarea")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
     box.fill(newer)
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -1787,11 +1960,13 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     compose(first, "#p3", opened)
     compose(second, "#p3")
     expect(second.locator(".lf-composer textarea")).to_have_value(opened)
+    height = "ta => Math.round(ta.getBoundingClientRect().height)"
+    compact_height = second.locator(".lf-composer textarea").evaluate(height)
 
     grown = opened + "\n\n" + "And the one after it says the same thing again. " * 4
     first.locator(".lf-composer textarea").fill(grown)
     expect(second.locator(".lf-composer textarea")).to_have_value(grown)
-    height = "ta => Math.round(ta.getBoundingClientRect().height)"
+    assert first.locator(".lf-composer textarea").evaluate(height) > compact_height
     assert second.locator(".lf-composer textarea").evaluate(height) == first.locator(
         ".lf-composer textarea"
     ).evaluate(height), (
@@ -1802,6 +1977,7 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     first.locator(".lf-composer textarea").fill("")
     expect(second.locator(".lf-composer textarea")).to_have_value("")
     expect(second.locator(".lf-composer")).to_be_visible()
+    assert second.locator(".lf-composer textarea").evaluate(height) == compact_height
 
     sent = "The point is buried, and the paragraph after it repeats it."
     first.locator(".lf-composer textarea").fill(sent)
@@ -1919,7 +2095,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     events = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
         if '"kind": "action"' in line
     ]
     assert [event["detail"]["text"] for event in events] == [
@@ -1961,7 +2137,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     d = serve.page_dir
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
         if version == 2:
-            (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+            (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
             stamp_version_file(d, 2, "v2")
         events_model.append_event(
             d,
@@ -2045,7 +2221,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     # And the agent answers with a version that carries neither — the page generator
     # emitting its own idea of the board and the draft, as one did for five
     # versions running.
-    (d / "versions" / "v2.html").write_text(JOURNEY_V2)
+    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
     stamp_version_file(d, 2, "v2")
 
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
@@ -2059,7 +2235,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 
 
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
-    """`leaf comment` reads the version file plus the log; the user's tab reads
+    """`leaf comment` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
@@ -2146,7 +2322,7 @@ def test_registered_control_keys_activate_once(browser, serve):
     round_trip(page)
     sent = [
         json.loads(line)
-        for line in (serve.page_dir / "comments.jsonl").read_text().splitlines()
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
     ]
     assert [e for e in sent if e.get("action") == "choose"] != [], (
         "the first press sent nothing, so the repeats below had nothing to duplicate"
@@ -2234,11 +2410,10 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     page.close()
 
 
-def test_the_reading_page_keys_step_with_overlap(browser, serve):
-    """d and u move 60% of the visible page — clientHeight less what
-    scroll-padding-top declares covered by the fixed banner — at the pace of the
-    browser's own paging keys, the runtime driving the motion itself (stepPage says
-    why). The page sets scroll-behavior: smooth on the box, as an authored page may —
+@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
+def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
+    """d/u move 60% of the visible page; j/k take small steps through the same glide.
+    The page sets scroll-behavior: smooth on the box, as an authored page may —
     a step whose writes ride that rule instead of stating `instant` never lands.
 
     Every phase waits on its destination, never on scrollend or a timer: the glide
@@ -2257,9 +2432,13 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     Pressing on at the foot moves nothing and banks nothing, so u from there
     is one step back."""
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+    step = (
+        60
+        if down == "j"
+        else page.evaluate(
+            "() => (document.scrollingElement.clientHeight"
+            " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+        )
     )
     assert page.evaluate(
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
@@ -2267,18 +2446,21 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     # A callback's frame timestamp may predate performance.now() in the key handler.
     # Make that browser timing deterministic: a negative first fraction used to write
     # above the page, get clamped to zero, then cancel the glide as if the reader moved.
-    page.evaluate("""() => {
+    page.evaluate(
+        """down => {
       const raf = requestAnimationFrame;
       let stale = false;
       addEventListener('keydown', event => {
-        if (event.key === 'd') stale = true;
+        if (event.key === down) stale = true;
       }, {capture: true});
       window.requestAnimationFrame = callback => {
         const firstAfterPress = stale;
         stale = false;
         return raf(now => callback(firstAfterPress ? -1 : now));
       };
-    }""")
+    }""",
+        down,
+    )
 
     def rests_at(act, expected):
         """Position after `act`, awaited at `expected` and handed to the assertion:
@@ -2295,24 +2477,25 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
             pass
         return page.evaluate("() => document.scrollingElement.scrollTop")
 
-    assert rests_at(lambda: page.keyboard.press("d"), step) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press(down), step) == pytest.approx(
         step, abs=1
     )
 
     def twice():
-        page.keyboard.press("d")
-        page.keyboard.press("d")
+        page.keyboard.down(down)
+        page.keyboard.down(down)  # a held key emits a repeated keydown
+        page.keyboard.up(down)
 
     assert rests_at(twice, step * 3) == pytest.approx(step * 3, abs=1), (
         "the second press measured from the glide in flight, so the two together "
-        "moved less than the page they promised"
+        "moved less than their full distance"
     )
-    assert rests_at(lambda: page.keyboard.press("u"), step * 2) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press(up), step * 2) == pytest.approx(
         step * 2, abs=1
     )
 
     def taken():
-        page.keyboard.press("d")
+        page.keyboard.press(down)
         page.evaluate(
             "() => document.scrollingElement.scrollTo({top: 400, behavior: 'instant'})"
         )
@@ -2320,7 +2503,7 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
         "the glide pressed on to its goal after the reader took the box"
     )
-    assert rests_at(lambda: page.keyboard.press("d"), 400 + step) == pytest.approx(
+    assert rests_at(lambda: page.keyboard.press(down), 400 + step) == pytest.approx(
         400 + step, abs=1
     ), (
         "the press after the reader took the box measured from the goal the taking "
@@ -2337,11 +2520,11 @@ def test_the_reading_page_keys_step_with_overlap(browser, serve):
         foot,
     ) == pytest.approx(foot, abs=1)
     for _ in range(4):
-        page.keyboard.press("d")  # nothing left to move, and nothing banked either
-    assert rests_at(lambda: page.keyboard.press("u"), foot - step) == pytest.approx(
+        page.keyboard.press(down)  # nothing left to move, and nothing banked either
+    assert rests_at(lambda: page.keyboard.press(up), foot - step) == pytest.approx(
         foot - step, abs=1
     ), (
-        "presses at the foot of the page ran the destination past it, and u spent "
+        "presses at the foot of the page ran the destination past it, and reversing spent "
         "itself paying that back"
     )
     assert errors == []
@@ -2353,7 +2536,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     box clamps nothing: d may not paint the page above where the press found it. A rAF
     tick carries its frame's own start, so a press handled inside a frame already under
     way is stamped after the tick it schedules, and an ease reading that as elapsed time
-    walks back out through its own start (stepPage says the rest). At the ends of the box
+    walks back out through its own start (stepReading says the rest). At the ends of the box
     that write is one the box clamps, and what the clamp does to the press is a resting
     position the test above reads; in the middle every write lands, the glide arrives
     exactly where it promised, and the reader is thrown up to most of a page the wrong
@@ -2403,24 +2586,28 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     page.close()
 
 
-def test_the_reading_page_keys_jump_under_reduced_motion(browser, serve):
-    """d moves through a page with enough overlap to keep the prior lines in view;
-    u makes the same step upward. Under reduced motion both jump."""
+@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
+def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
+    """Both reading distances jump immediately under reduced motion."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
         color_scheme="light",
         reduced_motion="reduce",
     )
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
-    step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+    step = (
+        60
+        if down == "j"
+        else page.evaluate(
+            "() => (document.scrollingElement.clientHeight"
+            " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+        )
     )
-    page.keyboard.press("d")
+    page.keyboard.press(down)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
-    ), "d had not moved 60% of the visible page when the press returned"
-    page.keyboard.press("u")
+    ), "the step had not reached its destination when the press returned"
+    page.keyboard.press(up)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         0, abs=1
     )
@@ -2537,9 +2724,10 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     )
     assert threads_now == threads_was, "the panel took a key aimed at the document"
 
-    # Into the panel, standing on its list rather than in a box — `c`'s own landing,
+    # Into the panel, standing on its list rather than in a box — `g T`'s landing,
     # which travels nothing, so the baseline below is the one the control left.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
     page_was, threads_was = offsets()
@@ -2618,5 +2806,94 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     # The door, and it marks the same passage the key used to.
     compare_with(page)
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
+    assert errors == []
+    page.close()
+
+
+def test_the_draft_box_is_its_own_door(browser, serve):
+    """A draft is the one block on a page whose whole purpose is that the reader rewrites
+    it, and until now the only thing that said so was a pencil in the margin 45px away.
+    The block itself ignored a press. The gesture that did open it in place was a
+    double-click, which is a thing you have to already know.
+
+    So the box is the door, and the caret lands where the press did. Which is a door that
+    has to be opened carefully, because the same words are the page's words: a reader
+    drawing across them to quote them ends that drag with a mouseup inside the box, and
+    opening on it would throw the selection away at the moment it was finished. That is
+    the question `reachedForWords` answers for every other press on the page's own words,
+    asked here rather than answered again. The drag runs through the harness's own
+    `hold_selection`, which floors the press - a fractional start point loses the
+    selection outright, and an empty one would read exactly like the door swallowing it -
+    and the words are read while the drag is still held, because the runtime re-seats the
+    selection on a timer after the release and a read in that gap comes back empty.
+
+    And the door is exactly the box - not the chrome inside it. `offer` writes its marker
+    on everything a widget builds, controls row and edit box included, and only names a
+    kind for the things to press; the guard reads that, so a press on the row does not
+    reopen the editor and the row does not wear a hand it has no use for."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    draft = page.locator("#draft-ops")
+    body = draft.locator(".lf-draft-body")
+    expect(body).to_have_text(DRAFT_TEXT)
+
+    # A drag across the words takes the words. Read as the selection the reader is left
+    # holding, which is the thing the door would have destroyed.
+    box = body.bounding_box()
+    line = box["y"] + 8
+    hold_selection(page, (box["x"] + 2, line), (box["x"] + box["width"] - 2, line))
+    held = page.evaluate("() => getSelection().toString()")
+    assert held.strip() != "", (
+        f"the drag selected nothing, so this says nothing about the door: {held!r}"
+    )
+    page.mouse.up()
+    expect(draft.locator("textarea")).to_have_count(0)
+
+    # A press opens it, with the caret where the press landed rather than at the top.
+    page.evaluate("() => getSelection().removeAllRanges()")
+    at = page.evaluate(
+        """(word) => {
+            const node = document.createTreeWalker(
+              document.querySelector('#draft-ops .lf-draft-body'),
+              NodeFilter.SHOW_TEXT).nextNode();
+            const start = node.data.indexOf(word);
+            const range = document.createRange();
+            range.setStart(node, start); range.setEnd(node, start + word.length);
+            const r = range.getBoundingClientRect();
+            return [r.x + r.width / 2, r.y + r.height / 2, start, word.length];
+        }""",
+        "migration",
+    )
+    page.mouse.click(at[0], at[1])
+    editor = draft.locator("textarea")
+    expect(editor).to_be_focused()
+    caret = page.evaluate(
+        "() => { const t = document.querySelector('#draft-ops textarea');"
+        "        return [t.selectionStart, t.selectionEnd]; }"
+    )
+    assert caret[0] == caret[1], (
+        f"one press selected a range rather than placing a caret: {caret}"
+    )
+    assert at[2] <= caret[0] <= at[2] + at[3], (
+        f"the box opened with the caret at {caret[0]}, not in the word pressed "
+        f"({at[2]}..{at[2] + at[3]})"
+    )
+
+    # The chrome inside the box is not the door, and does not dress as one. The controls
+    # row and the edit box are both things `offer` built and neither names a kind.
+    inside = page.evaluate(
+        """() => [...document.querySelectorAll('#draft-ops [data-lf-offer=""]')]
+             .map((el) => [el.localName, getComputedStyle(el).cursor])"""
+    )
+    assert inside, "the draft built no generated chrome, so this proves nothing"
+    assert all(cursor != "pointer" for _tag, cursor in inside), (
+        f"generated chrome inside the draft dresses as a press: {inside}"
+    )
+
+    # And the pencil is still there, still the keyboard's way in.
+    page.keyboard.press("Escape")
+    pencil = draft_controls(page).locator(".lf-draft-pencil")
+    expect(pencil).to_be_focused()
+    pencil.click()
+    expect(draft.locator("textarea")).to_be_visible()
     assert errors == []
     page.close()

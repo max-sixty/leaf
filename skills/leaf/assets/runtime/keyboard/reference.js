@@ -9,6 +9,7 @@ import {
   word,
 } from "./bindings.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
+import { captureReturnPlace, restoreReturnPlace } from "./return-stack.js";
 
 export function createReference({
   byCommand,
@@ -26,6 +27,7 @@ export function createReference({
   pageSelection,
   paintHere,
   pruneScopedElements,
+  readingBlock,
   reachScrollers,
   readerIn,
   scopeRefs,
@@ -122,11 +124,21 @@ export function createReference({
   // version row or a held card and the row's keys, which it had just listed, reached nothing
   // afterwards. A mode over the page keeps this one key (`allButTheReference`), and a kept key
   // that costs the reader their place is not much of an exemption.
-  let helpFrom = null;
+  //
+  // A reader working from the page is standing on `body` by design — `letGo` puts them
+  // there so Space and PageDown reach the document's own scroll box — so `?` from the page
+  // recorded `body` and closing handed focus back to it. That is worse than handing back
+  // nothing: focusing `body` resets the browser's sequential focus navigation starting
+  // point, so the reader's next Tab began at the top of the document rather than beside
+  // the words they had been reading.
+  let helpOrigin = null;
+  // The shared return-place primitive records a control or the current reading block. A
+  // block is focused and then let go of, moving the browser's sequential starting point
+  // without turning prose into a standing item.
   // The layers the reference was opened over. A modal dialog clears every auto popover on
   // its way into the top layer — the platform's rule, not Leaf's — so the overlay that
   // exists to say what the versions menu's keys are was also what took the menu away, and
-  // `helpFrom` then pointed into a layer that was no longer painted: the restore reached a
+  // the stored control then pointed into a layer that was no longer painted: the restore reached a
   // row in a hidden popover and focus fell to the body. Note what stood, put it back before
   // the restore, and the exemption costs the reader nothing again.
   let helpLayers = [];
@@ -162,11 +174,12 @@ export function createReference({
     // in hand when `?` opens the reference, while an ordinary open lands directly in search.
     // The dialog itself remains a focus stop, so either route keeps the page suspended.
     const preserveSelection = open && Boolean(pageSelection());
-    const restore =
-      !open && restoreFocus && helpEl.contains(focused()) ? helpFrom : null;
+    const handBack = !open && restoreFocus && helpEl.contains(focused());
+    const origin = handBack ? helpOrigin : null;
+    const restore = origin?.control ?? null;
     const closing = !open && helpEl.open;
     if (open && !helpOpen) {
-      helpFrom = focused();
+      helpOrigin = captureReturnPlace({ focused, readingBlock });
       helpLayers = [...document.querySelectorAll(":popover-open")];
       commandsAtOpen = availableCommands();
     }
@@ -206,10 +219,13 @@ export function createReference({
       characterToggle.onclick = () => {
         setCharacterShortcuts(!characterShortcutsOn());
         // Re-enter through the page so the dispatch snapshot sees the newly available
-        // bindings before this modal scope shadows them. Keep focus on the preference that
-        // caused the change instead of returning to search.
-        showHelp(false);
+        // bindings before this modal scope shadows them. This rebuilds one surface rather
+        // than entering another: preserve the place the original reference displaced and
+        // focus the replacement preference instead of minting either control as an origin.
+        const origin = helpOrigin;
+        showHelp(false, false);
         showHelp(true);
+        helpOrigin = origin;
         helpEl.querySelector(".lf-help-shortcuts").focus({ preventScroll: true });
       };
       preference.append(meta, characterToggle);
@@ -290,12 +306,19 @@ export function createReference({
                   meta.textContent = availableWhere(row, scopeTitle, scopeReach);
                   return;
                 }
+                // Closing a native modal may leave this soon-hidden button focused until
+                // the click finishes. The command's origin is the place the reference
+                // displaced, not that transient implementation node. Run after the close's
+                // focus restoration too, so the command's own destination wins the frame.
+                const origin = helpOrigin;
                 showHelp(false);
-                if (!executeCommand(id)) {
-                  showHelp(true);
-                  helpEl.querySelector(".lf-help-meta").textContent =
-                    "That command is no longer available";
-                }
+                requestAnimationFrame(() => {
+                  if (!executeCommand(id, origin)) {
+                    showHelp(true);
+                    helpEl.querySelector(".lf-help-meta").textContent =
+                      "That command is no longer available";
+                  }
+                });
               };
               actionCell.append(command);
               commandButtons.push(command);
@@ -316,7 +339,7 @@ export function createReference({
         total += entries.length;
         return { el: t, entries };
       };
-      for (const scope of declaredStack(helpFrom)) {
+      for (const scope of declaredStack(helpOrigin?.control)) {
         // A scope the reader is standing in is filtered by each row's own liveness, because
         // they can see which state they are in and a row that would refuse the press must
         // not be on screen. A scope they are merely near is listed whole: a row's `when`
@@ -461,13 +484,7 @@ export function createReference({
     // press's own focus is the browser's default action, still to come — a restore made from
     // out here would be putting focus back for the click to take again.
     paintHere();
-    if (!open && restore) {
-      if (restore.isConnected) restore.focus({ preventScroll: true });
-      else
-        requestAnimationFrame(() => {
-          if (restore.isConnected) restore.focus({ preventScroll: true });
-        });
-    }
+    if (!open && origin) restoreReturnPlace(origin);
   }
 
   const helpStops = () =>

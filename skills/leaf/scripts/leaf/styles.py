@@ -1,4 +1,10 @@
-"""CSS and readable-column readings of authored HTML."""
+"""CSS and readable-column readings of authored HTML.
+
+Bounded readings of exact CSS text keep state requests from reparsing unchanged
+stylesheets. Their results are read-only; edits select a new cache entry.
+"""
+
+from functools import lru_cache
 
 import tinycss2
 
@@ -31,14 +37,15 @@ def css_block(css):
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
 
 
-def css_rules(css: str):
+@lru_cache(maxsize=32)
+def css_rules(css: str) -> tuple:
     """(selector, block, conditional) per qualified rule, at every depth — a rule that
     holds both declarations and a nested rule states one of its own. `conditional` is
     true for a rule inside an at-rule, which applies only when a condition this check
     never evaluates holds: `@media print`, a viewport query. Nesting alone is not a
     condition, so a rule nested in a conditional one is conditional and no more."""
-    yield from _rules(
-        tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True)
+    return tuple(
+        _rules(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True))
     )
 
 
@@ -73,7 +80,8 @@ def _css_unclosed_blocks(css: str) -> int:
     return depth
 
 
-def css_syntax_errors(css: str, source: str, *, block=False) -> list:
+@lru_cache(maxsize=32)
+def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
     """Every parse error in a stylesheet or declaration block, including nested rules."""
     parse = (
         css_block
@@ -123,7 +131,7 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> list:
                 walk_rules(css_block(node.content))
 
     walk_rules(parse(css))
-    return errors
+    return tuple(errors)
 
 
 def _rules(nodes, conditional=False):

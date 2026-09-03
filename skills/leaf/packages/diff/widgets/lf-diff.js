@@ -3,8 +3,12 @@
  * same rendered lines support selection anchors and script-free export. */
 import {
   DISCLOSE,
+  actionAvailable,
+  announce,
   dataBody,
   failSoft,
+  focused,
+  inChrome,
   keys,
   langForPath,
   layoutChanged,
@@ -21,7 +25,14 @@ import {
   notice,
   watchData,
 } from "/runtime/widget-api.js";
-import { parsePatchFiles, preloadDiffHTML } from "/vendor/pierre-diffs.esm.js";
+// Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
+// that is actually rendering has any use for it — an authored <lf-diff> bound to data
+// that has not arrived yet does not. So it is imported on first use rather than at
+// module load: the page pays for the renderer when it draws a diff, and a version whose
+// diff has been taken back out stops paying on the next load. The promise is kept, so
+// every later file, every other diff on the page, and every re-render share one import.
+let renderer = null;
+const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
 const OPTIONS = Object.freeze({
   diffStyle: "unified",
@@ -78,15 +89,23 @@ const changeCounts = (file) =>
         { adds: 0, dels: 0 },
       );
 
+// Each record carries the index of the hunk it came out of. A hunk is the unit a
+// reviewer actually moves in — one `@@` header is one place the author changed
+// something — and it is knowable only here, where the parse is still grouped; the
+// rendered rows are a flat run with the separator chrome between them, so recovering
+// the grouping from the DOM afterwards would be reading a rendering for a fact the
+// parse already had. It rides on the same record the anchor coordinate is read off,
+// and `lineKey` names only the four fields that make a comment's coordinate, so a row
+// knowing which hunk it is in changes no anchor.
 function sourceLines(file) {
   const lines = [];
-  for (const hunk of file.hunks) {
-    let oldLine = hunk.deletionStart;
-    let newLine = hunk.additionStart;
-    for (const part of hunk.hunkContent) {
+  for (const [hunk, chunk] of file.hunks.entries()) {
+    let oldLine = chunk.deletionStart;
+    let newLine = chunk.additionStart;
+    for (const part of chunk.hunkContent) {
       if (part.type === "context") {
         for (let index = 0; index < part.lines; index++) {
-          lines.push({ path: file.name, side: "both", oldLine, newLine });
+          lines.push({ path: file.name, hunk, side: "both", oldLine, newLine });
           oldLine++;
           newLine++;
         }
@@ -95,13 +114,20 @@ function sourceLines(file) {
       if (part.type !== "change")
         throw new Error(`unsupported ${part.type} line in ${file.name}`);
       for (let index = 0; index < part.deletions; index++)
-        lines.push({ path: file.name, side: "old", oldLine: oldLine++ });
+        lines.push({ path: file.name, hunk, side: "old", oldLine: oldLine++ });
       for (let index = 0; index < part.additions; index++)
-        lines.push({ path: file.name, side: "new", newLine: newLine++ });
+        lines.push({ path: file.name, hunk, side: "new", newLine: newLine++ });
     }
   }
   return lines;
 }
+
+// The first rendered row of each hunk: the places `]` and `[` land. Read off the
+// records rather than counted in the DOM, so an unloaded file simply has none.
+const hunkHeads = (entry) =>
+  (entry.lines ?? []).filter(
+    (line, index) => index === 0 || line.hunk !== entry.lines[index - 1].hunk,
+  );
 
 const lineKey = ({ path, side, oldLine, newLine }) =>
   JSON.stringify(
@@ -177,8 +203,11 @@ function summaryNode(file, open) {
 // A file's row and its review press. The press cannot go inside the <summary>: a
 // disclosure is itself a control, and a control nested in one is announced as a single
 // thing — the serious `nested-interactive` finding the corpus's axe sweep reports, once
-// per file. They are siblings in this wrapper instead, and theme.css draws the press
-// back onto the summary line.
+// per file. They are siblings in this wrapper instead, the press first, and theme.css
+// draws it back onto the summary line. First because the line pins: the summary sticks
+// under the banner while its rows go past, and the press sticks with it only as a box
+// in the flow ahead of the disclosure, since a box placed against the file's top would
+// stay there and drift off the header it belongs to.
 function fileRow(row) {
   const file = document.createElement("div");
   file.className = "lf-diff-file";
@@ -190,6 +219,24 @@ function reviewButton(entry, changed) {
   const button = offer("button", "lf-diff-review");
   button.addEventListener("click", () => changed(entry, !entry.reviewed));
   return button;
+}
+
+// The soft-wrap switch is a native checkbox and the theme reads it with `:has()`, the
+// same bargain lf-shot strikes: the state is the control, so a copy with its scripts
+// dropped still wraps and unwraps, and no second store can disagree with what the box
+// says. It stands ahead of the file rows in the shadow tree because the rule that reads
+// it is a sibling combinator — the switch is the only thing every file's lines can be
+// addressed from without naming a widget or hoisting the state onto the host.
+function wrapSwitch() {
+  const label = offer("label", "lf-diff-wrap-label");
+  const box = offer("input", "lf-diff-wrap");
+  box.type = "checkbox";
+  // The words beside the control are its accessible name (WCAG Label in Name); the
+  // label element supplies them, so nothing here restates them as an aria-label.
+  label.append(box, "Soft wrap");
+  // A toggle moves no focus, so nothing else would repaint the word this press changes.
+  box.addEventListener("change", paintKeys);
+  return { node: label, box };
 }
 
 function reviewTools(host) {
@@ -207,8 +254,9 @@ function reviewTools(host) {
   progress.dataset.lfGen = "1";
   const next = offer("button", "lf-diff-next", "Next unreviewed");
   next.addEventListener("click", () => settle(host.nextUnreviewed()));
-  tools.append(label, progress, next);
-  return { node: tools, search, progress, next };
+  const wrap = wrapSwitch();
+  tools.append(label, progress, wrap.node, next);
+  return { node: tools, search, progress, next, wrap: wrap.box };
 }
 
 function renameNode(file) {
@@ -264,6 +312,7 @@ function pathOnlyRenames(source) {
 }
 
 async function renderFile(file, sharedStyles, open) {
+  const { preloadDiffHTML } = await pierre();
   file.lang = langForPath(file.name) ?? "text";
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({ fileDiff: file, options: OPTIONS });
@@ -301,12 +350,13 @@ async function renderFile(file, sharedStyles, open) {
   return { node: details, lines };
 }
 
-function parsedFiles(source) {
+async function parsedFiles(source) {
   if (/^copy (?:from|to) /m.test(source))
     throw new Error(
       "unsupported copy diff (copy entries belong in prose; omit " +
         "copy metadata and use textual @@ hunks for an edited destination)",
     );
+  const { parsePatchFiles } = await pierre();
   const files = parsePatchFiles(source, undefined, true).flatMap(
     (patch) => patch.files,
   );
@@ -349,17 +399,109 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     connectedCallback() {
+      document.removeEventListener("lf-actions", this.paintReviewAvailability);
+      document.addEventListener("lf-actions", this.paintReviewAvailability);
       if (this.stopWatching) return;
+      // A page diff's file header pins under the banner; one an agent sent in a reply
+      // scrolls inside the panel's own list, whose pinned slot already belongs to the
+      // run headings. The theme cannot ask that question from inside a shadow tree, so
+      // the module answers it once with the layer's own predicate and paints the answer.
+      if (!inChrome(this)) this.dataset.lfDiffPinned = "";
       if (!this.reviewKeys) {
         this.reviewKeys = keys(
           this,
           "In a diff review",
           [
+            // The walk leads the scope, because the key line's shortlist is its first
+            // two live rows and moving is what a reader standing on a diff row does
+            // next: the line used to open with "filter files", which is the press for
+            // someone who has not started reading yet. The rest of the scope is one `?`
+            // away in the shelf and complete in the reference.
+            //
+            // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
+            // unit out. Bracket pairs because that is what an editor and a review tool
+            // already spell this walk with, and punctuation spends none of the page's
+            // small alphabet: these live in the diff's own scope and answer only while
+            // the reader is standing in it.
+            {
+              id: "diff.next-hunk",
+              keys: ["]"],
+              does: "Go to the next hunk",
+              line: "next hunk",
+              when: () => this.hasHunks(),
+              run: () => settle(this.stepHunk(false)),
+            },
+            {
+              id: "diff.previous-hunk",
+              keys: ["["],
+              does: "Go to the previous hunk",
+              line: "previous hunk",
+              when: () => this.hasHunks(),
+              run: () => settle(this.stepHunk(true)),
+            },
+            {
+              id: "diff.next-file",
+              keys: ["}"],
+              does: "Go to the next file's header",
+              line: "next file",
+              when: () => this.shownEntries().length > 1,
+              run: () => this.stepFile(false),
+            },
+            {
+              id: "diff.previous-file",
+              keys: ["{"],
+              does: "Go to the previous file's header",
+              line: "previous file",
+              when: () => this.shownEntries().length > 1,
+              run: () => this.stepFile(true),
+            },
+            // The mode, not the toggle: `does` and `line` say which way this press will
+            // go. The press is the switch's own activation rather than a second route to
+            // the same effect, so the box the theme reads stays the one place the state
+            // lives. Alt+w rather than a bare letter, matching the row below it: a bare
+            // `w` here would shadow the page's own narrowing for as long as a reader
+            // stood anywhere in a patch.
+            {
+              id: "diff.wrap",
+              keys: ["Alt+w"],
+              does: () =>
+                this.wrapped() ? "Show long lines unwrapped" : "Wrap long lines",
+              line: () => (this.wrapped() ? "stop wrapping" : "wrap long lines"),
+              run: () => this.reviewTools?.wrap.click(),
+            },
             {
               id: "diff.search",
               keys: ["/"],
               does: "Filter the files in this diff",
               line: "filter files",
+              returnFrame: () => ({
+                active: () => {
+                  const search = this.reviewTools?.search;
+                  const held = focused();
+                  const inDiff =
+                    this.contains(held) || Boolean(this.shadowRoot?.contains(held));
+                  return Boolean(
+                    search &&
+                    inDiff &&
+                    (search.value || this.reviewTools.node.contains(held)),
+                  );
+                },
+                close: () => {
+                  const search = this.reviewTools?.search;
+                  if (search?.value) {
+                    this.clearFilter();
+                    search.focus({ preventScroll: true });
+                    return false;
+                  }
+                  search?.blur();
+                },
+                does: () =>
+                  this.reviewTools?.search.value
+                    ? "Show every file again"
+                    : "Leave the diff filter",
+                line: () =>
+                  this.reviewTools?.search.value ? "show all files" : "back",
+              }),
               run: () => this.reviewTools?.search.focus(),
             },
             {
@@ -404,9 +546,12 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      document.removeEventListener("lf-actions", this.paintReviewAvailability);
       this.rendering = (this.rendering ?? 0) + 1;
       this.stopWatching?.();
       this.stopWatching = null;
+      this.headRoom?.disconnect();
+      this.headRoom = null;
       this.boundStamp = undefined;
       this.boundRendering = null;
       this.manifestEntries = null;
@@ -443,7 +588,7 @@ customElements.define(
         this.manifestEntries = null;
         this.sharedStyles = null;
         // Strict parsing keeps a malformed hunk from becoming incomplete evidence.
-        const files = parsedFiles(source);
+        const files = await parsedFiles(source);
         const sharedStyles = new Map();
         const rendered = [];
         const open = !this.hasAttribute("collapsed");
@@ -485,6 +630,8 @@ customElements.define(
             ({ node }) => node,
             { nested: true, labelOf: lineLabel },
           );
+        this.paintHeadRoom();
+        this.watchHeadRoom();
         this.classList.add("lf-rendered");
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
@@ -575,6 +722,8 @@ customElements.define(
       this.replaceChildren();
       this.stageManifest();
       this.projectManifest();
+      this.paintHeadRoom();
+      this.watchHeadRoom();
       this.classList.add("lf-rendered");
       if (open)
         await Promise.all(entries.map((entry) => this.loadManifestEntry(entry)));
@@ -612,7 +761,7 @@ customElements.define(
           if (rendering !== this.rendering || !this.isConnected) return;
           if (typeof patch !== "string")
             throw new Error("the fragment is not unified patch text");
-          const files = parsedFiles(patch);
+          const files = await parsedFiles(patch);
           if (files.length !== 1 || files[0].name !== entry.record.path)
             throw new Error(
               `the fragment for ${entry.record.path} does not contain that one file`,
@@ -705,7 +854,15 @@ customElements.define(
       await Promise.all(
         (this.manifestEntries ?? []).map((entry) => this.loadManifestEntry(entry)),
       );
-      this.reviewTools?.node.remove();
+      // The filter, the count and the next-unreviewed press all need the module, so a
+      // copy loses them. The wrap switch does not: it is a checkbox the theme reads, so
+      // it goes on working in a file with its scripts dropped, and the tools row stays
+      // to carry it — a copy of a patch is exactly where a reader has no other way to
+      // see the end of a long line.
+      const tools = this.reviewTools;
+      tools?.search.closest("label")?.remove();
+      tools?.progress.remove();
+      tools?.next.remove();
       this.reviewTools = null;
       for (const entry of this.fileEntries ?? []) {
         if (!entry.reviewed) {
@@ -722,6 +879,7 @@ customElements.define(
 
     attachReview(entry) {
       entry.review = reviewButton(entry, (target, reviewed) => {
+        if (!actionAvailable(this, "review")) return;
         this.setReviewed(target, reviewed);
         sendAction(this, "review", {
           file: target.record.path,
@@ -734,9 +892,17 @@ customElements.define(
           else this.refreshReviewedState();
         });
       });
-      entry.node.append(entry.review);
+      entry.node.prepend(entry.review);
       this.setReviewed(entry, false, { repaint: false });
+      this.paintReviewAvailability();
     }
+
+    paintReviewAvailability = () => {
+      const available = actionAvailable(this, "review");
+      for (const entry of this.fileEntries ?? [])
+        if (entry.review instanceof HTMLButtonElement)
+          entry.review.disabled = !available;
+    };
 
     setReviewed(entry, reviewed, { repaint = true } = {}) {
       if (!entry) return;
@@ -797,8 +963,132 @@ customElements.define(
       paintKeys();
     }
 
-    entryAroundFocus() {
+    wrapped() {
+      return Boolean(this.reviewTools?.wrap.checked);
+    }
+
+    shownEntries() {
+      return (this.fileEntries ?? []).filter((entry) => !entry.filtered);
+    }
+
+    hasHunks() {
+      return this.shownEntries().some((entry) => entry.details);
+    }
+
+    // How much of the top a pinned file header covers, which is the one number the theme
+    // cannot work out: a long path wraps, so the header's height is whatever it rendered
+    // at, and on this corpus that is anything from one line to three. The thread list
+    // writes the same fact under the same name for its own run headings; here it is read
+    // as `scroll-margin-top` on the rows, so a landing arrives below the header rather
+    // than behind it. Per file, because each header pins over its own rows and one
+    // number for all of them would spend the widest path's wrap on every landing.
+    paintHeadRoom() {
+      for (const file of this.shadowRoot?.querySelectorAll("details") ?? [])
+        file.style.setProperty(
+          "--lf-head-room",
+          `${file.querySelector("summary")?.offsetHeight ?? 0}px`,
+        );
+    }
+
+    watchHeadRoom() {
+      if (this.headRoom) return;
+      this.headRoom = new ResizeObserver(() => this.paintHeadRoom());
+      this.headRoom.observe(this);
+    }
+
+    // Where the reader stands inside this diff. A row, a header, or a control in the
+    // tools row all answer; the walk only needs a node to compare document positions
+    // against, and the tools row standing before every file is why a reader who has
+    // touched nothing steps to the first hunk rather than nowhere.
+    hereNode() {
       const focused = this.shadowRoot?.activeElement;
+      return focused && this.shadowRoot.contains(focused) ? focused : null;
+    }
+
+    // With nothing focused inside the shadow tree — the host itself is focused, which
+    // is where an in-page link to the diff's id lands — every hunk counts as beyond, in
+    // either direction: `order` is already reversed for a backward step, so the walk
+    // opens the last file and lands on its last hunk, the mirror of the first hunk
+    // forward. Answering false there matched no hunk in any file, and the walk opened
+    // and fetched every one of them to land nowhere.
+    beyond(node, here, back) {
+      if (!here) return true;
+      const where = here.compareDocumentPosition(node);
+      return Boolean(
+        where &
+        (back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING),
+      );
+    }
+
+    async openEntry(entry) {
+      if (!entry.details) return;
+      entry.details.open = true;
+      await this.loadManifestEntry(entry);
+    }
+
+    // The walk starts in the file the reader is standing in and goes on through the
+    // ones after it, so a closed file is opened only once the step has actually reached
+    // it: a reader on the last hunk of the third file loads the fourth and stops, rather
+    // than every remaining file to discover there is nothing past them.
+    async stepHunk(back) {
+      const here = this.hereNode();
+      const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
+      const standing = here
+        ? order.findIndex((entry) => entry.node.contains(here))
+        : -1;
+      for (let index = Math.max(standing, 0); index < order.length; index++) {
+        const entry = order[index];
+        await this.openEntry(entry);
+        const heads = hunkHeads(entry);
+        const head = (back ? [...heads].reverse() : heads).find((line) =>
+          this.beyond(line.node, here, back),
+        );
+        if (!head) continue;
+        this.land(head.node);
+        announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
+        return;
+      }
+    }
+
+    stepFile(back) {
+      const here = this.hereNode();
+      const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
+      // The whole file is the unit, so a step out of one starts past it rather than at
+      // its own header — and a reader standing in the tools row, which belongs to no
+      // file, steps to the first (or, walking back, the last).
+      const standing = here
+        ? order.findIndex((entry) => entry.node.contains(here))
+        : -1;
+      const entry = order[standing + 1];
+      if (!entry) return;
+      this.reviewCursor = entry;
+      // The box rather than the header, which is what the `g f` fold address settled for
+      // the same shape: a header pinned to the banner is already where it is going, so
+      // aligning it moves nothing, while aligning the file it heads starts the file at
+      // its start. The header is still what takes the focus.
+      this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
+      announce(entry.record.path);
+    }
+
+    // Arrival: scrolled to the band the document declares landable, which the pinned
+    // header's own room has been added to, and then the focus without the browser
+    // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
+    // so it is made focusable for the press that lands on it and wears the platform's
+    // own ring, the same as every control the layer does not restyle. A file header
+    // already is one, and writing a tabindex of -1 onto it would take it out of the
+    // order a reader tabs through.
+    land(box, node = box) {
+      if (node.tabIndex < 0) node.tabIndex = -1;
+      box.scrollIntoView({
+        behavior: scrollBehavior(),
+        block: "start",
+        inline: "nearest",
+      });
+      node.focus({ preventScroll: true });
+    }
+
+    entryAroundFocus() {
+      const focused = this.hereNode();
       const focusedEntry =
         this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null;
       if (focusedEntry) return focusedEntry;

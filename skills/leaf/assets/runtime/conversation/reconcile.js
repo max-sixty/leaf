@@ -1,5 +1,5 @@
 import { createThreadModel } from "./model.js";
-import { createThreadFolding } from "./folding.js";
+import { createThreadFolding, createThreadSettlement } from "./folding.js";
 import { createInlineConversations } from "./inline.js";
 import { createPanelLanding } from "./landing.js";
 import { createConversationMessages } from "./messages.js";
@@ -39,6 +39,7 @@ export function createConversation(dependencies) {
     layerPart,
     loadDraft,
     markDeclared,
+    mayLandTyping,
     mirrorDraft,
     motion,
     needsBtn,
@@ -141,8 +142,10 @@ export function createConversation(dependencies) {
     tokenEntry,
   });
   const { replyBoxHasDraft, wireReply } = createReplies({
+    focused,
     landTyping,
     loadDraft,
+    mayLandTyping,
     mirrorDraft,
     post,
     runtime,
@@ -216,11 +219,26 @@ export function createConversation(dependencies) {
     threadsBox,
   });
   const { narrowed, paintNarrowing, widen } = narrowing;
-  const { revealThread, showThread } = createPanelLanding({
+  const folding = createThreadFolding({
+    FOLD_MS,
+    motion,
+    renderPanel,
+    threadsBox,
+  });
+  const { retainPanelLanding, showThread } = createPanelLanding({
+    finishFold: folding.finishFold,
+    panelIsOpen,
     reachedForWords,
     setPanel,
     threadsBox,
     widen,
+  });
+  const { settlementControl } = createThreadSettlement({
+    keys,
+    offer,
+    paintKeys,
+    post,
+    PRESS,
   });
   const cards = createThreadCards({
     anchorLabel,
@@ -233,12 +251,12 @@ export function createConversation(dependencies) {
     paintReactStrips,
     panelCovers,
     placedAt,
-    post,
     PRESS,
     reachedForWords,
-    revealThread,
+    retainPanelLanding,
     scrollToThread,
     setPanel,
+    settlementControl,
     showThread,
     syncMsgNode,
     threadList: () => threadList,
@@ -246,13 +264,6 @@ export function createConversation(dependencies) {
     turns,
     wireReply,
   });
-  const folding = createThreadFolding({
-    FOLD_MS,
-    motion,
-    renderPanel,
-    threadsBox,
-  });
-
   // The reconcile's one mover, shared by the list and the resolved disclosure: make
   // `parent`'s children `nodes`, in that order, touching nothing already in its place.
   // Not touching it matters beyond economy: reinserting a node restarts its CSS
@@ -283,6 +294,7 @@ export function createConversation(dependencies) {
     renderMessageMarkdown,
     seatRoot,
     setChildren,
+    settlementControl,
     showThread,
     syncEdited,
     turns,

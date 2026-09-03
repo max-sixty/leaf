@@ -186,6 +186,25 @@ graph LR
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
 PAGE_PACKAGES = ("command-hub", "diagram", "diff")
+FIXTURE_VERSIONS = ".fixture-versions"
+
+
+def fixture_version_path(page_dir, version):
+    """A candidate document authored by a test, outside Leaf's storage model."""
+    directory = page_dir / FIXTURE_VERSIONS
+    directory.mkdir(exist_ok=True)
+    return directory / f"v{version}.html"
+
+
+def list_fixture_versions(page_dir):
+    directory = page_dir / FIXTURE_VERSIONS
+    if not directory.exists():
+        return []
+    return sorted(
+        int(match.group(1))
+        for path in directory.glob("v*.html")
+        if (match := re.fullmatch(r"v([1-9][0-9]*)\.html", path.name))
+    )
 
 
 @pytest.fixture
@@ -208,7 +227,7 @@ def page_dir(tmp_path, monkeypatch, clone_initialized_page):
         (template / "index.html").write_text(PAGE)
         activated = revisioning_model.activate_source(template, [])
         assert activated.error is None and activated.revision == 1
-        (template / "versions" / "v1.html").write_text(PAGE)
+        fixture_version_path(template, 1).write_text(PAGE)
 
     clone_initialized_page("-".join(PAGE_PACKAGES), d, initialize)
     return d
@@ -233,11 +252,11 @@ def stage_fixture_source(d, version, *, reset_unstamped=False):
         and files_model.revision_path(d, 1).read_bytes() == PAGE.encode()
     ):
         files_model.revision_path(d, 1).unlink()
-    (d / "index.html").write_bytes(files_model.version_path(d, version).read_bytes())
+    (d / "index.html").write_bytes(fixture_version_path(d, version).read_bytes())
 
 
 def check(d, version=None):
-    versions = files_model.list_versions(d)
+    versions = list_fixture_versions(d)
     target = version if version is not None else (versions[-1] if versions else None)
     if target is not None:
         stage_fixture_source(d, target)
@@ -295,8 +314,8 @@ def declare_data_input(
             f'<{tag} id="test-data" source="{source}"></{tag}>\n</main>',
         )
     )
-    if versions := files_model.list_versions(page_dir):
-        files_model.version_path(page_dir, versions[-1]).write_bytes(
+    if versions := list_fixture_versions(page_dir):
+        fixture_version_path(page_dir, versions[-1]).write_bytes(
             source_path.read_bytes()
         )
     activated = revisioning_model.activate_source(
@@ -327,7 +346,7 @@ def publish(d, version=1):
 
 
 def stamp(d, version, text="stamped", completes=()):
-    """Stage one legacy fixture file and stamp its exact bytes through the CLI."""
+    """Stage one fixture-authored candidate and stamp its bytes through the CLI."""
     stage_fixture_source(d, version, reset_unstamped=True)
     return CliRunner().invoke(
         cli_model.cli,
@@ -472,7 +491,7 @@ def _balanced(text, start):
 
 def _paint_names():
     """PAGE_PAINT_ATTRIBUTE: the spelling every writer in the runtime shares, and the
-    set of names no version file may assert. A name in it says only that the runtime
+    set of names no authored document may assert. A name in it says only that the runtime
     is allowed to paint that attribute; which writer does, and on what, is the
     caller's question."""
     js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
@@ -530,9 +549,11 @@ def before_choice(page, markup):
 def suggest(page_dir, version=2, markup=SUGGESTION):
     """Write and publish v1 carrying a suggestion, and an unchanged v2 to
     check against."""
-    (page_dir / "versions" / "v1.html").write_text(before_choice(PAGE, markup))
+    (page_dir / ".fixture-versions" / "v1.html").write_text(before_choice(PAGE, markup))
     publish(page_dir)
-    (page_dir / "versions" / f"v{version}.html").write_text(before_choice(PAGE, markup))
+    (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        before_choice(PAGE, markup)
+    )
 
 
 def decide(page_dir, outcome, widget="sug-refill"):
@@ -552,7 +573,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
 def _decided(page_dir, words):
     """v1 carrying a draft the user has since rewritten, and the log that
     says so. Whatever v2 does about it, `version check` is what has to notice."""
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             f'<h2>Plan</h2><lf-draft id="d1"><pre>{words}</pre></lf-draft>',
@@ -570,7 +591,9 @@ def _decided(page_dir, words):
             "detail": {"text": "Cut the flag; backfill first."},
         },
     )
-    return lambda words, attrs="": (page_dir / "versions" / "v2.html").write_text(
+    return lambda words, attrs="": (
+        page_dir / ".fixture-versions" / "v2.html"
+    ).write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             f'<h2>Plan</h2><lf-draft id="d1"{attrs}><pre>{words}</pre></lf-draft>',
@@ -588,7 +611,7 @@ def _tasks(status, extra=""):
 
 
 def _tasks_version(page_dir, version, status, extra=""):
-    (page_dir / "versions" / f"v{version}.html").write_text(
+    (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _tasks(status, extra))
     )
 
@@ -654,7 +677,7 @@ def logged(page_dir, *events):
     return event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(
-            (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
+            files_model.revision_path(page_dir, 1).read_text(encoding="utf-8")
         ),
     )
 
@@ -867,7 +890,7 @@ def trial_page(tmp_path, monkeypatch):
         cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    (page / "versions" / "v1.html").write_text(
+    fixture_version_path(page, 1).write_text(
         trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE)
     )
     assert check(page, version=1).exit_code == 0, check(page, version=1).output
@@ -996,14 +1019,14 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 
 def neighbour_page(directory, title=None, dead=False, published=True):
     """A page with desired service state and, unless dead, a live lease."""
-    (directory / "versions").mkdir(parents=True)
+    (directory / ".fixture-versions").mkdir(parents=True)
     (directory / "revisions").mkdir()
     head = f"<title>{title}</title>" if title else ""
     html = (
         f"<!doctype html><html><head>{head}</head>"
         "<body><main><p>words</p></main></body></html>"
     )
-    (directory / "versions" / "v1.html").write_text(html)
+    (directory / ".fixture-versions" / "v1.html").write_text(html)
     files_model.write_revision(directory, 1, html.encode())
     if published:
         events_model.append_event(
@@ -1210,7 +1233,9 @@ def managed_server(spawn):
             text=True,
         )
         assert process.stdout.readline().startswith("http://127.0.0.1:")
-        assert "session server" in process.stderr.readline()
+        assert process.stderr.readline().strip() == (
+            "server   session (stops with its agent session)"
+        )
         return process
 
     return start
@@ -1259,7 +1284,7 @@ def standing_server(spawn, sessionless):
             text=True,
         )
         assert process.stdout.readline().startswith("http://127.0.0.1:")
-        assert "standing server" in process.stderr.readline()
+        assert process.stderr.readline().strip() == "server   standing"
         return process
 
     return start
@@ -1286,7 +1311,7 @@ DRAFTED = PAGE.replace(
 
 def drafted(page_dir):
     """A published v1 carrying the note draft, its body still Claude's."""
-    (page_dir / "versions" / "v1.html").write_text(DRAFTED)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(DRAFTED)
     (page_dir / "index.html").write_text(DRAFTED)
     return published(page_dir)
 
@@ -1314,7 +1339,7 @@ SUGGESTED = before_choice(PAGE, SUGGESTION)
 
 def suggested(page_dir):
     """A published v1 carrying the sug-refill suggestion, both slots pending."""
-    (page_dir / "versions" / "v1.html").write_text(SUGGESTED)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(SUGGESTED)
     return published(page_dir)
 
 

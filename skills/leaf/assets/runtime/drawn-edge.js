@@ -1,4 +1,4 @@
-export function createDrawnEdge({ el, keys, readerStore, syncLayout }) {
+export function createDrawnEdge({ el, keys, moveShell, readerStore, syncLayout }) {
   // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
   // page of prose.
   const EDGE_STEP = 24;
@@ -75,8 +75,14 @@ export function createDrawnEdge({ el, keys, readerStore, syncLayout }) {
     function set(want) {
       chosen = Math.round(held(want));
       readerStore.set(key, String(chosen));
-      state();
-      syncLayout();
+      const apply = () => {
+        state();
+        syncLayout();
+      };
+      // A drag follows the hand exactly. An arrow is a discrete change whose page move
+      // the reader can follow through the same final-layout motion as opening a region.
+      if (document.body.hasAttribute("data-lf-sizing")) apply();
+      else moveShell(apply);
     }
     /** The region's own edge, said as what it is: a separator between two regions, which is
      * the platform's word for a boundary the reader moves. That word is worth having for

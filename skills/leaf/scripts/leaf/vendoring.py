@@ -31,23 +31,28 @@ from .layer import (
     layer_inputs,
     payload_provenance,
 )
-from .leases import init_lock_path, lock_is_held, transition_lock
+from .leases import lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_projection
-from .schema import DATA_FILE, LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
+from .schema import (
+    DATA_FILE,
+    EVENTS_FILE,
+    LAYER_PLACEHOLDER,
+    MEDIA_DIR,
+    PACKAGE_DIRS,
+    PAGE_OWNED_DIRS,
+    PAGE_OWNED_FILES,
+)
 from .service import PageTransaction, claim_path
 from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
-    # Before the directory exists there is no comments log for PageTransaction
-    # to lock. This one external lease covers that missing first instant through
-    # the complete vendoring, so two public inits cannot both observe freshness
-    # and the earlier one cannot later erase the page the other created.
-    path = init_lock_path(page_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(path), flocked(transition_lock(page_dir)):
+    # Before the directory exists there is no event log for PageTransaction to
+    # lock. The external transition lease covers that missing first instant and
+    # continues through the complete vendoring.
+    with flocked(transition_lock(page_dir)):
         _init_page(page_dir, selected)
 
 
@@ -63,7 +68,7 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
     # the caller prepared is still a fresh page until that marker exists: it
     # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
     # validation leaves it untouched.
-    fresh = not (page_dir / "comments.jsonl").is_file()
+    fresh = not (page_dir / EVENTS_FILE).is_file()
     if selected is None and fresh:
         selected = ()
     elif selected is None:
@@ -104,10 +109,10 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
             selected=selected,
         )
         return
-    # The init lease serializes this operation with other inits; an existing
+    # The transition lease serializes this operation with other inits; an existing
     # page also has its ordinary transaction, which gives the vocabulary check
     # and contract commit one order against every browser append. No path takes
-    # the page transaction and then the init lease, so this order cannot invert.
+    # the page transaction and then the transition lease, so this order cannot invert.
     with PageTransaction(page_dir) as page:
         _vendor_page(
             page_dir,
@@ -126,8 +131,8 @@ class _VendoredLayer(NamedTuple):
 
 def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:
     destinations = [
-        *(page_target / name for name in PACKAGE_FILES),
-        *(page_target / sub for sub in ("versions", *PACKAGE_DIRS)),
+        *(page_target / name for name in PAGE_OWNED_FILES),
+        *(page_target / sub for sub in PAGE_OWNED_DIRS),
     ]
     located_destinations = located(destinations)
     if overlap := next(
@@ -293,7 +298,8 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
         ),
     ]
     directories = {
-        page_dir / "versions",
+        page_dir / "revisions",
+        page_dir / MEDIA_DIR,
         *(page_dir / sub for sub in PACKAGE_DIRS),
     }
     for target in file_targets:
@@ -390,9 +396,9 @@ def _commit_layer(
                 except OSError:
                     pass
     if not (page_dir / "status.json").exists():
-        # Fresh creation holds the init lease; re-vendoring holds both it and
-        # the page transaction. Calling cmd_status would try to re-enter the
-        # latter's comments-log flock for an existing directory missing status.
+        # Fresh creation holds only the transition lease. Re-vendoring also
+        # holds the page transaction. Calling cmd_status would try to re-enter the
+        # latter's event-log flock for an existing directory missing status.
         write_json(
             page_dir / "status.json",
             {"state": "working", "detail": "Writing the page", "ts": now_iso()},
@@ -406,8 +412,8 @@ def _commit_layer(
     # The append-only log's stable inode is also the successful-init marker and
     # the page transaction lease. Publish it only after the layer and initial
     # status commit, so a failed first write still takes the fresh-init path.
-    with open(page_dir / "comments.jsonl", "a", encoding="utf-8"):
-        pass
+    if fresh:
+        replace_files([(page_dir / EVENTS_FILE, b"", False)])
     print(f"initialized {page_dir}")
 
 

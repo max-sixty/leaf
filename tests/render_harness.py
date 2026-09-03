@@ -3,9 +3,9 @@
 check is static — it parses the file and validates the vocabulary. Everything
 downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
-there are invisible to a linter. This suite drives the shipped examples through
-Playwright's pinned Chromium headless shell and asserts the handful of things
-that were each, at some point, wrong:
+there are invisible to a linter. This suite drives the shipped examples and
+developer feature gallery through Playwright's pinned Chromium headless shell and
+asserts the handful of things that were each, at some point, wrong:
 
   - a widget that upgrades into a box of no size (lf-tabs marked itself with a
     class the runtime's chrome had already claimed for its visually-hidden live
@@ -62,13 +62,17 @@ ROOT = Path(__file__).parent.parent
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
+FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
+assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
 # The inputs scripts/corpus.py composes. The corpus is a generated presentation of
-# these pages, not another author source; tests that exercise authored content use
-# this set while tests of the corpus's own rendering or export keep EXAMPLES.
-SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
-assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
-    "expected exactly one generated corpus beside the source examples"
+# the public pages plus the feature gallery, not another author source. Every authored-
+# content sweep uses this source set, while public-site tests read the top-level glob.
+PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
+assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
+    "expected exactly one generated corpus beside the public examples"
 )
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
+PAGE_FIXTURES = (*EXAMPLES, FEATURE_GALLERY)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -104,7 +108,7 @@ def stamp_page(
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", text, *complete_args],
+        ["version", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
@@ -112,8 +116,8 @@ def stamp_page(
 
 
 def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
-    """Migrate a fixture-authored vN file through the real stamp boundary."""
-    path = files_model.version_path(page_dir, version)
+    """Move a fixture-authored candidate through the real stamp boundary."""
+    path = page_dir / ".fixture-versions" / f"v{version}.html"
     html = path.read_text(encoding="utf-8")
     path.unlink()
     note = stamp_page(page_dir, html, text)
@@ -403,11 +407,11 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
 
     Handed an example's path rather than its markup, it also lays in the three
     things that example ships beside itself: the media it names, external data,
-    and the event log, where it has one. The log for the same reason `test_examples_pass_check`
-    reads one — a page is what its markup and its standing log make together, and
-    a corpus that reads only the markup is reading half of it. A thread and any
-    widget a message carries exist nowhere else, so without this every sweep is
-    green over a page the reader never gets.
+    and the event log, where it has one. The log for the same reason
+    `test_page_fixtures_pass_check` reads one — a page is what its markup and its
+    standing log make together, and a corpus that reads only the markup is reading
+    half of it. A thread and any widget a message carries exist nowhere else, so
+    without this every sweep is green over a page the reader never gets.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -500,6 +504,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                         operation["label"],
                         operation["format"],
                     )
+        (d / ".fixture-versions").mkdir(exist_ok=True)
         seeded = (
             example and seed_log and (seed := example.with_suffix(".jsonl")).exists()
         )
@@ -511,7 +516,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             assert activated.error is None and activated.revision == number, (
                 activated.error
             )
-            (d / "versions" / f"v{number}.html").write_text(markup)
+            (d / ".fixture-versions" / f"v{number}.html").write_text(markup)
             events_model.append_event(
                 d,
                 {
@@ -911,11 +916,10 @@ def nudge(page_dir):
 
     The page asks for state when its news stream says the page has moved, and the
     stream reads file stamps. A test that wants the page's next ask — to park it, or to
-    watch it refused — used to wait for the poll's timer; now it moves a stamp the state
-    does not read. The versions directory's own clock is one: a state reads the files
-    in it and never the directory's time.
+    watch it refused — used to wait for the poll's timer; now it moves the revisions
+    directory stamp, which the state fingerprint reads without changing page content.
     """
-    os.utime(page_dir / "versions")
+    os.utime(page_dir / "revisions")
 
 
 def ticked(page):
@@ -1282,6 +1286,7 @@ def open_page(
     )
     # Before the first navigation, so the count is of everything this page ever asked for.
     page.lf_traffic = Traffic(page)
+    arm_interception(page)
     errors = watched(page)
     # The console's own word for a bad response is "Failed to load resource", which
     # names nothing; carry the status and URL so a failure says what went missing.
@@ -1357,14 +1362,39 @@ def opened_tab(page, press, tries=3, each=10_000):
                 ) from lost
 
 
+# Chromium arms request interception the first time a page is routed at all, and
+# Playwright's acknowledgement of that registration outruns the arming: a request
+# the page issues in the milliseconds after `page.route` returns reaches the server
+# unintercepted, and Playwright reports no request for it either. A test holding a
+# gesture's POST then watches the send land and the answer settle the draft while
+# its own counters read nothing — the trip it is waiting for never happened on this
+# side. It is the escape `held_events` was written around, and why that fixture
+# routes from navigation onward.
+#
+# So each page arms itself when it is made, on a pattern nothing ever asks for.
+# Nothing is intercepted by it and no request's behavior changes; what changes is
+# that a route registered later — a keystroke before the gesture it holds — only
+# adds a pattern to a list the browser is already consulting.
+NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
+
+
+def arm_interception(page):
+    page.route(NEVER_ASKED_FOR, lambda route: route.abort())
+
+
 def primed(browser, prepare):
     """A browser whose pages reach the product with the suite's hands already on them.
 
     `render_version` and `export_page` open their own pages, so a test can otherwise only
     watch them from outside — on the failure list or the copy they return — and can never
-    state the conditions the page meets them under. `new_page` is all either asks of a
-    browser, so a stand-in that makes the page, hands it to `prepare`, and returns it
-    needs no parameter added to production for a caller that is only ever a test.
+    state the conditions the page meets them under. A page and the browser's own version
+    are all either asks of a browser, so a stand-in that makes the page, hands it to
+    `prepare`, returns it, and reports the real browser's age needs no parameter added to
+    production for a caller that is only ever a test. The age is passed through rather
+    than invented, because export refuses a browser too old to serialize shadow roots and
+    a stand-in that answered for that would be answering the question under test. It is
+    read where there is one: `held_stale` wraps a context, which has no version and never
+    reaches the export that reads one.
 
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
@@ -1377,7 +1407,32 @@ def primed(browser, prepare):
         prepare(page)
         return page
 
-    return SimpleNamespace(new_page=new_page)
+    return SimpleNamespace(new_page=new_page, version=getattr(browser, "version", ""))
+
+
+@pytest.fixture
+def held_events(browser, request):
+    """Hold event requests from navigation onward, including the first POST.
+
+    Enabling interception on an already loaded page can let its first POST escape
+    both the route and Playwright's request events. Tests release each held route
+    explicitly; teardown releases any left behind after a failed assertion.
+    """
+    held = []
+
+    def prepare(page):
+        page.route("**/api/event", lambda route: held.append(route))
+
+        def release():
+            if page.is_closed():
+                return
+            while held:
+                held.pop(0).continue_()
+            page.unroute("**/api/event")
+
+        request.addfinalizer(release)
+
+    return primed(browser, prepare), held
 
 
 def margins_laid_out(page):
@@ -1415,23 +1470,38 @@ def margins_laid_out(page):
 def panel_settled(page, open=True):
     """Wait for the panel to reach `open` and the page to finish making room for it.
 
-    Two things happen, and they don't finish together: the dialog's open state flips at
-    once and CSS eases the document into the room left beside it. A geometry read taken
-    on the flip is a read of the page mid-flight, so an assertion fed by one is about a
-    layout that exists briefly and then doesn't.
+    Two things happen, and they don't finish together: the dialog and final responsive
+    layout land at once, then a finite animation on `main` carries the reading column from
+    its old horizontal position. A geometry read taken on the flip reads that motion.
 
-    Ask the transition itself, via getAnimations(): the call flushes pending style, so
-    the transition the class just brought into play is visible to the very first read, a
-    finished one has left the list, and a change that runs untransitioned — the
+    Ask the animation itself, via getAnimations(): the call flushes pending style, so the
+    motion the state change started is visible to the very first read, a finished one has
+    left the list, and a change that runs without motion — the
     covering sheet, a pre-stamp load, reduced motion — reports empty and returns at
     once. Waiting a duration instead would encode a number the stylesheet is free to
     change, and still be a guess on a loaded machine; the frame-sampling this replaced
-    is the failure CLAUDE.md's wait norm is named for."""
+    is the failure CLAUDE.md's wait norm is named for.
+
+    Finish that carry rather than sit out its clock. The carry is presentation only —
+    the layout it ends on is the layout the state change already installed — so its end
+    frame is the settled page either way, and this is the one wait a test can be holding
+    the clock still for: `HOLD_MOTION` pauses every animation the page starts at time
+    zero, which leaves a page whose reading column is parked mid-carry and a list that
+    never empties. Under it the panel is a step on the way to the gesture the test is
+    about, so the helper takes the carry to its end instead of waiting for a clock the
+    test has stopped. Finishing polls because the carry starts in the gesture's own
+    task: one that has not been made yet is finished on the next turn."""
     page.wait_for_function(
         "(open) => document.querySelector('.lf-panel').classList.contains('open') === open",
         arg=open,
     )
-    page.wait_for_function("() => document.body.getAnimations().length === 0")
+    page.wait_for_function(
+        """() => {
+          const main = document.querySelector('body > main');
+          for (const carry of main.getAnimations()) carry.finish();
+          return main.getAnimations().length === 0;
+        }"""
+    )
 
 
 def resized(page, width, height):

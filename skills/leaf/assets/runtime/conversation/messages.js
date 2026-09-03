@@ -149,7 +149,8 @@ export function createConversationMessages(dependencies) {
 
   function msgNode(m) {
     const div = el("div", `lf-msg ${m.author}`);
-    div.dataset.mid = m.id; // the reconcile's key, and revealThread's address for it
+    div.tabIndex = -1;
+    div.dataset.mid = m.id; // the reconcile's key and direct-navigation address
     const head = el("div", "lf-msg-head");
     // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
     // the element has for it — which is also what `saidAt` reads back when a widget the

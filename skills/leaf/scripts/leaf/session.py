@@ -21,11 +21,27 @@ from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
+    open_session_turn,
     owned_pages,
     unacknowledged,
 )
 from .thread_context import batch_threads
 from .work import work_subject
+
+
+def check_local_claim(state: str, detail: str) -> None:
+    """What a local claim needs before it can name a subject.
+
+    A local claim says "I am on this now", so the two other states have nothing
+    to put there: `waiting` is the reader's move, and `idle` is the end of the
+    agent's side. Its own function because `idle` takes a different route to the
+    same status write, and a claim admitted on one route and refused on the other
+    would be reported to the agent as written either way.
+    """
+    if state != "working":
+        sys.exit("--on says what you are working on; use it with `working`")
+    if not detail:
+        sys.exit("--on needs a detail; an Active receipt with no words says nothing")
 
 
 def cmd_status(
@@ -38,15 +54,7 @@ def cmd_status(
         activate_source(page_dir, page.events)
         work = None
         if on is not None:
-            # A local claim says "I am on this now", so the two other states
-            # have nothing to put there: `waiting` is the reader's move, and
-            # `idle` is the end of the agent's side.
-            if state != "working":
-                sys.exit("--on says what you are working on; use it with `working`")
-            if not detail:
-                sys.exit(
-                    "--on needs a detail; an Active receipt with no words says nothing"
-                )
+            check_local_claim(state, detail)
             work = work_subject(page_dir, page.events, on)
         page.set_status(state, detail, work=work)
 
@@ -277,16 +285,22 @@ def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
     )
 
 
-def _deliver_batch(reading: PageTick) -> None:
-    """Write one page's complete batch and record its direct pickup."""
+def _deliver_batch(reading: PageTick) -> bool:
+    """Write one page's complete batch and record its direct pickup.
+
+    Answers that a turn opened, because under this carrier the handoff is the
+    opening: `leaf wait` returns with the batch on stdout and the words are in
+    model context before anything else runs.
+    """
     print(batch_jsonl(reading), flush=True)
     record_pickup(reading.transaction, reading.batch)
+    return True
 
 
 def read_watch_pass(
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None] = _deliver_batch,
+    deliver: Callable[[PageTick], bool] = _deliver_batch,
 ) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
@@ -314,7 +328,17 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
-            deliver(reading)
+            # Whether handing the batch over opens a turn is the carrier's to
+            # answer rather than something read off it. A direct wait says yes:
+            # leaving the Stop hook's stamp standing through the turn it exits
+            # into is what had the page telling the reader the agent had left
+            # and to nudge it, two minutes into a turn spent answering them. The
+            # Codex adapter says no; its own docstring holds why. The prompt
+            # hook stamps the openings no delivery carries. The Stop hook closed
+            # the turn across the session's pages, so an opening here reopens
+            # the same set.
+            if deliver(reading) and watch.session_id:
+                open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(

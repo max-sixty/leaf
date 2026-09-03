@@ -295,6 +295,14 @@ export function bake() {
     }
     el.removeAttribute("role");
     el.removeAttribute("tabindex");
+    // And the marker stops naming a kind. Its value is what the theme's one pressable
+    // rule reads to tell a press from the rest of the chrome a widget builds, so a value
+    // left standing here is the pointer hand on a control this file cannot answer — the
+    // copy norm's own case, which used to be argued about a class and is the same
+    // argument about an attribute that outlives the role. The attribute itself stays:
+    // print, the anchor pass and the render gate all ask whether a widget built this,
+    // which is still true of a word that has stopped being a press.
+    el.setAttribute("data-lf-offer", "");
     for (const attr of [
       "href",
       "type",
@@ -331,6 +339,16 @@ export function bake() {
     .querySelectorAll(".lf-margin-options:empty")
     .forEach((fold) => fold.remove());
   document.querySelectorAll(".lf-margin-item:empty").forEach((item) => item.remove());
+  // And the reservation the live page wrote on the root goes the same way, asked after
+  // the shells above are gone so the question is about what survived. The reservation
+  // exists because a Button can arrive on a gesture and the reader must not pay a reflow
+  // for it; a file takes no gestures, so what it has when it is written is all it will
+  // ever have. Kept regardless, a copy of a page nobody had acted on opened with its
+  // column pushed off-centre by a strip holding nothing. The width above is not on this
+  // list and must not join it: a decided change keeps its record and the room that
+  // record was reserved for, and that room is the rail it was exported with.
+  if (!document.querySelector("main .lf-margin-item"))
+    document.documentElement.removeAttribute("data-lf-rail");
   // What the runtime painted, as against what a widget built, goes the same way. An
   // element-anchored comment's mark is a class the kept stylesheet answers with a
   // ring and a pointer hand, and the panel that hand promised left with the chrome —

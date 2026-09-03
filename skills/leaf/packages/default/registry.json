@@ -853,7 +853,7 @@
     "tokens": {
       "ok":   {"glyph": "✓", "means": "settled — no change asked", "settles": true},
       "no":   {"glyph": "×", "means": "this is wrong; the passage is the referent"},
-      "lost": {"glyph": "?", "means": "unclear — rewrite it so it lands"},
+      "lost": {"glyph": "??", "means": "unclear — rewrite it so it lands"},
       "cut":  {"glyph": "−", "means": "does not earn its length — shorten or drop"},
       "more": {"glyph": "+", "means": "expand here"},
       "this": {"glyph": "⌖", "means": "look at this — attention, no verdict"}

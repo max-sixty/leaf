@@ -612,6 +612,19 @@ def test_the_button_gallery_explains_each_button_where_it_is_used(browser, serve
         expect(examples[behavior]).to_have_attribute("data-lf-behavior", behavior)
     expect(examples["action"]).to_have_attribute("data-lf-tone", "positive")
     expect(examples["settled"]).to_have_attribute("data-lf-state", "settled")
+    expect(
+        page.locator(
+            '[data-lf-margin-for="bg-react-lost"] '
+            '.lf-react-mark[data-token="lost"] > .lf-margin-action-glyph'
+        )
+    ).to_have_text("??")
+    expect(
+        page.locator(
+            '[data-lf-margin-for="bg-choice-ask"] '
+            '.lf-margin-marker[data-lf-kinds="decision"] '
+            'svg[data-lf-icon="question"]'
+        )
+    ).to_be_visible()
     assert page.locator("#bg-reactions p strong").all_text_contents() == [
         "1 · ok · settled.",
         "2 · no · wrong.",

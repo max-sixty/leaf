@@ -1677,9 +1677,11 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           ><span class="bg-feature-detail">: unfinished decisions</span>
         </h2>
         <p id="bg-core-surfaces-guide">
+          An <code>lf-decision</code> is one complete Ask: its heading names the
+          unanswered question, and one nested widget owns the answer. This sample uses
+          <code>lf-options</code>, which records a choice Leaf can replay as page state.
           Open <strong>Asks</strong>, or press <kbd>g</kbd> then <kbd>Shift+A</kbd>, to
-          see every unanswered decision. Choose the first row to return to the sample
-          question below. The panel also lists pending actions elsewhere on this page.
+          see every Ask still waiting on you.
         </p>
         <lf-decision id="bg-choice-ask">
           <h3>Which map should the sample team carry?</h3>
@@ -1904,9 +1906,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             ><span class="bg-feature-detail">: send instructions to the host</span>
           </h3>
           <p id="bg-request-guide">
-            The controls below send a one-shot instruction. Failure reopens the request;
-            success closes it. A refused action shows <strong>Retry</strong> and
-            <strong>Cancel</strong>.
+            <code>lf-operations</code> is the answer widget inside an
+            <code>lf-decision</code> when its answer should make the host act. Leaf
+            records one typed, one-shot instruction; the host carries it out and returns
+            a receipt. Failure reopens the Ask, while success closes it. A refused send
+            shows <strong>Retry</strong> and <strong>Cancel</strong>.
           </p>
           <lf-command id="bg-request-command" label="Synthetic request lifecycle">
             <lf-task id="bg-request-live-task" status="blocked">

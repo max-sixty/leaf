@@ -38,14 +38,18 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 lf-gloss > .lf-gloss-mark { background: var(--accent); color: var(--card); }
 /* The compact badge stands in a line of prose, so its visible box cannot be the thing a
  * reader aims at: growing it to a usable size would open the line it is set in, which is
- * the one thing a mark this small must not do. The aim is a box of its own,
- * centred on the glyph and outside layout entirely — it overlaps the tail of the phrase
- * it belongs to, which costs nothing, because hovering that same phrase already reveals
- * the same explanation. */
+ * the one thing a mark this small must not do. The aim is a box of its own, outside
+ * layout entirely — it overlaps the tail of the phrase it belongs to, which costs
+ * nothing, because hovering that same phrase already reveals the same explanation. It
+ * ends where the badge ends rather than straddling it: an absolutely positioned box is
+ * outside layout but still inside its ancestors' scrollable overflow, so a box centred
+ * on a badge that sits near a cell's inline edge makes that table scroll sideways by
+ * the half it hangs over. Reaching back over the phrase costs nothing; reaching past
+ * the edge the badge itself fits inside does. */
 .lf-gloss-mark::after {
-  content: ""; position: absolute; top: 50%; left: 50%;
+  content: ""; position: absolute; top: 50%; inset-inline-end: 0;
   width: var(--aim-floor); height: var(--aim-floor);
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
 }
 .lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);

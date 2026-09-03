@@ -699,9 +699,25 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
       outline-offset: calc(-1 * var(--here-ring-w));
     }
   .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another:not([hidden]) { min-height: var(--aim-floor); }
   .lf-another > .lf-address { top: 0; bottom: 0; margin: auto 0; }
-  .lf-another input { flex: 1; min-width: 0; padding: 0; border: 0;
-                     outline: none; background: transparent; color: inherit; font: inherit; }
+  /* The field holds the option before it is recorded, so its words use the document's
+   * face just as they will after the module turns them into an lf-option. The return
+   * remains a real button: its visible word is compact, while the box keeps the pointer
+   * target and accessible Add option name. Positioned over room the input reserves, it
+   * does not make a compact row taller than its neighbours. */
+  .lf-another input { flex: 1; min-width: 0; padding: 0;
+                     padding-inline-end: calc(var(--aim-floor) + var(--sp-1));
+                     border: 0; outline: none; background: transparent; color: inherit;
+                     font: var(--t-4)/1.6 var(--serif); }
+  .lf-another > .lf-btn { position: absolute; inset-inline-end: var(--sp-1);
+                     top: 50%; transform: translateY(-50%);
+                     display: flex; align-items: center; justify-content: center;
+                     width: var(--aim-floor); height: var(--aim-floor); padding: 0;
+                     border: 0; border-radius: 4px; background: transparent;
+                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); }
+  .lf-another > .lf-btn[aria-disabled="false"] { color: var(--ink); cursor: pointer; }
+  .lf-another > .lf-btn[aria-disabled="false"]:hover { background: var(--chip); }
   /* The leading column holds the keyboard address and the gap before the option's
    * words. The address starts at the ordinary 8px inset and takes
    * --lf-key-box, so changing the utility type grows the
@@ -759,7 +775,7 @@ html.lf-copy lf-options > .lf-another { display: none; }
 lf-options:not(:has(> lf-option > strong)) > lf-option {
                      position: relative;
                      display: table; width: 100%; box-sizing: border-box;
-                     border-spacing: var(--sp-2) 0;
+                     border-spacing: var(--lf-row-gap) 0;
                      padding: 5px 0; --lf-frame: 1; }
 /* The mark's own column, and every child of the group opens after it — the options and
  * the cell the reader writes their own option in alike, because the one thing that makes
@@ -776,11 +792,18 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * than be reset by it. Without `choose` there is no address column and the mark's is
  * the whole of it. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
-                     --lf-pick-col: 17px;
+                     --lf-pick-col: 17px; --lf-row-gap: var(--sp-2);
                      padding-inline-start: var(--lf-pick-col); }
 lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
                      > :is(lf-option, .lf-another) {
                      padding-inline-start: calc(var(--lf-address-col) + var(--lf-pick-col)); }
+/* A row's table spacing holds its prose off the mark column. The form has no anonymous
+ * table cell to supply that space, so its input takes the same named gap. Matching the
+ * option's vertical inset makes the draft and the option it becomes one stable row. */
+lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
+                     gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
+lf-options:not(:has(> lf-option > strong)) > .lf-another input {
+                     margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
  * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
@@ -788,8 +811,8 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
  * use the compact spacing token when the group's own box is narrow; the cells retain a
  * visible gap without clipping the mark the reader presses. */
 @container (max-width: 20rem) {
-  lf-options:not(:has(> lf-option > strong)) > lf-option {
-                     border-spacing: var(--sp-1) 0; }
+  lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
+                     --lf-row-gap: var(--sp-1); }
 }
 /* The row's own ground: a corner to round and a wash to say its status in, both of which
  * are answers to standing alone. A joined row is a cell that butts its neighbours and

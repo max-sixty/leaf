@@ -371,7 +371,7 @@ export function chromeStyle({
   .lf-margin-action[data-lf-label-side] > .lf-margin-action-label {
     inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
   }
-  .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])
+  .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
     > .lf-margin-action-label {
     opacity: 1; visibility: visible; transform: translateY(0);
     transition-delay: 90ms;

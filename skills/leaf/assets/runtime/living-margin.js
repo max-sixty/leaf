@@ -1336,24 +1336,15 @@ export function createLivingMargin(dependencies) {
     if (!entry?.target) return;
     scrollToElement(entry.target, undefined, "nearest");
     const marker = rows.get(entry.key);
-    if (marker && !marker.hidden) {
-      if (compact.matches) openSheet(entry);
-      else {
-        // A pointer focuses the marker before its click. Reproduce that arrival, then let
-        // the control's own click remain the one semantic path into its preview.
-        marker.focus({ preventScroll: true });
-        marker.click();
-      }
-      return;
-    }
-    const action = [...item.querySelectorAll(".lf-margin-action")].find(
-      (control) =>
-        control !== marker &&
-        !control.disabled &&
-        !control.hidden &&
-        control.checkVisibility(),
-    );
-    if (action) focusForNavigation(action);
+    const control =
+      marker && !marker.hidden
+        ? marker
+        : clusterButtons(item).find((candidate) => candidate !== marker);
+    if (!control) return;
+    // Arrive before activation, then use the control's own press so this abbreviated
+    // Page-map route has the same meaning as its Button in the complete map.
+    focusForNavigation(control);
+    control.click();
   }
 
   // The direct destination opens the complete map. Its lowercase address list separately
@@ -1922,7 +1913,7 @@ export function createLivingMargin(dependencies) {
     labelPlacementFrame = requestAnimationFrame(() => {
       labelPlacementFrame = 0;
       for (const control of document.querySelectorAll(
-        '.lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"])',
+        '.lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
       ))
         placeButtonLabel(control);
     });

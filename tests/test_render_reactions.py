@@ -276,8 +276,8 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     settled = page.locator(
         '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="ok"]'
     )
-    settled.click()
-    round_trip(page)
+    with sending(page, "the withdrawal the gallery opens on"):
+        settled.click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
     # choices inside the target's Buttons. A state that lands after that fold is open
     # re-renders the cluster, and the margin says so on `lf-button-options-closed`, which
@@ -1787,8 +1787,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
-    strip.locator('.lf-react[data-token="no"]').click()
-    round_trip(page)
+    with sending(page, "the reply the no carries"):
+        strip.locator('.lf-react[data-token="no"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["token"]) == ("reply", reply, "no")
     expect(strip.locator('.lf-react[data-token="no"]')).to_have_attribute(
@@ -1797,8 +1797,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(".lf-thread")).to_have_count(1)  # `no` settles nothing
 
     strip.locator(".lf-react-trigger").click()
-    strip.locator('.lf-react[data-token="ok"]').click()
-    round_trip(page)
+    with sending(page, "the ok that settles the thread"):
+        strip.locator('.lf-react[data-token="ok"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "ok" and ok["parent"] == reply
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")  # none
@@ -1806,8 +1806,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
     expect(page.locator(".lf-thread")).to_have_count(1)
-    strip.locator('.lf-react[data-token="ok"]').click()
-    round_trip(page)
+    with sending(page, "the take-back of the ok"):
+        strip.locator('.lf-react[data-token="ok"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")

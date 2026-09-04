@@ -193,8 +193,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
             "el => getComputedStyle(el).stroke === getComputedStyle(el).color"
         )
 
-    surface.locator('.lf-react[data-token="cut"]').click()
-    round_trip(page)
+    with sending(page, "the token the press marks with"):
+        surface.locator('.lf-react[data-token="cut"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "cut" and "text" not in sent
     assert sent["anchor"]["section"] == "how-store"
@@ -258,8 +258,11 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
     expect(bar).to_be_hidden()
-    page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
-    round_trip(page)
+    # The glyph's own take-back in the wire before the log is read: behind a bare trip
+    # the read answers with the comment this press is taking back, which is the shape
+    # run 33845381848 failed in.
+    with sending(page, "the take-back the glyph makes"):
+        page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}

@@ -15,11 +15,16 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
+  // `standing` is the one indication the document already carries. The other three are
+  // an agent's report on a move still being made; an Outcome is the page map's reading
+  // of a recorded `action` event, with the decided state applied in the same file. A
+  // medium that cannot stand behind a provisional claim — a copy — reads that apart.
   outcome: {
     label: "Outcome",
     icon: "check",
     priority: 3,
     indication: true,
+    standing: true,
     state: "settled",
   },
   sent: {
@@ -195,6 +200,7 @@ export function marginButton(
     label,
     context = null,
     behavior = "action",
+    standing = false,
     tone = "neutral",
     role = "primary",
     state = "idle",
@@ -218,6 +224,7 @@ export function marginButton(
     label: String(label),
     context: String(context ?? "").trim() || null,
     behavior,
+    standing: behavior === "status" && standing === true,
     tone,
     role,
     state,
@@ -228,6 +235,13 @@ export function marginButton(
   control.removeAttribute("title");
   control.dataset.lfButtonKey = record.key;
   control.dataset.lfBehavior = record.behavior;
+  // Which of a status's two sources this one has. The behavior answers the question
+  // every other reader asks — whether this is a press — and both sources answer it the
+  // same way, so the durability is a second declaration rather than a fifth behavior.
+  // A copy is what needs it: Sent, Waiting for pickup and Picked up are news about a
+  // move an agent is still making and a file has nothing standing behind them, while a
+  // standing Outcome is the record of a decision the same file already carries.
+  control.toggleAttribute("data-lf-standing", record.standing);
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
   control.dataset.lfOffer = behavior === "status" ? "" : "button";
@@ -971,24 +985,14 @@ export function createLivingMargin(dependencies) {
     return choice.items[0].context ?? null;
   }
 
-  function readingControl(className) {
-    const control = offer("span", className);
-    keys(
-      control,
-      "In a Page map Button",
-      [
-        {
-          id: "margin.activate-reading",
-          keys: PRESS,
-          does: "Activate the focused Page map Button",
-          line: "activate",
-          run: () => control.click(),
-        },
-      ],
-      () => control.getAttribute("role") === "button",
-    );
-    return control;
-  }
+  // A reading wears two promises over its life — a Button while there is something to
+  // open, a status once the move is made — and only one element may carry both, or the
+  // seat moves under a reader standing in it. A <button> cannot stop being one, so the
+  // seat is a span and `marginButton` writes whichever promise the reading now makes.
+  // What the platform then does not supply is the press, which the margin's own scope
+  // declares (margin.press) rather than a listener here: a key the register does not
+  // hold is a key no surface can promise.
+  const readingControl = (className) => offer("span", className);
 
   function syncThreadRelation(control, isThread) {
     if (!isThread) {
@@ -1644,6 +1648,20 @@ export function createLivingMargin(dependencies) {
   }
 
   const marginKeys = [
+    // The seat a reading holds is a span, so the platform's own activation is not under
+    // it. Declared here rather than answered by a listener on the control: this is the
+    // register's whole bargain — the line and the reference draw the key off the same row
+    // the press is matched against, so neither can promise what the other does not do.
+    // Only the span-shaped readings, because a native Button in this cluster answers its
+    // own press and a second answer here would be two meanings for one key.
+    {
+      id: "margin.press",
+      keys: PRESS,
+      does: "Work the focused Button",
+      line: "work this Button",
+      when: () => focused()?.matches?.('.lf-margin-button[role="button"]'),
+      run: () => focused().click(),
+    },
     {
       id: "margin.buttons",
       keys: ["ArrowLeft", "ArrowRight"],
@@ -1710,6 +1728,7 @@ export function createLivingMargin(dependencies) {
       label,
       context: readingContext(choice),
       behavior,
+      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });
@@ -1804,6 +1823,7 @@ export function createLivingMargin(dependencies) {
       label,
       context: readingContext(choice),
       behavior,
+      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });

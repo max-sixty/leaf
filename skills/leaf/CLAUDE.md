@@ -1542,15 +1542,17 @@ item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
 Every fitting in a contribution is built with
-`marginButton(control, {key, icon, label, context, behavior, tone, role, state})`; an authored
-reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control
+`marginButton(control, {key, icon, label, context, behavior, tone, standing, role,
+state})`; an authored reaction can supply `glyph` instead of `icon`, never both.
+`standing` is read only from a `status`, and says the report is one the file itself
+carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
 what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
 `marginButton` also establishes the canonical Button record: key, face, label, context,
-behavior, tone, role, and lifecycle state. Registration assigns its stable owner and
+behavior, standing durability, tone, role, and lifecycle state. Registration assigns its stable owner and
 rejects duplicate Button keys within that owner. The compact rail and complete Page map
 both render from this record; neither infers semantics by scraping the contributor's
 painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
@@ -1566,7 +1568,17 @@ activation owner.
   circular Button silhouette and seat in the cluster on the page surface with a ghost
   keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a
   `status` in the accessibility tree so the Page map can still land there and name the
-  phase.
+  phase. A status is provisional unless it declares
+  `standing: true`, which says the document itself carries what the report claims; a
+  copy drops the provisional ones and keeps a standing one disarmed (above).
+
+A generated reading wears more than one of those over its life — a Thread Button while
+there is something to open, a status once the move is reported — and one element has to
+carry both, or the seat moves under a reader standing in it. Such a control is therefore
+a span, since a `<button>` cannot stop being one, and the activation the platform then
+does not supply is declared by the page map's own scope (`margin.press`) rather than by a
+listener on the control: a key the register does not hold is a key no surface can
+promise.
 
 Material and ring weight distinguish immediate actions, disclosures, and statuses:
 Action is raised, Open is outlined, and a read-only report stays flat behind the palest
@@ -3073,6 +3085,51 @@ Widget affordances fall into three groups:
   page words.
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
+
+A report has two seats — a thread's own `.lf-receipt` line, and a margin reading
+`marginButton` has given the `status` behavior — and a copy answers both there, since
+the marker value cannot: a status is not a press, so `offer` writes the empty value to
+stand the pointer hand and the lift down on the live page, and the copy's press removal
+reads that same value to mean chrome it keeps.
+
+What the copy does with one turns on what the file can stand behind, which is a second
+declaration (`data-lf-standing`) rather than another behavior. Sent,
+Waiting for pickup, and Picked up report a move an agent is still making, and a file has
+nothing behind that claim, so a copy drops them: keeping the word would turn provisional
+news into a statement. A standing Outcome is the page map's record of a decision the
+document already carries, with the decided state applied in the same file — the fact the
+rail is held open for, and for a widget speaking no receipt of its own the only margin
+record of the choice.
+
+A copy keeps that record, in one seat and disarmed. The status role, the walk's tab stop,
+and the offer marker go, on the same bargain the press removal strikes for a control whose
+words are the page's; unlike those words the marker is not kept, because the reading is
+the runtime's rather than a widget's. What it gives the status role up for is `img`, since
+it keeps its circle and its glyph and a shape whose word is collapsed away is named the
+way the reaction mark is named. The seat is the item itself, since a file can open
+no fold — the `…` that would is a press and leaves with the rest — and a resting seat a
+widget's control held is free again once that control has gone.
+
+Whichever seat the live page showed it in, the record stops being a page-map marker. The
+reading sits on the marker itself wherever a widget contributes no shown control, and
+that class is the rail's seat: both rules that stop drawing the rail name it, the 900px
+floor and print, so a record left wearing it would be a fact the file states on a wide
+screen and drops on a narrow one or on paper. Its spoken name goes with the class, being
+the walk's address — which entry of how many, and how far down the exporter's own window
+the target sat — and the reading's own word is restated in its place. The word standing in
+the DOM cannot serve instead: the runtime's stylesheet rides into the file and styles that
+span as hover chrome, so it is read in no medium.
+
+Where it stands is the same question in every medium, and a file cannot dock: the
+packing pass measured the rail at the width the page was exported at and left with the
+scripts. So under that floor and on paper, where no rail is drawn, a copy's margin items
+take the docked shape rather than the absolute seat they were exported into, which hangs
+off the page box. Not the rows that same pass withheld: an item whose target is not shown
+wears `lf-waiting` into the file, and a shape taken on the medium's terms would be the
+only thing standing a record beside a passage the file was folding away when exported.
+Paper later unfolds that passage through CSS, but a script-free copy cannot rerun the
+packing pass, so its serialized `lf-waiting` reading remains withheld. Changing that
+behavior belongs to the live and copied layouts together, not to this export override.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,

@@ -1423,9 +1423,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
 .lf-margin-item.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
-/* A static copy keeps a standing reaction's word in the DOM for its accessible name,
- * while painting the same circular, glyph-only status as the live page. The scoped
- * runtime style turns the label into transient hover and focus chrome. */
+/* The word stays in the DOM and out of the paint: a reaction reads as the same
+ * circular, glyph-only status before the runtime's stylesheet arrives, and a widget
+ * rebuilding its own control reads the word back off the span. What names the control
+ * is the aria-label `marginButton` writes, not that word — the runtime style below
+ * turns the span into transient hover and focus chrome, and it rides into a static copy
+ * with the rest of the sheet, so in a file the word is hidden in every medium too. */
 .lf-margin-button > :is(.lf-margin-button-space, .lf-margin-button-label) {
   display: none;
 }
@@ -1503,6 +1506,28 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media screen and (max-width: 899px) {
   .lf-living-margin, .lf-margin-marker.lf-margin-button { display: none; }
+}
+/* A file cannot dock. The runtime's packing pass measured the rail once, at the width
+ * the page was exported at, and left with the scripts; the record a copy keeps stands
+ * in an absolute seat hung off the right of its target. Where the rail is not drawn —
+ * under the floor above, and on paper — that seat is off the page box: an 800px window
+ * put the record 115px past its own edge and grew the document to reach it, and a
+ * sheet narrower than the export simply loses it. So a copy takes the shape the
+ * runtime gives a margin too narrow to stand in (.lf-margin-item.lf-docked above),
+ * on the medium's terms rather than on a measurement it can no longer make.
+ *
+ * Not the rows the same pass withheld. `lf-waiting` says the target is not shown — a
+ * widget inside a shut fold is the reachable case — and that rule is one class less
+ * specific than this one, so a shape taken on the medium's terms would also be the
+ * only thing standing a record beside a passage the file was folding away when
+ * exported. Paper later unfolds that passage through CSS, but a script-free copy
+ * cannot rerun the packing pass; changing the serialized `lf-waiting` reading belongs
+ * to the live and copied layouts together, not to this export override. */
+@media screen and (max-width: 899px), print {
+  html.lf-copy .lf-margin-item:not(.lf-waiting) { position: static; display: flex;
+      width: fit-content;
+      max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
+  html.lf-copy .lf-margin-item::before { display: none; }
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }

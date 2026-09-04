@@ -157,7 +157,7 @@ export function bake() {
   // read by the next thing that asks.
   //
   // Named, and the names are the point. What goes is a measurement whose subject
-  // this file no longer has: the panel and the tray are removed with the chrome
+  // this file no longer has: the panel, tray, and key line are removed with the chrome
   // above. A copy drops what it hasn't got. Page room is not in this list: CSS resolves
   // it from the copy's own shell.
   //
@@ -172,7 +172,7 @@ export function bake() {
   // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
   // that, and it is what a sweep of every inline custom property on the root ran
   // into: read as a stale number, the rail is the one that is not.
-  for (const stale of ["--lf-panel-w", "--lf-tray-w"])
+  for (const stale of ["--lf-panel-w", "--lf-tray-w", "--lf-keyline-clear"])
     document.documentElement.style.removeProperty(stale);
   // The tab icon is the third seat of the banner's status (paintTab), and a file has
   // no session behind it — a copy keeping the tone it was exported under would claim

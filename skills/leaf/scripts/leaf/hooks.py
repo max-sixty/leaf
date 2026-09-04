@@ -2,14 +2,7 @@
 
 import json
 
-from .codex import (
-    capture_turn_delivery,
-    current_turn_delivery,
-    finish_turn_delivery,
-    record_turn_boundary,
-    roll_turn_delivery,
-    turn_delivery_reason,
-)
+from . import codex as codex_delivery
 from .event_log import read_events
 from .events import awaits_agent, build_threads, seat_root, spoken_turns
 from .leases import adapter_is_live
@@ -233,61 +226,35 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
-    # This stamp precedes every later return and every operation that can
-    # raise. A failed guard must not leave the adapter believing forever
-    # that the turn is still open.
-    if event == "Stop" and close_session_turn(sid):
-        record_turn_boundary(sid)
     if event == "UserPromptSubmit":
-        # The mirror of the branch above, and ahead of the same early returns.
-        # A prompt is the turn opening as plainly as Stop is the turn ending,
-        # and it is the only evidence of the opening the reader themself can
-        # produce: told by the banner to nudge in the terminal, they answer
-        # there rather than on the page, so no batch exists for a delivery to
-        # carry and nothing else would clear the stamp — the page would go on
-        # telling them to do the thing they just did until the agent happened to
-        # write a status.
-        has_pages = bool(owned_pages(sid))
-        open_session_turn(sid)
-        # The persisted generation lets the detached adapter observe even a turn
-        # that opens and closes between its polling passes. Opening the claims
-        # first prevents it from clearing a wake into a still-closed session.
-        if has_pages:
-            record_turn_boundary(sid)
-    # stop_hook_active means this hook already blocked once and Claude is running
-    # again on the strength of it; blocking a second time is how a hook loops.
-    # A block naming two debts and answered on one therefore ends the turn with
-    # the other standing — the guard is a nudge per stop, not a barrier. What
-    # carries the rest is UserPromptSubmit, which reads the same reasons, so the
-    # debt opens the next turn rather than waiting for its end.
-    if event == "Stop" and payload.get("stop_hook_active"):
-        # Receipt follows the continuation, not the first hook output. Only the
-        # exact snapshot handed to that continuation advances; input posted
-        # afterward remains pending for the next wake.
-        finish_turn_delivery(sid)
-        return
-
-    turn_delivery = None
-    if event == "UserPromptSubmit":
-        # An interrupted continuation may outlive its adapter. Re-present that
-        # exact snapshot; only a live adapter may mint a new one.
-        turn_delivery = current_turn_delivery(sid)
-        if turn_delivery is None and adapter_is_live(sid):
-            # Events accumulated behind the accepted wake join the turn before
-            # the model starts. Its eventual Stop is their receipt.
-            turn_delivery = capture_turn_delivery(sid)
-    if event == "Stop":
-        # A snapshot handed over by UserPromptSubmit has now crossed model
-        # context. Advance only through it, then atomically replace it with
-        # events that arrived while the model was working. The adapter cannot
-        # mistake the gap between those operations for an empty mailbox.
-        if adapter_is_live(sid):
-            turn_delivery = roll_turn_delivery(sid)
+        codex, delivery = codex_delivery.open_turn(sid)
+        if not codex:
+            open_session_turn(sid)
+        reasons = unattended_pages(sid)
+        if delivery is not None:
+            reasons.insert(
+                0,
+                "new Leaf input joined this turn. Process every batch in:\n" + delivery,
+            )
+    elif event == "Stop":
+        reasons = unattended_pages(sid)
+        codex_reasons = codex_delivery.finish_turn(
+            sid,
+            reasons,
+            bool(payload.get("stop_hook_active")),
+        )
+        if codex_reasons is not None:
+            reasons = codex_reasons
         else:
-            finish_turn_delivery(sid)
-    reasons = unattended_pages(sid)
-    if turn_delivery is not None:
-        reasons.insert(0, turn_delivery_reason(turn_delivery))
+            # The stamp is not a nudge and does not depend on there being one:
+            # the turn that ends cleanly is exactly the one that can leave a
+            # `working` claim behind with nobody on it.
+            close_session_turn(sid)
+            # A repeated ordinary debt is the same Stop hook asking again.
+            if payload.get("stop_hook_active"):
+                return
+    else:
+        reasons = unattended_pages(sid)
     if not reasons:
         return
     # The message avoids "unattended": a page can be watched and still be owed
@@ -298,11 +265,6 @@ def cmd_hook(payload: dict) -> None:
         + "\n".join(f"- {r}" for r in reasons)
     )
     if event == "Stop":
-        if turn_delivery is not None:
-            # The block immediately continues this turn. Reopen only after all
-            # fallible snapshot and reason construction has succeeded; a lost
-            # continuation is recovered from its still-unacknowledged manifest.
-            open_session_turn(sid)
         print(json.dumps({"decision": "block", "reason": message}))
     else:
         print(

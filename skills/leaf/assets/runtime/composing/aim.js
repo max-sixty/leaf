@@ -1,5 +1,5 @@
 export function createAim({
-  focusTargetComment,
+  commentOnTarget,
   aimTargetAt,
   designIsOn,
   designPress,
@@ -148,7 +148,7 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.aim) focusTargetComment(claimedPress.aim);
+    if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.design) openOnDesign(claimedPress.design);
   }
   for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);

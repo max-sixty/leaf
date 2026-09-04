@@ -1600,11 +1600,11 @@ ${MARK_RULES}
        live scope; More unfolds the remaining current register before it opens the complete
        reference. Each hint is the eye's copy of facts spoken elsewhere and stays
        aria-hidden; More is a real control.
-       syncLayout keeps the line out of a side-by-side thread panel and lifts it over a
-       covering one, while the chrome root reserves the line's whole footprint — the band
-       from its top to the foot of the window — so the document's last lines never end
-       under it. Overflow remains a backstop for a window too narrow to hold even
-       the short line. */
+       syncLayout keeps the line out of a side-by-side thread panel and, over a covering
+       panel, lifts it only when its rendered box actually meets the panel foot. The
+       chrome root reserves the line's whole footprint — the band from its top to the foot
+       of the window — so the document's last lines never end under it. Overflow remains
+       a backstop for a window too narrow to hold even the short line. */
     .lf-keyline { position: fixed; left: calc(18px + var(--lf-safe-left));
       bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
       display: flex; gap: 12px; align-items: baseline;

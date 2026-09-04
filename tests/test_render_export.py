@@ -27,6 +27,8 @@ from render_support import (
     PAGE_FIXTURES,
     REPORT_PAGE,
     leaf_page,
+    live_url,
+    open_page,
     primed,
     refuse,
     resized,
@@ -549,6 +551,102 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
     ), "the copy still says an agent picked up a move it cannot report on"
     assert errors == []
     page.close()
+
+
+AGENT_SUGGESTION = leaf_page(
+    "agreed",
+    """
+<h1 id="h">One rewrite</h1>
+<p id="replace">The camera survey found two dead zones.
+  <lf-suggestion id="sug-refill">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
+  </lf-suggestion></p>
+""",
+)
+AGENT_ACCEPT = {
+    "kind": "action",
+    "author": "agent",
+    "revision": 1,
+    "widget": "sug-refill",
+    "action": "accept",
+    "detail": {},
+}
+
+
+def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
+    browser, serve, tmp_path
+):
+    """The other seat a standing record can be sitting in, and the two mediums that
+    draw no rail for it.
+
+    An agent decided this suggestion, so there is nothing for the reader to take back:
+    the widget contributes no shown control, and the page map's own marker carries the
+    reading. That is the seat the test above never reaches — a draft's Edit press takes
+    the resting seat and leaves the reading in the fold, which is where the copy finds
+    it there.
+
+    So the copy's record stops being a marker. The class is the rail's seat rather than
+    the reading's, and both rules that stop drawing the rail name it — the 900px floor
+    and print — so a record left wearing it is a fact the file states on a wide screen
+    and drops on a narrow one or on paper, while the same record kept in a fold stands
+    in all three. The spoken name goes with the class: it is the walk's address, which
+    counts the page map's entries and measures how far down the exporter's own window
+    the target sat, and a file has neither.
+
+    Where it stands is the second half, and it is one question for both seats. A file
+    cannot dock: the packing pass measured the rail at the width the page was exported
+    at and left with the scripts. Below the floor and on paper the absolute seat it
+    measured is off the page box — 115px past an 800px window, and away on a sheet
+    narrower than the export — so the item takes the docked shape there instead."""
+    url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
+    reading = ".lf-margin-action[data-lf-behavior='receipt']"
+    item = '[data-lf-margin-for="sug-refill"]'
+    live, live_errors = open_page(browser, live_url(url))
+    resized(live, 1200, 900)
+    standing = live.locator(f"{item} {reading}")
+    expect(standing).to_have_class(re.compile(r"\blf-margin-marker\b"))
+    expect(standing).to_have_attribute("data-lf-standing", "")
+    expect(standing).to_have_attribute("aria-label", re.compile(r"^Outcome, 1 of 1, "))
+    assert live.locator(f"{item} .lf-margin-reading-option").count() == 0, (
+        "the widget contributed a shown control, so this is the seat the test above has"
+    )
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    # The exported file, read at the width it was taken at and at one narrower than the
+    # rail's own floor, on screen and on paper. Each answer is the record's box against
+    # the page's: a seat outside it is a fact the medium does not carry.
+    for width in (1200, 800):
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        errors = watched(page)
+        page.goto(out.as_uri(), wait_until="load")
+        for medium in ("screen", "print"):
+            page.emulate_media(media=medium)
+            assert page.evaluate(
+                """() => [...document.querySelectorAll('.lf-margin-action')].map(el => ({
+                     marker: el.matches('.lf-margin-marker'),
+                     word: el.querySelector('.lf-margin-action-label').textContent,
+                     shown: el.checkVisibility(),
+                     named: el.getAttribute('aria-label'),
+                     within: el.getBoundingClientRect().right
+                       <= document.documentElement.getBoundingClientRect().right,
+                     overflow: document.documentElement.scrollWidth > innerWidth,
+                   }))"""
+            ) == [
+                {
+                    "marker": False,
+                    "word": "Outcome",
+                    "shown": True,
+                    "named": None,
+                    "within": True,
+                    "overflow": False,
+                }
+            ], f"{width}px, {medium}"
+        assert errors == []
+        page.close()
 
 
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)

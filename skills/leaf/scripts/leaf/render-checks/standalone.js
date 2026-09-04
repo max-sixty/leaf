@@ -368,6 +368,18 @@ export function bake() {
       record.hidden = false;
       for (const attr of ["role", "tabindex", "data-lf-offer"])
         record.removeAttribute(attr);
+      // And it stops being a page-map marker, where the live page showed it as one.
+      // The class is the rail's seat rather than the reading's: both media rules that
+      // stop drawing the page map keep it company (`.lf-living-margin,
+      // .lf-margin-marker.lf-margin-action` at the 900px floor and again for print), so
+      // a record left wearing it would be a fact this file keeps on a wide screen and
+      // drops on a narrow one or on paper, while the same record kept in a widget's own
+      // fold stands in all three. The name goes with the class for the same reason it
+      // is written: `markerName` speaks the walk — which entry of how many, and how far
+      // down the exporter's window the target sat — and a copy has neither the walk nor
+      // that window. What the reading says is the word, which is where it already is.
+      if (record.classList.replace("lf-margin-marker", "lf-margin-reading-option"))
+        record.removeAttribute("aria-label");
       item.append(record);
     }
   }

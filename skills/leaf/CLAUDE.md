@@ -1540,8 +1540,9 @@ item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
 Every press in a contribution is built with
-`marginAction(control, {key, icon, label, behavior, tone, role, state})`; an authored
-reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control
+`marginAction(control, {key, icon, label, behavior, tone, standing, role, state})`; an
+authored reaction can supply `glyph` instead of `icon`, never both. `standing` is read
+only from a `receipt`, and says the report is one the file itself carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
 what the fitting promises. Behavior, tone, and state are independent axes: never
@@ -1564,7 +1565,9 @@ activation owner.
 - `receipt` reports a move already made and offers no press. It keeps its icon and its
   circular Button silhouette and seat in the cluster, but gives up its hover lift,
   pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
-  can still land there and name the phase.
+  can still land there and name the phase. A receipt is provisional unless it declares
+  `standing: true`, which says the document itself carries what the report claims; a
+  copy drops the provisional ones and keeps a standing one disarmed (above).
 
 A generated reading wears more than one of those over its life — a Thread Button while
 there is something to open, a receipt once the move is reported — and one element has to
@@ -3082,6 +3085,20 @@ words are the page's; unlike those words the marker is not kept, because the rea
 the runtime's rather than a widget's. The seat is the item itself, since a file can open
 no fold — the `…` that would is a press and leaves with the rest — and a resting seat a
 widget's control held is free again once that control has gone.
+
+Whichever seat the live page showed it in, the record stops being a page-map marker. The
+reading sits on the marker itself wherever a widget contributes no shown control, and
+that class is the rail's seat: both rules that stop drawing the rail name it, the 900px
+floor and print, so a record left wearing it would be a fact the file states on a wide
+screen and drops on a narrow one or on paper. Its spoken name goes with the class, being
+the walk's address — which entry of how many, and how far down the exporter's own window
+the target sat.
+
+Where it stands is the same question in every medium, and a file cannot dock: the
+packing pass measured the rail at the width the page was exported at and left with the
+scripts. So under that floor and on paper, where no rail is drawn, a copy's margin items
+take the docked shape rather than the absolute seat they were exported into, which hangs
+off the page box.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,

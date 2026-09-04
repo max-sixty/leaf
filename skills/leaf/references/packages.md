@@ -195,16 +195,18 @@ module and use relative imports, while third-party or data files can live under
 theme.
 
 A widget contributes each capability once with `commands(source, title, rows, options)`.
-The
-dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all consume
-those same live rows. Mark a row or route with `decision: true` and give it `control` and
-`label` when that control answers, advances, or revises the Ask containing `source`. A row
-may have zero or one live binding in that role: zero receives the Ask's contextual `1`
-through `9`, while one keeps its canonical binding, such as `ArrowLeft`. `address` may name
-the face a widget already positions for that command; otherwise core paints the resolved
-binding at the control. Routes let one parameterized row contribute distinct controls and
-bindings, as numbered options do. The control's own `click()` remains the single activation
-path.
+The dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all
+consume those same live rows. Mark a row or route with `decision: true` and give it
+`control` and `label` when that control answers, advances, or revises the Ask containing
+`source`. A row may have zero or one live binding in that role: zero receives the Ask's
+next free contextual `1` through `9`, while one keeps its canonical binding, such as
+`ArrowLeft`. Each action becomes an exact route; that route is the binding-to-control
+identity used by dispatch, the reference, the key line, its address, and
+`aria-keyshortcuts`. `address` may name an empty face a widget already positions; core
+writes the resolved binding there, so the package does not keep a second key map.
+Otherwise core paints the binding at the visible control. Routes let one parameterized
+row contribute distinct controls and bindings. The control's own `click()` remains the
+single activation path.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed

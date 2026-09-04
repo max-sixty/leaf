@@ -10,7 +10,7 @@ import { pageScroller } from "../scrolling.js";
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   actionLayer,
-  actionReachable,
+  availableActionCommands,
   allDecisions,
   scrollBehavior,
   announce,
@@ -423,16 +423,12 @@ export function createDecisionView({
       : null;
   }
 
-  // The Ask-local action map. The widget contributes the exact controls that work its
-  // decision source and may name a binding where the action already has one; this view
-  // supplies numeric addresses for the rest while semantic focus is on the Ask itself.
-  // Once Tab enters a control, the widget's nearer scope and native keys take over. The
-  // deep focus reading matters for a shadow widget: document focus is retargeted to its
-  // host, but a control inside it is still not the Ask itself.
-  function actionDecision() {
-    const decision = standingIn();
-    return decision && (focused() === decision || hasReviewedFocus()) ? decision : null;
-  }
+  // The Ask-local action map. A package contributes exact controls through the same
+  // command scopes dispatch and Help already consume. Core preserves a contributed
+  // binding and gives each keyless action the next free contextual digit. The map stays
+  // active as Tab moves into the Ask; nearer local scopes still own the bindings they
+  // declare, and the dispatcher's ordinary shadowing keeps actions out of text entry and
+  // nested modes.
   function ownedDecisionControl(decisionSource, commandSource) {
     const selector = tagsDeclaring(
       (entry) => entry["x-awaits"] || entry["x-request"]?.decision,
@@ -440,7 +436,7 @@ export function createDecisionView({
     return !selector || closestAcross(commandSource, selector) === decisionSource;
   }
   const availableActions = () => {
-    const decision = actionDecision();
+    const decision = standingIn();
     if (!decision) return [];
     const source = decisionSource(decision);
     const actions = decisionControls(
@@ -470,71 +466,84 @@ export function createDecisionView({
       return resolvedBinding ? [{ ...action, resolvedBinding }] : [];
     });
   };
-  const actionBinding = (action) => action.resolvedBinding;
-  const actionBindings = () => availableActions().map(actionBinding);
-  const actionLabels = () => availableActions().map(({ label }) => label);
+  // A binding with a different result is a different command. Keep each action as a
+  // route under one compact row, so the dispatcher, reference, key line, and the
+  // control-facing projections all consume the same binding-to-control identity.
+  const actionRoutes = () =>
+    availableActions().map(
+      ({ control, label, address, resolvedBinding: binding }, index) => ({
+        id: `decision.activate-${index + 1}`,
+        binding,
+        does: `Activate the “${label}” action`,
+        line: label,
+        control,
+        address,
+      }),
+    );
   const actionRow = {
     id: "decision.activate-nth",
-    // This row is a contextual choice among the current Ask's controls, not one command
-    // the reference can replay without choosing a member for the reader.
-    runFromReference: false,
-    keys: actionBindings,
+    keys: () => actionRoutes().map(({ binding }) => binding),
+    routes: actionRoutes,
     label: () => {
-      const actions = availableActions();
-      if (
-        actions.every(
-          (action, index) => actionBinding(action, index) === String(index + 1),
-        )
-      )
-        return actions.length > 1 ? `1–${actions.length}` : "1";
-      return actions
-        .map((action, index) => spell(actionBinding(action, index)))
-        .join(" / ");
+      const routes = actionRoutes();
+      if (routes.every(({ binding }, index) => binding === String(index + 1)))
+        return routes.length > 1 ? `1–${routes.length}` : "1";
+      return routes.map(({ binding }) => spell(binding)).join(" / ");
     },
-    does: () => {
-      const actions = availableActions();
-      return `Activate an action in this Ask: ${actions
-        .map(
-          (action, index) => `${spell(actionBinding(action, index))} ${action.label}`,
-        )
-        .join("; ")}`;
-    },
-    line: () => actionLabels().join(" / "),
-    when: () => availableActions().length > 0,
+    does: () =>
+      `Activate an action in this Ask: ${actionRoutes()
+        .map(({ binding, line }) => `${spell(binding)} ${line}`)
+        .join("; ")}`,
+    line: () =>
+      actionRoutes()
+        .map(({ line }) => line)
+        .join(" / "),
+    when: () => actionRoutes().length > 0,
     run: (binding) =>
-      availableActions()
-        .find((action, index) => actionBinding(action, index) === binding)
+      actionRoutes()
+        .find((route) => route.binding === binding)
         ?.control.click(),
   };
+  const reachableActionRoutes = () => {
+    const available = availableActionCommands();
+    return actionRoutes().filter(({ id }) => available.has(id));
+  };
 
-  // The chips are an eye's projection of the same row. A widget that already owns an
-  // address face lends that face and its exact placement; other actions get chrome at
+  // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
+  // listener-facing projection on each exact action control. A widget that already owns
+  // an address face lends that face and its exact placement; other actions get chrome at
   // the visible Button's corner. Off-screen actions keep their working address and name
-  // on the key line but wear no chip. A nearer keyboard layer suppresses both the row and
-  // these chips through actionReachable, so a digit never stays painted after a chord,
-  // text box, or modal has taken it.
+  // on the key line but wear no chip. A nearer keyboard layer suppresses the row and both
+  // projections through the exact available command routes, so a digit never stays
+  // promised after a chord, text box, or modal has taken it.
   const wornAddresses = new Map();
-  function restoreAddress(address, { display, priority }) {
+  const wornShortcuts = new Map();
+  function restoreAddress(address, { display, priority, text }) {
     address.removeAttribute("data-lf-ask-address");
+    address.textContent = text;
     if (display) address.style.setProperty("display", display, priority);
     else address.style.removeProperty("display");
   }
-  function clearWornAddresses() {
+  function clearActionProjections() {
     for (const [address, previous] of wornAddresses) restoreAddress(address, previous);
     wornAddresses.clear();
+    for (const [control, { previous, projected }] of wornShortcuts) {
+      if (control.getAttribute("aria-keyshortcuts") !== projected) continue;
+      if (previous === null) control.removeAttribute("aria-keyshortcuts");
+      else control.setAttribute("aria-keyshortcuts", previous);
+    }
+    wornShortcuts.clear();
   }
-  function paintActionAddresses() {
-    clearWornAddresses();
-    const actions = availableActions();
-    // A covering tray does not invalidate the command — the fixed key line can still
-    // offer it — but it does hide the page control the inline face would claim to label.
-    // Keep that face absent until the tray stands beside the page again.
-    const actionControlVisible =
-      !(openTray("decisions") && trayCovers()) && actionReachable();
-    if (!actionControlVisible || !bindings(actionRow).length) {
+  function paintActionProjections() {
+    clearActionProjections();
+    const routes = reachableActionRoutes();
+    if (!routes.length) {
       actionLayer.replaceChildren();
       return;
     }
+    // A covering tray does not invalidate the commands or their accessible shortcuts,
+    // but it does hide the page controls that inline address faces claim to label.
+    const addressesVisible = !(openTray("decisions") && trayCovers());
     const placement = createAddressPlacement({
       banner,
       keylineEl,
@@ -545,13 +554,24 @@ export function createDecisionView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed key line above it. Hide a face that has no clear visible box, just as the
     // general address pass drops a route chip where the screen cannot say it safely.
-    for (const { address } of actions) {
-      if (!address?.isConnected) continue;
+    for (const { binding, control, address } of routes) {
+      const previousShortcut = control.getAttribute("aria-keyshortcuts");
+      const projectedShortcut = [
+        ...new Set([...(previousShortcut ?? "").split(/\s+/).filter(Boolean), binding]),
+      ].join(" ");
+      wornShortcuts.set(control, {
+        previous: previousShortcut,
+        projected: projectedShortcut,
+      });
+      control.setAttribute("aria-keyshortcuts", projectedShortcut);
+      if (!addressesVisible || !address?.isConnected) continue;
       const previous = {
         display: address.style.getPropertyValue("display"),
         priority: address.style.getPropertyPriority("display"),
+        text: address.textContent,
       };
       address.setAttribute("data-lf-ask-address", "");
+      address.textContent = spell(binding);
       address.style.setProperty("display", "block", "important");
       const box = address.checkVisibility() && placement.visibleBox(address);
       if (!placement.reserve(box)) {
@@ -562,17 +582,13 @@ export function createDecisionView({
     }
 
     const chips = [];
-    for (const [index, { control, address }] of actions.entries()) {
+    for (const { binding, control, address } of addressesVisible ? routes : []) {
       if (address) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = placement.visibleBox(presented);
       if (!box) continue;
-      const chip = el(
-        "span",
-        "lf-address lf-ask-address",
-        spell(actionBinding(actions[index], index)),
-      );
+      const chip = el("span", "lf-address lf-ask-address", spell(binding));
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
@@ -580,13 +596,12 @@ export function createDecisionView({
     }
     placement.paint(actionLayer, chips);
   }
-  addEventListener("scroll", () => actionReachable() && paintHere(), {
+  addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
     capture: true,
     passive: true,
   });
-  // Resizing can make an open tray become the nearer covering scope. Repaint even when
-  // that transition makes the action unreachable: paintActionAddresses clears the old
-  // chips before deciding whether the new scope may draw them.
+  // Resizing can make routes unreachable or put their controls under a covering tray.
+  // Repaint unconditionally so either transition clears the prior projections.
   addEventListener("resize", paintHere);
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather
@@ -633,7 +648,7 @@ export function createDecisionView({
     if (decisionLent && decisionLent !== here && decisionLent !== holder) lend(null);
     for (const marked of wearing)
       marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
-    paintActionAddresses();
+    paintActionProjections();
   }
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
@@ -691,7 +706,7 @@ export function createDecisionView({
   // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
   // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
   // the reader was told to look at one thing and stood on another, off the bottom of the
-  // screen, and their next Enter would have worked a control they could not see.
+  // screen, and their next local action could have worked a control they could not see.
   function standOn(el, review = false) {
     const source = decisionSource(el);
     const control =
@@ -706,10 +721,8 @@ export function createDecisionView({
   // the top of the window and what the ring is about to name. Its controls are then the
   // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
   // keeps its place in document order and everything inside a decision comes after it.
-  //
-  // The decision remains the semantic focus. Its widget-contributed actions are already
-  // directly addressable there; Tab is the complementary path into the widget's own
-  // local scope for walking or inspecting its controls.
+  // The decision's exact action routes remain active as Tab moves into its controls;
+  // nearer widget scopes still own their local mechanics.
   function arriveAt(decision, review = false) {
     reviewedThrough = review ? decision : null;
     decision.focus({ preventScroll: true });

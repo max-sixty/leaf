@@ -1142,7 +1142,7 @@ export function createVersion({
   }
 
   // Where the reader is standing in the authored page, written down so the swap can hand
-  // it back. The key line over a focused pick mark offers "1–2 toggle the nth"; those are
+  // it back. The Ask's numbered actions remain live over a focused pick mark; those are
   // presses the reader is about to make, and a replacement that dropped the focus onto
   // body took the offer down with it — the digit then picked nothing, silently. Node
   // identity does not survive the swap, so the place is stated the way the decision above

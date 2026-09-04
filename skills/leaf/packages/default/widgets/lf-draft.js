@@ -203,7 +203,7 @@ customElements.define(
             keys: [],
             control: () => this.#pencil,
             decision: true,
-            label: "Edit",
+            label: "Edit…",
             does: "Edit the text in place",
             line: "edit",
             when: () => !this.#ta,

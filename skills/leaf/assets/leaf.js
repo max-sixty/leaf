@@ -974,9 +974,10 @@ const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
-// The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
-// screen reader and takes nothing from the press it promises; refreshAim is its one
-// writer, and data-for is the aimed id stated where a test can read the promise.
+// The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
+// drawing geometry, it says nothing to a screen reader and takes nothing from the press
+// it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
+// test can read the promise.
 const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
 const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
@@ -1346,7 +1347,7 @@ const {
   visualAt: (...args) => visualAt(...args),
 });
 
-const { AIM, aimIsOn, aimedItem } = createAim({
+const { AIM, aimIsOn, aimedTarget } = createAim({
   aimTargetAt,
   designIsOn: () => designOn,
   designPress,
@@ -1975,8 +1976,8 @@ const { decisionEntry, isAwaiting, projectedParent, unansweredDecisions } =
   });
 
 // Dispatch is composed after the page table. Until then the decision view can paint its
-// ring but has no complete scope stack from which to claim that a digit is reachable.
-let decisionActionReachable = () => false;
+// ring but has no complete scope stack from which to resolve action command routes.
+let availableDecisionActionCommands = () => new Set();
 const {
   DECISION_CONTROL,
   DECISION_ROW,
@@ -1995,7 +1996,7 @@ const {
 } = createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   actionLayer: decisionActionLayer,
-  actionReachable: () => decisionActionReachable(),
+  availableActionCommands: () => availableDecisionActionCommands(),
   allDecisions,
   scrollBehavior,
   documentFocused,
@@ -3072,7 +3073,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   takesLetters,
   TYPING,
 });
-decisionActionReachable = () => availableCommands().has(actionRow.id);
+availableDecisionActionCommands = availableCommands;
 const reference = createReference({
   byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
@@ -3565,7 +3566,7 @@ anchorRuntime = createAnchors({
   activateVisual,
   aimBox,
   aimIsOn,
-  aimedItem,
+  aimedTarget,
   announce,
   anchorLabel,
   anchorsReady: () => anchoringReady,
@@ -3648,6 +3649,7 @@ livingMargin = createLivingMargin({
   panelIsOpen: chromeLayout.panelIsOpen,
   paintKeys,
   placedAt,
+  PRESS,
   quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
   says,

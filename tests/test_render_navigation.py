@@ -537,9 +537,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """At Ask focus a digit picks outright; one Tab enters marks, where ↑/↓ walk the
-    options clamping at the ends. Each option wears its digit while the Ask or one of
-    its marks holds keyboard focus, so nothing appears on a page nobody is answering."""
+    """The Ask's digits stay live while a mark adds only its control-local keys.
+
+    One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends.
+    Moving focus does not replace the Ask's numeric action context with a widget copy.
+    """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
@@ -553,8 +555,17 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
+    assert marks.first.get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 1"
+    )
+    assert marks.nth(1).get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 2"
+    )
 
     page.keyboard.press("ArrowUp")
     expect(marks.first).to_be_focused()
@@ -735,7 +746,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # the search reads around it — one range per segment, not one spanning the lot.
     # Across both options, so a Choose button falls in the middle of the passage rather
     # than after it — where a single range spanning the whole thing would swallow it.
-    chrome = page.locator("#opts .lf-ui").first.text_content().strip()
+    chrome = page.locator("#opts .lf-pick").first.text_content().strip()
     assert chrome, "this assertion needs the widget to have rendered chrome inside it"
     page.evaluate("""() => {
         const r = document.createRange();
@@ -2783,6 +2794,74 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.close()
 
 
+def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
+    """Each Ask digit is a distinct command when invoked without a keydown."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+
+    page.keyboard.press("a")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+
+    first = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    second = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    expect(first).to_have_text("Activate the “Keep the store” action")
+    expect(second).to_have_text("Activate the “Signed tokens” action")
+    expect(
+        page.locator('.lf-help-command[data-lf-command="decision.activate-nth"]')
+    ).to_have_count(0)
+
+    second.click()
+    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    expect(page.locator("#lq-keep")).not_to_have_attribute("chosen", "")
+    round_trip(page)
+
+    assert errors == []
+    page.close()
+
+
+def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
+    """A widget can replace its action controls without defining another keymap."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "draft ask",
+                """
+<h1 id="h">Release note</h1>
+<lf-decision id="note-decision"><h2>How should the note read?</h2>
+  <lf-draft id="note" needed><pre>Keep this text editable.</pre></lf-draft>
+</lf-decision>
+""",
+            )
+        ),
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#note-decision")).to_be_focused()
+    assert "1\nEdit" in key_line(page)
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    edit = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    expect(edit).to_have_text("Activate the “Edit…” action")
+    edit.click()
+    expect(page.locator("#note textarea")).to_be_focused()
+
+    save = page.locator(".lf-draft-controls [data-lf-button-key='save']")
+    save.focus()
+    expect(save).to_be_focused()
+    page.keyboard.press("?")
+    assert re.search(r"(⌘⏎|Ctrl\+⏎) / 1\nSave / Cancel", key_line(page))
+    page.keyboard.press("?")
+    cancel = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    expect(cancel).to_have_text("Activate the “Cancel” action")
+    cancel.click()
+    expect(page.locator("#note textarea")).to_have_count(0)
+
+    assert errors == []
+    page.close()
+
+
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
@@ -2797,13 +2876,11 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
     page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
-    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
-        shortcuts
-    )
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space 1")
 
     page.keyboard.press("?")
     page.keyboard.press("?")
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space")
     expect(
         page.locator(
             ".lf-help tr", has_text="Next ask this page is waiting on you for"
@@ -3480,13 +3557,13 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const host = document.createElement('section');
           host.id = 'key-owning-widget';
           const box = document.createElement('textarea');
           host.append(box);
           document.querySelector('main').append(host);
-          keys(host, 'Around a text box', [
+          commands(host, 'Around a text box', [
             {id: 'test.widget',
              keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              does: 'Work the widget', line: 'work widget',
@@ -3524,7 +3601,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page, errors = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await import('/runtime/keyboard/bindings.js');
           const { createReturnStack } =
@@ -3535,7 +3612,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             button.id = id;
             document.querySelector('main').append(button);
             try {
-              keys(button, id, rows);
+              commands(button, id, rows);
               return 'declared';
             } catch (error) {
               return error.message;
@@ -3557,7 +3634,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             document.querySelector('main').append(button);
             let declaration = 'declared';
             try {
-              keys(button, id, [
+              commands(button, id, [
                 {id: 'test.kept-first', keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
                 {id: 'test.kept-second', keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
               ], when);
@@ -3704,14 +3781,14 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     # belong to separate focus locations, so they are not a conflict in either scope.
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
             button.textContent = label;
             document.querySelector('main').append(button);
             if (!first) first = button;
-            keys(button, 'Repeated controls', [
+            commands(button, 'Repeated controls', [
               {id: 'test.repeated', keys: ['F3'], does: () => `Work ${label}`,
                line: 'work', run: () => button.dataset.fired = '1'},
               ...(label === 'Second' ? [{
@@ -3846,13 +3923,13 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
         "placeholder", re.compile(r" · c$")
     )
     expect(reply).to_have_attribute("placeholder", "Reply")
-    # Space is control activation, not a character shortcut. Offered buttons retain
-    # both native-button keys and advertise both from the same register while letters,
-    # digits, and punctuation are off.
+    # Space is checkbox activation, not a character shortcut. The option's local
+    # navigation and activation remain available while letters, digits, and punctuation
+    # are off.
     mark = page.locator("#live-question .lf-pick").first
     mark.focus()
     shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"Enter", "Space"} <= set(shortcuts), shortcuts
+    assert shortcuts == ["ArrowUp", "ArrowDown", "Space"], shortcuts
     page.keyboard.press("Space")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
 
@@ -3976,9 +4053,9 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
     refused = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           try {
-            keys(document.body, 'A project scope', [
+            commands(document.body, 'A project scope', [
               { id: 'test.no-line', keys: ['F2'],
                 does: 'a press with nothing to say for itself',
                 run: () => {} },
@@ -3999,9 +4076,9 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           try {
-            keys(document.body, 'A project scope', [
+            commands(document.body, 'A project scope', [
               { id: 'test.bad-modifier', keys: ['Ctrl+k'],
                 does: 'a modifier the matcher never asks about',
                 line: 'a key that is really just k', run: () => {} },
@@ -4020,10 +4097,10 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # both the reference and key line omit from their shared presentation projection.
     routed = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const declare = row => {
             try {
-              keys(document.body, 'A routed project scope', [row]);
+              commands(document.body, 'A routed project scope', [row]);
               return 'declared';
             } catch (e) {
               return e.message;
@@ -4064,13 +4141,13 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # uses this for the Tab that closes it before the browser moves focus past its door.
     native = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const owner = document.createElement('div');
           owner.tabIndex = -1;
           document.body.append(owner);
           owner.focus();
           let ran = 0;
-          keys(owner, 'A native companion', [
+          commands(owner, 'A native companion', [
             { id: 'test.native-companion', keys: ['F2'],
               does: 'Run before the browser', line: 'run first',
               native: true, run: () => ran++ },
@@ -4098,12 +4175,12 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const target = document.createElement('button');
           target.id = 'local-down';
           target.textContent = 'Local down';
           document.querySelector('main').prepend(target);
-          keys(target, 'On local down', [{
+          commands(target, 'On local down', [{
             id: 'test.local-down', keys: ['d'], does: 'Local down', line: 'local down',
             run: () => { target.dataset.pressed = '1'; },
           }]);

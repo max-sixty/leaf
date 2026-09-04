@@ -36,16 +36,16 @@
  * not a conversation: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
- * The keyboard walk stops at options. Enter from an option mark reaches the add field;
- * Tab remains the platform's own path through every control. A generated option joins
- * the walk on replay just like an authored one.
+ * The keyboard walk stops at options. Tab remains the platform's path through every
+ * control and into the add field; Enter submits only from that field. A generated option
+ * joins the walk on replay just like an authored one.
  *
- * In a thread the existing reply box already owns those words, so Enter reaches that
- * box and a `multiple` group grows a Done press instead: every toggle reaches
- * the agent as it lands, so the press is the one statement that the set is whole,
- * posted as an `answer` action and held as the thread decision's closing condition
- * (x-awaits.until). Answered is paint on the press, never a wider word, and the set can
- * still change after — each later toggle still reaches the agent, who reads the log.
+ * In a thread the existing reply box already owns those words, so Enter from a mark
+ * continues into that box and a `multiple` group grows a Done press instead: every
+ * toggle reaches the agent as it lands, so the press is the one statement that the set
+ * is whole, posted as an `answer` action and held as the thread decision's closing
+ * condition (x-awaits.until). Answered is paint on the press, never a wider word, and the
+ * set can still change after — each later toggle still reaches the agent, who reads the log.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -64,13 +64,11 @@
  * as state a version had written.
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
- * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap), 1–9 pick outright, and
- * Enter reaches the page's box for another option — each option wears its digit and the
- * add cell wears Enter in their shared column, painted only while a mark holds keyboard
- * focus, so nothing appears on a page nobody is answering. The column is held whether or
- * not a key is in it, which is the theme's half of this. The rows are
+ * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap). The Ask owns 1–9 across
+ * the whole question and projects them onto the option cells. The column is held whether
+ * or not a key is in it, which is the theme's half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
- * own argument too, and a scope over the whole subtree would promise "toggle the nth" with
+ * own argument too, and a scope over the whole subtree would promise to work an option with
  * focus on a link inside one. An armed `g` chord keeps its own digits without this module
  * asking: its scopes suspend every scope inside them, where each widget used to have to
  * remember the question.
@@ -105,7 +103,6 @@ import {
   inChrome,
   commands,
   landInConversation,
-  labelOf,
   offer,
   once,
   quoted,
@@ -139,12 +136,6 @@ const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
 const SECTION = "In a question's options";
-const WRITE_ANOTHER = {
-  id: "option.write",
-  keys: ["Enter"],
-  does: "Write another option",
-  line: "write another option",
-};
 
 customElements.define(
   "lf-options",
@@ -169,7 +160,6 @@ customElements.define(
       this.#addition = new OptionAddition(this, {
         offered: choosable && !inChrome(this),
         available: () => actionAvailable(this, "choose"),
-        shortcut: labelOf(WRITE_ANOTHER),
         commit: (detail, attempt) => {
           if (!actionAvailable(this, "choose")) return null;
           this.#applyChoice(detail);
@@ -242,10 +232,10 @@ customElements.define(
       ];
     }
 
-    // The words this question does not already list. On the page the group owns a plain
-    // add field; in a thread the surrounding conversation still owns its reply box.
-    #words() {
-      return this.#addition.input ?? conversationInput(this);
+    // A page question owns the ordinary add form below its options. A question already
+    // inside a conversation has no second form; its surrounding thread owns the reply.
+    #reply() {
+      return this.#addition.input ? null : conversationInput(this);
     }
 
     // The one statement a live channel can't derive: the set is whole. One press,
@@ -316,163 +306,115 @@ customElements.define(
       }
     };
 
-    // The keyboard path past Tab: from a mark, ↑/↓ walk the options, a digit picks
-    // outright, and Enter reaches the box for the option the author did not list.
-    // Declared on the mark, so those keys typed in the box stay text and a nested
-    // group's marks stay its own, and an armed g chord keeps its own digits without
-    // this module asking — its scopes suspend every scope inside them. Each option
-    // shows its digit only while a mark holds keyboard focus (the theme's
-    // :focus-visible rule), so the address appears exactly when a key could use it.
+    // From a mark, ↑/↓ walk the options and Space toggles. The mark's own scope
+    // declares only those local mechanics (plus the thread's existing reply route).
+    // The group contributes its ordered answer controls once, and core assigns their
+    // contextual Ask bindings without the package maintaining a second digit map.
     #keys() {
       for (const address of this.querySelectorAll(":scope > lf-option > .lf-address"))
         address.remove();
       const marks = this.#marks();
-      // The addressable options: at most nine, since the digits are the addresses.
-      const addresses = marks.slice(0, 9).map((_, n) => String(n + 1));
-      for (const [i, mark] of marks.entries()) {
-        if (i < 9) {
-          // Chrome like the § reference: a thing to work rather than a word the
-          // page says, so the gate, the anchor pass, and paper all read it as the
-          // control apparatus it is. The key line speaks the keys; this is the
-          // eye's copy, hence aria-hidden.
-          // Into the column the option reserves for it, which is what lets a digit
-          // arrive without moving anything and land on nobody's words (theme).
-          // Prepended, which puts it before the mark the module also puts first. Order
-          // between the two decides nothing: the digit is out of flow in a column of its
-          // own, so it is a corner badge wherever it sits in the DOM, and it is
-          // aria-hidden, so it is not a stop the reading order can put in the wrong
-          // place. What matters is that both stand before the option's own words.
-          const num = offer("span", "lf-address", String(i + 1));
-          num.setAttribute("aria-hidden", "true");
-          mark.parentElement.prepend(num);
+      const answerRows = [];
+      for (const [index, mark] of marks.entries()) {
+        const option = mark.parentElement;
+        let address = null;
+        if (index < 9) {
+          // The widget owns the card-local placement anchor; the Ask projection writes
+          // whichever binding this action receives and removes it when the action is not
+          // reachable. Keeping the face empty here keeps one keyboard map.
+          address = offer("span", "lf-address");
+          address.setAttribute("aria-hidden", "true");
+          option.prepend(address);
         }
-      }
-      for (const [markIndex, mark] of marks.entries()) {
-        // Declared on the mark rather than on the group, because the group holds the
+        answerRows.push({
+          id: `option.choose-${index + 1}`,
+          keys: [],
+          control: mark,
+          decision: true,
+          label: label(option) || option.id,
+          address,
+          does: `Toggle option ${index + 1}`,
+          line: label(option) || option.id,
+          run: () => mark.click(),
+        });
+
+        // Declared on the mark rather than the group, because the group holds the
         // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
-        // over the whole subtree would promise "toggle the nth" with focus on any of them.
-        // Every mark says the same sentences, so the reference gathers them into one
-        // section however many options the page holds.
-        //
-        // "toggle", the digit row's word, because it is what the press does: the nth digit on
-        // an already-picked option clears it, and a word that said "pick" was false on the
-        // branch the reader could see.
-        commands(
-          mark,
-          SECTION,
-          [
-            {
-              id: "option.toggle-nth",
-              runFromReference: false,
-              // The digits this group has, so the row cannot offer an address no option
-              // wears. Generated-option reconciliation replaces these scopes after the
-              // live set changes, while surviving marks keep their element identity.
-              keys: addresses,
-              label: addresses.length > 1 ? `1–${addresses.length}` : "1",
-              routes: addresses.map((binding, index) => {
-                const control = marks[index];
-                const option = control.parentElement;
-                return {
-                  id: `option.toggle-${binding}`,
-                  binding,
-                  control,
-                  decision: true,
-                  label: label(option) || option.id,
-                  address: option.querySelector(":scope > .lf-address"),
-                  does: `Toggle option ${binding}`,
-                };
+        // over the whole subtree would promise local mechanics from any of them.
+        commands(mark, SECTION, [
+          {
+            id: "option.reply",
+            keys: ["Enter"],
+            does: "Reply in this thread",
+            line: "reply",
+            when: () => Boolean(this.#reply()),
+            returnFrame: () => {
+              const box = this.#reply();
+              const thread = box?.closest(
+                ".lf-thread, .lf-conversation-thread, .lf-conversation",
+              );
+              return {
+                active: () => Boolean(thread?.contains(focused())),
+                close: () => box?.blur(),
+                does: "Return to the option",
+                line: "back to option",
+              };
+            },
+            run: () =>
+              landInConversation(this.#reply(), {
+                target: mark,
+                line: "back to question",
               }),
-              does: "Toggle the nth option",
-              line: "toggle the nth",
-              run: (binding) => {
-                const target = marks[+binding - 1];
-                target.focus();
-                target.click();
+          },
+          {
+            id: "option.walk",
+            keys: ["ArrowUp", "ArrowDown"],
+            routes: [
+              {
+                id: "option.previous",
+                binding: "ArrowUp",
+                does: "Previous option",
               },
-            },
-            {
-              ...WRITE_ANOTHER,
-              when: () => Boolean(this.#words()),
-              returnFrame: () => {
-                const box = this.#words();
-                const layer = this.#addition.input
-                  ? box?.closest("form")
-                  : box?.closest(
-                      ".lf-thread, .lf-conversation-thread, .lf-conversation",
-                    );
-                return {
-                  active: () => Boolean(layer?.contains(focused())),
-                  close: () => box?.blur(),
-                  does: "Return to the option",
-                  line: "back to option",
-                };
-              },
-              run: () => {
-                if (this.#addition.input) this.#addition.input.focus();
-                else
-                  landInConversation(this.#words(), {
-                    target: mark,
-                    line: "back to question",
-                  });
-              },
-            },
-            {
-              id: "option.walk",
-              keys: ["ArrowUp", "ArrowDown"],
-              routes: [
-                {
-                  id: "option.previous",
-                  binding: "ArrowUp",
-                  does: "Previous option",
-                },
-                { id: "option.next", binding: "ArrowDown", does: "Next option" },
-              ],
-              does: "Walk the options",
-              line: "walk the options",
-              repeat: true,
-              // Clamped at the ends, and the page must not scroll out from under the walk.
-              run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
-            },
-            {
-              id: "option.toggle",
-              keys: [" "],
-              does: "Toggle the focused option",
-              line: "toggle",
-              run: () => mark.click(),
-            },
-            ...(this.#done
-              ? [
-                  {
-                    id: "option.done",
-                    keys: [],
-                    control: this.#done,
-                    decision: true,
-                    label: "Done",
-                    does: "Finish choosing options",
-                    line: "done",
-                    run: () => this.#done.click(),
-                  },
-                ]
-              : []),
-            // Tab is the platform's, and reaching the mark is what a reader has to know
-            // before any of the above is any use. No binding, so the line never offers it.
-            {
-              id: "option.reach",
-              keys: [],
-              label: "⇥",
-              does: "Reach an option's mark",
-            },
-          ],
-          markIndex === 0
-            ? {
-                answer: () =>
-                  [...this.#picked()]
-                    .map((option) => label(option) || option.id)
-                    .join(", ") || "No options selected",
-              }
-            : undefined,
-        );
+              { id: "option.next", binding: "ArrowDown", does: "Next option" },
+            ],
+            does: "Walk the options",
+            line: "walk the options",
+            lineWhen: false,
+            repeat: true,
+            run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
+          },
+          {
+            id: "option.toggle",
+            keys: [" "],
+            does: "Toggle the focused option",
+            line: "toggle",
+            lineWhen: false,
+            run: () => mark.click(),
+          },
+          {
+            id: "option.reach",
+            keys: [],
+            label: "⇥",
+            does: "Reach an option's mark",
+          },
+        ]);
       }
+      if (this.#done)
+        answerRows.push({
+          id: "option.done",
+          keys: [],
+          control: this.#done,
+          decision: true,
+          label: "Done",
+          does: "Finish choosing options",
+          line: "done",
+          run: () => this.#done.click(),
+        });
+      commands(this, SECTION, answerRows, {
+        answer: () =>
+          [...this.#picked()].map((option) => label(option) || option.id).join(", ") ||
+          "No options selected",
+      });
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it

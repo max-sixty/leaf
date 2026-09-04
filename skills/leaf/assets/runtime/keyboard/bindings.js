@@ -90,17 +90,23 @@ export const bindings = (row) =>
   declaredBindings(row).filter(
     (binding) => characterShortcuts() || !characterBinding(binding),
   );
+// The command identities under one row. Equivalent bindings keep the row's identity
+// and share its implementation; distinct results are routes and expose only those exact
+// identities. Dispatch and every command-facing projection consume this split.
+export const commandEntries = (row, active = bindings(row)) => {
+  const routes = commandRoutes(row);
+  if (!routes.length) return [{ id: row.id, binding: active[0], route: null }];
+  return routes
+    .filter((route) => active.includes(route.binding))
+    .map((route) => ({ id: route.id, binding: route.binding, route }));
+};
 // The command identities a visual presentation gives one row. Rows whose bindings are
 // distinct commands expand into routes; a compact row and one deliberately unavailable
 // from the reference keep their own identity. The reference and key line both consume this
 // projection so route additions cannot reach one surface without the other.
 export const commandPresentations = (row, active = bindings(row)) => {
-  const routes = commandRoutes(row);
-  if (row.runFromReference === false || !routes.length)
-    return [{ id: row.id, route: null }];
-  return routes
-    .filter((route) => active.includes(route.binding))
-    .map((route) => ({ id: route.id, route }));
+  if (row.runFromReference === false) return [{ id: row.id, route: null }];
+  return commandEntries(row, active);
 };
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each

@@ -19,8 +19,6 @@ from render_support import (
     RENDERED,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
-    _traffic,
-    _until,
     key_line,
     open_page,
     panel_comment,
@@ -28,6 +26,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     told,
     undo,
     watched,
@@ -292,14 +291,11 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in key_line(page)
 
-    sends = _traffic(page).sends
-    page.keyboard.press("2")
-    # The digit's own gesture in the wire before the log is read. `round_trip` waits on
-    # what the page has sent, and a post the press has not made yet is not pending, so
-    # the read that follows it answers with whatever stood last — here the withdrawal
-    # above, which reads as the digit having chosen a token nobody pressed.
-    _until(page, lambda traffic: traffic.sends > sends, "sent the reaction 2 chose")
-    round_trip(page)
+    # The digit's own gesture in the wire before the log is read; without it the read
+    # answers with whatever stood last — here the withdrawal above, which reads as the
+    # digit having chosen a token nobody pressed.
+    with sending(page, "the reaction 2 chose"):
+        page.keyboard.press("2")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "no"
     assert sent["anchor"]["section"] == "bg-react-ok"
@@ -335,12 +331,8 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     # post the browser has not reported yet is not pending, and a trip that ends before the
     # press is in the wire leaves nothing for `told` to wait on either.
     def stands(press):
-        sent = _traffic(page).sends
-        press()
-        _until(
-            page, lambda traffic: traffic.sends > sent, "put the reaction in the wire"
-        )
-        round_trip(page)
+        with sending(page, "the reaction"):
+            press()
         told(page)
 
     def assert_selected_face(reaction, reopen, witness):
@@ -650,14 +642,12 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
     second = sheet.locator(f'[data-lf-map-button="{second_key}"]')
     expect(second).to_be_focused()
     token = second.get_attribute("aria-label").split(" — ")[0]
-    sends = _traffic(page).sends
-    if opener == "click":
-        second.click()
-    else:
-        page.keyboard.press("Enter")
     # Page map forwards the press synchronously; its network trip is still asynchronous.
-    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
-    round_trip(page)
+    with sending(page, "the spilled reaction"):
+        if opener == "click":
+            second.click()
+        else:
+            page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (
         "comment",
@@ -717,10 +707,8 @@ def test_a_map_reopened_before_its_close_lands_still_presses_its_button(browser,
 
     button = sheet.locator("[data-lf-map-button]").nth(1)
     token = button.get_attribute("aria-label").split(" — ")[0]
-    sends = _traffic(page).sends
-    button.click()
-    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
-    round_trip(page)
+    with sending(page, "the spilled reaction"):
+        button.click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (
         "comment",

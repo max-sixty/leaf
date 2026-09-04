@@ -9,7 +9,7 @@ const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const HINT_INDENT = 10;
 
 export function createTargetSelection({
-  selectResponseTarget,
+  commentOnTarget,
   aimTargets,
   allButTheReference,
   anchoringIsReady,
@@ -340,7 +340,7 @@ export function createTargetSelection({
   function choose(target) {
     setOpen(false);
     document.body.focus({ preventScroll: true });
-    selectResponseTarget(target);
+    commentOnTarget(target);
     announce(`Selected ${target.label}. Choose a response.`);
   }
 

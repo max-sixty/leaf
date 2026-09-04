@@ -194,6 +194,13 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
+`x-visual` makes a rendered picture one stable Comment target. The value `whole` uses
+the widget's authored id. `{parts: ATTR}` also lets the module map tokens from the named
+attribute to current rendered boxes through `lfVisualPartAt(target)` and
+`lfVisualPart(part)`. The returned element supplies mark, travel, and aim geometry: SVG
+parts lend their painted primitives, while other elements use their shown box. The package
+owns the stable mapping; core owns the Comment gestures, keyboard proxies, and paint.
+
 A widget contributes each capability once with `commands(source, title, rows, options)`.
 The dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty

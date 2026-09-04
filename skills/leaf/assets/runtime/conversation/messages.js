@@ -168,7 +168,7 @@ export function createConversationMessages(dependencies) {
 
   // How an anchor reads where it has to be printed rather than pointed at — every thread in
   // the panel, and the open composer when the page has no passage left to mark. A quote-less
-  // anchor points at an element (a diagram or image commented on by click rather than by
+  // anchor points at an element (a diagram or image targeted explicitly rather than by
   // selection) and names its section instead of quoting it. One function, so the two places
   // can't come to say it differently.
   //

@@ -1256,11 +1256,11 @@ Suggest restores it in replacement-text mode. Their structural icons use the sam
 stroked SVG vocabulary as Target Buttons; only authored reaction tokens supply text glyphs.
 
 `showFab` places the bar; `openComposer` binds its field to the durable draft and takes the
-focus decision. `selectResponseTarget` focuses it for a keyboard item hint, and the ⌥ press
-uses `focusTargetComment` on the same captured anchor. Automatic passage selection opens
-that passage's own durable draft without moving focus; explicit Comment gestures carry
-unsent words onto the new anchor. Submitted words still in flight remain owned by their
-original anchor, while a later target starts clean and keeps focus. For a page
+focus decision. Every explicit item and visual route passes its resolved anchor to
+`commentOnTarget`, which focuses the same field and carries an unsent draft to the new
+target. Automatic passage selection opens that passage's own durable draft without moving
+focus. Submitted words still in flight remain owned by their original anchor, while a
+later target starts clean and keeps focus. For a page
 target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
 that target's existing Button options. Those temporary Buttons borrow the cluster's room
 and dock with it when necessary; they do not claim permanent rail width. A thread-local
@@ -2029,15 +2029,15 @@ so its ordinary Escape rung remains the route back.
 
 ### Item selection is explicit
 
-`s` names the visible items and declared visual parts that Alt-click can aim at. Both
-routes read `aimTargetAt`, and the target kind changes only the anchor: a whole item
-names its authored id, while a visual part adds its declared token. Their next surface
-follows the gesture's stated intent. Both `s` and Alt-click select the target, open the
-compact Comment field, and focus its cursor in the same transaction. Tab exchanges that
-field for choices in the same bar and focuses Comment first. Tab, Shift-Tab, and the
-arrow keys then wrap through every choice. Comment and Escape restore the field; Escape
-from the field hides the draft. The same anchor resolves both states against the
-target's geometry.
+Normal reading mode leaves a plain click on unadorned authored content to the browser.
+Visible native and Leaf controls keep their click actions; text selection targets words.
+Alt-click, `s`, and a visual's “Respond to…” proxy are explicit Comment gestures. They
+pass the target from `aimTargetAt` or the visual provider to `commentOnTarget`, which opens
+the compact field and focuses its cursor in the same transaction. A whole item or picture
+names its authored id, while a visual part adds its declared token. Tab exchanges that
+field for choices in the same bar and focuses Comment first. Tab, Shift-Tab, and the arrow
+keys then wrap through every choice. Comment and Escape restore the field; Escape from the
+field hides the draft. The same anchor resolves both states against the target's geometry.
 
 The short, viewport-local hints form a prefix-free tree over one alphabet. Most targets
 cost one letter; only the tail branches when the viewport holds more targets than the
@@ -2158,7 +2158,7 @@ already-entered Threads list, `c` adds one nested frame and Escape returns to th
 A resolved thread has no reply box, so the general box is the honest contextual answer.
 
 The item's box is the composer, on the item, and not a widget's own conversation
-seat even where it has one. `openOnItem` writes the anchor `renderConversations`
+seat even where it has one. `commentOnTarget` writes the anchor `renderConversations`
 collects, so the remark lands in that seat's conversation by either route; reaching
 into the seat instead means escaping an author-written id into a selector, asking
 whether the box can take focus, and choosing among the boxes a seat holds once it

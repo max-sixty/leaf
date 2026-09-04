@@ -763,7 +763,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
 
     # A diagram has no text to quote, so its anchor is the element and its mark is an
     # outline. That one the anchor pass really does take down, so it has to be redrawn.
-    page.locator("#fig svg").click()
+    page.locator("#fig svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#fig.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], (
@@ -789,16 +789,15 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         "the figure kept a thread's outline over no thread"
     )
 
-    # A drag across the caption ends with the click's target inside the figure, but the
-    # selection is what the reader picked: the one decider ranks the quote above the
-    # element anchor, so the composer carries the caption's words rather than § fig.
+    # A drag across the caption remains a native selection, so the composer carries the
+    # caption's words rather than the enclosing figure's element anchor.
     cap = page.locator("#fig figcaption").bounding_box()
     y = cap["y"] + cap["height"] / 2
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
     assert "specimen" in pending_text(page), (
-        "the click's visual find outranked the selection the drag made"
+        "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
         "the figure got the element outline over a live selection"
@@ -5225,9 +5224,9 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     expect(field).to_have_value("?")
     page.keyboard.press("Escape")
 
-    # A visual follows the same contract, but its accessible field name identifies the
-    # item rather than a quoted passage.
-    page.locator("#fig svg").click()
+    # An explicit visual target follows the same contract, but its accessible field name
+    # identifies the item rather than a quoted passage.
+    page.locator("#fig svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile("figure"))
     expect(line).to_contain_text("other responses")
@@ -5658,9 +5657,9 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 
 
 def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
-    """Focus supplies an element anchor. `c` read the 💬 alone, which only a
-    selection or a click on a visual ever raises, so a reader working from the keys
-    had two destinations where the pointer had three: a quote, or the whole page. A
+    """Focus supplies an element anchor. `c` once read the 💬 alone, so a reader
+    working from the keys had two destinations where explicit pointer targeting had
+    three: an item, a quote, or the whole page. A
     focused link put them on an option and the box that opened still said "Comment on the
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
@@ -5669,7 +5668,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     Below a decision it is the innermost item, which is the aim's own reading — so a focused
     link speaks for the paragraph holding it, no id of its own being what an anchor needs.
 
-    One box either way: `openOnItem` writes `{section: item.id}`, which is the anchor a
+    One box either way: `commentOnTarget` writes `{section: item.id}`, which is the anchor a
     widget's own conversation seat collects, so a remark made here lands in that seat's
     conversation rather than beside it. Reaching for the seat directly instead was five
     questions — escaping an author's id, whether the box can take focus, which box when

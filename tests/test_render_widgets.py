@@ -1613,11 +1613,26 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 
+    card.locator("p").first.evaluate(
+        """element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+        }"""
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    assert page.evaluate("() => getSelection().toString().trim()")
+
     page.mouse.move(x, y)
     page.mouse.down()
     page.mouse.move(x - box["width"] * 0.35, y)
     page.mouse.up()
     expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
+    assert page.evaluate("() => getSelection().toString()") == ""
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     round_trip(page)
     assert errors == []
     page.close()

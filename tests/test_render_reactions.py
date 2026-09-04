@@ -1356,7 +1356,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     expect(field).to_be_focused()
     with sending(page, "the comment on the projected document"):
         field.fill("Keep the captured source coordinate.")
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
     assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
         "section": "source",
         "datum": "document",

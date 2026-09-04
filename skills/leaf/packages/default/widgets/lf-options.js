@@ -14,10 +14,10 @@
  * `choose` takes the reader's pick. Every option carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
- * the option's cell takes a quiet tint. There is no visible status caption: check, tint,
- * and text all saying the same thing made the chosen row louder without making it clearer.
- * The checkbox state carries the same fact for a reader listening. Outside a `choose`
- * group the mark renders as an image-like span, so authored state keeps the check and an
+ * the option's cell takes a quiet tint. Presentation follows the form: a titled live card
+ * exposes "selected" as compact header state, while a row keeps only its check. The
+ * checkbox state carries the same fact for a reader listening. Outside a `choose` group
+ * the mark renders as an image-like span, so authored state keeps the check and an
  * accessible name without pretending it can be pressed.
  *
  * The pick is a set, whatever the group allows. `multiple` lets it hold more than one
@@ -127,14 +127,11 @@ import {
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
 
-// The offer, and how many of the group it takes. The mark is the whole of what says that,
-// a group's prose being deliberately silent — captioning a control the reader can already
-// read is exactly what the corner shape is for — and the corner is paint, which reaches
-// nobody listening. So the mark states the arity twice, once in each register one control
-// has: the shape for the eye, and this word, which goes into the aria-label below and is
-// drawn at font-size 0 (theme.css) so the offer stays silent on screen. A reader who hears
-// "choose any" knows the next press adds where "choose one" would have replaced, and
-// knows it while the question is still open rather than after answering it.
+// The offer, and how many of the group it takes. A group's prose stays deliberately silent,
+// while the control states arity in the two registers it has: corner shape for the eye and
+// this word in the aria-label below. The open word stays visually silent in every form. A
+// reader who hears "choose any" knows the next press adds where "choose one" would have
+// replaced, and knows it while the question is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
@@ -471,9 +468,9 @@ customElements.define(
         mark.dataset.lfGen = "1";
       }
       // First, so the row form's table puts it in the cell before the words. A card
-      // places its mark out of flow and cannot see this, so one insertion serves both
-      // forms and the theme states each form's placement as it already did. The mark
-      // ends every row at the column the label opens at, which is where the reader is
+      // places its mark out of flow in the header and cannot see this, so one insertion
+      // serves both forms and the theme states each form's placement as it already did.
+      // The mark ends every row at the column the label opens at, where the reader is
       // reading; it stood at the line's end, ~620px away from the words it answers for
       // in a full-width group, and a group that took several answers drew its boxes
       // there while a single-pick card drew none at all.
@@ -495,9 +492,10 @@ customElements.define(
       document.dispatchEvent(new CustomEvent("lf-answered"));
     }
 
-    // The mark's text is an accessible fallback rather than a visible status caption.
-    // The check and cell tint carry selection on screen; aria-checked carries it on the
-    // live control. An authored, inert mark becomes an image with the same plain name.
+    // The mark's text is first an accessible label. The theme may expose the selected
+    // word as a titled card's compact header state; rows and inert document marks keep
+    // it visually silent. aria-checked carries the fact on every live control, and an
+    // authored inert mark becomes an image with the same plain name.
     #label(option) {
       const mark = option.querySelector(":scope > .lf-pick");
       if (!mark) return;

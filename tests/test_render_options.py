@@ -165,6 +165,20 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         "in the author's order, not overlapping"
     )
 
+    # The generated selection state shares this opening band but owns no authored
+    # words. Its room is held before the pick, so the pill neither covers a chip nor
+    # changes the card's measure when it appears.
+    card_before = page.locator("#st-sd").bounding_box()
+    page.locator("#st-sd").click()
+    state = page.locator("#st-sd > .lf-pick")
+    expect(state).to_have_text("selected")
+    assert page.locator("#st-sd").bounding_box() == card_before
+    state_box = state.bounding_box()
+    for chip in [chips.nth(i).bounding_box() for i in range(2)]:
+        assert chip["x"] + chip["width"] <= state_box["x"], (
+            "the selected header state covers an authored chip"
+        )
+
     paper = page.locator("#t-paper").bounding_box()
     gps = page.locator("#t-gps").bounding_box()
     terse = page.locator("#terse").bounding_box()
@@ -305,14 +319,15 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     page.close()
 
 
-def test_a_live_pick_is_a_quiet_check_and_remains_pressable(browser, serve):
-    """Selection has no visible caption and does not resize the option it lands on."""
+def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
+    """A completed Ask keeps the same live-card state when reopened for review."""
     page, errors = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie — option 1 of 3"
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
+    expect(mark).to_have_text("selected")
     assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
 
     strict = page.locator("#opt-strict")
@@ -389,15 +404,16 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
     A card group under `choose` draws the border and its options become cells inside it,
     sharing hairlines: a set of alternatives at one size is what says a decision is
-    waiting, so no option has to caption itself "choose" or "your pick". Selection is
-    the check and quiet cell tint.
+    waiting, so a single-choice card needs no radio in every cell. Its generated mark
+    stays as the keyboard control but is visually empty until the choice turns it into
+    a compact header state. Selection also keeps the quiet cell tint.
 
     Pinned because the rules making the group one control are ranked against the ones
     making each option a card, and losing that race leaves a page that looks exactly as it
     did while saying nothing about being answerable — which reads as a feature nobody
-    wired up rather than as a fault. The mark is measured against its own ring for the
-    same reason: "no word" is the claim, and a mark exactly as wide as the dot it draws
-    is the only way to make it without naming a font size."""
+    wired up rather than as a fault. The header state is measured before and after the
+    pick because an absolute badge without reserved room can cover authored chips, and a
+    badge whose room appears only once chosen moves the argument under the pointer."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     edge = """el => { const s = getComputedStyle(el);
                       return s.borderTopStyle === 'none' ? 0 : parseFloat(s.borderTopWidth); }"""
@@ -422,18 +438,9 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         "the group's last child draws a line against the group's own border"
     )
 
-    mark = page.locator("#opt-shim .lf-pick")
-    box = """el => [Math.round(el.getBoundingClientRect().width),
-                    Math.round(parseFloat(getComputedStyle(el, '::before').width)),
-                    getComputedStyle(el, '::before').visibility]"""
-    width, ring, drawn = mark.evaluate(box)
-    assert width == ring, (
-        f"the resting mark carries more than its ring: {width} vs {ring}"
-    )
-    assert drawn == "visible", (
-        "the resting mark draws nothing, so a card group is blank paper until the "
-        "reader presses one to find out it takes an answer"
-    )
+    option = page.locator("#opt-shim")
+    mark = option.locator(":scope > .lf-pick")
+    assert mark.evaluate("el => getComputedStyle(el, '::before').visibility") == "hidden"
 
     # And a reader arriving by keyboard can see the exact row they landed on. The
     # permanent group frame stays put, the Decision's external location band stands
@@ -463,13 +470,34 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         f"mark {mark_ring}"
     )
     assert washed, "nothing says which cell the keyboard is on"
+    address = option.locator(":scope > .lf-address")
+    expect(address).to_be_visible()
+    assert mark.evaluate("el => getComputedStyle(el).opacity") == "0"
+    assert abs(
+        address.bounding_box()["x"]
+        + address.bounding_box()["width"]
+        - mark.bounding_box()["x"]
+        - mark.bounding_box()["width"]
+    ) < 0.5, "the keyboard address does not replace the card's header state slot"
 
-    page.locator("#opt-shim").click()
+    page.evaluate("() => document.activeElement.blur()")
+    before = option.bounding_box()
+    option.click()
     expect(mark).to_have_text("selected")
-    assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
-    width, ring, drawn = mark.evaluate(box)
-    assert width == ring and drawn == "visible", (
-        f"the picked mark is more than its check: {width} vs {ring}, {drawn}"
+    assert mark.evaluate("el => getComputedStyle(el).fontSize") != "0px"
+    assert option.bounding_box() == before, "the selected header state resized its card"
+
+    state = mark.bounding_box()
+    title_end = option.locator(":scope > strong").evaluate(
+        """el => { const range = document.createRange();
+                    range.selectNodeContents(el);
+                    return Math.max(...[...range.getClientRects()].map(r => r.right)); }"""
+    )
+    assert state["x"] >= title_end, (
+        "the generated header state covers the option title"
+    )
+    assert state["x"] + state["width"] <= before["x"] + before["width"], (
+        "the generated header state hangs outside the card"
     )
 
     # The copy medium: scripts are dropped, so the pick cannot be made and the group must
@@ -677,46 +705,46 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert page.locator("#live-board .lf-grip").count() == 1
     assert page.locator("[data-lf-for='live-suggestion']").count() == 1
 
-    # Nor the room for one. A quoted card stands at the height of a card in a
-    # group that never declared `choose`, because that is what it is; reserving
-    # the mark strip would leave every exhibit trailing 32px of space that,
-    # quoted, nothing can ever fill.
+    # Nor the room for one. A quoted card stands at the height of a live titled card:
+    # neither carries the old footer strip, and the live card's header state is out of
+    # flow. Reserving that strip would leave every exhibit trailing empty space.
     pad = "el => getComputedStyle(el).paddingBottom"
-    assert page.locator("#q-shim").evaluate(pad) != page.locator("#l-shim").evaluate(
+    assert page.locator("#q-shim").evaluate(pad) == page.locator("#l-shim").evaluate(
         pad
     )
 
-    # Nor in paint, which is the theme's own half of the promise rather than the
-    # module's. Three offers a page makes standing still: the hand a card wears, the
-    # joined box a group of them is drawn as, and the rail each card gives up to a
-    # keyboard address. All three are withheld by the affordance rules excluding what
-    # stands inside a painted exhibit (data-lf-exhibit), so a rule that lost its
-    # exclusion shows here while every handler stays unwired. The live pair is the
-    # control — without it a theme that had stopped drawing the offer at all would
-    # read exactly like one that withholds it from the exhibit.
+    # Nor in paint or live-state layout, which is the theme's own half of the promise
+    # rather than the module's. The hand, joined box, and reserved header slot are all
+    # withheld by affordance rules excluding what stands inside a painted exhibit
+    # (data-lf-exhibit), so a rule that lost its exclusion shows here while every handler
+    # stays unwired. The live pair is the control — without it a theme that had stopped
+    # drawing the offer at all would read exactly like one that withholds it.
     offer = """el => { const cs = getComputedStyle(el);
-        return { cursor: cs.cursor, box: cs.borderTopWidth, rail: cs.paddingLeft }; }"""
+        const title = getComputedStyle(el.querySelector(':scope > strong'));
+        return { cursor: cs.cursor, box: cs.borderTopWidth,
+                 stateRoom: title.paddingInlineEnd }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
+    frame = "el => getComputedStyle(el).borderTopWidth"
     quoted_box, live_box = (
-        page.locator(sel).evaluate(offer) for sel in ("#quoted-group", "#live-group")
+        page.locator(sel).evaluate(frame) for sel in ("#quoted-group", "#live-group")
     )
-    assert live_card["cursor"] == "pointer" and live_box["box"] != "0px", (
+    assert live_card["cursor"] == "pointer" and live_box != "0px", (
         "the live group makes no offer either, so the exhibit's missing one says "
         f"nothing: card {live_card}, group {live_box}"
     )
     assert quoted_card["cursor"] != "pointer", (
         f"a quoted card invites the pointer: {quoted_card['cursor']}"
     )
-    assert quoted_box["box"] == "0px", (
-        f"the exhibit is drawn as a control to answer: {quoted_box['box']} border"
+    assert quoted_box == "0px", (
+        f"the exhibit is drawn as a control to answer: {quoted_box} border"
     )
-    # The rail is the third at-rest offer and the quietest: a live card gives up its
-    # leading inches to the digit a keyboard pick answers by, and an exhibit takes no
-    # keys, so room held there is room held for an address that can never arrive.
-    assert quoted_card["rail"] != live_card["rail"], (
-        f"the exhibit reserves the keyboard rail a live card does: {quoted_card['rail']}"
+    # The live card reserves one header slot for either its chosen state or keyboard
+    # address. An exhibit can grow neither, so its title keeps that room.
+    assert quoted_card["stateRoom"] != live_card["stateRoom"], (
+        "the exhibit reserves the live card's header state slot: "
+        f"{quoted_card['stateRoom']}"
     )
 
     # And under the pointer. A live choose group is a joined control, and a cell that rose
@@ -754,9 +782,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page.locator("#quoted-settled .lf-settled").click()
     assert page.locator("#quoted-settled lf-option:visible").count() == 3
 
-    # The exception, once that group is open: the card the document marks does
-    # carry a mark, so it keeps the strip a live pick would.
-    assert page.locator("#q-lax").evaluate(pad) == page.locator("#l-shim").evaluate(pad)
+    # The exception, once that group is open: the card the document marks carries its
+    # inert check below the prose. It needs the strip a live header state no longer does.
+    assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
     # And the lift, which needs both groups open to reach: a settled group comes apart
     # again when the reader opens it, and loose cards answer the pointer by rising where
@@ -850,17 +878,13 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     compact rows and the titled pair as full-width cards stacked down the page.
 
     Two things the lint cannot see. A resting mark shows no word in either form, because
-    an offer states nothing a reader could disagree with — and what a *picked* mark says
-    has to survive that, since it is the page's only statement of where the pick sits.
-    The dot is the other half, and it is the half both forms have to answer the same way:
-    a row draws one and so does a card, at the same size and on the same side of the
-    option, so a reader meeting a question they have not met before learns one thing
-    rather than one per form. The card used to give it up, on the argument that the
-    group's own frame already said a pick was on offer; measured on the shipped pages
-    that made a card group blank paper at rest. Both are asked here, since either could
-    be the theme forgetting a rule rather than each form answering for itself. (What
-    `multiple` adds on top is the next test's: that one is arity's, not the form's.) And
-    a row's name is
+    an offer states nothing a reader could disagree with. The forms differ in how they
+    make that offer visible: a compact row needs its leading mark to declare its target,
+    while a titled single-choice card is already one framed, divided, hoverable target
+    and keeps the corner quiet until it has state to report. A picked row keeps the
+    compact check; a picked card turns the same generated control into a header status.
+    (`multiple` keeps boxes in both forms, because that shape is what says several
+    answers may stand.) A row's name is
     what the author wrote in it: the mark that lands inside the row once it is picked is
     the page speaking (`says`) and must stay out of the row's own name (`wrote`), or a
     question answered reads its answer back as part of what was asked."""
@@ -914,25 +938,20 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert ref.get_attribute("href") == "#sec-mounts"
     assert page.locator("#job-camera .lf-ref").count() == 0
 
-    # No open mark says its word, in either form, and both draw their dot. The form is
-    # what moves the mark's placement, not whether it exists: the reader gets the same
-    # 11px ring in the same ink whichever shape the content gave the group, which is the
-    # whole of what makes it one widget to learn. (Arity is read off `#bracket` against
-    # the `multiple` card group beside it in the next test; here both forms are single.)
+    # No open mark says its word in either form. The compact row draws its target; the
+    # titled single-choice card leaves its state slot quiet until picked. The controls
+    # still share one accessible contract, while their paint follows the amount of
+    # structure their form already supplies.
     hidden = "el => getComputedStyle(el).fontSize"
     dot = "el => getComputedStyle(el, '::before').visibility"
-    edge = """el => { const s = getComputedStyle(el, '::before');
-                      return [s.borderTopWidth, s.borderTopColor, s.width]; }"""
     assert page.locator("#job-mounts .lf-pick").evaluate(hidden) == "0px"
     assert page.locator("#br-steel .lf-pick").evaluate(hidden) == "0px"
     assert page.locator("#job-mounts .lf-pick").evaluate(dot) == "visible"
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible"
-    assert page.locator("#job-mounts .lf-pick").evaluate(edge) == page.locator(
-        "#br-steel .lf-pick"
-    ).evaluate(edge), (
-        "the two forms draw the resting mark at different weights or sizes, so one "
-        "widget asks its question two ways"
-    )
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden"
+
+    page.locator("#br-steel").click()
+    expect(page.locator("#br-steel .lf-pick")).to_have_text("selected")
+    assert page.locator("#br-steel .lf-pick").evaluate(hidden) != "0px"
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)
@@ -965,12 +984,12 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     round — a threshold between them would be this design's 3px corner written down a
     second time, free to disagree with it.
 
-    Arity is not the form, which is why the contrast is card against card. Both of the
-    rules here were the list form's once, on the reading that a `multiple` group is a
-    list of slots; `multiple` is orthogonal to which form a group takes, so a titled
-    group asking "which of these" inherited neither and offered the reader nothing to
-    count. Hence the second half: every unticked box draws, in either arity and either
-    form, because a corner can only say how many where there is a mark to put it on.
+    Arity is not the form, which is why the contrast is card against card. `multiple`
+    is orthogonal to whether the options are titled, so a titled group asking "which of
+    these" still needs empty squares the reader can count. A single-choice titled group
+    can leave its radio unpainted because the joined card structure already makes each
+    answer a target; the missing circle is therefore a statement about form and arity
+    together, not a forgotten selector.
 
     And the shape is paint inside a box that does not change, so neither arity is a
     pixel wider than the other and every room already reserved still covers."""
@@ -990,26 +1009,22 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     # card group it shares an arity with, against the card group it shares a form with.
     assert page.locator("#job-mounts .lf-pick").evaluate(corner) == many
 
-    # An unticked box draws in both arities, and it is answering a different question in
-    # each: under `multiple` it is that option's own state, so the reader counts what is
-    # left to take; under single-pick it is simply that there is somewhere here to put an
-    # answer. The corner above is what separates the two, and it can only separate marks
-    # that are both on screen — a single-pick card used to give its box up on the
-    # argument that the group's frame already said a pick was on offer, which left the
-    # shipped pages standing as blank paper at rest beside row groups drawing a full
-    # column of rings for the same question.
+    # A card taking several answers keeps every empty square: each is that option's own
+    # state and together they say how many remain available. A titled card taking one
+    # answer keeps the same semantic control but leaves its circle unpainted at rest; its
+    # group frame, divisions, pointer and aim wash already state where the answer can go.
     dot = "el => getComputedStyle(el, '::before').visibility"
     assert page.locator("#tl-clamp .lf-pick").evaluate(dot) == "visible", (
         "a card group asking 'which of these' draws no empty boxes, so the reader has "
         "nothing to count and no sign a second pick is on offer"
     )
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible", (
-        "a card group asking 'which one' draws no box, so nothing at rest says the "
-        "option can be taken"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden", (
+        "a single-choice titled card repeats the group's offer with a radio in every cell"
     )
 
-    # Paint, not metrics: the mark's box is the same in both arities, which is what lets
-    # the row form's reserved column and the card's reserved strip stand unchanged.
+    # Paint, not metrics: the open controls occupy the same header slot in both arities.
+    # The single-choice ring is hidden, not removed, so keyboard focus and a later state
+    # use the same coordinate without moving the card.
     box = "el => { const b = el.getBoundingClientRect(); return [b.width, b.height]; }"
     assert page.locator("#tl-clamp .lf-pick").evaluate(box) == page.locator(
         "#br-steel .lf-pick"

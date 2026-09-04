@@ -1063,11 +1063,11 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     bounds = bar.bounding_box()
     panel = page.locator(".lf-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
-    # End alone is the end of a *visual* line, and the box soft-wraps this draft into
-    # three of them wherever the reader's font measures wider than the room the panel
-    # leaves. The caret is where the passage's click put it, mid-draft, so the reader's
-    # gesture for carrying on from what they wrote is the document-end one.
-    field.press("ControlOrMeta+End")
+    # End alone is the end of a visual line, while ControlOrMeta+End is not a document-
+    # end gesture on macOS. Select the whole draft and collapse the selection after it:
+    # the same platform-neutral route to the end at every soft-wrapped width.
+    field.press("ControlOrMeta+a")
+    field.press("ArrowRight")
     field.press_sequentially(" It is visible again.")
     expect(field).to_have_value(draft + " It is visible again.")
     assert errors == []

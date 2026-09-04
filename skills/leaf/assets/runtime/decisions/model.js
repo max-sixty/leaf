@@ -3,6 +3,7 @@ export const answeredContext = (...args) =>
   publishedDecisionModel.answeredContext(...args);
 export const decisionSource = (...args) =>
   publishedDecisionModel.decisionSource(...args);
+export const allDecisions = (...args) => publishedDecisionModel.allDecisions(...args);
 export const openDecisions = (...args) => publishedDecisionModel.openDecisions(...args);
 
 /* Server-projected decision state, resolved onto the browser's live DOM. */
@@ -101,10 +102,12 @@ export function createDecisionModel({
     });
   }
 
+  const allDecisions = () => decisions("all");
   const openDecisions = () => decisions("reader");
   const unansweredDecisions = () => decisions("unanswered");
 
   const model = {
+    allDecisions,
     answeredContext,
     decisionEntry,
     decisionSource,

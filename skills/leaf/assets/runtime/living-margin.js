@@ -7,7 +7,7 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { PRESS, clampedRow } from "./keyboard/bindings.js";
+import { clampedRow } from "./keyboard/bindings.js";
 import { landInConversation } from "./conversation/landing.js";
 
 const KINDS = {
@@ -493,6 +493,7 @@ export function createLivingMargin(dependencies) {
     panelIsOpen,
     paintKeys,
     placedAt,
+    PRESS,
     quietSince,
     renderMarginThread,
     says,

@@ -82,7 +82,7 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
-shortcuts, live-leaves tray, and open-asks tray. Authors declare reader asks
+shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
 through the registry's decision widgets and regions, but do not duplicate that
 chrome or maintain a second list of it in the page.
 

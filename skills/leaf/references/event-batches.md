@@ -31,12 +31,15 @@ durable epoch. Prompt and Stop hooks put the pointer in model context. Stop repe
 input that was not covered by an accepted queue snapshot or acknowledged Stop
 offer; this includes a prompt-hook pointer, because that hook has no delivery
 receipt. The task reads every entry in `batches`, each containing `page`, `url`,
-`threads`, and `events`; it does not wait or acknowledge. If a queue command has an
+`threads`, and `events`; it does not wait or acknowledge. A completed pointer path
+resolves by the same filename under the sibling `history/` directory. If a queue command has an
 uncertain outcome, the adapter retries the same pointer with the same Leaf delivery
 id. This is at-least-once delivery and may create a retry turn; the task applies
-the page-and-sequence retry rule below. If an active turn produces no later hook
-for fifteen minutes, the adapter queues the same epoch pointer so its stored input
-cannot remain hidden. A long-running turn can therefore produce a duplicate wake.
+the page-and-sequence retry rule below. Before each queue or hook offer, every batch
+for a page is updated to that page server's one current URL. If an active turn
+produces no later hook for fifteen minutes, the adapter queues the same epoch pointer
+so its stored input cannot remain hidden. A long-running turn can therefore produce
+a duplicate wake.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its events
 enter the same append-only log; the detached Codex adapter still owns wait,

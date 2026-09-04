@@ -90,6 +90,21 @@ def delivery_epoch_path(session_id: str, delivery_id: str) -> Path:
     return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
+def _archive_epoch(epoch_path: Path, epoch: dict) -> None:
+    """Move finished history out of the adapter's hot scan."""
+    if epoch["phase"] == "closed" and all(
+        batch["receipted"] for batch in epoch["batches"]
+    ):
+        history_path = epoch_path.parent / "history" / epoch_path.name
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        epoch_path.replace(history_path)
+
+
+def _write_epoch(epoch_path: Path, epoch: dict) -> None:
+    write_json(epoch_path, epoch)
+    _archive_epoch(epoch_path, epoch)
+
+
 def adapter_start_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.start"
 
@@ -101,6 +116,19 @@ def _prompt(epoch_path: Path) -> str:
     )
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
+
+
+def _offer_epoch(epoch_path: Path, epoch: dict) -> str:
+    """Persist one current URL per page before offering an epoch pointer."""
+    urls = {}
+    for batch in epoch["batches"]:
+        page = batch["page"]
+        if page not in urls:
+            server = running_server(Path(page))
+            urls[page] = server["url"] if server else None
+        batch["url"] = urls[page]
+    _write_epoch(epoch_path, epoch)
+    return _prompt(epoch_path)
 
 
 def _epochs(session_id: str) -> list[tuple[Path, dict]]:
@@ -141,7 +169,7 @@ def _append_batch(
             current_epoch["phase"] = "closed"
             if current_epoch["queue"] == "pending":
                 current_epoch["queue"] = "none"
-            write_json(current_path, current_epoch)
+            _write_epoch(current_path, current_epoch)
             current = None
     if current is None:
         epoch_path = delivery_epoch_path(session_id, str(uuid.uuid4()))
@@ -184,7 +212,7 @@ def _append_batch(
     }
     epoch["batches"].append(entry)
     epoch["updated_at"] = time.time()
-    write_json(epoch_path, epoch)
+    _write_epoch(epoch_path, epoch)
     return epoch_path, len(epoch["batches"]) - 1, entry
 
 
@@ -223,7 +251,7 @@ def _finish_batch(batch: dict) -> None:
                 delivered.get(seq, {}).get("id") == event_id
                 for seq, event_id in expected.items()
             ):
-                raise RuntimeError(f"Codex delivery no longer matches {page_dir}")
+                return
             record_pickup(page, [delivered[seq] for seq in expected])
             acknowledge(page, max(expected))
     except FileNotFoundError:
@@ -245,14 +273,16 @@ def _sync_receipts(epoch_path: Path, epoch: dict) -> None:
             batch["receipted"] = True
             changed = True
     if changed:
-        write_json(epoch_path, epoch)
+        _write_epoch(epoch_path, epoch)
+    else:
+        _archive_epoch(epoch_path, epoch)
 
 
 def _record_receipt(epoch_path: Path, batch_index: int) -> None:
     epoch = read_json(epoch_path)
     if epoch is not None and not epoch["batches"][batch_index]["receipted"]:
         epoch["batches"][batch_index]["receipted"] = True
-        write_json(epoch_path, epoch)
+        _write_epoch(epoch_path, epoch)
 
 
 def _recover_delivery(codex_path: str, session_id: str) -> bool:
@@ -272,26 +302,26 @@ def _recover_delivery(codex_path: str, session_id: str) -> bool:
             ):
                 epoch["phase"] = "waiting"
                 epoch["queue"] = "pending"
-                write_json(path, epoch)
+                _write_epoch(path, epoch)
         for path, epoch in epochs:
             _sync_receipts(path, epoch)
-        queued = next(
-            (
-                (path, len(epoch["batches"]))
-                for path, epoch in epochs
-                if epoch["queue"] == "pending"
-            ),
+        queued_epoch = next(
+            ((path, epoch) for path, epoch in epochs if epoch["queue"] == "pending"),
             None,
         )
+        queued = None
+        if queued_epoch is not None:
+            epoch_path, epoch = queued_epoch
+            queued = epoch_path, len(epoch["batches"]), _offer_epoch(epoch_path, epoch)
     if queued is not None:
-        epoch_path, queued_count = queued
-        queue_delivery(codex_path, session_id, _prompt(epoch_path))
+        epoch_path, queued_count, prompt = queued
+        queue_delivery(codex_path, session_id, prompt)
         with flocked(lock):
             epoch = read_json(epoch_path)
             if epoch is not None and epoch["queue"] == "pending":
                 epoch["queue"] = "accepted"
                 epoch["queued"] = queued_count
-                write_json(epoch_path, epoch)
+                _write_epoch(epoch_path, epoch)
         return True
 
     with flocked(lock):
@@ -386,8 +416,7 @@ def open_turn(session_id: str) -> tuple[bool, str | None]:
                 epoch["updated_at"] = time.time()
                 if epoch["queue"] == "pending":
                     epoch["queue"] = "none"
-                write_json(epoch_path, epoch)
-                prompt = _prompt(epoch_path)
+                prompt = _offer_epoch(epoch_path, epoch)
             for page in pages:
                 page.open_turn(session_id)
         return True, prompt
@@ -415,8 +444,7 @@ def finish_turn(
                 if len(epoch["batches"]) > visible:
                     epoch["stop_offered"] = len(epoch["batches"])
                     epoch["updated_at"] = time.time()
-                    write_json(epoch_path, epoch)
-                    prompt = _prompt(epoch_path)
+                    prompt = _offer_epoch(epoch_path, epoch)
             should_block = prompt is not None or bool(reasons and not stop_hook_active)
             if should_block:
                 for page in pages:
@@ -429,7 +457,7 @@ def finish_turn(
                     if epoch["queue"] == "pending":
                         epoch["queue"] = "none"
                     epoch["phase"] = "closed"
-                    write_json(epoch_path, epoch)
+                    _write_epoch(epoch_path, epoch)
 
     if not should_block:
         return []

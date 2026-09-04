@@ -131,8 +131,10 @@ to preserve that boundary if Stop was interrupted while stamping multiple pages.
 
 The visible pointer is one line in a code block. It names the `$leaf` skill,
 whose current copy owns the processing contract. Its epoch file carries each
-batch's page, URL, thread context, and exact events. The adapter acknowledges a
-queued epoch after queue acceptance and an in-turn batch after durable epoch storage.
+batch's page, URL, thread context, and exact events. Each queue, prompt, or Stop
+offer first refreshes every batch for one page to that page server's current URL.
+The adapter acknowledges a queued epoch after queue acceptance and an in-turn batch
+after durable epoch storage.
 The already-loaded Desktop client keeps the task writer, consumes the shared
 durable queue, and owns every execution or approval request. Leaf's queue command
 never resumes or starts the task.
@@ -150,10 +152,13 @@ themselves. The sole unclosed file is the current epoch. Page claims remain the 
 authority and page cursors remain the receipt authority during a page's lifetime.
 Once a cursor advances, its batch records that receipt so reinitializing the same
 page path cannot revive old transport work or block receipts still due on another
-page. An uncertain queue command retries the same file pointer. Delivery is therefore at
-least once; a repeated turn recognizes the id in the filename and applies the
-page-and-sequence retry rule. Completed files remain as recovery history because queue
-acceptance does not prove that a later turn read them.
+page. A reinitialized page whose events no longer match terminally retires its old
+batch, so it cannot starve receipts for the task's other pages. An uncertain queue
+command retries the same file pointer. Delivery is therefore at least once; a repeated
+turn recognizes the id in the filename and applies the page-and-sequence retry rule.
+Once a file is closed and every batch has a receipt, it moves under `history/`: the
+record remains durable while the adapter's one-second live scan reads only actionable
+epochs.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded — so a killed carrier

@@ -78,7 +78,10 @@ When input arrives, read `references/event-batches.md` before processing it and
 `references/conversation-threads.md` when a thread needs work. A
 `leaf-delivery` element names a Codex delivery payload: read its `path` and
 process every entry in `batches`; each carries its page, URL, thread context, and
-events. The same delivery id may return after more input joins its active turn,
+events. All batches for one page carry its current URL when the pointer is offered.
+If an at-least-once retry arrives after that path was completed, read the same
+filename under its sibling `history/` directory. The same delivery id may return
+after more input joins its active turn,
 so reread the payload and apply the page-and-sequence retry rule. The detached
 adapter owns acknowledgement. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only

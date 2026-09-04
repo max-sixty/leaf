@@ -49,7 +49,8 @@ user's behalf. The small queued message is a `leaf-delivery` XML element shown a
 one line in a code block. It names the `$leaf` skill and points to the persisted
 epoch. Each batch carries its page, URL, thread context, and exact events rather
 than copying instructions or an arbitrarily large batch into Codex's bounded text
-input.
+input. Every pointer offer first gives all batches for a page its current server URL,
+so a restarted page does not leave an older batch pointing at its former location.
 
 Input arriving while the turn is active adds a batch to that same payload and
 creates no queued message. The prompt and Stop hooks carry its pointer into the
@@ -63,6 +64,11 @@ the task owns replies, revisions, page status, and the handoff back to `waiting`
 `idle`. If an active turn produces no later hook for fifteen minutes, the adapter
 queues the same epoch pointer; a legitimately long turn can therefore receive a
 duplicate wake.
+
+Once an epoch is both closed and fully receipted, the adapter moves it into the
+delivery directory's `history/` subdirectory. This retains the durable record without
+reparsing completed batch contents on every idle watch pass. A duplicate queued
+pointer resolves its id there after the original turn has completed.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

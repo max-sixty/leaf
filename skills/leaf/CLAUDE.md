@@ -1240,20 +1240,20 @@ When a covering panel leaves no usable band for the response bar, placement with
 it without discarding its draft. If the disappearing bar held focus, the visible
 Threads list takes it; an unrelated focused control keeps it. A partially exposed
 page remains interactive whenever the bar fits its actual remaining room.
-Enter sends and Shift-Enter
-inserts a newline. Tab changes the same bar into Comment, Suggest when the anchor is a
-quote, and the layer's reaction tokens. `.lf-response-control` keeps the field and every
+Enter inserts a newline; `Mod+Enter` sends. Tab changes the same bar into Comment,
+Suggest when the anchor is a quote, and the layer's reaction tokens.
+`.lf-response-control` keeps the field and every
 choice on one baseline with one type, border, corner, and elevation; the bar keeps its
 DOM owner and accessible name while its contents change. Comment restores the field and
 Suggest restores it in replacement-text mode. Their structural icons use the same
 stroked SVG vocabulary as Target Buttons; only authored reaction tokens supply text glyphs.
 
 `showFab` places the bar; `openComposer` binds its field to the durable draft and takes the
-focus decision. `selectResponseTarget` focuses it for a keyboard item hint, and the ⌥ press
-uses `focusTargetComment` on the same captured anchor. Automatic passage selection opens
-that passage's own durable draft without moving focus; explicit Comment gestures carry
-unsent words onto the new anchor. Submitted words still in flight remain owned by their
-original anchor, while a later target starts clean and keeps focus. For a page
+focus decision. Every explicit item and visual route passes its resolved anchor to
+`commentOnTarget`, which focuses the same field and carries an unsent draft to the new
+target. Automatic passage selection opens that passage's own durable draft without moving
+focus. Submitted words still in flight remain owned by their original anchor, while a
+later target starts clean and keeps focus. For a page
 target, `r` contributes Comment, Suggest where available, and the reaction Buttons to
 that target's existing Button options. Those temporary Buttons borrow the cluster's room
 and dock with it when necessary; they do not claim permanent rail width. A thread-local
@@ -1550,8 +1550,9 @@ item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
 Every press in a contribution is built with
-`marginAction(control, {key, icon, label, behavior, tone, role, state})`; an authored
-reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control
+`marginAction(control, {key, icon, label, behavior, tone, standing, role, state})`; an
+authored reaction can supply `glyph` instead of `icon`, never both. `standing` is read
+only from a `receipt`, and says the report is one the file itself carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
 what the fitting promises. Behavior, tone, and state are independent axes: never
@@ -1574,7 +1575,17 @@ activation owner.
 - `receipt` reports a move already made and offers no press. It keeps its icon and its
   circular Button silhouette and seat in the cluster, but gives up its hover lift,
   pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
-  can still land there and name the phase.
+  can still land there and name the phase. A receipt is provisional unless it declares
+  `standing: true`, which says the document itself carries what the report claims; a
+  copy drops the provisional ones and keeps a standing one disarmed (above).
+
+A generated reading wears more than one of those over its life — a Thread Button while
+there is something to open, a receipt once the move is reported — and one element has to
+carry both, or the seat moves under a reader standing in it. Such a control is therefore
+a span, since a `<button>` cannot stop being one, and the activation the platform then
+does not supply is declared by the page map's own scope (`margin.press`) rather than by a
+listener on the control: a key the register does not hold is a key no surface can
+promise.
 
 Ring weight distinguishes immediate actions from the other fittings. The shape stays
 shared, with no chevron. A lone non-thread informational Button reveals its target
@@ -2011,15 +2022,15 @@ so its ordinary Escape rung remains the route back.
 
 ### Item selection is explicit
 
-`s` names the visible items and declared visual parts that Alt-click can aim at. Both
-routes read `aimTargetAt`, and the target kind changes only the anchor: a whole item
-names its authored id, while a visual part adds its declared token. Their next surface
-follows the gesture's stated intent. Both `s` and Alt-click select the target, open the
-compact Comment field, and focus its cursor in the same transaction. Tab exchanges that
-field for choices in the same bar and focuses Comment first. Tab, Shift-Tab, and the
-arrow keys then wrap through every choice. Comment and Escape restore the field; Escape
-from the field hides the draft. The same anchor resolves both states against the
-target's geometry.
+Normal reading mode leaves a plain click on unadorned authored content to the browser.
+Visible native and Leaf controls keep their click actions; text selection targets words.
+Alt-click, `s`, and a visual's “Respond to…” proxy are explicit Comment gestures. They
+pass the target from `aimTargetAt` or the visual provider to `commentOnTarget`, which opens
+the compact field and focuses its cursor in the same transaction. A whole item or picture
+names its authored id, while a visual part adds its declared token. Tab exchanges that
+field for choices in the same bar and focuses Comment first. Tab, Shift-Tab, and the arrow
+keys then wrap through every choice. Comment and Escape restore the field; Escape from the
+field hides the draft. The same anchor resolves both states against the target's geometry.
 
 The short, viewport-local hints form a prefix-free tree over one alphabet. Most targets
 cost one letter; only the tail branches when the viewport holds more targets than the
@@ -2138,7 +2149,7 @@ already-entered Threads list, `c` adds one nested frame and Escape returns to th
 A resolved thread has no reply box, so the general box is the honest contextual answer.
 
 The item's box is the composer, on the item, and not a widget's own conversation
-seat even where it has one. `openOnItem` writes the anchor `renderConversations`
+seat even where it has one. `commentOnTarget` writes the anchor `renderConversations`
 collects, so the remark lands in that seat's conversation by either route; reaching
 into the seat instead means escaping an author-written id into a selector, asking
 whether the box can take focus, and choosing among the boxes a seat holds once it
@@ -2975,10 +2986,9 @@ reveal authored disclosures and tabs. `paintAnchors` marks a link detached when
 this version no longer has the id and refuses its press. A thread outlives its
 version, but a fragment target may not.
 
-`wireInput` gives runtime textareas one configurable input contract: persist each edit,
-keep the send button and placeholder current, and prevent parallel sends of one local
-surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer passes
-`Enter`, leaving Shift-Enter to the textarea's native newline. The stylesheet owns
+`wireInput` gives runtime textareas one input contract: persist each edit, keep the send
+button and placeholder current, prevent parallel sends of one local surface, and send
+with `Mod+Enter`. Enter retains the textarea's native newline. The stylesheet owns
 textarea growth through `field-sizing: content`, within the room supplied by floating
 placement. Script does not derive textarea height from its text. `wireInput`'s sync
 refreshes the composer's placement for typed and programmatic edits alike, including
@@ -3078,6 +3088,51 @@ Widget affordances fall into three groups:
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
 
+A receipt has two seats — a thread's own `.lf-receipt` line, and a margin reading
+`marginAction` has given the `receipt` behavior — and a copy answers both there, since
+the marker value cannot: a receipt is not a press, so `offer` writes the empty value to
+stand the pointer hand and the lift down on the live page, and the copy's press removal
+reads that same value to mean chrome it keeps.
+
+What the copy does with one turns on what the file can stand behind, which is a second
+declaration (`data-lf-standing`) rather than a fourth reading of the behavior. Sent,
+Waiting for pickup, and Picked up report a move an agent is still making, and a file has
+nothing behind that claim, so a copy drops them: keeping the word would turn provisional
+news into a statement. A standing Outcome is the page map's record of a decision the
+document already carries, with the decided state applied in the same file — the fact the
+rail is held open for, and for a widget speaking no receipt of its own the only margin
+record of the choice.
+
+A copy keeps that record, in one seat and disarmed. The status role, the walk's tab stop,
+and the offer marker go, on the same bargain the press removal strikes for a control whose
+words are the page's; unlike those words the marker is not kept, because the reading is
+the runtime's rather than a widget's. What it gives the status role up for is `img`, since
+it keeps its circle and its glyph and a shape whose word is collapsed away is named the
+way the reaction mark is named. The seat is the item itself, since a file can open
+no fold — the `…` that would is a press and leaves with the rest — and a resting seat a
+widget's control held is free again once that control has gone.
+
+Whichever seat the live page showed it in, the record stops being a page-map marker. The
+reading sits on the marker itself wherever a widget contributes no shown control, and
+that class is the rail's seat: both rules that stop drawing the rail name it, the 900px
+floor and print, so a record left wearing it would be a fact the file states on a wide
+screen and drops on a narrow one or on paper. Its spoken name goes with the class, being
+the walk's address — which entry of how many, and how far down the exporter's own window
+the target sat — and the reading's own word is restated in its place. The word standing in
+the DOM cannot serve instead: the runtime's stylesheet rides into the file and styles that
+span as hover chrome, so it is read in no medium.
+
+Where it stands is the same question in every medium, and a file cannot dock: the
+packing pass measured the rail at the width the page was exported at and left with the
+scripts. So under that floor and on paper, where no rail is drawn, a copy's margin items
+take the docked shape rather than the absolute seat they were exported into, which hangs
+off the page box. Not the rows that same pass withheld: an item whose target is not shown
+wears `lf-waiting` into the file, and a shape taken on the medium's terms would be the
+only thing standing a record beside a passage the file was folding away when exported.
+Paper later unfolds that passage through CSS, but a script-free copy cannot rerun the
+packing pass, so its serialized `lf-waiting` reading remains withheld. Changing that
+behavior belongs to the live and copied layouts together, not to this export override.
+
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,
 so a hand hung on the class is a hand a file cannot answer. The layer's own spelling is
@@ -3150,6 +3205,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | --- | --- |
 | window-error init channel | no runtime, module, resource, or ResizeObserver error reached the page |
 | `upgraded` and `moving` | upgrade completed and final geometry settled |
+| `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
 | `unmarkableItems` | every pointable item has a visible part for an outline |
 | `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |

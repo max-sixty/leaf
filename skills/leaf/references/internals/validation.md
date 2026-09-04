@@ -59,7 +59,7 @@ its own words, and an opaque element and each of its children is fenced. A quote
 never spans a fence, so "the page has words here that the file doesn't" becomes
 a refusal when the comment is written, rather than an anchor that detaches later
 in the user's browser. Anchor on an opaque widget's element instead
-(`--section`), which is the same anchor a click on a diagram makes.
+(`--section`), which is the same anchor an explicit diagram target makes.
 The event door repeats that semantic check under the append transaction, but only
 for a transport that reaches it with nothing resolved — the MCP app, which renders
 the authored source with no runtime behind it. A runtime's own anchor is already

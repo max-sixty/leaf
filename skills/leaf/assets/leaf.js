@@ -959,8 +959,8 @@ panel.append(panelHead, findRow, threadsBox, panelFoot);
 
 // The floating field immediately accepts a comment on the target the reader named.
 // Pressing Tab or its ellipsis exchanges its field for the other responses in place.
-// One affordance, raised only where the reader has already pointed:
-// a selection, a visual's click, an aimed item, or a visual part.
+// One affordance, raised only where the reader has already pointed: a native text
+// selection or an explicit Comment target gesture on an item or visual part.
 const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
@@ -1290,17 +1290,14 @@ const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection
 
 const {
   BANNER_CLEAR,
-  activateVisual,
+  commentOnTarget,
   dismissFab,
   fabAnchorAt,
   fabOptionsAvailable,
   fabTargetAt,
   fabReturnTo,
   focusFabComment,
-  focusTargetComment,
-  openOnItem,
   refreshFab,
-  selectResponseTarget,
   showFab,
   showFabOptions,
   standDown,
@@ -1359,12 +1356,12 @@ const {
 
 const { AIM, aimIsOn, aimedTarget } = createAim({
   aimTargetAt,
+  commentOnTarget,
   designIsOn: () => designOn,
   designPress,
   designTarget,
   elementFromPointAcross: (...args) => elementFromPointAcross(...args),
   inChrome: (node) => inChrome(node),
-  focusTargetComment,
   openOnDesign,
   pointerAt,
   refreshAim,
@@ -2064,11 +2061,11 @@ const {
   stepThread,
 } = createNavigation({
   BANNER_CLEAR,
+  commentOnTarget,
   reducedMotion,
   scrollBehavior,
   inChrome: (node) => inChrome(node),
   inPanel,
-  openOnItem,
   openThreads,
   pageScroller,
   panelCovers,
@@ -2136,6 +2133,7 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     announce,
     banner,
     blockAt: (...args) => blockAt(...args),
+    commentOnTarget,
     contextAround: (...args) => contextAround(...args),
     cut: (...args) => cut(...args),
     el,
@@ -2153,7 +2151,6 @@ const { PAGE_SEARCH, SELECT, isSelecting, paintTargets, startSelecting } =
     selectionLayer,
     selectionSearch,
     selectionStatus,
-    selectResponseTarget,
     shownParts,
     shownRect: (...args) => shownRect(...args),
     updateFab,
@@ -3571,7 +3568,7 @@ anchorRuntime = createAnchors({
   DATUM,
   scrollBehavior,
   actionAnchor: fabAnchorAt,
-  activateVisual,
+  commentOnTarget,
   aimBox,
   aimIsOn,
   aimedTarget,

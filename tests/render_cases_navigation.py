@@ -392,7 +392,7 @@ FOOTED_PAGE = leaf_page(
         for i in range(9)
     ),
 )
-# c's three destinations on one page: prose to select, a visual to click (no words to
+# c's three destinations on one page: prose to select, a visual to target (no words to
 # quote, so it anchors on the element), and the page itself with neither in hand.
 TARGETS_PAGE = leaf_page(
     "targets",

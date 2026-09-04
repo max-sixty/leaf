@@ -96,7 +96,6 @@ export function createSelectionComposer(runtime, dependencies) {
           : "Comment…",
     sends: () => (suggestCheck.checked ? "suggest" : "comment"),
     sendBtn: composerSend,
-    sendKey: "Enter",
     save: saveComposerDraft,
     layout: refreshFab,
     send: async (text, raw) => {

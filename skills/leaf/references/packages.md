@@ -22,15 +22,21 @@ reusable belongs to a package. Leaf creates and validates the whole directory:
 
 ```bash
 leaf package init PACKAGE
+leaf package init PACKAGE --widget lf-callout
 leaf package check PACKAGE
 ```
 
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
-`widgets/`, and `vendor/` without replacing existing contents. The package author
-edits that directory, then checks its composition before adding the package to a page:
+`widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
+create one upgraded prose widget at the same time. Leaf adds a valid registry example
+and the matching `widgets/TAG.js` registration/`once` module, checks the resulting
+composition, and leaves a new package's empty theme ready for the widget's presentation.
+An existing theme and other package files remain in place. Leaf refuses a tag or module
+that already exists rather than replacing it. The package author edits that directory,
+then checks its composition before adding the package to a page:
 
 ```bash
-leaf package init packages/callout
+leaf package init packages/callout --widget lf-callout
 leaf package check packages/callout
 leaf page init --package packages/callout PAGE
 ```
@@ -41,13 +47,15 @@ dedicated to one package, use `.` as the package path.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
 and the Mermaid renderer it draws with; `diff` adds `lf-diff`, the `unified-diff` data
-contract, and the Pierre renderer; `command-hub` adds multi-agent orchestration widgets;
-`pr-review` adds a typed pull-request brief with a safe Markdown description and compact
-checks table, plus a data-backed unified call diff:
+contract, and the Pierre renderer; `swipe` adds a pass-or-keep technical backlog deck;
+`command-hub` adds multi-agent orchestration widgets; `pr-review` adds a typed pull-request
+brief with a safe Markdown description and compact checks table, plus a data-backed unified
+call diff:
 
 ```bash
 leaf page init --package diagram PAGE
 leaf page init --package diff PAGE
+leaf page init --package swipe PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 ```
@@ -160,11 +168,25 @@ non-empty `description`. Its first plain sentence identifies the widget's purpos
 rest explains its detailed contract. An entry's `x-example` must validate and is the
 markup an author queries with that entry.
 
+An items container that needs one child for every semantic role declares
+`x-children: {"CHILD-TAG": {"one-each": "ATTRIBUTE"}}`. The child's attribute is a
+required string enum, and the child admits the container through `x-parent`. `version
+check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
+package contract without adding their tags or vocabulary to Leaf.
+
+When a position action completes a Decision only after its own move empties a queue,
+declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
+on that x-state verb. `within` names an items container inside the answering widget and
+`when` selects exactly one instance by static authored attributes. POST overlays the
+candidate move on the authoritative holder relation before testing emptiness, and the
+Decision projection uses the same condition for standing state. Do not add a second
+completed attribute or trust the browser's optimistic item count.
+
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:
 an absolute `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
-injected, `keys()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
-runtime owning those keys — `quoted()` before wiring input, `actionAvailable()` for
+injected, `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
+runtime owning those commands — `quoted()` before wiring input, `actionAvailable()` for
 an x-state verb with `requires`, and durable state in attributes because export drops
 the scripts. `/runtime/widget-api.js` is the whole Leaf API a behavior module gets.
 The widget still owns its implementation: supporting modules can sit beside its entry
@@ -172,16 +194,24 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-A widget that can be an Ask calls `registerDecisionActions(source, read)` once at
-upgrade. `read` returns its current ordered `{control, label, address?}` actions; call the
-returned `update()` after replacing controls or changing their availability. `address`
-may name an address face the widget already positions for its local scope, so the Ask and
-local projections align; otherwise core paints at the visible control. The core gives the
-first nine actions contextual numeric keys and paints chips only for actions currently in
-view. Contribute the controls that actually answer or advance the Ask rather than scanning
-all offered descendants: evidence inside an option is not an answer, and shared-margin
-Buttons may sit outside the source. The control's own click remains the one activation
-path.
+A widget contributes each capability once with `commands(source, title, rows)`. The
+dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all consume
+those same live rows. Mark a row or route with `decision: true` and give it `control` and
+`label` when that control answers or advances the Ask containing `source`. A row may have
+zero or one live binding in that role: zero receives the Ask's contextual `1` through `9`,
+while one keeps its canonical binding, such as `ArrowLeft`. `address` may name the face a
+widget already positions for that command; otherwise core paints the resolved binding at
+the control. Routes let one parameterized row contribute distinct controls and bindings,
+as numbered options do. The control's own `click()` remains the single activation path.
+
+Register the semantic capability, not every nearby button. Evidence nested inside an
+option is not an answer, and a shared-margin Button may sit outside the Ask source. When
+controls or availability change, keep the row fields computed and call `paintKeys()`;
+every command projection then updates together. A package that needs the page-wide open
+Ask set calls `watchDecisions(owner, callback)`. It invokes `callback(openDecisions)`
+immediately, invokes it again after a complete decision projection reconciles, binds the
+subscription lifetime to `owner`, and returns an explicit cleanup function. Packages do
+not listen to Leaf's internal `lf-actions` invalidation event.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
@@ -191,7 +221,7 @@ then records the map's sorted ids in `generated`, allowing registry-free histori
 folds to retain their liveness while version checks enforce the declared tag and
 direct-parent relation.
 
-Every row passed to `keys()` has a stable dotted `id`, such as `draft.save`. Keep that
+Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The

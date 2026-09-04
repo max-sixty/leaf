@@ -3,10 +3,9 @@ import {
   createAddressPlacement,
   MAX_NUMBERED_ADDRESSES,
 } from "../keyboard/address-placement.js";
-import { bindings } from "../keyboard/bindings.js";
+import { bindings, decisionControls, spell } from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
-import { decisionActions, watchDecisionActions } from "./actions.js";
 
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
@@ -23,6 +22,7 @@ export function createDecisionView({
   banner,
   readingBlock,
   closeTray,
+  commandsWithin,
   documentFocused,
   el,
   elementById,
@@ -362,44 +362,83 @@ export function createDecisionView({
     );
   }
 
-  // The Ask-local numeric map. The widget contributes the exact controls that work its
-  // decision source; this view owns only their stable addresses while semantic focus is
-  // on the Ask itself. Once Tab enters a control, the widget's nearer scope and native
-  // keys take over. The deep focus reading matters for a shadow widget: document focus is
-  // retargeted to its host, but a control inside it is still not the Ask itself.
+  // The Ask-local action map. The widget contributes the exact controls that work its
+  // decision source and may name a binding where the action already has one; this view
+  // supplies numeric addresses for the rest while semantic focus is on the Ask itself.
+  // Once Tab enters a control, the widget's nearer scope and native keys take over. The
+  // deep focus reading matters for a shadow widget: document focus is retargeted to its
+  // host, but a control inside it is still not the Ask itself.
   function actionDecision() {
     const decision = standingIn();
     return decision && focused() === decision ? decision : null;
   }
+  function ownedDecisionControl(decisionSource, commandSource) {
+    const selector = tagsDeclaring(
+      (entry) => entry["x-awaits"] || entry["x-request"]?.decision,
+    ).join(",");
+    return !selector || closestAcross(commandSource, selector) === decisionSource;
+  }
   const availableActions = () => {
     const decision = actionDecision();
     if (!decision) return [];
-    return decisionActions(decisionSource(decision))
-      .filter(
-        ({ control }) =>
-          control.isConnected &&
-          !control.matches(":disabled") &&
-          control.getAttribute("aria-disabled") !== "true" &&
-          control.getAttribute("aria-busy") !== "true",
-      )
-      .slice(0, MAX_NUMBERED_ADDRESSES);
+    const source = decisionSource(decision);
+    const actions = decisionControls(
+      commandsWithin(source),
+      `Ask ${decision.id}`,
+    ).filter(
+      ({ source: commandSource, control }) =>
+        ownedDecisionControl(source, commandSource) &&
+        control.isConnected &&
+        !control.matches(":disabled") &&
+        control.getAttribute("aria-disabled") !== "true" &&
+        control.getAttribute("aria-busy") !== "true",
+    );
+    const reserved = new Set(
+      actions.map(({ binding }) => binding).filter((binding) => binding !== null),
+    );
+    const contextual = Array.from({ length: MAX_NUMBERED_ADDRESSES }, (_, index) =>
+      String(index + 1),
+    ).filter((binding) => !reserved.has(binding));
+    return actions.flatMap((action) => {
+      const resolvedBinding = action.binding ?? contextual.shift();
+      return resolvedBinding ? [{ ...action, resolvedBinding }] : [];
+    });
   };
-  const actionBindings = () => availableActions().map((_, index) => String(index + 1));
+  const actionBinding = (action) => action.resolvedBinding;
+  const actionBindings = () => availableActions().map(actionBinding);
   const actionLabels = () => availableActions().map(({ label }) => label);
   const actionRow = {
     id: "decision.activate-nth",
+    // This row is a contextual choice among the current Ask's controls, not one command
+    // the reference can replay without choosing a member for the reader.
+    runFromReference: false,
     keys: actionBindings,
     label: () => {
-      const count = actionBindings().length;
-      return count > 1 ? `1–${count}` : "1";
+      const actions = availableActions();
+      if (
+        actions.every(
+          (action, index) => actionBinding(action, index) === String(index + 1),
+        )
+      )
+        return actions.length > 1 ? `1–${actions.length}` : "1";
+      return actions
+        .map((action, index) => spell(actionBinding(action, index)))
+        .join(" / ");
     },
-    does: () =>
-      `Activate an action in this Ask: ${actionLabels()
-        .map((label, index) => `${index + 1} ${label}`)
-        .join("; ")}`,
+    does: () => {
+      const actions = availableActions();
+      return `Activate an action in this Ask: ${actions
+        .map(
+          (action, index) => `${spell(actionBinding(action, index))} ${action.label}`,
+        )
+        .join("; ")}`;
+    },
     line: () => actionLabels().join(" / "),
     when: () => availableActions().length > 0,
-    run: (binding) => availableActions()[Number(binding) - 1]?.control.click(),
+    run: (binding) =>
+      availableActions()
+        .find((action, index) => actionBinding(action, index) === binding)
+        ?.control.click(),
   };
 
   // The chips are an eye's projection of the same row. A widget that already owns an
@@ -458,7 +497,11 @@ export function createDecisionView({
       if (!presented.checkVisibility()) continue;
       const box = placement.visibleBox(presented);
       if (!box) continue;
-      const chip = el("span", "lf-address lf-ask-address", String(index + 1));
+      const chip = el(
+        "span",
+        "lf-address lf-ask-address",
+        spell(actionBinding(actions[index], index)),
+      );
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
@@ -466,7 +509,6 @@ export function createDecisionView({
     }
     placement.paint(actionLayer, chips);
   }
-  watchDecisionActions(() => paintKeys());
   addEventListener("scroll", () => actionReachable() && paintHere(), {
     capture: true,
     passive: true,

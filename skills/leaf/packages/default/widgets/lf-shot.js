@@ -17,7 +17,7 @@ import {
   once,
   offer,
   failSoft,
-  keys,
+  commands,
   marginAction,
   paintKeys,
   registerMarginItem,
@@ -87,7 +87,7 @@ customElements.define(
         [box, [" "]],
         [this.#button, PRESS],
       ]) {
-        keys(control, "On a screenshot", [
+        commands(control, "On a screenshot", [
           {
             id: "screenshot.toggle",
             keys: bindings,

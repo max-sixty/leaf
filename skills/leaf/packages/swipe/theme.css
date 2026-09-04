@@ -1,0 +1,345 @@
+/* Swipe decks are RFC index cards, not a second app shell: one queue holds the eye,
+ * literal verdict rails state the operation, and compact ledgers retain the result. */
+lf-swipe-deck {
+  --lf-frame: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  width: min(100%, 44rem);
+  margin: var(--sp-4) auto;
+  container-type: inline-size;
+}
+
+lf-swipe-pile {
+  display: block;
+  min-width: 0;
+}
+
+lf-swipe-pile[verdict="unseen"] {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template: 1fr / 1fr;
+  width: min(100%, 34rem);
+  margin-inline: auto;
+  padding-bottom: 14px;
+}
+
+lf-swipe-pile[verdict="unseen"]::before,
+lf-swipe-pile[verdict="unseen"]::after {
+  content: "";
+  display: block;
+  grid-area: 1 / 1;
+  min-height: 12rem;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+}
+
+lf-swipe-pile[verdict="unseen"]::before {
+  z-index: 1;
+  transform: translateY(14px) scale(.976);
+}
+
+lf-swipe-pile[verdict="unseen"]::after {
+  z-index: 2;
+  transform: translateY(7px) scale(.988);
+}
+
+lf-swipe-pile[verdict="unseen"]:not(:has(> lf-swipe-card:nth-of-type(2)))::after,
+lf-swipe-pile[verdict="unseen"]:not(:has(> lf-swipe-card:nth-of-type(3)))::before {
+  display: none;
+}
+
+lf-swipe-pile[verdict="unseen"] > .lf-swipe-pile-label {
+  grid-area: 1 / 1;
+  align-self: start;
+  z-index: 4;
+  width: max-content;
+  margin: var(--sp-3) 0 0 var(--sp-3);
+}
+
+.lf-swipe-pile-label {
+  display: block;
+  margin-bottom: var(--sp-2);
+  color: var(--muted);
+  font: 600 var(--t-6)/1.3 var(--sans);
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+lf-swipe-card {
+  --lf-frame: 1;
+  display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: var(--t-5);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+lf-swipe-card > :first-child {
+  margin-top: 0;
+}
+
+lf-swipe-card > :last-child {
+  margin-bottom: 0;
+}
+
+lf-swipe-card > strong:first-child {
+  display: block;
+  margin: 0;
+  padding-top: var(--sp-4);
+  color: var(--ink);
+  font: 650 var(--t-3)/1.25 var(--sans);
+  letter-spacing: -.008em;
+}
+
+lf-swipe-card > strong:first-child:not(:last-child) {
+  margin-bottom: var(--sp-2);
+}
+
+lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
+  grid-area: 1 / 1;
+  min-height: 12rem;
+  touch-action: pan-y;
+  user-select: text;
+}
+
+lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type {
+  position: relative;
+  z-index: 3;
+  cursor: grab;
+}
+
+lf-swipe-pile[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2) {
+  visibility: hidden;
+}
+
+lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
+  outline: var(--here-ring);
+  outline-offset: var(--here-ring-gap);
+  --lf-here-ring: swipe-card;
+}
+
+:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
+  lf-swipe-pile[verdict="unseen"] {
+  display: block;
+  width: auto;
+  padding-bottom: 0;
+}
+
+:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
+  lf-swipe-pile[verdict="unseen"]::before,
+:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
+  lf-swipe-pile[verdict="unseen"]::after {
+  display: none;
+}
+
+:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
+  lf-swipe-pile[verdict="unseen"]
+  > .lf-swipe-pile-label {
+  width: auto;
+  margin: 0 0 var(--sp-2);
+}
+
+:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
+  lf-swipe-pile[verdict="unseen"]
+  > lf-swipe-card {
+  min-height: 0;
+  margin-bottom: var(--sp-2);
+  transform: none;
+  visibility: visible;
+  cursor: auto;
+}
+
+lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="pass"],
+lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="keep"] {
+  grid-row: 2;
+}
+
+lf-swipe-card.lf-swipe-dragging {
+  cursor: grabbing;
+  transform: translateX(var(--lf-swipe-drag-x));
+  user-select: none;
+}
+
+.lf-swipe-exit {
+  z-index: 100;
+  pointer-events: none;
+}
+
+.lf-swipe-controls {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--sp-3);
+  width: min(100%, 34rem);
+  margin: 0 auto;
+}
+
+.lf-swipe-pass.lf-ui,
+.lf-swipe-keep.lf-ui {
+  min-height: 2.5rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink-2);
+  font: 600 var(--t-5)/1 var(--sans);
+  cursor: pointer;
+}
+
+.lf-swipe-pass {
+  justify-self: start;
+}
+
+.lf-swipe-keep {
+  justify-self: end;
+}
+
+.lf-swipe-pass:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger-ink);
+}
+
+.lf-swipe-keep:hover:not(:disabled) {
+  border-color: var(--ok);
+  color: var(--ok-ink);
+}
+
+.lf-swipe-pass:focus-visible,
+.lf-swipe-keep:focus-visible {
+  outline: var(--here-ring);
+  outline-offset: var(--here-ring-gap);
+}
+
+.lf-swipe-pass:disabled,
+.lf-swipe-keep:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: .55;
+}
+
+.lf-swipe-progress {
+  color: var(--muted);
+  font: var(--t-6)/1.3 var(--mono);
+  text-align: center;
+  white-space: nowrap;
+}
+
+lf-swipe-pile[verdict="pass"],
+lf-swipe-pile[verdict="keep"] {
+  grid-row: 3;
+  min-height: 5rem;
+  padding: var(--sp-3);
+  border-top: 2px solid var(--rule);
+}
+
+lf-swipe-pile[verdict="pass"] > lf-swipe-card,
+lf-swipe-pile[verdict="keep"] > lf-swipe-card {
+  padding: var(--sp-2) 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+}
+
+lf-swipe-pile[verdict="pass"] > lf-swipe-card:first-of-type,
+lf-swipe-pile[verdict="keep"] > lf-swipe-card:first-of-type {
+  border-top: 0;
+}
+
+lf-swipe-pile[verdict="pass"] > lf-swipe-card > strong:first-child,
+lf-swipe-pile[verdict="keep"] > lf-swipe-card > strong:first-child {
+  padding-top: 0;
+  font-size: var(--t-5);
+}
+
+lf-swipe-pile[verdict="pass"]
+  > lf-swipe-card
+  > strong:first-child:not(:last-child),
+lf-swipe-pile[verdict="keep"]
+  > lf-swipe-card
+  > strong:first-child:not(:last-child) {
+  margin-bottom: var(--sp-1);
+}
+
+@container (max-width: 31rem) {
+  lf-swipe-deck {
+    grid-template-columns: 1fr;
+    gap: var(--sp-2);
+  }
+
+  lf-swipe-pile[verdict="unseen"],
+  .lf-swipe-controls {
+    grid-column: 1;
+  }
+
+  lf-swipe-pile[verdict="pass"],
+  lf-swipe-pile[verdict="keep"] {
+    grid-row: auto;
+  }
+
+  lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="pass"],
+  lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="keep"] {
+    grid-row: auto;
+  }
+
+  .lf-swipe-controls {
+    gap: var(--sp-2);
+  }
+
+  .lf-swipe-progress {
+    white-space: normal;
+  }
+}
+
+html.lf-copy .lf-swipe-controls {
+  display: none;
+}
+
+@media print {
+  lf-swipe-deck {
+    display: block;
+    width: auto;
+  }
+
+  lf-swipe-pile,
+  lf-swipe-pile[verdict="unseen"] {
+    display: block;
+    width: auto;
+    margin: var(--sp-3) 0;
+    padding: 0;
+  }
+
+  lf-swipe-pile[verdict="unseen"] > .lf-swipe-pile-label {
+    width: auto;
+    margin: 0 0 var(--sp-2);
+  }
+
+  lf-swipe-pile[verdict="unseen"]::before,
+  lf-swipe-pile[verdict="unseen"]::after {
+    display: none;
+  }
+
+  lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
+    min-height: 0;
+    margin-bottom: var(--sp-2);
+    transform: none;
+    visibility: visible;
+    cursor: auto;
+  }
+
+  lf-swipe-card {
+    background: transparent;
+    break-inside: avoid;
+  }
+}

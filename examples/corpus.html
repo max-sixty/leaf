@@ -53,6 +53,61 @@ catalog.</p>
         </ul>
       </section>
 
+      <section id="session-backlog">
+        <h2>Triage the session-store edges</h2>
+        <lf-decision id="session-backlog-decision">
+          <h3>Which session-store follow-ups should we keep?</h3>
+          <p id="session-backlog-intro">
+            These are independent follow-ups to the store choice. Pass removes an item
+            from this design; Keep carries it into implementation planning.
+          </p>
+          <lf-swipe-deck id="session-backlog-deck">
+            <lf-swipe-pile id="session-backlog-queue" verdict="unseen">
+              <lf-swipe-card id="session-expiry-buffer">
+                <strong>Buffer rolling-expiry writes</strong>
+                <p>
+                  Refresh expiry at most once a minute per session instead of writing on
+                  every request; immediate revocation remains a key delete.
+                </p>
+              </lf-swipe-card>
+              <lf-swipe-card id="session-fallback-bound">
+                <strong>Hard-bound the fallback to 90 seconds</strong>
+                <p>
+                  Encode its issued-at time in the signature and refuse any snapshot
+                  past the outage window, including after a revoked session.
+                </p>
+              </lf-swipe-card>
+              <lf-swipe-card id="session-redis-capacity">
+                <strong>Separate session capacity from rate limits</strong>
+                <p>
+                  Keep the Redis fleet we already operate, but isolate eviction policy
+                  and memory budgets before session traffic shares the rate-limit
+                  cluster.
+                </p>
+              </lf-swipe-card>
+            </lf-swipe-pile>
+            <lf-swipe-pile id="session-backlog-pass" verdict="pass">
+              <lf-swipe-card id="session-dynamo-store">
+                <strong>Add a Dynamo-style session store</strong>
+                <p>
+                  It introduces an operating model nobody on the team runs for a
+                  workload the existing Redis fleet already serves.
+                </p>
+              </lf-swipe-card>
+            </lf-swipe-pile>
+            <lf-swipe-pile id="session-backlog-keep" verdict="keep">
+              <lf-swipe-card id="session-device-revocation">
+                <strong>Index keys for device-wide revocation</strong>
+                <p>
+                  Support's account-takeover path needs one bounded lookup before it can
+                  delete every live session key for an account.
+                </p>
+              </lf-swipe-card>
+            </lf-swipe-pile>
+          </lf-swipe-deck>
+        </lf-decision>
+      </section>
+
       <section id="settled-transport">
         <h2>Settled: the session id travels in a host-only Lax cookie</h2>
         <p id="transport-note">
@@ -2151,7 +2206,8 @@ gallery/
 
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option
+            lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
+            lf-swipe-pile · lf-swipe-card
           </p>
           <h3 id="bg-quoted-and-visual-heading">
             <strong>Specimen</strong> and <strong>Shot</strong
@@ -2166,6 +2222,20 @@ gallery/
                 <strong>Display signs</strong> Easy to update.
               </lf-option>
             </lf-options>
+          </lf-specimen>
+          <lf-specimen id="bg-swipe-specimen" label="a classified swipe deck">
+            <lf-swipe-deck id="bg-swipe-completed">
+              <lf-swipe-pile id="bg-swipe-completed-queue" verdict="unseen">
+              </lf-swipe-pile>
+              <lf-swipe-pile id="bg-swipe-completed-pass" verdict="pass">
+              </lf-swipe-pile>
+              <lf-swipe-pile id="bg-swipe-completed-keep" verdict="keep">
+                <lf-swipe-card id="bg-swipe-completed-card">
+                  <strong>Keep the explicit expiry bound</strong>
+                  <p>The card's pile carries its recorded classification.</p>
+                </lf-swipe-card>
+              </lf-swipe-pile>
+            </lf-swipe-deck>
           </lf-specimen>
           <p id="bg-shot-guide">
             Specimen labels invented content. Press the Shot Button or image to switch

@@ -171,6 +171,66 @@ export function activeRows(rows, where = "a scope") {
   return validateActive(active, where, bindings);
 }
 
+// The controls one ordered command set contributes to an Ask. `decision` is a role on
+// a command, not another command registry: the dispatcher, key line, reference and Ask
+// projection all read the same row. Routes may name distinct controls when one compact
+// row owns a family of parameterized bindings (numbered options). A command with no
+// binding receives its contextual number from the Ask projection.
+export function decisionControls(commands, where = "an Ask") {
+  const controls = new Map();
+  for (const { source, row } of commands) {
+    const routes = commandRoutes(row);
+    const candidates = [
+      ...(row.decision ? [{ row, route: null }] : []),
+      ...routes.filter((route) => route.decision).map((route) => ({ row, route })),
+    ];
+    for (const { route } of candidates) {
+      const contribution = route ?? row;
+      const control = word(contribution.control ?? row.control);
+      const label = word(contribution.label ?? row.label)?.trim();
+      const address = word(contribution.address ?? row.address) ?? null;
+      const active = route ? [route.binding] : bindings(row);
+      if (!(control instanceof Element))
+        throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
+      if (!label)
+        throw new TypeError(`leaf: ${contribution.id} in ${where} has no label`);
+      if (address !== null && !(address instanceof Element))
+        throw new TypeError(
+          `leaf: ${contribution.id} in ${where} has no Element address`,
+        );
+      if (active.length > 1)
+        throw new TypeError(
+          `leaf: ${contribution.id} in ${where} has ${active.length} live bindings; ` +
+            "an Ask control needs zero or one",
+        );
+      const record = {
+        id: contribution.id,
+        source,
+        control,
+        label,
+        binding: active[0] ?? null,
+        address,
+      };
+      const prior = controls.get(control);
+      if (prior) {
+        if (
+          prior.id !== record.id ||
+          prior.label !== record.label ||
+          prior.binding !== record.binding ||
+          prior.address !== record.address
+        )
+          throw new TypeError(
+            `leaf: one control has two Decision commands in ${where}: ` +
+              `${prior.id} and ${record.id}`,
+          );
+        continue;
+      }
+      controls.set(control, record);
+    }
+  }
+  return [...controls.values()];
+}
+
 // The register's machine-readable spelling for assistive technology. `Mod` is the one
 // visual key the platform chooses, while the dispatcher deliberately accepts either
 // Control or Meta; aria-keyshortcuts therefore states both working chords. Native Space
@@ -240,6 +300,14 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
+    if (row.decision !== undefined && row.decision !== true)
+      throw new Error(
+        `leaf: ${row.id ?? `row ${i} of ${where}`} has invalid Decision role ${String(row.decision)}`,
+      );
+    if (row.decision && row.control == null)
+      throw new Error(
+        `leaf: ${row.id ?? `row ${i} of ${where}`} is a Decision command with no control`,
+      );
     if (row.returnFrame !== undefined && typeof row.returnFrame !== "function")
       throw new Error(
         `leaf: ${row.id ?? `row ${i} of ${where}`} has a returnFrame that is not a function`,
@@ -263,6 +331,14 @@ export function checked(rows, where) {
     const routes = commandRoutes(row);
     const routed = new Set();
     for (const route of routes) {
+      if (route.decision !== undefined && route.decision !== true)
+        throw new Error(
+          `leaf: route ${route.id ?? "without an id"} of ${row.id} has invalid Decision role ${String(route.decision)}`,
+        );
+      if (route.decision && route.control == null && row.control == null)
+        throw new Error(
+          `leaf: route ${route.id ?? "without an id"} of ${row.id} is a Decision command with no control`,
+        );
       if (!route?.id || typeof route.id !== "string" || !COMMAND_ID.test(route.id))
         throw new Error(
           `leaf: route of ${row.id} names ${String(route?.id)}, which is not a stable command id`,

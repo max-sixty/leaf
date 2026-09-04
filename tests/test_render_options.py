@@ -1062,6 +1062,30 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     page.close()
 
 
+def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve):
+    """An Ask projects commands from its Decision source, but containment alone does
+    not confer ownership: a second Decision may stand inside an option as evidence.
+
+    The outer Ask must therefore expose only its two choices. Otherwise both numbered
+    command sets collide when the reader navigates there, and the inner question either
+    breaks the key line or lends its answers to the wrong Ask.
+    """
+    page, errors = open_page(browser, serve(NESTED_DECISION_PAGE))
+    page.keyboard.press("a")
+
+    expect(page.locator("#outer-decision")).to_be_focused()
+    outer_hints = page.locator("#outer > lf-option > .lf-address")
+    expect(outer_hints).to_have_text(["1", "2"])
+    expect(outer_hints.first).to_be_visible()
+    expect(page.locator("#inner > lf-option > .lf-address").first).to_be_hidden()
+
+    page.keyboard.press("2")
+    expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
+    expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
     """Attribute records are sets owned by one recorded widget. A chosen option in a
     nested question must not enter the outer question's authored facet, or an outer log

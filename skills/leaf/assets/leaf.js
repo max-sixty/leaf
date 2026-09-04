@@ -483,6 +483,7 @@ createShadowStage(watchDisclosures, watchExternalLinks);
 const {
   byCommand,
   claimsEsc,
+  commandsWithin,
   documentFocused,
   elementScopes,
   focused,
@@ -1048,9 +1049,9 @@ legendRoot.setAttribute("aria-hidden", "true");
 // so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
-// Numeric actions for the Ask the reader is standing in. These share the address face
+// Contextual actions for the Ask the reader is standing in. These share the address face
 // but not the g chord's lifecycle: the decision view paints them whenever its semantic
-// focus and the dispatch stack leave the digit row reachable.
+// focus and the dispatch stack leave the contributed action row reachable.
 const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
 decisionActionLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
@@ -2003,6 +2004,7 @@ const {
   banner,
   readingBlock,
   closeTray: () => showTray(null),
+  commandsWithin,
   el,
   elementById: (...args) => elementById(...args),
   focusForNavigation: (control) => {
@@ -2246,7 +2248,7 @@ const HELP = {
       does: () =>
         keyline?.expanded ? "Back to more keyboard shortcuts" : "Close this reference",
       line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
-      also: helpClose,
+      control: helpClose,
       runFromReference: false,
       run: () => helpClose.click(),
     },
@@ -2464,7 +2466,7 @@ const PANEL = {
           ? "Show every thread again"
           : "Show only the threads waiting on you",
       line: () => (conversationRuntime.needsYou ? "all threads" : "waiting on you"),
-      also: needsBtn,
+      control: needsBtn,
       when: () =>
         runtime.statePhase === "ready" &&
         (conversationRuntime.needsYou ||
@@ -2485,7 +2487,7 @@ const PANEL = {
       keys: ["/"],
       does: "Find in the threads",
       line: "find",
-      also: findInput,
+      control: findInput,
       returnFrame: () => ({
         active: () => panelIsOpen() && (findInput === documentFocused() || narrowed()),
         close: () => {
@@ -2733,7 +2735,7 @@ const REFERENCE = {
   does: () =>
     keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
-  also: keylineMore,
+  control: keylineMore,
   run: () => keylineMore.click(),
 };
 const PAGE = {
@@ -3009,15 +3011,15 @@ function paintCoreControls() {
   );
   for (const scope of CORE)
     for (const row of scope.rows)
-      if (row.also) {
-        if (!("lfKeyTitle" in row.also.dataset))
-          row.also.dataset.lfKeyTitle = row.also.title;
+      if (row.control) {
+        if (!("lfKeyTitle" in row.control.dataset))
+          row.control.dataset.lfKeyTitle = row.control.title;
         const active = live(row) && bindings(row).length > 0;
-        row.also.title =
-          row.also.dataset.lfKeyTitle + (active ? ` (${labelOf(row)})` : "");
+        row.control.title =
+          row.control.dataset.lfKeyTitle + (active ? ` (${labelOf(row)})` : "");
         if (active)
-          row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
-        else row.also.removeAttribute("aria-keyshortcuts");
+          row.control.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
+        else row.control.removeAttribute("aria-keyshortcuts");
       }
   const referenceBound = bindings(REFERENCE).length > 0;
   keylineMoreKey.hidden = !referenceBound;

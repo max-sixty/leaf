@@ -103,18 +103,18 @@ import {
   conversationInput,
   focused,
   inChrome,
-  keys,
+  commands,
   landInConversation,
   labelOf,
   offer,
   once,
   quoted,
   reachedForWords,
-  registerDecisionActions,
   relabel,
   selectableOffer,
   sendAction,
   notice,
+  watchActions,
   walkRows,
   worksInside,
   wrote,
@@ -150,8 +150,7 @@ customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
-      document.removeEventListener("lf-actions", this.#paintAvailability);
-      document.addEventListener("lf-actions", this.#paintAvailability);
+      this.#stop ??= watchActions(this, null, this.#paintAvailability);
       if (!once(this)) {
         this.#addition?.connect();
         this.#settled?.connect();
@@ -181,14 +180,6 @@ customElements.define(
       if (choosable) {
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
-        this.#decisionActions = registerDecisionActions(this, () => [
-          ...this.#marks().map((control) => ({
-            control,
-            label: label(control.parentElement) || control.parentElement.id,
-            address: control.parentElement.querySelector(":scope > .lf-address"),
-          })),
-          ...(this.#done ? [{ control: this.#done, label: "Done" }] : []),
-        ]);
       }
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
@@ -235,7 +226,7 @@ customElements.define(
     #settled = null;
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
-    #decisionActions = null;
+    #stop = null;
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
@@ -355,6 +346,8 @@ customElements.define(
           num.setAttribute("aria-hidden", "true");
           mark.parentElement.prepend(num);
         }
+      }
+      for (const mark of marks) {
         // Declared on the mark rather than on the group, because the group holds the
         // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
         // over the whole subtree would promise "toggle the nth" with focus on any of them.
@@ -364,7 +357,7 @@ customElements.define(
         // "toggle", the digit row's word, because it is what the press does: the nth digit on
         // an already-picked option clears it, and a word that said "pick" was false on the
         // branch the reader could see.
-        keys(mark, SECTION, [
+        commands(mark, SECTION, [
           {
             id: "option.toggle-nth",
             runFromReference: false,
@@ -373,6 +366,19 @@ customElements.define(
             // live set changes, while surviving marks keep their element identity.
             keys: addresses,
             label: addresses.length > 1 ? `1–${addresses.length}` : "1",
+            routes: addresses.map((binding, index) => {
+              const control = marks[index];
+              const option = control.parentElement;
+              return {
+                id: `option.toggle-${binding}`,
+                binding,
+                control,
+                decision: true,
+                label: label(option) || option.id,
+                address: option.querySelector(":scope > .lf-address"),
+                does: `Toggle option ${binding}`,
+              };
+            }),
             does: "Toggle the nth option",
             line: "toggle the nth",
             run: (binding) => {
@@ -429,6 +435,20 @@ customElements.define(
             line: "toggle",
             run: () => mark.click(),
           },
+          ...(this.#done
+            ? [
+                {
+                  id: "option.done",
+                  keys: [],
+                  control: this.#done,
+                  decision: true,
+                  label: "Done",
+                  does: "Finish choosing options",
+                  line: "done",
+                  run: () => this.#done.click(),
+                },
+              ]
+            : []),
           // Tab is the platform's, and reaching the mark is what a reader has to know
           // before any of the above is any use. No binding, so the line never offers it.
           {
@@ -439,7 +459,6 @@ customElements.define(
           },
         ]);
       }
-      this.#decisionActions?.update();
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it
@@ -525,7 +544,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      document.removeEventListener("lf-actions", this.#paintAvailability);
+      this.#stop?.();
+      this.#stop = null;
       this.#addition?.disconnect();
       this.#settled?.disconnect();
     }

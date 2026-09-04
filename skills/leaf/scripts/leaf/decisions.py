@@ -9,7 +9,6 @@ from leaf.projection import (
     frozen_thread_reading,
     markup_facet,
     retirement_outcomes,
-    state_coordinate,
 )
 
 
@@ -63,21 +62,38 @@ def answered_verb(
     spk: dict,
     registry: dict,
 ) -> bool:
-    """Whether one verb's own durable facet answers this widget."""
+    """Whether one verb's own durable facet answers this widget.
+
+    Most decisions fold one widget-wide value. A completion gesture can instead
+    leave its whole durable result on a named part (for example, the final card's
+    destination); the owner coordinate and verb still identify that answer
+    without a second private completion flag.
+    """
     unit = rec["attrs"].get("id")
     spec = (entry.get("x-state") or {}).get(verb)
     if not spec or not unit:
         return False
-    held = projection.actions.get(state_coordinate(unit, unit, spec))
+    held = next(
+        (
+            winner
+            for coordinate, winner in projection.actions.items()
+            if coordinate[0] == unit and winner[0]["action"] == verb
+        ),
+        None,
+    )
     record = spec.get("record")
-    if record and record["kind"] in ("attribute", "value"):
+    if spec["unit"] == "widget" and record and record["kind"] in ("attribute", "value"):
         facet = (
             folded_facet(*held)
             if held
             else markup_facet(unit, spec, byid, spk, registry)
         )
         return facet not in (None, "", [])
-    return bool(held and held[0]["action"] == verb)
+    return bool(
+        held
+        and held[0]["action"] == verb
+        and completion_met(rec, spec, projection, byid, registry)
+    )
 
 
 def answered_decision(
@@ -149,6 +165,62 @@ def projected_action_holders(
             if holder and holder["tag"] in permitted:
                 holders[unit] = holder
     return holders
+
+
+def completion_met(
+    owner: dict,
+    spec: dict,
+    projection: StateProjection,
+    byid: dict,
+    registry: dict,
+    positioned_holders: dict[str, dict] | None = None,
+) -> bool:
+    """Whether an answer's standing record leaves its declared completion state.
+
+    Completion is a predicate over the same projected holder relation the position
+    record changes. It is not another folded value: undoing or superseding the record
+    therefore changes both the durable arrangement and whether the Decision is answered
+    in one operation.
+    """
+    completion = spec.get("completion")
+    if not completion:
+        return True
+    holders = (
+        positioned_holders
+        if positioned_holders is not None
+        else projected_action_holders(projection, byid, registry)
+    )
+
+    def holder(record: dict):
+        unit = record["attrs"].get("id")
+        return holders.get(unit, record.get("holder"))
+
+    def inside(record: dict, ancestor: dict) -> bool:
+        seen = set()
+        while record is not None and id(record) not in seen:
+            if record is ancestor:
+                return True
+            seen.add(id(record))
+            record = holder(record)
+        return False
+
+    empty = completion["empty"]
+    containers = [
+        record
+        for record in byid.values()
+        if record["tag"] == empty["within"]
+        and inside(record, owner)
+        and asking(record["attrs"], empty["when"])
+    ]
+    if len(containers) != 1:
+        return False
+    container = containers[0]
+    return not any(
+        record is not container
+        and record["tag"] in registry
+        and holder(record) is container
+        for record in byid.values()
+    )
 
 
 class _DecisionReducer:

@@ -149,6 +149,33 @@ export function createScopes({ paintHere, upFrom }) {
     paintHere();
     return rows;
   }
+
+  // Commands whose scope stands in one widget, in declaration order. Preserve the
+  // declaring scope beside each row: a control presentation may be hoisted elsewhere,
+  // while Decision ownership still belongs to the source that declared the command.
+  // This is the shared capability reading: the dispatcher, key line and reference use
+  // the same rows directly, while projections such as Asks select the role they need.
+  // A scope may sit on a nested control rather than the widget itself, so containment
+  // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
+  function commandsWithin(root) {
+    pruneScopedElements();
+    const found = [];
+    for (const ref of scopeRefs) {
+      const scoped = ref.deref();
+      if (!scoped?.isConnected) continue;
+      let inside = false;
+      for (let node = scoped; node; node = upFrom(node))
+        if (node === root) {
+          inside = true;
+          break;
+        }
+      if (!inside) continue;
+      const scope = elementScopes.get(scoped);
+      if (!scope || (scope.when && !scope.when())) continue;
+      for (const row of scope.rows) if (live(row)) found.push({ source: scoped, row });
+    }
+    return found;
+  }
   function reflectShortcuts(scope) {
     const available = !scope.when || scope.when();
     try {
@@ -323,6 +350,7 @@ export function createScopes({ paintHere, upFrom }) {
   const scopes = {
     byCommand,
     claimsEsc,
+    commandsWithin,
     documentFocused,
     elementScopes,
     focused,

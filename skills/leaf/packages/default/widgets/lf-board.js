@@ -30,10 +30,11 @@ import {
   sendAction,
   notice,
   announce,
-  keys,
+  commands,
   labelOf,
   measure,
   saying,
+  watchActions,
   dragging,
   motion,
   scrollerFor,
@@ -51,15 +52,13 @@ customElements.define(
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
     #sortables = new Set();
+    #stopActions = null;
     #stopMotion = null;
 
     connectedCallback() {
       if (!once(this)) {
-        if (!quoted(this)) {
-          document.removeEventListener("lf-actions", this.#paintAvailability);
-          document.addEventListener("lf-actions", this.#paintAvailability);
-          this.#paintAvailability();
-        }
+        if (!quoted(this))
+          this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
         this.#observeNames();
         this.#observeMotion();
         return;
@@ -87,8 +86,7 @@ customElements.define(
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
-      document.addEventListener("lf-actions", this.#paintAvailability);
-      this.#paintAvailability();
+      this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
       this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit and whether the runtime has
@@ -161,7 +159,8 @@ customElements.define(
     // drop a live grab here or it wedges the .lf-dragging gate open — freezing
     // action replay and version-follow.
     disconnectedCallback() {
-      document.removeEventListener("lf-actions", this.#paintAvailability);
+      this.#stopActions?.();
+      this.#stopActions = null;
       this.#namesObserver?.disconnect();
       this.#namesObserver = null;
       this.#stopMotion?.();
@@ -243,7 +242,7 @@ customElements.define(
       // grip answers Space too, and said Enter on every surface for as long as the word and
       // the press were separate objects.
       grip.title = `Drag to move — or ${labelOf(grab)} to grab`;
-      return keys(grip, "On a card grip", [
+      return commands(grip, "On a card grip", [
         grab,
         {
           id: "board.move",

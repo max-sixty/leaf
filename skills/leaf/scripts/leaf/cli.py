@@ -167,9 +167,17 @@ def package() -> None:
     type=click.Path(path_type=Path, file_okay=False),
     metavar="PACKAGE",
 )
-def package_init(package_path: Path) -> None:
-    """Create the canonical package layout without replacing existing files."""
-    cmd_package_init(package_path)
+@click.option(
+    "--widget",
+    metavar="TAG",
+    help="add one upgraded content widget starter",
+)
+def package_init(package_path: Path, widget: str | None) -> None:
+    """Create the package layout without replacing existing files.
+
+    With --widget, add one checked upgraded content widget starter.
+    """
+    cmd_package_init(package_path, widget)
 
 
 @package.command("check", short_help="Check a package as one unit.")

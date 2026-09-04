@@ -6,6 +6,7 @@ from .contract import (
     CREATED_CHILDREN_DETAIL_SCHEMA,
     RegistryError,
     declares_string,
+    json_validator,
     state_specs,
 )
 
@@ -438,26 +439,72 @@ def _validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
 
 def _validate_awaiting_units(widgets: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
-    # more fundamental structural errors. An answer closes the whole decision, so its
-    # fold coordinate must be the widget rather than one detail-named child.
+    # more fundamental structural errors. An answer may record its complete result
+    # either on the widget or on a detail-named part: the projection identifies the
+    # answer by owner and verb, while its declared coordinate owns durable replay.
     for tag, entry in widgets.items():
         answers = (entry.get("x-awaits") or {}).get("answers", [])
-        if non_widget := sorted(
-            verb for verb in answers if entry["x-state"][verb]["unit"] != "widget"
-        ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-awaits answer verbs {non_widget} must fold on "
-                "the widget"
-            )
         until = (entry.get("x-awaits") or {}).get("until")
-        if until and entry["x-state"][until["verb"]]["unit"] != "widget":
-            raise RegistryError(
-                f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
-                "on the widget"
-            )
         completion_verbs = set(answers)
         if until:
             completion_verbs.add(until["verb"])
+        declared_conditions = {
+            verb: spec["completion"]
+            for verb, spec in entry.get("x-state", {}).items()
+            if spec.get("completion")
+        }
+        if non_answers := sorted(set(declared_conditions) - completion_verbs):
+            raise RegistryError(
+                f"{path}: <{tag}> x-state verbs {non_answers} declare completion "
+                "conditions but are not x-awaits completion verbs"
+            )
+        for verb, completion in declared_conditions.items():
+            if entry["x-state"][verb].get("record", {}).get("kind") != "position":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` completion requires a "
+                    "position record"
+                )
+            empty = completion["empty"]
+            within = empty["within"]
+            container = widgets.get(within)
+            if container is None:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` completion names "
+                    f"unknown container <{within}>"
+                )
+            if container.get("x-content") != "items":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` completion names "
+                    f"<{within}>, whose x-content is not items"
+                )
+            properties = container.get("properties", {})
+            mutable = {
+                spec["record"]["attr"]
+                for channel in ("x-state", "x-report")
+                for spec in container.get(channel, {}).values()
+                if (spec.get("record") or {}).get("kind") == "value"
+            }
+            for attr, values in empty["when"].items():
+                schema = properties.get(attr)
+                if schema is None:
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-state verb `{verb}` completion tests "
+                        f"undeclared <{within}> attribute `{attr}`"
+                    )
+                if attr in mutable:
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-state verb `{verb}` completion tests "
+                        f"mutable <{within}> attribute `{attr}`"
+                    )
+                for value in values:
+                    if errors := sorted(
+                        json_validator(schema).iter_errors(value), key=str
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-state verb `{verb}` completion tests "
+                            f"<{within}> `{attr}` at {value!r}, which its schema does "
+                            f"not admit: {errors[0].message}"
+                        )
         self_circular = sorted(
             verb
             for verb in completion_verbs

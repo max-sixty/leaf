@@ -382,7 +382,7 @@ export function createVersion({
     keys: ["v"],
     does: "The versions, and what each one changed",
     line: "versions",
-    also: versionBtn,
+    control: versionBtn,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,

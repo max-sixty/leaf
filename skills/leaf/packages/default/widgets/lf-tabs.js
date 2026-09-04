@@ -14,7 +14,7 @@
 import {
   HIDDEN,
   PRESS,
-  keys,
+  commands,
   layoutChanged,
   offer,
   once,
@@ -77,7 +77,7 @@ customElements.define(
         next.focus();
         next.click();
       };
-      keys(strip, "On a tab", [
+      commands(strip, "On a tab", [
         {
           id: "tab.activate",
           keys: PRESS,

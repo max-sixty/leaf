@@ -3,10 +3,10 @@
  * lifecycle: a request without its linked receipt is pending, and a receipt's
  * terminal status is the outcome. */
 import {
+  commands,
   offer,
   once,
   quoted,
-  registerDecisionActions,
   requestAvailable,
   sendRequest,
   watchRequestLifecycle,
@@ -49,7 +49,6 @@ function paint(holder, lifecycle) {
     control.tabIndex = available ? 0 : -1;
   }
   statusLine(holder, request, receipt);
-  holder._decisionActions?.update();
 }
 
 customElements.define(
@@ -85,6 +84,24 @@ customElements.define(
           };
           option.append(control);
         }
+        commands(
+          this,
+          "On a host operation",
+          children(this).map((option) => {
+            const control = option.querySelector(":scope > .lf-operation-press");
+            const label = title(option);
+            return {
+              id: `operation.${option.getAttribute("verb")}`,
+              keys: [],
+              control,
+              decision: true,
+              label,
+              does: `Request ${label.toLowerCase()}`,
+              line: `request ${label.toLowerCase()}`,
+              run: () => control.click(),
+            };
+          }),
+        );
         const line = document.createElement("div");
         line.className = "lf-operation-status lf-ui";
         line.dataset.lfGen = "1";
@@ -95,12 +112,6 @@ customElements.define(
       if (quoted(this)) return;
       if (!this._stop)
         this._stop = watchRequestLifecycle(this, (lifecycle) => paint(this, lifecycle));
-      this._decisionActions ??= registerDecisionActions(this, () =>
-        children(this).map((option) => ({
-          control: option.querySelector(":scope > .lf-operation-press"),
-          label: title(option),
-        })),
-      );
     }
 
     disconnectedCallback() {

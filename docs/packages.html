@@ -71,6 +71,21 @@ $ leaf package check packages/callout</code></pre>
           guidance, browser modules, widgets, and vendor files. The CSS-only widget here
           leaves them untouched.
         </p>
+        <p>
+          To start with behavior instead, name the first element while creating the
+          package:
+        </p>
+        <pre><code>$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
+        <p>
+          Leaf writes a valid prose-widget registry entry and its one-shot browser
+          module, then checks the complete candidate before changing the package. The
+          tutorial below stays with the smaller CSS-only form so each contract remains
+          visible. A behavior module imports Leaf's package API from
+          <code>../runtime/widget-api.js</code>; it registers each interactive
+          capability once with <code>commands()</code>. The same live command rows feed
+          keyboard dispatch, help, accessibility shortcuts, and—when marked
+          <code>decision: true</code>—the controls shown inline for an Ask.
+        </p>
       </section>
 
       <section id="theme">

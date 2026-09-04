@@ -15,16 +15,35 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
-  outcome: { label: "Outcome", icon: "check", priority: 3, indication: true },
-  sent: { label: "Sent", icon: "sent", priority: 3, indication: true },
-  pickup: { label: "Picked up", icon: "pickup", priority: 3, indication: true },
+  outcome: {
+    label: "Outcome",
+    icon: "check",
+    priority: 3,
+    indication: true,
+    state: "settled",
+  },
+  sent: {
+    label: "Sent",
+    icon: "sent",
+    priority: 3,
+    indication: true,
+    state: "busy",
+  },
+  pickup: {
+    label: "Picked up",
+    icon: "pickup",
+    priority: 3,
+    indication: true,
+    state: "settled",
+  },
   waiting: {
     label: "Waiting for pickup",
     icon: "waiting",
     priority: 3,
     indication: true,
+    state: "busy",
   },
-  activity: { label: "Active", icon: "activity", priority: 4 },
+  activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
 };
 
 // Content modules contribute what their target offers; this projection decides where
@@ -165,10 +184,10 @@ function syncForwardedButtonState(projection, source) {
 
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
-// controls one family. The visible word remains in the DOM as a transient label, so
-// every Button keeps one circular fitting and one stable accessible name. Native
-// `title` bubbles would repeat that label on a different timer and with a different
-// face, so this anatomy owns the only visual tooltip too.
+// controls one family. The visible word stays in the DOM as a transient label, so
+// every Button-shaped fitting keeps one stable accessible name. Native `title`
+// bubbles would repeat the word on a different timer and with a different face, so
+// this anatomy owns its only visual presentation too.
 export function marginAction(
   control,
   {
@@ -213,6 +232,7 @@ export function marginAction(
   control.dataset.lfBehavior = record.behavior;
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
+  control.dataset.lfOffer = behavior === "receipt" ? "" : "button";
   marginActionState(control, state);
   const opens = behavior === "disclosure" || behavior === "options";
   if (opens && !control.hasAttribute("aria-expanded"))
@@ -221,6 +241,9 @@ export function marginAction(
   if (behavior === "receipt") {
     control.setAttribute("role", "status");
     control.tabIndex = -1;
+  } else if (!(control instanceof HTMLButtonElement)) {
+    control.setAttribute("role", "button");
+    if (control.tabIndex < 0) control.tabIndex = 0;
   } else if (control.getAttribute("role") === "status") {
     control.removeAttribute("role");
     control.removeAttribute("tabindex");
@@ -591,10 +614,10 @@ export function createLivingMargin(dependencies) {
     const revealed = motion(
       preview,
       [
-        { opacity: 0, transform: "translateY(2px) scale(.99)" },
+        { opacity: 0, transform: "translateY(2px)" },
         {
           opacity: 0,
-          transform: "translateY(2px) scale(.99)",
+          transform: "translateY(2px)",
           offset: 0.42,
         },
         { opacity: 1, transform: "none" },
@@ -911,11 +934,27 @@ export function createLivingMargin(dependencies) {
   function readingState(choice) {
     return (
       (choice?.items ?? [])
-        .map((item) => item.state ?? (item.acknowledgmentFace ? "busy" : "idle"))
+        .map((item) => item.state ?? item.acknowledgmentFace?.state ?? "idle")
         .sort(
           (left, right) => STATE_PRIORITY.get(left) - STATE_PRIORITY.get(right),
         )[0] ?? "idle"
     );
+  }
+
+  const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
+
+  function readingControl(className) {
+    const control = offer("span", className);
+    control.addEventListener("keydown", (event) => {
+      if (
+        control.getAttribute("role") !== "button" ||
+        (event.key !== "Enter" && event.key !== " ")
+      )
+        return;
+      event.preventDefault();
+      control.click();
+    });
+    return control;
   }
 
   function syncThreadRelation(control, isThread) {
@@ -1614,6 +1653,7 @@ export function createLivingMargin(dependencies) {
   function paintMarker(row, entry, primary) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
     const choice = primaryReading(entry);
+    const behavior = readingBehavior(face);
     row.lfEntry = entry;
     row.hidden = markerKinds.length === 0 || Boolean(primary);
     row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
@@ -1621,11 +1661,11 @@ export function createLivingMargin(dependencies) {
       key: `reading:${choice?.key ?? "none"}`,
       icon: face.icon,
       label,
-      behavior: face.indication ? "receipt" : "disclosure",
+      behavior,
       role: "reading",
       state: readingState(choice),
     });
-    row.onclick = face.indication ? null : pressMarker;
+    row.onclick = behavior === "receipt" ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     syncActionCount(row, markerCount);
@@ -1702,18 +1742,18 @@ export function createLivingMargin(dependencies) {
     const key = readingKey(entry, choice);
     let node = readingButtons.get(key);
     if (!node) {
-      node = offer("button", "lf-margin-reading-option");
-      node.type = "button";
+      node = readingControl("lf-margin-reading-option");
       readingButtons.set(key, node);
     }
     const face = readingFace(choice);
+    const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
     marginAction(node, {
       key: `reading:${choice.key}`,
       icon: face.icon,
       label,
-      behavior: "disclosure",
+      behavior,
       role: "reading",
       state: readingState(choice),
     });
@@ -1726,14 +1766,17 @@ export function createLivingMargin(dependencies) {
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
     syncActionCount(node, count);
-    node.onclick = () => {
-      if (node.lfChoice.kind !== "comment") {
-        setOptionsOpen(node.lfEntry, false, { returnFocus: true });
-        activate(node.lfChoice.items[0], node.lfEntry, { focusMap: false });
-        return;
-      }
-      openThreadChoice(node.lfEntry, node);
-    };
+    node.onclick =
+      behavior === "receipt"
+        ? null
+        : () => {
+            if (node.lfChoice.kind !== "comment") {
+              setOptionsOpen(node.lfEntry, false, { returnFocus: true });
+              activate(node.lfChoice.items[0], node.lfEntry, { focusMap: false });
+              return;
+            }
+            openThreadChoice(node.lfEntry, node);
+          };
     return node;
   }
 
@@ -2108,7 +2151,7 @@ export function createLivingMargin(dependencies) {
         host = el("div", "lf-ui lf-margin-item");
         host.dataset.lfGen = "1";
         host.setAttribute("role", "group");
-        marker = marginAction(offer("button", "lf-margin-marker"), {
+        marker = marginAction(readingControl("lf-margin-marker"), {
           key: "reading",
           icon: "dot",
           label: "Open page details",
@@ -2168,8 +2211,16 @@ export function createLivingMargin(dependencies) {
         host.addEventListener("focusout", () =>
           requestAnimationFrame(refreshHighlight),
         );
-        const takePointerOwnership = () => {
-          hoveredHost = host;
+        const takePointerOwnership = (event) => {
+          const control = document
+            .elementFromPoint(event.clientX, event.clientY)
+            ?.closest?.(".lf-margin-action");
+          hoveredHost =
+            control &&
+            host.contains(control) &&
+            control.dataset.lfBehavior !== "receipt"
+              ? host
+              : null;
           refreshHighlight();
         };
         host.addEventListener("pointermove", takePointerOwnership);

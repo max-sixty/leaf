@@ -1563,11 +1563,11 @@ activation owner.
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
   place;
 - `receipt` reports a move already made and offers no press. It keeps its icon and its
-  seat in the cluster, but gives up its ring, fill, hover lift, pointer, and tab stop. It
-  remains a `status` in the accessibility tree so the Page map can still land there and
-  name the phase.
+  circular Button silhouette and seat in the cluster, but gives up its hover lift,
+  pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
+  can still land there and name the phase.
 
-Ring weight distinguishes the three controls; a receipt has no ring. The shape stays
+Ring weight distinguishes immediate actions from the other fittings. The shape stays
 shared, with no chevron. A lone non-thread informational Button reveals its target
 directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
@@ -1577,13 +1577,15 @@ it room beside the source, the same press opens the full Threads surface. The th
 card is the only generated contextual pane, not a generic container for alternatives.
 
 Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
-rings, fills, and state marks keep their shared neutral treatment. State has a
-separate small corner mark: a dot for engaged, an open moving ring for busy (static
-under reduced motion), a diamond for failed, and a square for settled. Busy also sets
-`aria-busy="true"`; failed and settled action receipts need visible words, not color
-or shape alone. Standing reactions reuse the settled square in their margin palette
-and seated marks, so they remain distinct from hover without changing the shared
-ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
+rings, fills, and state marks keep their shared neutral treatment. An interactive
+Button's state has a separate small corner mark: a dot for engaged, an open moving ring
+for busy (static under reduced motion), a diamond for failed, and a square for settled.
+The mark is enough to state that a Button is busy, so the Button itself stays at full
+opacity and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled
+actions need visible words, not color or shape alone. A receipt's phase is its transient
+hover or focus label instead of a corner mark. Standing reactions reuse the settled
+square in their margin palette and seated marks, so they remain distinct from hover
+without changing the shared ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
 withdrawing a token returns its palette Button to idle.
 `marginActionState(control, state)` changes that axis without changing the verb, ring,
 or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
@@ -1620,20 +1622,22 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Every Button keeps one circular fitting, whether or not it draws the circle. Its label
-appears as transient chrome on hover or keyboard focus without changing the cluster's
-geometry. An open disclosure suppresses the label because the context it opened now
-names the Button's result. Labels for `disclosure` and `options` end in an ellipsis
-because they open something; action and receipt labels do not. The complete label
-remains in the DOM, and its accessible name tracks the fitting.
+Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
+hover or keyboard focus without changing the cluster's geometry. An open
+disclosure suppresses the label because the context it opened now names the Button's
+result. Labels for `disclosure` and `options` end in an ellipsis because they open
+something; action and receipt labels do not. The complete label remains in the DOM, and
+its accessible name tracks the control or status.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it
 belongs to the name alone. Painted beside the phase, the same words read as progress
 rather than position.
 
-Hover or focus on any fitting illuminates its exact target, including a cluster
-displaced by packing. Labels stay inside the viewport without moving the fitting.
+Hover or focus on any interactive fitting illuminates its exact target, including a
+cluster displaced by packing. Hovering a receipt shows its label without lifting it or
+claiming its target; a numbered Page-map arrival may still focus it and illuminate the
+target deliberately. Labels stay inside the viewport without moving the fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
 action through Page map; counting hidden DOM nodes is not evidence of reachability.
 
@@ -2351,25 +2355,28 @@ box rather than each of its words.
 
 A press that acts on where the reader is standing reads it through
 `standingItem`: the unanswered decision where focus is on a control that works it — a
-pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
-own reading. It answers nothing in the chrome, where a reader is working on the
-page rather than standing in it.
+pick, a ✓, a mark — an answered decision on its explicit review arrival, and the
+innermost item everywhere else, which is the ⌥ aim's own reading. It answers nothing
+in ordinary chrome, where a reader is working on the page rather than standing in it.
 
-Unanswered rather than open: `standingIn` reads `unansweredDecisions`, not `openDecisions`.
-The two part on a widget whose own seat is mid-conversation with the agent, which
-leaves the reader's list while its pick stays unmade and its controls stay live.
+Semantic rather than merely open: `standingIn` first reads `unansweredDecisions` to
+preserve the special case below, then `allDecisions` only for an answered Ask's tray
+row or the semantic focus that row lands on, so the Ask can still be worked without
+turning focus on one of its options into focus on the whole question. Neither reading
+is merely `openDecisions`. The unanswered and reader lists part on a widget whose own
+seat is mid-conversation with the agent, which
+leaves the reader's worklist while its pick stays unmade and its controls stay live.
 Following the list took the ring off that widget the moment the remark was sent and
 moved `c` down to whichever option the focus rested on — a second thread on the
 child rather than the next line of the reader's own — and the agent's reply put both
-back, with nothing the reader did moving either. An answered decision parts from neither
-list, so a picked group gains no ring, and a press from one of its picks names the
-option under the focus rather than the question.
+back, with nothing the reader did moving either. An answered decision leaves both
+worklists but stays in `allDecisions`, so a tray row can return the reader to it and
+the same Ask-local numeric actions can revise its answer.
 
-The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to and the
-tray does not list, which is the accepted cost: the walk and the tray are the reader's
-list and this is not. Nothing strands the reader there — `markHere` looks its tray row
-up by id and finds none, the same as on every page with the tray shut, and the Escape
-rung reads focus rather than the list, so the way out is the one they always have.
+The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to.
+The tray does list it: the walk is a worklist, while the tray is the complete route
+through the active Ask inventory. The Escape rung still reads focus rather than either
+list, so the way out is the one it always has.
 
 Working a decision and standing in one are different facts, and `markHere`'s ring
 answers the second. A reader who tabbed to a link inside a question has named
@@ -2386,17 +2393,16 @@ than for the container's class, because a resolved thread is built by the same
 function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
-The banner's Asks count is the ring in numbers. While the reader stands in an ask
-on the reader's list it says which of how many — `Asks (3/7)` — and `sayAsks` paints
-it from the same `standingIn` reading and the same `openDecisions` list as the ring
-and the tray row, so the three cannot name different places. Leaving the ask
-returns the bare count the way it takes the ring away. An ask the ring can mark
-but the walk will not step to shows the bare count, because a number is a place in
-the walk's list.
+The banner's Asks count is durable progress: `Asks 3/7` means three of the seven
+active Decisions are answered. `allDecisions` supplies the denominator and
+`unansweredDecisions` supplies what remains outside the numerator, so moving focus
+or walking the page changes neither number. At 7/7 the same button stays available
+and takes the positive treatment; it is both the completion signal and the route back
+through the answers.
 
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-clicking elsewhere removes the focus-derived ring, and the count's place with it,
-without erasing the walk's useful continuation point.
+clicking elsewhere removes the focus-derived ring without erasing either the walk's
+useful continuation point or the answer progress in the banner.
 
 `shownParts` supplies ring targets when a page styles a decision with
 `display: contents`. A normal boxed decision wears one outline on its own box.
@@ -2592,14 +2598,15 @@ retire Threads, then presents the remembered tray directly without replaying
 opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
 tray.
 
-Decision rows come from local `x-awaits` sources and ready holders declaring
-`x-request.decision`, not from a list of decision tags. Where an `x-awaits` source is
-nested in an `x-decision` region, the row names the region: its heading, context, and
-evidence are the decision the reader is being sent to, while the source remains
-the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-tray row travels through the same decision-arrival function as `a` and `A`, so the
-panel and directional walk agree about focus, reveal, arrival placement, and
-`landed`.
+Decision rows come from every active local `x-awaits` source and holder declaring
+`x-request.decision`, answered or open, not from a list of decision tags. Where a source
+is nested in an `x-decision` region, the row names the region: its heading, context, and
+evidence are the decision the reader is being sent to, while the source remains the
+owner of the answer. `itemSays` supplies each row's own label and the widget's
+decision-action registration supplies its current answer. Selecting a tray row travels
+through the same decision-arrival function as `a` and `A`, so the panel and directional
+walk agree about focus, reveal, arrival placement, and `landed`; only the tray's list is
+wider, preserving answered routes for review and revision.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
 aligned and the one the ring names. The widget's contributed actions are addressable
@@ -2636,9 +2643,10 @@ action in the log cannot substitute for that revision. Only then may the agent
 resolve the original thread. Threads owns the reader-facing clarification; the
 page's Decision remains the proposal with the agent rather than counting both.
 
-That combined reading is what `openDecisions` returns, so the
-banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
-list, and a request the agent owes the next word on does not belong on one.
+That combined reading is what `openDecisions` returns, so the `a`/`A` walk follows the
+reader's worklist and a request the agent owes the next word on does not belong on it.
+The banner and tray instead use `allDecisions`, the current page-and-thread inventory
+that retains an answered action Decision and a request throughout its lifecycle.
 
 Three readings ask the other question — whether the request is *answered* — and all
 say so by emptying the seats (`answeredContext`, stated beside the shape rather than
@@ -2646,9 +2654,10 @@ by a caller reaching into it, so a member derived from those conversations later
 cannot escape the emptying). An action's `requires` is one: a conversation does not
 answer a question the widget holds no state for, and refusing a pick over the reader's
 own remark would refuse them the answer they were asked for. The version-response
-resolve gate is another. Where the reader is standing is the third, through
-`unansweredDecisions`; **Standing somewhere** owns it. Frozen thread markup seats no
-conversation of its own, so only an action answers there. A `rollup` instance is an
+resolve gate is another. Where the reader is standing preserves that reading first,
+then widens through `allDecisions` for answered-review routes; **Standing somewhere**
+owns it. Frozen thread markup seats no conversation of its own, so only an action
+answers there. A `rollup` instance is an
 aggregate-only owner: it awaits when any nearest local decision or child roll-up
 awaits, but it never enters the visible list. The standing projection keeps every
 open local member; an enclosing `x-decision` replaces that member only on the

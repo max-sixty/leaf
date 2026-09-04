@@ -232,6 +232,7 @@ import {
   word,
 } from "./runtime/keyboard/bindings.js";
 import {
+  allDecisions,
   answeredContext,
   decisionSource,
   createDecisionModel,
@@ -738,12 +739,12 @@ const {
   leavesOffered: () => leavesOffered(),
   moveShell,
   motion,
-  openDecisions,
+  allDecisions,
   pagePresented,
   paintKeys,
   PRESS,
   readerStore,
-  renderDecisions: () => renderDecisions(openDecisions()),
+  renderDecisions: () => renderDecisions(),
   syncLayout,
   trayChanged: () => livingMargin?.render(),
   walkRows,
@@ -1171,7 +1172,7 @@ function reserveBannerControls() {
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Asks (999/999)"]);
+  reserve(decisionsBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   foldShelf();
 }
@@ -1994,6 +1995,7 @@ const {
   PAGE_PAINT_ATTRIBUTE,
   actionLayer: decisionActionLayer,
   actionReachable: () => decisionActionReachable(),
+  allDecisions,
   scrollBehavior,
   documentFocused,
   announce,

@@ -988,7 +988,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
     than letting uv find whatever project the cwd sits in. Running it from an
     unrelated directory exercises that.
 
-    The version under it carries a mermaid body that doesn't parse — a shape the
+    The version under it carries a diagram body that doesn't parse — a shape the
     static lint cannot reach, since it validates the element and never the
     notation inside it. The widget fails soft and the browser half is what sees
     the error box, which is why the gate is worth its couple of seconds."""

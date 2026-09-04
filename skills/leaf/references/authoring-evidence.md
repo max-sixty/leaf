@@ -27,11 +27,20 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task's nested Decision takes a pick.
 Do not copy the connective sentence from another page.
 
-Use `lf-diagram` for what Mermaid draws — a flow, a sequence, a state machine —
-and `lf-chart` for quantities: a comparison across a few categories, a run over
-time, a ranking, a composition, two numbers against each other. The Mermaid
-renderer is 3.6MB, so `lf-diagram` travels in the `diagram` package rather than in
-every page: initialize a page that wants one with
+Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
+schemas, and small XY plots; Beautiful Mermaid renders that Mermaid-source subset.
+Flowcharts accept Mermaid's classic node shapes. Their `classDef` declarations can
+set `fill`, `stroke`, `color`, and `stroke-width`; other properties are ignored. Apply
+Leaf's semantic tokens directly, for example
+`fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Inspect every rendered
+flowchart: Beautiful Mermaid can interpret an unknown or malformed line as a node, or
+render only the valid part of a malformed statement, instead of reporting an error.
+`version check --render` detects renderer failures, not this silent partial output. Use
+`lf-chart` for
+quantities that need Leaf's data-first chart vocabulary: a comparison across a few
+categories, a run over time, a ranking, a composition, or two numbers against each
+other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`
+package rather than in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`. `lf-chart` needs no selection. A handful of
 numbers the sentence beside them can carry is prose; a chart is for when the
 shape of the numbers is the point. Use inline SVG only for a bespoke drawing.
@@ -39,10 +48,10 @@ Use `<pre><code class="language-…">` for selectable literal source and `lf-cod
 for a line-numbered walkthrough. The registry's `$languages.names` lists accepted
 language names. Keep logs and transcripts plain when they are not source code.
 
-Which Mermaid type you pick also decides whether a reader can comment on one box
-or only on the whole drawing. The `lf-diagram` entry says which types carry
-`parts`; a sequence diagram does not, so its steps take one comment on the
-picture between them.
+The authored source ids also provide comment coordinates. A flowchart node or
+subgraph, state or composite state, sequence participant, class, or ER entity listed
+in `parts` takes an individual comment. Edges, sequence messages, and XY marks have no
+stable source id and take comments on the whole drawing.
 
 ## Source files and media
 

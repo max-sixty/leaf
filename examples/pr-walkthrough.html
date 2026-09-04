@@ -332,8 +332,8 @@ flowchart LR
   Temp --> Staged[Staged]
   Temp --> Unstaged[Unstaged]
   Temp --> Untracked[Untracked]
-  classDef removed fill:#f7e0da,stroke:#b4402f,color:#6b2118,stroke-dasharray:4 3
-  classDef added fill:#dfeddf,stroke:#3f7d4e,color:#1f512e
+  classDef removed fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
+  classDef added fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Working removed
   class Unified,Prepared,Temp added
 </pre>

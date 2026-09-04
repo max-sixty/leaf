@@ -1,8 +1,9 @@
 /* lf-chart: the quantitative picture — bars, stacked bars, lines and dots — drawn from a
  * comma-separated body by the vendored Observable Plot. lf-diagram draws the graphs a page
- * needs (flow, sequence, state); this draws its numbers, which mermaid's xychart cannot:
- * it has no (x, y) pairs at all, x being the array index, so an irregular series is plotted
- * at even spacing and two bar series overdraw each other rather than standing side by side.
+ * needs (flow, sequence, state); this draws its numbers from a small, checkable table.
+ * The diagram renderer's xychart has no (x, y) pairs at all: x is the array index, so
+ * an irregular series is plotted at even spacing and two bar series overdraw each other
+ * rather than standing side by side.
  *
  * The body is the data rather than a chart spec. An author writes the numbers once, in the
  * order they think in, and says separately which picture they are (`kind`). It is the shape
@@ -13,11 +14,8 @@
  * Colour is CSS and never JavaScript. Every mark Plot draws takes `currentColor` unless a
  * colour channel says otherwise, so one class on each mark's group (`lf-series-N`) and one
  * rule per series in the theme paints the whole chart — bars, lines and dots alike. A
- * diagram cannot have that: mermaid takes colours as strings, so lf-diagram resolves the
- * tokens, hands them over, and rewrites the values it gets back into `var(--token, #hex)`
- * to win the scheme flip and the export. That pass works, and what it cannot reach is
- * whatever mermaid derived for itself. Here there is nothing to resolve and nothing to
- * write back.
+ * diagram renderer also accepts CSS variables, but its palette applies to semantic
+ * diagram roles rather than data series. Here the class on each mark is the series key.
  *
  * The vendored bundle loads lazily, once, and only on pages that draw something: every
  * x-upgrade module is imported on every page, so a static import would put 384KB in front
@@ -548,8 +546,8 @@ customElements.define(
         // Everything after the first draw is the room changing under it: a window
         // resized, the thread panel opening and taking its strip out of the column. The
         // drawing would scale with the box and take its labels below legibility with it,
-        // which is what a diagram has to live with and a chart does not — it can simply
-        // be drawn again. Only the width is watched, and only when it lands on a new
+        // while a diagram keeps its renderer-defined geometry. A chart can simply be
+        // drawn again. Only the width is watched, and only when it lands on a new
         // whole pixel. The redraw itself is scheduled after ResizeObserver delivery:
         // painting changes the height, and feeding that geometry back through the same
         // delivery cycle produces the browser's "undelivered notifications" warning

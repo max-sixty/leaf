@@ -326,6 +326,23 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
       return {ink: face.color, ring: face.borderTopColor, fill: face.backgroundColor};
     }"""
 
+    # The press applied, and not merely delivered, before the reopen below asks for the row
+    # again. `round_trip` ends on what the page has heard back, and the margin renders that
+    # state after it; a render taken over an open options row says so on
+    # `lf-button-options-closed`, which is what takes the row away. A reopen placed in that
+    # gap presses `r` at a cluster the arriving state is about to rebuild, so the row either
+    # never opens or is closed under the press. The wait on the wire comes first because a
+    # post the browser has not reported yet is not pending, and a trip that ends before the
+    # press is in the wire leaves nothing for `told` to wait on either.
+    def stands(press):
+        sent = _traffic(page).sends
+        press()
+        _until(
+            page, lambda traffic: traffic.sends > sent, "put the reaction in the wire"
+        )
+        round_trip(page)
+        told(page)
+
     def assert_selected_face(reaction, reopen, witness):
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
@@ -337,8 +354,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
         assert reaction.evaluate(witness) is False
-        reaction.click()
-        round_trip(page)
+        stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "true")
@@ -349,8 +365,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         reaction.hover()
         assert reaction.evaluate(read) == selected
         assert reaction.evaluate(witness) is True
-        reaction.click()
-        round_trip(page)
+        stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")

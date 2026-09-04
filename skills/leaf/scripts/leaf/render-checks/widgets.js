@@ -49,8 +49,7 @@ const renderedAt = (element) => {
 // properties. Resolve each value through a temporary custom property in the element's
 // live cascade, then let the browser validate the resulting tokens for that property.
 export function invalidPaints() {
-  const main = document.querySelector("main");
-  if (!main) return [];
+  if (!document.querySelector("main")) return [];
   const properties = [
     "color",
     "fill",
@@ -60,7 +59,7 @@ export function invalidPaints() {
     "stroke",
   ];
   const found = [];
-  for (const root of openRoots(main))
+  for (const root of openRoots(document))
     for (const element of root.querySelectorAll(
       "[color], [fill], [flood-color], [lighting-color], [stop-color], [stroke], [style]",
     )) {

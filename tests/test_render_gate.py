@@ -735,9 +735,11 @@ def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
     """The browser must resolve generated paint against the page's live cascade.
 
     A missing custom property is valid CSS syntax, so the diagram renderer accepts it
-    and SVG silently falls back to black. A fallback is the control: it names an absent
-    property but resolves to a shipped color in both schemes. The native SVG is the
-    other control: a gradient reference is valid paint even though it is not a color.
+    and SVG silently falls back to black. The same contract covers widgets frozen into
+    an agent's reply, which render in the thread panel outside main. A fallback is the
+    control: it names an absent property but resolves to a shipped color in both schemes.
+    The native SVG is the other control: a gradient reference is valid paint even though
+    it is not a color.
     """
     page = leaf_page(
         "diagram paint",
@@ -762,15 +764,44 @@ flowchart LR
 }</style>""",
     )
 
-    failures = render_gate_model.render_version(browser, serve(page))
+    url = serve(page)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-paint",
+            "author": "user",
+            "revision": 1,
+            "text": "Show the same diagram in your reply.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-paint",
+            "revision": 1,
+            "text": "Here it is:",
+            "markup": """<lf-diagram id="sent"><pre>
+flowchart LR
+  Missing[Missing]
+  classDef missing fill:var(--accent-tint),stroke:var(--accent),color:var(--ink)
+  class Missing missing
+</pre></lf-diagram>""",
+        },
+    )
+
+    failures = render_gate_model.render_version(browser, url)
     unresolved = [f for f in failures if "does not resolve to valid fill" in f]
 
-    assert len(unresolved) == 2, failures
-    assert all(
-        "<lf-diagram id='flow'> renders fill='var(--accent-tint)' on <rect> "
-        "for data-id='Missing'" in failure
-        for failure in unresolved
-    ), unresolved
+    assert len(unresolved) == 4, failures
+    for diagram in ("flow", "sent"):
+        expected = (
+            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-tint)' on <rect> "
+            "for data-id='Missing'"
+        )
+        assert sum(expected in failure for failure in unresolved) == 2, unresolved
     assert not any(
         token in failure
         for failure in failures

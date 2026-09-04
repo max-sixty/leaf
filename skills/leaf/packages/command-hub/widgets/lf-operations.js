@@ -95,11 +95,20 @@ customElements.define(
       if (quoted(this)) return;
       if (!this._stop)
         this._stop = watchRequestLifecycle(this, (lifecycle) => paint(this, lifecycle));
-      this._decisionActions ??= registerDecisionActions(this, () =>
-        children(this).map((option) => ({
-          control: option.querySelector(":scope > .lf-operation-press"),
-          label: title(option),
-        })),
+      this._decisionActions ??= registerDecisionActions(
+        this,
+        () =>
+          children(this).map((option) => ({
+            control: option.querySelector(":scope > .lf-operation-press"),
+            label: title(option),
+          })),
+        () => {
+          const action = this._lifecycle.latest?.request?.action;
+          const selected = children(this).find(
+            (option) => option.getAttribute("verb") === action,
+          );
+          return selected ? title(selected) : "";
+        },
       );
     }
 

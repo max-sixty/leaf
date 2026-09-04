@@ -172,16 +172,17 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-A widget that can be an Ask calls `registerDecisionActions(source, read)` once at
-upgrade. `read` returns its current ordered `{control, label, address?}` actions; call the
-returned `update()` after replacing controls or changing their availability. `address`
-may name an address face the widget already positions for its local scope, so the Ask and
-local projections align; otherwise core paints at the visible control. The core gives the
-first nine actions contextual numeric keys and paints chips only for actions currently in
-view. Contribute the controls that actually answer or advance the Ask rather than scanning
-all offered descendants: evidence inside an option is not an answer, and shared-margin
-Buttons may sit outside the source. The control's own click remains the one activation
-path.
+A widget that can be an Ask calls `registerDecisionActions(source, read, answer)` once
+at upgrade. `read` returns its current ordered `{control, label, address?}` actions;
+`answer` returns the concise current answer the Asks tray shows after the Decision is
+answered. Call the returned `update()` after replacing controls or changing their
+availability. `address` may name an address face the widget already positions for its
+local scope, so the Ask and local projections align; otherwise core paints at the visible
+control. The core gives the first nine actions contextual numeric keys and paints chips
+only for actions currently in view. Contribute the controls that actually answer,
+advance, or revise the Ask rather than scanning all offered descendants: evidence inside
+an option is not an answer, and shared-margin Buttons may sit outside the source. The
+control's own click remains the one activation path.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical

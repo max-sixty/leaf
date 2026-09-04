@@ -566,6 +566,7 @@ DECISIONS_IN_ORDER = [
     "t-baffles-decision",
     "t-bath-decision",
 ]
+ALL_DECISIONS_IN_ORDER = [*DECISIONS_IN_ORDER, "honored-decision"]
 
 
 DECISION_WITH_CONTEXT_PAGE = leaf_page(
@@ -729,6 +730,8 @@ DECISION_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-decisions-
   at: r.getAttribute('data-lf-at'),
   kind: r.querySelector('.lf-decisions-kind').textContent,
   says: r.querySelector('.lf-decisions-says').textContent,
+  answer: r.querySelector('.lf-decisions-answer').textContent,
+  state: r.getAttribute('data-lf-answer-state'),
   w: Math.round(r.getBoundingClientRect().width),
   h: Math.round(r.getBoundingClientRect().height),
 }))"""

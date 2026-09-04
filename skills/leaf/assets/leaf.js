@@ -519,6 +519,13 @@ function paintHere() {
     herePending = false;
     markHere();
     paintStanding();
+    // The key line is geometry for every address and target painted around it. Render
+    // its new words first, then let the one chrome-layout writer place that resulting
+    // box before any consumer reads it. ResizeObserver remains the door for font, window,
+    // and other size changes; state-driven content changes complete in this frame rather
+    // than leaving placement and hints one observer frame behind.
+    renderLine();
+    syncLayout();
     // The chips are where the reader can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because it is one question, and
     // because a chip repainted by its own door alone went stale on the door it did not
@@ -528,7 +535,6 @@ function paintHere() {
     paintTargets();
     paintCoreControls();
     paintInputHints();
-    renderLine();
   });
 }
 
@@ -945,8 +951,8 @@ generalRow.append(generalInput, generalSend);
 // The panel's foot: everything standing below the scrolling thread list. The general
 // box is what it holds at rest, and the page's own reaction strip joins it above that
 // box when the registry offers reactions. One box rather than two siblings, because the
-// chrome lifts the key line clear of the foot over a covering panel, and a lift
-// measured off the composer alone stood it on the strip's pills.
+// chrome treats the whole painted foot as one obstacle when it actually meets the key
+// line; measuring the composer alone stood the line on the strip's pills.
 const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);

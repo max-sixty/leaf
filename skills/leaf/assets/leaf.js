@@ -1974,8 +1974,8 @@ const { decisionEntry, isAwaiting, projectedParent, unansweredDecisions } =
   });
 
 // Dispatch is composed after the page table. Until then the decision view can paint its
-// ring but has no complete scope stack from which to claim that a digit is reachable.
-let decisionActionReachable = () => false;
+// ring but has no complete scope stack from which to resolve action command routes.
+let availableDecisionActionCommands = () => new Set();
 const {
   DECISION_CONTROL,
   DECISION_ROW,
@@ -1994,7 +1994,7 @@ const {
 } = createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   actionLayer: decisionActionLayer,
-  actionReachable: () => decisionActionReachable(),
+  availableActionCommands: () => availableDecisionActionCommands(),
   allDecisions,
   scrollBehavior,
   documentFocused,
@@ -3069,7 +3069,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   takesLetters,
   TYPING,
 });
-decisionActionReachable = () => availableCommands().has(actionRow.id);
+availableDecisionActionCommands = availableCommands;
 const reference = createReference({
   byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
@@ -3645,6 +3645,7 @@ livingMargin = createLivingMargin({
   panelIsOpen: chromeLayout.panelIsOpen,
   paintKeys,
   placedAt,
+  PRESS,
   quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
   says,

@@ -27,6 +27,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     touched = context.touched
     replayed = context.replayed
     failsoft = evaluate_probe(page, "failSoftErrors")
+    invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
     missing_visual_providers = evaluate_probe(page, "missingVisualProviders", widgets)
     tiny = evaluate_probe(page, "tinyBoxes", widgets)
@@ -195,6 +196,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     wait_for_probe(page, "framePresented", requested_frame)
     return _SchemeReadings(
         failsoft=failsoft,
+        invalid_paints=invalid_paints,
         missing_upgrades=missing_upgrades,
         missing_visual_providers=missing_visual_providers,
         tiny=tiny,

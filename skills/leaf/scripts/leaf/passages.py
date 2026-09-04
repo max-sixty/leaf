@@ -23,7 +23,7 @@ from .structure import VOID_TAGS, implicit_closes
 #   x-verbatim  an upgraded element whose body reaches the reader as its own words
 #               (lf-draft renders the authored text into a plain div, deliberately
 #               unmarked so anchoring can see it). Without it, an upgraded element is
-#               opaque: a mermaid body is a picture by the time it is read.
+#               opaque: a diagram body is a picture by the time it is read.
 #   x-retired-when  the outcome under which this element leaves the page: a decided
 #               suggestion's losing slot. The browser builds its anchor pass's skip
 #               list from this key too (`quotable` in leaf.js), so a reading given

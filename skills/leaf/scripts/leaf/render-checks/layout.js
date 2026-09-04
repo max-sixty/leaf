@@ -291,7 +291,7 @@ export function misplacedBoxes() {
   for (const el of main.querySelectorAll("*")) {
     if (!el.checkVisibility()) continue;
     // Nothing inside an <svg> is the page's flow: a foreignObject clips by its
-    // nature, and mermaid's label boxes run an even 8px outside theirs on an
+    // nature, and diagram label boxes run an even 8px outside theirs on an
     // ordinary graph — the drawing's own accounting, not the page losing words.
     if (el.closest("svg")) continue;
     const b = el.getBoundingClientRect();

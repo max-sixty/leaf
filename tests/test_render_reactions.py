@@ -42,7 +42,8 @@ PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
   glyphs: [...document.querySelectorAll('.lf-reacts > .lf-react-mark')]
     .map(m => [m.parentElement.dataset.lfFor, m.dataset.token]),
-  outlined: [...document.querySelectorAll('.lf-react-el')].map(el => el.id),
+  outlined: [...document.querySelectorAll('.lf-react-el')]
+    .map(el => el.id || el.dataset.id),
 })"""
 
 MARGIN_STATE_WITNESS = """button => {
@@ -1069,7 +1070,7 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     part's resolved box rather than the diagram that owns its stable id."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    start = diagram.locator('g[id*="flowchart-S-"]')
+    start = diagram.locator('g[data-id="S"]')
     start.click()
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
@@ -1099,7 +1100,7 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
         "visual": "node:S",
     }
     shown = painted(page, [["flow", "this"]])
-    assert shown["outlined"] == [start.get_attribute("id")], shown
+    assert shown["outlined"] == [start.get_attribute("data-id")], shown
     expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
     assert errors == []
     page.close()
@@ -1120,7 +1121,7 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
         },
     )
     page, errors = open_page(browser, url)
-    page.locator('#flow g[id*="flowchart-S-"]').click()
+    page.locator('#flow g[data-id="S"]').click()
     expect(page.locator('.lf-fab-bar .lf-react[data-token="this"]')).to_have_attribute(
         "aria-pressed", "false"
     )
@@ -1135,7 +1136,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     resolves that same target again, and the quiet outline stays on it until an
     outside press dismisses both."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
 
     box = start.bounding_box()
@@ -1170,7 +1171,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
         after_reactivation,
     )
 
-    page.locator('#flow g[id*="flowchart-U-"]').click()
+    page.locator('#flow g[data-id="U"]').click()
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     whole = bar.bounding_box()
@@ -1201,7 +1202,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
         1,
     )
     page, errors = open_page(browser, serve(wrapped))
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
 
     page.locator("#caption").click()
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1211,6 +1212,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     ) == [
         {"section": "flow"},
         {"section": "flow", "visual": "node:S"},
+        {"section": "flow", "visual": "node:H"},
     ]
 
     start.click()
@@ -1284,11 +1286,11 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     expect(start).not_to_have_attribute("role", "button")
     expect(start).not_to_have_attribute("tabindex", re.compile(".+"))
     expect(page.get_by_role("button", name="Respond to Handle request")).to_have_count(
-        0
+        1
     )
 
     whole_control = page.locator(".lf-visual-action").first
@@ -1372,7 +1374,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_have_count(1)
     page.evaluate(
         """() => {
-          const oldPart = document.querySelector('#flow g[id*="flowchart-S-"]');
+          const oldPart = document.querySelector('#flow g[data-id="S"]');
           const newPart = oldPart.cloneNode(true);
           oldPart.scrollIntoView = () => { window.lfScrolledPart = 'old'; };
           newPart.scrollIntoView = () => { window.lfScrolledPart = 'new'; };
@@ -1472,7 +1474,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     geometry to what is actually shown, and retracts the bar once none remains."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    start = diagram.locator('g[id*="flowchart-S-"]')
+    start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
     diagram.evaluate("element => { element.style.width = '240px'; }")
 
@@ -1492,7 +1494,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     page.wait_for_function(
         """([was, beforeTarget]) => {
           const now = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          const box = document.querySelector('#flow g[id*="flowchart-S-"]')
+          const box = document.querySelector('#flow g[data-id="S"]')
             .getBoundingClientRect();
           return Math.abs(now.left - was) > 1 && box.left < beforeTarget;
         }""",
@@ -1522,7 +1524,7 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
     """The compatibility click after a drag must not replace freshly selected words
     with the visual target that happens to contain the drag's endpoint."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     label = start.get_by_text("Start request", exact=True)
     box = label.bounding_box()
     select(
@@ -1587,7 +1589,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     clearing that passage dismisses the shared action surface."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     control.focus()
     page.keyboard.press("Enter")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))

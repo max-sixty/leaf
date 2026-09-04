@@ -531,10 +531,14 @@ outside average, before, after
         <lf-diagram id="pm-failure-path" parts="node:Q node:W node:R node:B">
           <pre>
 graph LR
-  Q[queue head] --> W[worker]
-  W -->|serialize fails| R[retry in 45s]
+  Q[(queue head)] --> W(worker)
+  W -->|serialize fails| R([retry in 45s])
   R --> Q
   Q -.->|starved| B[1,204 jobs behind]
+  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  classDef impact fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
+  class R warning
+  class B impact
 </pre>
         </lf-diagram>
         <details id="pm-evidence">
@@ -811,8 +815,8 @@ flowchart LR
   Temp --> Staged[Staged]
   Temp --> Unstaged[Unstaged]
   Temp --> Untracked[Untracked]
-  classDef removed fill:#f7e0da,stroke:#b4402f,color:#6b2118,stroke-dasharray:4 3
-  classDef added fill:#dfeddf,stroke:#3f7d4e,color:#1f512e
+  classDef removed fill:var(--del-tint),stroke:var(--danger),color:var(--danger),stroke-dasharray:4 3
+  classDef added fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Working removed
   class Unified,Prepared,Temp added
 </pre>
@@ -2024,6 +2028,34 @@ run, baseline, candidate
 3, 9, 12
 </pre>
           </lf-chart>
+        </section>
+
+        <section id="bg-diagrams">
+          <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
+          <h3 id="bg-diagrams-heading">
+            <strong>Diagram</strong
+            ><span class="bg-feature-detail">: structure, shape, and state</span>
+          </h3>
+          <p id="bg-diagrams-guide">
+            Diagram nodes keep their authored shapes and can use Leaf’s semantic color
+            tokens. Alt-click a declared node to comment on that box alone.
+          </p>
+          <lf-diagram
+            id="bg-diagram"
+            parts="node:Request node:Choice node:Success node:Retry"
+          >
+            <pre>
+flowchart LR
+  Request([Request]) --> Choice{Valid?}
+  Choice -->|yes| Success[(Stored)]
+  Choice -->|no| Retry([Retry])
+  Retry -.-> Request
+  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
+  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  class Success done
+  class Retry warning
+</pre>
+          </lf-diagram>
         </section>
 
         <section id="bg-code-and-tree">

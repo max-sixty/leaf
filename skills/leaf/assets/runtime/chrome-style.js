@@ -492,7 +492,7 @@ ${MARK_RULES}
      box was thicker at the bottom than the top. One pixel in is inside every ancestor's
      clip and, wherever the element has a border of its own, outside every child's paint,
      which is 72 of the 73 markable elements measured across the examples — the odd one a
-     mermaid node whose fractional width antialiases a device pixel either way.
+     diagram node whose fractional width antialiases a device pixel either way.
      The 73rd is the shape this does not reach, and it is worth naming because the fix
      stops there rather than because it arrived with it: an element with no border of its
      own whose positioned child is flush to the border box has no such band, so lf-shot

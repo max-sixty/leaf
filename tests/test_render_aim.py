@@ -1477,12 +1477,13 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
 
 
 def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, serve):
-    """The aim over a diagram's node named the node — `root-1`, an id mermaid minted and
-    the next render may not — where a plain click already anchored the widget. The
-    entry says which (x-visual: the click's anchor is the widget rather than a generated
-    part inside it), so the aim and the legend both stop at the widget."""
+    """A generated SVG node still names the authored widget when no parts are declared.
+
+    The registry's x-visual contract makes the drawing one item rather than exposing
+    renderer internals, so both the aim and the legend stop at the widget.
+    """
     page, errors = open_page(browser, serve(PICTURE_PAGE))
-    node = page.locator("#flow svg g[id]").first
+    node = page.locator("#flow svg g[data-id]").first
     expect(node).to_be_visible()
     node.hover()
     page.keyboard.down("Alt")
@@ -1509,12 +1510,12 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page, errors = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
 
-    unlisted = diagram.locator('g[id*="flowchart-U-"]')
+    unlisted = diagram.locator('g[data-id="U"]')
     unlisted.click()
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     page.keyboard.press("Escape")
 
-    start = diagram.locator('g[id*="flowchart-S-"]')
+    start = diagram.locator('g[data-id="S"]')
     start.click()
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -1540,7 +1541,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     stamp_version_file(serve.page_dir, 2, "reordered")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(diagram.locator('g[id*="flowchart-S-"]')).to_have_class(
+    expect(diagram.locator('g[data-id="S"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -1549,48 +1550,18 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page.close()
 
 
-def test_a_linked_flowchart_node_opens_its_comment_without_following_the_link(
-    browser, serve
-):
-    """Alt-click claims the linked visual part without following the link and opens
-    Comment on the part in the same gesture."""
+def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve):
+    """A renderer node is implementation in design mode, not an authored control."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    handler = diagram.locator('g[id*="flowchart-H-"]')
-    expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
-
-    handler.click(modifiers=["Alt"])
-    open_compact_comment(page)
-    expect(handler).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
-    expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    page.locator(".lf-composer textarea").fill("keep this linked step visible")
-    page.keyboard.press("Enter")
-    round_trip(page)
-
-    posted = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    ]
-    assert [event["anchor"] for event in posted] == [
-        {"section": "flow", "visual": "node:H"}
-    ]
-    assert errors == []
-    page.close()
-
-
-def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
-    """A design-control label is not reinterpreted as a semantic visual token."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    diagram = page.locator("#flow")
-    handler = diagram.locator('g[id*="flowchart-H-"]')
+    handler = diagram.locator('g[data-id="H"]')
     page.keyboard.press("i")
     handler.click()
 
-    expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · Handle request · lf-diagram · flow"
+    expect(page.locator("#lf-composer-quote")).to_have_text("layer · lf-diagram · flow")
+    page.locator(".lf-composer textarea").fill(
+        "the diagram needs a stronger affordance"
     )
-    page.locator(".lf-composer textarea").fill("the link needs a stronger affordance")
     page.keyboard.press("Enter")
     round_trip(page)
     posted = [
@@ -1599,7 +1570,7 @@ def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
         if event["kind"] == "comment"
     ]
     assert [(event["about"], event["anchor"]) for event in posted] == [
-        ("layer", {"section": "flow", "part": "Handle request"})
+        ("layer", {"section": "flow"})
     ]
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(handler).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -1607,45 +1578,42 @@ def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
     page.close()
 
 
-def test_visual_parts_refuse_a_mermaid_type_the_adapter_cannot_address(browser, serve):
-    """An unsupported promise is visible instead of producing detached anchors later.
-
-    A sequence diagram is the case worth holding: its steps are the obvious thing to
-    want to comment on, and they are exactly what Mermaid draws under no id at all. The
-    error says which types do carry one rather than only that this one does not, because
-    the author's next move is to pick from them."""
-    unsupported = leaf_page(
-        "unsupported diagram parts",
+def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
+    """The renderer carries a participant's authored id into its drawn actor box."""
+    sequence = leaf_page(
+        "sequence diagram parts",
         """
 <h1 id="t">Exchange</h1>
 <lf-diagram id="exchange" parts="node:A"><pre>
 sequenceDiagram
+  participant A as Reader
+  participant B as Server
   A->>B: Request
 </pre></lf-diagram>
 """,
     )
-    page, _ = open_page(browser, serve(unsupported))
+    page, errors = open_page(browser, serve(sequence))
 
-    error = page.locator("#exchange .lf-error")
-    expect(error).to_contain_text("a sequence diagram draws its boxes under ids")
-    expect(error).to_contain_text("flowchart, stateDiagram-v2, erDiagram")
+    actor = page.locator('#exchange g[data-id="A"]')
+    actor.click(modifiers=["Alt"])
+    open_compact_comment(page)
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Reader")
+    expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+    assert errors == []
     page.close()
 
 
 def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     browser, serve
 ):
-    """`parts` follows the ids Mermaid carries, not one diagram type.
+    """`parts` follows the ids the renderer carries, not one diagram type.
 
-    A state's name and an ER entity's name are written in the source the way a
-    flowchart node's is, so each addresses a box across a re-render. Three further
-    things this holds. A composite state is drawn under the author's own id rather than
-    the one Mermaid mints for a plain node, and a box inside it is drawn under Mermaid's
-    as usual, so each takes its own comment. An entity's box holds its whole attribute
-    table, so the thread's label is the source's word for it rather than what the box
-    says, while a node's label stays what the box says. And a later version that inserts
-    a state above the anchored one moves the id Mermaid mints while leaving the authored
-    token where it was.
+    State names, sequence participants, class names, and ER entities are written in the
+    source the way a flowchart node is, so each addresses a box across a re-render. A
+    composite state and a box inside it each take their own comment. An entity's box
+    holds its whole attribute table, so the thread label stays the source name. A later
+    version then inserts a state above the anchored one and rebuilds the SVG while the
+    authored token remains stable.
     """
     page, errors = open_page(browser, live_url(serve(TYPED_PARTS_PAGE)))
 
@@ -1653,7 +1621,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
         target.click(modifiers=["Alt"], **press)
         open_compact_comment(page)
 
-    state = page.locator('#life g[id*="state-Queued-"]')
+    state = page.locator('#life g[data-id="Queued"]')
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     page.locator(".lf-composer textarea").fill("how long does it sit here")
@@ -1667,26 +1635,32 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     expect(page.locator("#life > .lf-mark-note")).to_have_count(1)
 
     # A box inside the composite state, declared in its own right.
-    aim(page.locator('#life g[id*="state-Build-"]'))
+    aim(page.locator('#life g[data-id="Build"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Build")
     page.keyboard.press("Escape")
 
-    aim(page.locator('#life g[id*="Working"]'), position={"x": 6, "y": 6})
+    aim(page.locator('#life g[data-id="Working"]'), position={"x": 6, "y": 6})
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Working")
     page.keyboard.press("Escape")
 
-    entity = page.locator('#shape g[id*="entity-RUNNER-"]')
+    entity = page.locator('#shape g[data-id="RUNNER"]')
     aim(entity)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
     page.keyboard.press("Escape")
 
-    # A node's label is the words the box shows. The source's own string is what
-    # Mermaid renders from — markdown, entities and all — so it is not what a thread
-    # quotes back to the reader.
-    aim(page.locator('#path g[id*="flowchart-A-"]'))
+    # A node's label is the words the box shows.
+    aim(page.locator('#path g[data-id="A"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "§ diagram · Bold and plain"
     )
+    page.keyboard.press("Escape")
+
+    aim(page.locator('#exchange g[data-id="Reader"]'))
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Reader")
+    page.keyboard.press("Escape")
+
+    aim(page.locator('#model g[data-id="Job"]'))
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Job")
     page.keyboard.press("Escape")
 
     aim(entity)
@@ -1707,14 +1681,14 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     expect(entity).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator("#life")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
 
-    # v2 inserts a state above Queued, so Mermaid mints it a new id. The mark follows
-    # the authored token to whatever box that version draws for it.
-    drawn_in_v1 = state.get_attribute("id")
+    # v2 rebuilds the SVG around an inserted state. The mark follows the authored token
+    # to the replacement box rather than retaining a detached renderer node.
+    state.evaluate("el => { window.lfOldQueued = el; }")
     (serve.page_dir / ".fixture-versions" / "v2.html").write_text(TYPED_PARTS_V2)
     stamp_version_file(serve.page_dir, 2, "one state earlier")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(page.locator(f'#life [id="{drawn_in_v1}"]')).to_have_count(0)
+    assert page.evaluate("() => !window.lfOldQueued.isConnected")
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
     page.close()

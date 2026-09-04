@@ -35,20 +35,23 @@ def package_vendor(package: str) -> Path:
     """Where a bundle lands, which is the package whose widget imports it.
 
     A vendored library is payload of the package that draws with it, not of the
-    layer: mermaid and Pierre are 5.3MB between them and reach a page only when it
-    selects `diagram` or `diff`, so a page that draws neither carries neither.
+    layer: Beautiful Mermaid and Pierre are about 3.2MB between them and reach a
+    page only when it selects `diagram` or `diff`, so a page that draws neither
+    carries neither.
     """
     return PACKAGES / package / "vendor"
 
 
 # Every pinned version, exact and in one place. A range would let a dependency
 # move under a bundle nobody rebuilt, and then the tracked bytes stop being what
-# this file produces. `esbuild` is the tool the three builds share rather than
+# this file produces. `esbuild` is the tool the browser bundles share rather than
 # payload, so it moves when a bundle needs it rather than on every release.
 PINS = {
     "highlight.js": "11.12.0",
     "marked": "18.0.11",
-    "mermaid": "11.17.2",
+    "beautiful-mermaid": "1.1.3",
+    "elkjs": "0.11.1",
+    "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.3.6",
@@ -74,19 +77,6 @@ COPIES = {
     # what it may not do — pass raw HTML through, since a message injects widgets
     # only through the event's `markup` field — is configured in leaf.js.
     "marked": Copy("marked", "lib/marked.esm.js", ASSETS / "vendor/marked.esm.js"),
-    # lf-diagram loads mermaid through a `<script src>` tag and reads
-    # `globalThis.mermaid`, so this is the IIFE build that defines that global —
-    # the ESM entry defines none, and the widget imports no modules. mermaid
-    # publishes its dependencies already built in, so there is nothing to bundle.
-    #
-    # lf-diagram addresses a commentable box by the id mermaid draws it under,
-    # and that scheme has moved between minor versions. Run
-    # tests/test_render_aim.py against a new one.
-    "mermaid": Copy(
-        "mermaid",
-        "dist/mermaid.min.js",
-        package_vendor("diagram") / "mermaid.min.js",
-    ),
     # SortableJS drags lf-board's cards. The package ships its ESM entry three
     # times over, carrying the same plugin code each time and differing only in
     # which plugins it mounts, so the choice costs no bytes. This is the `module`
@@ -197,9 +187,9 @@ def refuse_if_csp_forbids(out: Path) -> None:
     because the failure it prevents is a chart that draws in a developer's page
     and refuses in a reader's.
 
-    Only Plot's bundle is checked. This is a substring search, so it cannot
-    tell code from data, and pierre's carries the literal `import(` inside
-    TextMate grammars, where it is data and would be refused wrongly.
+    Bundles call this when their inputs contain no grammar or other data that can
+    legitimately carry these strings. Pierre does not: its TextMate grammars contain
+    the literal `import(` as data and would be refused wrongly.
     """
     text = out.read_text(encoding="utf-8")
     for banned in ("new Function", "eval(", "import("):
@@ -208,6 +198,77 @@ def refuse_if_csp_forbids(out: Path) -> None:
             sys.exit(
                 f"refused: the bundle contains {banned}, which the page CSP forbids"
             )
+
+
+def package_notices(work: Path, packages: tuple[str, ...], title: str) -> str:
+    """The licenses for a build's explicitly installed runtime packages."""
+    notices = []
+    for package in packages:
+        root = work / "node_modules" / package
+        manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
+        license_file = next(
+            (
+                path
+                for path in root.iterdir()
+                if path.is_file()
+                and path.name.lower().split(".", 1)[0]
+                in {"license", "licence", "copying"}
+            ),
+            None,
+        )
+        if license_file is None:
+            raise RuntimeError(f"no license file shipped by {manifest['name']}")
+        notices.append(
+            f"===== {manifest['name']} {manifest['version']} "
+            f"({manifest['license']}) =====\n"
+            f"{license_file.read_text(encoding='utf-8').strip()}"
+        )
+    return f"Third-party licenses for {title}\n\n" + "\n\n".join(notices) + "\n"
+
+
+def build_beautiful_mermaid(work: Path) -> list[Path]:
+    """Bundle Beautiful Mermaid and ELK into one browser-native ESM file.
+
+    Upstream's ESM keeps `entities` and `elkjs` as bare imports. Leaf loads one
+    self-contained file under its self-only CSP, so esbuild resolves the exact pinned
+    dependency set and leaves no runtime chunk or package lookup behind.
+    """
+    out = package_vendor("diagram") / "beautiful-mermaid.esm.js"
+    notices = package_vendor("diagram") / "beautiful-mermaid.LICENSES.txt"
+    packages = ("beautiful-mermaid", "elkjs", "entities")
+    run(
+        "npm",
+        "install",
+        "--no-save",
+        "--no-package-lock",
+        "--silent",
+        *(spec(package) for package in packages),
+        spec("esbuild"),
+        cwd=work,
+    )
+    (work / "entry.mjs").write_text(
+        'export { renderMermaidSVG } from "beautiful-mermaid";\n',
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--platform=browser",
+        "--target=chrome105",
+        "--minify",
+        "--legal-comments=inline",
+        f"--banner:js=/*! beautiful-mermaid {PINS['beautiful-mermaid']} — MIT"
+        " — licenses: beautiful-mermaid.LICENSES.txt */",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    refuse_if_csp_forbids(out)
+    notices.write_text(
+        package_notices(work, packages, out.name),
+        encoding="utf-8",
+    )
+    return [out, notices]
 
 
 def build_plot(work: Path) -> list[Path]:
@@ -503,6 +564,7 @@ def build_mcp_app(work: Path) -> list[Path]:
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "beautiful-mermaid": build_beautiful_mermaid,
     "highlight": build_highlight,
     "mcp-app": build_mcp_app,
     "plot": build_plot,
@@ -528,8 +590,11 @@ REBUILDS = {
     "@observablehq/plot": ("plot",),
     "@pierre/diffs": ("pierre",),
     "@modelcontextprotocol/ext-apps": ("mcp-app",),
+    "beautiful-mermaid": ("beautiful-mermaid",),
+    "elkjs": ("beautiful-mermaid",),
+    "entities": ("beautiful-mermaid",),
     "shiki": ("pierre",),
-    "esbuild": ("highlight", "mcp-app", "plot", "pierre"),
+    "esbuild": ("beautiful-mermaid", "highlight", "mcp-app", "plot", "pierre"),
 }
 
 

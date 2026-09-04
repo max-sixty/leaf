@@ -35,7 +35,7 @@ A page directory holds:
     runtime/             private browser owners plus the public widget-api.js module
     widgets/             one ES module per upgraded widget (lf-tabs.js, lf-board.js)
     vendor/              vendored third-party assets (sortable.esm.js, plot.esm.js),
-                         and whatever a selected package brings (mermaid.min.js)
+                         and whatever a selected package brings (beautiful-mermaid.esm.js)
     media/               images the page shows, each named by the hash of its bytes
                          (`page media`). Not vendored — this is the page's content,
                          not the layer's — but served the same way.

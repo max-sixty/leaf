@@ -48,6 +48,7 @@ from render_support import (
     TOKEN,
     TWIN_V1,
     TWIN_V2,
+    TYPED_PARTS_PAGE,
     WIDE_AND_NARROW_PAGE,
     WIDE_DIAGRAM_PAGE,
     author_test_widget,
@@ -752,8 +753,8 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     page, errors = open_page(browser, url)
 
-    # The inner svg is mermaid's, carrying a generated id; the anchor belongs to the
-    # widget that holds it, which is the element the page gave a name.
+    # The inner svg belongs to the renderer and carries generated ids; the anchor
+    # belongs to the widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click()
     page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending").wait_for()
@@ -776,17 +777,23 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
 
 
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
-    """The SVG's principal surfaces are written back as var() over the tokens they
-    were seeded from (retheme), so a scheme flip repaints them with the rest of the
-    page and a copy exported in a light browser opens honestly for a dark reader —
-    each used to keep the palette it was rendered under, a light slab in a dark
-    page. Only colors mermaid derives from the seeds itself stay frozen, and no
-    principal surface is one."""
+    """The SVG keeps Leaf's theme variables, so a scheme flip repaints it live."""
     page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
     node = page.locator("#flow svg .node rect").first
     expect(node).to_be_visible()
     fill = "el => getComputedStyle(el).fill"
     light = node.evaluate(fill)
+    expected = page.evaluate(
+        """() => {
+          const probe = document.createElement('i');
+          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 14%, var(--paper))';
+          document.body.append(probe);
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""
+    )
+    assert light == expected, "the renderer must receive Leaf's accent-tinted surface"
     page.emulate_media(color_scheme="dark")
     assert node.evaluate(fill) != light, (
         "a diagram's node surface must follow the page's scheme"
@@ -795,11 +802,85 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     page.close()
 
 
+def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
+    """Renderer output cannot import a web font or reuse one SVG's definition ids.
+
+    Beautiful Mermaid emits the same marker ids and a Google Fonts import in every
+    result. Leaf normalizes both at the widget boundary before the markup reaches the
+    document, so several diagrams remain independent and the page stays self-contained.
+    """
+    page, errors = open_page(browser, serve(TYPED_PARTS_PAGE))
+    readings = page.evaluate(
+        r"""() => {
+          const svgs = [...document.querySelectorAll('lf-diagram svg')];
+          const ids = svgs.flatMap(svg => [...svg.querySelectorAll('[id]')]
+            .map(el => el.id));
+          const badReferences = svgs.flatMap((svg, diagram) =>
+            [...svg.querySelectorAll('*')].flatMap(el =>
+              [...el.attributes].flatMap(attr => {
+                const refs = [...attr.value.matchAll(/(?:url\()?\(#([^\s)]+)\)?/g)];
+                return refs
+                  .filter(([, id]) => !svg.querySelector(`#${CSS.escape(id)}`))
+                  .map(([, id]) => ({diagram, attribute: attr.name, id}));
+              })));
+          const probe = document.createElement('i');
+          probe.style.cssText = 'font-family:var(--sans);position:fixed;visibility:hidden';
+          document.body.append(probe);
+          const expectedFont = getComputedStyle(probe).fontFamily;
+          probe.remove();
+          return {
+            count: svgs.length,
+            ids,
+            badReferences,
+            styles: svgs.map(svg => svg.querySelector('style')?.textContent ?? ''),
+            fonts: svgs.map(svg => svg.querySelector('text')).filter(Boolean)
+              .map(text => getComputedStyle(text).fontFamily),
+            expectedFont,
+          };
+        }"""
+    )
+    assert readings["count"] == 6, "the fixture covers every supported diagram type"
+    assert len(readings["ids"]) == len(set(readings["ids"])), readings["ids"]
+    assert readings["badReferences"] == []
+    assert not any(
+        "@import" in style or "fonts.googleapis.com" in style
+        for style in readings["styles"]
+    )
+    assert len(readings["fonts"]) == readings["count"]
+    assert set(readings["fonts"]) == {readings["expectedFont"]}
+    assert errors == []
+    page.close()
+
+
+def test_a_diagram_label_cannot_inject_markup_into_the_rendered_svg(browser, serve):
+    """Renderer text remains text when Leaf inserts the returned SVG markup."""
+    hostile = leaf_page(
+        "diagram text",
+        """
+<h1 id="title">Diagram text</h1>
+<lf-diagram id="flow"><pre>
+flowchart LR
+  A["&lt;img src=x onerror=window.lfInjected=true&gt;"] --&gt; B
+</pre></lf-diagram>
+""",
+    )
+    page, errors = open_page(browser, serve(hostile))
+
+    expect(page.locator('#flow g[data-id="A"] text')).to_have_text(
+        "<img src=x onerror=window.lfInjected=true>"
+    )
+    expect(page.locator("#flow img, #flow script")).to_have_count(0)
+    assert not page.evaluate("() => !!window.lfInjected")
+    assert errors == []
+    page.close()
+
+
 def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
-    """Mermaid fits a diagram to its holder by scaling the whole drawing down, glyphs
-    included — this flowchart rendered at 63% in the column, its 16px labels
-    effectively 10px and unreadable. The module strips that, so the drawing keeps the
-    size mermaid laid it out at and what is in question is only how much of it shows.
+    """A diagram keeps the natural geometry its renderer laid out.
+
+    Scaling a wide drawing to the column takes its labels below legibility. The module
+    states the viewBox width explicitly, so only how much of that natural drawing fits
+    in the available room changes.
 
     Which is the whole of it wherever the window has the room. A drawing is not a box
     that fills whatever it is given, so the one width the vocabulary shares is no promise
@@ -860,7 +941,7 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
     anyway put a parse error across the whole window with its message on one line."""
-    # The console carries mermaid's refusal, which is what the fixture is for.
+    # The console carries the renderer's refusal, which is what the fixture is for.
     page, _ = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
@@ -895,7 +976,7 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
     """The room is for the drawing, and until the module has made one what stands in the
     box is the authored source: evidence, which reads at the column's width from the
     column's own edge. The mark is written before any module imports, so this is every
-    page's first tenth of a second and not a corner — mermaid is fetched lazily — and
+    page's first loading interval and not a corner — the renderer is fetched lazily — and
     for a page whose module never arrives it is the whole of what the reader sees. Held
     to the room, three sources came out centred at three indents, none of them the
     column's.

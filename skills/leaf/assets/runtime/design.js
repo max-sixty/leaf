@@ -233,7 +233,7 @@ export function createDesign(dependencies) {
     // own parts wear its namespace and are the target themselves; a widget an agent sent
     // wears an authored id and its module's generated parts wear the runtime's, so passing
     // over those lands on the widget, which is where `itemAt` lands out on the page. Taking
-    // the nearest of any kind anchored a design comment on `lf-mermaid-3` — a number that
+    // the nearest of any kind anchored a design comment on `lf-diagram-3` — a number that
     // changes with draw order — and `layerPart` then read it back as a part of the layer.
     const el =
       marginTarget ??

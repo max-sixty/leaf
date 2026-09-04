@@ -384,7 +384,7 @@ export function createAnchors(dependencies) {
   // check` holds every id across versions, which is exactly why an anchor naming one
   // survives a rewrite that takes a quote down with it. An id under the runtime's own
   // prefix is not the author's — a module coins one for what it draws (a diagram's svg
-  // wears `lf-mermaid-N`, numbered by draw order) — so an anchor on it names nothing a
+  // wears `lf-diagram-N`, numbered by draw order) — so an anchor on it names nothing a
   // version holds and something the next load may number differently. The item is the
   // element around it unless its declaration maps the generated box to an authored token.
   const ITEM = '[id]:not(.lf-ui):not([id^="lf-"])';

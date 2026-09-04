@@ -407,6 +407,34 @@ run, baseline, candidate
           </lf-chart>
         </section>
 
+        <section id="bg-diagrams">
+          <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
+          <h3 id="bg-diagrams-heading">
+            <strong>Diagram</strong
+            ><span class="bg-feature-detail">: structure, shape, and state</span>
+          </h3>
+          <p id="bg-diagrams-guide">
+            Diagram nodes keep their authored shapes and can use Leaf’s semantic color
+            tokens. Alt-click a declared node to comment on that box alone.
+          </p>
+          <lf-diagram
+            id="bg-diagram"
+            parts="node:Request node:Choice node:Success node:Retry"
+          >
+            <pre>
+flowchart LR
+  Request([Request]) --> Choice{Valid?}
+  Choice -->|yes| Success[(Stored)]
+  Choice -->|no| Retry([Retry])
+  Retry -.-> Request
+  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
+  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  class Success done
+  class Retry warning
+</pre>
+          </lf-diagram>
+        </section>
+
         <section id="bg-code-and-tree">
           <p class="eyebrow bg-feature-elements">
             lf-code · lf-gloss · lf-note · lf-tree

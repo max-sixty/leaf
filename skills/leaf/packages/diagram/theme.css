@@ -1,5 +1,5 @@
 /* The diagram package's presentation. Everything here was in the default package's
- * theme until mermaid's 3.6MB left every page carrying a renderer most of them never
+ * theme until the diagram renderer left every page carrying a large bundle most never
  * draw with. What moved is the tag's own rules; the declaration-driven half — the
  * `[data-lf-wide="drawing"]` box a drawing stands in — stayed there, because a second
  * drawing widget from a third package reads it too. */
@@ -9,7 +9,13 @@
  * integrated theme's code tokens set the density, and the authored body inside the
  * widget is a <pre> that gives up the document's dressing and inherits from here, so
  * this is the size such a page is set in until the module runs. */
-lf-diagram { display: block; margin: 14px 0;
+/* The renderer's own custom properties are named --bg, --accent, and so on. Passing
+ * `var(--accent)` into its inline `--accent` declaration would be a self-reference and
+ * invalidate the value, so these inherited aliases carry Leaf's live palette across
+ * that namespace boundary. */
+lf-diagram { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
+             --lf-diagram-muted: var(--muted); --lf-diagram-accent: var(--accent);
+             display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
@@ -23,8 +29,8 @@ lf-diagram.lf-rendered { font: inherit; color: inherit; overflow: visible; }
 lf-diagram:not(.lf-rendered) > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
-/* A rendered diagram keeps its natural size — its module strips mermaid's
- * scale-to-fit, which set a wide flowchart's labels below legibility — so a wide one
+/* A rendered diagram keeps its natural size rather than scaling a wide flowchart's
+ * labels below legibility, so a wide one
  * scrolls in its own box, the same answer a wide table gets, instead of painting over
  * the margin. max-width: none escapes the page-wide svg rule in the kernel theme, which
  * would scale it right back down. Where the runtime has marked the element wide, the

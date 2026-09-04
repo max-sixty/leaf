@@ -98,7 +98,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-decisions").click()
     asks = page.locator("button.lf-decisions-row")
-    expect(asks).to_have_count(7)
+    expect(asks).to_have_count(9)
     expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -140,6 +140,35 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser, serve):
+    """The composed page keeps nested reader work through an outer undo and reload."""
+    url = serve(FEATURE_GALLERY)
+    page, errors = open_page(browser, url)
+    page.locator("#bg-route-river").click()
+    round_trip(page)
+    controls = page.locator('[data-lf-for="bg-nested-change"]')
+    controls.get_by_role("button", name=re.compile("^Accept the ")).click()
+    round_trip(page)
+    expect(page.locator("#bg-nested-change > lf-old")).to_be_hidden()
+    controls.get_by_role("button", name=re.compile("^Undo ")).click()
+    round_trip(page)
+
+    expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
+    expect(page.locator("#bg-route lf-option[chosen]")).to_have_attribute(
+        "id", "bg-route-river"
+    )
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
+    expect(page.locator("#bg-route lf-option[chosen]")).to_have_attribute(
+        "id", "bg-route-river"
+    )
     assert errors == []
     page.close()
 

@@ -1630,6 +1630,82 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     page.close()
 
 
+def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
+    """A posted comment keeps the same semantic geometry the aim promised.
+
+    The diamond's diagonal contour must change while the empty bounding-box corners do
+    not. A CSS outline on the returned group produces the opposite result.
+    """
+    from PIL import Image, ImageChops
+
+    diamond_page = PART_DIAGRAM_PAGE.replace("S[Start request]", "S{Start request}", 1)
+    page, errors = open_page(browser, serve(diamond_page))
+    diamond = page.locator('#flow g[data-id="S"]')
+    expect(diamond).to_be_visible()
+    box = diamond.bounding_box()
+    clip = {
+        "x": math.floor(box["x"]),
+        "y": math.floor(box["y"]),
+        "width": math.floor(box["width"]),
+        "height": math.floor(box["height"]),
+    }
+    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "diamond-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this branch explicit.",
+            "anchor": {"section": "flow", "visual": "node:S"},
+        },
+    )
+    told(page)
+    expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
+    painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    delta = ImageChops.difference(quiet, painted)
+    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    width, height = delta.size
+
+    def ratio(where):
+        pixels = [
+            changed[y * width + x]
+            for y in range(height)
+            for x in range(width)
+            if where(x / width, y / height)
+        ]
+        return sum(pixels) / len(pixels)
+
+    diagonal = ratio(lambda x, y: 0.45 < abs(x - 0.5) + abs(y - 0.5) < 0.55)
+    corners = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) > 0.8)
+    assert diagonal > 0.08, f"only {diagonal:.0%} of the diamond contour changed"
+    assert corners < 0.03, f"the empty corners changed by {corners:.0%}"
+
+    offset = page.evaluate(
+        """() => {
+          const source = document.querySelector('#flow g[data-id="S"]').getBoundingClientRect();
+          const mark = document.querySelector('.lf-visual-mark').getBoundingClientRect();
+          return [mark.left - source.left, mark.top - source.top,
+                  mark.right - source.right, mark.bottom - source.bottom];
+        }"""
+    )
+    page.evaluate("() => scrollBy(0, 80)")
+    page.wait_for_function(
+        """(before) => {
+          const source = document.querySelector('#flow g[data-id="S"]').getBoundingClientRect();
+          const mark = document.querySelector('.lf-visual-mark').getBoundingClientRect();
+          const after = [mark.left - source.left, mark.top - source.top,
+                         mark.right - source.right, mark.bottom - source.bottom];
+          return after.every((value, index) => Math.abs(value - before[index]) < 0.5);
+        }""",
+        arg=offset,
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, serve):
     """A contour's paint viewport includes the outside half of its stroke.
 

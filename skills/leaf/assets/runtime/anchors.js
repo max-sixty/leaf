@@ -83,6 +83,7 @@ export function createAnchors(dependencies) {
     textNodesUnder,
     threadsBox,
     under,
+    visualMarkLayer,
     withdraw,
     worksWithoutTabStopSelector,
     runtimeOwnsScrollerStop,
@@ -523,6 +524,7 @@ export function createAnchors(dependencies) {
         anchor: { section: visual.id, visual: visual.part.part },
         element: visual.part.element,
         label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
+        visual: visual.part,
       };
     const datum = closestAcross(node, DATUM);
     if (datum) return datumAimTarget(datum);
@@ -574,7 +576,7 @@ export function createAnchors(dependencies) {
       if (!section || !visualPartAttribute(section) || settledAway(section))
         return null;
       const found = visualPart(section, anchor.visual);
-      return found ? { element: section, marks: [found.element] } : null;
+      return found ? { element: section, marks: [found.element], visual: found } : null;
     }
     if (!anchor.quote) {
       const section = sectionOf(anchor);
@@ -619,6 +621,9 @@ export function createAnchors(dependencies) {
   let pendingMarks = []; // the same record for the open composer's own passage
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
   let actionOutline = []; // the visual target whose action bar is standing
+  const SHAPED = "lf-shaped-mark";
+  const visualPaintTargets = new Set();
+  const visualMarkOverlays = new Map();
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -629,7 +634,7 @@ export function createAnchors(dependencies) {
         ? {
             el: target.element,
             part: "",
-            aim: target.anchor.visual ? svgAimGeometry(target.element) : null,
+            shape: target.visual ? visualPaintGeometry(target.visual.element) : null,
           }
         : null;
     }
@@ -650,7 +655,7 @@ export function createAnchors(dependencies) {
   // A shaped visual also clones the few primitives its returned element paints; the clone
   // stays in this layer and does not ask the page to repaint its own drawing.
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const AIM_SHAPE_STROKE = 2;
+  const SHAPE_STROKE_ROOM = 2;
   const aimShape = document.createElementNS(SVG_NS, "svg");
   aimShape.classList.add("lf-aim-shape");
   aimShape.setAttribute("aria-hidden", "true");
@@ -670,9 +675,10 @@ export function createAnchors(dependencies) {
   };
 
   // A visual module already identifies the generated element that one stable part names.
-  // Its rendered SVG is the paint contract: filled primitives make the veil and stroked
-  // primitives make the outline. HTML and canvas renderings keep the rectangular default.
-  function svgAimGeometry(element) {
+  // Its rendered SVG is the paint contract: filled primitives make a transient veil and
+  // stroked primitives make every contour. HTML and canvas renderings keep the rectangular
+  // default. Aim and standing marks both consume this one reading.
+  function visualPaintGeometry(element) {
     if (!(element instanceof SVGElement)) return null;
     const geometry = [element, ...element.querySelectorAll("*")].filter(
       (child) => child instanceof SVGGeometryElement,
@@ -683,7 +689,7 @@ export function createAnchors(dependencies) {
     return fill.length || stroke.length ? { fill, stroke } : null;
   }
 
-  function aimGeometryClone(source, left, top, property) {
+  function visualGeometryClone(source, left, top, property) {
     const matrix = source.getScreenCTM();
     if (!matrix) return null;
     const clone = source.cloneNode(false);
@@ -703,10 +709,15 @@ export function createAnchors(dependencies) {
     );
     clone.style.setProperty(
       "stroke",
-      property === "stroke" ? "var(--accent)" : "none",
+      property === "stroke" ? "var(--lf-shape-ink)" : "none",
       "important",
     );
-    clone.style.setProperty("stroke-width", `${AIM_SHAPE_STROKE}px`, "important");
+    clone.style.setProperty("stroke-width", "var(--lf-shape-stroke)", "important");
+    clone.style.setProperty(
+      "stroke-dasharray",
+      "var(--lf-shape-dash, none)",
+      "important",
+    );
     clone.style.setProperty("stroke-linejoin", "round", "important");
     clone.style.setProperty("stroke-linecap", "round", "important");
     clone.style.setProperty("vector-effect", "non-scaling-stroke", "important");
@@ -714,53 +725,65 @@ export function createAnchors(dependencies) {
   }
 
   // Clone a visual part's rendered SVG into the runtime's paint layer. The original
-  // drawing keeps its colors, while the union mask gives the promise one translucent
-  // veil with no darker seams where compound shapes overlap.
-  function paintAimShape(aim, { left, top, right, bottom }) {
-    if (!aim) return false;
+  // drawing keeps its colors. A transient promise may also ask for the union mask, which
+  // gives it one translucent veil with no darker seams where compound shapes overlap.
+  function paintVisualShape(
+    host,
+    geometry,
+    { left, top, right, bottom },
+    { maskId = "", veil = false } = {},
+  ) {
+    if (!geometry) return false;
     const width = right - left;
     const height = bottom - top;
-    const fill = aim.fill.map((shape) => aimGeometryClone(shape, left, top, "fill"));
-    const stroke = aim.stroke.map((shape) =>
-      aimGeometryClone(shape, left, top, "stroke"),
+    const fill = veil
+      ? geometry.fill.map((shape) => visualGeometryClone(shape, left, top, "fill"))
+      : [];
+    const stroke = geometry.stroke.map((shape) =>
+      visualGeometryClone(shape, left, top, "stroke"),
     );
     if ([...fill, ...stroke].some((shape) => !shape)) return false;
 
-    const defs = document.createElementNS(SVG_NS, "defs");
-    const mask = document.createElementNS(SVG_NS, "mask");
-    mask.id = aimMaskId;
-    mask.setAttribute("maskUnits", "userSpaceOnUse");
-    mask.setAttribute("x", "0");
-    mask.setAttribute("y", "0");
-    mask.setAttribute("width", String(width));
-    mask.setAttribute("height", String(height));
-    mask.style.maskType = "alpha";
-    mask.append(...fill);
-    defs.append(mask);
+    const paint = [];
+    if (veil && fill.length) {
+      const defs = document.createElementNS(SVG_NS, "defs");
+      const mask = document.createElementNS(SVG_NS, "mask");
+      mask.id = maskId;
+      mask.setAttribute("maskUnits", "userSpaceOnUse");
+      mask.setAttribute("x", "0");
+      mask.setAttribute("y", "0");
+      mask.setAttribute("width", String(width));
+      mask.setAttribute("height", String(height));
+      mask.style.maskType = "alpha";
+      mask.append(...fill);
+      defs.append(mask);
 
-    const veil = document.createElementNS(SVG_NS, "rect");
-    veil.setAttribute("width", String(width));
-    veil.setAttribute("height", String(height));
-    veil.setAttribute("fill", "var(--accent)");
-    veil.setAttribute("fill-opacity", "0.08");
-    veil.setAttribute("mask", `url(#${aimMaskId})`);
+      const wash = document.createElementNS(SVG_NS, "rect");
+      wash.setAttribute("width", String(width));
+      wash.setAttribute("height", String(height));
+      wash.setAttribute("fill", "var(--lf-shape-ink)");
+      wash.setAttribute("fill-opacity", "0.08");
+      wash.setAttribute("mask", `url(#${maskId})`);
+      paint.push(defs, wash);
+    }
     const outline = document.createElementNS(SVG_NS, "g");
     outline.append(...stroke);
+    paint.push(outline);
 
-    aimShape.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    aimShape.setAttribute("width", String(width));
-    aimShape.setAttribute("height", String(height));
-    aimShape.replaceChildren(defs, veil, outline);
+    host.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    host.setAttribute("width", String(width));
+    host.setAttribute("height", String(height));
+    host.replaceChildren(...paint);
     return true;
   }
 
   // An SVG stroke is centred on its geometry. Give the cloned contour room for its
   // outside half, or the viewport cuts that half away and leaves the item's own border
-  // showing beside the aim on curves. Apply the normal ancestor clips after expanding:
-  // the paint may cover the item's edge, never a scroller edge that hid the item.
-  function aimPaintRect(item, shaped) {
+  // showing beside it on curves. Apply the normal ancestor clips after expanding: the
+  // paint may cover the item's edge, never a scroller edge that hid the item.
+  function visualPaintRect(item, shaped) {
     const box = shownBox(item);
-    const pad = shaped ? AIM_SHAPE_STROKE : 0;
+    const pad = shaped ? SHAPE_STROKE_ROOM : 0;
     return clippedRect(
       {
         left: box.left - pad,
@@ -780,7 +803,7 @@ export function createAnchors(dependencies) {
     // stand over a press the paint knows takes nothing. `aiming` alone says the page
     // is armed; this says the aim has landed on something.
     document.body.classList.toggle("lf-over-item", Boolean(aimed));
-    const r = aimed && aimPaintRect(aimed, Boolean(target.aim));
+    const r = aimed && visualPaintRect(aimed, Boolean(target.shape));
     if (!r) {
       aimBox.style.display = "none";
       aimBox.classList.remove("lf-shaped");
@@ -792,7 +815,10 @@ export function createAnchors(dependencies) {
     }
     const { left, top, right, bottom } = r;
     const at = documentPoint(left, top);
-    const shaped = paintAimShape(target.aim, r);
+    const shaped = paintVisualShape(aimShape, target.shape, r, {
+      maskId: aimMaskId,
+      veil: true,
+    });
     aimBox.classList.toggle("lf-shaped", shaped);
     if (!shaped) aimShape.replaceChildren();
     aimBox.setAttribute("data-for", aimed.id);
@@ -807,6 +833,66 @@ export function createAnchors(dependencies) {
       borderRadius: getComputedStyle(aimed).borderRadius,
     });
     paintInspect(designIsOn() ? target : null, { left, top });
+  }
+
+  const VISUAL_MARK_CLASSES = {
+    "lf-visual-mark-comment": "lf-mark-el",
+    "lf-visual-mark-reaction": "lf-react-el",
+    "lf-visual-mark-pending": PENDING,
+    "lf-visual-mark-hover": "lf-mark-hover",
+    "lf-visual-mark-here": "lf-mark-here",
+  };
+
+  function syncVisualMarkStates() {
+    for (const [source, { overlay }] of visualMarkOverlays)
+      for (const [paint, state] of Object.entries(VISUAL_MARK_CLASSES))
+        overlay.classList.toggle(paint, source.classList.contains(state));
+  }
+
+  // A semantic visual part has one paint geometry in every state. The source element
+  // keeps the semantic classes used for hit-testing and thread ownership; this layer
+  // renders their shape above the package drawing and leaves rectangular elements on
+  // the existing CSS-outline path.
+  function paintVisualMarks() {
+    for (const source of [...visualMarkOverlays.keys()])
+      if (!visualPaintTargets.has(source)) {
+        source.classList.remove(SHAPED);
+        visualMarkOverlays.get(source).overlay.remove();
+        visualMarkOverlays.delete(source);
+      }
+
+    for (const source of visualPaintTargets) {
+      const geometry = visualPaintGeometry(source);
+      const rect = geometry && visualPaintRect(source, true);
+      let record = visualMarkOverlays.get(source);
+      if (!geometry || !rect) {
+        source.classList.remove(SHAPED);
+        if (record) record.overlay.style.display = "none";
+        continue;
+      }
+      if (!record) {
+        const overlay = el("div", "lf-ui lf-visual-mark lf-target-paint");
+        const shape = document.createElementNS(SVG_NS, "svg");
+        shape.classList.add("lf-visual-mark-shape");
+        overlay.append(shape);
+        visualMarkLayer.append(overlay);
+        record = { overlay, shape };
+        visualMarkOverlays.set(source, record);
+      }
+      const { overlay, shape } = record;
+      source.classList.add(SHAPED);
+      paintVisualShape(shape, geometry, rect);
+      overlay.dataset.lfPaintPlane = inChrome(source) ? "chrome" : "page";
+      const at = documentPoint(rect.left, rect.top);
+      Object.assign(overlay.style, {
+        display: "block",
+        left: `${at.left}px`,
+        top: `${at.top}px`,
+        width: `${rect.right - rect.left}px`,
+        height: `${rect.bottom - rect.top}px`,
+      });
+    }
+    syncVisualMarkStates();
   }
   // The name of what design mode is aimed at, at the box's top-left corner — above it
   // where there is room, inside it where there isn't (the banner sits at the top edge).
@@ -886,11 +972,13 @@ export function createAnchors(dependencies) {
       if (where instanceof Element) where.classList.remove("lf-react-el");
     for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
     for (const el of actionOutline) el.classList.remove("lf-action-target");
+    for (const el of visualPaintTargets) el.classList.remove(SHAPED);
     marked.clear();
     reacted.clear();
     placed.clear();
     pendingOutline = [];
     actionOutline = [];
+    visualPaintTargets.clear();
 
     const text = pageText(); // read once, for every anchor this pass places
     const posted = [];
@@ -920,6 +1008,7 @@ export function createAnchors(dependencies) {
         if (found.element) {
           const parts = found.marks ?? shownParts(found.element);
           for (const part of parts) part.classList.add("lf-react-el");
+          if (found.visual) visualPaintTargets.add(found.visual.element);
           reacted.set(t.root.id, parts);
           [at, before] = [found.element, true];
         } else {
@@ -948,6 +1037,7 @@ export function createAnchors(dependencies) {
         // three follow the paint by holding the parts rather than the element.
         const parts = found.marks ?? shownParts(found.element);
         for (const part of parts) part.classList.add("lf-mark-el");
+        if (found.visual) visualPaintTargets.add(found.visual.element);
         marked.set(t.root.id, parts);
       } else {
         const ranges = found.segments.map((seg) => rangeOf([seg]));
@@ -994,6 +1084,7 @@ export function createAnchors(dependencies) {
         ? (draft.marks ?? shownParts(draft.element))
         : draft.segments.map((seg) => rangeOf([seg]))
       : [];
+    if (draft?.visual) visualPaintTargets.add(draft.visual.element);
     const pending = [];
     if (draft?.element) {
       // Part by part, because a thread's outline is claimed the same way: the draft takes
@@ -1491,6 +1582,7 @@ export function createAnchors(dependencies) {
         priority: 1,
       }),
     );
+    syncVisualMarkStates();
   }
   // Which comment the reader is standing in, said out on the page. The panel has always
   // answered it on its own surface — the thread holds the focus, and a press on a mark
@@ -1537,6 +1629,7 @@ export function createAnchors(dependencies) {
         priority: 2,
       }),
     );
+    syncVisualMarkStates();
   }
   // Coalesced to a frame: scroll outruns layout, the hit-test reads layout, and a repaint
   // asks from inside a pass that must stay cheap enough to run from a mousedown. The frame
@@ -1583,6 +1676,7 @@ export function createAnchors(dependencies) {
   function pageShifted() {
     refreshHover();
     refreshAim();
+    paintVisualMarks();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();

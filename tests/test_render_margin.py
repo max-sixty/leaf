@@ -1517,13 +1517,13 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.evaluate("() => document.activeElement.blur()")
     expect(accept).to_have_attribute("data-lf-tone", "positive")
     expect(edit).to_have_attribute("data-lf-tone", "neutral")
-    disclosure_background = edit.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert disclosure_background == more.evaluate(
-        "el => getComputedStyle(el).backgroundColor"
-    ), "disclosure and overflow no longer share the same circular face"
-    assert disclosure_background != accept.evaluate(
-        "el => getComputedStyle(el).backgroundColor"
-    ), "action and disclosure no longer have distinct resting surfaces"
+    offer_backgrounds = [
+        control.evaluate("el => getComputedStyle(el).backgroundColor")
+        for control in (accept, edit, more)
+    ]
+    assert len(set(offer_backgrounds)) == 1, (
+        "interactive offers should share one unfilled resting surface"
+    )
     borders = [
         control.evaluate(
             "el => { const s = getComputedStyle(el); "
@@ -1804,8 +1804,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         )
 
     expected_ink = resolved_color("--ink-2")
-    expected_paper = resolved_color("--paper")
-    expected_border = resolved_color("--border-2")
+    expected_chip = resolved_color("--chip")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
@@ -1826,8 +1825,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "context": context,
             "tabIndex": -1,
             "cursor": "default",
-            "background": expected_paper,
-            "border": expected_border,
+            "background": expected_chip,
+            "border": "rgba(0, 0, 0, 0)",
             "ink": expected_ink,
             "opacity": "1",
             "width": "32px",

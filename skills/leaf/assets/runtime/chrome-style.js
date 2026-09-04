@@ -282,19 +282,20 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-button[hidden] { display: none; }
-  /* A Button-shaped fitting carries one of three promises. An action's heavier ring
-     says this press acts now. A disclosure's soft fill says it opens context. A status
-     reports a move already made with the ordinary unfilled ring. All three keep one
-     circular silhouette and one place in the cluster. */
+  /* A Button-shaped fitting carries one of three promises. Interactive offers keep an
+     edge: an action's heavier ring says this press acts now, while a disclosure's
+     lighter ring says it opens context. Read-only status gives up that edge and sits on
+     a flat neutral plate instead. All three keep one circular silhouette and one place
+     in the cluster. */
   .lf-margin-button[data-lf-behavior="action"] {
     border-width: 2px;
     color: var(--ink);
   }
   .lf-margin-button[data-lf-behavior="disclosure"] {
-    background: var(--chip); color: var(--ink-2); box-shadow: none;
+    background: var(--paper); color: var(--ink-2); box-shadow: none;
   }
   .lf-margin-button[data-lf-behavior="status"] {
-    border-color: var(--border-2); background: var(--paper); color: var(--ink-2);
+    border-color: transparent; background: var(--chip); color: var(--ink-2);
     box-shadow: none; cursor: default;
   }
   /* Tone colours only the icon. Category and interaction own the ring and fill;
@@ -334,8 +335,8 @@ export function chromeStyle({
   }
   /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
      and tab stop from standing reaction marks, which retain their shape without
-     promising a press. A status keeps its ordinary ring in the page-map walk, while
-     its hand and hover fill go. Decided suggestions export sibling text receipts. */
+     promising a press. A status keeps its flat plate in the page-map walk, while its
+     hand and hover response go. Decided suggestions export sibling text receipts. */
   .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
     cursor: pointer;
   }

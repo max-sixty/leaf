@@ -75,7 +75,12 @@ incomplete. A checkout keeps it at `bin/leaf`.
    or that rendering remains unverified.
 
 When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a thread needs work. Read
+`references/conversation-threads.md` when a thread needs work. A
+`leaf-delivery` element names a Codex delivery payload: read its `path` and
+process every entry in `batches`; each carries its page, URL, thread context, and
+events. The same delivery id may return after more input joins its active turn,
+so reread the payload and apply the page-and-sequence retry rule. The detached
+adapter owns acknowledgement. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 

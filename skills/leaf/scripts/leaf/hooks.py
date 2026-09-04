@@ -2,6 +2,7 @@
 
 import json
 
+from . import codex as codex_delivery
 from .event_log import read_events
 from .events import awaits_agent, build_threads, seat_root, spoken_turns
 from .leases import adapter_is_live
@@ -224,35 +225,40 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
-    if event == "Stop":
-        # Ahead of both early returns below. The stamp is not a nudge and does not
-        # depend on there being one: the turn that ends with nothing outstanding is
-        # exactly the turn that leaves a `working` claim behind with nobody on it.
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    page.close_turn(sid)
-            except FileNotFoundError:
-                continue
     if event == "UserPromptSubmit":
-        # The mirror of the branch above, and ahead of the same early returns.
-        # A prompt is the turn opening as plainly as Stop is the turn ending,
-        # and it is the only evidence of the opening the reader themself can
-        # produce: told by the banner to nudge in the terminal, they answer
-        # there rather than on the page, so no batch exists for a delivery to
-        # carry and nothing else would clear the stamp — the page would go on
-        # telling them to do the thing they just did until the agent happened to
-        # write a status.
-        open_session_turn(sid)
-    # stop_hook_active means this hook already blocked once and Claude is running
-    # again on the strength of it; blocking a second time is how a hook loops.
-    # A block naming two debts and answered on one therefore ends the turn with
-    # the other standing — the guard is a nudge per stop, not a barrier. What
-    # carries the rest is UserPromptSubmit, which reads the same reasons, so the
-    # debt opens the next turn rather than waiting for its end.
-    if event == "Stop" and payload.get("stop_hook_active"):
-        return
-    reasons = unattended_pages(sid)
+        codex, delivery = codex_delivery.open_turn(sid)
+        if not codex:
+            open_session_turn(sid)
+        reasons = unattended_pages(sid)
+        if delivery is not None:
+            reasons.insert(
+                0,
+                "new Leaf input joined this turn. Process every batch in:\n" + delivery,
+            )
+    elif event == "Stop":
+        reasons = unattended_pages(sid)
+        codex_reasons = codex_delivery.finish_turn(
+            sid,
+            reasons,
+            bool(payload.get("stop_hook_active")),
+        )
+        if codex_reasons is not None:
+            reasons = codex_reasons
+        else:
+            # The stamp is not a nudge and does not depend on there being one:
+            # the turn that ends cleanly is exactly the one that can leave a
+            # `working` claim behind with nobody on it.
+            for page_dir in owned_pages(sid):
+                try:
+                    with PageTransaction(page_dir) as page:
+                        page.close_turn(sid)
+                except FileNotFoundError:
+                    continue
+            # A repeated ordinary debt is the same Stop hook asking again.
+            if payload.get("stop_hook_active"):
+                return
+    else:
+        reasons = unattended_pages(sid)
     if not reasons:
         return
     # The message avoids "unattended": a page can be watched and still be owed

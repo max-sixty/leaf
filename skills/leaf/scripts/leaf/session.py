@@ -221,40 +221,56 @@ class _WatchPass(NamedTuple):
     outcome: int | None
 
 
-def _batch_registry(reading: PageTick):
+def _batch_registry(page_dir: Path, batch: list[dict]):
     """Read reaction vocabulary only for a batch that needs it."""
-    if not any(event.get("token") for event in reading.batch):
+    if not any(event.get("token") for event in batch):
         return None
     try:
-        return load_registry(reading.page_dir)
+        return load_registry(page_dir)
     except RegistryError:
         return None  # the token still reaches the agent
 
 
-def batch_jsonl(reading: PageTick) -> str:
+def batch_data(
+    page_dir: Path,
+    transaction: PageTransaction,
+    batch: list[dict],
+) -> dict:
+    """Build one complete delivery batch without taking receipt for it."""
+    # A reaction's word is explained beside it (`means`), off the page's own
+    # vendored vocabulary, so a project token reaches the agent already saying
+    # what it asks for. A stale registry must not block the remaining batch.
+    registry = _batch_registry(page_dir, batch)
+    return {
+        "page": str(page_dir),
+        "threads": batch_threads(
+            transaction.events,
+            batch,
+            active_enclosing(page_dir),
+        ),
+        "events": [described(event, registry) for event in batch],
+    }
+
+
+def serialize_batch(
+    page_dir: Path,
+    transaction: PageTransaction,
+    batch: list[dict],
+) -> str:
     """Serialize one complete delivery batch without taking receipt for it."""
     # Whose events follow, said in-band: no event line names its page, and the
     # ack has to go back to the right one. The conversations they land in come
     # with them, because a delivered reply names only the message it answers and
     # the session that knew what that was may since have compacted.
-    lines = [
-        jsonl_line(
-            {
-                "page": str(reading.page_dir),
-                "threads": batch_threads(
-                    reading.transaction.events,
-                    reading.batch,
-                    active_enclosing(reading.page_dir),
-                ),
-            }
-        )
-    ]
-    # A reaction's word is explained beside it (`means`), off the page's own
-    # vendored vocabulary, so a project token reaches the agent already saying
-    # what it asks for. A stale registry must not block the remaining batch.
-    registry = _batch_registry(reading)
-    lines.extend(jsonl_line(described(event, registry)) for event in reading.batch)
+    data = batch_data(page_dir, transaction, batch)
+    lines = [jsonl_line({"page": data["page"], "threads": data["threads"]})]
+    lines.extend(jsonl_line(event) for event in data["events"])
     return "\n".join(lines)
+
+
+def batch_jsonl(reading: PageTick) -> str:
+    """Serialize a watcher reading as one complete delivery batch."""
+    return serialize_batch(reading.page_dir, reading.transaction, reading.batch)
 
 
 def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:

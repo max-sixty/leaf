@@ -97,31 +97,57 @@ A session's leaves cost it one long-running carrier between them, and that
 carrier is separate from the page server. Claude Code uses a sequence of direct
 watchers: `leaf wait` exits to put a batch in model context, then `leaf ack`
 advances its cursor and becomes the next watcher. Codex uses one detached
-adapter instead. It holds the same task-wide wait lease, persists the exact
-batch it captured, and hands a bounded pointer in a `leaf-delivery` XML element
-to Codex's durable same-task queue. It advances the cursor after acceptance and
-keeps watching while the foreground turn is over. The already-loaded Desktop
-client keeps the task writer, consumes the shared durable queue, and owns every
-execution or approval request. Leaf's queue command never resumes or starts the
-task. An unloaded task therefore keeps the accepted item standing until the
-Codex client reopens it.
+adapter instead. It holds the same task-wide wait lease and stores exact batches
+from every page in one task-wide delivery epoch. The first batch after a turn ends
+hands a bounded `leaf-delivery` pointer to Codex's durable same-task queue. Input
+arriving before that queued turn starts joins the same payload without another
+message. An unloaded task therefore keeps one accepted item standing while its
+payload grows, until the Codex client reopens it.
+
+The page claim says whether the task's last turn has ended. While its turn is open,
+the adapter adds input to the current epoch and queues nothing. The prompt and Stop
+hooks put the pointer in model context. A prompt which gets there before an unissued
+queue item consumes that item, because its context has already opened the task with
+the same pointer. The prompt hook has no delivery receipt, so Stop offers that input
+again unless an accepted queue already carries it. A Stop offer records how many
+batches it carried. `stop_hook_active` confirms that offer on re-entry; input added
+after it produces another offer, while no newer input closes the epoch and turn.
+
+The Stop hook locks every currently owned page in stable path order before it
+locks the session delivery state. It captures and acknowledges all input already
+behind those page locks, then either keeps the turn open or marks it closed. An
+event append that reaches a page first joins the active epoch; one that reaches it
+after the hook releases the page sees the closed session and opens the next queued
+epoch. The adapter takes locks in the same page-then-session order. This boundary
+does not depend on a debounce interval or on the adapter's polling cadence. Because
+the turn belongs to the task, a closed stamp on any one of its pages is also enough
+to preserve that boundary if Stop was interrupted while stamping multiple pages.
+
+The visible pointer is one line in a code block. It names the `$leaf` skill,
+whose current copy owns the processing contract. Its epoch file carries each
+batch's page, URL, thread context, and exact events. The adapter acknowledges a
+queued epoch after queue acceptance and an in-turn batch after durable epoch storage.
+The already-loaded Desktop client keeps the task writer, consumes the shared
+durable queue, and owns every execution or approval request. Leaf's queue command
+never resumes or starts the task.
 The adapter has a second lease because a generic wait lease cannot prove that
 its output can enter a later Codex turn; the Stop hook trusts only the pair.
 Both carriers watch every page the session holds, re-reading the set on each
 pass, and deliver one page's batch under a first line naming the page and
 carrying the conversations its events land in.
 
-The Codex delivery intent and its immutable payload live under the host state
-home's session records, not in the page. They are transport recovery state: the
-document and event log remain the page authority, while the intent preserves one
-stable Leaf delivery id and exact pointer prompt across queue acceptance before
-cursor acknowledgement. An uncertain queue command is retried with that same
-pointer. The resulting delivery is at least once; a repeated turn recognizes
-the delivery id and applies the page-and-sequence retry rule. Once a queue
-command succeeds, the adapter records pickup, advances the page cursor, and
-removes the intent.
-The payload stays as conservative recovery state because queue acceptance does
-not prove that a later turn read it.
+Codex delivery epochs live under the host state home's session records, not in the
+page. Each file is one transport authority: whether its queue was accepted, how
+many batches that queue covered, how many the last Stop offer covered, whether the
+epoch is closed, and the batches themselves. The sole unclosed file is the current
+epoch. Page claims remain the turn authority and page cursors remain the receipt
+authority during a page's lifetime. Once a cursor advances, its batch records that
+receipt so reinitializing the same page path cannot revive old transport work or block
+receipts still due on another page.
+An uncertain queue command retries the same file pointer. Delivery is therefore at
+least once; a repeated turn recognizes the id in the filename and applies the
+page-and-sequence retry rule. Completed files remain as recovery history because queue
+acceptance does not prove that a later turn read them.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded — so a killed carrier

@@ -1307,14 +1307,26 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
         "letting go left the reader holding the control on a page that fits the window"
     )
 
-    # The direct Page-map address is navigation too: it lands on the target's primary
-    # Button without unfolding the peer controls into an extra Escape rung.
+    # The direct Page-map address arrives the way the walk does and then presses what it
+    # arrived on, so this location's first available Button accepts the suggestion. What
+    # unfolds there is that press's own result rather than the arrival's, and the ladder
+    # owes what it owed before: one Escape lets go of where the press left the reader.
+    sends = _traffic(page).sends
     page.keyboard.press("g")
     page.keyboard.press("m")
     page.keyboard.press("2")
-    expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
-    expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
-    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
+    _until(
+        page,
+        lambda traffic: traffic.sends > sends,
+        "accepted the addressed suggestion",
+    )
+    round_trip(page)
+    expect(page.locator("#sug-refill lf-new")).to_be_visible()
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    assert page.evaluate(
+        """() => Boolean(document.activeElement.closest(
+             '[data-lf-margin-for="sug-refill"]'))"""
+    ), "the address left the reader outside the cluster it pressed"
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []

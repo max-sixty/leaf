@@ -4313,11 +4313,23 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # a control arrived at that way wears no ring and reads exactly like one
                 # whose rule is missing. Step out and back so the walk's first stop is a
                 # keyboard stop like every stop after it.
+                #
+                # These two are read on a rendered frame rather than on the settled page
+                # the walk below presses against, and they carry the same exposure: the
+                # scroll the opening click caused may still be being answered when the
+                # Shift+Tab lands, so it can be answered in a stale order. What that
+                # costs is bounded, which is why the weaker wait is left here — the
+                # `page_at_rest` below runs before the first stop is read, and the walk
+                # runs until the order comes round, so a stale step out and back moves
+                # where the walk starts rather than what it covers.
                 page.keyboard.press("Tab")
                 page.evaluate(RENDERED)
                 page.keyboard.press("Shift+Tab")
             else:
-                # Each press read on a rendered frame, the way every Tab below it is. A
+                # Each press read on a rendered frame, rather than on the settled page
+                # every Tab below it is pressed against: what the next key of the
+                # sequence needs is the focus the last press left, and the scope's own
+                # arrival is waited for once below before the first stop is read. A
                 # key that opens a layer hands the reader their place in it from the
                 # platform's own event rather than from the press — a popover lands focus
                 # on a row from `toggle`, which is queued — so the next key of the
@@ -4344,6 +4356,20 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             walked, empty, came_round = 0, 0, False
             for _ in range(400):
                 if walked or empty:
+                    # On the settled page, not merely on a rendered frame. Standing on a
+                    # control scrolls the page to it, and the living margin answers that
+                    # scroll by re-placing its clusters — which moves the page's own
+                    # Buttons, since a widget's Button is contributed to a cluster rather
+                    # than left where the widget built it. A Tab pressed while that is in
+                    # flight is answered in the order the previous frame had, so the
+                    # walk's next stop is read off one arrangement and its next press
+                    # made against another: measured under the suite's own load, the
+                    # order stepped over the whole of lf-shot — its transparent flip and
+                    # the keyboard proxy beside it — and the walk stood on the shot's
+                    # Button instead, leaving the `shot` ring painted nowhere the corpus
+                    # could be walked to while every control involved was focusable
+                    # before the press and after it.
+                    page_at_rest(page)
                     page.keyboard.press("Tab")
                 stop = page.evaluate(RING_NEW_STOP)
                 if stop == "seen":

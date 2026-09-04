@@ -241,11 +241,15 @@ customElements.define(
       this.#row.style.opacity = "0";
       this.#row.append(this.#save, this.#cancel);
       this.#offer();
-      this.#decisionActions = registerDecisionActions(this, () =>
-        (this.#ta ? [this.#save, this.#cancel] : [this.#pencil]).map((control) => ({
-          control,
-          label: control.querySelector(":scope > .lf-margin-button-label")?.textContent,
-        })),
+      this.#decisionActions = registerDecisionActions(
+        this,
+        () =>
+          (this.#ta ? [this.#save, this.#cancel] : [this.#pencil]).map((control) => ({
+            control,
+            label: control.querySelector(":scope > .lf-margin-button-label")
+              ?.textContent,
+          })),
+        () => this.#body.textContent || "Empty",
       );
       // Establish availability before the action watcher makes its first synchronous
       // reading, which no longer notifies. Every later transition this paints — failed,

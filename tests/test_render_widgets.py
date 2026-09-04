@@ -12,6 +12,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ALL_DECISIONS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
     BAD_CHART_PAGE,
@@ -2255,15 +2256,15 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
         tab.close()
 
 
-def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
-    """One list, collected from what the registry declares rather than from any tag.
+def test_the_banner_counts_completed_asks_against_the_active_total(browser, serve):
+    """Two semantic readings, collected from declarations rather than from any tag.
 
     The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
     suggestions, and silently nothing for every other thing a page waits on. What
     makes an instance a decision is now the entry's own attribute condition, and the entry
-    explicitly names which state verbs answer it — so this page's four are
-    a decision, a change nobody has decided, and two explicit questions nested in
-    tasks.
+    explicitly names which state verbs answer it — so this page's five active Asks are
+    one authored answer, a live question, a change nobody has decided, and two explicit
+    questions nested in tasks.
 
     The rest of the page is every way of not being one, and each was a way of getting
     it wrong: a group whose pick the version already carries (`chosen`, with nothing in
@@ -2273,24 +2274,24 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     entry does not declare it."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Asks (4)")
+    expect(decisions).to_have_text("Asks 1/5")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
     expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
 
-    # Answering one takes it out. A pick is state the page itself carries, so the
-    # count follows the click; the suggestion's outcome is in the log alone, so that
-    # one follows the round trip.
+    # Answering advances the numerator without erasing the denominator. A pick is state
+    # the page itself carries, so the count follows the click; the suggestion's outcome
+    # is in the log alone, so that one follows the round trip.
     page.locator("#lq-token").click()
-    expect(decisions).to_have_text("Asks (3)")
+    expect(decisions).to_have_text("Asks 2/5")
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(decisions).to_have_text("Asks (2)")
+    expect(decisions).to_have_text("Asks 3/5")
     expect(page.locator(".lf-answer-all")).to_be_hidden()
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
     page.locator("#lq-token").click()
-    expect(decisions).to_have_text("Asks (3)")
+    expect(decisions).to_have_text("Asks 2/5")
     assert errors == []
     page.close()
 
@@ -2310,7 +2311,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     the controls themselves remain the next Tab stops."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Asks (4)")
+    expect(decisions).to_have_text("Asks 1/5")
     walked = []
     for i, expected in enumerate(
         [*DECISIONS_IN_ORDER, DECISIONS_IN_ORDER[0]]
@@ -2322,9 +2323,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         # And exactly one decision wears it, the reader standing in one place at a time.
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
-        # The banner says the ring in numbers, from the same focus: which of how many,
-        # so the wrap is visible as 4/4 becoming 1/4 rather than felt as a jump.
-        expect(decisions).to_have_text(f"Asks ({i % 4 + 1}/4)")
+        # Walking changes the ring and not the durable progress count.
+        expect(decisions).to_have_text("Asks 1/5")
         walked.append(
             page.evaluate(
                 "() => document.activeElement.tagName.toLowerCase()"
@@ -2348,7 +2348,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         page.keyboard.press("Shift+a")
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
-        expect(decisions).to_have_text(f"Asks ({4 - i}/4)")
+        expect(decisions).to_have_text("Asks 1/5")
 
     # Every request has an answering control, so the walk never has to lend a tab stop
     # to authored content.
@@ -2375,19 +2375,18 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # page: a click into the prose is the reader standing nowhere in the list.
     page.locator("#h").click()
     expect(page.locator(STANDING_DECISION)).to_have_count(0)
-    expect(decisions).to_have_text("Asks (4)")
+    expect(decisions).to_have_text("Asks 1/5")
 
     # An answered decision leaves the walk: deciding the change on its own control is where
     # the reader now stands, and the next press reaches what followed it rather than the
     # change they have just settled. The control the reader answered from keeps the
-    # focus, and a settled ask is no place in the list, so the count is bare until the
-    # next press puts them on one.
+    # focus. It leaves the open walk while the completed/total count advances.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(decisions).to_have_text("Asks (3)")
+    expect(decisions).to_have_text("Asks 2/5")
     page.keyboard.press("a")
     expect(page.locator("#t-baffles-decision[data-lf-decision]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
-    expect(decisions).to_have_text("Asks (2/3)")
+    expect(decisions).to_have_text("Asks 2/5")
     assert errors == []
     page.close()
 
@@ -2512,7 +2511,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.keyboard.press("2")
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
     round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/5")
 
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_be_focused()
@@ -3366,15 +3365,12 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     page.close()
 
 
-def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve):
-    """The banner control shows the list a/A walk, so the reader can see what a page
-    wants without visiting each decision in turn and can take them in any order.
+def test_the_decisions_control_opens_active_asks_and_answers(browser, serve):
+    """The banner control shows every active Ask, so the reader can review and revise.
 
-    The rows are openDecisions() and nothing else — the same list the banner counts — so
-    they arrive in document order and a twelfth widget joins the tray by declaring
-    x-awaits. Each says what kind of thing is asking and then the Decision's authored
-    heading, so the row reads the question rather than falling through to its first
-    answer.
+    The rows are allDecisions() — open and answered — in document order, and a twelfth
+    widget joins the tray by declaring x-awaits. Each says what kind of thing is asking,
+    the Decision's authored heading, and its current answer when it has one.
 
     A closed tray holds no rows at all. That is not tidiness: they are the open
     tray's rendering, the banner's count is the closed tray's, and a hidden list of
@@ -3391,8 +3387,8 @@ def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve
     page.keyboard.press("Enter")
     expect(tray).to_be_visible()
     rows = page.evaluate(DECISION_ROW_SAYS)
-    assert [r["at"] for r in rows] == DECISIONS_IN_ORDER, (
-        "the tray is openDecisions() in document order, the list a/A walk"
+    assert [r["at"] for r in rows] == ALL_DECISIONS_IN_ORDER, (
+        "the tray is allDecisions() in document order"
     )
     for row in rows:
         assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
@@ -3406,15 +3402,26 @@ def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve
     assert said["t-baffles-decision"].startswith("Are the baffles ready?"), said[
         "t-baffles-decision"
     ]
+    honored = next(row for row in rows if row["at"] == "honored-decision")
+    assert (honored["state"], honored["answer"]) == ("answered", "Two-tier gates")
 
-    # Answered, and the row goes with the decision. The tray emptying is the progress, so
-    # what is left on it is what is left to do — never a burn-down of everything done.
+    # Answered, and the row remains as the route back while its current answer appears.
     page.locator("#lq-token").click()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
-    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
-    assert "live-question-decision" not in [
-        r["at"] for r in page.evaluate(DECISION_ROW_SAYS)
-    ], "an answered decision keeps a row on the tray"
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/5")
+    expect(page.locator("button.lf-decisions-row")).to_have_count(5)
+    answered = next(
+        row
+        for row in page.evaluate(DECISION_ROW_SAYS)
+        if row["at"] == "live-question-decision"
+    )
+    assert (answered["state"], answered["answer"]) == ("answered", "Signed tokens")
+
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    suggestion = next(
+        row for row in page.evaluate(DECISION_ROW_SAYS) if row["at"] == "sug-refill"
+    )
+    assert (suggestion["state"], suggestion["answer"]) == ("answered", "Accepted")
 
     # And closing takes the rest with it, for the reason the docstring gives: a tray
     # that is down is not a list, so it holds nothing to reach and nothing to press.
@@ -3426,12 +3433,100 @@ def test_the_decisions_control_opens_what_the_page_is_waiting_for(browser, serve
     page.close()
 
 
+def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
+    browser, serve
+):
+    """Completion keeps the same concise route back through the existing action model."""
+    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    resized(page, 1200, 900)
+    progress = page.locator(".lf-decisions")
+    expect(progress).to_have_text("Asks 0/1")
+
+    page.locator("#storage-stop").click()
+    round_trip(page)
+    expect(progress).to_have_text("Asks 1/1")
+    expect(progress).to_have_attribute("data-lf-complete", "")
+    treatment = progress.evaluate(
+        """button => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--ok-ink)';
+          probe.style.background = 'var(--ok-tint)';
+          document.body.append(probe);
+          const actual = getComputedStyle(button);
+          const expected = getComputedStyle(probe);
+          const result = {
+            color: actual.color === expected.color,
+            background: actual.backgroundColor === expected.backgroundColor,
+          };
+          probe.remove();
+          return result;
+        }"""
+    )
+    assert treatment == {"color": True, "background": True}
+
+    page.reload(wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+    expect(progress).to_have_text("Asks 1/1")
+    expect(progress).to_have_attribute("data-lf-complete", "")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    row = page.locator("button.lf-decisions-row")
+    expect(row).to_have_count(1)
+    expect(row).to_be_focused()
+    expect(row.locator(".lf-decisions-answer")).to_have_text("Pause offline editing")
+
+    page.keyboard.press("Enter")
+    expect(page.locator("#storage-decision")).to_be_focused()
+    assert "1–2\nDrop the oldest documents / Pause offline editing" in key_line(page)
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
+    expect(progress).to_have_text("Asks 1/1")
+    expect(row.locator(".lf-decisions-answer")).to_have_text(
+        "Drop the oldest documents"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
+    browser, serve
+):
+    """A tray-row arrival preserves Ask semantics when its source has no box to focus."""
+    page, errors = open_page(browser, serve(CHANGE_SHAPES_PAGE))
+    resized(page, 560, 620)
+    progress = page.locator(".lf-decisions")
+    expect(progress).to_have_text("Asks 0/4")
+
+    page.locator("[data-lf-for='sug-delete'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#sug-delete")).to_be_hidden()
+    expect(progress).to_have_text("Asks 1/4")
+
+    banner_address(page, ".lf-decisions").click()
+    row = page.locator('.lf-decisions-row[data-lf-at="sug-delete"]')
+    expect(row.locator(".lf-decisions-answer")).to_have_text("Accepted")
+    row.click()
+    expect(page.locator(".lf-decisions-panel")).to_be_hidden()
+    undo = page.locator('[data-lf-for="sug-delete"] [data-lf-button-key="undo"]')
+    expect(undo).to_be_focused()
+    assert "1\nUndo" in key_line(page)
+
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#sug-delete")).to_be_visible()
+    expect(progress).to_have_text("Asks 0/4")
+    assert errors == []
+    page.close()
+
+
 def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     """Reloading is not resetting: a tray someone stood up to watch stays stood, the
     rule the thread panel already keeps. Which makes the reload the one moment a
     tray is put up by something other than a press, and that is where it broke — the
     restore ran while the module was still evaluating and filled the tray from a
-    reading of the page's open decisions declared further down the file, so the reader who
+    reading of the page's active decisions declared further down the file, so the reader who
     had left it open got a ReferenceError instead of a page.
 
     Nothing static could have caught it and neither could the render gate, which
@@ -3442,14 +3537,14 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     tray = page.locator(".lf-decisions-panel")
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-decisions-row")).to_have_count(
-        len(DECISIONS_IN_ORDER)
+        len(ALL_DECISIONS_IN_ORDER)
     )
 
     page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-decisions-row")).to_have_count(
-        len(DECISIONS_IN_ORDER)
+        len(ALL_DECISIONS_IN_ORDER)
     )
     # And the room it takes comes back with it, or the tray returns lying over the
     # column it is meant to stand beside.
@@ -3460,12 +3555,10 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     page.close()
 
 
-def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
-    """Pressing a row does what `a` does — one function does both, so the tray can
-    never drift into a second way of arriving at a decision. It scrolls there, rings the
-    ask, and stands the reader on it, which is what lets them answer in the page beside
-    the words arguing for it rather than in the list; the controls that answer it are
-    the next Tab stops.
+def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
+    """Pressing a row uses the same arrival as the Ask walk. It scrolls there, rings the
+    Ask, and stands the reader on its opening context; its controls are the next Tab
+    stops, while the numeric action map is already available for direct revision.
 
     The ring lands in two places for one reason: the decision on the page and its row on the
     tray are two surfaces showing where the reader is standing, painted from the one

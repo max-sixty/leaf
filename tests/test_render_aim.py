@@ -1584,6 +1584,83 @@ def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, ser
     page.close()
 
 
+def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
+    """A visual part's rendered SVG supplies its contour without a package contract.
+
+    A diamond leaves the four corners of that box empty. The armed pixel diff must do
+    the same while still washing the shape's middle, which distinguishes the rendered
+    contour from a rectangle that merely has the same dimensions.
+    """
+    from PIL import Image, ImageChops
+
+    diamond_page = PART_DIAGRAM_PAGE.replace("S[Start request]", "S{Start request}", 1)
+    page, errors = open_page(browser, serve(diamond_page))
+    diamond = page.locator('#flow g[data-id="S"]')
+    diamond.hover()
+    box = diamond.bounding_box()
+    clip = {
+        "x": math.floor(box["x"]),
+        "y": math.floor(box["y"]),
+        "width": math.floor(box["width"]),
+        "height": math.floor(box["height"]),
+    }
+    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+
+    page.keyboard.down("Alt")
+    armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    delta = ImageChops.difference(quiet, armed)
+    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    width, height = delta.size
+
+    def ratio(where):
+        pixels = [
+            changed[y * width + x]
+            for y in range(height)
+            for x in range(width)
+            if where(x / width, y / height)
+        ]
+        return sum(pixels) / len(pixels)
+
+    middle = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) < 0.25)
+    corners = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) > 0.75)
+    assert middle > 0.5, f"the diamond's middle changed by only {middle:.0%}"
+    assert corners < 0.05, f"the empty corners changed by {corners:.0%}"
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, serve):
+    """A contour's paint viewport includes the outside half of its stroke.
+
+    SVG strokes straddle their geometry. If the runtime gives the cloned contour the
+    node's exact bounds, the viewport cuts off its outside half: on rounded ends the
+    original border then remains visible beside the aim instead of under it.
+    """
+    rounded_page = PART_DIAGRAM_PAGE.replace(
+        "S[Start request]", "S([Start request])", 1
+    )
+    page, errors = open_page(browser, serve(rounded_page))
+    rounded = page.locator('#flow g[data-id="S"]')
+    rounded.hover()
+    page.keyboard.down("Alt")
+    geometry = page.evaluate(
+        """() => ({
+          node: document.querySelector('#flow g[data-id="S"]').getBoundingClientRect(),
+          aim: document.querySelector('.lf-aim').getBoundingClientRect(),
+        })"""
+    )
+
+    node, aim = geometry["node"], geometry["aim"]
+    assert node["left"] - aim["left"] >= 1
+    assert node["top"] - aim["top"] >= 1
+    assert aim["right"] - node["right"] >= 1
+    assert aim["bottom"] - node["bottom"] >= 1
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
     """The authored Mermaid id, rather than its generated SVG id, is the anchor.
 

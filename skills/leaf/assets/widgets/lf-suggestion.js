@@ -161,14 +161,22 @@ customElements.define(
       this.#accept = this.#button("accept");
       this.#reject = this.#button("reject");
       this.#renderControls();
-      this.#decisionActions = registerDecisionActions(this, () =>
-        [...this.#row.querySelectorAll(":scope > .lf-margin-button")].map(
-          (control) => ({
-            control,
-            label: control.querySelector(":scope > .lf-margin-button-label")
-              ?.textContent,
-          }),
-        ),
+      this.#decisionActions = registerDecisionActions(
+        this,
+        () =>
+          [...this.#row.querySelectorAll(":scope > .lf-margin-button")].map(
+            (control) => ({
+              control,
+              label: control.querySelector(":scope > .lf-margin-button-label")
+                ?.textContent,
+            }),
+          ),
+        () =>
+          this.dataset.lfState
+            ? this.dataset.lfState === "accept"
+              ? "Accepted"
+              : "Rejected"
+          : "",
       );
       this.#offer();
       watchActions(this, null, () => {

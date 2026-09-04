@@ -1800,7 +1800,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page, errors = open_page(browser, url)
     # Off the reader's list, which is the whole reason the two readings differ here.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)

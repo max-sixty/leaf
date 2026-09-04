@@ -731,6 +731,53 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
 
 
+def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
+    """The browser must resolve generated paint against the page's live cascade.
+
+    A missing custom property is valid CSS syntax, so the diagram renderer accepts it
+    and SVG silently falls back to black. A fallback is the control: it names an absent
+    property but resolves to a shipped color in both schemes. The native SVG is the
+    other control: a gradient reference is valid paint even though it is not a color.
+    """
+    page = leaf_page(
+        "diagram paint",
+        """
+<h1 id="title">Diagram paint</h1>
+<lf-diagram id="flow"><pre>
+flowchart LR
+  Missing[Missing] --&gt; Fallback[Fallback]
+  classDef missing fill:var(--accent-tint),stroke:var(--accent),color:var(--ink)
+  classDef fallback fill:var(--diagram-safe),stroke:var(--ok),color:var(--ok-ink)
+  class Missing missing
+  class Fallback fallback
+</pre></lf-diagram>
+<svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
+  <defs><linearGradient id="blue"><stop stop-color="var(--accent)" /></linearGradient></defs>
+  <rect width="20" height="20" fill="var(--diagram-gradient)" />
+</svg>
+""",
+        head="""<style>:root {
+  --diagram-safe: var(--not-defined, var(--ok-tint));
+  --diagram-gradient: url(#blue) var(--accent);
+}</style>""",
+    )
+
+    failures = render_gate_model.render_version(browser, serve(page))
+    unresolved = [f for f in failures if "does not resolve to valid fill" in f]
+
+    assert len(unresolved) == 2, failures
+    assert all(
+        "<lf-diagram id='flow'> renders fill='var(--accent-tint)' on <rect> "
+        "for data-id='Missing'" in failure
+        for failure in unresolved
+    ), unresolved
+    assert not any(
+        token in failure
+        for failure in failures
+        for token in ("--diagram-safe", "--diagram-gradient")
+    ), failures
+
+
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     browser, serve, tmp_path, monkeypatch
 ):

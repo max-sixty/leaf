@@ -388,10 +388,10 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * Multiple-choice cards keep their empty squares there too: unlike a radio, those boxes
  * say that more than one answer may stand and let the reader count the choices left.
  *
- * The keyboard address temporarily takes that same opening-edge slot in either arity.
+ * The Ask's action address temporarily takes that same opening-edge slot in either arity.
  * The slot is reserved beside the author's chip band and title on every card, so neither
- * a pick nor keyboard focus moves or covers the words. A document-only chosen card keeps
- * the compact caption below: it has no live header state or keyboard address. */
+ * a pick nor an address moves or covers the words. A document-only chosen card keeps the
+ * compact caption below: it has no live header state or action address. */
 lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
 lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      position: absolute; left: var(--sp-3); bottom: 9px; }
@@ -420,15 +420,8 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-address {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
-   & > .lf-another > .lf-address {
-                     inset-inline-start: auto; inset-inline-end: var(--sp-2); }
-   &:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
-                     > lf-option > .lf-pick,
    &:has(> lf-option > .lf-address[data-lf-ask-address])
                      > lf-option > .lf-pick { opacity: 0; }
-   &:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
-                     > .lf-another:has(> .lf-address) > .lf-btn {
-                     opacity: 0; pointer-events: none; }
  }
 }
 /* The face is stated here, not left to a class: the mark has two shapes — a press

@@ -1667,6 +1667,12 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     page.locator(".lf-composer textarea").fill("one runner or many")
     page.keyboard.press("Enter")
     round_trip(page)
+    # The same gap as above, read from the other side. The trip ends on what the page has
+    # sent, and a post the browser has not reported yet is not pending, so a trip taken on
+    # the heels of the press can end before this comment is in the wire at all — and the
+    # log read below then answers with the log as it stood before the gesture. This note is
+    # the second comment applied, which it cannot be before the log holds it.
+    expect(page.locator("#shape > .lf-mark-note")).to_have_count(1)
 
     posted = [
         event

@@ -35,6 +35,7 @@ Usage: preview.py [page] [options]  (default: design-decision)
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -59,7 +60,7 @@ def leaf(
     check: bool = True,
     input_text: str | None = None,
     show_output: bool = False,
-):
+) -> None:
     """Hide successful chatter; checked failures replay their stdout."""
     result = subprocess.run(
         [str(launcher), *args],
@@ -72,8 +73,7 @@ def leaf(
     if check and result.returncode != 0:
         if not show_output and result.stdout:
             print(result.stdout, end="", flush=True)
-        result.check_returncode()
-    return result
+        raise SystemExit(result.returncode)
 
 
 def seed_data(
@@ -339,9 +339,15 @@ def main() -> None:
     data_sources, versions = prepare(source, page, launcher, runtime)
     mark_preview(source, page, runtime)
     print(preparation_note(source, data_sources, versions), end="\n\n", flush=True)
-    command = "start" if args.background else "run"
-    leaf(launcher, runtime, "server", command, str(page), show_output=True)
+    if args.background:
+        leaf(launcher, runtime, "server", "start", str(page), show_output=True)
+        return
+    os.chdir(runtime)
+    os.execv(str(launcher), [str(launcher), "server", "run", str(page)])
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None

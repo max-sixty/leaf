@@ -5,8 +5,10 @@ import itertools
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -14,7 +16,9 @@ from click.testing import CliRunner
 from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
+from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
+from leaf import server as server_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
@@ -32,6 +36,80 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
+
+
+@pytest.fixture
+def preview_slot(tmp_path):
+    slot = f"pytest-{os.getpid()}-{tmp_path.name}"
+    page = ROOT / ".tmp" / "previews" / slot
+    yield slot, page
+    if server_model.running_server(page):
+        hosting_model.cmd_stop(page)
+    shutil.rmtree(page, ignore_errors=True)
+
+
+def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
+    """Ctrl-C reaches the foreground server directly and produces only its abort."""
+    slot, page = preview_slot
+    preview = spawn(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "preview.py"),
+            "design-decision",
+            "--slot",
+            slot,
+        ],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        text=True,
+    )
+
+    deadline = time.monotonic() + 90
+    while not server_model.running_server(page):
+        if preview.poll() is not None:
+            output, _ = preview.communicate()
+            pytest.fail(f"preview exited before serving:\n{output}")
+        if time.monotonic() > deadline:
+            pytest.fail("preview did not start serving within 90 seconds")
+        time.sleep(0.05)
+
+    os.killpg(preview.pid, signal.SIGINT)
+    output, _ = preview.communicate(timeout=10)
+
+    assert preview.returncode == 1, output
+    assert output.endswith("Aborted!\n")
+    assert "Traceback" not in output
+
+
+def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
+    tmp_path, preview_slot
+):
+    """The child command's diagnostic is the preview command's whole error."""
+    source = tmp_path / "invalid.html"
+    source.write_text("<p>outside the document</p>", encoding="utf-8")
+    slot, _ = preview_slot
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "preview.py"),
+            "--source",
+            str(source),
+            "--slot",
+            slot,
+            "--background",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+
+    assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "refusing to stamp index.html:" in result.stderr
+    assert "Traceback" not in result.stdout + result.stderr
 
 
 def test_named_live_previews_serve_one_source_in_independent_runtime_slots(

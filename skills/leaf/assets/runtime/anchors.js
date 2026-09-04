@@ -781,10 +781,10 @@ export function createAnchors(dependencies) {
   // outside half, or the viewport cuts that half away and leaves the item's own border
   // showing beside it on curves. Apply the normal ancestor clips after expanding: the
   // paint may cover the item's edge, never a scroller edge that hid the item.
-  function visualPaintRect(item, shaped) {
+  function visualPaintPlacement(item, shaped) {
     const box = shownBox(item);
     const pad = shaped ? SHAPE_STROKE_ROOM : 0;
-    return clippedRect(
+    const rect = clippedRect(
       {
         left: box.left - pad,
         top: box.top - pad,
@@ -794,7 +794,23 @@ export function createAnchors(dependencies) {
       item,
       new Map(),
     );
+    if (!rect) return null;
+    // The clone's transforms are relative to this clipped paint box. Page and nested
+    // scrolling move its screen coordinates, but move the source matrix by the same
+    // amount; only a resize or a clip crossing the source changes the local drawing.
+    const shapeKey = [
+      rect.right - rect.left,
+      rect.bottom - rect.top,
+      box.left - rect.left,
+      box.top - rect.top,
+      box.right - rect.right,
+      box.bottom - rect.bottom,
+    ].join(":");
+    return { rect, shapeKey };
   }
+
+  const visualPaintRect = (item, shaped) =>
+    visualPaintPlacement(item, shaped)?.rect ?? null;
 
   function refreshAim() {
     const target = aimTarget();
@@ -852,8 +868,10 @@ export function createAnchors(dependencies) {
   // A semantic visual part has one paint geometry in every state. The source element
   // keeps the semantic classes used for hit-testing and thread ownership; this layer
   // renders their shape above the package drawing and leaves rectangular elements on
-  // the existing CSS-outline path.
-  function paintVisualMarks() {
+  // the existing CSS-outline path. An anchor pass rebuilds the drawing from package
+  // paint; a scroll frame normally moves only its box, keeping the cloned contour until
+  // a resize or clipping edge changes its local coordinate system.
+  function paintVisualMarks(rebuildGeometry = true) {
     for (const source of [...visualMarkOverlays.keys()])
       if (!visualPaintTargets.has(source)) {
         source.classList.remove(SHAPED);
@@ -862,12 +880,17 @@ export function createAnchors(dependencies) {
       }
 
     for (const source of visualPaintTargets) {
-      const geometry = visualPaintGeometry(source);
-      const rect = geometry && visualPaintRect(source, true);
       let record = visualMarkOverlays.get(source);
-      if (!geometry || !rect) {
+      const geometry =
+        rebuildGeometry || !record ? visualPaintGeometry(source) : record.geometry;
+      const placement = geometry && visualPaintPlacement(source, true);
+      if (!geometry || !placement) {
         source.classList.remove(SHAPED);
-        if (record) record.overlay.style.display = "none";
+        if (record) {
+          record.geometry = geometry;
+          record.shapeKey = "";
+          record.overlay.style.display = "none";
+        }
         continue;
       }
       if (!record) {
@@ -876,12 +899,21 @@ export function createAnchors(dependencies) {
         shape.classList.add("lf-visual-mark-shape");
         overlay.append(shape);
         visualMarkLayer.append(overlay);
-        record = { overlay, shape };
+        record = { overlay, shape, geometry: null, shapeKey: "" };
         visualMarkOverlays.set(source, record);
       }
       const { overlay, shape } = record;
+      const { rect, shapeKey } = placement;
       source.classList.add(SHAPED);
-      paintVisualShape(shape, geometry, rect);
+      if (
+        rebuildGeometry ||
+        record.geometry !== geometry ||
+        record.shapeKey !== shapeKey
+      ) {
+        paintVisualShape(shape, geometry, rect);
+        record.geometry = geometry;
+        record.shapeKey = shapeKey;
+      }
       overlay.dataset.lfPaintPlane = inChrome(source) ? "chrome" : "page";
       const at = documentPoint(rect.left, rect.top);
       Object.assign(overlay.style, {
@@ -1151,7 +1183,7 @@ export function createAnchors(dependencies) {
     // element part that paints its hover. Rebind the projection before geometry decides
     // whether the parked pointer still indicates that thread at all.
     if (hovering || hoverThread || hoverParts.length) paintHover(hovering);
-    pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
+    pageShifted(true); // the content moved: the hover, a held aim's promise, the legend ask again
 
     paintThreadQuotes();
 
@@ -1673,10 +1705,19 @@ export function createAnchors(dependencies) {
       refreshAction();
     });
   }
-  function pageShifted() {
+  let visualMarkFrame = 0;
+  function queueVisualMarkPlacement() {
+    if (visualMarkFrame || !visualPaintTargets.size) return;
+    visualMarkFrame = requestAnimationFrame(() => {
+      visualMarkFrame = 0;
+      paintVisualMarks(false);
+    });
+  }
+  function pageShifted(rebuildVisualMarks = false) {
     refreshHover();
     refreshAim();
-    paintVisualMarks();
+    if (rebuildVisualMarks === true) paintVisualMarks();
+    else queueVisualMarkPlacement();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();

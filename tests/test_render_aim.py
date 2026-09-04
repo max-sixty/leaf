@@ -1691,6 +1691,13 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
                   mark.right - source.right, mark.bottom - source.bottom];
         }"""
     )
+    page.evaluate(
+        """() => {
+          window.__lfStandingContour = document.querySelector(
+            '.lf-visual-mark-shape > g > *'
+          );
+        }"""
+    )
     page.evaluate("() => scrollBy(0, 80)")
     page.wait_for_function(
         """(before) => {
@@ -1701,6 +1708,14 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
           return after.every((value, index) => Math.abs(value - before[index]) < 0.5);
         }""",
         arg=offset,
+    )
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    assert page.evaluate(
+        """() => window.__lfStandingContour === document.querySelector(
+          '.lf-visual-mark-shape > g > *'
+        )"""
     )
     assert errors == []
     page.close()

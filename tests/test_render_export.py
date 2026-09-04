@@ -688,7 +688,7 @@ def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
     url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
     live, live_errors = open_page(browser, live_url(url))
     resized(live, 1200, 900)
-    item = live.locator('[data-lf-margin-for="sug-refill"]')
+    item = live.locator('[data-lf-margin-for="replace"]')
     expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
     assert live_errors == []
     live.close()

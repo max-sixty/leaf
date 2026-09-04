@@ -37,19 +37,33 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 
 ## Same-task delivery
 
-One detached adapter watches every page this task owns. It gives each complete
-batch a stable delivery id, queues it as a new user turn in this same task, and
-acknowledges only after Codex accepts the durable queue item. Starting the command
-again for another page adds that page to the same task-wide watch.
+One detached adapter watches every page this task owns. The event log is the durable
+mailbox; Codex's queue is only its edge-triggered wake. When the task is between
+turns, the first batch gets a stable delivery id and queues a new user turn in this
+same task. Leaf acknowledges that snapshot only after Codex accepts the durable
+queue item, then keeps one wake marker standing until the prompt hook proves that a
+later turn opened. Events arriving behind that marker remain in the mailbox and do
+not queue more messages; the prompt hook snapshots them into hidden delivery
+pointers before the model starts. Starting the command again for another page adds
+that page to the same task-wide watch.
 
 The loaded Desktop client starts that later turn and keeps ownership of execution
 and approvals. If the task has been unloaded, the item stays queued until Codex
 reopens it; the adapter never resumes the task or answers client requests on the
-user's behalf. The small queued message is a `leaf-delivery` XML element pointing
-to the exact persisted batch rather than copying an arbitrarily large batch into
-Codex's bounded text input. The later turn reads that payload and leaves only
-`leaf wait` and `leaf ack` to the adapter. It still owns replies, revisions, page
-status, and the handoff back to `waiting` or `idle`.
+user's behalf. The small queued message is a `leaf-delivery` XML element shown as one
+line in a code block. It names the `$leaf` skill and points to the exact persisted
+batch. The skill owns the processing contract, and the payload carries the page URL
+and batch rather than copying either instructions or an arbitrarily large batch into
+Codex's bounded text input. The later turn reads that payload and the hidden pointers
+for anything accumulated behind it. While a turn is open, the adapter never queues.
+Its Stop hook snapshots every event that arrived during the model's work and carries
+their same small delivery pointers into a continuation of that turn. The re-entered
+Stop acknowledges exactly that snapshot. Thus several clicks around one wake produce
+one visible user message without waiting for a debounce timer. A Stop hook can safely
+block only once; an event arriving after its snapshot crosses the sharp boundary into
+the next wake rather than being silently acknowledged. The adapter and hook own
+`leaf wait` and `leaf ack`; the task owns replies, revisions, page status, and the
+handoff back to `waiting` or `idle`.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

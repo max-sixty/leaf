@@ -24,12 +24,16 @@ Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer.
 
 In the direct loop, the durable consumer is model context. The Codex adapter
-instead owns its wait and acknowledgement. It acknowledges after Codex's queue
-accepts the batch; the queued turn reads its named delivery payload and does not
-wait or acknowledge. If a queue command has an uncertain outcome, the adapter
-retries the same pointer with the same Leaf delivery id. This is at-least-once
-delivery and may create a retry turn; the task applies the page-and-sequence
-retry rule below.
+instead owns its wait and acknowledgement. It acknowledges the wake's first
+snapshot after Codex's queue accepts it; the queued turn reads its named delivery
+payload and does not wait or acknowledge. One accepted wake suppresses later queue
+messages until that turn opens. The events accumulated behind it stay
+unacknowledged; the prompt hook carries their delivery pointers into the same turn
+before the model starts and takes receipt at Stop. Events arriving during the work
+take the same route through one Stop continuation. If a queue command has an
+uncertain outcome, the adapter retries the same pointer with the same Leaf delivery
+id. This is at-least-once delivery and may create a retry turn; the task applies the
+page-and-sequence retry rule below.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its events
 enter the same append-only log; the detached Codex adapter still owns wait,
@@ -48,12 +52,28 @@ reads the full log without acking it.
 Treat a page-and-sequence pair already handled in this task as a retry, even if a
 later delivery also includes newer events.
 
+For a Codex delivery, collect every payload already attached to the turn before
+choosing an implementation direction. Then refresh each page immediately before
+acting, using the greatest `through` value among its payloads:
+
+```sh
+leaf events <page> --after <through>
+```
+
+This returns immediately and does not acknowledge anything. Add any newer reader
+events, reports, or page errors it prints to the work you are about to do. Ignore
+transport records such as `pickup`. The Stop hook will deliver those events again
+for receipt, so apply the page-and-sequence retry rule rather than doing the work
+twice. This refresh introduces no batching delay; an event that arrives after it
+remains the Stop hook's responsibility.
+
 ## Process every event
 
 Start `leaf ack` for a direct batch, set the page `working`, and address every
 event the wait printed while ack waits for the next batch. In a Codex delivery,
-the detached adapter owns ack; set the page `working` and process the persisted
-batch directly.
+whether its pointer came from the visible wake or the hidden Stop continuation,
+the detached adapter and hook own ack; set the page `working` and process every
+persisted batch directly.
 
 - **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
   it in the next version, then resolve it. If the revision depends on the reader,

@@ -2229,6 +2229,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         else:
             pytest.fail("the detached Codex carrier did not remain live")
 
+        # The adapter queues only between turns. Input arriving while this
+        # starting turn is open belongs to its Stop hook instead.
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
         comment = events_model.append_event(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
@@ -2258,22 +2261,42 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert len(set(prompts)) == 1
         prompt = prompts[0]
         assert "hello adapter" not in prompt
-        assert server_model.running_server(page)["url"] in prompt
         [intent_payload] = codex_model.delivery_payload_path(
             "codex-thread", "delivery-id"
         ).parent.glob("*.json")
         payload = files_model.read_json(intent_payload)
-        delivery = ElementTree.fromstring(prompt)
+        assert prompt.splitlines() == [
+            "```xml",
+            (
+                f'<leaf-delivery skill="$leaf" id="{payload["delivery_id"]}" '
+                f'path="{intent_payload}" />'
+            ),
+            "```",
+        ]
+        delivery = ElementTree.fromstring(prompt.splitlines()[1])
         assert delivery.tag == "leaf-delivery"
-        assert delivery.attrib == {"id": payload["delivery_id"]}
-        message = delivery.text or ""
-        assert str(intent_payload) in message
-        assert "already handled in this task as a retry" in message
-        [delivery_reference] = re.findall(r"`(references/[^`]+\.md)`", message)
-        assert (SKILL_ROOT / delivery_reference).is_file()
+        assert delivery.attrib == {
+            "skill": "$leaf",
+            "id": payload["delivery_id"],
+            "path": str(intent_payload),
+        }
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        assert all(
+            term in skill for term in ("<leaf-delivery", "batch_jsonl", "through")
+        )
+        batch_contract = (SKILL_ROOT / "references" / "event-batches.md").read_text(
+            encoding="utf-8"
+        )
+        assert "leaf events <page> --after <through>" in batch_contract
+        assert payload["url"] == server_model.running_server(page)["url"]
+        assert payload["through"] == next(
+            event["seq"]
+            for event in events_model.read_events(page)
+            if event["id"] == comment["id"]
+        )
         assert "hello adapter" in payload["batch_jsonl"]
         assert str(page) in payload["batch_jsonl"]
-        assert len(prompt.encode()) < 4096
+        assert len(prompt.encode()) < 1024
         assert intent_payload.exists()
         assert codex_model.adapter_is_live("codex-thread")
 
@@ -2288,6 +2311,187 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         time.sleep(0.05)
     assert not codex_model.adapter_is_live("codex-thread")
     assert intent_payload.exists()
+
+
+def test_codex_coalesces_late_events_behind_one_visible_wake(
+    codex_claimed_page, under_codex, codex_env, tmp_path, capsys
+):
+    """The queue is an edge-triggered wake, while the log is the mailbox.
+
+    The first click after a turn ends queues immediately. More clicks before that
+    queued turn opens, and clicks while it runs, remain unacknowledged. Its Stop
+    hook hands their exact snapshot back into the same turn, so none mint another
+    user message. The re-entered Stop is receipt for that snapshot.
+    """
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "choose an option")
+    started = under_codex(
+        shlex.join(
+            [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if codex_model.adapter_is_live("codex-thread"):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the detached Codex carrier did not remain live")
+
+        # Finish the handoff turn. The first reader move now wakes immediately.
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        assert capsys.readouterr().out == ""
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "first click"}
+        )
+        first = events_model.read_events(page)[-1]
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            queued = [call for call in calls if "--thread" in call]
+            if (
+                len(queued) == 1
+                and files_model.read_json(page / "cursor.json") == {"seq": first["seq"]}
+                and codex_model.wake_path("codex-thread").exists()
+            ):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the first reader move did not create one durable wake")
+
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "second click"}
+        )
+        second = events_model.read_events(page)[-1]
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "third click"}
+        )
+        third = events_model.read_events(page)[-1]
+        time.sleep(1.2)
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert len([call for call in calls if "--thread" in call]) == 1
+        assert files_model.read_json(page / "cursor.json") == {"seq": first["seq"]}
+
+        # The queued prompt opens one turn. A further click during its work joins
+        # the same hidden Stop delivery as the two that accumulated behind it.
+        hooks_model.cmd_hook(
+            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+        )
+        prompt_context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        assert first["id"] in prompt_context and "same turn" in prompt_context
+        prompt_manifest = files_model.read_json(
+            codex_model.turn_delivery_path("codex-thread")
+        )
+        prompt_payload = files_model.read_json(
+            Path(prompt_manifest["deliveries"][0]["payload"])
+        )
+        assert "first click" not in prompt_payload["batch_jsonl"]
+        assert all(
+            text in prompt_payload["batch_jsonl"]
+            for text in ("second click", "third click")
+        )
+        assert prompt_payload["through"] == third["seq"]
+        conversation_model.cmd_reply(page, first["id"], "processing the choice", None)
+        deadline = time.monotonic() + 10
+        while (
+            time.monotonic() < deadline
+            and codex_model.wake_path("codex-thread").exists()
+        ):
+            time.sleep(0.05)
+        assert not codex_model.wake_path("codex-thread").exists()
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "fourth click"}
+        )
+        fourth = events_model.read_events(page)[-1]
+        refresh = CliRunner().invoke(
+            cli_model.cli,
+            ["events", str(page), "--after", str(prompt_payload["through"])],
+        )
+        assert refresh.exit_code == 0, refresh.output
+        refreshed = [json.loads(line) for line in refresh.output.splitlines()]
+        assert fourth["id"] in {event["id"] for event in refreshed}
+        assert files_model.read_json(page / "cursor.json") == {"seq": first["seq"]}
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        answer = json.loads(capsys.readouterr().out)
+        assert answer["decision"] == "block"
+        assert "same turn" in answer["reason"]
+        manifest = files_model.read_json(codex_model.turn_delivery_path("codex-thread"))
+        assert len(manifest["deliveries"]) == 1
+        payload = files_model.read_json(Path(manifest["deliveries"][0]["payload"]))
+        assert "fourth click" in payload["batch_jsonl"]
+        assert "second click" not in payload["batch_jsonl"]
+        assert "third click" not in payload["batch_jsonl"]
+        assert files_model.read_json(page / "cursor.json") == {"seq": third["seq"]}
+        assert service_model.page_claim(page)["turn_closed"] is None
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert len([call for call in calls if "--thread" in call]) == 1
+
+        hooks_model.cmd_hook(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "stop_hook_active": True,
+            }
+        )
+        assert capsys.readouterr().out == ""
+        assert files_model.read_json(page / "cursor.json") == {"seq": fourth["seq"]}
+        assert not codex_model.turn_delivery_path("codex-thread").exists()
+        assert service_model.page_claim(page)["turn_closed"]
+        assert second["seq"] < third["seq"] < fourth["seq"]
+    finally:
+        session_model.cmd_status(page, "idle", "")
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+
+
+def test_codex_prompt_replays_an_in_turn_snapshot_after_adapter_loss(
+    codex_claimed_page, capsys
+):
+    """Recovery never receipts a snapshot that the next turn did not see."""
+    page = codex_claimed_page
+    session_model.cmd_status(page, "waiting", "choose an option")
+    events_model.append_event(
+        page, {"kind": "comment", "author": "user", "text": "survive the adapter"}
+    )
+    delivered = events_model.read_events(page)[-1]
+    manifest = codex_model.capture_turn_delivery("codex-thread")
+    assert manifest is not None
+
+    # No adapter lease is live. The prompt still re-presents the exact durable
+    # snapshot instead of letting its later Stop acknowledge unseen input.
+    hooks_model.cmd_hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert manifest["deliveries"][0]["delivery_id"] in context
+    conversation_model.cmd_reply(page, delivered["id"], "recovered", None)
+    session_model.cmd_status(page, "idle", "")
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    assert capsys.readouterr().out == ""
+    assert files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
+    assert not codex_model.turn_delivery_path("codex-thread").exists()
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(

@@ -2,6 +2,13 @@
 
 import json
 
+from .codex import (
+    capture_turn_delivery,
+    current_turn_delivery,
+    finish_turn_delivery,
+    record_turn_opened,
+    turn_delivery_reason,
+)
 from .event_log import read_events
 from .events import awaits_agent, build_threads, seat_root, spoken_turns
 from .leases import adapter_is_live
@@ -224,16 +231,6 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
-    if event == "Stop":
-        # Ahead of both early returns below. The stamp is not a nudge and does not
-        # depend on there being one: the turn that ends with nothing outstanding is
-        # exactly the turn that leaves a `working` claim behind with nobody on it.
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    page.close_turn(sid)
-            except FileNotFoundError:
-                continue
     if event == "UserPromptSubmit":
         # The mirror of the branch above, and ahead of the same early returns.
         # A prompt is the turn opening as plainly as Stop is the turn ending,
@@ -243,7 +240,13 @@ def cmd_hook(payload: dict) -> None:
         # carry and nothing else would clear the stamp — the page would go on
         # telling them to do the thing they just did until the agent happened to
         # write a status.
+        has_pages = bool(owned_pages(sid))
         open_session_turn(sid)
+        # The persisted generation lets the detached adapter observe even a turn
+        # that opens and closes between its polling passes. Opening the claims
+        # first prevents it from clearing a wake into a still-closed session.
+        if has_pages:
+            record_turn_opened(sid)
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with
@@ -251,8 +254,48 @@ def cmd_hook(payload: dict) -> None:
     # carries the rest is UserPromptSubmit, which reads the same reasons, so the
     # debt opens the next turn rather than waiting for its end.
     if event == "Stop" and payload.get("stop_hook_active"):
+        # Receipt follows the continuation, not the first hook output. Only the
+        # exact snapshot handed to that continuation advances; input posted
+        # afterward remains pending for the next wake.
+        finish_turn_delivery(sid)
+        for page_dir in owned_pages(sid):
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
         return
+
+    turn_delivery = None
+    if event == "UserPromptSubmit":
+        # An interrupted continuation may outlive its adapter. Re-present that
+        # exact snapshot; only a live adapter may mint a new one.
+        turn_delivery = current_turn_delivery(sid)
+        if turn_delivery is None and adapter_is_live(sid):
+            # Events accumulated behind the accepted wake join the turn before
+            # the model starts. Its eventual Stop is their receipt.
+            turn_delivery = capture_turn_delivery(sid)
+    if event == "Stop":
+        # A snapshot handed over by UserPromptSubmit has now crossed model
+        # context. Advance only through it, then look once for events that
+        # arrived while the model was working.
+        finish_turn_delivery(sid)
+        if adapter_is_live(sid):
+            turn_delivery = capture_turn_delivery(sid)
+    if event == "Stop" and turn_delivery is None:
+        # A turn with no in-turn delivery can close before the ordinary guard
+        # decides whether to nudge. A captured delivery instead keeps the claim
+        # open so the adapter cannot mint a second visible wake while the hook's
+        # continuation processes it.
+        for page_dir in owned_pages(sid):
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
     reasons = unattended_pages(sid)
+    if turn_delivery is not None:
+        reasons.insert(0, turn_delivery_reason(turn_delivery))
     if not reasons:
         return
     # The message avoids "unattended": a page can be watched and still be owed

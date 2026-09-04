@@ -44,6 +44,14 @@ rewritten element and explain why in the version note. Without `restated`, repla
 restores the user's state and `version check` refuses a conflicting version. Do
 not carry a gesture withdrawn by an `undo` event.
 
+## Make changes easy to find
+
+Before handing over a changed page, compare it with the last version handed to
+the reader. Make its material additions and changes clear in the page itself.
+For example, options added for this turn can carry a final `<lf-chip>new this
+turn</lf-chip>` in their chip row. The marker is temporary; remove it from the
+next handed-over revision.
+
 ## Keep the current page current
 
 Each active revision presents what is live now. Remove a concluded run or

@@ -1063,7 +1063,11 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     bounds = bar.bounding_box()
     panel = page.locator(".lf-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
-    field.press("End")
+    # End alone is the end of a visual line, while ControlOrMeta+End is not a document-
+    # end gesture on macOS. Select the whole draft and collapse the selection after it:
+    # the same platform-neutral route to the end at every soft-wrapped width.
+    field.press("ControlOrMeta+a")
+    field.press("ArrowRight")
     field.press_sequentially(" It is visible again.")
     expect(field).to_have_value(draft + " It is visible again.")
     assert errors == []
@@ -1107,6 +1111,10 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     }
     shown = painted(page, [["flow", "this"]])
     assert shown["outlined"] == [start.get_attribute("data-id")], shown
+    expect(start).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    expect(page.locator(".lf-visual-mark")).to_have_class(
+        re.compile(r"\blf-visual-mark-reaction\b")
+    )
     expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
     assert errors == []
     page.close()

@@ -786,10 +786,10 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     the hyperlinks, and the chips are read off whichever document is standing, so the
     window holds through the swap and the digit lands in the new page — minus the
     address of a link the revision took away, which is the honest reading. The reader's
-    standing is the document's: the key line over a focused pick mark offers "1–2 toggle
-    the nth", and the swap that replaced main dropped that focus onto body, taking the
-    offer down with it — the digit then picked nothing, silently. The place is written
-    down by id before the swap and handed back after it, so the fresh mark holds the
+    standing is the document's: the Ask's "1–2 One / Two" actions remain live over a
+    focused pick mark, and the swap that replaced main dropped that focus onto body,
+    taking the offer down with it — the digit then picked nothing, silently. The place is
+    written down by id before the swap and handed back after it, so the fresh mark holds the
     focus and the digit picks, acknowledged in the banner. One revision arrives as a
     draft and the next as a stamped version, since both replace the page under the
     reader by the same door."""
@@ -812,7 +812,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert "toggle the nth" in key_line(page)
+    assert "1–2\nOne / Two" in key_line(page)
     # A stamped version this time, which is the other way a page moves under a reader;
     # the notice names it in the banner and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -822,7 +822,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert "toggle the nth" in key_line(page), "the swap took the reader's keys down"
+    assert "1–2\nOne / Two" in key_line(page), "the swap took the reader's keys down"
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
     expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(

@@ -114,15 +114,36 @@ export function coveredWords({
 export function bake() {
   document.documentElement.classList.add("lf-copy");
   // A receipt is runtime chrome even where its seat is in the page rather
-  // than under .lf-chrome. Remove it from the document and every open shadow root
-  // before those roots are serialized below: a file has no agent behind the claim,
-  // so preserving the rendered sentence would turn provisional news into a lie.
+  // than under .lf-chrome, so it is answered here, in the document and in every open
+  // shadow root, before those roots are serialized below.
+  //
+  // Two ways one says so, because it has two seats. A thread's own line is built as one
+  // (.lf-receipt). A margin reading becomes one in place, keeping the seat it held as a
+  // Button, so what names it is the behavior `marginAction` writes rather than the tag
+  // or the class it kept. The marker value cannot answer for either: a receipt is not a
+  // press, so `offer` writes the empty one there to stand the pointer hand and the lift
+  // down on the live page, and the press removal below reads that same value to mean "a
+  // box a widget built" and walks past.
+  //
+  // What a file may claim is what splits them, which is why the behavior alone is not
+  // the reading. Sent, Waiting for pickup and Picked up are news about a move an agent
+  // is still making, and a file has nothing standing behind that, so keeping the
+  // sentence would turn provisional news into a lie. A standing Outcome is the opposite:
+  // the page map's record of a decision this document already carries, with the decided
+  // state applied in the same file — the very fact the rail below is held open for, and
+  // for a widget speaking no receipt of its own the only margin record of the choice.
+  // `marginAction` states which is which (data-lf-standing); what the copy keeps is
+  // settled below, once the presses standing beside it have gone.
   const roots = [document];
   for (const root of roots)
     for (const element of root.querySelectorAll("*"))
       if (element.shadowRoot) roots.push(element.shadowRoot);
   for (const root of roots)
-    root.querySelectorAll(".lf-receipt").forEach((el) => el.remove());
+    root
+      .querySelectorAll(
+        '.lf-receipt, [data-lf-behavior="receipt"]:not([data-lf-standing])',
+      )
+      .forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule
@@ -324,6 +345,59 @@ export function bake() {
       )
         el.removeAttribute(attr.name);
   });
+  // The record kept above, now that the presses around it have gone. It stands once and
+  // in the item itself: a copy cannot open a fold, because the `…` that would is one of
+  // those presses, and the resting seat a widget's control held is free again for the
+  // same reason. So one seat per reading — the one the live page showed, else the marker
+  // it hid — and the seat gives up the promise it never used, which is the status role
+  // the walk lands on, its tab stop, and the marker that said a widget built this box.
+  // No widget did: this reading is the runtime's, which is why nothing here is left for
+  // the press pass above to keep, the way it keeps a control's page words.
+  //
+  // It keeps its circle and its glyph, though, so what it gives up the status for is the
+  // one role a shape with a collapsed word can hold: `img`, with the word as its text
+  // alternative, the same bargain the reaction mark above strikes and for the same
+  // reason. `aria-label` on a span with no role is a name nothing is obliged to read,
+  // and both seats land here as spans — the marker was one already, and the option seat
+  // gave its own role up above.
+  for (const item of document.querySelectorAll(".lf-margin-item")) {
+    const seats = new Map();
+    for (const record of item.querySelectorAll("[data-lf-standing]")) {
+      const standing = seats.get(record.dataset.lfButtonKey);
+      if (standing && !standing.hidden) {
+        record.remove();
+        continue;
+      }
+      if (standing) standing.remove();
+      seats.set(record.dataset.lfButtonKey, record);
+    }
+    for (const record of seats.values()) {
+      record.hidden = false;
+      for (const attr of ["tabindex", "data-lf-offer"]) record.removeAttribute(attr);
+      // And it stops being a page-map marker, where the live page showed it as one.
+      // The class is the rail's seat rather than the reading's: both media rules that
+      // stop drawing the page map keep it company (`.lf-living-margin,
+      // .lf-margin-marker.lf-margin-action` at the 900px floor and again for print), so
+      // a record left wearing it would be a fact this file keeps on a wide screen and
+      // drops on a narrow one or on paper, while the same record kept in a widget's own
+      // fold stands in all three. The name goes with the class for the same reason it
+      // is written: `markerName` speaks the walk — which entry of how many, and how far
+      // down the exporter's window the target sat — and a copy has neither the walk nor
+      // that window. What replaces it is the reading's own word, restated as the name.
+      // That is how every other seat in the margin is named — `marginAction` writes the
+      // record's label there, and the option seat below it carries `Outcome for …` —
+      // and the word standing in the DOM cannot stand in for it: the chrome stylesheet
+      // rides into the file and styles that span as hover chrome, `visibility: hidden`
+      // until a pointer is on the control, so it is read in no medium and by nothing.
+      if (record.classList.replace("lf-margin-marker", "lf-margin-reading-option"))
+        record.setAttribute(
+          "aria-label",
+          record.querySelector(":scope > .lf-margin-action-label").textContent,
+        );
+      record.setAttribute("role", "img");
+      item.append(record);
+    }
+  }
   // Target items are generated containers rather than offers themselves. A pending
   // action leaves the container empty when its inert controls are stripped above; take
   // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy

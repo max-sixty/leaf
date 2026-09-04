@@ -2801,8 +2801,13 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     line = page.locator(".lf-keyline")
+    # The door is a go-to destination rather than a bare letter, so the line names it
+    # once the chord is armed. The word that must not be anywhere is read behind that
+    # arrival, so the absence is taken off a line the press has already repainted.
+    page.keyboard.press("g")
     expect(line).to_contain_text("versions")
     expect(line).not_to_contain_text("mark changes")
+    page.keyboard.press("Escape")
     page.keyboard.press("=")
     expect(page.locator(".lf-version-menu")).to_be_hidden()
     expect(page.locator(".lf-ins-block")).to_have_count(0)

@@ -30,7 +30,8 @@ Do not copy the connective sentence from another page.
 Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
 schemas, and small XY plots; Beautiful Mermaid renders that Mermaid-source subset.
 Flowcharts accept Mermaid's classic node shapes. Their `classDef` declarations can
-apply Leaf's semantic tokens directly, for example
+set `fill`, `stroke`, `color`, and `stroke-width`; other properties are ignored. Apply
+Leaf's semantic tokens directly, for example
 `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Use `lf-chart` for
 quantities that need Leaf's data-first chart vocabulary: a comparison across a few
 categories, a run over time, a ranking, a composition, or two numbers against each

@@ -882,26 +882,53 @@ flowchart LR
     page.close()
 
 
-def test_an_unsupported_click_directive_fails_visibly(browser, serve):
-    """A Mermaid click directive cannot be mistaken for a diagram node."""
-    linked = leaf_page(
-        "diagram click directive",
+def test_unsupported_directives_fail_without_rejecting_keyword_nodes(browser, serve):
+    """Unsupported Mermaid statements cannot corrupt or disappear from a drawing."""
+    directives = leaf_page(
+        "diagram directives",
         """
-<h1 id="title">Diagram click directive</h1>
-<lf-diagram id="flow"><pre>
+<h1 id="title">Diagram directives</h1>
+<lf-diagram id="click-directive"><pre>
 flowchart LR
   A[Alpha] --&gt; B[Beta]
   click A href "https://example.com" "Open"
 </pre></lf-diagram>
+<lf-diagram id="acc-title"><pre>
+flowchart LR
+  accTitle: Checkout flow
+  Cart[Cart] --&gt; Pay[Pay]
+</pre></lf-diagram>
+<lf-diagram id="acc-description"><pre>
+flowchart LR
+  accDescr {
+    A request moves from queued to complete.
+  }
+  Queued[Queued] --&gt; Complete[Complete]
+</pre></lf-diagram>
+<lf-diagram id="keyword-nodes" parts="node:click node:accTitle node:accDescr"><pre>
+flowchart LR
+  click --&gt; done
+  accTitle --&gt; done
+  accDescr --&gt; done
+</pre></lf-diagram>
 """,
     )
-    page, _ = open_page(browser, serve(linked))
+    page, _ = open_page(browser, serve(directives))
 
-    expect(page.locator("#flow .lf-error")).to_contain_text(
-        "click directives are not supported"
-    )
-    expect(page.locator("#flow svg")).to_have_count(0)
-    expect(page.locator("#flow .lf-error pre")).to_contain_text("click A href")
+    for diagram, source in (
+        ("click-directive", "click A href"),
+        ("acc-title", "accTitle: Checkout flow"),
+        ("acc-description", "accDescr {"),
+    ):
+        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
+            "click, accTitle and accDescr directives are not supported"
+        )
+        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
+        expect(page.locator(f"#{diagram} .lf-error pre")).to_contain_text(source)
+
+    for node in ("click", "accTitle", "accDescr"):
+        expect(page.locator(f'#keyword-nodes g[data-id="{node}"]')).to_be_visible()
+    expect(page.locator("#keyword-nodes .lf-error")).to_have_count(0)
     page.close()
 
 

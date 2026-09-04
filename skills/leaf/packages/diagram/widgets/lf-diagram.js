@@ -22,9 +22,17 @@ const prepareSvg = (svg) =>
       "var(--mono)",
     );
 
+/* Beautiful Mermaid's flowchart parser reads statements it does not implement as node
+ * declarations. Reject the known unsupported Mermaid directives before they can draw
+ * boxes labelled with their own keywords. The identifier after `click` distinguishes
+ * the directive from an ordinary flowchart node an author happened to name `click`. */
+const UNSUPPORTED_DIRECTIVE =
+  /^\s*(?:click\s+[A-Za-z_]|accTitle\s*:|accDescr\s*(?::|\{))/m;
 const rejectUnsupportedSource = (source) => {
-  if (/^\s*click(?:\s|$)/im.test(source))
-    throw new Error("click directives are not supported by Leaf diagrams");
+  if (UNSUPPORTED_DIRECTIVE.test(source))
+    throw new Error(
+      "click, accTitle and accDescr directives are not supported by Leaf diagrams",
+    );
 };
 
 /* The renderer uses fixed ids for arrowheads, gradients and masks. Repeated ids make

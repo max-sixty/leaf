@@ -167,8 +167,8 @@ export function createChromeLayout({
     // Read off the rendered line rather than stated as a number, which is what keeps it
     // true when the line's face or its padding moves — and off each region's own foot,
     // because the three do not end in the same place. The document ends at the foot of
-    // the window; the panel's list ends above the sheet's own foot, which is the composer
-    // and can be half the window once a draft has grown it.
+    // the window; the panel's list ends at the top of the complete panel foot, whose
+    // composer can grow to half the window with a draft.
     //
     // The band and not the height. The height alone leaves out every inset holding the
     // line off the foot — the 14px above, a covering sheet's lift, the device's safe area

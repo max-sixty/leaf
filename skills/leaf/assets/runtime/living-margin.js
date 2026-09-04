@@ -628,7 +628,7 @@ export function createLivingMargin(dependencies) {
     requestAnimationFrame(() => {
       if (epoch !== threadTransitionEpoch) return;
       preview.style.removeProperty("opacity");
-      if (previewEntry !== entry || !preview.matches(":popover-open")) return;
+      if (previewEntry?.key !== entry.key || !preview.matches(":popover-open")) return;
       placeThreadPreview();
       transitionThread(origin);
     });

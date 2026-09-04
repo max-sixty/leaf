@@ -163,11 +163,26 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     assert compact["height"] == 32
     field.fill("Carry this comment into its thread.")
     source = field.bounding_box()
+    # Keep a margin render pending across the accepted comment and its next frame.
+    # Rendering rebuilds entry records, so the scheduled carry must recognize the same
+    # destination by its durable key rather than by the old record's object identity.
+    page.evaluate(
+        """() => {
+          window.__lfForceMarginRender = true;
+          const renderAgain = () => {
+            if (!window.__lfForceMarginRender) return;
+            dispatchEvent(new Event('resize'));
+            requestAnimationFrame(renderAgain);
+          };
+          requestAnimationFrame(renderAgain);
+        }"""
+    )
     page.keyboard.press("Enter")
     round_trip(page)
 
     ghost = page.locator(".lf-thread-transition")
     expect(ghost).to_have_count(1)
+    page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     reply = preview.locator("textarea")

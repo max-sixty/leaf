@@ -1314,32 +1314,47 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
 
 
 def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
-    """An Ask's generated digit follows the same reader preference as dispatch.
-
-    The settled deck still contributes its non-character arrow commands. Those keep the
-    contextual action row alive, but cannot keep an unavailable digit painted over Undo.
-    """
+    """A live arrow cannot keep filtered contextual actions on the key line."""
     page, errors = open_page(
         browser,
-        serve(SWIPE_PAGE),
+        serve(SHORT_SUGGESTION),
         init_script="localStorage.setItem('lf-character-shortcuts', '0')",
     )
-    decision = page.locator("#session-triage-decision")
-
-    for _ in range(4):
-        page.get_by_role("button", name="Keep →", exact=True).click()
-    round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect';
+          inspect.onclick = () => { inspect.dataset.activated = '1'; };
+          suggestion.append(inspect);
+          commands(inspect, 'Explicit non-character action', [{
+            id: 'test.inspect-left',
+            keys: ['ArrowLeft'],
+            control: inspect,
+            decision: true,
+            label: 'Inspect',
+            does: 'Inspect this suggestion',
+            line: 'Inspect',
+            run: () => inspect.click(),
+          }]);
+        }"""
+    )
 
     page.locator(".lf-decisions").click()
     page.locator("button.lf-decisions-row").click()
-    expect(decision).to_be_focused()
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
-    assert "Undo last swipe" not in key_line(page)
+    expect(page.locator("#sug")).to_be_focused()
+    assert "←\nInspect" in key_line(page)
+    assert "Accept / Reject" not in key_line(page)
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("←")
 
     before = len(actions(serve.page_dir))
     page.keyboard.press("1")
     assert len(actions(serve.page_dir)) == before
+    page.keyboard.press("ArrowLeft")
+    expect(page.get_by_role("button", name="Inspect", exact=True)).to_have_attribute(
+        "data-activated", "1"
+    )
     assert errors == []
     page.close()
 

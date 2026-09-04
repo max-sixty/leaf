@@ -459,8 +459,8 @@ export function createDecisionView({
       actions.map(({ binding }) => binding).filter((binding) => binding !== null),
     );
     // Generated addresses are bindings too. Read them through the same preference filter
-    // as declared package keys, or non-character actions can keep this row live while a
-    // disabled digit is still painted and never dispatched.
+    // as declared package keys; otherwise a non-character action can keep the row live
+    // while its words still name contextual actions the dispatcher has removed.
     const contextual = bindings({
       keys: Array.from({ length: MAX_NUMBERED_ADDRESSES }, (_, index) =>
         String(index + 1),

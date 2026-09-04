@@ -232,6 +232,7 @@ import {
   word,
 } from "./runtime/keyboard/bindings.js";
 import {
+  allDecisions,
   answeredContext,
   decisionSource,
   createDecisionModel,
@@ -738,12 +739,12 @@ const {
   leavesOffered: () => leavesOffered(),
   moveShell,
   motion,
-  openDecisions,
+  allDecisions,
   pagePresented,
   paintKeys,
   PRESS,
   readerStore,
-  renderDecisions: () => renderDecisions(openDecisions()),
+  renderDecisions: () => renderDecisions(),
   syncLayout,
   trayChanged: () => livingMargin?.render(),
   walkRows,
@@ -971,9 +972,10 @@ const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
-// The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
-// screen reader and takes nothing from the press it promises; refreshAim is its one
-// writer, and data-for is the aimed id stated where a test can read the promise.
+// The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
+// drawing geometry, it says nothing to a screen reader and takes nothing from the press
+// it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
+// test can read the promise.
 const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
 const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
@@ -1170,7 +1172,7 @@ function reserveBannerControls() {
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Asks (999/999)"]);
+  reserve(decisionsBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   foldShelf();
 }
@@ -1343,7 +1345,7 @@ const {
   visualAt: (...args) => visualAt(...args),
 });
 
-const { AIM, aimIsOn, aimedItem } = createAim({
+const { AIM, aimIsOn, aimedTarget } = createAim({
   aimTargetAt,
   designIsOn: () => designOn,
   designPress,
@@ -1993,6 +1995,7 @@ const {
   PAGE_PAINT_ATTRIBUTE,
   actionLayer: decisionActionLayer,
   availableActionCommands: () => availableDecisionActionCommands(),
+  allDecisions,
   scrollBehavior,
   documentFocused,
   announce,
@@ -3559,7 +3562,7 @@ anchorRuntime = createAnchors({
   activateVisual,
   aimBox,
   aimIsOn,
-  aimedItem,
+  aimedTarget,
   announce,
   anchorLabel,
   anchorsReady: () => anchoringReady,

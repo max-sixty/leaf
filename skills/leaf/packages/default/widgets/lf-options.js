@@ -171,14 +171,21 @@ customElements.define(
       if (choosable) {
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
-        this.#decisionActions = registerDecisionActions(this, () => [
-          ...this.#marks().map((control) => ({
-            control,
-            label: label(control.parentElement) || control.parentElement.id,
-            address: control.parentElement.querySelector(":scope > .lf-address"),
-          })),
-          ...(this.#done ? [{ control: this.#done, label: "Done" }] : []),
-        ]);
+        this.#decisionActions = registerDecisionActions(
+          this,
+          () => [
+            ...this.#marks().map((control) => ({
+              control,
+              label: label(control.parentElement) || control.parentElement.id,
+              address: control.parentElement.querySelector(":scope > .lf-address"),
+            })),
+            ...(this.#done ? [{ control: this.#done, label: "Done" }] : []),
+          ],
+          () =>
+            [...this.#picked()]
+              .map((option) => label(option) || option.id)
+              .join(", ") || "No options selected",
+        );
       }
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });

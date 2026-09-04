@@ -5,12 +5,13 @@ import {
 } from "../keyboard/address-placement.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
-import { decisionActions, watchDecisionActions } from "./actions.js";
+import { decisionActions, decisionAnswer, watchDecisionActions } from "./actions.js";
 
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   actionLayer,
   availableActionCommands,
+  allDecisions,
   scrollBehavior,
   announce,
   decisionEntry,
@@ -111,24 +112,15 @@ export function createDecisionView({
       ).length,
     }));
   }
-  // What the banner's button says about the list: how many, and — while the reader is
-  // standing in one of them — which. The ring says which ask they are at; this says
-  // which of how many, read from the same focus (standingIn) against the same list, so
-  // the two cannot name different places. A walk that wraps shows it as 4/4 becoming
-  // 1/4, and a reader who has pressed `a` a few times can see how far through they are
-  // without opening the tray. Leave the ask — click into the prose, answer it — and
-  // the count goes back to the bare number, the way the ring goes.
-  //
-  // Not in the list is a place too: a reader standing in an unanswered ask whose seat is
-  // mid-conversation is standing in something the walk will not step to, and a number
-  // out of the walk's list would say otherwise.
+  // What the banner's button says about the page's Ask progress. The numerator is
+  // durable completion rather than the reader's position in the open-Ask walk: moving
+  // around the page changes neither number, while answering and revising do. The total
+  // keeps answered Asks in reach instead of making completion erase its own route back.
   //
   // Written only on change: a poll repaints this, and an unchanged write feeds the
   // mutation stream a screen reader rebuilds its buffer on.
-  function sayAsks(decisions, here) {
-    const at = decisions.indexOf(here);
-    const said =
-      at < 0 ? `Asks (${decisions.length})` : `Asks (${at + 1}/${decisions.length})`;
+  function sayAsks(completed, total) {
+    const said = `Asks ${completed}/${total}`;
     if (decisionsBtn.textContent !== said) decisionsBtn.textContent = said;
   }
   // The banner's reading of that one list. Refreshed from every signal that can change
@@ -139,14 +131,21 @@ export function createDecisionView({
   let rowWalkOffered = false;
   function syncDecisions() {
     const decisions = openDecisions();
+    const all = allDecisions();
+    const unanswered = new Set(unansweredDecisions());
+    const completed = all.filter((decision) => !unanswered.has(decision)).length;
+    decisionsBtn.toggleAttribute(
+      "data-lf-complete",
+      all.length > 0 && completed === all.length,
+    );
     // While the tray stands its button stands too, whatever the count just did — the
     // press that opened it has to be able to close it.
     showNews(decisionsBtn, decisionsOffered());
-    sayAsks(decisions, standingIn());
+    sayAsks(completed, all.length);
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
-    if (openTray("decisions")) renderDecisions(decisions);
+    if (openTray("decisions")) renderDecisions(all, unanswered);
     for (const { btn, label, n } of blanketAnswers(decisions)) {
       showNews(btn, Boolean(n));
       btn.textContent = `${label} all (${n})`;
@@ -170,7 +169,7 @@ export function createDecisionView({
     paintAnchors();
   });
   document.addEventListener("lf-actions", syncDecisions);
-  // One row per open decision, reconciled on every signal that moves the list, the way the
+  // One row per active decision, reconciled on every signal that moves the list, the way the
   // leaves tray reconciles its own — rows kept in place rather than rebuilt, so a
   // repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
   //
@@ -199,7 +198,10 @@ export function createDecisionView({
     "Nothing is waiting on you. A question the page needs an answer for appears " +
       "here when the agent asks one.",
   );
-  function renderDecisions(decisions) {
+  function renderDecisions(
+    decisions = allDecisions(),
+    unanswered = new Set(unansweredDecisions()),
+  ) {
     let anchor = null;
     if (!openTray("decisions")) {
       for (const [, row] of decisionRowsById) row.remove();
@@ -219,32 +221,43 @@ export function createDecisionView({
         // so focus landing on a row is the reader standing in the decision it names, and the
         // ring, the walk's own measuring point and the mark all follow with nothing added.
         row.setAttribute(DECISION_AT, decision.id);
-        row.append(el("span", "lf-decisions-kind"), el("span", "lf-decisions-says"));
+        row.append(
+          el("span", "lf-decisions-kind"),
+          el("span", "lf-decisions-says"),
+          el("span", "lf-decisions-answer"),
+        );
         row.onclick = () => {
-          const to = openDecisions().find((a) => a.id === decision.id);
-          if (to) goToDecision(to, openDecisions());
+          const route = allDecisions();
+          const to = route.find((candidate) => candidate.id === decision.id);
+          if (to) goToDecision(to, route);
         };
         keys(row, "In the asks tray", [
           {
             id: "decision.open",
             keys: PRESS,
-            does: "Go to this ask and stand on the control that answers it",
+            does: "Go to this ask",
             line: "go to this ask",
           },
         ]);
         decisionRowsById.set(decision.id, row);
       }
-      const [kind, says] = row.querySelectorAll(
-        ".lf-decisions-kind, .lf-decisions-says",
+      const [kind, says, answer] = row.querySelectorAll(
+        ".lf-decisions-kind, .lf-decisions-says, .lf-decisions-answer",
       );
       const item = itemWord(decision);
       const word = item === "decision" ? "ask" : item;
       const said = itemSays(decision) || decision.id;
+      const answered = !unanswered.has(decision);
       // Written only on change: an unchanged poll must not feed the mutation stream a
       // screen reader rebuilds its buffer on.
       if (kind.textContent !== word) kind.textContent = word;
       if (says.textContent !== said) says.textContent = said;
-      const account = `${word} · ${said}`;
+      const answerText = answered ? decisionAnswer(decisionSource(decision)) : "";
+      if (answer.textContent !== answerText) answer.textContent = answerText;
+      const answerState = answered ? "answered" : "open";
+      if (row.dataset.lfAnswerState !== answerState)
+        row.dataset.lfAnswerState = answerState;
+      const account = `${word} · ${said}${answerText ? ` · ${answerText}` : ""}`;
       if (row.title !== account) row.title = account;
       const place = anchor
         ? anchor.nextElementSibling
@@ -255,10 +268,10 @@ export function createDecisionView({
     const live = new Set(decisions.map((a) => a.id));
     for (const [id, row] of decisionRowsById)
       if (!live.has(id)) {
-        // An answered decision takes its row with it, and may take the focus with it too — a
-        // reader who answered from somewhere else while standing on this row. Hand focus
-        // to whatever now stands in its place rather than letting it fall to the body,
-        // which is nowhere and takes the ring with it.
+        // A decision that leaves the active inventory takes its row with it, and may take
+        // the focus too — for example, when a revision retires the source while the reader
+        // is standing on its row. Hand focus to whatever now stands in its place rather
+        // than letting it fall to the body, which is nowhere and takes the ring with it.
         const held = row.contains(document.activeElement);
         const next = row.nextElementSibling ?? row.previousElementSibling;
         row.remove();
@@ -322,6 +335,17 @@ export function createDecisionView({
   // with nothing to step from but whatever happens to be on screen, which would send the
   // next press back up the page.
   let landed = null;
+  // An answered Ask normally keeps semantic focus on its own element after a tray-row
+  // arrival. A boxless answered widget cannot: its visible revision control is the only
+  // focus target. Remember that exact target for this arrival, and only while it still
+  // owns focus, so returning to the same control ordinarily does not promote it from its
+  // own local meaning to the whole Ask again.
+  let reviewedThrough = null;
+  function hasReviewedFocus() {
+    if (reviewedThrough?.isConnected && focused() === reviewedThrough) return true;
+    reviewedThrough = null;
+    return false;
+  }
   // A place in the document, stated as the decision it belongs to wherever it belongs to one: a
   // control hoisted out of its decision and pointing back at it stands for that decision and not for
   // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
@@ -343,9 +367,10 @@ export function createDecisionView({
   // stays unmade and its controls stay live, and reading the list took the ring off that
   // widget and moved `c` from the seat the reader was writing in down to whichever option
   // their focus rested on — a second thread on the child rather than the next line of their
-  // own. The agent's reply put both back. Nothing the reader did moved either. An answered
-  // decision parts from neither list: its question is settled, so there is nothing left there to
-  // be standing in, and a settled group goes on being named by its own words.
+  // own. The agent's reply put both back. Nothing the reader did moved either. An
+  // answered decision leaves both worklists but stays in the active inventory: the
+  // Asks tray can return the reader to it, and standing there restores the same numeric
+  // action route so they can revise the recorded answer.
   //
   // Document focus rather than the inner control, for the reason decisionPosition gives: a
   // control staged in a shadow tree retargets to its host, and the host is the place in the
@@ -354,11 +379,21 @@ export function createDecisionView({
     const held = documentFocused();
     if (!held || held === document.body) return null;
     const place = decisionPlace(held);
-    return (
-      unansweredDecisions().findLast(
-        (decision) => decision === place || decision.contains(place),
-      ) ?? null
+    const unanswered = unansweredDecisions().findLast(
+      (decision) => decision === place || decision.contains(place),
     );
+    if (unanswered) return unanswered;
+    // An answered Ask is standing only on the explicit review route: its tray row or
+    // the decision element that row lands on. A widget host can be the document's
+    // retargeted focus without being the decision itself; treating that as an arrival
+    // would make an ordinary click on a chosen option steal the option's own semantics.
+    const answered = allDecisions().findLast(
+      (decision) => decision === place || decision.contains(place),
+    );
+    if (!answered) return null;
+    return held === answered || held.closest(".lf-decisions-row") || hasReviewedFocus()
+      ? answered
+      : null;
   }
 
   // The Ask-local numeric map. The widget contributes the exact controls that work its
@@ -503,7 +538,10 @@ export function createDecisionView({
     }
     placement.paint(actionLayer, chips);
   }
-  watchDecisionActions(() => paintKeys());
+  watchDecisionActions(() => {
+    syncDecisions();
+    paintKeys();
+  });
   addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
     capture: true,
     passive: true,
@@ -536,10 +574,6 @@ export function createDecisionView({
   // attribute is the whole of what the row needs.
   function markHere() {
     const here = standingIn();
-    // The banner's place in the list is the ring in numbers, so it is painted from the
-    // reading the ring is painted from: every focus move that puts the ring somewhere,
-    // or takes it away, says so in the count too.
-    sayAsks(openDecisions(), here);
     const row = here && decisionsPanel.querySelector(`[${DECISION_AT}="${here.id}"]`);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
@@ -616,21 +650,25 @@ export function createDecisionView({
   // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
   // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
   // the reader was told to look at one thing and stood on another, off the bottom of the
-  // screen, and their next Space would have worked a control they could not see.
-  function standOn(el) {
+  // screen, and their next local action could have worked a control they could not see.
+  function standOn(el, review = false) {
     const source = decisionSource(el);
     const control =
       source.querySelector(DECISION_CONTROL) ??
       document.querySelector(`[${DECISION_ROW}="${source.id}"] ${DECISION_CONTROL}`);
     if (!control) lend(source);
-    focusForNavigation(control ?? source);
+    const target = control ?? source;
+    if (review) reviewedThrough = target;
+    focusForNavigation(target);
   }
   // Where an arrival lands: on the decision, which is what the scroll has just brought to
   // the top of the window and what the ring is about to name. Its controls are then the
   // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
   // keeps its place in document order and everything inside a decision comes after it.
-  // The decision's action context remains active as Tab moves through those controls.
-  function arriveAt(decision) {
+  // The decision's exact action routes remain active as Tab moves into its controls;
+  // nearer widget scopes still own their local mechanics.
+  function arriveAt(decision, review = false) {
+    reviewedThrough = review ? decision : null;
     decision.focus({ preventScroll: true });
     if (decision.matches(":focus")) return;
     lend(decision);
@@ -640,7 +678,7 @@ export function createDecisionView({
     // does not change that. There the control that answers it is the only place the
     // reader can be, which is where every arrival used to land.
     lend(null);
-    standOn(decision);
+    standOn(decision, review);
   }
 
   // The screen the reader can use, and the distance two boxes stand apart in it. The
@@ -786,7 +824,7 @@ export function createDecisionView({
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
-    arriveAt(next);
+    arriveAt(next, !unansweredDecisions().includes(next));
     // A page Decision starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. A thread
@@ -811,7 +849,8 @@ export function createDecisionView({
         scrollToElement(region, scrollBehavior(), "start");
       }
     }
-    announce(`${decisions.indexOf(next) + 1} of ${decisions.length} waiting on you`);
+    const state = unansweredDecisions().includes(next) ? "waiting on you" : "answered";
+    announce(`${decisions.indexOf(next) + 1} of ${decisions.length} ${state}`);
   }
   function stepDecision(dir) {
     const decisions = openDecisions();

@@ -868,9 +868,9 @@ minimum obligations:
 - Build injected controls with `offer`. Use `relabel` when a control's label is
   also one of the page's words.
 - Register capabilities with `commands(el, title, rows)` during upgrade, not at module
-  load. Add `decision: true`, `control`, and `label` to the same row or route when that
-  control answers or advances the containing Ask; call `paintKeys` when its liveness or
-  computed fields change. Do not maintain a second Ask-control list.
+  load. Set `decision` to the concise action name and add `control` to the same row or
+  route when that control answers or advances the containing Ask; call `paintKeys` when
+  its liveness or computed fields change. Do not maintain a second Ask-control list.
 - Subscribe to the page-wide open Ask projection with `watchDecisions(el, callback)`
   only when a package needs that reading. It invokes immediately, returns cleanup, and
   keeps packages off the internal `lf-actions` signal.
@@ -2167,11 +2167,15 @@ groups the same scopes for reading.
 A row has these meanings:
 
 - `keys` is a binding or computed list of bindings.
-- `control` is the visible element that activates the capability. `decision: true`
-  includes that command in its containing Ask; it also needs a `label`, may carry an
-  existing `address`, and has zero or one live binding. A keyless decision command
-  receives its contextual number from the Ask projection. Routes may carry the same
-  fields when one row describes a parameterized family of controls.
+- `label` optionally overrides the compact keycap in the command's own scope. An Ask
+  instead shows the resolved binding beside its separate `decision` action name, so an
+  inline hint always says what the reader actually presses.
+- `control` is the visible element that activates the capability. `decision` is a
+  non-empty action-name string or a function returning one; it includes that command in
+  its containing Ask. The row may carry an existing `address` and has zero or one live
+  binding. A keyless decision command receives its contextual number from the Ask
+  projection. Routes may carry the same fields when one row describes a parameterized
+  family of controls.
 - `does` is the sentence for the press, or a function when the current state
   changes the sentence.
 - `when` says whether the capability exists. When a destination surface is available

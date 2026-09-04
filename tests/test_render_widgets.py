@@ -1249,11 +1249,28 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     decision = page.locator("#session-triage-decision")
 
     expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    # Outside the Ask projection, the package command still spells its real binding;
+    # the Decision action name is not a keycap override.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    pass_reference = page.locator('.lf-help tr[data-lf-command="swipe.pass"]')
+    expect(pass_reference.locator("kbd")).to_have_text("←")
+    expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
+        "aria-label", "ArrowLeft"
+    )
+    page.keyboard.press("Escape")
+
     page.keyboard.press("a")
     expect(decision).to_be_focused()
     expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
     expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["←", "→"])
     assert "← / →\nPass / Keep" in key_line(page)
+
+    page.keyboard.press("Tab")
+    assert "←\npass the active card" in key_line(page)
+    assert "Pass\npass the active card" not in key_line(page)
+    page.keyboard.press("a")
+    expect(decision).to_be_focused()
 
     # The reference exposes the same exact routes as their inline bindings.
     page.keyboard.press("?")
@@ -1332,8 +1349,7 @@ def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
             id: 'test.inspect-left',
             keys: ['ArrowLeft'],
             control: inspect,
-            decision: true,
-            label: 'Inspect',
+            decision: 'Inspect',
             does: 'Inspect this suggestion',
             line: 'Inspect',
             run: () => inspect.click(),
@@ -3092,8 +3108,8 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
             id: 'test.inspect',
             keys: ['1'],
             control: inspect,
-            decision: true,
-            label: 'Inspect',
+            label: 'I',
+            decision: 'Inspect',
             does: 'Inspect this suggestion',
             line: 'Inspect',
             run: () => inspect.click(),
@@ -3101,15 +3117,73 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
         }"""
     )
 
+    # The source scope keeps its presentation override in the global reference. Once the
+    # reader enters the Ask, that projection presents the binding it actually resolves.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    inspect_reference = page.locator('.lf-help tr[data-lf-command="test.inspect"]')
+    expect(inspect_reference.locator("kbd")).to_have_text("I")
+    expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
+        "aria-label", "I"
+    )
+    page.keyboard.press("Escape")
+
+    inspect = page.get_by_role("button", name="Inspect")
+    inspect.focus()
+    assert "I\nInspect" in key_line(page)
+
     page.keyboard.press("a")
     expect(page.locator("#sug")).to_be_focused()
     assert "2 / 3 / 1\nAccept / Reject / Inspect" in key_line(page)
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "1")
 
     page.keyboard.press("1")
-    expect(page.get_by_role("button", name="Inspect")).to_have_attribute(
-        "data-activated", "1"
+    expect(inspect).to_have_attribute("data-activated", "1")
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_action_name_functions_must_return_text(browser, serve):
+    """Computed row and route names fail with the command-scoped contract error."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+
+    messages = page.evaluate(
+        """async () => {
+          const {decisionControls} = await import('/runtime/keyboard/bindings.js');
+          const source = document.getElementById('sug');
+          const control = document.createElement('button');
+          source.append(control);
+          const read = (row) => {
+            try {
+              decisionControls([{source, row}], 'the test Ask');
+            } catch (error) {
+              return error.message;
+            }
+            return null;
+          };
+          return {
+            row: read({
+              id: 'test.invalid-row-name', keys: [], control,
+              decision: () => true,
+            }),
+            route: read({
+              id: 'test.route-family', keys: ['ArrowLeft'], control,
+              routes: [{
+                id: 'test.invalid-route-name', binding: 'ArrowLeft',
+                decision: () => true,
+              }],
+            }),
+          };
+        }"""
     )
 
+    assert messages == {
+        "row": "leaf: test.invalid-row-name in the test Ask has no Decision action name",
+        "route": (
+            "leaf: test.invalid-route-name in the test Ask has no Decision action name"
+        ),
+    }
     assert errors == []
     page.close()
 
@@ -3132,8 +3206,7 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
               id: `test.explicit-${index}`,
               keys: [binding],
               control,
-              decision: true,
-              label: `Explicit ${key}`,
+              decision: `Explicit ${key}`,
               does: `Run explicit command ${key}`,
               line: `Explicit ${key}`,
               run: () => control.click(),
@@ -3147,8 +3220,7 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
             id: 'test.later-keyless',
             keys: [],
             control: later,
-            decision: true,
-            label: 'Later keyless',
+            decision: 'Later keyless',
             does: 'Run the later keyless command',
             line: 'Later keyless',
             run: () => later.click(),

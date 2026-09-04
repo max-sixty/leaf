@@ -3731,6 +3731,21 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {id: 'test.named-space', keys: ['Space'], does: 'Named space binding',
                line: 'work', run: () => {}},
             ]),
+            invalidDecision: declare('invalid-decision', [
+              {id: 'test.invalid-decision', keys: [], control: document.body,
+               decision: true, does: 'Invalid decision role'},
+            ]),
+            invalidDecisionRoute: declare('invalid-decision-route', [
+              {id: 'test.invalid-decision-family', keys: ['ArrowLeft'],
+               control: document.body, does: 'Invalid decision route', routes: [{
+                 id: 'test.invalid-decision-route', binding: 'ArrowLeft',
+                 decision: true, does: 'Invalid decision route',
+               }]},
+            ]),
+            emptyDecision: declare('empty-decision', [
+              {id: 'test.empty-decision', keys: [], control: document.body,
+               decision: '  ', does: 'Empty decision action name'},
+            ]),
             invalidReturnFrame: declare('invalid-return-frame', [
               {id: 'test.invalid-return-frame', keys: ['F8'], does: 'Enter badly',
                line: 'enter', returnFrame: {}, run: () => {}},
@@ -3763,6 +3778,13 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     }, answers
     assert "write the canonical Mod+Shift+x" in answers["noncanonical"], answers
     assert 'write the canonical " "' in answers["namedSpace"], answers
+    expected_decision_error = (
+        "invalid Decision action name true; expected a non-empty string or function "
+        "returning one"
+    )
+    assert expected_decision_error in answers["invalidDecision"], answers
+    assert expected_decision_error in answers["invalidDecisionRoute"], answers
+    assert "invalid Decision action name" in answers["emptyDecision"], answers
     assert "returnFrame that is not a function" in answers["invalidReturnFrame"], (
         answers
     )

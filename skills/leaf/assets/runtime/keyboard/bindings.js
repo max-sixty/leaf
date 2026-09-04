@@ -177,29 +177,35 @@ export function activeRows(rows, where = "a scope") {
   return validateActive(active, where, bindings);
 }
 
-// The controls one ordered command set contributes to an Ask. `decision` is a role on
-// a command, not another command registry: the dispatcher, key line, reference and Ask
-// projection all read the same row. Routes may name distinct controls when one compact
-// row owns a family of parameterized bindings (numbered options). A command with no
-// binding receives its contextual number from the Ask projection.
+// The controls one ordered command set contributes to an Ask. `decision` names the
+// command's action in that Ask; it is not another command registry. The dispatcher, key
+// line, reference and Ask projection all read the same row. Routes may name distinct
+// controls when one compact row owns a family of parameterized bindings (numbered
+// options). A command with no binding receives its contextual number from the Ask
+// projection.
 export function decisionControls(commands, where = "an Ask") {
   const controls = new Map();
   for (const { source, row } of commands) {
     const routes = commandRoutes(row);
     const candidates = [
-      ...(row.decision ? [{ row, route: null }] : []),
-      ...routes.filter((route) => route.decision).map((route) => ({ row, route })),
+      ...(row.decision !== undefined ? [{ row, route: null }] : []),
+      ...routes
+        .filter((route) => route.decision !== undefined)
+        .map((route) => ({ row, route })),
     ];
     for (const { route } of candidates) {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
-      const label = word(contribution.label ?? row.label)?.trim();
+      const decision = word(contribution.decision);
+      const label = typeof decision === "string" ? decision.trim() : "";
       const address = word(contribution.address ?? row.address) ?? null;
       const active = route ? [route.binding] : bindings(row);
       if (!(control instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
       if (!label)
-        throw new TypeError(`leaf: ${contribution.id} in ${where} has no label`);
+        throw new TypeError(
+          `leaf: ${contribution.id} in ${where} has no Decision action name`,
+        );
       if (address !== null && !(address instanceof Element))
         throw new TypeError(
           `leaf: ${contribution.id} in ${where} has no Element address`,
@@ -306,11 +312,18 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
-    if (row.decision !== undefined && row.decision !== true)
+    if (
+      row.decision !== undefined &&
+      !(
+        (typeof row.decision === "string" && row.decision.trim()) ||
+        typeof row.decision === "function"
+      )
+    )
       throw new Error(
-        `leaf: ${row.id ?? `row ${i} of ${where}`} has invalid Decision role ${String(row.decision)}`,
+        `leaf: ${row.id ?? `row ${i} of ${where}`} has invalid Decision action name ` +
+          `${String(row.decision)}; expected a non-empty string or function returning one`,
       );
-    if (row.decision && row.control == null)
+    if (row.decision !== undefined && row.control == null)
       throw new Error(
         `leaf: ${row.id ?? `row ${i} of ${where}`} is a Decision command with no control`,
       );
@@ -337,11 +350,18 @@ export function checked(rows, where) {
     const routes = commandRoutes(row);
     const routed = new Set();
     for (const route of routes) {
-      if (route.decision !== undefined && route.decision !== true)
+      if (
+        route.decision !== undefined &&
+        !(
+          (typeof route.decision === "string" && route.decision.trim()) ||
+          typeof route.decision === "function"
+        )
+      )
         throw new Error(
-          `leaf: route ${route.id ?? "without an id"} of ${row.id} has invalid Decision role ${String(route.decision)}`,
+          `leaf: route ${route.id ?? "without an id"} of ${row.id} has invalid Decision ` +
+            `action name ${String(route.decision)}; expected a non-empty string or function returning one`,
         );
-      if (route.decision && route.control == null && row.control == null)
+      if (route.decision !== undefined && route.control == null && row.control == null)
         throw new Error(
           `leaf: route ${route.id ?? "without an id"} of ${row.id} is a Decision command with no control`,
         );

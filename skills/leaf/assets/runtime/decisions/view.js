@@ -3,7 +3,6 @@ import {
   createAddressPlacement,
   MAX_NUMBERED_ADDRESSES,
 } from "../keyboard/address-placement.js";
-import { bindings } from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
 import { decisionActions, watchDecisionActions } from "./actions.js";
@@ -11,7 +10,7 @@ import { decisionActions, watchDecisionActions } from "./actions.js";
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   actionLayer,
-  actionReachable,
+  availableActionCommands,
   scrollBehavior,
   announce,
   decisionEntry,
@@ -380,22 +379,46 @@ export function createDecisionView({
       )
       .slice(0, MAX_NUMBERED_ADDRESSES);
   };
-  const actionBindings = () => availableActions().map((_, index) => String(index + 1));
-  const actionLabels = () => availableActions().map(({ label }) => label);
+  // A binding with a different result is a different command. Keep each action as a
+  // route under one compact row, so the dispatcher, reference, key line, and the
+  // control-facing projections all consume the same binding-to-control identity.
+  const actionRoutes = () =>
+    availableActions().map(({ control, label, address }, index) => {
+      const binding = String(index + 1);
+      return {
+        id: `decision.activate-${binding}`,
+        binding,
+        does: `Activate the “${label}” action`,
+        line: label,
+        control,
+        address,
+      };
+    });
   const actionRow = {
     id: "decision.activate-nth",
-    keys: actionBindings,
+    keys: () => actionRoutes().map(({ binding }) => binding),
+    routes: actionRoutes,
     label: () => {
-      const count = actionBindings().length;
+      const count = actionRoutes().length;
       return count > 1 ? `1–${count}` : "1";
     },
     does: () =>
-      `Activate an action in this Ask: ${actionLabels()
-        .map((label, index) => `${index + 1} ${label}`)
+      `Activate an action in this Ask: ${actionRoutes()
+        .map(({ binding, line }) => `${binding} ${line}`)
         .join("; ")}`,
-    line: () => actionLabels().join(" / "),
-    when: () => availableActions().length > 0,
-    run: (binding) => availableActions()[Number(binding) - 1]?.control.click(),
+    line: () =>
+      actionRoutes()
+        .map(({ line }) => line)
+        .join(" / "),
+    when: () => actionRoutes().length > 0,
+    run: (binding) =>
+      actionRoutes()
+        .find((route) => route.binding === binding)
+        ?.control.click(),
+  };
+  const reachableActionRoutes = () => {
+    const available = availableActionCommands();
+    return actionRoutes().filter(({ id }) => available.has(id));
   };
 
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
@@ -403,12 +426,13 @@ export function createDecisionView({
   // an address face lends that face and its exact placement; other actions get chrome at
   // the visible Button's corner. Off-screen actions keep their working address and name
   // on the key line but wear no chip. A nearer keyboard layer suppresses the row and both
-  // projections through actionReachable, so a digit never stays promised after a chord,
-  // text box, or modal has taken it.
+  // projections through the exact available command routes, so a digit never stays
+  // promised after a chord, text box, or modal has taken it.
   const wornAddresses = new Map();
   const wornShortcuts = new Map();
-  function restoreAddress(address, { display, priority }) {
+  function restoreAddress(address, { display, priority, text }) {
     address.removeAttribute("data-lf-ask-address");
+    address.textContent = text;
     if (display) address.style.setProperty("display", display, priority);
     else address.style.removeProperty("display");
   }
@@ -424,8 +448,8 @@ export function createDecisionView({
   }
   function paintActionProjections() {
     clearActionProjections();
-    const actions = availableActions();
-    if (!actionReachable() || !bindings(actionRow).length) {
+    const routes = reachableActionRoutes();
+    if (!routes.length) {
       actionLayer.replaceChildren();
       return;
     }
@@ -439,11 +463,9 @@ export function createDecisionView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed key line above it. Hide a face that has no clear visible box, just as the
     // general address pass drops a route chip where the screen cannot say it safely.
-    for (const [index, { control, address }] of actions.entries()) {
+    for (const { binding, control, address } of routes) {
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
-      const projectedShortcut = [previousShortcut, String(index + 1)]
-        .filter(Boolean)
-        .join(" ");
+      const projectedShortcut = [previousShortcut, binding].filter(Boolean).join(" ");
       wornShortcuts.set(control, {
         previous: previousShortcut,
         projected: projectedShortcut,
@@ -453,8 +475,10 @@ export function createDecisionView({
       const previous = {
         display: address.style.getPropertyValue("display"),
         priority: address.style.getPropertyPriority("display"),
+        text: address.textContent,
       };
       address.setAttribute("data-lf-ask-address", "");
+      address.textContent = binding;
       address.style.setProperty("display", "block", "important");
       const box = address.checkVisibility() && placement.visibleBox(address);
       if (!placement.reserve(box)) {
@@ -465,13 +489,13 @@ export function createDecisionView({
     }
 
     const chips = [];
-    for (const [index, { control, address }] of actions.entries()) {
+    for (const { binding, control, address } of routes) {
       if (address) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = placement.visibleBox(presented);
       if (!box) continue;
-      const chip = el("span", "lf-address lf-ask-address", String(index + 1));
+      const chip = el("span", "lf-address lf-ask-address", binding);
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
@@ -480,11 +504,11 @@ export function createDecisionView({
     placement.paint(actionLayer, chips);
   }
   watchDecisionActions(() => paintKeys());
-  addEventListener("scroll", () => actionReachable() && paintHere(), {
+  addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
     capture: true,
     passive: true,
   });
-  addEventListener("resize", () => actionReachable() && paintHere());
+  addEventListener("resize", () => reachableActionRoutes().length && paintHere());
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and a decision

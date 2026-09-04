@@ -336,7 +336,10 @@ customElements.define(
           // own, so it is a corner badge wherever it sits in the DOM, and it is
           // aria-hidden, so it is not a stop the reading order can put in the wrong
           // place. What matters is that both stand before the option's own words.
-          const num = offer("span", "lf-address", String(i + 1));
+          // The widget owns this placement anchor; the Ask route writes the binding it
+          // currently represents. Keeping the number out of the widget prevents a local
+          // option index from becoming a second keyboard map.
+          const num = offer("span", "lf-address");
           num.setAttribute("aria-hidden", "true");
           mark.parentElement.prepend(num);
         }

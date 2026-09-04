@@ -2056,7 +2056,9 @@ lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
 is often repeated or held. While the reader stands anywhere in an Ask, its widget's
 ordered actions take `1`–`9`; the core projects that exact list into the key line and
-visible control chips. Tab walks the real controls without replacing that action map;
+visible control chips. Each numbered action is a command route; that route is the one
+binding-to-control identity used by dispatch, the reference, the key line, its address,
+and `aria-keyshortcuts`. Tab walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under

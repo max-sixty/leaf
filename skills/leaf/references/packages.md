@@ -175,13 +175,13 @@ theme.
 A widget that can be an Ask calls `registerDecisionActions(source, read)` once at
 upgrade. `read` returns its current ordered `{control, label, address?}` actions; call the
 returned `update()` after replacing controls or changing their availability. `address`
-may name an address face the widget already positions for its local scope, so the Ask and
-local projections align; otherwise core paints at the visible control. The core gives the
-first nine actions contextual numeric keys and paints chips only for actions currently in
-view. Contribute the controls that actually answer or advance the Ask rather than scanning
-all offered descendants: evidence inside an option is not an answer, and shared-margin
-Buttons may sit outside the source. The control's own click remains the one activation
-path.
+may name an empty address face the widget positions; core writes its current route binding,
+so the widget does not keep a second numeric map. Otherwise core paints at the visible
+control. The core gives the first nine actions contextual numeric keys and paints chips only
+for actions currently in view. Contribute the controls that actually answer or advance the
+Ask rather than scanning all offered descendants: evidence inside an option is not an
+answer, and shared-margin Buttons may sit outside the source. The control's own click
+remains the one activation path.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical

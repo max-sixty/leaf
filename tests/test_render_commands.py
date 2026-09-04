@@ -556,7 +556,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     assert shown_frames(page) == ["before"]
     button = page.get_by_role("button", name="Show after — the navigation rail")
     expect(page.locator(".lf-margin-item").filter(has=button)).to_be_visible()
-    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "compare-before"
     )
     button_bounds = button.bounding_box()
@@ -571,7 +571,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     button = page.get_by_role("button", name="Show before — the navigation rail")
     expect(button).to_be_focused()
     assert "show before" in key_line(page)
-    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "compare-after"
     )
     assert button.bounding_box() == button_bounds

@@ -1253,21 +1253,21 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
     )
     assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
-        "the margin action started while Design mode was opening its comment"
+        "the margin Button action started while Design mode was opening its comment"
     )
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "sug-refill"
-    ], "the margin action reached the durable log despite Design mode"
+    ], "the margin Button action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
     # The same hoist exists inside frozen markup in a conversation. Its target belongs
     # to that conversation document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
-    url = serve(leaf_page("inline margin action", '<h1 id="h">Review</h1>'))
+    url = serve(leaf_page("inline margin Button action", '<h1 id="h">Review</h1>'))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1311,7 +1311,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "reply-suggestion"
-    ], "the inline margin action reached the durable log despite Design mode"
+    ], "the inline margin Button action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 

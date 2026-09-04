@@ -1453,7 +1453,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
     expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
-    expect(receipt.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "sent"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
@@ -1475,7 +1475,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     assert active.exit_code == 0, active.output
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
-    expect(receipt.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
@@ -1489,7 +1489,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     stamp_page(d, unrelated, "Checked the surrounding plan")
     wait_for_revision(page, 2)
-    expect(receipt.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
@@ -1658,7 +1658,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
     expect(card_button).to_have_attribute("data-lf-kinds", "activity")
-    expect(card_button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(card_button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(card_button).to_have_attribute(
@@ -1669,7 +1669,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
     expect(page.locator(".lf-panel .lf-receipt")).to_have_count(0)
     expect(page.locator("#card-migration > .lf-receipt")).to_have_count(0)
-    expect(card_button).to_have_class(re.compile(r"\blf-margin-action\b"))
+    expect(card_button).to_have_class(re.compile(r"\blf-margin-button\b"))
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")

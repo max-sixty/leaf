@@ -46,7 +46,7 @@
      rather than a number in each rule, and one token rather than two floors and a media
      query in each of them: what changes between a mouse and a finger is this length and
      nothing else, so the query belongs here where it is asked once. A control that has
-     to be a fixed size under a finger — a margin action, the key line's More — still
+     to be a fixed size under a finger — a margin Button, the key line's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
   /* --rail has no authored value: the shared margin measures its widest target item
@@ -1424,9 +1424,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-options[hidden] { display: none; }
 .lf-margin-item.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
 /* A static copy keeps a standing reaction's word in the DOM for its accessible name,
- * while painting the same circular, glyph-only receipt as the live page. The scoped
+ * while painting the same circular, glyph-only status as the live page. The scoped
  * runtime style turns the label into transient hover and focus chrome. */
-.lf-margin-action > :is(.lf-margin-action-space, .lf-margin-action-label) {
+.lf-margin-button > :is(.lf-margin-button-space, .lf-margin-button-label) {
   display: none;
 }
 .lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
@@ -1439,10 +1439,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-reading-option { position: relative; }
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
-/* A marker reporting a receipt is excluded here as it is from the runtime's press
+/* A marker reporting a status is excluded here as it is from the runtime's press
  * styles: neither the pointer nor the keyboard gives inert status an interactive accent
  * treatment. The focus outline still says where the Page-map walk has landed. */
-.lf-margin-marker:not([data-lf-behavior="receipt"]):is(:hover, :focus-visible, [aria-expanded="true"]),
+.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, [aria-expanded="true"]),
 .lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
 .lf-margin-change { color: var(--accent); }
@@ -1502,13 +1502,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen and (max-width: 899px) {
-  .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none; }
+  .lf-living-margin, .lf-margin-marker.lf-margin-button { display: none; }
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }
 }
 @media print {
-  .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }
+  .lf-living-margin, .lf-margin-marker.lf-margin-button { display: none !important; }
   /* A shut disclosure on paper is a summary and a stub: the words are in the document,
      nothing on the sheet says they are there, and there is no press to open them with.
      Six of them printed that way on the corpus, one of them holding 3270px of an exact

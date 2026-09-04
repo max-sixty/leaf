@@ -246,7 +246,7 @@ import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
 import { createReturnStack } from "./runtime/keyboard/return-stack.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
-import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
+import { createLivingMargin, marginButton } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, notice } from "./runtime/notifications.js";
@@ -3614,6 +3614,7 @@ anchorRuntime = createAnchors({
 const { ITEM, NOTE } = anchorRuntime;
 
 livingMargin = createLivingMargin({
+  ago,
   anchorLabel,
   acknowledgments: () => runtime.browser?.acknowledgments ?? [],
   announce,

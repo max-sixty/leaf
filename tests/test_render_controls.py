@@ -134,8 +134,8 @@ CONTROL_ARCHETYPES = (
     {
         # Accept and Reject share the resting row. A thread adds the third Button that
         # puts the secondary choices behind `…`; opening it must leave Accept still.
-        "name": "margin-action",
-        "coverage": ".lf-margin-action",
+        "name": "margin-button",
+        "coverage": ".lf-margin-button",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {

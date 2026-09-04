@@ -2759,7 +2759,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-action-icon").count() >= 2
+    assert page.locator("main .lf-margin-button-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)

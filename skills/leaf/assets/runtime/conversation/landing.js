@@ -258,7 +258,7 @@ export function createPanelLanding({
       // is context in full; a requested message keeps the least-moving direct route.
       block: target === thread ? "center" : directThread ? "start" : "nearest",
     });
-    thread.classList.remove("grow");
+    target.classList.remove("grow");
     target.classList.add("flash");
     setTimeout(() => target.classList.remove("flash"), 1300);
   }

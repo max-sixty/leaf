@@ -82,14 +82,22 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
         )
     page, errors = open_page(browser, url)
-    page.locator(".lf-conversation-open").click()
-    panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    page.locator(".lf-conversation-open").evaluate(
+        """(open, destination) => open.addEventListener(
+          'click', () => destination.classList.add('grow'),
+          {capture: true, once: true},
+        )""",
+        destination.element_handle(),
+    )
+    page.locator(".lf-conversation-open").click()
+    panel_settled(page)
     expect(thread).to_be_visible()
     expect(destination.locator("#first-job")).to_be_in_viewport()
     expect(destination).to_be_focused()
     expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
+    expect(destination).not_to_have_class(re.compile(r"\bgrow\b"))
     expect(destination).to_have_class(re.compile(r"\bflash\b"))
     sizes = page.evaluate(
         """([thread, destination, list]) => ({

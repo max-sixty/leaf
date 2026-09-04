@@ -1628,11 +1628,21 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
 
     page.mouse.move(x, y)
     page.mouse.down()
+    page.mouse.move(x - 30, y)
+    page.mouse.up()
+    # The selection surface defers its release update by one task. Read only after that
+    # task: before the claim boundary existed, a swipe the deck let go of restored the
+    # range captured on pointerdown and raised the Comment bar again.
+    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert not page.locator(".lf-fab-bar").is_visible()
+
+    page.mouse.move(x, y)
+    page.mouse.down()
     page.mouse.move(x - box["width"] * 0.35, y)
     page.mouse.up()
     expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
-    assert page.evaluate("() => getSelection().toString()") == ""
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     round_trip(page)
     assert errors == []
     page.close()

@@ -1085,7 +1085,7 @@ runtime may write. `focused` descends through retargeted
 
 Hit testing asks two different questions. `elementFromPointAcross` and
 `markAt` may descend into a shadow root when the exact marked text matters.
-`aimedItem` may keep document retargeting when the host is the semantic item.
+`aimedTarget` may keep document retargeting when the host is the semantic item.
 Choose the reading by the question, not by convenience.
 
 The page's widget inventory remains the document's declared inventory. Do not

@@ -113,14 +113,14 @@ export function coveredWords({
 // is named here: this marks the medium, and the widgets answer for themselves.
 export function bake() {
   document.documentElement.classList.add("lf-copy");
-  // A receipt is runtime chrome even where its seat is in the page rather
-  // than under .lf-chrome, so it is answered here, in the document and in every open
-  // shadow root, before those roots are serialized below.
+  // A live report is runtime chrome even where its seat is in the page rather than
+  // under .lf-chrome, so it is answered here, in the document and in every open shadow
+  // root, before those roots are serialized below.
   //
-  // Two ways one says so, because it has two seats. A thread's own line is built as one
-  // (.lf-receipt). A margin reading becomes one in place, keeping the seat it held as a
-  // Button, so what names it is the behavior `marginAction` writes rather than the tag
-  // or the class it kept. The marker value cannot answer for either: a receipt is not a
+  // Two ways one says so, because it has two seats. A thread's own line is built as
+  // `.lf-receipt`. A margin reading becomes a status in place, keeping the seat it held
+  // as a Button, so what names it is the behavior `marginButton` writes rather than the
+  // tag or the class it kept. The marker value cannot answer for either: neither is a
   // press, so `offer` writes the empty one there to stand the pointer hand and the lift
   // down on the live page, and the press removal below reads that same value to mean "a
   // box a widget built" and walks past.
@@ -131,8 +131,8 @@ export function bake() {
   // sentence would turn provisional news into a lie. A standing Outcome is the opposite:
   // the page map's record of a decision this document already carries, with the decided
   // state applied in the same file — the very fact the rail below is held open for, and
-  // for a widget speaking no receipt of its own the only margin record of the choice.
-  // `marginAction` states which is which (data-lf-standing); what the copy keeps is
+  // for a widget speaking no status of its own the only margin record of the choice.
+  // `marginButton` states which is which (data-lf-standing); what the copy keeps is
   // settled below, once the presses standing beside it have gone.
   const roots = [document];
   for (const root of roots)
@@ -141,7 +141,7 @@ export function bake() {
   for (const root of roots)
     root
       .querySelectorAll(
-        '.lf-receipt, [data-lf-behavior="receipt"]:not([data-lf-standing])',
+        '.lf-receipt, [data-lf-behavior="status"]:not([data-lf-standing])',
       )
       .forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
@@ -163,7 +163,7 @@ export function bake() {
   //
   // It keeps what it still has, which is why `--rail` is not on this list and must
   // not be added to it. The rail is the width of the margin a suggestion's controls
-  // stand in, and a decided change keeps that row's receipt — the record of what was
+  // stand in, and a decided change keeps that row's status — the record of what was
   // decided is the whole reason the margin was reserved. Cleared, the copy reads its
   // room off the viewport, knows nothing of the row still sitting in the margin, and
   // spends the surplus on the free side: the exported board stood 35px outside the
@@ -227,7 +227,7 @@ export function bake() {
   // elements: a board's columns stay a list of cards to a screen reader.
   //
   // The box a press hung in goes with it when that is all it held. A pending suggestion's
-  // row is nothing but its two controls; a decided one also holds the visible receipt
+  // row is nothing but its two controls; a decided one also holds the visible status
   // the copy must keep. Asked of what each removal empties rather than of an empty box,
   // since a widget's own empty box is
   // a real thing: that row hangs off an anchor span which takes no space and says
@@ -276,7 +276,7 @@ export function bake() {
   // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
   // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
   // to take away. Matched on the bare attribute this loop removed the box outright, with
-  // whatever the copy keeps still inside it: the "Accepted" receipt a decided change
+  // whatever the copy keeps still inside it: the "Accepted" status a decided change
   // speaks through went out with the row it stood in, and the rail the copy holds open for that
   // record had nothing left to show. What empties a box is the walk below, which is the
   // reading that was already right.
@@ -377,14 +377,14 @@ export function bake() {
       // And it stops being a page-map marker, where the live page showed it as one.
       // The class is the rail's seat rather than the reading's: both media rules that
       // stop drawing the page map keep it company (`.lf-living-margin,
-      // .lf-margin-marker.lf-margin-action` at the 900px floor and again for print), so
+      // .lf-margin-marker.lf-margin-button` at the 900px floor and again for print), so
       // a record left wearing it would be a fact this file keeps on a wide screen and
       // drops on a narrow one or on paper, while the same record kept in a widget's own
       // fold stands in all three. The name goes with the class for the same reason it
       // is written: `markerName` speaks the walk — which entry of how many, and how far
       // down the exporter's window the target sat — and a copy has neither the walk nor
       // that window. What replaces it is the reading's own word, restated as the name.
-      // That is how every other seat in the margin is named — `marginAction` writes the
+      // That is how every other seat in the margin is named — `marginButton` writes the
       // record's label there, and the option seat below it carries `Outcome for …` —
       // and the word standing in the DOM cannot stand in for it: the chrome stylesheet
       // rides into the file and styles that span as hover chrome, `visibility: hidden`
@@ -392,7 +392,7 @@ export function bake() {
       if (record.classList.replace("lf-margin-marker", "lf-margin-reading-option"))
         record.setAttribute(
           "aria-label",
-          record.querySelector(":scope > .lf-margin-action-label").textContent,
+          record.querySelector(":scope > .lf-margin-button-label").textContent,
         );
       record.setAttribute("role", "img");
       item.append(record);

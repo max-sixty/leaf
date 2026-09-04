@@ -1529,7 +1529,7 @@ inside authored content. Its information face advances from **Sent** or **Waitin
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
 action's standing outcome supplies the same retained target cluster throughout. The
 first three phases and the standing outcome report a move already made, so the Button
-wears the flat `receipt` behavior below. **Active** raises it back into a press. A
+wears the flat `status` behavior below. **Active** raises it back into a disclosure. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
 the full conversation; an **Active** claim joins that engaged cluster as an exposed
 peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
@@ -1546,47 +1546,51 @@ plain text concatenation loses a relation the widget paints visually, such as a 
 item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
-Every press in a contribution is built with
-`marginAction(control, {key, icon, label, behavior, tone, standing, role, state})`; an
-authored reaction can supply `glyph` instead of `icon`, never both. `standing` is read
-only from a `receipt`, and says the report is one the file itself carries. That is the one RHS control
+Every fitting in a contribution is built with
+`marginButton(control, {key, icon, label, context, behavior, tone, standing, role,
+state})`; an authored reaction can supply `glyph` instead of `icon`, never both.
+`standing` is read only from a `status`, and says the report is one the file itself
+carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
 what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
-`marginAction` also establishes the canonical Button record: key, face, label,
-behavior, tone, role, and lifecycle state. Registration assigns its stable owner and
+`marginButton` also establishes the canonical Button record: key, face, label, context,
+behavior, standing durability, tone, role, and lifecycle state. Registration assigns its stable owner and
 rejects duplicate Button keys within that owner. The compact rail and complete Page map
 both render from this record; neither infers semantics by scraping the contributor's
 painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
 onto a retained proxy, while the original contributor control remains the only
 activation owner.
 
-- `action` has a uniformly heavier ring, carries an imperative verb, and performs its
-  effect immediately;
-- `disclosure` has the ordinary ring, carries `aria-expanded` when it controls
-  persistent context, and opens or closes that context without settling it;
-- `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
-  place;
-- `receipt` reports a move already made and offers no press. It keeps its icon and its
-  circular Button silhouette and seat in the cluster, but gives up its hover lift,
-  pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
-  can still land there and name the phase. A receipt is provisional unless it declares
+- `action` has a uniformly heavier ring and a small lower shadow, carries an imperative
+  verb, and performs its effect immediately;
+- `disclosure` has a firmer single ring than status and the same paper surface. It carries
+  `aria-expanded`, reveals or hides context without settling it, and includes the
+  generated More Button whose ellipsis is its whole face;
+- `status` reports a move already made and offers no press. It keeps its icon and its
+  circular Button silhouette and seat in the cluster on the page surface with a ghost
+  keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a
+  `status` in the accessibility tree so the Page map can still land there and name the
+  phase. A status is provisional unless it declares
   `standing: true`, which says the document itself carries what the report claims; a
   copy drops the provisional ones and keeps a standing one disarmed (above).
 
 A generated reading wears more than one of those over its life — a Thread Button while
-there is something to open, a receipt once the move is reported — and one element has to
+there is something to open, a status once the move is reported — and one element has to
 carry both, or the seat moves under a reader standing in it. Such a control is therefore
 a span, since a `<button>` cannot stop being one, and the activation the platform then
 does not supply is declared by the page map's own scope (`margin.press`) rather than by a
 listener on the control: a key the register does not hold is a key no surface can
 promise.
 
-Ring weight distinguishes immediate actions from the other fittings. The shape stays
-shared, with no chevron. A lone non-thread informational Button reveals its target
-directly. Each additional non-thread reading gets its own peer Button under `…`;
+Material and ring weight distinguish immediate actions, disclosures, and statuses:
+Action is raised, Open is outlined, and a read-only report stays flat behind the palest
+ring. Their resting interiors all use the page surface, so fill does not imply that a
+status is selected or pressed. The shape stays shared, with no added mark. A lone
+non-thread informational Button reveals
+its target directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
 All threads at one target share one Thread Button and one conversation card. That card
 opens only on a press, never merely on focus or hover; when the document cannot leave
@@ -1599,12 +1603,12 @@ Button's state has a separate small corner mark: a dot for engaged, an open movi
 for busy (static under reduced motion), a diamond for failed, and a square for settled.
 The mark is enough to state that a Button is busy, so the Button itself stays at full
 opacity and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled
-actions need visible words, not color or shape alone. A receipt's phase is its transient
+actions need visible words, not color or shape alone. A status's phase is its transient
 hover or focus label instead of a corner mark. Standing reactions reuse the settled
 square in their margin palette and seated marks, so they remain distinct from hover
 without changing the shared ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
 withdrawing a token returns its palette Button to idle.
-`marginActionState(control, state)` changes that axis without changing the verb, ring,
+`marginButtonState(control, state)` changes that axis without changing the verb, ring,
 or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
 emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
 declared by the layer and retain their declared vocabulary order.
@@ -1642,8 +1646,9 @@ on.
 Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
 hover or keyboard focus without changing the cluster's geometry. An open
 disclosure suppresses the label because the context it opened now names the Button's
-result. Labels for `disclosure` and `options` end in an ellipsis because they open
-something; action and receipt labels do not. The complete label remains in the DOM, and
+result. A disclosure label ends in an ellipsis because it opens something; action and
+status labels do not. A status may add a quieter context line, such as how long ago its
+phase began. The complete label remains in the DOM, and
 its accessible name tracks the control or status.
 
 A marker's accessible name also carries where it stands in the walk: which location of
@@ -1652,7 +1657,7 @@ belongs to the name alone. Painted beside the phase, the same words read as prog
 rather than position.
 
 Hover or focus on any interactive fitting illuminates its exact target, including a
-cluster displaced by packing. Hovering a receipt shows its label without lifting it or
+cluster displaced by packing. Hovering a status shows its label without lifting it or
 claiming its target; a numbered Page-map arrival may still focus it and illuminate the
 target deliberately. Labels stay inside the viewport without moving the fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
@@ -3085,14 +3090,14 @@ Widget affordances fall into three groups:
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
 
-A receipt has two seats — a thread's own `.lf-receipt` line, and a margin reading
-`marginAction` has given the `receipt` behavior — and a copy answers both there, since
-the marker value cannot: a receipt is not a press, so `offer` writes the empty value to
+A report has two seats — a thread's own `.lf-receipt` line, and a margin reading
+`marginButton` has given the `status` behavior — and a copy answers both there, since
+the marker value cannot: a status is not a press, so `offer` writes the empty value to
 stand the pointer hand and the lift down on the live page, and the copy's press removal
 reads that same value to mean chrome it keeps.
 
 What the copy does with one turns on what the file can stand behind, which is a second
-declaration (`data-lf-standing`) rather than a fourth reading of the behavior. Sent,
+declaration (`data-lf-standing`) rather than another behavior. Sent,
 Waiting for pickup, and Picked up report a move an agent is still making, and a file has
 nothing behind that claim, so a copy drops them: keeping the word would turn provisional
 news into a statement. A standing Outcome is the page map's record of a decision the

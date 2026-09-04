@@ -413,8 +413,8 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      visibility: hidden; }
    & > lf-option[chosen] > .lf-pick {
                      padding: 2px 8px; border-radius: 999px;
-                     background: color-mix(in srgb, var(--ok-tint) 65%, var(--ok));
-                     color: var(--ok-ink); font-size: var(--t-6); line-height: 1.5;
+                     background: var(--ok); color: var(--card);
+                     font-size: var(--t-6); line-height: 1.5;
                      gap: 4px; }
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;

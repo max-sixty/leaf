@@ -2412,10 +2412,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     everything inside the decision comes after it.
     """
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
-    # Short enough that the decision's first pick falls past the foot of the window once
-    # the decision's opening is at its head, which is the shape the fault has: the walk
-    # cannot both show the question and stand the reader on its answer.
-    resized(page, 900, 300)
+    # Short enough that even the pick in the card's compact header falls past the foot of
+    # the window once the decision's opening is at its head, which is the shape the fault
+    # has: the walk cannot both show the question and stand the reader on its answer.
+    resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -2570,7 +2570,7 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
 
 
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A clamped action chip yields to the legend that explains its digit."""
+    """Trailing card addresses clear the leading legend even at the viewport foot."""
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
     resized(page, 900, 520)
 
@@ -2585,7 +2585,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
         page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
-    ).to_have_count(1)
+    ).to_have_count(2)
     geometry = page.evaluate(
         """() => {
           const read = node => {

@@ -99,11 +99,13 @@ read grants exclusive ownership. The selected successor first runs:
 leaf page state <page>
 ```
 
-Read the active revision and its stamped version if any, standing decisions, open
-decisions, current thread state, record debt, and `measurement_lag` for pinned
-figures whose sources have run again. Use `leaf events <page> --thread <id>` when
-one thread's raw exchange matters. If the state reports a live watcher, the host
-ends that watcher before continuing. The
+Read `content` for the current document and its construction origins, then the
+active revision, open decisions, current thread state, and `measurement_lag` for
+figures whose sources have run again. Before editing, follow
+`authoring-revisions.md`'s "Read before editing" section. Select one thread's
+current markup with `leaf page state <page> --thread <id>`, or its raw exchange
+with `leaf events <page> --thread <id>`. If the state reports a live watcher, the
+host ends that watcher before continuing. The
 successor then runs `leaf wait <page>`, whose named wait claims the page for that
 session. Starting a server when the standing one is already live prints its URL
 without changing its lifetime.

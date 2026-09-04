@@ -1187,7 +1187,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     expect(
         board.get_by_role(
             "button",
-            name="Move: Squirrel baffle — Done — awaiting next version",
+            name="Move: Squirrel baffle — Done — your move",
             exact=True,
         )
     ).to_be_visible()
@@ -1200,7 +1200,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Done — awaiting next version\"': ⠿"
+        "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
     )
     assert errors == []
     page.close()

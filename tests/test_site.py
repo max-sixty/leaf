@@ -616,13 +616,15 @@ def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
         )
         page.locator("#opt-jwt .lf-pick").click()
         expect(page.locator("#session-options")).to_have_attribute(
-            "data-lf-pending", "1"
+            "data-lf-reader-override", "1"
         )
         assert "opt-jwt" in page.evaluate(chosen)
 
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("#session-options[data-lf-pending]")).to_have_count(0)
+        expect(page.locator("#session-options[data-lf-reader-override]")).to_have_count(
+            0
+        )
         assert "opt-jwt" not in page.evaluate(chosen), (
             "the static exhibit persisted a decision without a durable authority"
         )

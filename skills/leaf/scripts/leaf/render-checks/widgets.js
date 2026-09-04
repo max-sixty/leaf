@@ -69,7 +69,7 @@ export const missingConversations = (widgets) =>
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`chosen`, `status`), which is what makes the write
-// a statement the log's fold, the state gate and the record-lag report can all read.
+// a statement the log's fold, the state gate and construction-linked inspection can all read.
 // Everything else it needs to mark goes where the module's own words go — the chrome it
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
 // which is the layer's and a widget's alike.

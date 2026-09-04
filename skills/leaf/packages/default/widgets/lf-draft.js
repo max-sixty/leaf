@@ -25,11 +25,9 @@
  *    any other child content without the indentation becoming part of the draft's
  *    text.
  * 2. applyAction states absolute values — the whole body, never a patch — so replay is
- *    idempotent, two tabs converge on the last write, and an edit no version has
- *    honored yet re-applies to each new version instead of visibly reverting. Until
- *    one does, the runtime's pending pass marks the element data-lf-pending — the
- *    same mark every decided-and-unhonored widget wears, driven by the registry's
- *    x-state rather than remembered here.
+ *    idempotent and two tabs converge on the last write. Reader edits remain effective
+ *    across revisions. The runtime marks an effective body that differs from authored
+ *    text with data-lf-reader-override.
  *
  * Editing has two doors: the box itself, which opens the editor with the caret where the
  * press landed, or the ✎ button (the door the keyboard uses). The block being its own
@@ -668,9 +666,9 @@ customElements.define(
     }
 
     // An absolute value, so replaying this tab's own edit is a no-op and a second
-    // tab converges rather than drifting. The edited-but-unhonored tint is the
-    // runtime's, not this widget's: the pending pass compares the fold against
-    // the authored text and marks data-lf-pending for every widget alike.
+    // tab converges rather than drifting. The reader-origin tint is the
+    // runtime's, not this widget's: the origin pass compares the fold against
+    // the authored text and marks data-lf-reader-override for every widget alike.
     applyAction(action, detail) {
       // The shape of `text` is the registry's claim and the POST door's gate
       // (action_contract_error), so nothing here re-decisions it. What is left to

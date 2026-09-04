@@ -1584,7 +1584,7 @@ RINGS_DRAWN = f"""async () => {{
   //
   // The colour is what tells a ring from the other outlines the layer draws at exactly
   // its weight, and the sweep below needs telling: `[data-lf-restated]` and
-  // `[data-lf-pending]` are 2px solid, and a mark under the pointer takes the ring's own
+  // `[data-lf-reader-override]` are 2px solid, and a mark under the pointer takes the ring's own
   // width over the mark's own hue. Asking style and width alone claims all three, and
   // then reports the page painting a ring no rule named — a complaint that cannot be
   // answered, since naming them puts them in a population the keyboard can never light.

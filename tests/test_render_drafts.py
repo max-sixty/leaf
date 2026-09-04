@@ -2095,7 +2095,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
-    expect(draft).to_have_attribute("data-lf-pending", "1")
+    expect(draft).to_have_attribute("data-lf-reader-override", "1")
 
     events = [
         json.loads(line)
@@ -2801,11 +2801,16 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     line = page.locator(".lf-keyline")
-    expect(line).to_contain_text("versions")
+    expect(line).to_contain_text("go to")
     expect(line).not_to_contain_text("mark changes")
     page.keyboard.press("=")
     expect(page.locator(".lf-version-menu")).to_be_hidden()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
+    page.keyboard.press("g")
+    expect(line).to_contain_text("versions")
+    page.keyboard.press("Shift+v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    page.keyboard.press("Escape")
 
     # The door, and it marks the same passage the key used to.
     compare_with(page)

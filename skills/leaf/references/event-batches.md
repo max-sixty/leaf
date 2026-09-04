@@ -29,10 +29,11 @@ snapshot after Codex's queue accepts it; the queued turn reads its named deliver
 payload and does not wait or acknowledge. One accepted wake suppresses later queue
 messages until that turn opens. The events accumulated behind it stay
 unacknowledged; the prompt hook carries their delivery pointers into the same turn
-before the model starts and takes receipt at Stop. Events arriving during the work
-take the same route through one Stop continuation. If a queue command has an
-uncertain outcome, the adapter retries the same pointer with the same Leaf delivery
-id. This is at-least-once delivery and may create a retry turn; the task applies the
+before the model starts and takes receipt at Stop. The payload itself names this
+contract and its transport instruction. Events arriving during the work take the
+same route through one Stop continuation. If a queue command has an uncertain
+outcome, the adapter retries the same pointer with the same Leaf delivery id. This
+is at-least-once delivery and may create a retry turn; the task applies the
 page-and-sequence retry rule below.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its events

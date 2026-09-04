@@ -2289,6 +2289,11 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         assert "leaf events <page> --after <through>" in batch_contract
         assert payload["url"] == server_model.running_server(page)["url"]
+        assert Path(payload["contract"]).is_file()
+        assert all(
+            term in payload["instruction"]
+            for term in ("batch_jsonl", "through", "leaf wait", "leaf ack", "url")
+        )
         assert payload["through"] == next(
             event["seq"]
             for event in events_model.read_events(page)
@@ -2442,6 +2447,7 @@ def test_codex_coalesces_late_events_behind_one_visible_wake(
         assert "third click" not in payload["batch_jsonl"]
         assert files_model.read_json(page / "cursor.json") == {"seq": third["seq"]}
         assert service_model.page_claim(page)["turn_closed"] is None
+        time.sleep(1.2)
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert len([call for call in calls if "--thread" in call]) == 1
 
@@ -2492,6 +2498,44 @@ def test_codex_prompt_replays_an_in_turn_snapshot_after_adapter_loss(
     assert capsys.readouterr().out == ""
     assert files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
     assert not codex_model.turn_delivery_path("codex-thread").exists()
+
+
+def test_codex_abandoned_turn_delivery_expires_without_receipt(codex_claimed_page):
+    page = codex_claimed_page
+    session_model.cmd_status(page, "waiting", "choose an option")
+    events_model.append_event(
+        page, {"kind": "comment", "author": "user", "text": "recover me"}
+    )
+    delivered = events_model.read_events(page)[-1]
+    manifest = codex_model.capture_turn_delivery("codex-thread")
+    assert manifest is not None
+    files_model.write_json(
+        codex_model.turn_delivery_path("codex-thread"),
+        {**manifest, "captured_at": 0},
+    )
+
+    assert codex_model._turn_delivery_suppression("codex-thread") == "expired"
+    assert not codex_model.turn_delivery_path("codex-thread").exists()
+    assert events_model.read_cursor(page) == 0
+    assert delivered in service_model.unacknowledged(events_model.read_events(page), 0)
+
+
+def test_codex_stop_stamps_the_turn_before_delivery_failure(
+    codex_claimed_page, monkeypatch
+):
+    page = codex_claimed_page
+    session_model.cmd_status(page, "working", "handling input")
+    monkeypatch.setattr(hooks_model, "adapter_is_live", lambda _sid: True)
+
+    def fail_roll(_sid):
+        raise RuntimeError("delivery failed")
+
+    monkeypatch.setattr(hooks_model, "roll_turn_delivery", fail_roll)
+
+    with pytest.raises(RuntimeError, match="delivery failed"):
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+
+    assert service_model.page_claim(page)["turn_closed"]
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
@@ -2561,6 +2605,18 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
             pytest.fail("the adapter did not acknowledge its batch")
 
         assert service_model.page_claim(page)["turn_closed"] == closed
+
+        # A queued turn still retires the wake if its prompt hook never runs:
+        # its Stop boundary is durable evidence that the turn happened.
+        assert codex_model.wake_path("codex-thread").exists()
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        deadline = time.monotonic() + 10
+        while (
+            time.monotonic() < deadline
+            and codex_model.wake_path("codex-thread").exists()
+        ):
+            time.sleep(0.05)
+        assert not codex_model.wake_path("codex-thread").exists()
         session_model.cmd_status(page, "idle", "")
     finally:
         with service_model.PageTransaction(page) as transaction:

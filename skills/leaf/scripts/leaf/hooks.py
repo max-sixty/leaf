@@ -6,7 +6,8 @@ from .codex import (
     capture_turn_delivery,
     current_turn_delivery,
     finish_turn_delivery,
-    record_turn_opened,
+    record_turn_boundary,
+    roll_turn_delivery,
     turn_delivery_reason,
 )
 from .event_log import read_events
@@ -231,6 +232,19 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
+    if event == "Stop":
+        # This stamp precedes every later return and every operation that can
+        # raise. A failed guard must not leave the adapter believing forever
+        # that the turn is still open.
+        pages = owned_pages(sid)
+        for page_dir in pages:
+            try:
+                with PageTransaction(page_dir) as page:
+                    page.close_turn(sid)
+            except FileNotFoundError:
+                continue
+        if pages:
+            record_turn_boundary(sid)
     if event == "UserPromptSubmit":
         # The mirror of the branch above, and ahead of the same early returns.
         # A prompt is the turn opening as plainly as Stop is the turn ending,
@@ -246,7 +260,7 @@ def cmd_hook(payload: dict) -> None:
         # that opens and closes between its polling passes. Opening the claims
         # first prevents it from clearing a wake into a still-closed session.
         if has_pages:
-            record_turn_opened(sid)
+            record_turn_boundary(sid)
     # stop_hook_active means this hook already blocked once and Claude is running
     # again on the strength of it; blocking a second time is how a hook loops.
     # A block naming two debts and answered on one therefore ends the turn with
@@ -258,12 +272,6 @@ def cmd_hook(payload: dict) -> None:
         # exact snapshot handed to that continuation advances; input posted
         # afterward remains pending for the next wake.
         finish_turn_delivery(sid)
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    page.close_turn(sid)
-            except FileNotFoundError:
-                continue
         return
 
     turn_delivery = None
@@ -277,22 +285,13 @@ def cmd_hook(payload: dict) -> None:
             turn_delivery = capture_turn_delivery(sid)
     if event == "Stop":
         # A snapshot handed over by UserPromptSubmit has now crossed model
-        # context. Advance only through it, then look once for events that
-        # arrived while the model was working.
-        finish_turn_delivery(sid)
+        # context. Advance only through it, then atomically replace it with
+        # events that arrived while the model was working. The adapter cannot
+        # mistake the gap between those operations for an empty mailbox.
         if adapter_is_live(sid):
-            turn_delivery = capture_turn_delivery(sid)
-    if event == "Stop" and turn_delivery is None:
-        # A turn with no in-turn delivery can close before the ordinary guard
-        # decides whether to nudge. A captured delivery instead keeps the claim
-        # open so the adapter cannot mint a second visible wake while the hook's
-        # continuation processes it.
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    page.close_turn(sid)
-            except FileNotFoundError:
-                continue
+            turn_delivery = roll_turn_delivery(sid)
+        else:
+            finish_turn_delivery(sid)
     reasons = unattended_pages(sid)
     if turn_delivery is not None:
         reasons.insert(0, turn_delivery_reason(turn_delivery))
@@ -306,6 +305,11 @@ def cmd_hook(payload: dict) -> None:
         + "\n".join(f"- {r}" for r in reasons)
     )
     if event == "Stop":
+        if turn_delivery is not None:
+            # The block immediately continues this turn. Reopen only after all
+            # fallible snapshot and reason construction has succeeded; a lost
+            # continuation is recovered from its still-unacknowledged manifest.
+            open_session_turn(sid)
         print(json.dumps({"decision": "block", "reason": message}))
     else:
         print(

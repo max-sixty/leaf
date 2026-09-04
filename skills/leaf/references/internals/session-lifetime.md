@@ -111,9 +111,13 @@ acceptance, but keeps one durable wake standing until a later prompt opening. Ev
 behind that wake remain pending rather than minting more queue items; the prompt
 hook carries their exact snapshot into the turn before the model runs. While the
 turn is open, its Stop hook carries one later pending snapshot back into a
-continuation of the same turn and acknowledges it at the re-entered Stop. Events
-arriving after that snapshot remain pending for the next wake: this one-block
-boundary prevents a hook loop without a debounce delay or a lost event. The
+continuation of the same turn and acknowledges it at the re-entered Stop. Every
+prompt and Stop advances a durable turn boundary, so either retires a wake the
+adapter was too late to observe directly. A hidden snapshot whose continuation
+never reaches Stop expires after fifteen minutes without acknowledgement; its events
+then return to the visible wake path. Events arriving after a completed snapshot
+remain pending for the next wake: this one-block boundary prevents a hook loop
+without a debounce delay or a lost event. The
 already-loaded Desktop client keeps the task writer, consumes the shared durable
 queue, and owns every execution or approval request. Leaf's queue command never
 resumes or starts the task. An unloaded task therefore keeps the accepted item

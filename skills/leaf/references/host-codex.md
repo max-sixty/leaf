@@ -42,10 +42,11 @@ mailbox; Codex's queue is only its edge-triggered wake. When the task is between
 turns, the first batch gets a stable delivery id and queues a new user turn in this
 same task. Leaf acknowledges that snapshot only after Codex accepts the durable
 queue item, then keeps one wake marker standing until the prompt hook proves that a
-later turn opened. Events arriving behind that marker remain in the mailbox and do
-not queue more messages; the prompt hook snapshots them into hidden delivery
-pointers before the model starts. Starting the command again for another page adds
-that page to the same task-wide watch.
+later turn opened. A later Stop boundary retires the marker too, so a missed prompt
+hook cannot park the adapter. Events arriving behind that marker remain in the
+mailbox and do not queue more messages; the prompt hook snapshots them into hidden
+delivery pointers before the model starts. Starting the command again for another
+page adds that page to the same task-wide watch.
 
 The loaded Desktop client starts that later turn and keeps ownership of execution
 and approvals. If the task has been unloaded, the item stays queued until Codex
@@ -58,10 +59,12 @@ Codex's bounded text input. The later turn reads that payload and the hidden poi
 for anything accumulated behind it. While a turn is open, the adapter never queues.
 Its Stop hook snapshots every event that arrived during the model's work and carries
 their same small delivery pointers into a continuation of that turn. The re-entered
-Stop acknowledges exactly that snapshot. Thus several clicks around one wake produce
-one visible user message without waiting for a debounce timer. A Stop hook can safely
-block only once; an event arriving after its snapshot crosses the sharp boundary into
-the next wake rather than being silently acknowledged. The adapter and hook own
+Stop acknowledges exactly that snapshot. A missing continuation leaves the events
+unacknowledged; after the task's fifteen-minute recovery window, they return to the
+visible wake path. Thus several clicks around one wake produce one visible user
+message without waiting for a debounce timer. A Stop hook can safely block only once;
+an event arriving after its snapshot crosses the sharp boundary into the next wake
+rather than being silently acknowledged. The adapter and hook own
 `leaf wait` and `leaf ack`; the task owns replies, revisions, page status, and the
 handoff back to `waiting` or `idle`.
 

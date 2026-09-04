@@ -35,6 +35,15 @@ from .session import (
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
+TURN_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
+DELIVERY_CONTRACT = (
+    Path(__file__).resolve().parents[2] / "references" / "event-batches.md"
+)
+DELIVERY_INSTRUCTION = (
+    "Process every JSONL record in batch_jsonl under contract, including its "
+    "pre-action refresh after through. Do not run leaf wait or leaf ack; the "
+    "detached carrier owns them. Include url in every user-facing update."
+)
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -123,8 +132,8 @@ def turn_generation(session_id: str) -> int:
     return int(state.get("generation", 0))
 
 
-def record_turn_opened(session_id: str) -> None:
-    """Persist an opening the detached adapter may be too late to observe."""
+def record_turn_boundary(session_id: str) -> None:
+    """Persist a hook boundary the detached adapter may be too late to observe."""
     path = turn_path(session_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     with flocked(_turn_lock_path(session_id)):
@@ -150,16 +159,18 @@ def _persist_payload(
         ensure_ascii=False,
         separators=(",", ":"),
     )
-    delivery_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "leaf-delivery-v2:" + identity))
+    delivery_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "leaf-delivery-v3:" + identity))
     server = running_server(reading.page_dir)
     url = server["url"] if server else None
     payload_path = delivery_payload_path(session_id, delivery_id)
     payload_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "format": "leaf-delivery-v2",
+        "format": "leaf-delivery-v3",
         "delivery_id": delivery_id,
         "page": str(reading.page_dir),
         "url": url,
+        "contract": str(DELIVERY_CONTRACT),
+        "instruction": DELIVERY_INSTRUCTION,
         "through": reading.batch[-1]["seq"],
         "batch_jsonl": batch_jsonl(reading),
     }
@@ -269,6 +280,59 @@ def _session_turn_is_open(session_id: str) -> bool:
     return False
 
 
+def _capture_turn_delivery_unlocked(
+    session_id: str, path: Path, *, require_open: bool
+) -> dict | None:
+    existing = read_json(path)
+    if existing is not None:
+        return existing
+    deliveries = []
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if not (
+                    claim
+                    and claim["id"] == session_id
+                    and claim["host"] == "codex"
+                    and (not require_open or claim.get("turn_closed") is None)
+                ):
+                    continue
+                batch = unacknowledged(page.events, page.cursor)
+                if not batch:
+                    continue
+                reading = PageTick(
+                    page_dir,
+                    page.status,
+                    batch,
+                    page.status["state"] != "idle",
+                    "watching",
+                    False,
+                    None,
+                    page,
+                )
+                delivery_id, payload_path, _ = _persist_payload(session_id, reading)
+                deliveries.append(
+                    {
+                        **_batch_receipt(reading),
+                        "delivery_id": delivery_id,
+                        "payload": str(payload_path),
+                    }
+                )
+        except FileNotFoundError:
+            continue
+    if not deliveries:
+        return None
+    manifest = {
+        "format": "leaf-turn-delivery-v2",
+        "session": session_id,
+        "captured_at": time.time(),
+        "deliveries": deliveries,
+    }
+    write_json(path, manifest)
+    return manifest
+
+
 def capture_turn_delivery(session_id: str) -> dict | None:
     """Snapshot input that arrived while this Codex turn was running.
 
@@ -278,58 +342,28 @@ def capture_turn_delivery(session_id: str) -> dict | None:
     path = turn_delivery_path(session_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     with flocked(_turn_delivery_lock_path(session_id)):
-        existing = read_json(path)
-        if existing is not None:
-            return existing
-        deliveries = []
-        for page_dir in owned_pages(session_id):
-            try:
-                with PageTransaction(page_dir) as page:
-                    claim = page.active_claim
-                    if not (
-                        claim
-                        and claim["id"] == session_id
-                        and claim["host"] == "codex"
-                        and claim.get("turn_closed") is None
-                    ):
-                        continue
-                    batch = unacknowledged(page.events, page.cursor)
-                    if not batch:
-                        continue
-                    reading = PageTick(
-                        page_dir,
-                        page.status,
-                        batch,
-                        page.status["state"] != "idle",
-                        "watching",
-                        False,
-                        None,
-                        page,
-                    )
-                    delivery_id, payload_path, _ = _persist_payload(session_id, reading)
-                    deliveries.append(
-                        {
-                            **_batch_receipt(reading),
-                            "delivery_id": delivery_id,
-                            "payload": str(payload_path),
-                        }
-                    )
-            except FileNotFoundError:
-                continue
-        if not deliveries:
-            return None
-        manifest = {
-            "format": "leaf-turn-delivery-v1",
-            "session": session_id,
-            "deliveries": deliveries,
-        }
-        write_json(path, manifest)
-        return manifest
+        return _capture_turn_delivery_unlocked(session_id, path, require_open=True)
 
 
 def current_turn_delivery(session_id: str) -> dict | None:
     """Return a persisted in-turn snapshot without creating a new one."""
     return read_json(turn_delivery_path(session_id))
+
+
+def _turn_delivery_suppression(session_id: str) -> str:
+    """Hold a hidden delivery briefly, or release an abandoned continuation."""
+    path = turn_delivery_path(session_id)
+    with flocked(_turn_delivery_lock_path(session_id)):
+        manifest = read_json(path)
+        if manifest is None:
+            return "none"
+        captured_at = float(manifest.get("captured_at", 0))
+        if time.time() - captured_at < TURN_DELIVERY_RECOVERY_TIMEOUT:
+            return "pending"
+        # Receipt still has not happened. Leave the events unacknowledged so
+        # the ordinary adapter path can recover them through a visible wake.
+        path.unlink(missing_ok=True)
+        return "expired"
 
 
 def turn_delivery_reason(manifest: dict) -> str:
@@ -356,6 +390,19 @@ def finish_turn_delivery(session_id: str) -> bool:
             _finish_batch(delivery)
         path.unlink(missing_ok=True)
         return True
+
+
+def roll_turn_delivery(session_id: str) -> dict | None:
+    """Receipt the prior snapshot and replace it atomically with later input."""
+    path = turn_delivery_path(session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(_turn_delivery_lock_path(session_id)):
+        manifest = read_json(path)
+        if manifest is not None:
+            for delivery in manifest["deliveries"]:
+                _finish_batch(delivery)
+            path.unlink(missing_ok=True)
+        return _capture_turn_delivery_unlocked(session_id, path, require_open=False)
 
 
 def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
@@ -432,10 +479,17 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
                 continue
 
             # An event log is the mailbox; the queue is only its edge-triggered
-            # wake. While a turn is open, Stop is the no-latency point that hands
-            # every accumulated event back into that same turn.
+            # wake. A current hidden delivery belongs to the Stop continuation.
+            # If that continuation disappears, its bounded recovery hold expires
+            # without receipt and the events return to the visible queue path.
+            turn_delivery_state = _turn_delivery_suppression(identity["id"])
+            if turn_delivery_state == "pending":
+                time.sleep(1)
+                continue
             generation = turn_generation(identity["id"])
-            if _session_turn_is_open(identity["id"]):
+            if turn_delivery_state != "expired" and _session_turn_is_open(
+                identity["id"]
+            ):
                 time.sleep(1)
                 continue
 

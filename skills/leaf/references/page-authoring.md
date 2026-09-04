@@ -173,7 +173,6 @@ there because the reader needs it.
 
 For a page with Asks, start at the top and press `a` through them. At each
 arrival, confirm that the question, shared premise, alternatives, and evidence
-that distinguishes them are visible together. Answer one with its displayed
-number, press `a`, and confirm that the next open Ask receives focus while the
-complete page remains visible. Undo the answer and confirm that the Ask returns
-to the open list.
+that distinguishes them are visible together, the displayed numbers match the
+available actions, and the next press of `a` reaches the next open Ask while the
+complete page remains visible.

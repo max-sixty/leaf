@@ -104,6 +104,22 @@ export function createSelectionComposer(runtime, dependencies) {
       const ctx = composerCtx(anchor);
       const suggestion = suggestCheck.checked;
       const about = pendingAbout;
+      // The accepted comment becomes a thread card. Keep the last box the reader was
+      // looking at so the inline card can carry that box into its new surface after the
+      // draft settlement has removed the composer from the page.
+      const composerBox = composerInput.getBoundingClientRect();
+      const composerStyle = getComputedStyle(composerInput);
+      const transition = {
+        left: composerBox.left,
+        top: composerBox.top,
+        width: composerBox.width,
+        height: composerBox.height,
+        backgroundColor: composerStyle.backgroundColor,
+        borderColor: composerStyle.borderColor,
+        borderRadius: composerStyle.borderRadius,
+        boxShadow: composerStyle.boxShadow,
+        text: raw,
+      };
       const flight = { ctx, raw, epoch: composerEpoch };
       inFlight = flight;
       let sent;
@@ -138,7 +154,7 @@ export function createSelectionComposer(runtime, dependencies) {
       // Continue in the surface already in use. Closing an open panel here reflows the
       // passage just as the reader's comment moves across it to a new floating card.
       const inlineReply =
-        shouldLand && !panelIsOpen() ? openInlineThread(sent.id) : null;
+        shouldLand && !panelIsOpen() ? openInlineThread(sent.id, transition) : null;
       reply = inlineReply ?? reply;
       if (!inlineReply && (shouldLand || panelIsOpen())) {
         showThread(sent.id, { stand: shouldLand });

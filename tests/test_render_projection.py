@@ -79,6 +79,7 @@ from render_support import (
     refuse,
     resized,
     round_trip,
+    sending,
     stale_report,
     stamp_page,
     stamp_version_file,
@@ -1311,16 +1312,10 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     # arrived on, so this location's first available Button accepts the suggestion. What
     # unfolds there is that press's own result rather than the arrival's, and the ladder
     # owes what it owed before: one Escape lets go of where the press left the reader.
-    sends = _traffic(page).sends
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
-    _until(
-        page,
-        lambda traffic: traffic.sends > sends,
-        "accepted the addressed suggestion",
-    )
-    round_trip(page)
+    with sending(page, "the addressed suggestion's acceptance"):
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        page.keyboard.press("2")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(

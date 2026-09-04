@@ -35,6 +35,7 @@ from render_support import (
     refuse,
     resized,
     round_trip,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -283,10 +284,8 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     # may occupy both; waiting for the word "undo" there observes a transient repaint, not
     # liveness.
     # The withdrawal entering the wire is the durable edge that proves the press worked.
-    sent = _traffic(page).sends
-    page.keyboard.press("z")
-    _until(page, lambda traffic: traffic.sends > sent, "put the withdrawal in the wire")
-    round_trip(page)
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
     page.wait_for_function("() => document.body.dataset.lfApplied === '3'")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)

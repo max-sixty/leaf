@@ -160,7 +160,7 @@ export function unmarkableItems() {
     // step to. A rendered diagram's insides are none of those — they are one
     // picture, whose <lf-diagram> is the thing to point at and has a box of its
     // own — and they are full of shapes with ids and no layout box: every <marker>
-    // in a mermaid flowchart's <defs> read as an item showing 11x11px of words.
+    // in a diagram's <defs> read as an item showing 11x11px of words.
     if (el.namespaceURI !== HTML) continue;
     if (el.closest(".lf-chrome")) continue;
     const box = shownBox(el);

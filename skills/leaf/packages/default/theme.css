@@ -1572,10 +1572,9 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
    rule is written against the `x-wide: drawing` declaration rather than against a tag,
    so it stays here where every page reads it while the one drawing widget shipped today
    travels in the `diagram` package. The runtime marks the element before any module
-   imports, so this is not a corner: mermaid is fetched lazily and draws at about 160ms
-   against a 50ms first paint, so every diagram on every page spends that tenth of a
-   second as source centred in most of the window, at an indent set by its own longest
-   line — three diagrams, three indents, none of them the column's. A page whose module
+   imports, so this is not a corner: the renderer is fetched lazily, so every diagram
+   spends its loading interval as source centred in most of the window, at an indent set
+   by its own longest line — three diagrams, three indents, none of them the column's. A page whose module
    never arrives spends the rest of its life that way. `.lf-rendered` is this package's
    word for a module having replaced its body, so this is the sentence theme.css's
    `.lf-error` rule makes about a failure, said where the word for the other half
@@ -1588,9 +1587,9 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
  * paints the bars, the line and the dots of one series at once. What it buys is that the
  * drawing is painted by the same cascade as the page: a scheme flipped mid-read repaints
  * it, an export opens honestly for a reader whose scheme is not the exporter's, and a
- * project overriding --series-N gets its own charts without touching a widget. A palette
- * resolved in JavaScript, which is what mermaid's diagrams need, can do none of the
- * three.
+ * project overriding --series-N gets its own charts without touching a widget. A
+ * diagram's CSS-variable palette has the same live behavior, but assigns semantic
+ * surfaces rather than data series.
  *
  * One font declaration, and the module reads it back. The margins a chart reserves are
  * room for text the browser has not drawn yet, so the module measures the labels on a

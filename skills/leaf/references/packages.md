@@ -40,7 +40,7 @@ is the project package and `~/.config/leaf` is the user package. Inside a reposi
 dedicated to one package, use `.` as the package path.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
-and the Mermaid renderer it draws with; `diff` adds `lf-diff`, the `unified-diff` data
+and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the `unified-diff` data
 contract, and the Pierre renderer; `command-hub` adds multi-agent orchestration widgets;
 `pr-review` adds a typed pull-request brief with a safe Markdown description and compact
 checks table, plus a data-backed unified call diff:
@@ -52,9 +52,9 @@ leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 ```
 
-Those two renderers are 5.3MB of the 8.1MB a page used to vendor, and most pages draw
-neither, so they travel in packages rather than in the default one: a plain `page init`
-now writes about 2.7MB, and a page that wants a diagram or a diff says so.
+Those two renderers are about 3.2MB, and most pages draw neither, so they travel in
+packages rather than in the default one. A plain `page init` writes about 2.7MB; a page
+that wants a diagram or a diff selects it explicitly.
 
 `lf-call-diff` binds a captured `text-document` containing CallDiff-style plain text.
 The analysis host owns that source; the widget keeps unchanged tree items beside

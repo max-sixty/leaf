@@ -48,10 +48,14 @@
         <lf-diagram id="pm-failure-path" parts="node:Q node:W node:R node:B">
           <pre>
 graph LR
-  Q[queue head] --> W[worker]
-  W -->|serialize fails| R[retry in 45s]
+  Q[(queue head)] --> W(worker)
+  W -->|serialize fails| R([retry in 45s])
   R --> Q
   Q -.->|starved| B[1,204 jobs behind]
+  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  classDef impact fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
+  class R warning
+  class B impact
 </pre>
         </lf-diagram>
         <details id="pm-evidence">

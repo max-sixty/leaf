@@ -34,6 +34,7 @@ import os
 import shutil
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -853,6 +854,27 @@ def round_trip(page):
     _until(page, lambda t: not t.pending, "heard back what it sent")
 
 
+# A press or a click reaches the runtime inside the driver's call and posts behind it, so
+# `round_trip` alone cannot wait for the gesture just made: a post the gesture has not
+# issued yet is not pending, the trip is over before it begins, and the log read behind it
+# answers with whatever stood last — the page's opening note, or the gesture before this
+# one. The assertion then holds an event nobody made, and it holds it only on a machine
+# slow enough to lose the race. Naming the gesture's own send first is the arrangement
+# that closes the window; `_until` is what waits on it.
+@contextmanager
+def sending(page, what):
+    """Enclose a gesture whose own event has to be in the wire before its trip is over.
+
+    Waits for one further send to enter the wire, then for everything the page has sent
+    to come back, so a log or state read behind the block is a read of this gesture.
+    `what` names the send for the failure a wait that runs out raises.
+    """
+    sends = _traffic(page).sends
+    yield
+    _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
+    round_trip(page)
+
+
 # The other direction of the same trip. Nothing a test writes into the page directory
 # announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when it next reads — so an assertion made straight after the write is waiting
@@ -1014,10 +1036,8 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 def undo(page):
     """Take the last gesture back, from the moment the line offers to."""
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    sent = _traffic(page).sends
-    page.keyboard.press("z")
-    _until(page, lambda t: t.sends > sent, "put the withdrawal in the wire")
-    round_trip(page)
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
 
 
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
@@ -1240,6 +1260,12 @@ def key_line(page):
     """
     page.evaluate(RENDERED)
     return page.locator(".lf-keyline").inner_text()
+
+
+def open_versions(page):
+    """Open the Versions destination through its complete keyboard route."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
 
 
 def open_page(

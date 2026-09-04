@@ -64,7 +64,7 @@ export function createReference({
     const referenceRows = (scope) =>
       byCommand(scope.rows).map(([id, row]) => [
         id,
-        scope.chord ? { ...row, chord: scope.chord } : row,
+        scope.chord ? { ...row, chord: scope.chordPrefix ?? scope.chord } : row,
       ]);
     for (const scope of SCOPES.toReversed()) {
       if (scope !== ELEMENTS) {

@@ -19,8 +19,6 @@ from render_support import (
     RENDERED,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
-    _traffic,
-    _until,
     key_line,
     open_page,
     panel_comment,
@@ -28,6 +26,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     told,
     undo,
     watched,
@@ -42,7 +41,8 @@ PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
   glyphs: [...document.querySelectorAll('.lf-reacts > .lf-react-mark')]
     .map(m => [m.parentElement.dataset.lfFor, m.dataset.token]),
-  outlined: [...document.querySelectorAll('.lf-react-el')].map(el => el.id),
+  outlined: [...document.querySelectorAll('.lf-react-el')]
+    .map(el => el.id || el.dataset.id),
 })"""
 
 MARGIN_STATE_WITNESS = """button => {
@@ -194,8 +194,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
             "el => getComputedStyle(el).stroke === getComputedStyle(el).color"
         )
 
-    surface.locator('.lf-react[data-token="cut"]').click()
-    round_trip(page)
+    with sending(page, "the token the press marks with"):
+        surface.locator('.lf-react[data-token="cut"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "cut" and "text" not in sent
     assert sent["anchor"]["section"] == "how-store"
@@ -259,8 +259,11 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
     expect(bar).to_be_hidden()
-    page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
-    round_trip(page)
+    # The glyph's own take-back in the wire before the log is read: behind a bare trip
+    # the read answers with the comment this press is taking back, which is the shape
+    # run 33845381848 failed in.
+    with sending(page, "the take-back the glyph makes"):
+        page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
@@ -274,8 +277,8 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     settled = page.locator(
         '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="ok"]'
     )
-    settled.click()
-    round_trip(page)
+    with sending(page, "the withdrawal the gallery opens on"):
+        settled.click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
     # choices inside the target's Buttons. A state that lands after that fold is open
     # re-renders the cluster, and the margin says so on `lf-button-options-closed`, which
@@ -292,14 +295,11 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in key_line(page)
 
-    sends = _traffic(page).sends
-    page.keyboard.press("2")
-    # The digit's own gesture in the wire before the log is read. `round_trip` waits on
-    # what the page has sent, and a post the press has not made yet is not pending, so
-    # the read that follows it answers with whatever stood last — here the withdrawal
-    # above, which reads as the digit having chosen a token nobody pressed.
-    _until(page, lambda traffic: traffic.sends > sends, "sent the reaction 2 chose")
-    round_trip(page)
+    # The digit's own gesture in the wire before the log is read; without it the read
+    # answers with whatever stood last — here the withdrawal above, which reads as the
+    # digit having chosen a token nobody pressed.
+    with sending(page, "the reaction 2 chose"):
+        page.keyboard.press("2")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "no"
     assert sent["anchor"]["section"] == "bg-react-ok"
@@ -326,6 +326,19 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
       return {ink: face.color, ring: face.borderTopColor, fill: face.backgroundColor};
     }"""
 
+    # The press applied, and not merely delivered, before the reopen below asks for the row
+    # again. `round_trip` ends on what the page has heard back, and the margin renders that
+    # state after it; a render taken over an open options row says so on
+    # `lf-button-options-closed`, which is what takes the row away. A reopen placed in that
+    # gap presses `r` at a cluster the arriving state is about to rebuild, so the row either
+    # never opens or is closed under the press. The wait on the wire comes first because a
+    # post the browser has not reported yet is not pending, and a trip that ends before the
+    # press is in the wire leaves nothing for `told` to wait on either.
+    def stands(press):
+        with sending(page, "the reaction"):
+            press()
+        told(page)
+
     def assert_selected_face(reaction, reopen, witness):
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
@@ -337,8 +350,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
         assert reaction.evaluate(witness) is False
-        reaction.click()
-        round_trip(page)
+        stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "true")
@@ -349,8 +361,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         reaction.hover()
         assert reaction.evaluate(read) == selected
         assert reaction.evaluate(witness) is True
-        reaction.click()
-        round_trip(page)
+        stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
@@ -635,14 +646,12 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
     second = sheet.locator(f'[data-lf-map-button="{second_key}"]')
     expect(second).to_be_focused()
     token = second.get_attribute("aria-label").split(" — ")[0]
-    sends = _traffic(page).sends
-    if opener == "click":
-        second.click()
-    else:
-        page.keyboard.press("Enter")
     # Page map forwards the press synchronously; its network trip is still asynchronous.
-    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
-    round_trip(page)
+    with sending(page, "the spilled reaction"):
+        if opener == "click":
+            second.click()
+        else:
+            page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (
         "comment",
@@ -702,10 +711,8 @@ def test_a_map_reopened_before_its_close_lands_still_presses_its_button(browser,
 
     button = sheet.locator("[data-lf-map-button]").nth(1)
     token = button.get_attribute("aria-label").split(" — ")[0]
-    sends = _traffic(page).sends
-    button.click()
-    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
-    round_trip(page)
+    with sending(page, "the spilled reaction"):
+        button.click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (
         "comment",
@@ -1069,7 +1076,7 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     part's resolved box rather than the diagram that owns its stable id."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    start = diagram.locator('g[id*="flowchart-S-"]')
+    start = diagram.locator('g[data-id="S"]')
     start.click()
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
@@ -1099,7 +1106,7 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
         "visual": "node:S",
     }
     shown = painted(page, [["flow", "this"]])
-    assert shown["outlined"] == [start.get_attribute("id")], shown
+    assert shown["outlined"] == [start.get_attribute("data-id")], shown
     expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
     assert errors == []
     page.close()
@@ -1120,7 +1127,7 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
         },
     )
     page, errors = open_page(browser, url)
-    page.locator('#flow g[id*="flowchart-S-"]').click()
+    page.locator('#flow g[data-id="S"]').click()
     expect(page.locator('.lf-fab-bar .lf-react[data-token="this"]')).to_have_attribute(
         "aria-pressed", "false"
     )
@@ -1135,7 +1142,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     resolves that same target again, and the quiet outline stays on it until an
     outside press dismisses both."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
 
     box = start.bounding_box()
@@ -1170,7 +1177,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
         after_reactivation,
     )
 
-    page.locator('#flow g[id*="flowchart-U-"]').click()
+    page.locator('#flow g[data-id="U"]').click()
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     whole = bar.bounding_box()
@@ -1201,7 +1208,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
         1,
     )
     page, errors = open_page(browser, serve(wrapped))
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
 
     page.locator("#caption").click()
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1211,6 +1218,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     ) == [
         {"section": "flow"},
         {"section": "flow", "visual": "node:S"},
+        {"section": "flow", "visual": "node:H"},
     ]
 
     start.click()
@@ -1284,11 +1292,11 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     expect(start).not_to_have_attribute("role", "button")
     expect(start).not_to_have_attribute("tabindex", re.compile(".+"))
     expect(page.get_by_role("button", name="Respond to Handle request")).to_have_count(
-        0
+        1
     )
 
     whole_control = page.locator(".lf-visual-action").first
@@ -1372,7 +1380,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_have_count(1)
     page.evaluate(
         """() => {
-          const oldPart = document.querySelector('#flow g[id*="flowchart-S-"]');
+          const oldPart = document.querySelector('#flow g[data-id="S"]');
           const newPart = oldPart.cloneNode(true);
           oldPart.scrollIntoView = () => { window.lfScrolledPart = 'old'; };
           newPart.scrollIntoView = () => { window.lfScrolledPart = 'new'; };
@@ -1472,7 +1480,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     geometry to what is actually shown, and retracts the bar once none remains."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
-    start = diagram.locator('g[id*="flowchart-S-"]')
+    start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
     diagram.evaluate("element => { element.style.width = '240px'; }")
 
@@ -1492,7 +1500,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     page.wait_for_function(
         """([was, beforeTarget]) => {
           const now = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          const box = document.querySelector('#flow g[id*="flowchart-S-"]')
+          const box = document.querySelector('#flow g[data-id="S"]')
             .getBoundingClientRect();
           return Math.abs(now.left - was) > 1 && box.left < beforeTarget;
         }""",
@@ -1522,7 +1530,7 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
     """The compatibility click after a drag must not replace freshly selected words
     with the visual target that happens to contain the drag's endpoint."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     label = start.get_by_text("Start request", exact=True)
     box = label.bounding_box()
     select(
@@ -1587,7 +1595,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     clearing that passage dismisses the shared action surface."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     control.focus()
     page.keyboard.press("Enter")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1781,8 +1789,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
-    strip.locator('.lf-react[data-token="no"]').click()
-    round_trip(page)
+    with sending(page, "the reply the no carries"):
+        strip.locator('.lf-react[data-token="no"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["token"]) == ("reply", reply, "no")
     expect(strip.locator('.lf-react[data-token="no"]')).to_have_attribute(
@@ -1791,8 +1799,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(".lf-thread")).to_have_count(1)  # `no` settles nothing
 
     strip.locator(".lf-react-trigger").click()
-    strip.locator('.lf-react[data-token="ok"]').click()
-    round_trip(page)
+    with sending(page, "the ok that settles the thread"):
+        strip.locator('.lf-react[data-token="ok"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "ok" and ok["parent"] == reply
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")  # none
@@ -1800,8 +1808,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
     expect(page.locator(".lf-thread")).to_have_count(1)
-    strip.locator('.lf-react[data-token="ok"]').click()
-    round_trip(page)
+    with sending(page, "the take-back of the ok"):
+        strip.locator('.lf-react[data-token="ok"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")

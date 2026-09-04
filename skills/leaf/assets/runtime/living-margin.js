@@ -15,16 +15,35 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
-  outcome: { label: "Outcome", icon: "check", priority: 3, indication: true },
-  sent: { label: "Sent", icon: "sent", priority: 3, indication: true },
-  pickup: { label: "Picked up", icon: "pickup", priority: 3, indication: true },
+  outcome: {
+    label: "Outcome",
+    icon: "check",
+    priority: 3,
+    indication: true,
+    state: "settled",
+  },
+  sent: {
+    label: "Sent",
+    icon: "sent",
+    priority: 3,
+    indication: true,
+    state: "busy",
+  },
+  pickup: {
+    label: "Picked up",
+    icon: "pickup",
+    priority: 3,
+    indication: true,
+    state: "settled",
+  },
   waiting: {
     label: "Waiting for pickup",
     icon: "waiting",
     priority: 3,
     indication: true,
+    state: "busy",
   },
-  activity: { label: "Active", icon: "activity", priority: 4 },
+  activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
 };
 
 // Content modules contribute what their target offers; this projection decides where
@@ -165,10 +184,10 @@ function syncForwardedButtonState(projection, source) {
 
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
-// controls one family. The visible word remains in the DOM as a transient label, so
-// every Button keeps one circular fitting and one stable accessible name. Native
-// `title` bubbles would repeat that label on a different timer and with a different
-// face, so this anatomy owns the only visual tooltip too.
+// controls one family. The visible word stays in the DOM as a transient label, so
+// every Button-shaped fitting keeps one stable accessible name. Native `title`
+// bubbles would repeat the word on a different timer and with a different face, so
+// this anatomy owns its only visual presentation too.
 export function marginAction(
   control,
   {
@@ -213,6 +232,7 @@ export function marginAction(
   control.dataset.lfBehavior = record.behavior;
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
+  control.dataset.lfOffer = behavior === "receipt" ? "" : "button";
   marginActionState(control, state);
   const opens = behavior === "disclosure" || behavior === "options";
   if (opens && !control.hasAttribute("aria-expanded"))
@@ -221,6 +241,9 @@ export function marginAction(
   if (behavior === "receipt") {
     control.setAttribute("role", "status");
     control.tabIndex = -1;
+  } else if (!(control instanceof HTMLButtonElement)) {
+    control.setAttribute("role", "button");
+    if (control.tabIndex < 0) control.tabIndex = 0;
   } else if (control.getAttribute("role") === "status") {
     control.removeAttribute("role");
     control.removeAttribute("tabindex");
@@ -450,6 +473,7 @@ export function createLivingMargin(dependencies) {
     itemSays,
     itemWord,
     keys,
+    motion,
     offer,
     openDecisions,
     panelIsOpen,
@@ -531,6 +555,107 @@ export function createLivingMargin(dependencies) {
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
   chromeRoot.append(preview);
+  let threadTransitionEpoch = 0;
+  let threadTransitionMotions = [];
+
+  function clearThreadTransition() {
+    threadTransitionEpoch += 1;
+    for (const played of threadTransitionMotions) played.cancel();
+    threadTransitionMotions = [];
+    chromeRoot.querySelector(".lf-thread-transition")?.remove();
+    preview.style.removeProperty("opacity");
+  }
+
+  // A comment written beside the page becomes this larger inline thread. Carry its
+  // submitted field to the card rather than replacing one rectangle with another in a
+  // frame; the real card fades through the carried shell, so its contents never stretch.
+  function transitionThread(origin) {
+    if (!origin?.width || !origin?.height) return;
+    const target = preview.getBoundingClientRect();
+    if (!target.width || !target.height) return;
+
+    const ghost = el("div", "lf-ui lf-response-control lf-thread-transition");
+    const ghostText = el("span", "lf-thread-transition-text", origin.text);
+    ghost.append(ghostText);
+    ghost.setAttribute("aria-hidden", "true");
+    Object.assign(ghost.style, {
+      left: `${origin.left}px`,
+      top: `${origin.top}px`,
+      width: `${origin.width}px`,
+      height: `${origin.height}px`,
+      backgroundColor: origin.backgroundColor,
+      borderColor: origin.borderColor,
+      borderRadius: origin.borderRadius,
+      boxShadow: origin.boxShadow,
+    });
+    chromeRoot.append(ghost);
+
+    const end = getComputedStyle(preview);
+    const duration = 280;
+    const carried = motion(
+      ghost,
+      [
+        { opacity: 1 },
+        { opacity: 1, offset: 0.42 },
+        {
+          left: `${target.left}px`,
+          top: `${target.top}px`,
+          width: `${target.width}px`,
+          height: `${target.height}px`,
+          borderRadius: end.borderRadius,
+          backgroundColor: end.backgroundColor,
+          borderColor: end.borderColor,
+          boxShadow: end.boxShadow,
+          opacity: 0,
+        },
+      ],
+      duration,
+    );
+    const revealed = motion(
+      preview,
+      [
+        { opacity: 0, transform: "translateY(2px)" },
+        {
+          opacity: 0,
+          transform: "translateY(2px)",
+          offset: 0.42,
+        },
+        { opacity: 1, transform: "none" },
+      ],
+      duration,
+    );
+    const words = motion(
+      ghostText,
+      [{ opacity: 1 }, { opacity: 0, offset: 0.42 }, { opacity: 0 }],
+      duration,
+    );
+    threadTransitionMotions = [carried, revealed, words].filter(Boolean);
+    if (carried)
+      carried.finished.then(
+        () => ghost.remove(),
+        () => ghost.remove(),
+      );
+    else ghost.remove();
+    // `motion` releases its filled frame after this reaction. The card's ordinary
+    // styles already are the final frame, so no separate cleanup can flash it back.
+    revealed?.finished.catch(() => {});
+  }
+
+  function scheduleThreadTransition(origin, entry) {
+    clearThreadTransition();
+    const epoch = threadTransitionEpoch;
+    // Margin packing finishes on the next frame. Keep the real card transparent until
+    // then, so the carried shell aims at the marker's settled position without flashing
+    // the card at its provisional one.
+    preview.style.opacity = "0";
+    requestAnimationFrame(() => {
+      if (epoch !== threadTransitionEpoch) return;
+      preview.style.removeProperty("opacity");
+      if (previewEntry?.key !== entry.key || !preview.matches(":popover-open")) return;
+      placeThreadPreview();
+      transitionThread(origin);
+    });
+  }
 
   const sheet = document.createElement("dialog");
   sheet.className = "lf-ui lf-page-map-sheet";
@@ -570,7 +695,7 @@ export function createLivingMargin(dependencies) {
   let pinnedKey = null;
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
-  let hoveredKey = null;
+  let hoveredHost = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
@@ -809,11 +934,27 @@ export function createLivingMargin(dependencies) {
   function readingState(choice) {
     return (
       (choice?.items ?? [])
-        .map((item) => item.state ?? (item.acknowledgmentFace ? "busy" : "idle"))
+        .map((item) => item.state ?? item.acknowledgmentFace?.state ?? "idle")
         .sort(
           (left, right) => STATE_PRIORITY.get(left) - STATE_PRIORITY.get(right),
         )[0] ?? "idle"
     );
+  }
+
+  const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
+
+  function readingControl(className) {
+    const control = offer("span", className);
+    control.addEventListener("keydown", (event) => {
+      if (
+        control.getAttribute("role") !== "button" ||
+        (event.key !== "Enter" && event.key !== " ")
+      )
+        return;
+      event.preventDefault();
+      control.click();
+    });
+    return control;
   }
 
   function syncThreadRelation(control, isThread) {
@@ -1512,6 +1653,7 @@ export function createLivingMargin(dependencies) {
   function paintMarker(row, entry, primary) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
     const choice = primaryReading(entry);
+    const behavior = readingBehavior(face);
     row.lfEntry = entry;
     row.hidden = markerKinds.length === 0 || Boolean(primary);
     row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
@@ -1519,11 +1661,11 @@ export function createLivingMargin(dependencies) {
       key: `reading:${choice?.key ?? "none"}`,
       icon: face.icon,
       label,
-      behavior: face.indication ? "receipt" : "disclosure",
+      behavior,
       role: "reading",
       state: readingState(choice),
     });
-    row.onclick = face.indication ? null : pressMarker;
+    row.onclick = behavior === "receipt" ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
     syncActionCount(row, markerCount);
@@ -1600,18 +1742,18 @@ export function createLivingMargin(dependencies) {
     const key = readingKey(entry, choice);
     let node = readingButtons.get(key);
     if (!node) {
-      node = offer("button", "lf-margin-reading-option");
-      node.type = "button";
+      node = readingControl("lf-margin-reading-option");
       readingButtons.set(key, node);
     }
     const face = readingFace(choice);
+    const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
     marginAction(node, {
       key: `reading:${choice.key}`,
       icon: face.icon,
       label,
-      behavior: "disclosure",
+      behavior,
       role: "reading",
       state: readingState(choice),
     });
@@ -1624,14 +1766,17 @@ export function createLivingMargin(dependencies) {
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
     syncActionCount(node, count);
-    node.onclick = () => {
-      if (node.lfChoice.kind !== "comment") {
-        setOptionsOpen(node.lfEntry, false, { returnFocus: true });
-        activate(node.lfChoice.items[0], node.lfEntry, { focusMap: false });
-        return;
-      }
-      openThreadChoice(node.lfEntry, node);
-    };
+    node.onclick =
+      behavior === "receipt"
+        ? null
+        : () => {
+            if (node.lfChoice.kind !== "comment") {
+              setOptionsOpen(node.lfEntry, false, { returnFocus: true });
+              activate(node.lfChoice.items[0], node.lfEntry, { focusMap: false });
+              return;
+            }
+            openThreadChoice(node.lfEntry, node);
+          };
     return node;
   }
 
@@ -2006,7 +2151,7 @@ export function createLivingMargin(dependencies) {
         host = el("div", "lf-ui lf-margin-item");
         host.dataset.lfGen = "1";
         host.setAttribute("role", "group");
-        marker = marginAction(offer("button", "lf-margin-marker"), {
+        marker = marginAction(readingControl("lf-margin-marker"), {
           key: "reading",
           icon: "dot",
           label: "Open page details",
@@ -2060,20 +2205,27 @@ export function createLivingMargin(dependencies) {
         host.addEventListener("focusin", () => {
           // A new keyboard destination outranks a pointer parked on the previous
           // target. Real pointer movement can take ownership back without a press.
-          hoveredKey = null;
+          hoveredHost = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", () =>
           requestAnimationFrame(refreshHighlight),
         );
-        const hover = () => {
-          hoveredKey = host.lfEntry?.key ?? null;
+        const takePointerOwnership = (event) => {
+          const control = document
+            .elementFromPoint(event.clientX, event.clientY)
+            ?.closest?.(".lf-margin-action");
+          hoveredHost =
+            control &&
+            host.contains(control) &&
+            control.dataset.lfBehavior !== "receipt"
+              ? host
+              : null;
           refreshHighlight();
         };
-        host.addEventListener("pointerenter", hover);
-        host.addEventListener("pointermove", hover);
+        host.addEventListener("pointermove", takePointerOwnership);
         host.addEventListener("pointerleave", () => {
-          if (hoveredKey === host.lfEntry?.key) hoveredKey = null;
+          if (hoveredHost === host) hoveredHost = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", (event) => {
@@ -2254,7 +2406,7 @@ export function createLivingMargin(dependencies) {
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const key =
-      hoveredKey ??
+      (hoveredHost?.isConnected ? hoveredHost.lfEntry?.key : null) ??
       focusedHost?.lfEntry?.key ??
       (preview.contains(active) || preview.matches(":popover-open")
         ? previewEntry?.key
@@ -2265,6 +2417,7 @@ export function createLivingMargin(dependencies) {
   function showPreview(entry, button, retry = true) {
     if (!entry || designIsOn()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
+    if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
     transferThreadCard(button);
     buildThreadCard(entry);
@@ -2316,6 +2469,7 @@ export function createLivingMargin(dependencies) {
   }
 
   function closePreview(returnFocus) {
+    clearThreadTransition();
     const button = previewButton;
     pinnedKey = null;
     forcedInlineKey = null;
@@ -2403,7 +2557,7 @@ export function createLivingMargin(dependencies) {
     setPanel(true);
   }
 
-  function openInlineThread(id) {
+  function openInlineThread(id, transition = null) {
     const itemId = `comment:${id}`;
     const entry = pageMapEntries.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2424,6 +2578,7 @@ export function createLivingMargin(dependencies) {
       (candidate) => candidate.dataset.lfMarginItem === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+    if (transition) scheduleThreadTransition(transition, entry);
     return item?.querySelector("textarea") ?? null;
   }
 
@@ -2672,6 +2827,7 @@ export function createLivingMargin(dependencies) {
   previewClose.onclick = () => closePreview(true);
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed") return;
+    clearThreadTransition();
     if (!previewEntry) return;
     const button = previewButton;
     pinnedKey = null;

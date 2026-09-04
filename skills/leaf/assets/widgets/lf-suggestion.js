@@ -176,7 +176,7 @@ customElements.define(
             ? this.dataset.lfState === "accept"
               ? "Accepted"
               : "Rejected"
-          : "",
+            : "",
       );
       this.#offer();
       watchActions(this, null, () => {

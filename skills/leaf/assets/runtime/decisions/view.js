@@ -269,10 +269,10 @@ export function createDecisionView({
     const live = new Set(decisions.map((a) => a.id));
     for (const [id, row] of decisionRowsById)
       if (!live.has(id)) {
-        // An answered decision takes its row with it, and may take the focus with it too — a
-        // reader who answered from somewhere else while standing on this row. Hand focus
-        // to whatever now stands in its place rather than letting it fall to the body,
-        // which is nowhere and takes the ring with it.
+        // A decision that leaves the active inventory takes its row with it, and may take
+        // the focus too — for example, when a revision retires the source while the reader
+        // is standing on its row. Hand focus to whatever now stands in its place rather
+        // than letting it fall to the body, which is nowhere and takes the ring with it.
         const held = row.contains(document.activeElement);
         const next = row.nextElementSibling ?? row.previousElementSibling;
         row.remove();

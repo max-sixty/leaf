@@ -55,6 +55,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    stamp_page,
     stamp_version_file,
     standing_mark,
     told,
@@ -2396,6 +2397,37 @@ def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
     expect(page.locator("button.lf-decisions-row")).to_have_count(1)
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-decisions-answer")).to_have_text("First")
+    assert errors == []
+    page.close()
+
+
+def test_an_asks_tray_says_when_a_revision_removes_its_last_ask(browser, serve):
+    """An empty inventory says the tray rendered, rather than looking broken."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+        '<lf-options id="only" choose>'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+    )
+    url = serve(source)
+    page, errors = open_page(browser, live_url(url))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    note = page.locator(".lf-decisions-panel .lf-empty")
+    expect(note).to_have_count(0)
+
+    stamp_page(
+        serve.page_dir,
+        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
+        "remove the last ask",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(note).to_be_visible()
+    expect(note).to_contain_text("Nothing is waiting on you")
     assert errors == []
     page.close()
 

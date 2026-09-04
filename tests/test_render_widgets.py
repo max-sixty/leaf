@@ -2407,7 +2407,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
     at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the reader was
     told to look at one thing while standing on another they could not see, and their next
-    Enter would have worked it. The picks are the next Tab stops instead, which is what a
+    Space would have worked it. The picks are the next Tab stops instead, which is what a
     stop at `tabindex: -1` on the region buys: it keeps its place in document order and
     everything inside the decision comes after it.
     """
@@ -2474,12 +2474,14 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         "the arrival did not leave the Decision's context above its options"
     )
 
-    # Tab remains the complementary route into the widget's local controls. Read after
-    # the landing above, because a Tab onto a control below the fold scrolls to it and
-    # would take the arrival's own geometry with it.
+    # Tab remains the complementary route into the widget's controls. Read after the
+    # landing above, because a Tab onto a control below the fold scrolls to it and would
+    # take the arrival's own geometry with it. The Ask action context remains the same.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.
@@ -2516,6 +2518,12 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_be_focused()
     assert "1–2\nAccept / Reject" in key_line(page)
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
+        "aria-keyshortcuts", "1"
+    )
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_have_attribute(
+        "aria-keyshortcuts", "2"
+    )
     page.keyboard.press("2")
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
@@ -2524,8 +2532,10 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.close()
 
 
-def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serve):
-    """Ask and local-scope digits name one stable place on each option card."""
+def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
+    browser, serve
+):
+    """Tab keeps the Ask's address projection on the same option-card faces."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 900, 900)
 
@@ -2540,18 +2550,20 @@ def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serv
     )
 
     page.keyboard.press("Tab")
-    local = page.locator("#live-question > lf-option > .lf-address")
-    expect(local).to_have_text(["1", "2"])
-    local_centers = local.evaluate_all(
+    focused = page.locator(
+        "#live-question > lf-option > .lf-address[data-lf-ask-address]"
+    )
+    expect(focused).to_have_text(["1", "2"])
+    focused_centers = focused.evaluate_all(
         """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
           return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
         })"""
     )
-    assert len(ask_centers) == len(local_centers) == 2
-    for ask_point, local_point in zip(ask_centers, local_centers, strict=True):
-        assert ask_point["x"] == pytest.approx(local_point["x"], abs=0.5)
-        assert ask_point["y"] == pytest.approx(local_point["y"], abs=0.5)
+    assert len(ask_centers) == len(focused_centers) == 2
+    for ask_point, focused_point in zip(ask_centers, focused_centers, strict=True):
+        assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
+        assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
     assert errors == []
     page.close()

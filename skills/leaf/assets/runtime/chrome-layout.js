@@ -195,6 +195,10 @@ export function createChromeLayout({
     // watched by nobody, so what it takes is room the document has and no measurement's
     // business.
     chromeRoot.style.paddingBottom = clear;
+    // Flow room lets the document reach past the line; scroll padding tells native focus
+    // navigation where the visible edge actually is. Keep both on the same measured band
+    // so a Tab stop already inside the viewport cannot be accepted underneath the line.
+    document.documentElement.style.setProperty("--lf-keyline-clear", clear);
     // A tray's list is the page's other scroll region, in the corner the line is
     // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
     // document's band is its band — and it states it twice, because it reaches

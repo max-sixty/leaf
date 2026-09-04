@@ -14,7 +14,7 @@ def _scheme_result(
     unsettled = context.unsettled
     failsoft = readings.failsoft
     missing_upgrades = readings.missing_upgrades
-    missing_visual_providers = readings.missing_visual_providers
+    visual_provider_problems = readings.visual_provider_problems
     tiny = readings.tiny
     unmarkable = readings.unmarkable
     overflow = readings.overflow
@@ -44,8 +44,8 @@ def _scheme_result(
         )
     found += [
         f"[{scheme}] <{p['tag']} id={p['id']!r}> declares addressable visual "
-        f"parts but its module does not provide {', '.join(p['missing'])}"
-        for p in missing_visual_providers
+        f"parts but its module {'; '.join(p['problems'])}"
+        for p in visual_provider_problems
     ]
     if tiny:
         found.append(

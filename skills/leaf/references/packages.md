@@ -185,6 +185,18 @@ advance, or revise the Ask rather than scanning all offered descendants: evidenc
 an option is not an answer, and shared-margin Buttons may sit outside the source. The
 control's own click remains the one activation path.
 
+A widget declaring `x-visual: {parts: ATTR}` calls
+`registerVisualParts(source, read)` once at upgrade. `read` returns the complete current
+inventory as `{id, element, label, surface?}` records. Leaf admits the ids authored in
+ATTR, derives token lookup and deepest-part hit testing from that one inventory, and
+keeps the authored widget as the durable comment seat. `surface` defaults to `element`;
+use a descendant only when decoration inside a compound part should not contribute to
+its contour. It changes paint only: `element` remains the semantic hit and travel target.
+SVG surfaces follow their painted geometry primitives; a surface with none, and every
+other element, uses the shown box. Call the returned `update()` after any rendering or
+geometry change, including in-place attribute or style changes. The render gate validates
+every record and requires each authored token to resolve.
+
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through

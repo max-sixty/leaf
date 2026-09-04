@@ -24,7 +24,7 @@ class _SchemeContext:
 class _SchemeReadings:
     failsoft: list
     missing_upgrades: list
-    missing_visual_providers: list
+    visual_provider_problems: list
     tiny: list
     unmarkable: list
     overflow: int | float

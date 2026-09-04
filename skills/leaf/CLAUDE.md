@@ -861,13 +861,17 @@ minimum obligations:
 - Register keys with `keys(el, title, rows)` during upgrade, not at module load.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
-- A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
-  return one token from ATTR and `lfVisualPart(part)` to return its current
-  `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element is the semantic target for marks,
-  travel, and aim. Marks and aim follow a returned SVG element's painted
-  primitives; other elements use the shown box. The render gate refuses either missing
-  method.
+- A visual declaring `{parts: ATTR}` calls `registerVisualParts(source, read)` once.
+  `read` returns its complete current `{id, element, label, surface?}` inventory; core
+  admits only tokens authored in ATTR and derives both token lookup and the deepest hit.
+  `surface` defaults to `element` and may name one descendant whose native paint excludes
+  decoration from the target contour. It changes paint only: the returned element remains
+  the hit and travel target. The authored widget remains the comment seat, and `id` is
+  recorded as `anchor.visual`. Marks and aim follow an SVG surface's painted geometry
+  primitives; a surface with none, and every other element, uses the shown box. Call the
+  registration's `update()` after any rendering or geometry change, including an in-place
+  attribute or style change. The render gate validates the inventory and requires every
+  authored token to resolve.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place. A

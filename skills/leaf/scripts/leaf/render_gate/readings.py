@@ -28,7 +28,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     replayed = context.replayed
     failsoft = evaluate_probe(page, "failSoftErrors")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
-    missing_visual_providers = evaluate_probe(page, "missingVisualProviders", widgets)
+    visual_provider_problems = evaluate_probe(page, "invalidVisualProviders", widgets)
     tiny = evaluate_probe(page, "tinyBoxes", widgets)
     unmarkable = evaluate_probe(page, "unmarkableItems")
     overflow = evaluate_probe(page, "rootOverflow")
@@ -196,7 +196,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     return _SchemeReadings(
         failsoft=failsoft,
         missing_upgrades=missing_upgrades,
-        missing_visual_providers=missing_visual_providers,
+        visual_provider_problems=visual_provider_problems,
         tiny=tiny,
         unmarkable=unmarkable,
         overflow=overflow,

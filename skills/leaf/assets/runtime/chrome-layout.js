@@ -217,10 +217,11 @@ export function createChromeLayout({
     // reads the scroll padding — and returned to the stylesheet's inset when there is no
     // shared lane.
     //
-    // Measured to this list's own foot, which is the sheet's composer rather than the
-    // window's. Giving it the document's band reserved the whole lift twice: the line is
-    // standing on the foot, not on the list, so a grown draft put its own height of blank
-    // paper under the last thread and parked a `t` walk that far short of the list's end.
+    // Measured to this list's own foot, which is the top of the complete fixed panel foot
+    // rather than the window's. Giving it the document's band reserved the whole lift
+    // twice: the line is standing on the foot, not on the list, so a grown draft put its
+    // own height of blank paper under the last thread and parked a `t` walk that far short
+    // of the list's end.
     const listClear = panelCovers()
       ? (roomBelow(panelList.getBoundingClientRect()) ?? "")
       : "";

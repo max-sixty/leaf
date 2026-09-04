@@ -2496,17 +2496,17 @@ control that always survives.
 
 `syncLayout` reserves the line's footprint only in a scroll region whose horizontal span
 meets it. Each reservation is the band from the line's top to that region's own foot: the
-window for the document and trays, and the sheet composer for the thread list. The line's
-height, inset, any lift and the device's safe area are therefore one measurement off the
-rendered box rather than four numbers to keep in step. Over a covering thread panel, the
-line starts at its ordinary bottom inset and rises above the panel foot only when their
-rendered rectangles collide; a panel in another lane keeps its stylesheet inset and
-reserves nothing for the line. A coarse pointer is drawn no line at all — there is no
-keyboard to advertise, and every hint would name a key the reader cannot press — so the
-footprint is zero and nothing reserves room for it. The line and its chips take no pointer
-events; the More control does, because it is the only pointer route to the reference and
-so to the character-shortcut preference, which cannot be made to depend on the character
-key it turns off.
+window for the document and trays, and the thread list's rendered bottom at the top of the
+complete panel foot. The line's height, inset, any lift and the device's safe area are
+therefore one measurement off the rendered box rather than four numbers to keep in step.
+Over a covering thread panel, the line starts at its ordinary bottom inset and rises above
+the panel foot only when their rendered rectangles collide; a thread list in another lane
+keeps its stylesheet inset and reserves nothing for the line. A coarse pointer is drawn no
+line at all — there is no keyboard to advertise, and every hint would name a key the reader
+cannot press — so the footprint is zero and nothing reserves room for it. The line and its
+chips take no pointer events; the More control does, because it is the only pointer route
+to the reference and so to the character-shortcut preference, which cannot be made to
+depend on the character key it turns off.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two

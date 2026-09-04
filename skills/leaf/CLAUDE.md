@@ -1232,9 +1232,9 @@ When a covering panel leaves no usable band for the response bar, placement with
 it without discarding its draft. If the disappearing bar held focus, the visible
 Threads list takes it; an unrelated focused control keeps it. A partially exposed
 page remains interactive whenever the bar fits its actual remaining room.
-Enter sends and Shift-Enter
-inserts a newline. Tab changes the same bar into Comment, Suggest when the anchor is a
-quote, and the layer's reaction tokens. `.lf-response-control` keeps the field and every
+Enter inserts a newline; `Mod+Enter` sends. Tab changes the same bar into Comment,
+Suggest when the anchor is a quote, and the layer's reaction tokens.
+`.lf-response-control` keeps the field and every
 choice on one baseline with one type, border, corner, and elevation; the bar keeps its
 DOM owner and accessible name while its contents change. Comment restores the field and
 Suggest restores it in replacement-text mode. Their structural icons use the same
@@ -2978,10 +2978,9 @@ reveal authored disclosures and tabs. `paintAnchors` marks a link detached when
 this version no longer has the id and refuses its press. A thread outlives its
 version, but a fragment target may not.
 
-`wireInput` gives runtime textareas one configurable input contract: persist each edit,
-keep the send button and placeholder current, and prevent parallel sends of one local
-surface. Ordinary boxes send with `Mod+Enter`; the compact anchored composer passes
-`Enter`, leaving Shift-Enter to the textarea's native newline. The stylesheet owns
+`wireInput` gives runtime textareas one input contract: persist each edit, keep the send
+button and placeholder current, prevent parallel sends of one local surface, and send
+with `Mod+Enter`. Enter retains the textarea's native newline. The stylesheet owns
 textarea growth through `field-sizing: content`, within the room supplied by floating
 placement. Script does not derive textarea height from its text. `wireInput`'s sync
 refreshes the composer's placement for typed and programmatic edits alike, including

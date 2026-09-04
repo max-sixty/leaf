@@ -1440,7 +1440,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Still anchored?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
 
     expect(page.locator(".lf-thread")).to_have_count(3)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
@@ -2577,7 +2577,7 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Which readiness check is this?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -2754,7 +2754,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert composer_quote(page)["text"].strip("“”") == "Original instructions."
     page.locator(".lf-composer textarea").fill("Keep this exact source.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
     assert comment["anchor"]["section"] == "skill-source"

@@ -2807,7 +2807,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check the January failure mode.")
     passage_before = page.locator("#mounts-p").bounding_box()
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -2879,7 +2879,7 @@ def send_anchored_comment(page, text):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(text)
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)

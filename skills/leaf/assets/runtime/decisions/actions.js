@@ -4,8 +4,9 @@
  * Core cannot recover that set by scanning generated controls: an option may contain
  * interactive evidence, while a suggestion's answer Buttons are hoisted outside the
  * widget. Each widget therefore contributes one ordered reading here. The decision view
- * projects that reading into numeric keys and address chips while semantic focus is on
- * the Ask itself; the controls remain the only implementation of the actions themselves.
+ * turns that reading into one command route per action while the reader stands anywhere
+ * in the Ask. Keys, Help, the key line, address chips, and accessible shortcuts consume
+ * those routes; the controls remain the only implementation of the actions.
  * A widget that already owns an address face may contribute it as the placement anchor,
  * keeping the Ask projection aligned with the widget's local keyboard scope. */
 
@@ -33,7 +34,7 @@ const answerWords = (value) => {
  *
  * `read` is called at projection time because a widget may exchange its controls while
  * keeping the same decision open. Each item is `{control, label, address?}`; the label is
- * the action's short reader-facing name, an optional existing address face supplies its
+ * the action's short reader-facing name, an optional empty address face supplies its
  * canonical placement, and the control's native `click()` remains the one activation path.
  * `answer` reads the concise words the tray shows after that decision is answered.
  */

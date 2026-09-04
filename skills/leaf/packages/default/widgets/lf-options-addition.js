@@ -18,7 +18,6 @@ export class OptionAddition {
   #host;
   #offered;
   #commit;
-  #shortcut;
   #context;
   #form = null;
   #input = null;
@@ -26,12 +25,11 @@ export class OptionAddition {
   #adding = false;
   #stopDraftWatch = null;
 
-  constructor(host, { offered, available, commit, shortcut }) {
+  constructor(host, { offered, available, commit }) {
     this.#host = host;
     this.#offered = offered;
     this.available = available;
     this.#commit = commit;
-    this.#shortcut = shortcut;
     this.#context = `option:${host.id}`;
   }
 
@@ -66,11 +64,9 @@ export class OptionAddition {
     this.#input.type = "text";
     this.#input.placeholder = ANOTHER;
     this.#input.setAttribute("aria-label", ANOTHER);
-    this.#add = offer("button", "lf-btn", "↵");
+    this.#add = offer("button", "lf-btn", "Add");
     this.#add.type = "submit";
     this.#add.setAttribute("aria-label", "Add option");
-    const shortcut = offer("span", "lf-address", this.#shortcut);
-    shortcut.setAttribute("aria-hidden", "true");
     this.#input.value = loadDraft(this.#context) ?? "";
     this.#input.addEventListener("input", () => {
       this.remember(this.#picked());
@@ -80,7 +76,7 @@ export class OptionAddition {
       event.preventDefault();
       void this.#submit();
     });
-    this.#form.append(shortcut, this.#input, this.#add);
+    this.#form.append(this.#input, this.#add);
     this.#host.append(this.#form);
     this.#sync();
   }

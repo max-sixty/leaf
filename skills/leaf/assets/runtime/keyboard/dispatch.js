@@ -2,7 +2,7 @@ import {
   MODIFIER_KEYS,
   answers,
   bindings,
-  commandRoutes,
+  commandEntries,
   live,
   word,
 } from "./bindings.js";
@@ -153,29 +153,17 @@ export function createDispatch({
 
   // An action chosen from the reference has no keydown to match, but it still belongs to
   // exactly one live scope. Resolve it through the same innermost-first stack and the same
-  // shadowing as a key press. The stable id is the route, while the first declared binding
-  // supplies the argument used by rows whose equivalent keys share one implementation
-  // (Enter/Space).
+  // shadowing as a key press.
   function commandFor(id) {
     const nearer = shadow();
     for (const scope of stack()) {
-      const row = scope.rows.find((candidate) => {
-        const ids = [
-          candidate.id,
-          ...commandRoutes(candidate).map((route) => route.id),
-        ];
-        return ids.includes(id) && candidate.run && live(candidate);
-      });
-      if (row) {
-        const route = commandRoutes(row).find((candidate) => candidate.id === id);
-        const active = bindings(row);
-        const binding = route?.binding ?? active[0];
-        if (
-          binding != null &&
-          (!route || active.includes(binding)) &&
-          !nearer.takes(binding)
-        )
-          return { row, binding };
+      for (const row of scope.rows) {
+        if (!row.run || !live(row)) continue;
+        const reachable = bindings(row).filter((binding) => !nearer.takes(binding));
+        const binding = commandEntries(row, reachable).find(
+          (command) => command.id === id,
+        )?.binding;
+        if (binding != null) return { row, binding };
       }
       nearer.past(scope);
     }
@@ -190,15 +178,9 @@ export function createDispatch({
     for (const scope of stack()) {
       for (const row of scope.rows) {
         if (!row.run || !live(row)) continue;
-        const active = bindings(row);
-        const first = active[0];
-        const routes = [
-          { id: row.id, binding: first },
-          ...commandRoutes(row).filter((route) => active.includes(route.binding)),
-        ];
-        for (const route of routes)
-          if (route.binding != null && !nearer.takes(route.binding))
-            available.add(route.id);
+        const reachable = bindings(row).filter((binding) => !nearer.takes(binding));
+        for (const command of commandEntries(row, reachable))
+          if (command.binding != null) available.add(command.id);
       }
       nearer.past(scope);
     }

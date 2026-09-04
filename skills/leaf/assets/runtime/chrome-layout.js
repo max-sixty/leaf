@@ -135,31 +135,40 @@ export function createChromeLayout({
     // fixed, so a fold cannot resize the boxes this function is watching.
     foldShelf();
     const panelBeside = panelOpen && !panelCovers();
-    // What a covering sheet keeps standing at its foot: the composer, and the page's own
-    // reaction strip above it once the registry offers one. Measured as the one box that
-    // holds them rather than as the composer's height, because the strip is as fixed as
-    // the composer is and a lift that missed it stood the line on the strip's pills —
-    // close enough that the pointer aiming at a reaction met the line's More instead.
-    const footLift = panelCovers() ? panelFoot.offsetHeight : 0;
-    // The key line rises above the whole of that foot over a covering sheet, including a
-    // textarea grown by an unsent draft, or the foot stands on the words saying what Esc
-    // will do to it.
-    keylineEl.style.bottom = `calc(${footLift + 14}px + var(--lf-safe-bottom))`;
     // Beside the page, the thread panel owns the right strip all the way to its foot. The
     // line starts at the window's left, so cap its room at that strip rather than letting a
-    // long computed hint cross into the general comment box. A covering panel is handled by
-    // the lift above and leaves the line the window's full width.
+    // long computed hint cross into the general comment box. A covering panel leaves the
+    // line its natural width: unlike a standing strip, it may leave a complete lane beside
+    // its foot, and whether it does is a fact of the two rendered boxes below.
     keylineEl.style.setProperty(
       "--lf-keyline-right",
       (panelBeside ? commentsEdge.width() : 0) + "px",
     );
+    // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
+    // own foot actually occupies the same pixels. The old posture-level answer lifted the
+    // line by every covering footer's height even when the footer stood wholly to its
+    // right — a two-dimensional collision inferred from one viewport breakpoint.
+    keylineEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+    const overlapsAcross = (one, other) =>
+      one.left < other.right && other.left < one.right;
+    const overlaps = (one, other) =>
+      overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
+    const foot = panelFoot.getBoundingClientRect();
+    let line = keylineEl.getBoundingClientRect();
+    if (panelCovers() && line.height && overlaps(line, foot)) {
+      // The foot is the complete fixed region: composer plus the page's reaction strip
+      // when one is offered. offsetHeight retains the safe-area arithmetic owned by the
+      // stylesheet and follows a draft as its textarea grows.
+      keylineEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
+      line = keylineEl.getBoundingClientRect();
+    }
     // What a scroll region gives up is the part of the line that stands over it: the band
     // from the line's top down to that region's own foot, plus the air above the line.
     // Read off the rendered line rather than stated as a number, which is what keeps it
     // true when the line's face or its padding moves — and off each region's own foot,
     // because the three do not end in the same place. The document ends at the foot of
-    // the window; the panel's list ends above the sheet's own foot, which is the composer
-    // and can be half the window once a draft has grown it.
+    // the window; the panel's list ends at the top of the complete panel foot, whose
+    // composer can grow to half the window with a draft.
     //
     // The band and not the height. The height alone leaves out every inset holding the
     // line off the foot — the 14px above, a covering sheet's lift, the device's safe area
@@ -171,15 +180,25 @@ export function createChromeLayout({
     // A line that is not rendered — no room on a coarse pointer, nothing to say on any
     // pointer — is a band nothing stands in, so nothing reserves it. Nor does a region
     // whose own foot is above the line, which is what the panel's list is beside the page.
-    const line = keylineEl.getBoundingClientRect();
-    const roomBelow = (foot) =>
-      line.height && foot > line.top ? Math.ceil(foot - line.top) + 20 + "px" : "0px";
-    const clear = roomBelow(document.documentElement.clientHeight);
+    const roomBelow = (region) =>
+      line.height && overlapsAcross(line, region) && region.bottom > line.top
+        ? Math.ceil(region.bottom - line.top) + 20 + "px"
+        : null;
+    const clear =
+      roomBelow({
+        left: 0,
+        right: document.documentElement.clientWidth,
+        bottom: document.documentElement.clientHeight,
+      }) ?? "0px";
     // The document's, taken as the chrome container's own box rather than as padding on
     // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
     // watched by nobody, so what it takes is room the document has and no measurement's
     // business.
     chromeRoot.style.paddingBottom = clear;
+    // Flow room lets the document reach past the line; scroll padding tells native focus
+    // navigation where the visible edge actually is. Keep both on the same measured band
+    // so a Tab stop already inside the viewport cannot be accepted underneath the line.
+    document.documentElement.style.setProperty("--lf-keyline-clear", clear);
     // A tray's list is the page's other scroll region, in the corner the line is
     // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
     // document's band is its band — and it states it twice, because it reaches
@@ -191,18 +210,20 @@ export function createChromeLayout({
     // takes the tray's width off the line's: a busy scope already fills a laptop's, so
     // the room it gives up is chips clipped off the right-hand end.
     reserveListClearance(clear);
-    // The panel's own list is the third scroll region the line can stand over, and only
-    // when the panel covers: beside the page the cap above keeps the line off the strip
-    // entirely. Spent the same two ways a tray's is — the wheel reads the padding, a
-    // walk's scroll-into-view reads the scroll padding — and returned to the
-    // stylesheet's inset when the panel steps back beside the page.
+    // The panel's own list is the third scroll region the line can stand over. Its
+    // reservation follows the same rendered overlap as the lift: a covering sheet with a
+    // free lane beside it takes no room for a line that never reaches the list. Spent the
+    // same two ways a tray's is — the wheel reads the padding, a walk's scroll-into-view
+    // reads the scroll padding — and returned to the stylesheet's inset when there is no
+    // shared lane.
     //
-    // Measured to this list's own foot, which is the sheet's composer rather than the
-    // window's. Giving it the document's band reserved the whole lift twice: the line is
-    // standing on the foot, not on the list, so a grown draft put its own height of blank
-    // paper under the last thread and parked a `t` walk that far short of the list's end.
+    // Measured to this list's own foot, which is the top of the complete fixed panel foot
+    // rather than the window's. Giving it the document's band reserved the whole lift
+    // twice: the line is standing on the foot, not on the list, so a grown draft put its
+    // own height of blank paper under the last thread and parked a `t` walk that far short
+    // of the list's end.
     const listClear = panelCovers()
-      ? roomBelow(panelList.getBoundingClientRect().bottom)
+      ? (roomBelow(panelList.getBoundingClientRect()) ?? "")
       : "";
     panelList.style.paddingBottom = listClear;
     panelList.style.scrollPaddingBottom = listClear;
@@ -312,15 +333,24 @@ export function createChromeLayout({
   // a target without emitting a pointer or scroll event.
   let layoutFrame = 0;
   let pageMoved = false;
-  const scheduleLayout = (shellMoved = false) => {
-    pageMoved ||= shellMoved;
+  let chromeMoved = false;
+  const scheduleLayout = (shellChanged = false, chromeChanged = false) => {
+    pageMoved ||= shellChanged;
+    chromeMoved ||= chromeChanged;
     if (layoutFrame) return;
     layoutFrame = requestAnimationFrame(() => {
       layoutFrame = 0;
       const repaintPage = pageMoved;
+      const repaintChrome = chromeMoved;
       pageMoved = false;
+      chromeMoved = false;
       syncLayout();
       if (repaintPage) pageShifted();
+      // A settled key-line or panel-foot size can change both the line's final box and
+      // the part of a target or search match it covers. Re-enter the shared paint after
+      // the chrome writer has placed that box, so every consumer reads the same geometry.
+      // `paintHere` is frame-coalesced, and a same-sized line emits no further resize.
+      if (repaintChrome) paintHere();
     });
   };
   // Body's own box is the first of them, because a workspace lands its final shell width
@@ -340,9 +370,11 @@ export function createChromeLayout({
   const layoutSizes = new ResizeObserver((entries) => {
     let layoutChanged = false;
     let shellMoved = false;
+    let chromeMoved = false;
     for (const { contentRect, target } of entries) {
       if (target !== document.body) {
         layoutChanged = true;
+        chromeMoved = true;
         continue;
       }
       const widthChanged = contentRect.width !== bodyContentWidth;
@@ -354,7 +386,7 @@ export function createChromeLayout({
       bodyContentWidth = contentRect.width;
       bodyContentHeight = contentRect.height;
     }
-    if (layoutChanged) scheduleLayout(shellMoved);
+    if (layoutChanged) scheduleLayout(shellMoved, chromeMoved);
     else if (shellMoved) pageShifted();
   });
   layoutSizes.observe(document.body);

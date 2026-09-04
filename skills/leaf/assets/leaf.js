@@ -519,6 +519,13 @@ function paintHere() {
     herePending = false;
     markHere();
     paintStanding();
+    // The key line is geometry for every address and target painted around it. Render
+    // its new words first, then let the one chrome-layout writer place that resulting
+    // box before any consumer reads it. ResizeObserver remains the door for font, window,
+    // and other size changes; state-driven content changes complete in this frame rather
+    // than leaving placement and hints one observer frame behind.
+    renderLine();
+    syncLayout();
     // The chips are where the reader can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because it is one question, and
     // because a chip repainted by its own door alone went stale on the door it did not
@@ -528,7 +535,6 @@ function paintHere() {
     paintTargets();
     paintCoreControls();
     paintInputHints();
-    renderLine();
   });
 }
 
@@ -945,8 +951,8 @@ generalRow.append(generalInput, generalSend);
 // The panel's foot: everything standing below the scrolling thread list. The general
 // box is what it holds at rest, and the page's own reaction strip joins it above that
 // box when the registry offers reactions. One box rather than two siblings, because the
-// chrome lifts the key line clear of the foot over a covering panel, and a lift
-// measured off the composer alone stood it on the strip's pills.
+// chrome treats the whole painted foot as one obstacle when it actually meets the key
+// line; measuring the composer alone stood the line on the strip's pills.
 const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
@@ -972,6 +978,11 @@ const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
+// Persistent paint for semantic visual parts. The provider supplies one current
+// element; anchors.js derives that element's SVG paint for every anchored state and
+// keeps these pointer-inert projections above the provider's drawing.
+const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
+visualMarkLayer.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
 // drawing geometry, it says nothing to a screen reader and takes nothing from the press
 // it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
@@ -1109,6 +1120,7 @@ chromeRoot.append(
   decisionActionLayer,
   selectionLayer,
   selectionSearch,
+  visualMarkLayer,
   aimBox,
   fabBar,
   liveEl,
@@ -1974,8 +1986,8 @@ const { decisionEntry, isAwaiting, projectedParent, unansweredDecisions } =
   });
 
 // Dispatch is composed after the page table. Until then the decision view can paint its
-// ring but has no complete scope stack from which to claim that a digit is reachable.
-let decisionActionReachable = () => false;
+// ring but has no complete scope stack from which to resolve action command routes.
+let availableDecisionActionCommands = () => new Set();
 const {
   DECISION_CONTROL,
   DECISION_ROW,
@@ -1994,7 +2006,7 @@ const {
 } = createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
   actionLayer: decisionActionLayer,
-  actionReachable: () => decisionActionReachable(),
+  availableActionCommands: () => availableDecisionActionCommands(),
   allDecisions,
   scrollBehavior,
   documentFocused,
@@ -3069,7 +3081,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   takesLetters,
   TYPING,
 });
-decisionActionReachable = () => availableCommands().has(actionRow.id);
+availableDecisionActionCommands = availableCommands;
 const reference = createReference({
   byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
@@ -3610,6 +3622,7 @@ anchorRuntime = createAnchors({
   textNodesUnder,
   threadsBox,
   under,
+  visualMarkLayer,
   withdraw,
   worksWithoutTabStopSelector: WORKS_WITHOUT_TAB_STOP,
   runtimeOwnsScrollerStop,
@@ -3646,6 +3659,7 @@ livingMargin = createLivingMargin({
   panelIsOpen: chromeLayout.panelIsOpen,
   paintKeys,
   placedAt,
+  PRESS,
   quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
   says,

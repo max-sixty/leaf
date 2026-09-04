@@ -2184,6 +2184,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-address",
         "lf-over-mark",
         "lf-mark-el",
+        "lf-shaped-mark",  # a semantic SVG mark projects its contour above the drawing
         "lf-mark-hover",  # the same element mark, for the one the pointer indicates
         "lf-mark-here",  # the same element mark, for the comment the reader is in
         "lf-pending",

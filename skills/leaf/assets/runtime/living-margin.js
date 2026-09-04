@@ -501,6 +501,7 @@ export function createLivingMargin(dependencies) {
     panelIsOpen,
     paintKeys,
     placedAt,
+    PRESS,
     quietSince,
     renderMarginThread,
     says,
@@ -972,15 +973,20 @@ export function createLivingMargin(dependencies) {
 
   function readingControl(className) {
     const control = offer("span", className);
-    control.addEventListener("keydown", (event) => {
-      if (
-        control.getAttribute("role") !== "button" ||
-        (event.key !== "Enter" && event.key !== " ")
-      )
-        return;
-      event.preventDefault();
-      control.click();
-    });
+    keys(
+      control,
+      "In a Page map Button",
+      [
+        {
+          id: "margin.activate-reading",
+          keys: PRESS,
+          does: "Activate the focused Page map Button",
+          line: "activate",
+          run: () => control.click(),
+        },
+      ],
+      () => control.getAttribute("role") === "button",
+    );
     return control;
   }
 

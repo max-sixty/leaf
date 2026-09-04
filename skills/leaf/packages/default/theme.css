@@ -711,10 +711,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      top: 50%; transform: translateY(-50%);
                      display: flex; align-items: center; justify-content: center;
                      width: var(--aim-floor); height: var(--aim-floor); padding: 0;
-                     border: 0; border-radius: 4px; background: transparent;
-                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); }
-  .lf-another > .lf-btn[aria-disabled="false"] { color: var(--ink); cursor: pointer; }
-  .lf-another > .lf-btn[aria-disabled="false"]:hover { background: var(--chip); }
+                     font: 600 var(--t-6)/1 var(--sans); }
   /* The leading column holds the keyboard address and the gap before the option's
    * words. The address starts at the ordinary 8px inset and takes
    * --lf-key-box, so changing the utility type grows the

@@ -187,18 +187,7 @@ export function chromeStyle({
       background: none; color: inherit; font: inherit; }
     .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
   }
-  /* Only .lf-btn needs a shared box because every other control is a flex item or
-     positioned. Selection goes off where nothing under a control is page text. */
-  .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: inherit; display: inline-block; }
   .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
-  .lf-btn:hover { background: var(--chip); }
-  .lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
-  .lf-btn.primary:hover { filter: brightness(.92); }
-  /* Two selectors, two mechanisms, one look: the platform's own on the banner's real
-     buttons, and the attribute wireInput sets, which is the only one a span press can
-     wear. */
-  .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-  .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
      Target actions use .lf-margin-action below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */
@@ -804,8 +793,7 @@ ${MARK_RULES}
     .lf-dot.offline { background: var(--danger); }
     .lf-preview { flex: none; max-width: min(36vw, 240px); padding: 2px 7px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      border: 1px solid var(--border-2); border-radius: 999px;
-      background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6);
+      font: inherit; font-size: var(--t-6);
       cursor: pointer; }
     .lf-preview:hover { border-color: var(--accent); color: var(--ink); }
     .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

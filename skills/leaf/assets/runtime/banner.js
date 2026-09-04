@@ -165,7 +165,7 @@ export function createBanner({
       `url: ${safeUrl}`,
     ].join("\n");
     if (!previewButton) {
-      previewButton = el("button", "lf-preview", label);
+      previewButton = el("button", "lf-btn lf-preview", label);
       previewButton.type = "button";
       previewButton.setAttribute("aria-label", "Copy preview diagnostics");
       previewButton.addEventListener("click", async () => {

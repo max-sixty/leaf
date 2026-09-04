@@ -479,6 +479,7 @@ export function createLivingMargin(dependencies) {
     panelIsOpen,
     paintKeys,
     placedAt,
+    PRESS,
     quietSince,
     renderMarginThread,
     says,
@@ -944,7 +945,22 @@ export function createLivingMargin(dependencies) {
   const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
 
   function readingControl(className) {
-    return offer("button", className);
+    const control = offer("span", className);
+    keys(
+      control,
+      "In a Page map Button",
+      [
+        {
+          id: "margin.activate-reading",
+          keys: PRESS,
+          does: "Activate the focused Page map Button",
+          line: "activate",
+          run: () => control.click(),
+        },
+      ],
+      () => control.getAttribute("role") === "button",
+    );
+    return control;
   }
 
   function syncThreadRelation(control, isThread) {

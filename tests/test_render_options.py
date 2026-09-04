@@ -330,56 +330,92 @@ def test_a_live_pick_is_a_quiet_check_and_remains_pressable(browser, serve):
     page.close()
 
 
-def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, serve):
-    """From the option mark, both answer paths are one press away.
+def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
+    browser, serve
+):
+    """The Ask owns its numbered actions wherever focus stands inside it.
 
-    The walk stands the reader on the decision and its marks are the next Tab stops; from
-    a mark the group's own scope answers the next key. A digit chooses its listed option;
-    Enter steps into the field for the option the author did not list. Without that
-    second binding, reaching the field costs one Tab per listed option even though the
-    Decision is already selected.
+    Tab traverses the real controls without replacing that action map. Another option is
+    an ordinary form field rather than an action hidden behind Enter on an option mark.
     """
     url = serve(DECISION_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
 
     page.keyboard.press("a")
-    page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
-    expect(mark).to_be_focused()
-    expect(mark).to_have_attribute("role", "checkbox")
-    expect(mark).to_have_attribute("aria-checked", "false")
     line = key_line(page)
-    assert "toggle the nth" in line, (
-        f"the selected Decision hides its numbered answers behind More: {line}"
-    )
+    assert "Drop the oldest documents / Pause offline editing" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-address")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
     write_hint = page.locator("#storage-options > .lf-another > .lf-address")
-    expect(write_hint).to_have_text("⏎")
-    expect(write_hint).to_be_visible()
-    assert (
-        abs(write_hint.bounding_box()["x"] - option_hints.first.bounding_box()["x"])
-        < 0.5
-    )
-    page.keyboard.press("Enter")
     box = page.locator("#storage-options > .lf-another input")
-    expect(box).to_be_focused()
-    expect(write_hint).to_be_hidden()
+    expect(write_hint).to_have_count(0)
+
+    # Enter has no invented meaning on the Ask or an option mark. Tab enters the real
+    # controls, while the same Ask-owned numbers and addresses remain standing there.
+    page.keyboard.press("Enter")
+    expect(page.locator("#storage-decision")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(mark).to_be_focused()
+    expect(mark).to_have_attribute("role", "checkbox")
+    expect(mark).to_have_attribute("aria-checked", "false")
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
+    assert key_line(page) == line
+    page.keyboard.press("Enter")
+    expect(mark).to_be_focused()
+    expect(box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+
+    # The controls remain in document order: the other mark, then the form field. Once
+    # focus is in the field, Enter has its native submit meaning.
+    page.keyboard.press("Tab")
+    expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(box).to_be_focused()
+    box.fill("Keep both layers")
+    page.keyboard.press("Enter")
+    expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_contain_text(
+        "Keep both layers"
+    )
     assert errors == []
     page.close()
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
     page.keyboard.press("Tab")
+    mark = page.locator("#storage-evict .lf-pick")
+    expect(mark).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
-    expect(chosen).to_be_focused()
+    # The digit acts within the Ask without turning address selection into focus
+    # navigation; the reader remains on the control they tabbed to.
+    expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
     expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
+    assert errors == []
+    page.close()
+
+    # Native focus scrolling reads the fixed key line as part of the root scrollport's
+    # unavailable foot. At phone width the field otherwise lands underneath that line:
+    # geometrically in the viewport, but neither visible nor operable as the next stop.
+    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    resized(page, 390, 844)
+    page.keyboard.press("a")
+    for _ in range(3):
+        page.keyboard.press("Tab")
+    box = page.locator("#storage-options > .lf-another input")
+    expect(box).to_be_focused()
+    clearance = page.evaluate(
+        """() => document.querySelector('.lf-keyline').getBoundingClientRect().top
+          - document.querySelector('#storage-options > .lf-another')
+            .getBoundingClientRect().bottom"""
+    )
+    assert clearance >= 20, f"the key line covers the add field by {-clearance}px"
     assert errors == []
     page.close()
 
@@ -1124,6 +1160,10 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     )
 
     words = page.locator("#ro-column-p")
+    # The expanded editor can leave this paragraph geometrically in the viewport but
+    # underneath the fixed key line. Centre the actual selection target before deriving
+    # viewport coordinates; scroll_into_view_if_needed cannot see that occlusion.
+    words.evaluate("el => el.scrollIntoView({block: 'center'})")
     start, end = words.evaluate("""el => {
         const text = el.firstChild;
         const point = (offset, edge) => {

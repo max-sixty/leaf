@@ -1810,7 +1810,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
         expect(control.locator(":scope > .lf-margin-action-label")).to_be_hidden()
         current = face(control)
         assert current == {
-            "tag": "BUTTON",
+            "tag": "SPAN",
             "offer": "",
             "behavior": "receipt",
             "role": "status",
@@ -1946,10 +1946,10 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
 
     expect(marker).to_have_attribute("data-identity-probe", "kept")
     active = face()
-    assert active["tag"] == "BUTTON"
+    assert active["tag"] == "SPAN"
     assert active["offer"] == "button"
     assert active["behavior"] == "disclosure"
-    assert active["role"] is None
+    assert active["role"] == "button"
     assert active["icon"] == "activity"
     assert active["cursor"] == "pointer"
     assert active["opacity"] == "1"

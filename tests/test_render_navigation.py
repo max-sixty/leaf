@@ -537,9 +537,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """At Ask focus a digit picks outright; one Tab enters marks, where ↑/↓ walk the
-    options clamping at the ends. Each option wears its digit while the Ask or one of
-    its marks holds keyboard focus, so nothing appears on a page nobody is answering."""
+    """The Ask's digits stay live while a mark adds only its control-local keys.
+
+    One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends.
+    Moving focus does not replace the Ask's numeric action context with a widget copy.
+    """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
@@ -553,8 +555,17 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
+    assert marks.first.get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 1"
+    )
+    assert marks.nth(1).get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 2"
+    )
 
     page.keyboard.press("ArrowUp")
     expect(marks.first).to_be_focused()
@@ -735,7 +746,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # the search reads around it — one range per segment, not one spanning the lot.
     # Across both options, so a Choose button falls in the middle of the passage rather
     # than after it — where a single range spanning the whole thing would swallow it.
-    chrome = page.locator("#opts .lf-ui").first.text_content().strip()
+    chrome = page.locator("#opts .lf-pick").first.text_content().strip()
     assert chrome, "this assertion needs the widget to have rendered chrome inside it"
     page.evaluate("""() => {
         const r = document.createRange();
@@ -2782,6 +2793,74 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.close()
 
 
+def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
+    """Each Ask digit is a distinct command when invoked without a keydown."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+
+    page.keyboard.press("a")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+
+    first = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    second = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    expect(first).to_have_text("Activate the “Keep the store” action")
+    expect(second).to_have_text("Activate the “Signed tokens” action")
+    expect(
+        page.locator('.lf-help-command[data-lf-command="decision.activate-nth"]')
+    ).to_have_count(0)
+
+    second.click()
+    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    expect(page.locator("#lq-keep")).not_to_have_attribute("chosen", "")
+    round_trip(page)
+
+    assert errors == []
+    page.close()
+
+
+def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
+    """A widget can replace its action controls without defining another keymap."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "draft ask",
+                """
+<h1 id="h">Release note</h1>
+<lf-decision id="note-decision"><h2>How should the note read?</h2>
+  <lf-draft id="note" needed><pre>Keep this text editable.</pre></lf-draft>
+</lf-decision>
+""",
+            )
+        ),
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#note-decision")).to_be_focused()
+    assert "1\nEdit" in key_line(page)
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    edit = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    expect(edit).to_have_text("Activate the “Edit…” action")
+    edit.click()
+    expect(page.locator("#note textarea")).to_be_focused()
+
+    save = page.locator(".lf-draft-controls [data-lf-button-key='save']")
+    save.focus()
+    expect(save).to_be_focused()
+    page.keyboard.press("?")
+    assert "1–2\nSave / Cancel" in key_line(page)
+    page.keyboard.press("?")
+    cancel = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    expect(cancel).to_have_text("Activate the “Cancel” action")
+    cancel.click()
+    expect(page.locator("#note textarea")).to_have_count(0)
+
+    assert errors == []
+    page.close()
+
+
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
@@ -2796,13 +2875,11 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
     page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
-    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
-        shortcuts
-    )
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space 1")
 
     page.keyboard.press("?")
     page.keyboard.press("?")
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space")
     expect(
         page.locator(
             ".lf-help tr", has_text="Next ask this page is waiting on you for"
@@ -3845,13 +3922,13 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
         "placeholder", re.compile(r" · c$")
     )
     expect(reply).to_have_attribute("placeholder", "Reply")
-    # Space is control activation, not a character shortcut. Offered buttons retain
-    # both native-button keys and advertise both from the same register while letters,
-    # digits, and punctuation are off.
+    # Space is checkbox activation, not a character shortcut. The option's local
+    # navigation and activation remain available while letters, digits, and punctuation
+    # are off.
     mark = page.locator("#live-question .lf-pick").first
     mark.focus()
     shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"Enter", "Space"} <= set(shortcuts), shortcuts
+    assert shortcuts == ["ArrowUp", "ArrowDown", "Space"], shortcuts
     page.keyboard.press("Space")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
 

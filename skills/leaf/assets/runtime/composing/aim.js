@@ -53,7 +53,6 @@ export function createAim({
     if (!at || inChrome(at)) return null;
     return aimTargetAt(at);
   }
-  const aimedItem = () => aimedTarget()?.element ?? null;
   function setAiming(on) {
     aiming = on;
     document.body.classList.toggle("lf-aiming", on);
@@ -125,8 +124,8 @@ export function createAim({
       const design = designPress(ev.target);
       const aim =
         aimIsAvailable() && ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
-      // The item the outline is naming, through the reading that named it (aimedItem, which
-      // aimTarget and so the box itself go through) rather than through this event's own
+      // The item the outline is naming, through the reading that named it (aimedTarget,
+      // which aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what
       // let them differ: the browser resolves a press from its own dispatch, elementFromPoint
       // builds its own, and where two boxes share an edge — every cell of a joined group,
@@ -154,5 +153,5 @@ export function createAim({
   }
   for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
 
-  return { AIM, aimIsOn, aimedItem };
+  return { AIM, aimIsOn, aimedTarget };
 }

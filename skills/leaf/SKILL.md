@@ -81,18 +81,20 @@ When input arrives, read `references/event-batches.md` before processing it and
 
 ## Page contract
 
-Using Leaf should feel like playing a game: the reader can see the objective,
-current state, and available moves before reading supporting detail. A
-quick-decision page puts its first Ask in the initial viewport. The Ask carries
-the short shared premise and alternatives it needs, while backing detail follows
-in a disclosure. A record or system page may expose the whole state and put each
-Ask where that state makes it answerable.
+Unless the user specifies the page's form or depth, a Leaf is a short sequence
+of visually distinct, self-contained views. Each view makes one point, shows one
+state, or offers one move, so the reader can grasp it at a glance and continue.
+This gives the page the pace of browsing a visual feed; disclosures keep
+supporting detail available without putting it in that path. A quick-decision
+page puts its first Ask in the initial viewport. The Ask carries the short shared
+premise and alternatives it needs. A record or system page may expose the whole
+state and put each Ask where that state makes it answerable.
 
-The subject decides the shape. Use options for decisions, boards for movable
-work, milestones for stages, metrics for measurements, and prose where no other
-shape fits. Prose connects the shapes, so keep it short. The page's
-`registry.json` is the authority for the vendored vocabulary and theme; query
-only the entries the page needs.
+The visible page follows the subject's shape rather than a report outline.
+`references/page-authoring.md` owns the concrete choices and reading-cost review.
+Prose connects the shapes, so keep it short. The page's `registry.json` is the
+authority for the vendored vocabulary and theme; query only the entries the page
+needs.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal — the

@@ -1262,6 +1262,12 @@ def key_line(page):
     return page.locator(".lf-keyline").inner_text()
 
 
+def open_versions(page):
+    """Open the Versions destination through its complete keyboard route."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+
+
 def open_page(
     browser,
     url,

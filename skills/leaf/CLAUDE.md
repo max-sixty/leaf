@@ -81,7 +81,8 @@ Web Animations playback;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
 `runtime/version.js` owns version travel whole: the chooser control, its menu and the
-newest-version chip, its own `v` and the menu's key scope, forced live activation,
+newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
+live activation,
 version-comparison state, marks and chooser paint, version document loading,
 authored-root replacement, the persisted semantic reading landmarks carried across that
 replacement, and the page-block reading directional walks start from;
@@ -1978,9 +1979,9 @@ starts blue, then `h` turns blue in place when it is pressed. Escape returns to
 the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
-`versionsOffered` (there is a menu) answers for the key, the mode standing over
+`versionsOffered` (there is a menu) answers for the destination, the mode standing over
 the page, and the button; `versionsToWalk` (there is somewhere to step) answers
-for the menu's own scope. One predicate for both left `v` opening a menu on a
+for the menu's own scope. One predicate for both left `g V` opening a menu on a
 page whose way out no scope was live over. Where the platform owns the dismissal
 the mode's own rows still have to be live over the same page, since a mode with
 no live row is a claim the surfaces never hear. A section merges the rows of
@@ -2523,9 +2524,11 @@ key it disables.
 `aria-keyshortcuts` is another projection of the register. Element scopes expose
 their currently available rows, including the scope's capability gate, and a
 row's `also` control exposes the key that duplicates it. `Mod` expands to both
-Meta and Control because the dispatcher
-accepts both. Call `paintKeys` when a state change moves row liveness so this
-projection and the visible surfaces change together.
+Meta and Control because the dispatcher accepts both. The attribute cannot express a
+sequential chord: spaces separate alternatives. An `also` control in a chord scope
+therefore omits it and exposes the complete route through its title and the keyboard
+reference. Call `paintKeys` when a state change moves row liveness so this projection
+and the visible surfaces change together.
 
 An overlay may become stale while open. If a row goes dead, its dispatch no
 longer runs. A newly live row may wait until the reference is reopened. Do not
@@ -2577,9 +2580,10 @@ Both entry controls call the same tray setter.
 Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
 `g L` may exchange a standing panel or tray for another; their return frame restores
 that prior workspace and re-resolves its semantic row when reconciliation rebuilt it.
-`g M` uses the same frame for the complete Page-map sheet. Direct destinations
-therefore restore both exact standing and workspace state rather than merely focusing
-the destination's banner control after closing it.
+`g M` uses the same frame for the complete Page-map sheet. `g V` contributes the
+version menu's own return frame to that destination vocabulary. Direct destinations
+therefore restore the standing their owner displaced rather than merely focusing the
+destination's banner control after closing it.
 
 `restoreTray` runs after all declarations exist and after the first projection
 can populate state-dependent rows. It calls its supplied `beforeOpen` policy to
@@ -2658,7 +2662,7 @@ region.
 
 | Form | Meaning | Current routes |
 | --- | --- | --- |
-| `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map |
+| `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map, `g V` Versions |
 | `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of up to nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
 
 Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
@@ -2675,9 +2679,11 @@ An edge is one place, so the second key completes the route; because every page 
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 Completing a direct destination exchanges the transient chord for one return frame;
 Escape restores the exact standing and workspace captured before `g` armed.
-`DIRECT_DESTINATIONS` is the uppercase direct-destination vocabulary. Each entry declares
-its mnemonic, words, capability, and landing. `ADDRESSES` is the lowercase numbered
-page-list vocabulary. Each entry declares:
+`BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations the address owner
+itself implements. Another owner contributes a complete row through `directDestinations`,
+as version travel does for `g V`; both enter the same `GO` scope. Each destination declares
+its mnemonic, words, capability, landing, and return. `ADDRESSES` is the lowercase
+numbered page-list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
@@ -2708,9 +2714,10 @@ remains one decision point and is spoken as “g or G”; a sequence's accessibl
 pending keys remain neutral, matching ordinary bindings. The complete reference shows
 every route with all steps neutral because it describes rather than enacts them.
 
-`chordKeys` is the structured reading of how far a numbered address has come. The key
-line and page chips apply that progress to each complete route. The reference combines
-the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
+`chordPrefix` is the stable start of every route. Control titles and the reference combine
+it with the destination row; the reference uses `completeChordSteps` where a row has more
+than one remaining step. `chordKeys` adds the named list to that prefix as the structured
+reading of current progress, which the key line and page chips apply to each complete route.
 
 Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
 nine document members, so those identities do not change as the reader scrolls and an

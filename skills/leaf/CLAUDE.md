@@ -864,8 +864,9 @@ minimum obligations:
 - A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
   return one token from ATTR and `lfVisualPart(part)` to return its current
   `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element supplies only mark and
-  travel geometry. The render gate refuses either missing method.
+  recorded as `anchor.visual`, and the returned element supplies mark, travel, and aim
+  geometry. Aim follows a returned SVG element's painted primitives and uses the shown
+  box for other elements. The render gate refuses either missing method.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place. A
@@ -1084,7 +1085,7 @@ runtime may write. `focused` descends through retargeted
 
 Hit testing asks two different questions. `elementFromPointAcross` and
 `markAt` may descend into a shadow root when the exact marked text matters.
-`aimedItem` may keep document retargeting when the host is the semantic item.
+`aimedTarget` may keep document retargeting when the host is the semantic item.
 Choose the reading by the question, not by convenience.
 
 The page's widget inventory remains the document's declared inventory. Do not
@@ -2054,9 +2055,12 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. While the Ask itself holds semantic focus, its widget's
+is often repeated or held. While the reader stands anywhere in an Ask, its widget's
 ordered actions take `1`–`9`; the core projects that exact list into the key line and
-visible control chips, while Tab enters the widget's own local scopes. `j`/`k` scroll
+visible control chips. Each numbered action is a command route; that route is the one
+binding-to-control identity used by dispatch, the reference, the key line, its address,
+and `aria-keyshortcuts`. Tab walks the real controls without replacing that action map;
+a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
@@ -2068,11 +2072,11 @@ native Enter or Space, while the Ask-local list gives it a contextual number. In
 a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
-`c` is reserved for commenting. Enter keeps native activation or the focused control's
-local continuation. On an option mark, Enter means “write another option”: it extends the
-answer currently being edited and returns to that same mark with Escape. Using `c` there
-would conflate changing the option set with opening a conversation about it; the existing
-page `c` remains the latter.
+`c` is reserved for commenting. Enter keeps native activation, submission, or the
+focused control's local continuation. A page option mark is a checkbox and toggles with
+Space or its Ask digit; it gives Enter no second meaning. The Another option field is an
+ordinary Tab stop, and Enter submits once that field holds focus. In a thread there is no
+second add form, so Enter from its option mark continues into the thread's existing reply.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
@@ -2354,25 +2358,28 @@ box rather than each of its words.
 
 A press that acts on where the reader is standing reads it through
 `standingItem`: the unanswered decision where focus is on a control that works it — a
-pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
-own reading. It answers nothing in the chrome, where a reader is working on the
-page rather than standing in it.
+pick, a ✓, a mark — an answered decision on its explicit review arrival, and the
+innermost item everywhere else, which is the ⌥ aim's own reading. It answers nothing
+in ordinary chrome, where a reader is working on the page rather than standing in it.
 
-Unanswered rather than open: `standingIn` reads `unansweredDecisions`, not `openDecisions`.
-The two part on a widget whose own seat is mid-conversation with the agent, which
-leaves the reader's list while its pick stays unmade and its controls stay live.
+Semantic rather than merely open: `standingIn` first reads `unansweredDecisions` to
+preserve the special case below, then `allDecisions` only for an answered Ask's tray
+row or the semantic focus that row lands on, so the Ask can still be worked without
+turning focus on one of its options into focus on the whole question. Neither reading
+is merely `openDecisions`. The unanswered and reader lists part on a widget whose own
+seat is mid-conversation with the agent, which
+leaves the reader's worklist while its pick stays unmade and its controls stay live.
 Following the list took the ring off that widget the moment the remark was sent and
 moved `c` down to whichever option the focus rested on — a second thread on the
 child rather than the next line of the reader's own — and the agent's reply put both
-back, with nothing the reader did moving either. An answered decision parts from neither
-list, so a picked group gains no ring, and a press from one of its picks names the
-option under the focus rather than the question.
+back, with nothing the reader did moving either. An answered decision leaves both
+worklists but stays in `allDecisions`, so a tray row can return the reader to it and
+the same Ask-local numeric actions can revise its answer.
 
-The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to and the
-tray does not list, which is the accepted cost: the walk and the tray are the reader's
-list and this is not. Nothing strands the reader there — `markHere` looks its tray row
-up by id and finds none, the same as on every page with the tray shut, and the Escape
-rung reads focus rather than the list, so the way out is the one they always have.
+The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to.
+The tray does list it: the walk is a worklist, while the tray is the complete route
+through the active Ask inventory. The Escape rung still reads focus rather than either
+list, so the way out is the one it always has.
 
 Working a decision and standing in one are different facts, and `markHere`'s ring
 answers the second. A reader who tabbed to a link inside a question has named
@@ -2389,17 +2396,16 @@ than for the container's class, because a resolved thread is built by the same
 function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
-The banner's Asks count is the ring in numbers. While the reader stands in an ask
-on the reader's list it says which of how many — `Asks (3/7)` — and `sayAsks` paints
-it from the same `standingIn` reading and the same `openDecisions` list as the ring
-and the tray row, so the three cannot name different places. Leaving the ask
-returns the bare count the way it takes the ring away. An ask the ring can mark
-but the walk will not step to shows the bare count, because a number is a place in
-the walk's list.
+The banner's Asks count is durable progress: `Asks 3/7` means three of the seven
+active Decisions are answered. `allDecisions` supplies the denominator and
+`unansweredDecisions` supplies what remains outside the numerator, so moving focus
+or walking the page changes neither number. At 7/7 the same button stays available
+and takes the positive treatment; it is both the completion signal and the route back
+through the answers.
 
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-clicking elsewhere removes the focus-derived ring, and the count's place with it,
-without erasing the walk's useful continuation point.
+clicking elsewhere removes the focus-derived ring without erasing either the walk's
+useful continuation point or the answer progress in the banner.
 
 `shownParts` supplies ring targets when a page styles a decision with
 `display: contents`. A normal boxed decision wears one outline on its own box.
@@ -2595,14 +2601,15 @@ retire Threads, then presents the remembered tray directly without replaying
 opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
 tray.
 
-Decision rows come from local `x-awaits` sources and ready holders declaring
-`x-request.decision`, not from a list of decision tags. Where an `x-awaits` source is
-nested in an `x-decision` region, the row names the region: its heading, context, and
-evidence are the decision the reader is being sent to, while the source remains
-the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-tray row travels through the same decision-arrival function as `a` and `A`, so the
-panel and directional walk agree about focus, reveal, arrival placement, and
-`landed`.
+Decision rows come from every active local `x-awaits` source and holder declaring
+`x-request.decision`, answered or open, not from a list of decision tags. Where a source
+is nested in an `x-decision` region, the row names the region: its heading, context, and
+evidence are the decision the reader is being sent to, while the source remains the
+owner of the answer. `itemSays` supplies each row's own label and the widget's
+decision-action registration supplies its current answer. Selecting a tray row travels
+through the same decision-arrival function as `a` and `A`, so the panel and directional
+walk agree about focus, reveal, arrival placement, and `landed`; only the tray's list is
+wider, preserving answered routes for review and revision.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
 aligned and the one the ring names. The widget's contributed actions are addressable
@@ -2639,9 +2646,10 @@ action in the log cannot substitute for that revision. Only then may the agent
 resolve the original thread. Threads owns the reader-facing clarification; the
 page's Decision remains the proposal with the agent rather than counting both.
 
-That combined reading is what `openDecisions` returns, so the
-banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
-list, and a request the agent owes the next word on does not belong on one.
+That combined reading is what `openDecisions` returns, so the `a`/`A` walk follows the
+reader's worklist and a request the agent owes the next word on does not belong on it.
+The banner and tray instead use `allDecisions`, the current page-and-thread inventory
+that retains an answered action Decision and a request throughout its lifecycle.
 
 Three readings ask the other question — whether the request is *answered* — and all
 say so by emptying the seats (`answeredContext`, stated beside the shape rather than
@@ -2649,9 +2657,10 @@ by a caller reaching into it, so a member derived from those conversations later
 cannot escape the emptying). An action's `requires` is one: a conversation does not
 answer a question the widget holds no state for, and refusing a pick over the reader's
 own remark would refuse them the answer they were asked for. The version-response
-resolve gate is another. Where the reader is standing is the third, through
-`unansweredDecisions`; **Standing somewhere** owns it. Frozen thread markup seats no
-conversation of its own, so only an action answers there. A `rollup` instance is an
+resolve gate is another. Where the reader is standing preserves that reading first,
+then widens through `allDecisions` for answered-review routes; **Standing somewhere**
+owns it. Frozen thread markup seats no conversation of its own, so only an action
+answers there. A `rollup` instance is an
 aggregate-only owner: it awaits when any nearest local decision or child roll-up
 awaits, but it never enters the visible list. The standing projection keeps every
 open local member; an enclosing `x-decision` replaces that member only on the

@@ -1,6 +1,6 @@
 """Document-scoped browser projection and undo readings."""
 
-from ..decisions import page_decision_projection
+from ..decisions import page_decision_inventory, page_decision_projection
 from ..events import (
     action_retracted,
     retractions,
@@ -57,6 +57,16 @@ def _browser_document(
         set(),
         request_phases=phases,
     )
+    all_decisions = page_decision_inventory(
+        parser,
+        projection,
+        parser.by_id,
+        spk,
+        registry,
+        dropped,
+        request_phases=phases,
+        settled_away=set(passages.gone),
+    )
     within = enclosing_of(spk)
     floors = retractions(events, revision)
     return (
@@ -69,6 +79,7 @@ def _browser_document(
                 floors=floors,
             ),
             "decisions": {
+                "all": all_decisions,
                 "reader": reader_decisions,
                 "unanswered": unanswered_decisions,
                 "awaiting": reader_awaiting,

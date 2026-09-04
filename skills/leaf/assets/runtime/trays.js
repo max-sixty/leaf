@@ -34,6 +34,7 @@ export const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
 export const TRAY_KEY = "lf-tray-up";
 
 export function createTrays({
+  allDecisions,
   beforeOpen,
   drawnEdge,
   el,
@@ -41,7 +42,6 @@ export function createTrays({
   leavesOffered,
   moveShell,
   motion,
-  openDecisions,
   pagePresented,
   paintKeys,
   PRESS,
@@ -83,10 +83,8 @@ export function createTrays({
     when: () => leavesOffered() || decisionsOffered(),
   });
 
-  // What the page is still waiting on the reader for, and the way to the next one — the
-  // same list a/A step and the "?" overlay names, counted here so a reader who
-  // has not scrolled that far still knows there is something to answer. While they
-  // stand in one, the count also says which (sayAsks): "Asks (3/7)".
+  // Every active Ask and the route back through its current answer. The banner says
+  // completed/total (sayAsks); a/A still walks only the open worklist.
   const decisionsBtn = el("button", "lf-btn lf-decisions", "");
   decisionsBtn.title = "Show or hide this page's asks";
   // The machine's live leaves and what each is doing: a left panel of rows, each a
@@ -107,10 +105,9 @@ export function createTrays({
   othersPanel.tabIndex = -1;
   traysEdge.handle(othersPanel, () => othersBtn);
   const leavesList = trayList(othersPanel);
-  // A tray of the page's own open asks, on the same edge: one row per thing the page is
-  // waiting on the reader for, in the order the page asks them. The list is openDecisions() and
-  // nothing else, so a widget joins the tray by declaring x-awaits and no row here knows
-  // what kind of thing it is standing for.
+  // A tray of the page's active asks, on the same edge: open and answered rows in the
+  // order the page asks them. The list is declaration-driven, so a widget joins without
+  // a row here knowing what kind of thing it is standing for.
   const decisionsPanel = el("nav", "lf-ui lf-tray-panel lf-decisions-panel");
   decisionsPanel.setAttribute("aria-label", "Asks from this page");
   decisionsPanel.tabIndex = -1;
@@ -225,7 +222,7 @@ export function createTrays({
   // Each tray's one offer: something to show, or the tray already standing so its button
   // can still close it. A decisions tray of none is the same.
   const decisionsOffered = () =>
-    pagePresented() && (openDecisions().length > 0 || openTray("decisions"));
+    pagePresented() && (allDecisions().length > 0 || openTray("decisions"));
   const decisionRows = () => [
     ...decisionsPanel.querySelectorAll("button.lf-decisions-row"),
   ];

@@ -514,20 +514,11 @@ html.lf-copy lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
                                        font-family: var(--sans); font-weight: 700; }
 lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
-/* The keys this group answers, worn as shared address chips. The gutter reads status,
+/* The Ask's action keys, worn on the option cells it addresses. The gutter reads status,
  * address, then prose, so each chip starts after the status rule and ends before the
- * cell's words. A card aligns its digit with the top of its content; rows and the add
- * cell centre theirs. They appear only while one of the group's marks holds keyboard
- * focus, when each key can take a press. */
-lf-option > .lf-address,
-.lf-another > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
+ * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
+lf-option > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
-@media screen {
- html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
-                    > lf-option > .lf-address,
- html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
-                    > .lf-another > .lf-address { display: block; }
-}
 /* The thread multi-question's submit (the module adds it there alone): one press
  * stating the set is whole, since every toggle already reached the agent as it
  * landed. Answered is paint, never a wider word — the pressed control's own line
@@ -713,15 +704,13 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
     > .lf-another:has(input:is(:focus-visible, .lf-focus-visible)) {
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
-    }
+  }
   .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
   .lf-another:not([hidden]) { min-height: var(--aim-floor); }
-  .lf-another > .lf-address { top: 0; bottom: 0; margin: auto 0; }
   /* The field holds the option before it is recorded, so its words use the document's
-   * face just as they will after the module turns them into an lf-option. The return
-   * remains a real button: its visible word is compact, while the box keeps the pointer
-   * target and accessible Add option name. Positioned over room the input reserves, it
-   * does not make a compact row taller than its neighbours. */
+   * face just as they will after the module turns them into an lf-option. Add remains a
+   * real button with a compact visible word and the full accessible name. Positioned
+   * over room the input reserves, it does not make a compact row taller than its neighbours. */
   .lf-another input { flex: 1; min-width: 0; padding: 0;
                      padding-inline-end: calc(var(--aim-floor) + var(--sp-1));
                      border: 0; outline: none; background: transparent; color: inherit;

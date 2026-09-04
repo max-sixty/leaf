@@ -385,7 +385,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
 
     page.get_by_role("button", name="Close threads").click()
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Asks (1)")
+    expect(decisions).to_have_text("Asks 0/1")
     decisions.click()
     # The row names the broader Decision's opening context now, and the arrival stands the
     # reader on it — inside a tab the press had to select first. The options it holds own

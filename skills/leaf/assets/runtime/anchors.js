@@ -35,7 +35,7 @@ export function createAnchors(dependencies) {
     activateVisual,
     aimBox,
     aimIsOn,
-    aimedItem,
+    aimedTarget,
     announce,
     anchorLabel,
     anchorsReady,
@@ -624,8 +624,14 @@ export function createAnchors(dependencies) {
   // null when neither is armed. One answer for the box, the cursor and the name.
   function aimTarget() {
     if (aimIsOn()) {
-      const item = aimedItem();
-      return item ? { el: item, part: "" } : null;
+      const target = aimedTarget();
+      return target
+        ? {
+            el: target.element,
+            part: "",
+            aim: target.anchor.visual ? svgAimGeometry(target.element) : null,
+          }
+        : null;
     }
     const pointer = pointerAt();
     if (designIsOn() && pointer.x >= 0)
@@ -639,8 +645,134 @@ export function createAnchors(dependencies) {
   // press asks fresh, and a replay repainted it stale. Synchronous, not coalesced to a
   // frame the way refreshHover is: the keydown that arms the page is followed by the press
   // in the same gesture, and a promise a frame behind the arm is one the press can outrun.
-  // What each ask costs is one hit-test and one rect walk, which is what the repaint gate
+  // Ordinary items cost one hit-test and one rect walk, which is what the repaint gate
   // this replaced already spent per event on deciding whether to run a far dearer pass.
+  // A shaped visual also clones the few primitives its returned element paints; the clone
+  // stays in this layer and does not ask the page to repaint its own drawing.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const AIM_SHAPE_STROKE = 2;
+  const aimShape = document.createElementNS(SVG_NS, "svg");
+  aimShape.classList.add("lf-aim-shape");
+  aimShape.setAttribute("aria-hidden", "true");
+  const aimMaskId = "lf-runtime-aim-shape-mask";
+  aimBox.append(aimShape);
+
+  const paints = (shape, property) => {
+    const style = getComputedStyle(shape);
+    return (
+      style.display !== "none" &&
+      style.visibility === "visible" &&
+      Number.parseFloat(style.opacity) !== 0 &&
+      style[property] !== "none" &&
+      Number.parseFloat(style[`${property}Opacity`]) !== 0 &&
+      (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0)
+    );
+  };
+
+  // A visual module already identifies the generated element that one stable part names.
+  // Its rendered SVG is the paint contract: filled primitives make the veil and stroked
+  // primitives make the outline. HTML and canvas renderings keep the rectangular default.
+  function svgAimGeometry(element) {
+    if (!(element instanceof SVGElement)) return null;
+    const geometry = [element, ...element.querySelectorAll("*")].filter(
+      (child) => child instanceof SVGGeometryElement,
+    );
+    const fill = geometry.filter((shape) => paints(shape, "fill"));
+    const paintedStroke = geometry.filter((shape) => paints(shape, "stroke"));
+    const stroke = paintedStroke.length ? paintedStroke : fill;
+    return fill.length || stroke.length ? { fill, stroke } : null;
+  }
+
+  function aimGeometryClone(source, left, top, property) {
+    const matrix = source.getScreenCTM();
+    if (!matrix) return null;
+    const clone = source.cloneNode(false);
+    clone.removeAttribute("id");
+    clone.removeAttribute("class");
+    clone.removeAttribute("opacity");
+    clone.removeAttribute("fill-opacity");
+    clone.removeAttribute("stroke-opacity");
+    clone.setAttribute(
+      "transform",
+      `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e - left} ${matrix.f - top})`,
+    );
+    clone.style.setProperty(
+      "fill",
+      property === "fill" ? "white" : "none",
+      "important",
+    );
+    clone.style.setProperty(
+      "stroke",
+      property === "stroke" ? "var(--accent)" : "none",
+      "important",
+    );
+    clone.style.setProperty("stroke-width", `${AIM_SHAPE_STROKE}px`, "important");
+    clone.style.setProperty("stroke-linejoin", "round", "important");
+    clone.style.setProperty("stroke-linecap", "round", "important");
+    clone.style.setProperty("vector-effect", "non-scaling-stroke", "important");
+    return clone;
+  }
+
+  // Clone a visual part's rendered SVG into the runtime's paint layer. The original
+  // drawing keeps its colors, while the union mask gives the promise one translucent
+  // veil with no darker seams where compound shapes overlap.
+  function paintAimShape(aim, { left, top, right, bottom }) {
+    if (!aim) return false;
+    const width = right - left;
+    const height = bottom - top;
+    const fill = aim.fill.map((shape) => aimGeometryClone(shape, left, top, "fill"));
+    const stroke = aim.stroke.map((shape) =>
+      aimGeometryClone(shape, left, top, "stroke"),
+    );
+    if ([...fill, ...stroke].some((shape) => !shape)) return false;
+
+    const defs = document.createElementNS(SVG_NS, "defs");
+    const mask = document.createElementNS(SVG_NS, "mask");
+    mask.id = aimMaskId;
+    mask.setAttribute("maskUnits", "userSpaceOnUse");
+    mask.setAttribute("x", "0");
+    mask.setAttribute("y", "0");
+    mask.setAttribute("width", String(width));
+    mask.setAttribute("height", String(height));
+    mask.style.maskType = "alpha";
+    mask.append(...fill);
+    defs.append(mask);
+
+    const veil = document.createElementNS(SVG_NS, "rect");
+    veil.setAttribute("width", String(width));
+    veil.setAttribute("height", String(height));
+    veil.setAttribute("fill", "var(--accent)");
+    veil.setAttribute("fill-opacity", "0.08");
+    veil.setAttribute("mask", `url(#${aimMaskId})`);
+    const outline = document.createElementNS(SVG_NS, "g");
+    outline.append(...stroke);
+
+    aimShape.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    aimShape.setAttribute("width", String(width));
+    aimShape.setAttribute("height", String(height));
+    aimShape.replaceChildren(defs, veil, outline);
+    return true;
+  }
+
+  // An SVG stroke is centred on its geometry. Give the cloned contour room for its
+  // outside half, or the viewport cuts that half away and leaves the item's own border
+  // showing beside the aim on curves. Apply the normal ancestor clips after expanding:
+  // the paint may cover the item's edge, never a scroller edge that hid the item.
+  function aimPaintRect(item, shaped) {
+    const box = shownBox(item);
+    const pad = shaped ? AIM_SHAPE_STROKE : 0;
+    return clippedRect(
+      {
+        left: box.left - pad,
+        top: box.top - pad,
+        right: box.right + pad,
+        bottom: box.bottom + pad,
+      },
+      item,
+      new Map(),
+    );
+  }
+
   function refreshAim() {
     const target = aimTarget();
     const aimed = target?.el ?? null;
@@ -648,9 +780,11 @@ export function createAnchors(dependencies) {
     // stand over a press the paint knows takes nothing. `aiming` alone says the page
     // is armed; this says the aim has landed on something.
     document.body.classList.toggle("lf-over-item", Boolean(aimed));
-    const r = aimed && shownRect(aimed, new Map());
+    const r = aimed && aimPaintRect(aimed, Boolean(target.aim));
     if (!r) {
       aimBox.style.display = "none";
+      aimBox.classList.remove("lf-shaped");
+      aimShape.replaceChildren();
       aimBox.removeAttribute("data-for");
       delete aimBox.dataset.lfPaintPlane;
       paintInspect(null);
@@ -658,6 +792,9 @@ export function createAnchors(dependencies) {
     }
     const { left, top, right, bottom } = r;
     const at = documentPoint(left, top);
+    const shaped = paintAimShape(target.aim, r);
+    aimBox.classList.toggle("lf-shaped", shaped);
+    if (!shaped) aimShape.replaceChildren();
     aimBox.setAttribute("data-for", aimed.id);
     aimBox.dataset.lfPaintPlane = inChrome(aimed) ? "chrome" : "page";
     // The item's own corner radius, so the ring hugs the corner the item draws.

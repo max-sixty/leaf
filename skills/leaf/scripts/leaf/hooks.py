@@ -22,6 +22,7 @@ from .schema import (
 from .served_state.page import full_state
 from .service import (
     PageTransaction,
+    close_session_turn,
     open_session_turn,
     owned_pages,
     unacknowledged,
@@ -232,19 +233,11 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
-    if event == "Stop":
-        # This stamp precedes every later return and every operation that can
-        # raise. A failed guard must not leave the adapter believing forever
-        # that the turn is still open.
-        pages = owned_pages(sid)
-        for page_dir in pages:
-            try:
-                with PageTransaction(page_dir) as page:
-                    page.close_turn(sid)
-            except FileNotFoundError:
-                continue
-        if pages:
-            record_turn_boundary(sid)
+    # This stamp precedes every later return and every operation that can
+    # raise. A failed guard must not leave the adapter believing forever
+    # that the turn is still open.
+    if event == "Stop" and close_session_turn(sid):
+        record_turn_boundary(sid)
     if event == "UserPromptSubmit":
         # The mirror of the branch above, and ahead of the same early returns.
         # A prompt is the turn opening as plainly as Stop is the turn ending,

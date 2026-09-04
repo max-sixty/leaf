@@ -19,6 +19,7 @@ from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .server import running_server
 from .service import (
     PageTransaction,
+    close_session_turn,
     owned_pages,
     restore_page_claim,
     take_page_claim,
@@ -152,7 +153,7 @@ def _delivery_prompt(delivery_id: str, payload_path: Path) -> str:
 def _persist_payload(
     session_id: str, reading: PageTick
 ) -> tuple[str, Path, str | None]:
-    """Persist the immutable model-facing form of one exact batch."""
+    """Persist one exact batch with its current model-facing page location."""
     events = [(event["seq"], event["id"]) for event in reading.batch]
     identity = json.dumps(
         [session_id, str(reading.page_dir), events],
@@ -177,8 +178,15 @@ def _persist_payload(
     existing_payload = read_json(payload_path)
     if existing_payload is None:
         write_json(payload_path, payload)
-    elif existing_payload != payload:
-        raise RuntimeError(f"Codex delivery payload changed at {payload_path}")
+    else:
+        immutable = {key: value for key, value in payload.items() if key != "url"}
+        existing_immutable = {
+            key: value for key, value in existing_payload.items() if key != "url"
+        }
+        if existing_immutable != immutable:
+            raise RuntimeError(f"Codex delivery payload changed at {payload_path}")
+        if existing_payload.get("url") != url:
+            write_json(payload_path, payload)
     return delivery_id, payload_path, url
 
 
@@ -362,6 +370,9 @@ def _turn_delivery_suppression(session_id: str) -> str:
             return "pending"
         # Receipt still has not happened. Leave the events unacknowledged so
         # the ordinary adapter path can recover them through a visible wake.
+        # The missing continuation is also the best available evidence that
+        # the turn it would have continued is no longer open.
+        close_session_turn(session_id)
         path.unlink(missing_ok=True)
         return "expired"
 

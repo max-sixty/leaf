@@ -133,7 +133,9 @@ manifest, and immutable payloads live under the host state home's session record
 not in the page. They are transport recovery state: the document and event log
 remain the page authority, while the intent preserves one stable Leaf delivery id
 and exact pointer prompt across queue acceptance before cursor acknowledgement. An
-uncertain queue command is retried with that same pointer. The resulting delivery is
+uncertain queue command is retried with that same pointer. The immutable batch fixes
+the page and events; its `url` is refreshed separately because restarting the page
+can give that same batch a new current location. The resulting delivery is
 at least once; a repeated turn recognizes the delivery id and applies the
 page-and-sequence retry rule. Once a queue command succeeds, the adapter records
 pickup, advances the page cursor, removes the intent, and retains the wake marker.

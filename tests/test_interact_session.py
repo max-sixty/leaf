@@ -2516,8 +2516,47 @@ def test_codex_abandoned_turn_delivery_expires_without_receipt(codex_claimed_pag
 
     assert codex_model._turn_delivery_suppression("codex-thread") == "expired"
     assert not codex_model.turn_delivery_path("codex-thread").exists()
+    assert service_model.page_claim(page)["turn_closed"]
+    assert not codex_model._session_turn_is_open("codex-thread")
     assert events_model.read_cursor(page) == 0
     assert delivered in service_model.unacknowledged(events_model.read_events(page), 0)
+
+
+def test_codex_delivery_refreshes_location_without_changing_batch_identity(
+    codex_claimed_page, monkeypatch
+):
+    page = codex_claimed_page
+    session_model.cmd_status(page, "waiting", "choose an option")
+    events_model.append_event(
+        page, {"kind": "comment", "author": "user", "text": "same batch"}
+    )
+    locations = iter(
+        [{"url": "http://127.0.0.1:1111"}, {"url": "http://127.0.0.1:2222"}]
+    )
+    monkeypatch.setattr(codex_model, "running_server", lambda _page: next(locations))
+
+    persisted = []
+    for _ in range(2):
+        with service_model.PageTransaction(page) as transaction:
+            batch = service_model.unacknowledged(transaction.events, transaction.cursor)
+            reading = session_model.PageTick(
+                page,
+                transaction.status,
+                batch,
+                True,
+                "watching",
+                False,
+                None,
+                transaction,
+            )
+            persisted.append(codex_model._persist_payload("codex-thread", reading))
+
+    assert persisted[0][0:2] == persisted[1][0:2]
+    assert persisted[0][2] == "http://127.0.0.1:1111"
+    assert persisted[1][2] == "http://127.0.0.1:2222"
+    payload = files_model.read_json(persisted[1][1])
+    assert payload["url"] == "http://127.0.0.1:2222"
+    assert "same batch" in payload["batch_jsonl"]
 
 
 def test_codex_stop_stamps_the_turn_before_delivery_failure(

@@ -372,7 +372,7 @@ export function createVersion({
     ],
   };
 
-  // V names the chooser, the control wearing the version number, and the menu it opens.
+  // g V names the chooser, the control wearing the version number, and the menu it opens.
   // Named, because the chip that jumps straight to the current page spells that motion in
   // its tooltip, and because the closed control's own title says the press beside what
   // pressing it does.

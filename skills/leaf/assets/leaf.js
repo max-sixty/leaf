@@ -2989,13 +2989,10 @@ const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
 // upgrade, so a row here that presses with nothing to say for itself takes down the layer on
 // the first page rather than going quiet on every one.
 for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
-// A control the keyboard also reaches names its key, and names it off the row. Three
-// tooltips spelled theirs in prose — "(a)", "(o)", "(g V v)" — which is the field the key
-// line's word used to be, a fact about a binding written somewhere the binding cannot
-// correct. `also` is where a row says which control it duplicates; its projection follows
-// liveness too, so a disabled decision does not advertise a shortcut the dispatcher has
-// withdrawn. The chip's is the one motion no single row makes, so it remains composed of
-// the two rows that make it.
+// A control the keyboard also reaches names its shortcut from the row. `also` is where a
+// row says which control it duplicates; its projection follows liveness too, so a disabled
+// decision does not advertise a shortcut the dispatcher has withdrawn. The latest-version
+// chip's route spans two rows, so it is composed from both.
 function paintCoreControls() {
   const returningToMore = Boolean(keyline?.expanded);
   helpClose.textContent = returningToMore ? "Back to more shortcuts" : "Close";

@@ -81,7 +81,8 @@ Web Animations playback;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
 `runtime/version.js` owns version travel whole: the chooser control, its menu and the
-newest-version chip, its `g V` destination row and the menu's local `v` scope, forced live activation,
+newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
+live activation,
 version-comparison state, marks and chooser paint, version document loading,
 authored-root replacement, the persisted semantic reading landmarks carried across that
 replacement, and the page-block reading directional walks start from;

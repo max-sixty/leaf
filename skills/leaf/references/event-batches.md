@@ -34,7 +34,10 @@ contract and its transport instruction. Events arriving during the work take the
 same route through one Stop continuation. If a queue command has an uncertain
 outcome, the adapter retries the same pointer with the same Leaf delivery id. This
 is at-least-once delivery and may create a retry turn; the task applies the
-page-and-sequence retry rule below.
+page-and-sequence retry rule below. The same ambiguity applies when a hidden Stop
+continuation runs longer than its recovery window: its visible recovery wake can
+repeat a delivery the continuation eventually handled. Refresh the log before
+acting and treat a page-and-sequence pair already handled in this task as a no-op.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its events
 enter the same append-only log; the detached Codex adapter still owns wait,

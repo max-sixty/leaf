@@ -2522,6 +2522,91 @@ def test_codex_abandoned_turn_delivery_expires_without_receipt(codex_claimed_pag
     assert delivered in service_model.unacknowledged(events_model.read_events(page), 0)
 
 
+def test_codex_abandoned_turn_delivery_requeues_a_visible_wake(
+    codex_claimed_page, under_codex, codex_env, tmp_path, capsys
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "choose an option")
+    started = under_codex(
+        shlex.join(
+            [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    try:
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        assert capsys.readouterr().out == ""
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "first wake"}
+        )
+        first = events_model.read_events(page)[-1]
+
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            queued = [call for call in calls if "--thread" in call]
+            if len(queued) == 1 and codex_model.wake_path("codex-thread").exists():
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the first reader move did not create a durable wake")
+
+        hooks_model.cmd_hook(
+            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+        )
+        capsys.readouterr()
+        conversation_model.cmd_reply(page, first["id"], "handled", None)
+        deadline = time.monotonic() + 10
+        while (
+            time.monotonic() < deadline
+            and codex_model.wake_path("codex-thread").exists()
+        ):
+            time.sleep(0.05)
+        assert not codex_model.wake_path("codex-thread").exists()
+
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "recover me"}
+        )
+        recovered = events_model.read_events(page)[-1]
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        assert json.loads(capsys.readouterr().out)["decision"] == "block"
+        manifest_path = codex_model.turn_delivery_path("codex-thread")
+        manifest = files_model.read_json(manifest_path)
+        files_model.write_json(manifest_path, {**manifest, "captured_at": 0})
+
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            queued = [call for call in calls if "--thread" in call]
+            if len(queued) == 2 and events_model.read_cursor(page) == recovered["seq"]:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the abandoned hidden delivery did not create a visible wake")
+
+        assert not manifest_path.exists()
+        assert service_model.page_claim(page)["turn_closed"]
+    finally:
+        session_model.cmd_status(page, "idle", "")
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+
+
 def test_codex_delivery_refreshes_location_without_changing_batch_identity(
     codex_claimed_page, monkeypatch
 ):

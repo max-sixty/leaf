@@ -61,7 +61,10 @@ Its Stop hook snapshots every event that arrived during the model's work and car
 their same small delivery pointers into a continuation of that turn. The re-entered
 Stop acknowledges exactly that snapshot. A missing continuation leaves the events
 unacknowledged; after the task's fifteen-minute recovery window, they return to the
-visible wake path. Thus several clicks around one wake produce one visible user
+visible wake path. A continuation still running at that boundary can produce a retry
+wake; its stable delivery id and page-and-sequence coordinates make the mandatory
+pre-action log refresh a no-op rather than repeated work. Thus several clicks around
+one wake produce one visible user
 message without waiting for a debounce timer. A Stop hook can safely block only once;
 an event arriving after its snapshot crosses the sharp boundary into the next wake
 rather than being silently acknowledged. The adapter and hook own

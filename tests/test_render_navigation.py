@@ -3584,6 +3584,16 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
+    # A numbered destination changes the live chord's progress, not the complete route
+    # this control exposes.
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    expect(page.locator(".lf-keyline")).to_contain_text("Page map locations")
+    expect(page.locator(".lf-latest-chip")).to_have_attribute(
+        "title", re.compile(r"\(g V v\)$")
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r" · c$")
     )

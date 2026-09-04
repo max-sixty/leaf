@@ -3004,7 +3004,9 @@ function paintCoreControls() {
     returningToMore ? "Back to more shortcuts" : "Close keyboard reference",
   );
   const controlShortcut = (scope, row) =>
-    [...(word(scope.chord) ?? []), labelOf(row)].filter(Boolean).join(" ");
+    [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
+      .filter(Boolean)
+      .join(" ");
   for (const scope of CORE)
     for (const row of scope.rows)
       if (row.also) {

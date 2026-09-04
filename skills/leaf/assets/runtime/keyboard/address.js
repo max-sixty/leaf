@@ -269,10 +269,11 @@ export function createAddress({
       ? (viewportWindows.get(entry) ?? [])
       : currentAddressed(entry);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
-  // How far the chord has come: `g`, and the list's letter once one has named a list. The
-  // key line and page chips combine that progress with each full route; the reference shows
-  // the same routes at rest.
-  const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
+  // Every complete route starts with the same stable prefix. `chordKeys` adds the list's
+  // letter once one has been named, so the key line and page chips can paint progress
+  // without changing the route that a control's title or the reference exposes.
+  const chordPrefix = () => [labelOf(GOTO)].filter(Boolean);
+  const chordKeys = () => [...chordPrefix(), aimedList?.key].filter(Boolean);
   const addressChip = (entry, n) => {
     const steps = [labelOf(GOTO), entry.key, String(n)];
     const chip = el("span", "lf-address lf-chord-address");
@@ -433,6 +434,7 @@ export function createAddress({
     title: "Go to",
     reach: "with g armed",
     chord: chordKeys,
+    chordPrefix,
     at: () => chordArmed,
     claims: EVERYTHING,
     rows: [

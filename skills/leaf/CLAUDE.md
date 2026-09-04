@@ -2524,9 +2524,11 @@ key it disables.
 `aria-keyshortcuts` is another projection of the register. Element scopes expose
 their currently available rows, including the scope's capability gate, and a
 row's `also` control exposes the key that duplicates it. `Mod` expands to both
-Meta and Control because the dispatcher
-accepts both. Call `paintKeys` when a state change moves row liveness so this
-projection and the visible surfaces change together.
+Meta and Control because the dispatcher accepts both. The attribute cannot express a
+sequential chord: spaces separate alternatives. An `also` control in a chord scope
+therefore omits it and exposes the complete route through its title and the keyboard
+reference. Call `paintKeys` when a state change moves row liveness so this projection
+and the visible surfaces change together.
 
 An overlay may become stale while open. If a row goes dead, its dispatch no
 longer runs. A newly live row may wait until the reference is reopened. Do not
@@ -2712,9 +2714,10 @@ remains one decision point and is spoken as “g or G”; a sequence's accessibl
 pending keys remain neutral, matching ordinary bindings. The complete reference shows
 every route with all steps neutral because it describes rather than enacts them.
 
-`chordKeys` is the structured reading of how far a numbered address has come. The key
-line and page chips apply that progress to each complete route. The reference combines
-the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
+`chordPrefix` is the stable start of every route. Control titles and the reference combine
+it with the destination row; the reference uses `completeChordSteps` where a row has more
+than one remaining step. `chordKeys` adds the named list to that prefix as the structured
+reading of current progress, which the key line and page chips apply to each complete route.
 
 Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
 nine document members, so those identities do not change as the reader scrolls and an

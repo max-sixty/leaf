@@ -2056,9 +2056,12 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. While the Ask itself holds semantic focus, its widget's
+is often repeated or held. While the reader stands anywhere in an Ask, its widget's
 ordered actions take `1`–`9`; the core projects that exact list into the key line and
-visible control chips, while Tab enters the widget's own local scopes. `j`/`k` scroll
+visible control chips. Each numbered action is a command route; that route is the one
+binding-to-control identity used by dispatch, the reference, the key line, its address,
+and `aria-keyshortcuts`. Tab walks the real controls without replacing that action map;
+a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
@@ -2070,11 +2073,11 @@ native Enter or Space, while the Ask-local list gives it a contextual number. In
 a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
-`c` is reserved for commenting. Enter keeps native activation or the focused control's
-local continuation. On an option mark, Enter means “write another option”: it extends the
-answer currently being edited and returns to that same mark with Escape. Using `c` there
-would conflate changing the option set with opening a conversation about it; the existing
-page `c` remains the latter.
+`c` is reserved for commenting. Enter keeps native activation, submission, or the
+focused control's local continuation. A page option mark is a checkbox and toggles with
+Space or its Ask digit; it gives Enter no second meaning. The Another option field is an
+ordinary Tab stop, and Enter submits once that field holds focus. In a thread there is no
+second add form, so Enter from its option mark continues into the thread's existing reply.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which

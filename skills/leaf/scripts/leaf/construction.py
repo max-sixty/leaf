@@ -214,10 +214,13 @@ def constructed_content(
                     and recorded_owner(identity, parser.by_id, spoken, registry) != unit
                 ):
                     continue
+                if (record["attr"] in node["attrs"]) == (identity in value):
+                    continue
                 node.setdefault("authored", {}).setdefault("attrs", dict(node["attrs"]))
-                node["attrs"].pop(record["attr"], None)
                 if identity in value:
                     node["attrs"][record["attr"]] = None
+                else:
+                    node["attrs"].pop(record["attr"], None)
                 node["authority"] = authority
         elif kind == "position":
             target = by_id[value]

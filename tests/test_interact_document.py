@@ -74,7 +74,9 @@ def construction_nodes(content):
 def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_dir):
     markup = PAGE.replace(
         "</main>",
-        OPTIONS.format(a="", b="", chip="", shim="Keep the shim.", stage="Stage it.")
+        OPTIONS.format(
+            a=" chosen", b="", chip="", shim="Keep the shim.", stage="Stage it."
+        )
         + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
         + _board([X, Y], [])
         + '<p id="explanation"><strong>Keep</strong> <em>spaces</em>.</p></main>',
@@ -116,6 +118,12 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
     assert nodes["o-reader"]["source"]["kind"] == "action"
     assert nodes["o-reader"]["edit"]["owner"] == "g1"
     assert "line" not in nodes["o-reader"]["source"]
+    assert "chosen" in nodes["o-shim"]["authored"]["attrs"]
+    assert "chosen" not in nodes["o-shim"]["attrs"]
+    assert nodes["o-shim"]["authority"] == nodes["o-reader"]["authority"]
+    for identity in ("g1", "o-stage"):
+        assert "authored" not in nodes[identity]
+        assert "authority" not in nodes[identity]
     assert [n["attrs"]["id"] for n in nodes["c-done"]["content"]] == [
         "card-x",
         "card-y",

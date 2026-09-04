@@ -1,13 +1,12 @@
 // One helper wires every durable text surface: the general box, each per-thread reply,
-// and the compact anchored composer. They persist a draft on each keystroke, send on the
-// binding their caller supplies, and can't be double-sent by an impatient second click.
+// and the compact anchored composer. They persist a draft on each keystroke, send with
+// Mod+Enter, and can't be double-sent by an impatient second click.
 // Growing with their content is the stylesheet's job (field-sizing), not this file's.
 // wire() returns a sync() the caller runs after setting .value programmatically, so the
 // send button and any containing chrome agree with what's in the box.
 export function createInput({ focused, keys, notice, spell }) {
   // The send binding, and the register's spelling of it: the placeholder, the button's
-  // tooltip and the row a box declares all read one string, where the constant they used to
-  // share sat beside a listener that bound the chord independently.
+  // tooltip and the row a box declares all read one string.
   const SEND = "Mod+Enter";
   // Focus-derived hints join the runtime's one standing paint. Only the input losing the
   // standing and the one gaining it can change for that reason.
@@ -35,7 +34,6 @@ export function createInput({ focused, keys, notice, spell }) {
       altBtn = null,
       altSend = null,
       busy = () => false,
-      sendKey = SEND,
       layout = () => {},
     },
   ) {
@@ -46,7 +44,7 @@ export function createInput({ focused, keys, notice, spell }) {
     // Both hint and address may be functions because their labels can change while the
     // box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
-    const sendKeys = spell(sendKey);
+    const sendKeys = spell(SEND);
     const paint = () => {
       // Read the shared logical focus so this hint agrees with the key line and rings.
       const standing = focused() === ta;
@@ -107,7 +105,7 @@ export function createInput({ focused, keys, notice, spell }) {
     keys(ta, "In a text box", [
       {
         id: "text.send",
-        keys: [sendKey],
+        keys: [SEND],
         does: "Send what you have typed",
         line: sends,
         run: () => sendBtn.click(),

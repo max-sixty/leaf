@@ -37,39 +37,38 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 
 ## Same-task delivery
 
-One detached adapter watches every page this task owns. The event log is the durable
-mailbox; Codex's queue is only its edge-triggered wake. When the task is between
-turns, the first batch gets a stable delivery id and queues a new user turn in this
-same task. Leaf acknowledges that snapshot only after Codex accepts the durable
-queue item, then keeps one wake marker standing until the prompt hook proves that a
-later turn opened. A later Stop boundary retires the marker too, so a missed prompt
-hook cannot park the adapter. Events arriving behind that marker remain in the
-mailbox and do not queue more messages; the prompt hook snapshots them into hidden
-delivery pointers before the model starts. Starting the command again for another
-page adds that page to the same task-wide watch.
+One detached adapter watches every page this task owns. The first input after a
+turn ends opens a delivery epoch and queues one new user turn in this same task.
+Later input joins that epoch until the turn which processes it ends. Starting the
+command again for another page adds that page to the same task-wide watch.
 
 The loaded Desktop client starts that later turn and keeps ownership of execution
 and approvals. If the task has been unloaded, the item stays queued until Codex
 reopens it; the adapter never resumes the task or answers client requests on the
-user's behalf. The small queued message is a `leaf-delivery` XML element shown as one
-line in a code block. It names the `$leaf` skill and points to the exact persisted
-batch. The skill owns the processing contract, and the payload carries the page URL
-and batch rather than copying either instructions or an arbitrarily large batch into
-Codex's bounded text input. The later turn reads that payload and the hidden pointers
-for anything accumulated behind it. While a turn is open, the adapter never queues.
-Its Stop hook snapshots every event that arrived during the model's work and carries
-their same small delivery pointers into a continuation of that turn. The re-entered
-Stop acknowledges exactly that snapshot. A missing continuation leaves the events
-unacknowledged; after the task's fifteen-minute recovery window, they return to the
-visible wake path. A continuation still running at that boundary can produce a retry
-wake; its stable delivery id and page-and-sequence coordinates make the mandatory
-pre-action log refresh a no-op rather than repeated work. Thus several clicks around
-one wake produce one visible user
-message without waiting for a debounce timer. A Stop hook can safely block only once;
-an event arriving after its snapshot crosses the sharp boundary into the next wake
-rather than being silently acknowledged. The adapter and hook own
-`leaf wait` and `leaf ack`; the task owns replies, revisions, page status, and the
-handoff back to `waiting` or `idle`.
+user's behalf. The small queued message is a `leaf-delivery` XML element shown as
+one line in a code block. It names the `$leaf` skill and points to the persisted
+epoch. Each batch carries its page, URL, thread context, and exact events rather
+than copying instructions or an arbitrarily large batch into Codex's bounded text
+input. Every pointer offer first gives all batches for a page its current server URL,
+so a restarted page does not leave an older batch pointing at its former location.
+
+Input arriving while the turn is active adds a batch to that same payload and
+creates no queued message. The prompt and Stop hooks carry its pointer into the
+running turn. If another prompt opens the task before the pending queue command
+runs, that hook supplies the pointer and cancels the redundant queue item. Stop
+offers any batches newer than the accepted queue snapshot. A pointer supplied only
+by the prompt hook is offered again at Stop because that hook has no delivery
+receipt. After Stop supplies a pointer, its next acknowledged invocation closes the
+epoch unless a newer batch arrived. The adapter owns `leaf wait` and `leaf ack`;
+the task owns replies, revisions, page status, and the handoff back to `waiting` or
+`idle`. If an active turn produces no later hook for fifteen minutes, the adapter
+queues the same epoch pointer; a legitimately long turn can therefore receive a
+duplicate wake.
+
+Once an epoch is both closed and fully receipted, the adapter moves it into the
+delivery directory's `history/` subdirectory. This retains the durable record without
+reparsing completed batch contents on every idle watch pass. A duplicate queued
+pointer resolves its id there after the original turn has completed.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

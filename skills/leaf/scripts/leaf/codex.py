@@ -1,4 +1,4 @@
-"""Detached Leaf delivery into later turns of one Codex task."""
+"""Detached Leaf delivery into the active and later turns of one Codex task."""
 
 import hashlib
 import json
@@ -9,42 +9,29 @@ import subprocess
 import sys
 import time
 import uuid
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from xml.etree import ElementTree
 
-from .event_log import flocked
+from .event_log import flocked, read_cursor
 from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
+from .schema import EVENTS_FILE
 from .server import running_server
 from .service import (
     PageTransaction,
-    close_session_turn,
     owned_pages,
+    page_claim,
     restore_page_claim,
     take_page_claim,
     unacknowledged,
 )
-from .session import (
-    PageTick,
-    Watch,
-    acknowledge,
-    batch_jsonl,
-    read_watch_pass,
-    record_pickup,
-)
+from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
-TURN_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
-DELIVERY_CONTRACT = (
-    Path(__file__).resolve().parents[2] / "references" / "event-batches.md"
-)
-DELIVERY_INSTRUCTION = (
-    "Process every JSONL record in batch_jsonl under contract, including its "
-    "pre-action refresh after through. Do not run leaf wait or leaf ack; the "
-    "detached carrier owns them. Include url in every user-facing update."
-)
+ACTIVE_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -91,329 +78,395 @@ def adapter_log_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.codex.log"
 
 
-def delivery_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.delivery.json"
+def delivery_dir(session_id: str) -> Path:
+    return state_home() / "sessions" / f"{_session_key(session_id)}.deliveries"
 
 
-def wake_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.wake.json"
+def delivery_lock_path(session_id: str) -> Path:
+    return state_home() / "sessions" / f"{_session_key(session_id)}.delivery.lock"
 
 
-def turn_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.turn.json"
+def delivery_epoch_path(session_id: str, delivery_id: str) -> Path:
+    return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
-def turn_delivery_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.turn-delivery.json"
+def _archive_epoch(epoch_path: Path, epoch: dict) -> None:
+    """Move finished history out of the adapter's hot scan."""
+    if epoch["phase"] == "closed" and all(
+        batch["receipted"] for batch in epoch["batches"]
+    ):
+        history_path = epoch_path.parent / "history" / epoch_path.name
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        epoch_path.replace(history_path)
 
 
-def delivery_payload_path(session_id: str, delivery_id: str) -> Path:
-    return (
-        state_home()
-        / "sessions"
-        / f"{_session_key(session_id)}.deliveries"
-        / f"{delivery_id}.json"
-    )
+def _write_epoch(epoch_path: Path, epoch: dict) -> None:
+    write_json(epoch_path, epoch)
+    _archive_epoch(epoch_path, epoch)
 
 
 def adapter_start_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.start"
 
 
-def _turn_lock_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.turn.lock"
-
-
-def _turn_delivery_lock_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.turn-delivery.lock"
-
-
-def turn_generation(session_id: str) -> int:
-    state = read_json(turn_path(session_id)) or {}
-    return int(state.get("generation", 0))
-
-
-def record_turn_boundary(session_id: str) -> None:
-    """Persist a hook boundary the detached adapter may be too late to observe."""
-    path = turn_path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(_turn_lock_path(session_id)):
-        write_json(path, {"generation": turn_generation(session_id) + 1})
-
-
-def _delivery_prompt(delivery_id: str, payload_path: Path) -> str:
+def _prompt(epoch_path: Path) -> str:
     delivery = ElementTree.Element(
         "leaf-delivery",
-        {"skill": "$leaf", "id": delivery_id, "path": str(payload_path)},
+        {"skill": "$leaf", "id": epoch_path.stem, "path": str(epoch_path)},
     )
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
 
 
-def _persist_payload(
-    session_id: str, reading: PageTick
-) -> tuple[str, Path, str | None]:
-    """Persist one exact batch with its current model-facing page location."""
-    events = [(event["seq"], event["id"]) for event in reading.batch]
-    identity = json.dumps(
-        [session_id, str(reading.page_dir), events],
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    delivery_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "leaf-delivery-v3:" + identity))
-    server = running_server(reading.page_dir)
-    url = server["url"] if server else None
-    payload_path = delivery_payload_path(session_id, delivery_id)
-    payload_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "format": "leaf-delivery-v3",
-        "delivery_id": delivery_id,
-        "page": str(reading.page_dir),
-        "url": url,
-        "contract": str(DELIVERY_CONTRACT),
-        "instruction": DELIVERY_INSTRUCTION,
-        "through": reading.batch[-1]["seq"],
-        "batch_jsonl": batch_jsonl(reading),
-    }
-    existing_payload = read_json(payload_path)
-    if existing_payload is None:
-        write_json(payload_path, payload)
-    else:
-        immutable = {key: value for key, value in payload.items() if key != "url"}
-        existing_immutable = {
-            key: value for key, value in existing_payload.items() if key != "url"
+def _offer_epoch(epoch_path: Path, epoch: dict) -> str:
+    """Persist one current URL per page before offering an epoch pointer."""
+    urls = {}
+    for batch in epoch["batches"]:
+        page = batch["page"]
+        if page not in urls:
+            server = running_server(Path(page))
+            urls[page] = server["url"] if server else None
+        batch["url"] = urls[page]
+    _write_epoch(epoch_path, epoch)
+    return _prompt(epoch_path)
+
+
+def _epochs(session_id: str) -> list[tuple[Path, dict]]:
+    directory = delivery_dir(session_id)
+    if not directory.is_dir():
+        return []
+    return [
+        (path, epoch)
+        for path in sorted(directory.glob("*.json"))
+        if (epoch := read_json(path)) is not None
+    ]
+
+
+def _current_epoch(
+    session_id: str,
+    epochs: list[tuple[Path, dict]] | None = None,
+) -> tuple[Path, dict] | None:
+    records = _epochs(session_id) if epochs is None else epochs
+    current = [(path, epoch) for path, epoch in records if epoch["phase"] != "closed"]
+    if len(current) > 1:
+        raise RuntimeError(f"Codex task {session_id} has multiple open Leaf deliveries")
+    return current[0] if current else None
+
+
+def _append_batch(
+    session_id: str,
+    page_dir: Path,
+    transaction: PageTransaction,
+    batch: list[dict],
+    *,
+    queue_if_new: bool,
+) -> tuple[Path, int, dict] | None:
+    """Append fresh events to the task's open epoch under its delivery lock."""
+    current = _current_epoch(session_id)
+    if current is not None:
+        current_path, current_epoch = current
+        if queue_if_new and current_epoch["phase"] == "entered":
+            current_epoch["phase"] = "closed"
+            if current_epoch["queue"] == "pending":
+                current_epoch["queue"] = "none"
+            _write_epoch(current_path, current_epoch)
+            current = None
+    if current is None:
+        epoch_path = delivery_epoch_path(session_id, str(uuid.uuid4()))
+        epoch_path.parent.mkdir(parents=True, exist_ok=True)
+        epoch = {
+            "queue": "pending" if queue_if_new else "none",
+            "queued": 0,
+            "stop_offered": 0,
+            "phase": "waiting" if queue_if_new else "entered",
+            "updated_at": time.time(),
+            "batches": [],
         }
-        if existing_immutable != immutable:
-            raise RuntimeError(f"Codex delivery payload changed at {payload_path}")
-        if existing_payload.get("url") != url:
-            write_json(payload_path, payload)
-    return delivery_id, payload_path, url
+    else:
+        epoch_path, epoch = current
+        if not queue_if_new:
+            epoch["phase"] = "entered"
 
-
-def _batch_receipt(reading: PageTick) -> dict:
-    return {
-        "page": str(reading.page_dir),
-        "first_seq": reading.batch[0]["seq"],
-        "last_seq": reading.batch[-1]["seq"],
-        "sequences": [event["seq"] for event in reading.batch],
-        "event_ids": [event["id"] for event in reading.batch],
+    delivered = {
+        (entry["page"], event["seq"], event["id"])
+        for entry in epoch["batches"]
+        for event in entry["events"]
     }
+    fresh = [
+        event
+        for event in batch
+        if (str(page_dir), event["seq"], event["id"]) not in delivered
+    ]
+    if not fresh:
+        return None
 
-
-def capture_intent(
-    session_id: str, reading: PageTick, *, generation: int | None = None
-) -> dict:
-    """Persist one exact batch before its external acceptance attempt."""
-    delivery_id, payload_path, url = _persist_payload(session_id, reading)
-    intent = {
-        "thread_id": session_id,
-        **_batch_receipt(reading),
-        "delivery_id": delivery_id,
-        "accepted": False,
-        "turn_generation": (
-            turn_generation(session_id) if generation is None else generation
-        ),
+    server = running_server(page_dir)
+    url = server["url"] if server else None
+    data = batch_data(page_dir, transaction, fresh)
+    entry = {
+        "page": data["page"],
         "url": url,
-        "payload": str(payload_path),
-        "prompt": _delivery_prompt(delivery_id, payload_path),
+        "threads": data["threads"],
+        "events": data["events"],
+        "receipted": False,
     }
-    path = delivery_path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(path, intent)
-    return intent
+    epoch["batches"].append(entry)
+    epoch["updated_at"] = time.time()
+    _write_epoch(epoch_path, epoch)
+    return epoch_path, len(epoch["batches"]) - 1, entry
 
 
-def _finish_batch(receipt: dict) -> None:
-    """Acknowledge exactly the events named by one accepted delivery."""
-    page_dir = Path(receipt["page"])
+def capture_batch(session_id: str, reading) -> bool:
+    """Persist one watcher batch in the session's current delivery epoch."""
+    lock = delivery_lock_path(session_id)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(lock):
+        captured = _append_batch(
+            session_id,
+            reading.page_dir,
+            reading.transaction,
+            reading.batch,
+            queue_if_new=any(
+                (claim := page_claim(page_dir)) is not None
+                and claim["host"] == "codex"
+                and claim.get("turn_closed")
+                for page_dir in owned_pages(session_id)
+            ),
+        )
+    return captured is not None
+
+
+def _finish_batch(batch: dict) -> None:
+    """Take receipt for one persisted batch, preserving a successor's claim."""
+    page_dir = Path(batch["page"])
+    expected = {event["seq"]: event["id"] for event in batch["events"]}
     try:
         with PageTransaction(page_dir) as page:
             delivered = {
                 event["seq"]: event
                 for event in page.events
-                if receipt["first_seq"] <= event["seq"] <= receipt["last_seq"]
+                if min(expected) <= event["seq"] <= max(expected)
             }
-            expected = dict(
-                zip(
-                    receipt["sequences"],
-                    receipt["event_ids"],
-                    strict=True,
-                )
-            )
-            if all(
+            if not all(
                 delivered.get(seq, {}).get("id") == event_id
                 for seq, event_id in expected.items()
             ):
-                record_pickup(page, [delivered[seq] for seq in expected])
-                acknowledge(page, receipt["last_seq"])
+                return
+            record_pickup(page, [delivered[seq] for seq in expected])
+            acknowledge(page, max(expected))
     except FileNotFoundError:
         pass
 
 
-def finish_intent(identity: dict, intent: dict) -> None:
-    """Take receipt for an accepted batch, preserving a successor's claim."""
-    _finish_batch(intent)
-    delivery_path(identity["id"]).unlink(missing_ok=True)
+def _page_acknowledged(batch: dict) -> bool:
+    page_dir = Path(batch["page"])
+    if not (page_dir / EVENTS_FILE).is_file():
+        return True
+    return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
 
 
-def _ensure_wake(session_id: str, intent: dict) -> None:
-    """Keep one accepted wake standing until a later task turn opens."""
-    path = wake_path(session_id)
-    wake = {
-        "delivery_id": intent.get("delivery_id"),
-        "turn_generation": int(intent.get("turn_generation", 0)),
-    }
-    existing = read_json(path)
-    if existing is None:
-        write_json(path, wake)
-    elif existing != wake:
-        raise RuntimeError(f"Codex wake changed while outstanding at {path}")
+def _sync_receipts(epoch_path: Path, epoch: dict) -> None:
+    """Preserve page receipts in history before their paths can be reused."""
+    changed = False
+    for batch in epoch["batches"]:
+        if not batch["receipted"] and _page_acknowledged(batch):
+            batch["receipted"] = True
+            changed = True
+    if changed:
+        _write_epoch(epoch_path, epoch)
+    else:
+        _archive_epoch(epoch_path, epoch)
 
 
-def _session_turn_is_open(session_id: str) -> bool:
-    """Whether any current claim proves this task is inside a turn."""
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if (
-                    claim
-                    and claim["id"] == session_id
-                    and claim["host"] == "codex"
-                    and claim.get("turn_closed") is None
-                ):
-                    return True
-        except FileNotFoundError:
-            continue
-    return False
+def _record_receipt(epoch_path: Path, batch_index: int) -> None:
+    epoch = read_json(epoch_path)
+    if epoch is not None and not epoch["batches"][batch_index]["receipted"]:
+        epoch["batches"][batch_index]["receipted"] = True
+        _write_epoch(epoch_path, epoch)
 
 
-def _capture_turn_delivery_unlocked(
-    session_id: str, path: Path, *, require_open: bool
-) -> dict | None:
-    existing = read_json(path)
-    if existing is not None:
-        return existing
-    deliveries = []
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if not (
-                    claim
-                    and claim["id"] == session_id
-                    and claim["host"] == "codex"
-                    and (not require_open or claim.get("turn_closed") is None)
-                ):
-                    continue
-                batch = unacknowledged(page.events, page.cursor)
-                if not batch:
-                    continue
-                reading = PageTick(
-                    page_dir,
-                    page.status,
-                    batch,
-                    page.status["state"] != "idle",
-                    "watching",
-                    False,
-                    None,
-                    page,
-                )
-                delivery_id, payload_path, _ = _persist_payload(session_id, reading)
-                deliveries.append(
-                    {
-                        **_batch_receipt(reading),
-                        "delivery_id": delivery_id,
-                        "payload": str(payload_path),
-                    }
-                )
-        except FileNotFoundError:
-            continue
-    if not deliveries:
-        return None
-    manifest = {
-        "format": "leaf-turn-delivery-v2",
-        "session": session_id,
-        "captured_at": time.time(),
-        "deliveries": deliveries,
-    }
-    write_json(path, manifest)
-    return manifest
-
-
-def capture_turn_delivery(session_id: str) -> dict | None:
-    """Snapshot input that arrived while this Codex turn was running.
-
-    A prompt or Stop hook carries these pointers into the same turn. Receipt
-    waits for the next Stop, which proves the hook output reached model context.
-    """
-    path = turn_delivery_path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(_turn_delivery_lock_path(session_id)):
-        return _capture_turn_delivery_unlocked(session_id, path, require_open=True)
-
-
-def current_turn_delivery(session_id: str) -> dict | None:
-    """Return a persisted in-turn snapshot without creating a new one."""
-    return read_json(turn_delivery_path(session_id))
-
-
-def _turn_delivery_suppression(session_id: str) -> str:
-    """Hold a hidden delivery briefly, or release an abandoned continuation."""
-    path = turn_delivery_path(session_id)
-    with flocked(_turn_delivery_lock_path(session_id)):
-        manifest = read_json(path)
-        if manifest is None:
-            return "none"
-        captured_at = float(manifest.get("captured_at", 0))
-        if time.time() - captured_at < TURN_DELIVERY_RECOVERY_TIMEOUT:
-            return "pending"
-        # Receipt still has not happened. Leave the events unacknowledged so
-        # the ordinary adapter path can recover them through a visible wake.
-        # The missing continuation is also the best available evidence that
-        # the turn it would have continued is no longer open.
-        close_session_turn(session_id)
-        path.unlink(missing_ok=True)
-        return "expired"
-
-
-def turn_delivery_reason(manifest: dict) -> str:
-    pointers = "\n".join(
-        _delivery_prompt(delivery["delivery_id"], Path(delivery["payload"]))
-        for delivery in manifest["deliveries"]
-    )
-    return (
-        "Reader input was coalesced into this Codex turn. Process every event in the "
-        "following Leaf delivery payloads now, in this same turn. The detached adapter "
-        "and Stop hook own wait and acknowledgement; do not run either.\n" + pointers
-    )
-
-
-def finish_turn_delivery(session_id: str) -> bool:
-    """Receipt the exact in-turn snapshot after its hook continuation ends."""
-    path = turn_delivery_path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(_turn_delivery_lock_path(session_id)):
-        manifest = read_json(path)
-        if manifest is None:
-            return False
-        for delivery in manifest["deliveries"]:
-            _finish_batch(delivery)
-        path.unlink(missing_ok=True)
+def _recover_delivery(codex_path: str, session_id: str) -> bool:
+    """Advance one durable queue or page-receipt transition."""
+    lock = delivery_lock_path(session_id)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(lock):
+        epochs = _epochs(session_id)
+        current = _current_epoch(session_id, epochs)
+        if current is not None:
+            path, epoch = current
+            if (
+                epoch["phase"] == "entered"
+                and len(epoch["batches"]) > epoch["queued"]
+                and time.time() - epoch["updated_at"]
+                >= ACTIVE_DELIVERY_RECOVERY_TIMEOUT
+            ):
+                epoch["phase"] = "waiting"
+                epoch["queue"] = "pending"
+                _write_epoch(path, epoch)
+        for path, epoch in epochs:
+            _sync_receipts(path, epoch)
+        queued_epoch = next(
+            ((path, epoch) for path, epoch in epochs if epoch["queue"] == "pending"),
+            None,
+        )
+        queued = None
+        if queued_epoch is not None:
+            epoch_path, epoch = queued_epoch
+            queued = epoch_path, len(epoch["batches"]), _offer_epoch(epoch_path, epoch)
+    if queued is not None:
+        epoch_path, queued_count, prompt = queued
+        queue_delivery(codex_path, session_id, prompt)
+        with flocked(lock):
+            epoch = read_json(epoch_path)
+            if epoch is not None and epoch["queue"] == "pending":
+                epoch["queue"] = "accepted"
+                epoch["queued"] = queued_count
+                _write_epoch(epoch_path, epoch)
         return True
 
+    with flocked(lock):
+        pending = min(
+            (
+                (path, index, dict(batch))
+                for path, epoch in _epochs(session_id)
+                if epoch["queue"] != "pending"
+                for index, batch in enumerate(epoch["batches"])
+                if not batch["receipted"]
+            ),
+            key=lambda pending: (
+                pending[2]["page"],
+                min(event["seq"] for event in pending[2]["events"]),
+            ),
+            default=None,
+        )
+    if pending is None:
+        return False
+    epoch_path, batch_index, batch = pending
+    _finish_batch(batch)
+    with flocked(lock):
+        _record_receipt(epoch_path, batch_index)
+    return True
 
-def roll_turn_delivery(session_id: str) -> dict | None:
-    """Receipt the prior snapshot and replace it atomically with later input."""
-    path = turn_delivery_path(session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(_turn_delivery_lock_path(session_id)):
-        manifest = read_json(path)
-        if manifest is not None:
-            for delivery in manifest["deliveries"]:
-                _finish_batch(delivery)
-            path.unlink(missing_ok=True)
-        return _capture_turn_delivery_unlocked(session_id, path, require_open=False)
+
+def _has_delivery_work(session_id: str) -> bool:
+    with flocked(delivery_lock_path(session_id)):
+        return any(
+            epoch["queue"] == "pending"
+            or any(not batch["receipted"] for batch in epoch["batches"])
+            for _, epoch in _epochs(session_id)
+        )
+
+
+@contextmanager
+def _locked_codex_pages(session_id: str):
+    """Lock the current Codex-owned page set in its stable path order."""
+    with ExitStack() as stack:
+        pages = []
+        for page_dir in owned_pages(session_id):
+            try:
+                page = stack.enter_context(PageTransaction(page_dir))
+            except FileNotFoundError:
+                continue
+            claim = page.active_claim
+            if claim and claim["id"] == session_id and claim["host"] == "codex":
+                pages.append(page)
+        yield pages
+
+
+def _capture_pages(session_id: str, pages: list[PageTransaction]) -> None:
+    """Move every pending page event into the current in-turn mailbox."""
+    for page in pages:
+        batch = unacknowledged(page.events, page.cursor)
+        if not batch:
+            continue
+        captured = _append_batch(
+            session_id,
+            page.page_dir,
+            page,
+            batch,
+            queue_if_new=False,
+        )
+        if captured is None:
+            continue
+        epoch_path, batch_index, entry = captured
+        # The epoch must survive before the page cursor advances.
+        # A hook process may fail open after either write.
+        events = {event["seq"]: event for event in page.events}
+        delivered = [events[event["seq"]] for event in entry["events"]]
+        record_pickup(page, delivered)
+        acknowledge(page, max(event["seq"] for event in entry["events"]))
+        _record_receipt(epoch_path, batch_index)
+
+
+def open_turn(session_id: str) -> tuple[bool, str | None]:
+    """Open a Codex turn and carry any waiting Leaf input into its context."""
+    with _locked_codex_pages(session_id) as pages:
+        if not pages:
+            return False, None
+        lock = delivery_lock_path(session_id)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        with flocked(lock):
+            if adapter_is_live(session_id):
+                _capture_pages(session_id, pages)
+            current = _current_epoch(session_id)
+            prompt = None
+            if current is not None:
+                epoch_path, epoch = current
+                epoch["phase"] = "entered"
+                epoch["updated_at"] = time.time()
+                if epoch["queue"] == "pending":
+                    epoch["queue"] = "none"
+                prompt = _offer_epoch(epoch_path, epoch)
+            for page in pages:
+                page.open_turn(session_id)
+        return True, prompt
+
+
+def finish_turn(
+    session_id: str,
+    reasons: list[str],
+    stop_hook_active: bool,
+) -> list[str] | None:
+    """Atomically deliver input that precedes this Stop or close the turn."""
+    with _locked_codex_pages(session_id) as pages:
+        if not pages:
+            return None
+        lock = delivery_lock_path(session_id)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        with flocked(lock):
+            if adapter_is_live(session_id):
+                _capture_pages(session_id, pages)
+            current = _current_epoch(session_id)
+            prompt = None
+            if current is not None:
+                epoch_path, epoch = current
+                visible = epoch["stop_offered"] if stop_hook_active else epoch["queued"]
+                if len(epoch["batches"]) > visible:
+                    epoch["stop_offered"] = len(epoch["batches"])
+                    epoch["updated_at"] = time.time()
+                    prompt = _offer_epoch(epoch_path, epoch)
+            should_block = prompt is not None or bool(reasons and not stop_hook_active)
+            if should_block:
+                for page in pages:
+                    page.open_turn(session_id)
+            else:
+                for page in pages:
+                    page.close_turn(session_id)
+                if current is not None:
+                    epoch_path, epoch = current
+                    if epoch["queue"] == "pending":
+                        epoch["queue"] = "none"
+                    epoch["phase"] = "closed"
+                    _write_epoch(epoch_path, epoch)
+
+    if not should_block:
+        return []
+    delivery = (
+        []
+        if prompt is None
+        else ["new Leaf input joined this turn. Process every batch in:\n" + prompt]
+    )
+    return delivery + reasons
 
 
 def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
@@ -439,107 +492,42 @@ def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
             ready_fd = None
         failures = 0
         while True:
-            intent = read_json(delivery_path(identity["id"]))
-            if intent is not None:
-                current_generation = turn_generation(identity["id"])
-                intent_generation = int(intent.get("turn_generation", 0))
-                # A prompt won the race after this snapshot but before its queue
-                # attempt. The running turn now owns the still-unacknowledged
-                # events; its Stop hook will carry them without another message.
-                if not intent.get("accepted", False) and (
-                    current_generation > intent_generation
-                    or _session_turn_is_open(identity["id"])
-                ):
-                    delivery_path(identity["id"]).unlink(missing_ok=True)
-                    continue
-                try:
-                    if not intent.get("accepted", False):
-                        queue_delivery(
-                            codex_path,
-                            identity["id"],
-                            intent["prompt"],
-                        )
-                        intent = {**intent, "accepted": True}
-                        write_json(delivery_path(identity["id"]), intent)
-                    _ensure_wake(identity["id"], intent)
-                    finish_intent(identity, intent)
-                    failures = 0
-                except (OSError, RuntimeError) as error:
-                    failures += 1
-                    if failures == 1:
-                        print(
-                            f"Codex delivery retry: {error}",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                    time.sleep(min(30, 2 ** min(failures, 5)))
+            try:
+                recovered = _recover_delivery(codex_path, identity["id"])
+            except (OSError, RuntimeError) as error:
+                failures += 1
+                if failures == 1:
+                    print(
+                        f"Codex delivery retry: {error}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                time.sleep(min(30, 2 ** min(failures, 5)))
+                continue
+            if recovered:
+                failures = 0
                 continue
 
-            wake = read_json(wake_path(identity["id"]))
-            if wake is not None:
-                if turn_generation(identity["id"]) > int(wake["turn_generation"]):
-                    wake_path(identity["id"]).unlink(missing_ok=True)
-                    continue
-                # SessionEnd or transfer leaves nobody who could open this wake.
-                # The accepted queue item and immutable payload remain durable;
-                # only this carrier's coalescing marker can retire with its owner.
-                if not owned_pages(identity["id"]):
-                    wake_path(identity["id"]).unlink(missing_ok=True)
-                    continue
-                time.sleep(1)
-                continue
+            captured = False
 
-            # An event log is the mailbox; the queue is only its edge-triggered
-            # wake. A current hidden delivery belongs to the Stop continuation.
-            # If that continuation disappears, its bounded recovery hold expires
-            # without receipt and the events return to the visible queue path.
-            turn_delivery_state = _turn_delivery_suppression(identity["id"])
-            if turn_delivery_state == "pending":
-                time.sleep(1)
-                continue
-            generation = turn_generation(identity["id"])
-            if turn_delivery_state != "expired" and _session_turn_is_open(
-                identity["id"]
-            ):
-                time.sleep(1)
-                continue
-
-            captured = None
-
-            def capture(reading, generation=generation) -> bool:
-                """Persist the batch, and answer that no turn has opened.
-
-                This carrier hands a pointer to Codex's durable same-task queue,
-                and a queue item is started by the loaded client or by nobody:
-                an unloaded task keeps it standing until Codex reopens the task,
-                which the adapter never does. Even the queue acceptance this
-                capture precedes by a loop iteration proves only that the item
-                was taken. So clearing the turn-ended stamp here would put
-                "Codex is working" over a task nobody has reopened, for the
-                fifteen minutes until the claim's own age caught it, in place of
-                a line dating the last turn's end truthfully. Leaving it standing
-                costs the loaded case nothing the reader keeps: the turn that
-                does start writes a status past the stamp, which is what carries
-                a claim across a turn boundary the session cannot write over.
-                """
+            def capture(reading) -> bool:
+                """Persist the batch without claiming that a turn opened."""
                 nonlocal captured
-                captured = capture_intent(
-                    identity["id"], reading, generation=generation
-                )
+                captured = capture_batch(identity["id"], reading)
                 return False
 
             reading = read_watch_pass(watch, None, deliver=capture)
-            if captured is not None:
+            if captured:
                 continue
             if reading.outcome is not None or not reading.live:
                 start_lock = adapter_start_lock_path(identity["id"])
                 start_lock.parent.mkdir(parents=True, exist_ok=True)
                 with flocked(start_lock):
-                    captured = None
+                    captured = False
                     reading = read_watch_pass(watch, None, deliver=capture)
-                    if captured is not None or reading.live:
+                    if captured or reading.live:
                         continue
-                    if delivery_path(identity["id"]).exists():
+                    if _has_delivery_work(identity["id"]):
                         continue
                     watch.release()
                     lease.close()

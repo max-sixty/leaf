@@ -282,33 +282,23 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-button[hidden] { display: none; }
-  /* A Button-shaped fitting carries one of three promises. An action's uniformly
-     heavier ring says this press acts now. A disclosure's small ellipsis says the press
-     reveals context; the cluster's More control uses that ellipsis as its whole face.
-     A status reports a move already made and offers no press. All three keep one
+  /* A Button-shaped fitting carries one of three promises. An action's heavier ring
+     says this press acts now. A disclosure's soft fill says it opens context. A status
+     reports a move already made with the ordinary unfilled ring. All three keep one
      circular silhouette and one place in the cluster. */
   .lf-margin-button[data-lf-behavior="action"] {
     border-width: 2px;
     color: var(--ink);
   }
   .lf-margin-button[data-lf-behavior="disclosure"] {
-    background: var(--paper); color: var(--muted); box-shadow: none;
+    background: var(--chip); color: var(--ink-2); box-shadow: none;
   }
   .lf-margin-button[data-lf-behavior="status"] {
     border-color: var(--border-2); background: var(--paper); color: var(--ink-2);
     box-shadow: none; cursor: default;
   }
-  .lf-margin-button[data-lf-disclosure-cue] >
-    :is(.lf-margin-button-icon, .lf-margin-button-glyph) {
-    transform: translateY(-2px);
-  }
-  .lf-margin-button-disclosure {
-    position: absolute; inset-inline-start: 50%; inset-block-end: 2px;
-    transform: translateX(-50%); pointer-events: none;
-    font: 700 9px/6px var(--sans); letter-spacing: .04em;
-  }
-  /* Tone colours only the icon. Rings, fills, and state marks keep their shared
-     neutral treatment through hover, focus, and disabled states. */
+  /* Tone colours only the icon. Category and interaction own the ring and fill;
+     lifecycle state keeps its separate neutral mark. */
   .lf-margin-button[data-lf-tone="positive"] > :is(.lf-margin-button-icon, .lf-margin-button-glyph) {
     color: var(--ok-ink);
   }
@@ -351,6 +341,9 @@ export function chromeStyle({
   }
   .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);
+  }
+  .lf-margin-button[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+    border-color: var(--accent);
   }
   .lf-margin-button:is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: margin-button; outline-offset: 1px;

@@ -1557,17 +1557,17 @@ activation owner.
 
 - `action` has a uniformly heavier ring, carries an imperative verb, and performs its
   effect immediately;
-- `disclosure` has the ordinary ring and a small ellipsis inside its lower edge. It
-  carries `aria-expanded`, reveals or hides context without settling it, and includes
-  the generated More Button whose ellipsis is its whole face;
+- `disclosure` has the ordinary ring and a soft neutral fill. It carries
+  `aria-expanded`, reveals or hides context without settling it, and includes the
+  generated More Button whose ellipsis is its whole face;
 - `status` reports a move already made and offers no press. It keeps its icon and its
   circular Button silhouette and seat in the cluster, but gives up its hover fill,
   pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
   can still land there and name the phase.
 
-Ring weight distinguishes immediate actions from the other fittings. The shape stays
-shared, with no chevron. A lone non-thread informational Button reveals its target
-directly. Each additional non-thread reading gets its own peer Button under `…`;
+Ring weight and fill distinguish immediate actions, disclosures, and statuses. The
+shape stays shared, with no added mark. A lone non-thread informational Button reveals
+its target directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
 All threads at one target share one Thread Button and one conversation card. That card
 opens only on a press, never merely on focus or hover; when the document cannot leave

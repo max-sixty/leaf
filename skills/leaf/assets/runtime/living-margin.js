@@ -251,7 +251,6 @@ export function marginButton(
   );
   let spaceNode = control.querySelector(":scope > .lf-margin-button-space");
   let labelNode = control.querySelector(":scope > .lf-margin-button-label");
-  let disclosureNode = control.querySelector(":scope > .lf-margin-button-disclosure");
   if (icon) {
     if (!(glyphNode instanceof SVGSVGElement) || glyphNode.dataset.lfIcon !== icon)
       glyphNode = iconElement(icon);
@@ -266,13 +265,6 @@ export function marginButton(
   }
   if (!spaceNode) spaceNode = document.createElement("span");
   if (!labelNode) labelNode = document.createElement("span");
-  const showsDisclosure = behavior === "disclosure" && icon !== "more";
-  if (showsDisclosure && !disclosureNode)
-    disclosureNode = document.createElement("span");
-  if (!showsDisclosure) {
-    disclosureNode?.remove();
-    disclosureNode = null;
-  }
   if (glyphNode.getAttribute("aria-hidden") !== "true")
     glyphNode.setAttribute("aria-hidden", "true");
   if (spaceNode.className !== "lf-margin-button-space")
@@ -284,14 +276,6 @@ export function marginButton(
     labelNode.className = "lf-margin-button-label";
   if (labelNode.getAttribute("aria-hidden") !== "true")
     labelNode.setAttribute("aria-hidden", "true");
-  if (disclosureNode) {
-    if (disclosureNode.className !== "lf-margin-button-disclosure")
-      disclosureNode.className = "lf-margin-button-disclosure";
-    if (disclosureNode.getAttribute("aria-hidden") !== "true")
-      disclosureNode.setAttribute("aria-hidden", "true");
-    if (disclosureNode.textContent !== "…") disclosureNode.textContent = "…";
-  }
-  control.toggleAttribute("data-lf-disclosure-cue", showsDisclosure);
   const visibleLabel = visibleButtonLabel(record);
   let labelWord = labelNode.querySelector(":scope > .lf-margin-button-label-word");
   let contextNode = labelNode.querySelector(":scope > .lf-margin-button-context");
@@ -320,13 +304,7 @@ export function marginButton(
   // the same hit target, so a heartbeat between pointerdown and pointerup must preserve
   // it along with the icon and label.
   const countNode = control.querySelector(":scope > .lf-margin-count");
-  const anatomy = [
-    glyphNode,
-    ...(disclosureNode ? [disclosureNode] : []),
-    spaceNode,
-    labelNode,
-    ...(countNode ? [countNode] : []),
-  ];
+  const anatomy = [glyphNode, spaceNode, labelNode, ...(countNode ? [countNode] : [])];
   if (
     control.childNodes.length !== anatomy.length ||
     anatomy.some((node, index) => control.childNodes[index] !== node)

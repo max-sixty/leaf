@@ -1510,17 +1510,20 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     )
     edit = draft_item.locator(".lf-draft-pencil")
     accept = suggestion.locator(".lf-sug-accept")
-    expect(edit.locator(":scope > .lf-margin-button-disclosure")).to_have_text("…")
-    expect(more.locator(":scope > .lf-margin-button-disclosure")).to_have_count(0)
-    expect(accept.locator(":scope > .lf-margin-button-disclosure")).to_have_count(0)
+    expect(edit.locator(":scope > .lf-margin-button-icon")).to_be_visible()
+    expect(edit.locator(":scope > *:visible")).to_have_count(1)
     expect(page.locator(".lf-margin-button[title]")).to_have_count(0)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
     expect(accept).to_have_attribute("data-lf-tone", "positive")
     expect(edit).to_have_attribute("data-lf-tone", "neutral")
-    assert edit.evaluate("el => getComputedStyle(el).backgroundColor") == more.evaluate(
+    disclosure_background = edit.evaluate("el => getComputedStyle(el).backgroundColor")
+    assert disclosure_background == more.evaluate(
         "el => getComputedStyle(el).backgroundColor"
     ), "disclosure and overflow no longer share the same circular face"
+    assert disclosure_background != accept.evaluate(
+        "el => getComputedStyle(el).backgroundColor"
+    ), "action and disclosure no longer have distinct resting surfaces"
     borders = [
         control.evaluate(
             "el => { const s = getComputedStyle(el); "
@@ -1770,7 +1773,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 role: node.getAttribute('role'),
                 icon: node.querySelector(':scope > .lf-margin-button-icon')
                   .dataset.lfIcon,
-                disclosure: node.querySelector(':scope > .lf-margin-button-disclosure')?.textContent ?? null,
                 word: word.querySelector(':scope > .lf-margin-button-label-word').textContent,
                 context: word.querySelector(':scope > .lf-margin-button-context')?.textContent ?? null,
                 tabIndex: node.tabIndex,
@@ -1820,7 +1822,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "behavior": "status",
             "role": "status",
             "icon": RECEIPT_PHASES[phase],
-            "disclosure": None,
             "word": phase,
             "context": context,
             "tabIndex": -1,
@@ -1843,7 +1844,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
-        expect(control.locator(":scope > .lf-margin-button-label")).to_be_visible()
+        label = control.locator(":scope > .lf-margin-button-label")
+        expect(label).to_be_visible()
+        expect(label).to_have_css("opacity", "1")
         hovered = face(control)
         assert {
             key: hovered[key] for key in ("background", "border", "ink", "opacity")
@@ -1958,7 +1961,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert active["behavior"] == "disclosure"
     assert active["role"] == "button"
     assert active["icon"] == "activity"
-    assert active["disclosure"] == "…"
+    assert active["word"] == "Active…"
     assert active["context"] == "Checked in just now · checking the mounts"
     assert active["cursor"] == "pointer"
     assert active["opacity"] == "1"

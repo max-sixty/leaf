@@ -1309,19 +1309,20 @@ ${MARK_RULES}
        999px: both draw the same one-line pill, and only the length survives growth. The
        field below grows with its words, and a corner kept in proportion to the box was
        a 48px arc at five lines, over the first line's opening and the last line's
-       close. */
+       close. The shared UI supplies the thread's 14px face; this control tightens only
+       its line height so that face keeps the 32px resting box. */
     .lf-response-control { --lf-response-height: 32px;
       box-sizing: border-box; min-height: var(--lf-response-height);
       border: 1px solid var(--border-2); background: var(--card);
       border-radius: calc(var(--lf-response-height) / 2);
-      color: var(--ink-2); font: 400 var(--t-6)/1.4 var(--sans);
+      color: var(--ink-2); font-weight: 400; line-height: 1.3;
       padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
-      box-shadow: 0 2px 6px var(--shade); }
+      box-shadow: 0 2px 8px var(--shade); }
     .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
       outline: none;
       border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
-        0 2px 6px var(--shade); }
+        0 2px 8px var(--shade); }
     /* The field takes the size its words want. A short note is the one-line pill; a
        longer one widens to a readable measure before it wraps, then grows down as far as
        the room the placement states (--lf-float-h), and only past that does
@@ -1475,6 +1476,10 @@ ${MARK_RULES}
       scroll-padding-block: var(--here-ring-room);
       margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
       background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
+    .lf-thread-transition { position: fixed; z-index: 9140; margin: 0;
+      padding-inline: 12px; overflow: hidden; pointer-events: none;
+      white-space: pre-wrap; }
+    .lf-thread-transition-text { display: block; }
     /* The conversation has its fixed position measured from its Button: the card also
        changes the document's container posture, and asking both layout systems to
        resolve that boundary can leave the browser oscillating between the two. */

@@ -450,6 +450,7 @@ export function createLivingMargin(dependencies) {
     itemSays,
     itemWord,
     keys,
+    motion,
     offer,
     openDecisions,
     panelIsOpen,
@@ -531,6 +532,107 @@ export function createLivingMargin(dependencies) {
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
   chromeRoot.append(preview);
+  let threadTransitionEpoch = 0;
+  let threadTransitionMotions = [];
+
+  function clearThreadTransition() {
+    threadTransitionEpoch += 1;
+    for (const played of threadTransitionMotions) played.cancel();
+    threadTransitionMotions = [];
+    chromeRoot.querySelector(".lf-thread-transition")?.remove();
+    preview.style.removeProperty("opacity");
+  }
+
+  // A comment written beside the page becomes this larger inline thread. Carry its
+  // submitted field to the card rather than replacing one rectangle with another in a
+  // frame; the real card fades through the carried shell, so its contents never stretch.
+  function transitionThread(origin) {
+    if (!origin?.width || !origin?.height) return;
+    const target = preview.getBoundingClientRect();
+    if (!target.width || !target.height) return;
+
+    const ghost = el("div", "lf-ui lf-response-control lf-thread-transition");
+    const ghostText = el("span", "lf-thread-transition-text", origin.text);
+    ghost.append(ghostText);
+    ghost.setAttribute("aria-hidden", "true");
+    Object.assign(ghost.style, {
+      left: `${origin.left}px`,
+      top: `${origin.top}px`,
+      width: `${origin.width}px`,
+      height: `${origin.height}px`,
+      backgroundColor: origin.backgroundColor,
+      borderColor: origin.borderColor,
+      borderRadius: origin.borderRadius,
+      boxShadow: origin.boxShadow,
+    });
+    chromeRoot.append(ghost);
+
+    const end = getComputedStyle(preview);
+    const duration = 280;
+    const carried = motion(
+      ghost,
+      [
+        { opacity: 1 },
+        { opacity: 1, offset: 0.42 },
+        {
+          left: `${target.left}px`,
+          top: `${target.top}px`,
+          width: `${target.width}px`,
+          height: `${target.height}px`,
+          borderRadius: end.borderRadius,
+          backgroundColor: end.backgroundColor,
+          borderColor: end.borderColor,
+          boxShadow: end.boxShadow,
+          opacity: 0,
+        },
+      ],
+      duration,
+    );
+    const revealed = motion(
+      preview,
+      [
+        { opacity: 0, transform: "translateY(2px) scale(.99)" },
+        {
+          opacity: 0,
+          transform: "translateY(2px) scale(.99)",
+          offset: 0.42,
+        },
+        { opacity: 1, transform: "none" },
+      ],
+      duration,
+    );
+    const words = motion(
+      ghostText,
+      [{ opacity: 1 }, { opacity: 0, offset: 0.42 }, { opacity: 0 }],
+      duration,
+    );
+    threadTransitionMotions = [carried, revealed, words].filter(Boolean);
+    if (carried)
+      carried.finished.then(
+        () => ghost.remove(),
+        () => ghost.remove(),
+      );
+    else ghost.remove();
+    // `motion` releases its filled frame after this reaction. The card's ordinary
+    // styles already are the final frame, so no separate cleanup can flash it back.
+    revealed?.finished.catch(() => {});
+  }
+
+  function scheduleThreadTransition(origin, entry) {
+    clearThreadTransition();
+    const epoch = threadTransitionEpoch;
+    // Margin packing finishes on the next frame. Keep the real card transparent until
+    // then, so the carried shell aims at the marker's settled position without flashing
+    // the card at its provisional one.
+    preview.style.opacity = "0";
+    requestAnimationFrame(() => {
+      if (epoch !== threadTransitionEpoch) return;
+      preview.style.removeProperty("opacity");
+      if (previewEntry?.key !== entry.key || !preview.matches(":popover-open")) return;
+      placeThreadPreview();
+      transitionThread(origin);
+    });
+  }
 
   const sheet = document.createElement("dialog");
   sheet.className = "lf-ui lf-page-map-sheet";
@@ -2264,6 +2366,7 @@ export function createLivingMargin(dependencies) {
   function showPreview(entry, button, retry = true) {
     if (!entry || designIsOn()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
+    if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
     transferThreadCard(button);
     buildThreadCard(entry);
@@ -2315,6 +2418,7 @@ export function createLivingMargin(dependencies) {
   }
 
   function closePreview(returnFocus) {
+    clearThreadTransition();
     const button = previewButton;
     pinnedKey = null;
     forcedInlineKey = null;
@@ -2402,7 +2506,7 @@ export function createLivingMargin(dependencies) {
     setPanel(true);
   }
 
-  function openInlineThread(id) {
+  function openInlineThread(id, transition = null) {
     const itemId = `comment:${id}`;
     const entry = pageMapEntries.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2423,6 +2527,7 @@ export function createLivingMargin(dependencies) {
       (candidate) => candidate.dataset.lfMarginItem === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+    if (transition) scheduleThreadTransition(transition, entry);
     return item?.querySelector("textarea") ?? null;
   }
 
@@ -2671,6 +2776,7 @@ export function createLivingMargin(dependencies) {
   previewClose.onclick = () => closePreview(true);
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed") return;
+    clearThreadTransition();
     if (!previewEntry) return;
     const button = previewButton;
     pinnedKey = null;

@@ -13,6 +13,7 @@ def _scheme_result(
     resize_notices = context.resize_notices
     unsettled = context.unsettled
     failsoft = readings.failsoft
+    invalid_paints = readings.invalid_paints
     missing_upgrades = readings.missing_upgrades
     visual_provider_problems = readings.visual_provider_problems
     tiny = readings.tiny
@@ -37,6 +38,14 @@ def _scheme_result(
     relative = readings.relative
     found = [f"[{scheme}] console: {e}" for e in errors]
     found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
+    for paint in invalid_paints:
+        owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
+        part = f" for data-id={paint['part']!r}" if paint["part"] else ""
+        found.append(
+            f"[{scheme}] {owner} renders {paint['property']}={paint['value']!r} "
+            f"on <{paint['element']}>{part}, but that value does not resolve to valid "
+            f"{paint['property']}"
+        )
     if missing_upgrades:
         found.append(
             f"[{scheme}] upgraded widgets did not define their elements: "

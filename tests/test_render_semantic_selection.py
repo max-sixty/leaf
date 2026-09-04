@@ -69,7 +69,7 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(field).to_be_focused()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
-    expect(shown.nth(0).locator("kbd")).to_have_text("⏎")
+    expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^(⌘⏎|Ctrl\+⏎)$"))
     expect(shown.nth(0)).to_contain_text("comment")
     expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
     expect(shown.nth(1)).to_contain_text("other responses")
@@ -146,7 +146,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     expect(page.locator(".lf-fab-input")).to_have_attribute(
-        "aria-keyshortcuts", "Enter"
+        "aria-keyshortcuts", "Meta+Enter Control+Enter"
     )
 
     page.keyboard.press("Escape")
@@ -366,7 +366,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
 
     start_code = page.evaluate(
         """() => {
-          const part = document.querySelector('#flow g[data-id="S"]')
+          const part = document.querySelector('#flow [data-id="S"]')
             .getBoundingClientRect();
           return [...document.querySelectorAll('.lf-target-hint')]
             .sort((a, b) => {
@@ -380,7 +380,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    start = page.locator('#flow g[data-id="S"]')
+    start = page.locator('#flow [data-id="S"]')
     expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Start request")
@@ -877,6 +877,82 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
         })"""
     )
     assert geometry["hintBottom"] <= geometry["keylineTop"], geometry
+    assert errors == []
+    page.close()
+
+
+def test_the_key_line_only_hides_targets_in_the_lane_it_paints(browser, serve):
+    """Bottom chrome is a rectangle, not a full-width cutoff.
+
+    Fixed nested targets can remain visible below the top of the left-hand key line while
+    crossing its right edge. The selector must keep their uncovered parts reachable and
+    spread both hints inside the viewport but outside the band; the old scalar boundary
+    dropped both targets, while a center left on their covered corner put replacement
+    hints on the key line or below the viewport."""
+    html = leaf_page(
+        "target beside the key line",
+        """
+<section id="right-edge"
+  style="position: fixed; left: 250px; bottom: 4px; width: 500px; padding-bottom: 1px">
+  <p id="edge-copy" style="margin: 0">
+    This target crosses the edge of the keyboard legend into open space.
+  </p>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    resized(page, 1200, 800)
+    page.keyboard.press("s")
+
+    expect(page.locator(".lf-target-hint")).to_have_count(2)
+    target, line, hints = page.evaluate(
+        """() => [
+          document.querySelector('#right-edge').getBoundingClientRect().toJSON(),
+          document.querySelector('.lf-keyline').getBoundingClientRect().toJSON(),
+          [...document.querySelectorAll('.lf-target-hint')].map(
+            hint => hint.getBoundingClientRect().toJSON()
+          ),
+        ]"""
+    )
+    assert target["left"] < line["right"] < target["right"], (
+        target,
+        line,
+    )
+    assert target["top"] < line["bottom"] and target["bottom"] > line["top"], (
+        target,
+        line,
+    )
+    for hint in hints:
+        assert hint["bottom"] <= 800, hint
+        assert not (
+            hint["left"] < line["right"]
+            and line["left"] < hint["right"]
+            and hint["top"] < line["bottom"]
+            and line["top"] < hint["bottom"]
+        ), (hint, line)
+    assert not (
+        hints[0]["left"] < hints[1]["right"]
+        and hints[1]["left"] < hints[0]["right"]
+        and hints[0]["top"] < hints[1]["bottom"]
+        and hints[1]["top"] < hints[0]["bottom"]
+    ), hints
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("/")
+    page.keyboard.type("crosses the edge")
+    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-target-match")).to_have_count(1)
+    line, mark = page.evaluate(
+        """() => ['.lf-keyline', '.lf-target-match'].map(
+          selector => document.querySelector(selector).getBoundingClientRect().toJSON()
+        )"""
+    )
+    assert not (
+        mark["left"] < line["right"]
+        and line["left"] < mark["right"]
+        and mark["top"] < line["bottom"]
+        and line["top"] < mark["bottom"]
+    ), (mark, line)
     assert errors == []
     page.close()
 

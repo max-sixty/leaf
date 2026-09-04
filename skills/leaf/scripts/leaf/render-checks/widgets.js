@@ -10,6 +10,78 @@ import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
   [...document.querySelectorAll(".lf-error")].map((el) => el.textContent.trim());
+
+const PAINT_PROBE = "--_leaf-render-paint-value";
+const validPaint = (element, property, value) => {
+  const hadStyle = element.hasAttribute("style");
+  const prior = element.style.getPropertyValue(PAINT_PROBE);
+  const priority = element.style.getPropertyPriority(PAINT_PROBE);
+  try {
+    element.style.setProperty(PAINT_PROBE, value);
+    const resolved = getComputedStyle(element).getPropertyValue(PAINT_PROBE).trim();
+    return resolved !== "" && CSS.supports(property, resolved);
+  } finally {
+    if (prior) element.style.setProperty(PAINT_PROBE, prior, priority);
+    else element.style.removeProperty(PAINT_PROBE);
+    if (!hadStyle && !element.getAttribute("style")) element.removeAttribute("style");
+  }
+};
+
+const renderedAt = (element) => {
+  const ancestors = [];
+  for (let current = element; current;) {
+    ancestors.push(current);
+    current = current.parentElement ?? current.getRootNode().host ?? null;
+  }
+  const owner =
+    ancestors.find((el) => el.id && el.localName.includes("-")) ??
+    ancestors.find((el) => el.id) ??
+    element;
+  return {
+    tag: owner.localName,
+    id: owner.id,
+    part:
+      ancestors.find((el) => el.hasAttribute("data-id"))?.getAttribute("data-id") ?? "",
+  };
+};
+
+// A generated SVG crosses two boundaries before its paint reaches the reader: a widget
+// turns authored data into attributes, then the page's cascade resolves their custom
+// properties. Resolve each value through a temporary custom property in the element's
+// live cascade, then let the browser validate the resulting tokens for that property.
+export function invalidPaints() {
+  if (!document.querySelector("main")) return [];
+  const properties = [
+    "color",
+    "fill",
+    "flood-color",
+    "lighting-color",
+    "stop-color",
+    "stroke",
+  ];
+  const found = [];
+  for (const root of openRoots(document))
+    for (const element of root.querySelectorAll(
+      "[color], [fill], [flood-color], [lighting-color], [stop-color], [stroke], [style]",
+    )) {
+      if (element.namespaceURI !== "http://www.w3.org/2000/svg") continue;
+      for (const property of properties) {
+        const value =
+          element.style.getPropertyValue(property).trim() ||
+          element.getAttribute(property)?.trim();
+        if (!value || !/\bvar\(/i.test(value) || validPaint(element, property, value))
+          continue;
+        found.push({
+          ...renderedAt(element),
+          element: element.localName,
+          property,
+          value,
+        });
+      }
+    }
+  return found;
+}
+
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
 // and no others (widget-loader.js) — asked of the whole declared vocabulary this reports

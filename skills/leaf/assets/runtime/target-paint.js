@@ -284,7 +284,7 @@ export function createTargetPaint({ aimBox, el, inChrome, visualMarkLayer }) {
       nextTargets.size !== targets.size ||
       [...nextTargets].some(
         ([element, target]) => targets.get(element)?.surface !== target.surface,
-    );
+      );
     targets = nextTargets;
     const rebuild = identitiesChanged || geometryDirty;
     if (rebuild && geometryFrame) cancelAnimationFrame(geometryFrame);

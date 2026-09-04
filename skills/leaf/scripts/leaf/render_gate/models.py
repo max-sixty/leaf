@@ -23,6 +23,7 @@ class _SchemeContext:
 @dataclass(frozen=True, slots=True)
 class _SchemeReadings:
     failsoft: list
+    invalid_paints: list
     missing_upgrades: list
     visual_provider_problems: list
     tiny: list

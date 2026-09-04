@@ -587,11 +587,11 @@
           <section class="reference-entry" id="x-visual">
             <h3><code>x-visual</code></h3>
             <div class="reference-copy">
-              <p>How a rendered picture takes comments.</p>
+              <p>How a rendered picture exposes stable Comment targets.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-visual contract">Full contract</summary>
                 <p>
-                  <code>whole</code> anchors every click on the authored widget. For
+                  <code>whole</code> anchors the picture on the authored widget. For
                   <code>{parts: ATTR}</code>, its module calls
                   <code>registerVisualParts(source, read)</code> once;
                   <code>read</code> returns the complete current
@@ -602,7 +602,7 @@
                   excludes decoration from the contour. It changes paint only:
                   <code>element</code> remains the semantic hit and travel target. Marks
                   and aim follow an SVG surface's painted geometry primitives; a surface
-                  with none, and every other element, uses the shown box. A click on a
+                  with none, and every other element, uses the shown box. Targeting a
                   mapped part stores its id as <code>anchor.visual</code> while the
                   widget remains the semantic seat. A missing token or registration
                   detaches on replay rather than widening to the whole picture. The

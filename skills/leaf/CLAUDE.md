@@ -1510,9 +1510,11 @@ focus to it; moving focus or the pointer outside folds without taking focus. Non
 those routes folds peers required by an engaged contribution, and moving into a modal
 or thread surface the cluster opened does not count as leaving it. The cluster uses
 one temporary expansion state for both keyboard and pointer routes; focus does not
-create a parallel presentation. A category or address walk that lands on a Button does
-not unfold its peers: it is navigation rather than Tab arrival, so one Escape still
-lets go of the destination the walk put down.
+create a parallel presentation. A category walk that lands on a Button does not unfold
+its peers: it is navigation rather than Tab arrival, so one Escape still lets go of the
+destination the walk put down. A numbered Page-map address arrives the same way and
+then presses that Button, so anything unfolded there is the press's own result rather
+than the arrival's, and Escape still lets go of where the press left the reader.
 
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for

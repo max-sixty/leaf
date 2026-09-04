@@ -1258,12 +1258,12 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     # The reference exposes the same exact routes as their inline bindings.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(
-        page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
-    ).to_have_text("Activate the “Pass” action")
-    expect(
-        page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
-    ).to_have_text("Activate the “Keep” action")
+    expect(page.locator('.lf-help-command[data-lf-command="swipe.pass"]')).to_have_text(
+        "Activate the “Pass” action"
+    )
+    expect(page.locator('.lf-help-command[data-lf-command="swipe.keep"]')).to_have_text(
+        "Activate the “Keep” action"
+    )
     expect(
         page.locator('.lf-help-command[data-lf-command="decision.activate-nth"]')
     ).to_have_count(0)

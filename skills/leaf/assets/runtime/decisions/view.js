@@ -3,7 +3,12 @@ import {
   createAddressPlacement,
   MAX_NUMBERED_ADDRESSES,
 } from "../keyboard/address-placement.js";
-import { bindings, decisionControls, spell } from "../keyboard/bindings.js";
+import {
+  ariaShortcuts,
+  bindings,
+  decisionControls,
+  spell,
+} from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
 
@@ -471,8 +476,8 @@ export function createDecisionView({
   // control-facing projections all consume the same binding-to-control identity.
   const actionRoutes = () =>
     availableActions().map(
-      ({ control, label, address, resolvedBinding: binding }, index) => ({
-        id: `decision.activate-${index + 1}`,
+      ({ id, control, label, address, resolvedBinding: binding }) => ({
+        id,
         binding,
         does: `Activate the “${label}” action`,
         line: label,
@@ -556,8 +561,12 @@ export function createDecisionView({
     // general address pass drops a route chip where the screen cannot say it safely.
     for (const { binding, control, address } of routes) {
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
+      const projected = ariaShortcuts([{ keys: [binding] }], false).split(/\s+/);
       const projectedShortcut = [
-        ...new Set([...(previousShortcut ?? "").split(/\s+/).filter(Boolean), binding]),
+        ...new Set([
+          ...(previousShortcut ?? "").split(/\s+/).filter(Boolean),
+          ...projected,
+        ]),
       ].join(" ");
       wornShortcuts.set(control, {
         previous: previousShortcut,

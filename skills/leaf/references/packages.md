@@ -200,8 +200,8 @@ consume those same live rows. Mark a row or route with `decision: true` and give
 `control` and `label` when that control answers, advances, or revises the Ask containing
 `source`. A row may have zero or one live binding in that role: zero receives the Ask's
 next free contextual `1` through `9`, while one keeps its canonical binding, such as
-`ArrowLeft`. Each action becomes an exact route; that route is the binding-to-control
-identity used by dispatch, the reference, the key line, its address, and
+`ArrowLeft`. Each action keeps its command id as an exact route; that route is the one
+binding-to-control identity used by dispatch, the reference, the key line, its address, and
 `aria-keyshortcuts`. `address` may name an empty face a widget already positions; core
 writes the resolved binding there, so the package does not keep a second key map.
 Otherwise core paints the binding at the visible control. Routes let one parameterized

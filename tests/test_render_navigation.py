@@ -2802,8 +2802,8 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
 
-    first = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
-    second = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    first = page.locator('.lf-help-command[data-lf-command="option.choose-1"]')
+    second = page.locator('.lf-help-command[data-lf-command="option.choose-2"]')
     expect(first).to_have_text("Activate the “Keep the store” action")
     expect(second).to_have_text("Activate the “Signed tokens” action")
     expect(
@@ -2842,7 +2842,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    edit = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    edit = page.locator('.lf-help-command[data-lf-command="draft.edit"]')
     expect(edit).to_have_text("Activate the “Edit…” action")
     edit.click()
     expect(page.locator("#note textarea")).to_be_focused()
@@ -2852,8 +2852,9 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert re.search(r"(⌘⏎|Ctrl\+⏎) / 1\nSave / Cancel", key_line(page))
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
     page.keyboard.press("?")
-    cancel = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    cancel = page.locator('.lf-help-command[data-lf-command="draft.cancel"]')
     expect(cancel).to_have_text("Activate the “Cancel” action")
     cancel.click()
     expect(page.locator("#note textarea")).to_have_count(0)

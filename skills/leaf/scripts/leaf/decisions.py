@@ -238,6 +238,7 @@ class _DecisionReducer:
         *,
         thread: bool,
         request_phases: dict[str, str] | None = None,
+        settled_away: set[str] | None = None,
     ):
         self.projection = projection
         self.byid = byid
@@ -246,6 +247,7 @@ class _DecisionReducer:
         self.with_agent = with_agent
         self.thread = thread
         self.request_phases = request_phases or {}
+        self.settled_away = settled_away or set()
         elements = source.lf_elements if hasattr(source, "lf_elements") else source
         self.records = [record for record in elements if self._is_declared(record)]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
@@ -347,12 +349,9 @@ class _DecisionReducer:
         self.values[key] = any(self._awaits(candidate) for candidate in descendants)
         return self.values[key]
 
-    def _surfaces(self):
-        open_records = [record for record in self.records if self._awaits(record)]
+    def _surfaces(self, records):
         visible = [
-            record
-            for record in open_records
-            if not self._declaration(record).get("rollup")
+            record for record in records if not self._declaration(record).get("rollup")
         ]
         surfaces = []
         seen = set()
@@ -369,17 +368,52 @@ class _DecisionReducer:
                 surfaces.append(surface)
         return surfaces
 
+    def inventory(self) -> list:
+        """Every active Decision, including ones the reader has answered.
+
+        An action Decision remains active while its authored `when` holds, even after
+        one of its answer verbs has state. A request Decision remains the instruction
+        the page asked throughout its one lifecycle; accepting it changes who owns the
+        turn rather than erasing the Ask. Roll-ups continue to aggregate without
+        originating a visible Decision of their own.
+        """
+        active = []
+        for record in self.records:
+            if self.exists[id(record)] and (
+                self._is_request(record) or self.local[id(record)]
+            ):
+                active.append(record)
+                continue
+            # A decision that retires its own last visible slot still has a receipt
+            # and Undo control in the margin. Keep that completed route until a new
+            # revision removes the authored source. A source retired by some other
+            # decision is absent rather than reviewable, and is not in settled_away.
+            unit = record["attrs"].get("id")
+            if (
+                unit in self.settled_away
+                and not self._is_request(record)
+                and self._local(record)
+                and self._answered(record)
+            ):
+                active.append(record)
+        return self._items(self._surfaces(active))
+
+    def _items(self, surfaces):
+        return [
+            {
+                "id": record["attrs"].get("id"),
+                "tag": record["tag"],
+                "thread": None,
+            }
+            for record in surfaces
+        ]
+
     def result(self) -> tuple[list, dict[str, bool]]:
-        surfaces = self._surfaces()
+        surfaces = self._surfaces(
+            record for record in self.records if self._awaits(record)
+        )
         return (
-            [
-                {
-                    "id": record["attrs"].get("id"),
-                    "tag": record["tag"],
-                    "thread": None,
-                }
-                for record in surfaces
-            ],
+            self._items(surfaces),
             {
                 record["attrs"]["id"]: self.values[id(record)]
                 for record in self.records
@@ -478,6 +512,48 @@ def page_awaiting_values(
     )[1]
 
 
+def page_decision_inventory(
+    source,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+    *,
+    thread: bool = False,
+    request_phases: dict[str, str] | None = None,
+    settled_away: set[str] | None = None,
+) -> list:
+    """Every active Decision surface, answered or not, for progress and review."""
+    return _DecisionReducer(
+        source,
+        projection,
+        byid,
+        spk,
+        registry,
+        dropped,
+        set(),
+        thread=thread,
+        request_phases=request_phases,
+        settled_away=settled_away,
+    ).inventory()
+
+
+def _thread_decision_records(
+    events: list, settled: set, reading: FrozenThreadReading
+) -> tuple[list, dict]:
+    records = []
+    for e in events:
+        if e["kind"] not in ("comment", "reply"):
+            continue
+        markup = e.get("markup")
+        if not markup or reading.roots[e["id"]] in settled:
+            continue
+        fragment = reading.structure.fragments[e["id"]]
+        records.extend((reading.roots[e["id"]], rec) for rec in fragment.lf_elements)
+    return records, {rec["attrs"].get("id"): thread for thread, rec in records}
+
+
 def thread_decision_projection(
     events: list,
     registry: dict,
@@ -486,7 +562,7 @@ def thread_decision_projection(
     reading: FrozenThreadReading | None = None,
     request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict]:
-    """Decisions standing in thread markup, read from the log.
+    """Open Decisions standing in thread markup, read from the log.
 
     A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
@@ -501,15 +577,7 @@ def thread_decision_projection(
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
     thread_reading = reading or frozen_thread_reading(events, registry)
-    records = []
-    for e in events:
-        if e["kind"] not in ("comment", "reply"):
-            continue
-        markup = e.get("markup")
-        if not markup or thread_reading.roots[e["id"]] in settled:
-            continue
-        frag = thread_reading.structure.fragments[e["id"]]
-        records.extend((thread_reading.roots[e["id"]], rec) for rec in frag.lf_elements)
+    records, thread_by_id = _thread_decision_records(events, settled, thread_reading)
 
     decisions, values = page_decision_projection(
         [rec for _thread, rec in records],
@@ -525,7 +593,6 @@ def thread_decision_projection(
         thread=True,
         request_phases=request_phases,
     )
-    thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}
     return (
         [
             {**decision, "thread": thread_by_id[decision["id"]]}
@@ -533,6 +600,32 @@ def thread_decision_projection(
         ],
         values,
     )
+
+
+def thread_decision_inventory(
+    events: list,
+    registry: dict,
+    settled: set,
+    *,
+    reading: FrozenThreadReading | None = None,
+    request_phases: dict[str, str] | None = None,
+) -> list:
+    """Every active Decision in unresolved frozen thread markup."""
+    thread_reading = reading or frozen_thread_reading(events, registry)
+    records, thread_by_id = _thread_decision_records(events, settled, thread_reading)
+    decisions = page_decision_inventory(
+        [rec for _thread, rec in records],
+        thread_reading.projection,
+        thread_reading.by_id,
+        thread_reading.spoken,
+        registry,
+        set(),
+        thread=True,
+        request_phases=request_phases,
+    )
+    return [
+        {**decision, "thread": thread_by_id[decision["id"]]} for decision in decisions
+    ]
 
 
 def thread_decisions(

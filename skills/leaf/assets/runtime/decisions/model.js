@@ -5,6 +5,7 @@ export const answeredContext = (...args) =>
   publishedDecisionModel.answeredContext(...args);
 export const decisionSource = (...args) =>
   publishedDecisionModel.decisionSource(...args);
+export const allDecisions = (...args) => publishedDecisionModel.allDecisions(...args);
 export const openDecisions = (...args) => publishedDecisionModel.openDecisions(...args);
 export const watchDecisions = (...args) =>
   publishedDecisionModel.watchDecisions(...args);
@@ -105,6 +106,7 @@ export function createDecisionModel({
     });
   }
 
+  const allDecisions = () => decisions("all");
   const openDecisions = () => decisions("reader");
   const unansweredDecisions = () => decisions("unanswered");
 
@@ -120,6 +122,7 @@ export function createDecisionModel({
   }
 
   const model = {
+    allDecisions,
     answeredContext,
     decisionEntry,
     decisionSource,

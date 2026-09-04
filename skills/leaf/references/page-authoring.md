@@ -82,7 +82,7 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
-shortcuts, live-leaves tray, and open-asks tray. Authors declare reader asks
+shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
 through the registry's decision widgets and regions, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
@@ -170,3 +170,9 @@ check that none of them promises a finding it does not give. Confirm that
 referents are introduced, claims have evidence, decisions have controls, diagrams
 add information, links work, and that everything standing open in the column is
 there because the reader needs it.
+
+For a page with Asks, start at the top and press `a` through them. At each
+arrival, confirm that the question, shared premise, alternatives, and evidence
+that distinguishes them are visible together, the displayed numbers match the
+available actions, and the next press of `a` reaches the next open Ask while the
+complete page remains visible.

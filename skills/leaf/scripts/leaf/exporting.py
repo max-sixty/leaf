@@ -149,8 +149,8 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     """One stamped version as a standalone HTML file.
 
     The copy is the page as the browser finished drawing it, which is the only way to
-    get one: half the document is written by the widget layer at runtime, a mermaid
-    diagram becomes an SVG only once mermaid has drawn it, and a code block is colored
+    get one: half the document is written by the widget layer at runtime, a diagram
+    becomes an SVG only once its renderer has drawn it, and a code block is colored
     by the vendored tokenizer in the page rather than by anything that can read the
     file. So a browser is not an optimisation here and no `x-` key exempts a widget
     from it; without one there is nothing to copy at all."""

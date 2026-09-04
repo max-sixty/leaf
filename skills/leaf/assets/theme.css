@@ -498,7 +498,7 @@ main {
   /* The two kinds of wide widget differ in one thing, how far the box may reach, and that
    * follows from what decides their width. A box (a board) lays its columns out into
    * whatever it is given, so the width is a choice, and the choice is the one number
-   * above. A drawing (a diagram's graph) is the size mermaid drew it at, and the box
+   * above. A drawing (a diagram's graph) is the size its renderer drew it at, and the box
    * around it is nothing but the clip: capped at that number it showed the left 1080px of
    * a 1533px sequence diagram on a window with room for the whole of it — cut off, with
    * an overlay scrollbar the platform hides until it is used as the only sign that there
@@ -556,7 +556,7 @@ main {
    * wraps. Both halves of that are said: a flex item is floored at its own content's
    * minimum unless told otherwise, and the source it holds is a `pre` that never wraps,
    * so the box came out as wide as the longest line — 854px of it in a 720px column,
-   * scrolling, on the first real mermaid source anyone fed it. The `pre` scrolls inside
+   * scrolling, on the first real diagram source anyone fed it. The `pre` scrolls inside
    * the message instead, which is what a `pre` does everywhere else on the page. */
   [data-lf-wide]:has(> .lf-error) { --lf-room: 0px; }
   [data-lf-wide="drawing"] > .lf-error { flex: auto; min-width: 0; }
@@ -1440,8 +1440,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
 /* A marker reporting a receipt is excluded here as it is from the runtime's press
- * styles: it is sewn flat, so neither the pointer nor the keyboard raises its ring. The
- * focus outline still says where the walk has landed. */
+ * styles: neither the pointer nor the keyboard gives inert status an interactive accent
+ * treatment. The focus outline still says where the Page-map walk has landed. */
 .lf-margin-marker:not([data-lf-behavior="receipt"]):is(:hover, :focus-visible, [aria-expanded="true"]),
 .lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }

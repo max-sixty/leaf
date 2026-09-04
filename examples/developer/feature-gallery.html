@@ -55,14 +55,15 @@
         </p>
         <h2 id="bg-core-surfaces-heading">
           <strong>Asks</strong
-          ><span class="bg-feature-detail">: unfinished decisions</span>
+          ><span class="bg-feature-detail">: decisions and answers</span>
         </h2>
         <p id="bg-core-surfaces-guide">
           An <code>lf-decision</code> is one complete Ask: its heading names the
-          unanswered question, and one nested widget owns the answer. This sample uses
+          question, and one nested widget owns the answer. This sample uses
           <code>lf-options</code>, which records a choice Leaf can replay as page state.
-          Open <strong>Asks</strong>, or press <kbd>g</kbd> then <kbd>Shift+A</kbd>, to
-          see every Ask still waiting on you.
+          The banner shows completed/total. Press <kbd>a</kbd> for the next Ask waiting
+          on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
+          <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
         </p>
         <lf-decision id="bg-choice-ask">
           <h3 id="bg-choice-ask-heading">Which map should the sample team carry?</h3>
@@ -405,6 +406,34 @@ run, baseline, candidate
 3, 9, 12
 </pre>
           </lf-chart>
+        </section>
+
+        <section id="bg-diagrams">
+          <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
+          <h3 id="bg-diagrams-heading">
+            <strong>Diagram</strong
+            ><span class="bg-feature-detail">: structure, shape, and state</span>
+          </h3>
+          <p id="bg-diagrams-guide">
+            Diagram nodes keep their authored shapes and can use Leaf’s semantic color
+            tokens. Alt-click a declared node to comment on that box alone.
+          </p>
+          <lf-diagram
+            id="bg-diagram"
+            parts="node:Request node:Choice node:Success node:Retry"
+          >
+            <pre>
+flowchart LR
+  Request([Request]) --> Choice{Valid?}
+  Choice -->|yes| Success[(Stored)]
+  Choice -->|no| Retry([Retry])
+  Retry -.-> Request
+  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
+  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  class Success done
+  class Retry warning
+</pre>
+          </lf-diagram>
         </section>
 
         <section id="bg-code-and-tree">

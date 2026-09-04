@@ -5,18 +5,29 @@ registry entries for the exact widget contracts.
 
 ## Asks and sign-off
 
-Put each ask where the reader has just read what it turns on, and let the page
-go on explaining after it. That point is the paragraph, list item, table, or
-chart that makes the question answerable. An ask about one item of a list
-follows that item, and an ask that turns on a claim follows the claim rather
-than the backing collapsed under it. Only an ask that turns on the whole page
+On a quick-decision page, open with the Ask. Put its short shared premise inside
+the `lf-decision`, before the control, and put backing detail after it in a
+disclosure. The first viewport should show the objective, current state, and
+available move together.
+
+On a record or system page, put each Ask where the reader has just read what it
+turns on, and let the page continue after it. An Ask about one item of a list
+follows that item, and an Ask that turns on a claim follows the claim rather
+than the backing collapsed under it. Only an Ask that turns on the whole record
 comes last.
 
-Each option carries its own title, case, and decision-relevant evidence or
-preview. Use a short option that points elsewhere only to select among sections
-or work items that already exist independently of the decision; do not create
-separate sections to hold an ask's alternatives. Allow multiple picks only when
-several options may stand.
+Write related, independently answerable Asks as ordinary `lf-decision` elements
+in page order. They remain visible as one complete page. The reader can press
+`a` to reach the next open Ask and use its displayed `1`–`9` actions. If a later
+Ask depends on an earlier answer, publish it in the next turn instead of authoring
+every possible branch.
+
+Each option carries its own title and one consequence. When comparable facts
+help, show the same few facts across the alternatives. Put longer rationale or
+provenance in a disclosure after the Ask. Use a short option that points
+elsewhere only to select among sections or work items that already exist
+independently of the decision; do not create separate sections to hold an Ask's
+alternatives. Allow multiple picks only when several options may stand.
 
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all

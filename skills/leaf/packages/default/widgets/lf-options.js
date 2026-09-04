@@ -347,7 +347,7 @@ customElements.define(
           mark.parentElement.prepend(num);
         }
       }
-      for (const mark of marks) {
+      for (const [markIndex, mark] of marks.entries()) {
         // Declared on the mark rather than on the group, because the group holds the
         // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
         // over the whole subtree would promise "toggle the nth" with focus on any of them.
@@ -357,107 +357,121 @@ customElements.define(
         // "toggle", the digit row's word, because it is what the press does: the nth digit on
         // an already-picked option clears it, and a word that said "pick" was false on the
         // branch the reader could see.
-        commands(mark, SECTION, [
-          {
-            id: "option.toggle-nth",
-            runFromReference: false,
-            // The digits this group has, so the row cannot offer an address no option
-            // wears. Generated-option reconciliation replaces these scopes after the
-            // live set changes, while surviving marks keep their element identity.
-            keys: addresses,
-            label: addresses.length > 1 ? `1–${addresses.length}` : "1",
-            routes: addresses.map((binding, index) => {
-              const control = marks[index];
-              const option = control.parentElement;
-              return {
-                id: `option.toggle-${binding}`,
-                binding,
-                control,
-                decision: true,
-                label: label(option) || option.id,
-                address: option.querySelector(":scope > .lf-address"),
-                does: `Toggle option ${binding}`,
-              };
-            }),
-            does: "Toggle the nth option",
-            line: "toggle the nth",
-            run: (binding) => {
-              const target = marks[+binding - 1];
-              target.focus();
-              target.click();
-            },
-          },
-          {
-            ...WRITE_ANOTHER,
-            when: () => Boolean(this.#words()),
-            returnFrame: () => {
-              const box = this.#words();
-              const layer = this.#addition.input
-                ? box?.closest("form")
-                : box?.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
-              return {
-                active: () => Boolean(layer?.contains(focused())),
-                close: () => box?.blur(),
-                does: "Return to the option",
-                line: "back to option",
-              };
-            },
-            run: () => {
-              if (this.#addition.input) this.#addition.input.focus();
-              else
-                landInConversation(this.#words(), {
-                  target: mark,
-                  line: "back to question",
-                });
-            },
-          },
-          {
-            id: "option.walk",
-            keys: ["ArrowUp", "ArrowDown"],
-            routes: [
-              {
-                id: "option.previous",
-                binding: "ArrowUp",
-                does: "Previous option",
-              },
-              { id: "option.next", binding: "ArrowDown", does: "Next option" },
-            ],
-            does: "Walk the options",
-            line: "walk the options",
-            repeat: true,
-            // Clamped at the ends, and the page must not scroll out from under the walk.
-            run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
-          },
-          {
-            id: "option.toggle",
-            keys: [" "],
-            does: "Toggle the focused option",
-            line: "toggle",
-            run: () => mark.click(),
-          },
-          ...(this.#done
-            ? [
-                {
-                  id: "option.done",
-                  keys: [],
-                  control: this.#done,
+        commands(
+          mark,
+          SECTION,
+          [
+            {
+              id: "option.toggle-nth",
+              runFromReference: false,
+              // The digits this group has, so the row cannot offer an address no option
+              // wears. Generated-option reconciliation replaces these scopes after the
+              // live set changes, while surviving marks keep their element identity.
+              keys: addresses,
+              label: addresses.length > 1 ? `1–${addresses.length}` : "1",
+              routes: addresses.map((binding, index) => {
+                const control = marks[index];
+                const option = control.parentElement;
+                return {
+                  id: `option.toggle-${binding}`,
+                  binding,
+                  control,
                   decision: true,
-                  label: "Done",
-                  does: "Finish choosing options",
-                  line: "done",
-                  run: () => this.#done.click(),
+                  label: label(option) || option.id,
+                  address: option.querySelector(":scope > .lf-address"),
+                  does: `Toggle option ${binding}`,
+                };
+              }),
+              does: "Toggle the nth option",
+              line: "toggle the nth",
+              run: (binding) => {
+                const target = marks[+binding - 1];
+                target.focus();
+                target.click();
+              },
+            },
+            {
+              ...WRITE_ANOTHER,
+              when: () => Boolean(this.#words()),
+              returnFrame: () => {
+                const box = this.#words();
+                const layer = this.#addition.input
+                  ? box?.closest("form")
+                  : box?.closest(
+                      ".lf-thread, .lf-conversation-thread, .lf-conversation",
+                    );
+                return {
+                  active: () => Boolean(layer?.contains(focused())),
+                  close: () => box?.blur(),
+                  does: "Return to the option",
+                  line: "back to option",
+                };
+              },
+              run: () => {
+                if (this.#addition.input) this.#addition.input.focus();
+                else
+                  landInConversation(this.#words(), {
+                    target: mark,
+                    line: "back to question",
+                  });
+              },
+            },
+            {
+              id: "option.walk",
+              keys: ["ArrowUp", "ArrowDown"],
+              routes: [
+                {
+                  id: "option.previous",
+                  binding: "ArrowUp",
+                  does: "Previous option",
                 },
-              ]
-            : []),
-          // Tab is the platform's, and reaching the mark is what a reader has to know
-          // before any of the above is any use. No binding, so the line never offers it.
-          {
-            id: "option.reach",
-            keys: [],
-            label: "⇥",
-            does: "Reach an option's mark",
-          },
-        ]);
+                { id: "option.next", binding: "ArrowDown", does: "Next option" },
+              ],
+              does: "Walk the options",
+              line: "walk the options",
+              repeat: true,
+              // Clamped at the ends, and the page must not scroll out from under the walk.
+              run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
+            },
+            {
+              id: "option.toggle",
+              keys: [" "],
+              does: "Toggle the focused option",
+              line: "toggle",
+              run: () => mark.click(),
+            },
+            ...(this.#done
+              ? [
+                  {
+                    id: "option.done",
+                    keys: [],
+                    control: this.#done,
+                    decision: true,
+                    label: "Done",
+                    does: "Finish choosing options",
+                    line: "done",
+                    run: () => this.#done.click(),
+                  },
+                ]
+              : []),
+            // Tab is the platform's, and reaching the mark is what a reader has to know
+            // before any of the above is any use. No binding, so the line never offers it.
+            {
+              id: "option.reach",
+              keys: [],
+              label: "⇥",
+              does: "Reach an option's mark",
+            },
+          ],
+          markIndex === 0
+            ? {
+                answer: () =>
+                  [...this.#picked()]
+                    .map((option) => label(option) || option.id)
+                    .join(", ") || "No options selected",
+              }
+            : undefined,
+        );
       }
     }
 

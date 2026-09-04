@@ -41,27 +41,26 @@ keep it when the product can make those frames stale.
 
 `vendor.py` rebuilds them — all of them by default, or the ones you name. Every
 pinned version sits in one table there, and each bundle lands in the package whose
-widget imports it: `mermaid` in `diagram`, `pierre` in `diff`, `plot` and `sortable`
-in `default`, the rest in the kernel's own `assets/vendor/`. The six divide by whether
-upstream's published file is already loadable:
+widget imports it: `beautiful-mermaid` in `diagram`, `pierre` in `diff`, `plot` and
+`sortable` in `default`, the rest in the kernel's own `assets/vendor/`. They divide
+by whether upstream's published file is already loadable:
 
 - Copies, where it is, so vendoring is three values: `marked`, the Markdown
-  renderer for runtime-supplied text; `mermaid`, the diagram renderer `lf-diagram`
-  draws with, taken as the IIFE build because the widget loads it through a
-  `<script src>` tag rather than importing it; and `sortable`, the drag library
-  `lf-board` moves cards with.
+  renderer for runtime-supplied text, and `sortable`, the drag library `lf-board`
+  moves cards with.
 - Builds, where it is not, or where what ships is cut down to what the registry
-  declares: `highlight` and `pierre`, both cut to `$languages.names`, and
-  `plot`, bundled with d3 because Plot's published ESM leaves d3 as a bare
-  external import. `mcp-app` is the separate delivery-surface build: the tracked
-  adaptive shell under `scripts/mcp-app/` becomes one HTML blob containing the MCP
+  declares: `beautiful-mermaid`, bundled with ELK and entities because its
+  published ESM leaves both as bare imports; `highlight` and `pierre`, both cut
+  to `$languages.names`; and `plot`, bundled with d3 because Plot's published ESM
+  leaves d3 as a bare external import. `mcp-app` is the separate delivery-surface
+  build: the tracked adaptive shell under `scripts/mcp-app/` becomes one HTML blob containing the MCP
   Apps SDK, its application code and styles, and the Leaf mark. A complete-page
   result frames the exact process-scoped origin declared by the resource; a
   snapshot result renders inert authored markup in the same shell.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is
-pinned, which holds for the three copies and for `highlight`, so a clean
-`git status` after a run is the check that the bundle still matches the script.
+pinned, which holds for the two copies, `beautiful-mermaid`, and `highlight`, so a
+clean `git status` after a run is the check that the bundle still matches the script.
 `plot` and `pierre` reach npm's resolver for transitive dependencies and inherit
 its ranges, so a diff from either can be an upstream patch rather than drift.
 

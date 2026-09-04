@@ -1,4 +1,4 @@
-import { labelOf, spell } from "./bindings.js";
+import { labelOf, live, spell } from "./bindings.js";
 import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -11,6 +11,7 @@ export function createAddress({
   decisionRows,
   decisionsPanel,
   decisionsOffered,
+  directDestinations = [],
   banner,
   claimsEsc,
   el,
@@ -49,8 +50,8 @@ export function createAddress({
 }) {
   // ---------- the g chord: the page's destinations ----------
   // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
-  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map), while a lowercase list
-  // mnemonic takes a following digit (`g m 2` presses the first Button at the second
+  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map, `g V` Versions), while a
+  // lowercase list mnemonic takes a following digit (`g m 2` presses the first Button at the second
   // Page-map location, `g t 2` selects the second tab, `g h 3` follows the third hyperlink,
   // and `g f 2` opens the second fold).
   // Repeated movement through threads and asks belongs to their single-key category walks,
@@ -138,7 +139,7 @@ export function createAddress({
   // One-off direct travel is one vocabulary too. The mnemonic completes the trip, and
   // every destination owns the liveness and landing that make its surface useful rather
   // than leaving the dispatcher to know which furniture it enters.
-  const DIRECT_DESTINATIONS = [
+  const BUILTIN_DIRECT_DESTINATIONS = [
     {
       id: "navigation.panel.threads",
       key: "Shift+t",
@@ -268,10 +269,11 @@ export function createAddress({
       ? (viewportWindows.get(entry) ?? [])
       : currentAddressed(entry);
   const range = (n) => (n > 1 ? `1–${n}` : "1");
-  // How far the chord has come: `g`, and the list's letter once one has named a list. The
-  // key line and page chips combine that progress with each full route; the reference shows
-  // the same routes at rest.
-  const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
+  // Every complete route starts with the same stable prefix. `chordKeys` adds the list's
+  // letter once one has been named, so the key line and page chips can paint progress
+  // without changing the route that a control's title or the reference exposes.
+  const chordPrefix = () => [labelOf(GOTO)].filter(Boolean);
+  const chordKeys = () => [...chordPrefix(), aimedList?.key].filter(Boolean);
   const addressChip = (entry, n) => {
     const steps = [labelOf(GOTO), entry.key, String(n)];
     const chip = el("span", "lf-address lf-chord-address");
@@ -432,6 +434,7 @@ export function createAddress({
     title: "Go to",
     reach: "with g armed",
     chord: chordKeys,
+    chordPrefix,
     at: () => chordArmed,
     claims: EVERYTHING,
     rows: [
@@ -481,7 +484,7 @@ export function createAddress({
           letGo();
         },
       },
-      ...DIRECT_DESTINATIONS.map((destination) => ({
+      ...BUILTIN_DIRECT_DESTINATIONS.map((destination) => ({
         id: destination.id,
         keys: [destination.key],
         label: spell(destination.key),
@@ -503,6 +506,18 @@ export function createAddress({
         run: () => {
           setChord(false);
           destination.go();
+        },
+      })),
+      // A destination whose control belongs to another runtime owner joins this one
+      // vocabulary as its complete row. The address layer contributes only the chord's
+      // progress and cancellation; liveness, words, landing, and return remain with the
+      // owner that can keep them true.
+      ...directDestinations.map((destination) => ({
+        ...destination,
+        when: () => !aimedList && live(destination),
+        run: (binding) => {
+          setChord(false);
+          destination.run(binding);
         },
       })),
       ...ADDRESSES.map((entry) => ({

@@ -23,7 +23,9 @@ import {
   paintKeys,
   quoted,
   sendAction,
+  undoableAction,
   watchActions,
+  withdraw,
   worksInside,
 } from "/runtime/widget-api.js";
 
@@ -38,6 +40,7 @@ customElements.define(
   class extends HTMLElement {
     #pass = null;
     #keep = null;
+    #undo = null;
     #progress = null;
     #pointer = null;
     #interactive = false;
@@ -107,35 +110,62 @@ customElements.define(
       this.#progress.setAttribute("aria-live", "polite");
       this.#progress.tabIndex = -1;
       this.#keep = offer("button", "lf-swipe-keep", "Keep →");
-      controls.append(this.#pass, this.#progress, this.#keep);
+      this.#undo = offer("button", "lf-swipe-undo", "Undo last swipe");
+      this.#undo.hidden = true;
+      controls.append(this.#pass, this.#progress, this.#keep, this.#undo);
       this.append(controls);
 
       this.#pass.addEventListener("click", () => this.#swipe("pass", -1));
       this.#keep.addEventListener("click", () => this.#swipe("keep", 1));
-      commands(this, "In a swipe deck", [
+      this.#undo.addEventListener("click", async () => {
+        const event = undoableAction(this, "finish");
+        if (event) await withdraw(event);
+      });
+      commands(
+        this,
+        "In a swipe deck",
+        [
+          {
+            id: "swipe.pass",
+            keys: ["ArrowLeft"],
+            control: this.#pass,
+            decision: true,
+            label: "Pass",
+            does: "Pass the active card",
+            line: "pass the active card",
+            when: () => this.#canSwipe(),
+            run: () => this.#pass.click(),
+          },
+          {
+            id: "swipe.keep",
+            keys: ["ArrowRight"],
+            control: this.#keep,
+            decision: true,
+            label: "Keep",
+            does: "Keep the active card",
+            line: "keep the active card",
+            when: () => this.#canSwipe(),
+            run: () => this.#keep.click(),
+          },
+          {
+            id: "swipe.undo-last",
+            keys: [],
+            control: this.#undo,
+            decision: true,
+            label: "Undo last swipe",
+            does: "Undo the final swipe and reopen the deck",
+            line: "undo last swipe",
+            when: () => Boolean(undoableAction(this, "finish")),
+            run: () => this.#undo.click(),
+          },
+        ],
         {
-          id: "swipe.pass",
-          keys: ["ArrowLeft"],
-          control: this.#pass,
-          decision: true,
-          label: "Pass",
-          does: "Pass the active card",
-          line: "pass the active card",
-          when: () => this.#canSwipe(),
-          run: () => this.#pass.click(),
+          answer: () =>
+            `${this.#cards(this.#pile("keep")).length} kept · ${
+              this.#cards(this.#pile("pass")).length
+            } passed`,
         },
-        {
-          id: "swipe.keep",
-          keys: ["ArrowRight"],
-          control: this.#keep,
-          decision: true,
-          label: "Keep",
-          does: "Keep the active card",
-          line: "keep the active card",
-          when: () => this.#canSwipe(),
-          run: () => this.#keep.click(),
-        },
-      ]);
+      );
 
       this.addEventListener("pointerdown", this.#pointerDown);
       this.addEventListener("pointermove", this.#pointerMove);
@@ -162,6 +192,7 @@ customElements.define(
       const available = Boolean(active && action && actionAvailable(this, action));
       this.#pass.disabled = !available;
       this.#keep.disabled = !available;
+      this.#undo.hidden = !undoableAction(this, "finish");
 
       const unseen = this.#cards(this.#pile("unseen"));
       const classified =

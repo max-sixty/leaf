@@ -60,6 +60,7 @@ from render_support import (
     mark_edges,
     nudge,
     open_page,
+    open_versions,
     opened_tab,
     page_at_rest,
     page_registry,
@@ -789,7 +790,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     # transient menu, it closes before painting over the next keyboard destination.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.keyboard.press("v")
+    open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
     needs = page.locator(".lf-needs")
@@ -1799,7 +1800,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page, errors = open_page(browser, url)
     # Off the reader's list, which is the whole reason the two readings differ here.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)
@@ -2988,7 +2989,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
 
     # The versions menu, including the first-version case browser Escape now dismisses.
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
     sweep("in the versions menu")
     page.keyboard.press("Escape")
@@ -3095,22 +3096,17 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     }""")
     page.locator(".lf-quote", has_text="Paragraph 40").click()
     panel_settled(page, open=False)
-    # Arrived where it was aimed, which is the only thing about this the page states. The
-    # click scrolls twice — instantly, to bring the passage's own box into view, then
-    # smoothly to centre the painted range — and the browser fires a scrollend for each,
-    # so the first statement it makes comes 232px short of the rest position. "On screen"
-    # is true there too, and so is stillness sampled between the two, which reads exactly
-    # as it does after both (tests/CLAUDE.md, "A wait consumes a fact the system states");
-    # the hold that used to cover the gap was a duration guessed at. Centring is what the
-    # runtime aimed for, so the mark reaching the middle is arrival, and a glide that
+    # Arrived where it was aimed, which is the only thing about this the page states. A
+    # text-passage destination reveals nested scrollports without writing the document,
+    # then makes one smooth document glide to centre the painted range. Centring is what
+    # the runtime aimed for, so the mark reaching the middle is arrival, and a glide that
     # approaches it passes through no earlier position that could be taken for one.
     page.wait_for_function(
         """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                    return Math.abs(m.top + m.height / 2 - innerHeight / 2) < 1; }"""
     )
-    # Centred, and the glide that centred it over: the first statement names where the
-    # instant scroll stopped, 232px short, so the one that names where the document
-    # stands now is the second and last.
+    # Centred, and the glide that centred it over: scrollend names the document's final
+    # resting position rather than a sampled frame near it.
     page.wait_for_function(
         "() => window.lfRestedAt === document.scrollingElement.scrollTop"
     )
@@ -3945,7 +3941,7 @@ RING_WALKS = (
     # read, which is the last row, and the comparison press beside a row is a Tab forward
     # from the row above it. The walk is clamped, so a second press at the top moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("v", "ArrowUp", "ArrowUp"), ("corpus",)),
+    ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("i",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the

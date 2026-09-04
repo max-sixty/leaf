@@ -747,7 +747,8 @@ def test_init_vendors_the_layer(page_dir):
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from (PAGE_PACKAGES).
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "mermaid.min.js").is_file()
+    assert (page_dir / "vendor" / "beautiful-mermaid.esm.js").is_file()
+    assert (page_dir / "vendor" / "beautiful-mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
     assert interact_files.read_json(page_dir / "data.json") == {

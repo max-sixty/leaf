@@ -1,6 +1,6 @@
 {
   "lf-diagram": {
-    "description": "A diagram rendered from a mermaid-source body (flowchart, sequence, state…). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). A click comments on the whole diagram by default. Boxes listed in `parts` as `node:SOURCE_ID` take individual comments, where SOURCE_ID is the id written in the Mermaid source: the id of a node, a subgraph or a composite state in a flowchart or a `stateDiagram-v2`, or an `erDiagram` entity's name. Unlisted boxes and diagrams authored without `parts` keep the whole-diagram behavior. `parts` accepts only those three types, because they are the ones that carry a written id into the box they draw; every other type places its boxes by position, so declaring `parts` on one is a render error rather than a promise that cannot resolve. A sequence diagram gives its steps no id at all, so a drawing whose steps a reader should be able to point at is one of the three.",
+    "description": "A diagram rendered from a Mermaid-source body by Beautiful Mermaid. It supports flowcharts, stateDiagram-v2, sequenceDiagram, classDiagram, erDiagram, and xychart-beta. The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). Flowcharts accept Mermaid's classic node shapes; classDef can style them with Leaf tokens such as var(--ok-tint), var(--ok), and var(--ok-ink). A click comments on the whole diagram by default. Boxes listed in `parts` as `node:SOURCE_ID` take individual comments, where SOURCE_ID is the authored id of a flowchart node or subgraph, state or composite state, sequence participant, class, or ER entity. Unlisted boxes and diagrams authored without `parts` keep the whole-diagram behavior. Edges, sequence messages, and chart marks have no stable source id and cannot be listed as parts.",
     "type": "object",
     "properties": {
       "id": {
@@ -23,6 +23,6 @@
       "parts": "parts"
     },
     "x-wide": "drawing",
-    "x-example": "<lf-diagram id=\"checkout-flow\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\ngraph LR\n  Cart --> Pay\n  Pay --> Receipt\n</pre></lf-diagram>"
+    "x-example": "<lf-diagram id=\"checkout-flow\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\nflowchart LR\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class Receipt done\n</pre></lf-diagram>"
   }
 }

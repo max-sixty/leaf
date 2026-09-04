@@ -46,11 +46,11 @@ is the project package and `~/.config/leaf` is the user package. Inside a reposi
 dedicated to one package, use `.` as the package path.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
-and the Mermaid renderer it draws with; `diff` adds `lf-diff`, the `unified-diff` data
-contract, and the Pierre renderer; `swipe` adds a pass-or-keep technical backlog deck;
-`command-hub` adds multi-agent orchestration widgets; `pr-review` adds a typed pull-request
-brief with a safe Markdown description and compact checks table, plus a data-backed unified
-call diff:
+and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
+`unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
+technical backlog deck; `command-hub` adds multi-agent orchestration widgets;
+`pr-review` adds a typed pull-request brief with a safe Markdown description and compact
+checks table, plus a data-backed unified call diff:
 
 ```bash
 leaf page init --package diagram PAGE
@@ -60,9 +60,9 @@ leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 ```
 
-Those two renderers are 5.3MB of the 8.1MB a page used to vendor, and most pages draw
-neither, so they travel in packages rather than in the default one: a plain `page init`
-now writes about 2.7MB, and a page that wants a diagram or a diff says so.
+Those two renderers are about 3.2MB, and most pages draw neither, so they travel in
+packages rather than in the default one. A plain `page init` writes about 2.7MB; a page
+that wants a diagram or a diff selects it explicitly.
 
 `lf-call-diff` binds a captured `text-document` containing CallDiff-style plain text.
 The analysis host owns that source; the widget keeps unchanged tree items beside
@@ -194,15 +194,23 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-A widget contributes each capability once with `commands(source, title, rows)`. The
+A widget contributes each capability once with `commands(source, title, rows, options)`.
+The
 dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all consume
 those same live rows. Mark a row or route with `decision: true` and give it `control` and
-`label` when that control answers or advances the Ask containing `source`. A row may have
-zero or one live binding in that role: zero receives the Ask's contextual `1` through `9`,
-while one keeps its canonical binding, such as `ArrowLeft`. `address` may name the face a
-widget already positions for that command; otherwise core paints the resolved binding at
-the control. Routes let one parameterized row contribute distinct controls and bindings,
-as numbered options do. The control's own `click()` remains the single activation path.
+`label` when that control answers, advances, or revises the Ask containing `source`. A row
+may have zero or one live binding in that role: zero receives the Ask's contextual `1`
+through `9`, while one keeps its canonical binding, such as `ArrowLeft`. `address` may name
+the face a widget already positions for that command; otherwise core paints the resolved
+binding at the control. Routes let one parameterized row contribute distinct controls and
+bindings, as numbered options do. The control's own `click()` remains the single activation
+path.
+
+When the scope belongs to an Ask, `options.answer` may read its concise current answer for
+the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed
+answer; the package owns its meaning and words. Attach the answer reader to one stable scope
+owned by the Ask, even when several descendant scopes contribute controls. Answer metadata
+stays readable after a scope's capability gate closes, while the command rows remain gated.
 
 Register the semantic capability, not every nearby button. Evidence nested inside an
 option is not an answer, and a shared-margin Button may sit outside the Ask source. When

@@ -101,6 +101,15 @@ customElements.define(
               run: () => control.click(),
             };
           }),
+          {
+            answer: () => {
+              const action = this._lifecycle?.latest?.request?.action;
+              const selected = children(this).find(
+                (option) => option.getAttribute("verb") === action,
+              );
+              return selected ? title(selected) : "";
+            },
+          },
         );
         const line = document.createElement("div");
         line.className = "lf-operation-status lf-ui";

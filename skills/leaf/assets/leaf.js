@@ -82,12 +82,13 @@
  * poll adds what arrived and touches nothing the user already holds, so scroll,
  * focus and caret keep themselves because the nodes holding them survive. News moves
  * nothing; a send reveals the message it just landed — the panel scrolls to it and
- * flashes its thread, the same answer a click on a page mark gets — and ends in the
- * composer it was sent from. A composer open on a selection keeps that passage marked
- * in the page until it closes, because focusing the box drops the browser's own
- * selection — and that mark is what says which passage the box is on, so the box only
- * quotes the passage back when this version no longer has one to mark. Whether the box
- * is up is state the stylesheet renders, never state read back off the stylesheet.
+ * flashes that bounded destination, the same answer a click on a page mark gets — and
+ * ends in the composer it was sent from. A composer open on a selection keeps that
+ * passage marked in the page until it closes, because focusing the box drops the
+ * browser's own selection — and that mark is what says which passage the box is on, so
+ * the box only quotes the passage back when this version no longer has one to mark.
+ * Whether the box is up is state the stylesheet renders, never state read back off the
+ * stylesheet.
  *
  * Scrolling: the browser's root is the document scrollport, while body is the layout
  * shell whose margins keep the page clear of a standing panel or tray. Native fragments,
@@ -127,7 +128,8 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g M` opens the complete Page map through the same door as the banner's Map control.
+ * `g M` opens the complete Page map, and `g V` opens Versions, each through the same
+ * door as its banner control.
  * A lowercase mnemonic starts a numbered document list, so `g m 3` is the third
  * Page-map location and `g h 3` is the third hyperlink; `g g` and `g G` are the page's
  * top and bottom edges.
@@ -230,6 +232,7 @@ import {
   word,
 } from "./runtime/keyboard/bindings.js";
 import {
+  allDecisions,
   answeredContext,
   decisionSource,
   createDecisionModel,
@@ -483,6 +486,7 @@ createShadowStage(watchDisclosures, watchExternalLinks);
 const {
   byCommand,
   claimsEsc,
+  commandScopesWithin,
   commandsWithin,
   documentFocused,
   elementScopes,
@@ -737,12 +741,12 @@ const {
   leavesOffered: () => leavesOffered(),
   moveShell,
   motion,
-  openDecisions,
+  allDecisions,
   pagePresented,
   paintKeys,
   PRESS,
   readerStore,
-  renderDecisions: () => renderDecisions(openDecisions()),
+  renderDecisions: () => renderDecisions(),
   syncLayout,
   trayChanged: () => livingMargin?.render(),
   walkRows,
@@ -911,7 +915,7 @@ findInput.type = "search";
 findInput.className = "lf-find-box";
 findInput.placeholder = "Find in threads";
 findInput.setAttribute("aria-label", "Find in threads");
-// The register appends the key that reaches it (`also`), so the control and the row
+// The register appends the key that reaches it (`control`), so the control and the row
 // cannot spell the binding differently.
 findInput.title = "Find in threads";
 // What is waiting on the reader: an agent comment, an explicit question in a reply, or a
@@ -1169,7 +1173,7 @@ function reserveBannerControls() {
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Asks (999/999)"]);
+  reserve(decisionsBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   foldShelf();
 }
@@ -1992,6 +1996,7 @@ const {
   PAGE_PAINT_ATTRIBUTE,
   actionLayer: decisionActionLayer,
   actionReachable: () => decisionActionReachable(),
+  allDecisions,
   scrollBehavior,
   documentFocused,
   announce,
@@ -2004,6 +2009,7 @@ const {
   banner,
   readingBlock,
   closeTray: () => showTray(null),
+  commandScopesWithin,
   commandsWithin,
   el,
   elementById: (...args) => elementById(...args),
@@ -2075,6 +2081,7 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   decisionRows,
   decisionsPanel,
   decisionsOffered,
+  directDestinations: [CHOOSER],
   banner,
   claimsEsc,
   el,
@@ -2721,8 +2728,6 @@ const DESIGN = {
 // Escape is the default promotion over this order, because the way out of a current scene
 // must survive beside its way in. A row can waive only that promotion when two local actions
 // on the current state belong together; the binding remains live and stays in the reference.
-// `CHOOSER` is the chooser's own key, declared beside the control it presses in
-// runtime/version.js and taken into this table by name.
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
 // rather than spelling "?" beside it — a fact about a binding written where the binding
@@ -2929,7 +2934,6 @@ const PAGE = {
     // hides a second way to somewhere; the press it was crowding out is the only way back
     // from where a press had just put the reader.
     GOTO,
-    CHOOSER,
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
       // than this row, so while it stands this one is shadowed off the line.
@@ -2992,13 +2996,10 @@ const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
 // upgrade, so a row here that presses with nothing to say for itself takes down the layer on
 // the first page rather than going quiet on every one.
 for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
-// A control the keyboard also reaches names its key, and names it off the row. Three
-// tooltips spelled theirs in prose — "(a)", "(o)", "(v v)" — which is the field the key
-// line's word used to be, a fact about a binding written somewhere the binding cannot
-// correct. `also` is where a row says which control it duplicates; its projection follows
-// liveness too, so a disabled decision does not advertise a shortcut the dispatcher has
-// withdrawn. The chip's is the one motion no single row makes, so it remains composed of
-// the two rows that make it.
+// A control the keyboard reaches names its shortcut from the row. `control` is where a
+// row says which control it duplicates; its projection follows liveness too, so a disabled
+// decision does not advertise a shortcut the dispatcher has withdrawn. The latest-version
+// chip's route spans two rows, so it is composed from both.
 function paintCoreControls() {
   const returningToMore = Boolean(keyline?.expanded);
   helpClose.textContent = returningToMore ? "Back to more shortcuts" : "Close";
@@ -3009,6 +3010,10 @@ function paintCoreControls() {
     "aria-label",
     returningToMore ? "Back to more shortcuts" : "Close keyboard reference",
   );
+  const controlShortcut = (scope, row) =>
+    [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
+      .filter(Boolean)
+      .join(" ");
   for (const scope of CORE)
     for (const row of scope.rows)
       if (row.control) {
@@ -3016,8 +3021,12 @@ function paintCoreControls() {
           row.control.dataset.lfKeyTitle = row.control.title;
         const active = live(row) && bindings(row).length > 0;
         row.control.title =
-          row.control.dataset.lfKeyTitle + (active ? ` (${labelOf(row)})` : "");
-        if (active)
+          row.control.dataset.lfKeyTitle +
+          (active ? ` (${controlShortcut(scope, row)})` : "");
+        // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
+        // alternatives. The complete chord remains in the visible hint and accessible
+        // keyboard reference instead of claiming its final press works alone.
+        if (active && !scope.chord)
           row.control.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
         else row.control.removeAttribute("aria-keyshortcuts");
       }
@@ -3034,7 +3043,7 @@ function paintCoreControls() {
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;
   latestChip.title =
     latestChip.dataset.lfKeyTitle +
-    (latestBound ? ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})` : "");
+    (latestBound ? ` (${controlShortcut(GO, CHOOSER)} ${labelOf(NEWEST)})` : "");
 }
 
 const { availableCommands, executeCommand, readerIn, shadow, stack } = createDispatch({
@@ -3633,6 +3642,7 @@ livingMargin = createLivingMargin({
   itemSays,
   itemWord,
   keys,
+  motion,
   offer,
   openDecisions,
   panelIsOpen: chromeLayout.panelIsOpen,

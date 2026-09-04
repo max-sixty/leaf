@@ -721,11 +721,12 @@ def test_the_render_gate_requires_a_visual_parts_provider(
 def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     browser, serve
 ):
-    """The corpus is flowcharts, so the shapes `parts` reaches need a page of their own.
+    """The corpus needs one page covering all six supported renderer paths.
 
-    A state machine and an ER schema draw markup a flowchart never does — a cluster, a
-    box of attribute rows — and the whole-page contracts (both palettes, axe, print,
-    export, reachability) are what would say so. This is that page.
+    State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
+    The whole-page contracts (both palettes, axe, print, export, reachability) are what
+    would catch a renderer-specific failure, and the structural types also exercise
+    every kind of source id accepted by `parts`.
     """
     assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
 

@@ -34,6 +34,7 @@ import os
 import shutil
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -853,6 +854,27 @@ def round_trip(page):
     _until(page, lambda t: not t.pending, "heard back what it sent")
 
 
+# A press or a click reaches the runtime inside the driver's call and posts behind it, so
+# `round_trip` alone cannot wait for the gesture just made: a post the gesture has not
+# issued yet is not pending, the trip is over before it begins, and the log read behind it
+# answers with whatever stood last — the page's opening note, or the gesture before this
+# one. The assertion then holds an event nobody made, and it holds it only on a machine
+# slow enough to lose the race. Naming the gesture's own send first is the arrangement
+# that closes the window; `_until` is what waits on it.
+@contextmanager
+def sending(page, what):
+    """Enclose a gesture whose own event has to be in the wire before its trip is over.
+
+    Waits for one further send to enter the wire, then for everything the page has sent
+    to come back, so a log or state read behind the block is a read of this gesture.
+    `what` names the send for the failure a wait that runs out raises.
+    """
+    sends = _traffic(page).sends
+    yield
+    _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
+    round_trip(page)
+
+
 # The other direction of the same trip. Nothing a test writes into the page directory
 # announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when it next reads — so an assertion made straight after the write is waiting
@@ -1014,10 +1036,8 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 def undo(page):
     """Take the last gesture back, from the moment the line offers to."""
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    sent = _traffic(page).sends
-    page.keyboard.press("z")
-    _until(page, lambda t: t.sends > sent, "put the withdrawal in the wire")
-    round_trip(page)
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
 
 
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
@@ -1240,6 +1260,12 @@ def key_line(page):
     """
     page.evaluate(RENDERED)
     return page.locator(".lf-keyline").inner_text()
+
+
+def open_versions(page):
+    """Open the Versions destination through its complete keyboard route."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
 
 
 def open_page(
@@ -1501,6 +1527,38 @@ def panel_settled(page, open=True):
           for (const carry of main.getAnimations()) carry.finish();
           return main.getAnimations().length === 0;
         }"""
+    )
+
+
+def reservations_taken(page):
+    """Wait for the panel's settlement controls to stand at the widths they reserve.
+
+    A control that changes its own word mid-gesture — Resolve to Resolving… to ✓ Resolved
+    — holds room for the widest of them, measured in the face the page is set in rather
+    than stated as a constant. That reading needs a box, and a shut panel is
+    `display: none`, so every control built under one reads zero and holds. Opening the
+    panel is what gives it a box, and the reading comes back a ResizeObserver delivery
+    and a frame later — after the open class is on and after `main` has stopped carrying,
+    which is everything `panel_settled` states. Until it lands, Resolve stands at the
+    width of the word it says now, 28px narrower than the control the reader ends up
+    looking at; a test that measures the actions row on either side of that arrival gets
+    two readings of two different buttons and reports a layout shift the page never made.
+
+    So the geometry tests state the arrival, in the terms the runtime writes it: an
+    inline `min-width` on every settlement control the panel is rendering. Rendering, not
+    `getClientRects()` — the resolved disclosure holds its threads in a subtree Chromium
+    skips, where a boxless control keeps answering with the size it last had, so a Reopen
+    nobody has disclosed reads as drawn while it is still holding for the reading the
+    disclosure will give it. `checkVisibility()` separates the two, and answers for the
+    shut panel as well.
+
+    This is not folded into `panel_settled`, which is a step on the way to a gesture in
+    most of its callers rather than a geometry read: the wait belongs where a test is
+    about to measure a control, not on every path that opens the panel."""
+    page.wait_for_function(
+        """() => [
+          ...document.querySelectorAll('.lf-panel :is(.lf-resolve, .lf-reopen)'),
+        ].every(control => !control.checkVisibility() || control.style.minWidth)"""
     )
 
 

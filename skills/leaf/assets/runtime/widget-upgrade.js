@@ -13,7 +13,7 @@ export function once(el) {
 // child — an HTML formatter is free to put the <pre> on its own line, and the newline
 // and indent before it are the element's text too. Line one is load-bearing in every
 // notation here, so that indent is not untidiness downstream: a diff's file header, a
-// tree's root and mermaid's graph type stop parsing, and a walkthrough's `hi` ranges
+// tree's root and a diagram's source type stop parsing, and a walkthrough's `hi` ranges
 // and note anchors all point one line off.
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
@@ -30,7 +30,7 @@ export function failSoft(el, err, source) {
   el.replaceChildren(box);
 }
 
-// An upgrade whose work is async (lf-diagram's mermaid render) registers its
+// An upgrade whose work is async (lf-diagram's renderer import) registers its
 // promise here, so the runtime can hold the view restore and first anchor pass
 // until the page's geometry has settled. Rejections are the widget's own
 // fail-soft path; settling ignores them.

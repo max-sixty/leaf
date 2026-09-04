@@ -35,6 +35,7 @@ from render_support import (
     refuse,
     resized,
     round_trip,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -283,10 +284,8 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     # may occupy both; waiting for the word "undo" there observes a transient repaint, not
     # liveness.
     # The withdrawal entering the wire is the durable edge that proves the press worked.
-    sent = _traffic(page).sends
-    page.keyboard.press("z")
-    _until(page, lambda traffic: traffic.sends > sent, "put the withdrawal in the wire")
-    round_trip(page)
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
     page.wait_for_function("() => document.body.dataset.lfApplied === '3'")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
@@ -1683,12 +1682,12 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (2)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1698,7 +1697,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "the rebuilt change hung a second row beside the one it replaced"
     )
@@ -1971,7 +1970,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(two.locator(".lf-decisions")).to_have_text("Asks 0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -2035,7 +2034,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again, errors = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(again.locator(".lf-decisions")).to_have_text("Asks 0/3")
     assert errors == []
     again.close()
 

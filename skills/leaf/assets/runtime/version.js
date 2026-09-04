@@ -17,7 +17,7 @@
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";
 import { shownBox } from "./geometry.js";
-import { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
+import { PRESS, walkRows } from "./keyboard/bindings.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { notice } from "./notifications.js";
 import {
@@ -201,7 +201,7 @@ export function createVersion({
   // the `source`, which buys the anchor and the invoker relationship and nothing about
   // focus — so every door into this menu shows it from the button and the way back out is
   // the platform's for pointer entry, because that press focuses the button first. Keyboard
-  // `v` clicks the same invoker without moving focus and its return frame restores the real
+  // `g V` clicks the same invoker without moving focus and its return frame restores the real
   // origin; the reference stands a layer back up from that invoker before restoring its own
   // origin. Scoping the platform handback to its door rather than to the state is what keeps
   // it off a light dismissal, which restores nothing on purpose: a reader who pressed away
@@ -252,11 +252,10 @@ export function createVersion({
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
   // pointer, which has no walk to state it with, and takes no key of its own.
   //
-  // v is the second half of the motion that opened the menu, and the one row worth a key of
-  // its own: the current page is where the walk ends, and where a reader who came for the
-  // current state is going. The letter is the menu's here for the walk's own kind of reason
-  // — outside it, v is already the chooser — and being the inner scope's is what shadows the
-  // page's v, where the two listeners used to depend on one consuming the press.
+  // v is the one row worth a key of its own: the current page is where the walk ends, and
+  // where a reader who came for the current state is going. It is local to the menu, so the
+  // page-level destination remains the complete `g V` route rather than a second meaning for
+  // a bare letter.
   //
   // This scope is live only while there is a list to walk. The mode below stays live for
   // every open menu so page-level Leaf shortcuts remain suspended while the browser owns
@@ -373,13 +372,13 @@ export function createVersion({
     ],
   };
 
-  // v names the chooser, the control wearing the version number, and the menu it opens.
+  // g V names the chooser, the control wearing the version number, and the menu it opens.
   // Named, because the chip that jumps straight to the current page spells that motion in
   // its tooltip, and because the closed control's own title says the press beside what
   // pressing it does.
   const CHOOSER = {
     id: "version.open",
-    keys: ["v"],
+    keys: ["Shift+v"],
     does: "The versions, and what each one changed",
     line: "versions",
     control: versionBtn,
@@ -387,7 +386,7 @@ export function createVersion({
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
     // The popover is the control's own press, while the keyboard register owns the route
-    // back to the place that pressed v. Programmatically focusing the chooser first made
+    // back to the place that pressed g V. Programmatically focusing the chooser first made
     // the browser return there instead, discarding the real origin before the menu opened.
     returnFrame: () => ({
       active: versionMenuIsOpen,
@@ -543,8 +542,8 @@ export function createVersion({
       versionMenu.replaceChildren(...(state === null ? [] : menuRows(state, notes)));
     }
     paintDiff(); // the label may change even when an open menu defers its new rows
-    // The keyboard reaches the chip through the chooser rather than past it — v opens the
-    // menu, and the letter again takes the current page; the banner spells that motion
+    // The keyboard reaches the chip through the chooser rather than past it — g V opens the
+    // menu, and its local v takes the current page; the banner spells that motion
     // onto this title.
     const behind =
       runtime.active !== null &&
@@ -767,9 +766,9 @@ export function createVersion({
         ? `${currentLabel}: comparing with v${diffBase}; open versions`
         : `${currentLabel}: open versions`,
     );
-    const shortcut = labelOf(CHOOSER);
-    versionBtn.title =
-      versionBtn.dataset.lfKeyTitle + (shortcut ? ` (${shortcut})` : "");
+    // paintCoreControls adds the complete route. Keeping the base title here lets the
+    // keyboard register project a chord without this owner reconstructing one.
+    versionBtn.title = versionBtn.dataset.lfKeyTitle;
     const baseRevision = stamped(diffBase)?.revision;
     for (const row of versionMenu.querySelectorAll(".lf-version-row")) {
       const revision = +row.dataset.lfRevision;
@@ -786,6 +785,9 @@ export function createVersion({
         "aria-checked",
         String(diffOn && +press.dataset.lfVersion === diffBase),
       );
+    // The base title changed above; the shared projection adds the complete shortcut
+    // after this paint, including when a comparison changes without moving focus.
+    paintHere();
   }
   // Whether the comparison is standing and what against — the only thing that decides
   // it, the marks and the paint being renderings rather than a second copy.

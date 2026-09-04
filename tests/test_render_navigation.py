@@ -43,6 +43,7 @@ from render_support import (
     live_url,
     mark_point,
     open_page,
+    open_versions,
     opened_tab,
     page_at_rest,
     painted,
@@ -54,6 +55,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    stamp_page,
     stamp_version_file,
     standing_mark,
     told,
@@ -78,7 +80,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(
         page.get_by_role(
             "heading",
-            name="Asks: unfinished decisions",
+            name="Asks: decisions and answers",
             exact=True,
         )
     ).to_be_visible()
@@ -96,7 +98,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-decisions").click()
     asks = page.locator("button.lf-decisions-row")
-    expect(asks).to_have_count(6)
+    expect(asks).to_have_count(7)
     expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -131,7 +133,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(
         page.get_by_role(
             "heading",
-            name="Asks: unfinished decisions",
+            name="Asks: decisions and answers",
             exact=True,
         )
     ).to_be_in_viewport()
@@ -795,11 +797,11 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.close()
 
 
-def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
+def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     """The page and panel are reciprocal views of a thread. Resting on a card lights
-    its passage; resting on that passage must identify the card too, or the common case
-    where the passage is parked and the card is visible answers on the off-screen side.
-    The signal follows the pointer from one thread to the next and leaves with it."""
+    its passage; resting on that passage must identify the bounded quote naming it too.
+    Filling the card instead turns a long conversation into a viewport-sized wash. The
+    signal follows the pointer from one thread to the next and leaves with it."""
     url = serve(
         INLINE_PAGE,
         anchored=[("p", "bold text"), ("p2", "neighbouring block")],
@@ -815,15 +817,25 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     panel_settled(page)
     first = page.locator(f'.lf-thread[data-id="{first_id}"]')
     second = page.locator(f'.lf-thread[data-id="{second_id}"]')
+    first_quote = first.locator(":scope > .lf-quote")
     resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
-
+    quote_resting = first_quote.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    )
     page.mouse.move(*mark_point(page, "lf-mark", 0))
     expect(first).to_have_class(re.compile(r"\blf-mark-hover\b"))
     expect(second).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
-    lit = first.evaluate("element => getComputedStyle(element).backgroundColor")
-    assert lit != resting, (
-        f"the page named the card in class but its paint stayed {resting!r}"
+    assert (
+        first.evaluate("element => getComputedStyle(element).backgroundColor")
+        == resting
+    ), "pointing at a passage washed the whole thread card instead of its quote"
+    quote_lit = first_quote.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
     )
+    assert quote_lit != quote_resting, (
+        f"the page named the quote in class but its paint stayed {quote_resting!r}"
+    )
+    assert first_quote.bounding_box()["height"] < first.bounding_box()["height"]
 
     page.mouse.move(*mark_point(page, "lf-mark", 1))
     expect(first).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
@@ -840,6 +852,144 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
     expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
     wait_hovered(page, "neighbouring block")
+    assert errors == []
+    page.close()
+
+
+def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
+    """The reciprocal cue stays at the quote when its conversation is taller than the
+    list. A short-card case proves selector routing but cannot reproduce the full-panel
+    slab that made direct navigation visually ambiguous."""
+    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root,
+            "revision": 1,
+            "text": "\n\n".join(
+                f"Consideration {i}: this thread needs its full context."
+                for i in range(18)
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    quote = thread.locator(":scope > .lf-quote")
+    card_resting = thread.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    )
+    quote_resting = quote.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    )
+    assert (
+        thread.bounding_box()["height"]
+        > page.locator(".lf-threads").bounding_box()["height"]
+    ), "the card fits in the list, so this does not reproduce the large wash"
+
+    page.mouse.move(*mark_point(page, "lf-mark"))
+    expect(thread).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    assert (
+        thread.evaluate("element => getComputedStyle(element).backgroundColor")
+        == card_resting
+    )
+    assert (
+        quote.evaluate("element => getComputedStyle(element).backgroundColor")
+        != quote_resting
+    )
+    assert (
+        quote.bounding_box()["height"]
+        < page.locator(".lf-threads").bounding_box()["height"]
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
+    browser, serve
+):
+    """The range travel has two jobs: reveal a passage inside its nested scrollports,
+    then centre it vertically in the document. `scrollIntoView` also moved the document,
+    jumping it to the nearest edge synchronously before the intended smooth centred trip
+    began. Both local axes must remain immediate, while the page makes only one move."""
+    lead = "".join(
+        f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
+    )
+    tail = "".join(
+        f"<p>Reading context after the passage, line {i}.</p>" for i in range(20)
+    )
+    source = leaf_page(
+        "one thread trip",
+        f"""
+<h1>One thread trip</h1>
+{lead}
+<div id="local">
+  {"".join(f"<p>Local context line {i}.</p>" for i in range(16))}
+  <pre id="rail"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
+</div>
+{tail}
+""",
+        head=(
+            "<style>#local { max-height: 240px; overflow-y: auto; "
+            "overflow-x: clip; }</style>"
+        ),
+    )
+    page, errors = open_page(
+        browser,
+        serve(source, anchored=[("far", "Far-side passage")]),
+    )
+    page.evaluate(
+        """() => {
+          document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
+          document.querySelector('#rail').scrollLeft = 0;
+          window.lfFirstPageScroll = null;
+          document.addEventListener('scroll', (event) => {
+            if (event.target === document && window.lfFirstPageScroll === null)
+              window.lfFirstPageScroll = document.scrollingElement.scrollTop;
+          }, {capture: true});
+        }"""
+    )
+
+    page.keyboard.press("t")
+    page.wait_for_function("() => window.lfFirstPageScroll !== null")
+    immediate = page.evaluate(
+        """() => ({
+          firstPage: window.lfFirstPageScroll,
+          rail: document.querySelector('#rail').scrollLeft,
+          local: document.querySelector('#local').scrollTop,
+          localXFits: document.querySelector('#local').scrollWidth
+            <= document.querySelector('#local').clientWidth,
+        })"""
+    )
+    assert immediate["firstPage"] < 100, (
+        f"the thread walk jumped the page before its smooth trip began: {immediate}"
+    )
+    assert immediate["rail"] > 0, (
+        f"the passage stayed beyond its own horizontal scroller: {immediate}"
+    )
+    assert immediate["local"] > 0, (
+        f"the passage stayed beyond its own vertical scroller: {immediate}"
+    )
+    assert immediate["localXFits"], (
+        f"the vertical scrollport also overflowed sideways: {immediate}"
+    )
+    page.wait_for_function(
+        """() => {
+          const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
+          if (!range) return false;
+          const rect = range.getBoundingClientRect();
+          return Math.abs((rect.top + rect.bottom) / 2 - innerHeight / 2) < 2;
+        }"""
+    )
+    expect(page.locator(".lf-thread")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -881,7 +1031,71 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     panel_settled(page)
 
     expect(reply).to_be_focused()
+    if long_thread:
+        expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
+        expect(thread.locator(":scope > .lf-compose")).to_have_class(
+            re.compile(r"\bflash\b")
+        )
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
+    if long_thread:
+        page.wait_for_function(
+            """() => {
+              const list = document.querySelector('.lf-threads');
+              const thread = list.querySelector('.lf-thread:first-of-type');
+              const compose = thread.querySelector(':scope > .lf-compose');
+              const view = list.getBoundingClientRect();
+              const target = compose.getBoundingClientRect();
+              const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
+              const start = view.top + clear;
+              const blocks = [...thread.querySelectorAll(
+                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
+                ':scope > .lf-msg .lf-msg-text > *'), compose];
+              return target.bottom <= view.bottom && blocks.some((block) =>
+                Math.abs(block.getBoundingClientRect().top - start) < 2);
+            }"""
+        )
+        landing = page.evaluate(
+            """() => {
+              const list = document.querySelector('.lf-threads');
+              const thread = list.querySelector('.lf-thread:first-of-type');
+              const compose = thread.querySelector(':scope > .lf-compose');
+              const view = list.getBoundingClientRect();
+              const target = compose.getBoundingClientRect();
+              const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
+              const start = view.top + clear;
+              const head = list.querySelector('.lf-pinned').getBoundingClientRect();
+              const blocks = [...thread.querySelectorAll(
+                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
+                ':scope > .lf-msg .lf-msg-text > *'), compose]
+                .map((block) => ({
+                  name: block.className || block.tagName,
+                  top: block.getBoundingClientRect().top,
+                }));
+              const lines = [];
+              const walker = document.createTreeWalker(thread, NodeFilter.SHOW_TEXT);
+              for (let text; text = walker.nextNode();) {
+                if (!text.data.trim()) continue;
+                for (let i = 0; i < text.length; i++) {
+                  const range = document.createRange();
+                  range.setStart(text, i);
+                  range.setEnd(text, Math.min(i + 1, text.length));
+                  const line = range.getBoundingClientRect();
+                  if (line.width && line.top < head.bottom && line.bottom > head.bottom)
+                    lines.push(line.toJSON());
+                }
+              }
+              return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
+                      crossedLines: lines};
+            }"""
+        )
+        assert landing["target"]["bottom"] <= landing["listBottom"]
+        assert any(
+            block["top"] == pytest.approx(landing["start"], abs=2)
+            for block in landing["blocks"]
+        ), f"the long arrival cut through a content block: {landing}"
+        assert not landing["crossedLines"], (
+            f"the pinned heading cut through a text line: {landing}"
+        )
     wait_standing(page, "bold text")
     assert "back to thread" in key_line(page)
     page.keyboard.press("t")
@@ -1803,7 +2017,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(page.locator(".lf-decisions-row").first).to_be_focused()
     # A row is the reader standing at the ask it names, so the banner's count says
     # which of how many from the tray as it does from the page.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
     expect(page.locator(CHIPS)).to_have_count(0)
 
     # A direct destination also remembers the workspace it displaced. Threads replaces
@@ -2058,8 +2272,8 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.close()
 
 
-def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
-    """An open panel remains reachable after working its last row removes that row."""
+def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
+    """An open panel remains reachable after working its last row completes it."""
     page, errors = open_page(
         browser,
         serve(
@@ -2082,17 +2296,14 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    expect(page.locator(".lf-decisions-answer")).to_have_text("First")
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("Asks panel")
     page.keyboard.press("Shift+a")
-    expect(page.locator(".lf-decisions-panel")).to_be_focused()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("walk the asks")
-    assert (
-        page.locator(".lf-decisions-panel").get_attribute("aria-keyshortcuts") is None
-    )
+    expect(page.locator(".lf-decisions-row")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2139,7 +2350,7 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     # The registered return frame is nearer than the menu's native Tab handoffs, so the
     # shortlist contains the actual Escape return and one directional handoff.
     page.keyboard.press("Escape")
-    page.keyboard.press("v")
+    open_versions(page)
     page.evaluate(RENDERED)
     versions = page.evaluate(KEY_LINE_HINTS)
     assert {"navigation.return", "version.leave-forward"} <= {
@@ -2159,20 +2370,8 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     page.close()
 
 
-def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
-    """A tray that has rendered nothing and a tray that has failed to render look alike.
-
-    The thread panel has said which of the two it is for as long as it has had an empty
-    state — "No threads yet", and then the gesture that would fill it. Asks answered the
-    same question with a blank panel, on the page a reader is most likely to open it from:
-    the one where they have just finished. The second half of the sentence names the agent
-    rather than a gesture, because a reader makes their own threads and does not make
-    their own asks.
-
-    Both states are read, because a note that stands whatever the tray holds is the same
-    fault wearing the other sign — and the tray is opened on a page that has an ask, so a
-    note that never renders at all could not pass either.
-    """
+def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
+    """Finishing a page preserves the tray's route back through the answer."""
     page, errors = open_page(
         browser,
         serve(
@@ -2188,9 +2387,6 @@ def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    note = page.locator(".lf-decisions-panel .lf-empty")
-    expect(note).to_have_count(0)
-
     # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
@@ -2198,6 +2394,36 @@ def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
     page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-decisions-answer")).to_have_text("First")
+    assert errors == []
+    page.close()
+
+
+def test_an_asks_tray_says_when_a_revision_removes_its_last_ask(browser, serve):
+    """An empty inventory says the tray rendered, rather than looking broken."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+        '<lf-options id="only" choose>'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+    )
+    url = serve(source)
+    page, errors = open_page(browser, live_url(url))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    note = page.locator(".lf-decisions-panel .lf-empty")
+    expect(note).to_have_count(0)
+
+    stamp_page(
+        serve.page_dir,
+        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
+        "remove the last ask",
+    )
+    wait_for_revision(page, 2)
     expect(page.locator("button.lf-decisions-row")).to_have_count(0)
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(note).to_be_visible()
@@ -3578,8 +3804,21 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     )
     assert key_faces[0] == key_faces[1], key_faces
     version = page.locator(".lf-version")
-    expect(version).to_have_attribute("aria-keyshortcuts", "v")
-    expect(version).to_have_attribute("title", re.compile(r"\(v\)$"))
+    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
+    expect(page.locator(".lf-latest-chip")).to_have_attribute(
+        "title", re.compile(r"\(g V v\)$")
+    )
+    # A numbered destination changes the live chord's progress, not the complete route
+    # this control exposes.
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    expect(page.locator(".lf-keyline")).to_contain_text("Page map locations")
+    expect(page.locator(".lf-latest-chip")).to_have_attribute(
+        "title", re.compile(r"\(g V v\)$")
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r" · c$")
     )
@@ -3598,10 +3837,10 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     expect(page.locator(".lf-help")).not_to_contain_text("Go to the Threads panel")
 
     page.keyboard.press("Escape")
-    expect(version).not_to_have_attribute("aria-keyshortcuts", "v")
-    expect(version).not_to_have_attribute("title", re.compile(r"\(v\)$"))
+    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).not_to_have_attribute("title", re.compile(r"\(g V\)$"))
     expect(page.locator(".lf-latest-chip")).not_to_have_attribute(
-        "title", re.compile(r"\(v v\)$")
+        "title", re.compile(r"\(g V v\)$")
     )
     expect(page.locator(".lf-general textarea")).not_to_have_attribute(
         "placeholder", re.compile(r" · c$")
@@ -3641,7 +3880,8 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     expect(create).to_have_attribute("data-lf-available", "true")
     create.click()
     expect(page.locator(".lf-help")).to_be_hidden()
-    expect(version).to_have_attribute("aria-keyshortcuts", "v")
+    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
     expect(page.locator(".lf-general textarea")).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$")
@@ -4919,7 +5159,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
             String(Number(control.dataset.shortcutClicks || 0) + 1);
         })"""
     )
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
     expect(version).to_have_attribute("data-shortcut-clicks", "1")
     page.keyboard.press("Escape")
@@ -5037,6 +5277,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
     ).to_have_attribute("aria-label", "g then Shift+g")
+    versions_route = help_el.locator(
+        'tr[data-lf-command="version.open"] .lf-key-sequence'
+    )
+    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
+    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
     chord_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(chord_control).to_have_class(re.compile(r"\blf-chord-control\b"))
     expect(chord_control.locator("td").first).to_have_css("border-top-style", "solid")
@@ -5477,27 +5722,27 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     line = page.locator(".lf-keyline")
     decisions = page.locator(".lf-decisions")
 
-    # The premise, from the reader's list itself: the seated ask has left it, the picked
-    # group was never on it, and the suggestion is what remains to be counted.
-    expect(decisions).to_have_text("Asks (1)")
+    # The completion count includes every active Ask: the authored pick is complete;
+    # the seated Ask and suggestion are not.
+    expect(decisions).to_have_text("Asks 1/3")
     decisions.click()
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    # Which row, not just how many: one row is also what a build listing the picked group
-    # and dropping the suggestion would show.
+    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
+    expect(
+        page.locator('.lf-decisions-row[data-lf-at="shape-decision"]')
+    ).to_have_count(1)
+    expect(
+        page.locator('.lf-decisions-row[data-lf-at="picked-decision"]')
+    ).to_have_count(1)
     expect(page.locator('.lf-decisions-row[data-lf-at="sug-window"]')).to_have_count(1)
 
     # The reader is standing in it all the same — and first with the tray still open, the
-    # one state where the ring has a second surface to reach for and this decision has no row
-    # on it. `markHere` looks its row up by id and paints the row too; there is none, and
-    # the scroll that brings a row into view is the tray's own reading. So the decision wears
-    # the ring alone, and the tray goes on listing what the reader owes rather than
-    # gaining a row for where they happen to be standing.
+    # one state where the ring has a second surface to reach: the inventory row.
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    assert page.locator(".lf-decisions-row[data-lf-decision]").count() == 0, (
-        "the tray drew a here-ring on a row for a decision it does not list"
-    )
+    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
+    expect(
+        page.locator('.lf-decisions-row[data-lf-at="shape-decision"]')
+    ).to_have_attribute("data-lf-decision", "1")
     page.evaluate("() => document.activeElement?.blur()")
     decisions.click()
 
@@ -5505,9 +5750,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
-    # The count says no place for it: a number there is a place in the walk's list, and
-    # this decision is off it while the agent owes the seat its next word.
-    expect(decisions).to_have_text("Asks (1)")
+    # The count is completion, not the open walk's position, so focus leaves it stable.
+    expect(decisions).to_have_text("Asks 1/3")
 
     # Answering hands the question back, and the count moves while the ring does not.
     # Focus is not touched again from here, so the ring read below is the one painted
@@ -5530,9 +5774,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             },
         )
     told(page)
-    # Back on the list, the standing the ring never dropped is now a place in it, so the
-    # count gains the place along with the number.
-    expect(decisions).to_have_text("Asks (1/2)")
+    # Back on the reader's open list, the same Ask is still incomplete, so the
+    # completion count remains stable.
+    expect(decisions).to_have_text("Asks 1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")

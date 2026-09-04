@@ -79,6 +79,7 @@ from render_support import (
     refuse,
     resized,
     round_trip,
+    sending,
     stale_report,
     stamp_page,
     stamp_version_file,
@@ -1210,7 +1211,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     # Answering takes it off with the focus still inside: the ring is for the question
     # the reader is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/5")
     expect(page.locator("[data-lf-decision]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
@@ -1311,16 +1312,10 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     # arrived on, so this location's first available Button accepts the suggestion. What
     # unfolds there is that press's own result rather than the arrival's, and the ladder
     # owes what it owed before: one Escape lets go of where the press left the reader.
-    sends = _traffic(page).sends
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
-    _until(
-        page,
-        lambda traffic: traffic.sends > sends,
-        "accepted the addressed suggestion",
-    )
-    round_trip(page)
+    with sending(page, "the addressed suggestion's acceptance"):
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        page.keyboard.press("2")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
@@ -1407,7 +1402,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
 
     page, errors = open_page(browser, url)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/4")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in [
@@ -3548,7 +3543,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     decisions = page.locator(".lf-decisions")
-    expect(decisions).to_have_text("Asks (2)")
+    expect(decisions).to_have_text("Asks 0/2")
 
     page.keyboard.press("a")
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -3598,13 +3593,14 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     )
 
     page.locator("#tq-redis").click()
-    expect(decisions).to_have_text("Asks (1)")
+    expect(decisions).to_have_text("Asks 1/2")
 
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
-    expect(decisions).to_have_text("Asks (1)")
+    expect(decisions).to_have_text("Asks 1/2")
     page.locator("#tq-set .lf-done").click()
-    expect(decisions).to_be_hidden()
+    expect(decisions).to_have_text("Asks 2/2")
+    expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-notice")).to_have_text("Marked answered — recorded")
     # Said once, by the log's answer. An `answered` attribute on the group said it
@@ -3629,7 +3625,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # writes, so there is nothing for a version or a markup copy to fall behind.
     other, other_errors = open_page(browser, url)
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect(other.locator(".lf-decisions")).to_be_hidden()
+    expect(other.locator(".lf-decisions")).to_have_text("Asks 2/2")
     assert (
         render_checks_model.evaluate_probe(
             other, "undeclaredAttrs", page_registry(other)
@@ -3643,7 +3639,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # same standing projection opens the decision again. The selection is another facet,
     # so it survives that rebuild.
     undo(page)
-    expect(decisions).to_have_text("Asks (1/1)")
+    expect(decisions).to_have_text("Asks 1/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
@@ -3898,7 +3894,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_DECISIONS[0])
     page, errors = open_page(browser, url)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
 
     events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "claude", "parent": "c-which"}
@@ -4091,7 +4087,7 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     """A typed host request locks its siblings until its exact receipt arrives."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/5")
     available = operations.evaluate(
         """async holder => {
           const leaf = await import('/runtime/widget-api.js');
@@ -4103,7 +4099,26 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     )
     assert available == [True, False]
 
+    page.locator(".lf-decisions").click()
+    request_row = page.locator(
+        '.lf-decisions-row[data-lf-at="dedupe-operations-decision"]'
+    )
+    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
+    page.evaluate(
+        """() => {
+          window.__lfFirstRequestAnswer = new Promise(resolve => {
+            document.addEventListener('lf-actions', () => queueMicrotask(() => {
+              resolve(document.querySelector(
+                '[data-lf-at="dedupe-operations-decision"] .lf-decisions-answer'
+              ).textContent);
+            }), {once: true});
+          });
+        }"""
+    )
     operations.get_by_role("button", name="Restart with a fresh worker").click()
+    assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
+        "Restart with a fresh worker"
+    ), "the open Asks tray missed the package's first request projection"
     round_trip(page)
     requests = [
         event
@@ -4122,7 +4137,12 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
         },
     )
     expect(operations).to_contain_text("restart requested · waiting for the host")
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (4)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/5")
+    expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
+    expect(request_row.locator(".lf-decisions-answer")).to_have_text(
+        "Restart with a fresh worker"
+    )
+    page.locator(".lf-decisions").click()
     expect(operations.get_by_role("button")).to_have_count(3)
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'true')"
@@ -4144,7 +4164,7 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     expect(operations).to_contain_text(
         "restart succeeded · Started w-9 on the preserved branch"
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (4)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/5")
     expect(page.locator("#atlas-record")).to_contain_text(
         "restart succeeded · Deduplicate the corpus snapshot"
     )
@@ -4170,10 +4190,10 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     )
     page, errors = open_page(browser, live_url(serve(first)))
     operations = page.locator("#commands")
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
     operations.get_by_role("button", name="Restart").click()
     round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -4202,7 +4222,7 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator("#command-decision")).to_contain_text("Second instruction")
     expect(operations).not_to_contain_text("restart succeeded")
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
     expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -4231,7 +4251,7 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
     assert "1\nRestart" in key_line(page)
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (0)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
 
     assert errors == []
     page.close()
@@ -4280,14 +4300,14 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         },
     )
     told(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (6)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/6")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     operations = page.locator("#thread-commands")
     operations.get_by_role("button", name="Restart").click()
     round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/6")
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
     request = next(
         event
@@ -4307,7 +4327,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     )
     assert result.exit_code == 0, result.output
     told(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (6/6)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/6")
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(operations).to_contain_text("restart failed")
 
@@ -4341,7 +4361,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     )
     wait_for_revision(page, 2)
     expect(operations).to_contain_text("restart succeeded")
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/6")
     assert errors == []
     page.close()
 
@@ -4408,7 +4428,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     operations = page.locator("#dedupe-operations")
     operations.get_by_role("button", name="Park it for tomorrow").click()
     round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (4)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/5")
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -4437,7 +4457,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     expect(operations).to_contain_text(
         "park failed · Branch is protected by another review"
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/5)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/5")
     expect(operations.get_by_role("button")).to_have_count(3)
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'false')"
@@ -4463,7 +4483,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
     controls.get_by_role("button", name="Save").click()
     round_trip(page)
-    expect(page.get_by_role("button", name="Asks (4)")).to_be_visible()
+    expect(page.get_by_role("button", name="Asks 1/5")).to_be_visible()
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
@@ -4473,7 +4493,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    expect(page.get_by_role("button", name="Asks (4)")).to_be_visible()
+    expect(page.get_by_role("button", name="Asks 0/4")).to_be_visible()
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-pending")
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
@@ -4497,7 +4517,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(head).to_contain_text("5 workers")
     expect(head).to_contain_text("1 quiet")
     expect(head).to_contain_text("5 stopped")
-    expect(page.get_by_role("button", name="Asks (5)")).to_be_visible()
+    expect(page.get_by_role("button", name="Asks 0/5")).to_be_visible()
     expect(page.locator("#hub-plan > .lf-fleet-view")).to_contain_text(
         "Fleet · 5 live workers"
     )
@@ -4729,7 +4749,7 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
         flags=re.DOTALL,
     )
     page, errors = open_page(browser, serve(html))
-    expect(page.get_by_role("button", name="Asks (1)")).to_be_visible()
+    expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
     expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
     assert errors == []
@@ -5217,7 +5237,7 @@ def test_project_widget_can_join_the_orchestration_projection(
     expect(page.locator("#hub > .lf-stopped-view")).to_contain_text(
         "Custom project goal"
     )
-    expect(page.get_by_role("button", name="Asks (1)")).to_be_visible()
+    expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
     assert errors == []
     page.close()
 

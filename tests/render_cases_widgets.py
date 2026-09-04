@@ -81,14 +81,12 @@ PART_DIAGRAM_PAGE = leaf_page(
 <lf-diagram id="flow" parts="node:S node:H"><pre>
 graph LR
   S[Start request] --> H[Handle request] --> U[Unlisted result]
-  click H href "https://example.com/handler" "Open handler"
 </pre></lf-diagram>
 """,
 )
-# The two shapes besides a flowchart whose written ids reach the drawing. The state
-# machine carries a composite state, which mermaid draws under the author's own id
-# rather than the one it mints for a plain node, and the entity carries attributes, so
-# the box holds a table of text the reader must not be handed as a label.
+# Every supported structural diagram whose authored ids reach a drawn box. State
+# machines carry nested boxes and ER entities carry attribute tables, while sequence
+# and class diagrams exercise source ids outside the flowchart renderer.
 TYPED_PARTS_PAGE = leaf_page(
     "typed diagram parts",
     """
@@ -112,12 +110,33 @@ erDiagram
 </pre></lf-diagram>
 <lf-diagram id="path" parts="node:A"><pre>
 graph LR
-  A["`**Bold** and _plain_`"] --&gt; B[after]
+  A["Bold and plain"] --&gt; B[after]
+</pre></lf-diagram>
+<lf-diagram id="exchange" parts="node:Reader"><pre>
+sequenceDiagram
+  participant Reader
+  participant Server
+  Reader-&gt;&gt;Server: Request
+</pre></lf-diagram>
+<lf-diagram id="model" parts="node:Job"><pre>
+classDiagram
+  class Job {
+    +run()
+  }
+  class Runner
+  Runner --&gt; Job
+</pre></lf-diagram>
+<lf-diagram id="trend"><pre>
+xychart-beta
+  title "Checks"
+  x-axis [One, Two, Three]
+  y-axis "Complete" 0 --&gt; 12
+  line [4, 9, 12]
 </pre></lf-diagram>
 """,
 )
-# One state inserted above the anchored one, which moves the id mermaid mints for it
-# from `state-Queued-1` to `state-Queued-2`. The authored token does not move.
+# One state inserted above the anchored one, which rebuilds the drawing around it. The
+# authored token does not move.
 TYPED_PARTS_V2 = leaf_page(
     "typed diagram parts",
     """
@@ -140,6 +159,27 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
+<lf-diagram id="exchange" parts="node:Reader"><pre>
+sequenceDiagram
+  participant Reader
+  participant Server
+  Reader-&gt;&gt;Server: Request
+</pre></lf-diagram>
+<lf-diagram id="model" parts="node:Job"><pre>
+classDiagram
+  class Job {
+    +run()
+  }
+  class Runner
+  Runner --&gt; Job
+</pre></lf-diagram>
+<lf-diagram id="trend"><pre>
+xychart-beta
+  title "Checks"
+  x-axis [One, Two, Three]
+  y-axis "Complete" 0 --&gt; 12
+  line [4, 9, 12]
+</pre></lf-diagram>
 """,
 )
 PART_DIAGRAM_V2 = leaf_page(
@@ -153,7 +193,6 @@ graph LR
   S[Start request]
   S --> H
   H --> U
-  click H href "https://example.com/handler" "Open handler"
 </pre></lf-diagram>
 """,
 )
@@ -205,7 +244,7 @@ DIAGRAM_ROOM = """() => {
              scrolls: holder.scrollWidth > holder.clientWidth,
              sideways: document.body.scrollWidth - document.body.clientWidth };
 }"""
-# A diagram whose source mermaid refuses, which is the shape of every soft failure: the
+# A diagram whose renderer rejects the type, which is the shape of every soft failure: the
 # module replaces the element's body with the message and the source it choked on. Its
 # first line is the length a real source has, because that line is what the box under
 # test is floored at: written short, this page passed the assertion below with the rule
@@ -215,9 +254,10 @@ BROKEN_DIAGRAM_PAGE = leaf_page(
     """
 <h1 id="t">Broken</h1>
 <lf-diagram id="bad"><pre>
-sequenceDiagram
-  Reader-&gt;&gt;Server: POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater"}}
-  Server--&gt;&gt;&gt;--- {{{ not mermaid at all ]]]
+gantt
+  title POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater", column: "ready"}}
+  dateFormat YYYY-MM-DD
+  unsupported renderer type :done, 2026-01-01, 1d
 </pre></lf-diagram>
 """,
 )

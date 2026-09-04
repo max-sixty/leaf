@@ -83,7 +83,8 @@ Web Animations playback;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
 `runtime/version.js` owns version travel whole: the chooser control, its menu and the
-newest-version chip, its own `v` and the menu's key scope, forced live activation,
+newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
+live activation,
 version-comparison state, marks and chooser paint, version document loading,
 authored-root replacement, the persisted semantic reading landmarks carried across that
 replacement, and the page-block reading directional walks start from;
@@ -174,7 +175,7 @@ Each mutable fact has one writer:
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
-| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate centring |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -1167,22 +1168,23 @@ focus ring and the enclosing thread keeps a subdued outline.
 `lf-mark-hover` answers a different question — which thread the pointer is
 indicating — and reads both surfaces in one frame. A card is the thread's view in
 the list the way a mark is its view in the prose, so resting on the card lights
-the passage exactly as resting on the passage lights it, and a reader sweeping a
-full panel is told what each comment is about without pressing anything. There is
-one answer rather than two because the pointer is in one place: `markAt` refuses a
-point that lands in the chrome, so `hoveredThreadOf` and the page's hit test
-cannot both name a thread. Both are read inside `refreshHover`'s frame, which is
-also what settles `:hover` — asking for it from inside the pointer event that
-moves it asks mid-move — and a second writer to this highlight would be
-overwritten by whichever frame ran last.
+the passage exactly as resting on the passage lights its bounded quote, and a reader
+sweeping a full panel is told what each comment is about without pressing anything. The
+semantic class stays on the card while its quote takes the wash: a long thread can span
+several viewports, while the clamped quote is the panel's compact representation of the
+passage. There is one answer rather than two because the pointer is in one place:
+`markAt` refuses a point that lands in the chrome, so `hoveredThreadOf` and the page's hit
+test cannot both name a thread. Both are read inside `refreshHover`'s frame, which is also
+what settles `:hover` — asking for it from inside the pointer event that moves it asks
+mid-move — and a second writer to this highlight would be overwritten by whichever frame
+ran last.
 
-The whole card answers, not the quote alone, because the card is where the eye is
-while it reads the comment. `body.lf-over-mark` stays with the page's own reading:
-it is the promise that a press here opens something, and over a card the press on
-offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
-question again on the way out as well as in, because the panel is one of the two
-surfaces this reads: closing it from the keyboard, with a hand resting on a card,
-takes that card out from under a pointer that never moved.
+`body.lf-over-mark` stays with the page's own reading: it is the promise that a press
+here opens something, and over a card the press on offer is the card's, which
+`.lf-quote` states for itself. `setPanel` asks the question again on the way out as
+well as in, because the panel is one of the two surfaces this reads: closing it from
+the keyboard, with a hand resting on a card, takes that card out from under a pointer
+that never moved.
 
 Hover state keeps both the semantic id and painted card node because reconciliation
 can replace one without changing the other. `paintAnchors` rebinds replaced ranges
@@ -1293,13 +1295,12 @@ an agent comment is a question and an agent reply's explicit `awaits` field mark
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.
 
-`scrollToThread` is the one travel every "show me that comment's passage" ends
-in. The target's own box first comes into view instantly, including inside a
-sideways scroller, then `moveScrollerBy` glides the exact mark to its final position in
-the region that holds it. The travel owns no standing or arrival state. Focus
-already supplies the durable answer through `paintStanding`, and a transient
-page effect does not observe, restart, or reconcile across the browser's
-scrolling operation.
+`scrollToThread` is the one travel every "show me that comment's passage" ends in. Each
+nested scrollport first reveals the exact range instantly on both axes without writing the
+document's position, then `moveScrollerBy` glides that range to its final position in the
+region that holds it. The travel owns no standing or arrival state. Focus already supplies
+the durable answer through `paintStanding`, and a transient page effect does not observe,
+restart, or reconcile across the browser's scrolling operation.
 
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer
@@ -1576,11 +1577,11 @@ activation owner.
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
   place;
 - `receipt` reports a move already made and offers no press. It keeps its icon and its
-  seat in the cluster, but gives up its ring, fill, hover lift, pointer, and tab stop. It
-  remains a `status` in the accessibility tree so the Page map can still land there and
-  name the phase.
+  circular Button silhouette and seat in the cluster, but gives up its hover lift,
+  pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
+  can still land there and name the phase.
 
-Ring weight distinguishes the three controls; a receipt has no ring. The shape stays
+Ring weight distinguishes immediate actions from the other fittings. The shape stays
 shared, with no chevron. A lone non-thread informational Button reveals its target
 directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
@@ -1590,13 +1591,15 @@ it room beside the source, the same press opens the full Threads surface. The th
 card is the only generated contextual pane, not a generic container for alternatives.
 
 Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
-rings, fills, and state marks keep their shared neutral treatment. State has a
-separate small corner mark: a dot for engaged, an open moving ring for busy (static
-under reduced motion), a diamond for failed, and a square for settled. Busy also sets
-`aria-busy="true"`; failed and settled action receipts need visible words, not color
-or shape alone. Standing reactions reuse the settled square in their margin palette
-and seated marks, so they remain distinct from hover without changing the shared
-ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
+rings, fills, and state marks keep their shared neutral treatment. An interactive
+Button's state has a separate small corner mark: a dot for engaged, an open moving ring
+for busy (static under reduced motion), a diamond for failed, and a square for settled.
+The mark is enough to state that a Button is busy, so the Button itself stays at full
+opacity and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled
+actions need visible words, not color or shape alone. A receipt's phase is its transient
+hover or focus label instead of a corner mark. Standing reactions reuse the settled
+square in their margin palette and seated marks, so they remain distinct from hover
+without changing the shared ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
 withdrawing a token returns its palette Button to idle.
 `marginActionState(control, state)` changes that axis without changing the verb, ring,
 or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
@@ -1633,20 +1636,22 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Every Button keeps one circular fitting, whether or not it draws the circle. Its label
-appears as transient chrome on hover or keyboard focus without changing the cluster's
-geometry. An open disclosure suppresses the label because the context it opened now
-names the Button's result. Labels for `disclosure` and `options` end in an ellipsis
-because they open something; action and receipt labels do not. The complete label
-remains in the DOM, and its accessible name tracks the fitting.
+Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
+hover or keyboard focus without changing the cluster's geometry. An open
+disclosure suppresses the label because the context it opened now names the Button's
+result. Labels for `disclosure` and `options` end in an ellipsis because they open
+something; action and receipt labels do not. The complete label remains in the DOM, and
+its accessible name tracks the control or status.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it
 belongs to the name alone. Painted beside the phase, the same words read as progress
 rather than position.
 
-Hover or focus on any fitting illuminates its exact target, including a cluster
-displaced by packing. Labels stay inside the viewport without moving the fitting.
+Hover or focus on any interactive fitting illuminates its exact target, including a
+cluster displaced by packing. Hovering a receipt shows its label without lifting it or
+claiming its target; a numbered Page-map arrival may still focus it and illuminate the
+target deliberately. Labels stay inside the viewport without moving the fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
 action through Page map; counting hidden DOM nodes is not evidence of reachability.
 
@@ -1993,9 +1998,9 @@ starts blue, then `h` turns blue in place when it is pressed. Escape returns to
 the destination menu before another Escape closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
-`versionsOffered` (there is a menu) answers for the key, the mode standing over
+`versionsOffered` (there is a menu) answers for the destination, the mode standing over
 the page, and the button; `versionsToWalk` (there is somewhere to step) answers
-for the menu's own scope. One predicate for both left `v` opening a menu on a
+for the menu's own scope. One predicate for both left `g V` opening a menu on a
 page whose way out no scope was live over. Where the platform owns the dismissal
 the mode's own rows still have to be live over the same page, since a mode with
 no live row is a claim the surfaces never hear. A section merges the rows of
@@ -2371,25 +2376,28 @@ box rather than each of its words.
 
 A press that acts on where the reader is standing reads it through
 `standingItem`: the unanswered decision where focus is on a control that works it — a
-pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
-own reading. It answers nothing in the chrome, where a reader is working on the
-page rather than standing in it.
+pick, a ✓, a mark — an answered decision on its explicit review arrival, and the
+innermost item everywhere else, which is the ⌥ aim's own reading. It answers nothing
+in ordinary chrome, where a reader is working on the page rather than standing in it.
 
-Unanswered rather than open: `standingIn` reads `unansweredDecisions`, not `openDecisions`.
-The two part on a widget whose own seat is mid-conversation with the agent, which
-leaves the reader's list while its pick stays unmade and its controls stay live.
+Semantic rather than merely open: `standingIn` first reads `unansweredDecisions` to
+preserve the special case below, then `allDecisions` only for an answered Ask's tray
+row or the semantic focus that row lands on, so the Ask can still be worked without
+turning focus on one of its options into focus on the whole question. Neither reading
+is merely `openDecisions`. The unanswered and reader lists part on a widget whose own
+seat is mid-conversation with the agent, which
+leaves the reader's worklist while its pick stays unmade and its controls stay live.
 Following the list took the ring off that widget the moment the remark was sent and
 moved `c` down to whichever option the focus rested on — a second thread on the
 child rather than the next line of the reader's own — and the agent's reply put both
-back, with nothing the reader did moving either. An answered decision parts from neither
-list, so a picked group gains no ring, and a press from one of its picks names the
-option under the focus rather than the question.
+back, with nothing the reader did moving either. An answered decision leaves both
+worklists but stays in `allDecisions`, so a tray row can return the reader to it and
+the same Ask-local numeric actions can revise its answer.
 
-The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to and the
-tray does not list, which is the accepted cost: the walk and the tray are the reader's
-list and this is not. Nothing strands the reader there — `markHere` looks its tray row
-up by id and finds none, the same as on every page with the tray shut, and the Escape
-rung reads focus rather than the list, so the way out is the one they always have.
+The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to.
+The tray does list it: the walk is a worklist, while the tray is the complete route
+through the active Ask inventory. The Escape rung still reads focus rather than either
+list, so the way out is the one it always has.
 
 Working a decision and standing in one are different facts, and `markHere`'s ring
 answers the second. A reader who tabbed to a link inside a question has named
@@ -2406,17 +2414,16 @@ than for the container's class, because a resolved thread is built by the same
 function and wears the same class while having no box to reach, and a collapsed
 one answers the same honest way.
 
-The banner's Asks count is the ring in numbers. While the reader stands in an ask
-on the reader's list it says which of how many — `Asks (3/7)` — and `sayAsks` paints
-it from the same `standingIn` reading and the same `openDecisions` list as the ring
-and the tray row, so the three cannot name different places. Leaving the ask
-returns the bare count the way it takes the ring away. An ask the ring can mark
-but the walk will not step to shows the bare count, because a number is a place in
-the walk's list.
+The banner's Asks count is durable progress: `Asks 3/7` means three of the seven
+active Decisions are answered. `allDecisions` supplies the denominator and
+`unansweredDecisions` supplies what remains outside the numerator, so moving focus
+or walking the page changes neither number. At 7/7 the same button stays available
+and takes the positive treatment; it is both the completion signal and the route back
+through the answers.
 
 `landed` stores where the decision walk last arrived. This is distinct from focus:
-clicking elsewhere removes the focus-derived ring, and the count's place with it,
-without erasing the walk's useful continuation point.
+clicking elsewhere removes the focus-derived ring without erasing either the walk's
+useful continuation point or the answer progress in the banner.
 
 `shownParts` supplies ring targets when a page styles a decision with
 `display: contents`. A normal boxed decision wears one outline on its own box.
@@ -2545,9 +2552,11 @@ key it disables.
 `aria-keyshortcuts` is another projection of the register. Element scopes expose
 their currently available rows, including the scope's capability gate, and a
 row's `control` exposes the key that duplicates it. `Mod` expands to both
-Meta and Control because the dispatcher
-accepts both. Call `paintKeys` when a state change moves row liveness so this
-projection and the visible surfaces change together.
+Meta and Control because the dispatcher accepts both. The attribute cannot express a
+sequential chord: spaces separate alternatives. An associated `control` in a chord
+scope therefore omits `aria-keyshortcuts` and exposes the complete route through its
+title and the keyboard reference. Call `paintKeys` when a state change moves row
+liveness so this projection and the visible surfaces change together.
 
 An overlay may become stale while open. If a row goes dead, its dispatch no
 longer runs. A newly live row may wait until the reference is reopened. Do not
@@ -2599,9 +2608,10 @@ Both entry controls call the same tray setter.
 Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
 `g L` may exchange a standing panel or tray for another; their return frame restores
 that prior workspace and re-resolves its semantic row when reconciliation rebuilt it.
-`g M` uses the same frame for the complete Page-map sheet. Direct destinations
-therefore restore both exact standing and workspace state rather than merely focusing
-the destination's banner control after closing it.
+`g M` uses the same frame for the complete Page-map sheet. `g V` contributes the
+version menu's own return frame to that destination vocabulary. Direct destinations
+therefore restore the standing their owner displaced rather than merely focusing the
+destination's banner control after closing it.
 
 `restoreTray` runs after all declarations exist and after the first projection
 can populate state-dependent rows. It calls its supplied `beforeOpen` policy to
@@ -2609,14 +2619,15 @@ retire Threads, then presents the remembered tray directly without replaying
 opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
 tray.
 
-Decision rows come from local `x-awaits` sources and ready holders declaring
-`x-request.decision`, not from a list of decision tags. Where an `x-awaits` source is
-nested in an `x-decision` region, the row names the region: its heading, context, and
-evidence are the decision the reader is being sent to, while the source remains
-the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-tray row travels through the same decision-arrival function as `a` and `A`, so the
-panel and directional walk agree about focus, reveal, arrival placement, and
-`landed`.
+Decision rows come from every active local `x-awaits` source and holder declaring
+`x-request.decision`, answered or open, not from a list of decision tags. Where a source
+is nested in an `x-decision` region, the row names the region: its heading, context, and
+evidence are the decision the reader is being sent to, while the source remains the
+owner of the answer. `itemSays` supplies each row's own label and the owned command
+scope's `options.answer` supplies its current answer. Selecting a tray row travels through
+the same decision-arrival function as `a` and `A`, so the panel and directional walk agree
+about focus, reveal, arrival placement, and `landed`; only the tray's list is wider,
+preserving answered routes for review and revision.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
 aligned and the one the ring names. The widget's contributed actions are addressable
@@ -2654,9 +2665,10 @@ action in the log cannot substitute for that revision. Only then may the agent
 resolve the original thread. Threads owns the reader-facing clarification; the
 page's Decision remains the proposal with the agent rather than counting both.
 
-That combined reading is what `openDecisions` returns, so the
-banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
-list, and a request the agent owes the next word on does not belong on one.
+That combined reading is what `openDecisions` returns, so the `a`/`A` walk follows the
+reader's worklist and a request the agent owes the next word on does not belong on it.
+The banner and tray instead use `allDecisions`, the current page-and-thread inventory
+that retains an answered action Decision and a request throughout its lifecycle.
 
 Three readings ask the other question — whether the request is *answered* — and all
 say so by emptying the seats (`answeredContext`, stated beside the shape rather than
@@ -2664,9 +2676,10 @@ by a caller reaching into it, so a member derived from those conversations later
 cannot escape the emptying). An action's `requires` is one: a conversation does not
 answer a question the widget holds no state for, and refusing a pick over the reader's
 own remark would refuse them the answer they were asked for. The version-response
-resolve gate is another. Where the reader is standing is the third, through
-`unansweredDecisions`; **Standing somewhere** owns it. Frozen thread markup seats no
-conversation of its own, so only an action answers there. A `rollup` instance is an
+resolve gate is another. Where the reader is standing preserves that reading first,
+then widens through `allDecisions` for answered-review routes; **Standing somewhere**
+owns it. Frozen thread markup seats no conversation of its own, so only an action
+answers there. A `rollup` instance is an
 aggregate-only owner: it awaits when any nearest local decision or child roll-up
 awaits, but it never enters the visible list. The standing projection keeps every
 open local member; an enclosing `x-decision` replaces that member only on the
@@ -2681,7 +2694,7 @@ region.
 
 | Form | Meaning | Current routes |
 | --- | --- | --- |
-| `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map |
+| `g` + uppercase mnemonic | The mnemonic completes a direct destination. | `g T` Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map, `g V` Versions |
 | `g` + lowercase mnemonic + digit | The mnemonic selects a numbered list; the digit selects one of up to nine members. | `g m 1` Page-map location, `g t 1` tab, `g h 1` hyperlink, `g f 1` fold |
 
 Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
@@ -2698,9 +2711,11 @@ An edge is one place, so the second key completes the route; because every page 
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
 Completing a direct destination exchanges the transient chord for one return frame;
 Escape restores the exact standing and workspace captured before `g` armed.
-`DIRECT_DESTINATIONS` is the uppercase direct-destination vocabulary. Each entry declares
-its mnemonic, words, capability, and landing. `ADDRESSES` is the lowercase numbered
-page-list vocabulary. Each entry declares:
+`BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations the address owner
+itself implements. Another owner contributes a complete row through `directDestinations`,
+as version travel does for `g V`; both enter the same `GO` scope. Each destination declares
+its mnemonic, words, capability, landing, and return. `ADDRESSES` is the lowercase
+numbered page-list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
@@ -2731,9 +2746,10 @@ remains one decision point and is spoken as “g or G”; a sequence's accessibl
 pending keys remain neutral, matching ordinary bindings. The complete reference shows
 every route with all steps neutral because it describes rather than enacts them.
 
-`chordKeys` is the structured reading of how far a numbered address has come. The key
-line and page chips apply that progress to each complete route. The reference combines
-the standing-page prefix with each row's `completeChordSteps` and shows the result at rest.
+`chordPrefix` is the stable start of every route. Control titles and the reference combine
+it with the destination row; the reference uses `completeChordSteps` where a row has more
+than one remaining step. `chordKeys` adds the named list to that prefix as the structured
+reading of current progress, which the key line and page chips apply to each complete route.
 
 Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
 nine document members, so those identities do not change as the reader scrolls and an
@@ -2932,8 +2948,12 @@ page restores; a look at a list is not one.
 that hides the destination and finishes an outgoing resolution fold before opening
 the resolved disclosure. A thread opens in its reply box, or on its card when
 resolved; a message takes focus at its own words so Tab reaches its controls.
-A thread too tall for its scrollport reveals its reply area. The explicit `t`/`T`
-walk remains on cards; Enter starts a reply and Escape returns to the card.
+A thread too tall for its scrollport starts at the earliest complete content block that
+still leaves its reply area visible. That puts the first visible content on a clean boundary
+instead of leaving an arbitrary partial message line below the pinned heading. The transient
+arrival flash belongs to the revealed target — short card, reply area, message, or oversized
+editor — rather than to a long card spanning beyond the scrollport. The explicit `t`/`T` walk
+remains on cards; Enter starts a reply and Escape returns to the card.
 
 A reply send keeps its editor and actions visible only while the reader remains
 there. Moving to another input, closing the panel, or scrolling away relinquishes

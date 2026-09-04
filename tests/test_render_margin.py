@@ -19,8 +19,6 @@ from render_support import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
-    _traffic,
-    _until,
     compare_with,
     leaf_page,
     live_url,
@@ -31,6 +29,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -564,10 +563,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     )
     take_back = sheet.locator(f'[data-lf-map-button$=":take-back:{reaction["id"]}"]')
     expect(take_back).to_have_attribute("aria-label", "this — take it back")
-    sends = _traffic(page).sends
-    take_back.click()
-    _until(page, lambda traffic: traffic.sends > sends, "withdrew the spilled reaction")
-    round_trip(page)
+    with sending(page, "the withdrawal of the spilled reaction"):
+        take_back.click()
     expect(sheet).to_be_hidden()
     expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]
@@ -929,6 +926,100 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     page.close()
 
 
+def test_margin_target_hover_requires_pointer_movement(browser, serve):
+    """Page motion under a parked pointer cannot take ownership from the keyboard."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 720)
+    margins_laid_out(page)
+    host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
+    initial = host.bounding_box()
+    pointer = {"x": int(initial["x"] + initial["width"] / 2), "y": 70}
+    assert not initial["y"] < pointer["y"] < initial["y"] + initial["height"], (
+        "the pointer starts inside the Ask margin host"
+    )
+    page.mouse.move(pointer["x"], pointer["y"])
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press("1")
+    page.keyboard.press("Escape")
+
+    page.wait_for_function(
+        """({x, y}) => {
+          const host = document.querySelector(
+            '[data-lf-margin-for="bg-choice-ask"]'
+          );
+          const box = host?.getBoundingClientRect();
+          return document.activeElement === document.body && box &&
+            box.left < x && x < box.right && box.top < y && y < box.bottom;
+        }""",
+        arg=pointer,
+    )
+    target = page.locator("#bg-choice-ask")
+    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
+        "moving the margin under a stationary pointer claimed pointer ownership"
+    )
+
+    page.mouse.move(pointer["x"] + 1, pointer["y"])
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    assert errors == []
+    page.close()
+
+
+def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
+    """Replacing a hovered margin host cannot transfer its pointer ownership."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 720)
+    margins_laid_out(page)
+    target = page.locator("#bg-draft")
+    target.scroll_into_view_if_needed()
+    host = page.locator('[data-lf-margin-for="bg-draft"]')
+    box = host.bounding_box()
+    pointer = {
+        "x": int(box["x"] + box["width"] / 2),
+        "y": int(box["y"] + box["height"] / 2),
+    }
+    page.mouse.move(pointer["x"], pointer["y"])
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+
+    draft = target.element_handle()
+    old_host = host.element_handle()
+    assert draft is not None and old_host is not None
+    draft.evaluate("node => node.remove()")
+    assert not old_host.evaluate("node => node.isConnected")
+    page.evaluate(
+        "node => document.querySelector('#bg-replace').after(node)",
+        draft,
+    )
+    page.wait_for_function(
+        """({x, y}) => {
+          const host = document.querySelector('[data-lf-margin-for="bg-draft"]');
+          const box = host?.getBoundingClientRect();
+          return host?.isConnected && host.checkVisibility() && box &&
+            box.bottom > 0 && box.top < innerHeight &&
+            !(box.left < x && x < box.right && box.top < y && y < box.bottom);
+        }""",
+        arg=pointer,
+    )
+    assert page.evaluate(
+        "old => document.querySelector('[data-lf-margin-for=\"bg-draft\"]') !== old",
+        old_host,
+    )
+    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
+        "the replacement host inherited pointer ownership from its disconnected peer"
+    )
+
+    replacement = page.locator('[data-lf-margin-for="bg-draft"]')
+    replacement_box = replacement.bounding_box()
+    page.mouse.move(
+        int(replacement_box["x"] + replacement_box["width"] / 2),
+        int(replacement_box["y"] + replacement_box["height"] / 2),
+    )
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    assert errors == []
+    page.close()
+
+
 def test_g_m_presses_the_first_button_at_each_location(browser, serve):
     """A location address has the same native press as its first available Button."""
     page, errors = open_page(
@@ -951,22 +1042,15 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         "button", name="Accept the suggested change: the second phrase", exact=True
     )
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
-    sends = _traffic(page).sends
-
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("1")
-    _until(
-        page, lambda traffic: traffic.sends > sends, "accepted the addressed suggestion"
-    )
-    round_trip(page)
+    with sending(page, "the addressed suggestion's acceptance"):
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        page.keyboard.press("1")
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
-    sends = _traffic(page).sends
-    page.keyboard.press("z")
-    _until(page, lambda traffic: traffic.sends > sends, "undid the addressed action")
-    round_trip(page)
+    with sending(page, "the withdrawal of the addressed action"):
+        page.keyboard.press("z")
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
 
@@ -1160,7 +1244,7 @@ def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
     page.close()
 
 
-def test_settling_a_secondary_button_exposes_its_lifecycle(browser, serve):
+def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
     """A settled outcome and its unsettled handoff stay one engaged cluster."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
@@ -1174,7 +1258,7 @@ def test_settling_a_secondary_button_exposes_its_lifecycle(browser, serve):
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
-        options.get_by_role("button", name=re.compile(r"^Sent for "))
+        options.get_by_role("status", name=re.compile(r"^Sent for "))
     ).to_be_visible()
     expect(item.locator(".lf-margin-action:visible")).to_have_count(2)
     expect(
@@ -1643,15 +1727,18 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
     page.close()
 
 
-def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser, serve):
-    """A Button's look states its promise, and a receipt promises nothing to press.
+def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
+    browser, serve
+):
+    """A fitting keeps the Button family visible without promising a receipt press.
 
     Sent, Waiting for pickup, Picked up, and the standing Outcome all report a move
-    already made, so the Button is sewn flat and leaves the accessibility tree as a
-    status rather than a control. The walk still arrives, because the phase is what a
-    reader listening came for. Only a real claim — work the reader can watch — raises
-    the same Button back into a press, in the same seat, so the cluster's identity
-    survives the change of promise.
+    already made. Their fitting therefore keeps the circular silhouette and full ink,
+    while leaving the accessibility tree as a status rather than a control and showing
+    no hover lift. The walk still arrives, because the phase is what a reader listening
+    came for. A real claim — work the reader can watch — restores the same fitting's
+    activation semantics, in the same seat, so the cluster's identity survives the
+    change of promise.
     """
     page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
     page_dir = serve.page_dir
@@ -1667,11 +1754,15 @@ def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser,
     )
     marker.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    def face():
-        return marker.evaluate(
+    def face(control=marker):
+        return control.evaluate(
             """node => {
               const style = getComputedStyle(node);
+              const word = node.querySelector(':scope > .lf-margin-action-label');
+              const wordStyle = getComputedStyle(word);
               return {
+                tag: node.tagName,
+                offer: node.dataset.lfOffer,
                 behavior: node.dataset.lfBehavior,
                 role: node.getAttribute('role'),
                 icon: node.querySelector(':scope > .lf-margin-action-icon')
@@ -1682,42 +1773,77 @@ def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser,
                 background: style.backgroundColor,
                 border: style.borderTopColor,
                 ink: style.color,
+                opacity: style.opacity,
+                width: style.width,
+                wordOpacity: wordStyle.opacity,
+                wordPosition: wordStyle.position,
+                wordBackground: wordStyle.backgroundColor,
+                wordInk: wordStyle.color,
               };
             }"""
         )
 
-    muted = page.evaluate(
-        "() => getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--muted').trim()"
-    )
-    expected_ink = page.evaluate(
-        "muted => { const probe = document.createElement('span');"
-        " probe.style.color = muted; document.body.append(probe);"
-        " const read = getComputedStyle(probe).color; probe.remove(); return read; }",
-        muted,
-    )
+    def resolved_color(name):
+        return page.evaluate(
+            """name => {
+              const probe = document.createElement('span');
+              probe.style.color = `var(${name})`;
+              document.body.append(probe);
+              const read = getComputedStyle(probe).color;
+              probe.remove();
+              return read;
+            }""",
+            name,
+        )
 
-    def assert_receipt(phase):
-        expect(marker).to_have_attribute("data-identity-probe", "kept")
-        current = face()
+    expected_ink = resolved_color("--ink-2")
+    expected_paper = resolved_color("--paper")
+    expected_border = resolved_color("--border-2")
+    expected_label_ink = resolved_color("--paper")
+    expected_label_background = resolved_color("--ink")
+
+    def assert_receipt(phase, control=marker):
+        if control is marker:
+            expect(marker).to_have_attribute("data-identity-probe", "kept")
+        page.evaluate("() => document.activeElement.blur()")
+        page.mouse.move(0, 0)
+        expect(control.locator(":scope > .lf-margin-action-label")).to_be_hidden()
+        current = face(control)
         assert current == {
+            "tag": "SPAN",
+            "offer": "",
             "behavior": "receipt",
             "role": "status",
             "icon": RECEIPT_PHASES[phase],
             "word": phase,
             "tabIndex": -1,
             "cursor": "default",
-            "background": "rgba(0, 0, 0, 0)",
-            "border": "rgba(0, 0, 0, 0)",
+            "background": expected_paper,
+            "border": expected_border,
             "ink": expected_ink,
+            "opacity": "1",
+            "width": "32px",
+            "wordOpacity": "0",
+            "wordPosition": "absolute",
+            "wordBackground": expected_label_background,
+            "wordInk": expected_label_ink,
         }
-        named = re.compile(rf"^{re.escape(phase)},")
+        named = re.compile(rf"^{re.escape(phase)}(?:,| for )")
         expect(page.get_by_role("button", name=named)).to_have_count(0)
         expect(page.get_by_role("status", name=named)).to_have_count(1)
-        # The pointer finds nothing to lift, and the seat keeps the cluster's fitting.
-        marker.hover()
-        assert face() == current
-        assert marker.evaluate("node => getComputedStyle(node).width") == "32px"
+        # Hover reveals the full-strength label without dimming or lifting the fitting.
+        fitting = {
+            key: current[key] for key in ("background", "border", "ink", "opacity")
+        }
+        control.hover()
+        expect(control.locator(":scope > .lf-margin-action-label")).to_be_visible()
+        hovered = face(control)
+        assert {
+            key: hovered[key] for key in ("background", "border", "ink", "opacity")
+        } == fitting
+        assert hovered["wordOpacity"] == "1"
+        assert hovered["wordPosition"] == "absolute"
+        assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
 
     assert_receipt("Sent")
     result = Axe().run(
@@ -1769,6 +1895,41 @@ def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser,
     told(page)
     assert_receipt("Picked up")
 
+    # A direct action makes the acknowledgment a secondary reading. It keeps the same
+    # receipt semantics and full-strength circular fitting instead of falling back to a
+    # dim disclosure with an ellipsis, which is the feature gallery's Edit + Picked up
+    # arrangement.
+    page.evaluate(
+        """async () => {
+          const {offer, marginAction, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const control = marginAction(offer('button', ''), {
+            key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
+          });
+          control.classList.add('lf-receipt-primary-probe');
+          window.lfReceiptSecondary = registerMarginItem({
+            key: 'receipt-primary-probe', target: document.querySelector('#jobs'),
+            controls: control
+          });
+        }"""
+    )
+    secondary = page.locator(
+        '[data-lf-margin-for="jobs"] .lf-margin-reading-option[data-lf-kinds="outcome"]'
+    )
+    expect(marker).to_be_hidden()
+    expect(secondary).to_be_visible()
+    assert_receipt("Picked up", secondary)
+
+    page.evaluate("() => document.activeElement.blur()")
+    page.mouse.move(0, 0)
+    expect(page.locator("#jobs")).not_to_have_class(re.compile(r"lf-margin-target"))
+    secondary.hover()
+    expect(page.locator("#jobs")).not_to_have_class(re.compile(r"lf-margin-target"))
+    page.locator(".lf-receipt-primary-probe").hover()
+    expect(page.locator("#jobs")).to_have_class(re.compile(r"lf-margin-target"))
+    page.evaluate("() => window.lfReceiptSecondary.unregister()")
+    expect(marker).to_be_visible()
+
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1785,10 +1946,13 @@ def test_a_receipt_is_a_flat_button_and_an_active_claim_is_a_raised_one(browser,
 
     expect(marker).to_have_attribute("data-identity-probe", "kept")
     active = face()
+    assert active["tag"] == "SPAN"
+    assert active["offer"] == "button"
     assert active["behavior"] == "disclosure"
-    assert active["role"] is None
+    assert active["role"] == "button"
     assert active["icon"] == "activity"
     assert active["cursor"] == "pointer"
+    assert active["opacity"] == "1"
     assert active["background"] != "rgba(0, 0, 0, 0)"
     assert active["border"] != "rgba(0, 0, 0, 0)"
     expect(page.get_by_role("button", name=re.compile(r"^Active,"))).to_have_count(1)
@@ -2460,7 +2624,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()
-    outcome = options.get_by_role("button", name=re.compile(r"Sent for"))
+    outcome = options.get_by_role("status", name=re.compile(r"Sent for"))
     expect(outcome).to_be_visible()
     expect(preview).to_be_hidden()
     outcome.click()
@@ -3046,14 +3210,14 @@ def test_a_live_page_reserves_conversation_room_before_its_first_thread(
     page.close()
 
 
-def test_a_page_that_can_grow_a_button_reserves_its_rail_before_the_first_gesture(
+def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_gesture(
     browser, serve
 ):
     """The reader's first move must not be the gesture that pays for the margin.
 
-    Moving a card raises an acknowledgement Button at the page edge. Reserved only while
-    that Button stood, the strip arrived with the move and left again with the undo, and
-    the column moved 29px each way — for a control the page had always been going to
+    Moving a card raises an acknowledgment status at the page edge. Reserved only while
+    that status stood, the strip arrived with the move and left again with the undo, and
+    the column moved 29px each way — for a reading the page had always been going to
     offer. So the reservation is read off what the page declares, a tag whose registry
     entry has an action or work channel, and the column stands where it will stand
     before the reader touches anything.
@@ -3075,14 +3239,14 @@ def test_a_page_that_can_grow_a_button_reserves_its_rail_before_the_first_gestur
     round_trip(page)
     expect(page.locator("#col-fixed #card-ie")).to_have_count(1)
     margins_laid_out(page)
-    # Without a Button in the margin the readings below would agree for the wrong reason.
+    # Without a status in the margin the readings below would agree for the wrong reason.
     expect(page.locator(".lf-margin-item")).to_have_count(1)
     assert (
         page.locator("main").evaluate(
             "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
         )
         == column
-    ), "raising the acknowledgement Button moved the readable column"
+    ), "raising the acknowledgment status moved the readable column"
 
     undo(page)
     expect(page.locator("#col-wont #card-ie")).to_have_count(1)

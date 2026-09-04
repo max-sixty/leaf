@@ -386,11 +386,10 @@ customElements.define(
           .find((node) => node.matches(".lf-margin-action") && node.checkVisibility())
           ?.focus({ preventScroll: true });
       }
-      const decision = !this.dataset.lfState;
       commands(
         this,
         "On a suggested change",
-        (decision ? wanted : [])
+        wanted
           .filter((control) => control.matches?.(".lf-margin-action"))
           .map((control) => {
             const label = control.querySelector(
@@ -407,6 +406,12 @@ customElements.define(
               run: () => control.click(),
             };
           }),
+        {
+          answer: () => {
+            if (!this.dataset.lfState) return "";
+            return this.dataset.lfState === "accept" ? "Accepted" : "Rejected";
+          },
+        },
       );
     }
 

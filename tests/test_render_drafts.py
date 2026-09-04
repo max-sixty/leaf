@@ -44,6 +44,7 @@ from render_support import (
     refuse,
     resized,
     round_trip,
+    sending,
     sent_events,
     stamp_version_file,
     ticked,
@@ -1054,8 +1055,11 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Follow this discussion.")
-    page.keyboard.press("Enter")
-    round_trip(page)
+    # The comment's own send in the wire before the log names it. Without that the read
+    # below answers with the note the page opened on, and the reply this test is about is
+    # looked for under an id no thread wears.
+    with sending(page, "the comment the reply follows"):
+        page.keyboard.press("Enter")
 
     sent = events_model.read_events(serve.page_dir)[-1]
     reply = page.locator(

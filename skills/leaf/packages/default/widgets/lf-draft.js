@@ -194,19 +194,24 @@ customElements.define(
       // never offers it as the next press — the rule that keeps ⌥ click and F7 off it.
       // Declared on the element the reader stands on before the box exists, so opening a
       // draft is in the reference from the moment the page has one.
-      commands(this, "On a draft", [
-        {
-          id: "draft.edit",
-          keys: [],
-          control: () => this.#pencil,
-          decision: true,
-          label: "Edit",
-          does: "Edit the text in place",
-          line: "edit",
-          when: () => !this.#ta,
-          run: () => this.#pencil.click(),
-        },
-      ]);
+      commands(
+        this,
+        "On a draft",
+        [
+          {
+            id: "draft.edit",
+            keys: [],
+            control: () => this.#pencil,
+            decision: true,
+            label: "Edit",
+            does: "Edit the text in place",
+            line: "edit",
+            when: () => !this.#ta,
+            run: () => this.#pencil.click(),
+          },
+        ],
+        { answer: () => this.#body?.textContent?.trim() || "Empty" },
+      );
 
       this.#pencil = this.#marginButton(
         "edit",

@@ -82,10 +82,12 @@ When input arrives, read `references/event-batches.md` before processing it and
 
 ## Page contract
 
-Using Leaf should feel like playing a game. Sometimes the game is Snap, where
-the reader sees the match at once and picks it; sometimes it is Factorio, where
-the whole system is laid out and the reader moves its pieces. It is never a chore, so a
-reader can see what the page wants of them without reading it first.
+Using Leaf should feel like playing a game: the reader can see the objective,
+current state, and available moves before reading supporting detail. A
+quick-decision page puts its first Ask in the initial viewport. The Ask carries
+the short shared premise and alternatives it needs, while backing detail follows
+in a disclosure. A record or system page may expose the whole state and put each
+Ask where that state makes it answerable.
 
 The subject decides the shape. Use options for decisions, boards for movable
 work, milestones for stages, metrics for measurements, and prose where no other
@@ -103,11 +105,15 @@ guidance <page>` lists the available audiences, and `leaf page guidance <page>
 <audience>` prints one guide. Read the assigned audience before acting in that
 role. List the page's audiences and read `author` guidance when it is available.
 
-A decision sits where the page has just made it answerable, with its control beside
-the evidence it turns on and the rest of the page after it. A page that needs
-approval declares sign-off; an informative page does not. Save freely as the subject changes and
-stamp meaningful checkpoints. Use status detail for progress between revisions.
-Keep the waiter alive while work continues so comments can affect the next step.
+A decision keeps its control beside the evidence it turns on. Write related,
+independently answerable Asks as ordinary `lf-decision` elements in page order,
+so the complete page remains visible. The reader can press `a` to enter the Ask
+walk and `1`–`9` to answer the current Ask. Publish a dependent Ask after the prior
+answer instead of showing branches the reader cannot decide yet. A page that needs
+approval declares sign-off; an informative page does not. Save freely as the subject
+changes and stamp meaningful checkpoints. Use status detail for progress between
+revisions. Keep the waiter alive while work continues so comments can affect the next
+step.
 
 ## Conditional references
 

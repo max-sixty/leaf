@@ -864,9 +864,10 @@ minimum obligations:
 - A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
   return one token from ATTR and `lfVisualPart(part)` to return its current
   `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element supplies mark, travel, and aim
-  geometry. Aim follows a returned SVG element's painted primitives and uses the shown
-  box for other elements. The render gate refuses either missing method.
+  recorded as `anchor.visual`, and the returned element is the semantic target for marks,
+  travel, and aim. Marks and aim follow a returned SVG element's painted
+  primitives; other elements use the shown box. The render gate refuses either missing
+  method.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place. A
@@ -1466,9 +1467,9 @@ dismissal — still runs the surface's own route.
 A handle lives inside the region it draws, so a drawn region must not be its own
 scroll container: a scroller clips a handle straddling its border and carries it
 away with the content. A tray is a shell holding a `.lf-tray-list`, and every
-tray list reserves the key line's room. Wide content reads the shell's CSS value directly;
-there is no observed measurement loop or second number system to reconcile during a
-transition.
+tray list reserves the key line's room where their horizontal spans meet. Wide content
+reads the shell's CSS value directly; there is no observed measurement loop or second
+number system to reconcile during a transition.
 
 The banner and key line reserve their space in normal flow. A fixed or absolute
 chrome surface may lie above that reservation, but the reservation itself
@@ -2016,13 +2017,16 @@ The short, viewport-local hints form a prefix-free tree over one alphabet. Most 
 cost one letter; only the tail branches when the viewport holds more targets than the
 alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise across a
 scroll or revision. They are the whole route, so none may be dropped because its chip
-collides. A target whose visible box is strictly smaller and fully enclosed by another
-target steps its chip right once per enclosing box. An ancestor and descendant with the
-same visible box name one target: the innermost remains, matching direct aim. Equal boxes
-outside one containment chain stay at the same depth, and the collision pass separates
-their chips without inventing a hierarchy. Membership is fixed for the length of a
-scroll and re-read once it settles, so a target arriving mid-scroll is named at rest
-rather than on the frame it appears.
+collides. Each chip begins at its target's visible top-left corner. A target whose visible
+box is strictly smaller and fully enclosed by another target steps its chip right once per
+enclosing box. If that position crosses the key-line band and the target has visible room
+beside it, the chip moves into that room; otherwise it moves above the band. An ancestor
+and descendant with the same visible box name one target: the innermost remains, matching
+direct aim. Equal boxes outside one containment chain stay at the same depth, and the
+collision pass separates their chips without inventing a hierarchy or moving them beyond
+the viewport foot. Membership is fixed for the length of a scroll and re-read once it
+settles, so a target arriving mid-scroll is named at rest rather than on the frame it
+appears.
 
 Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses the
 last one announced. A viewport change that removes or renames that target clears the
@@ -2491,15 +2495,19 @@ The compact line wraps when chord rows need the room. Ordinary hints yield from 
 end on a window too narrow for them, but active chord rows do not; More is the one
 control that always survives.
 
-`syncLayout` reserves the line's whole footprint in each scroll region: the band from
-its top to the foot of the window, so its height, its own inset, a covering sheet's lift
-and the device's safe area are one measurement off the rendered box rather than four
-numbers to keep in step. A coarse pointer is drawn no line at all — there is no keyboard
-to advertise, and every hint would name a key the reader cannot press — so the footprint
-is zero and nothing reserves room for it. The line and its chips take no pointer events;
-the More control does, because it is the only pointer route to the reference and so to
-the character-shortcut preference, which cannot be made to depend on the character key
-it turns off.
+`syncLayout` reserves the line's footprint only in a scroll region whose horizontal span
+meets it. Each reservation is the band from the line's top to that region's own foot: the
+window for the document and trays, and the thread list's rendered bottom at the top of the
+complete panel foot. The line's height, inset, any lift and the device's safe area are
+therefore one measurement off the rendered box rather than four numbers to keep in step.
+Over a covering thread panel, the line starts at its ordinary bottom inset and rises above
+the panel foot only when their rendered rectangles collide; a thread list in another lane
+keeps its stylesheet inset and reserves nothing for the line. A coarse pointer is drawn no
+line at all — there is no keyboard to advertise, and every hint would name a key the reader
+cannot press — so the footprint is zero and nothing reserves room for it. The line and its
+chips take no pointer events; the More control does, because it is the only pointer route
+to the reference and so to the character-shortcut preference, which cannot be made to
+depend on the character key it turns off.
 
 The accessible More control and its `?` binding share one progressive route. The
 first activation unfolds additional current-scene rows into a shelf capped at two

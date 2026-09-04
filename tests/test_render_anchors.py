@@ -51,6 +51,7 @@ from render_support import (
     live_url,
     mark_point,
     open_page,
+    open_versions,
     panel_settled,
     pending_text,
     post_event,
@@ -2816,9 +2817,9 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
 
 def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     """A layer owes a way out over exactly the pages its way in is live on, and the
-    menu's two were live over different ones. `v` opened it wherever there was a version
+    menu's two were live over different ones. `g V` opened it wherever there was a version
     at all; the mode binding its Escape stood only above one. So on the commonest page
-    there is — a page with one version — `v` raised a menu no key could put down: the
+    there is — a page with one version — `g V` raised a menu no key could put down: the
     Escape chip read "back to the page", focus fell to body, and the menu stayed painted
     over the bar.
 
@@ -2836,8 +2837,12 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     line = page.locator(".lf-keyline")
 
     # One version: the menu opens, holds its one row, and Escape ends it.
+    page.keyboard.press("g")
     expect(line).to_contain_text("versions")
+    page.keyboard.press("Escape")
     page.keyboard.press("v")
+    expect(menu).to_be_hidden()
+    open_versions(page)
     expect(menu).to_be_visible()
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
@@ -2849,7 +2854,7 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
-    page.keyboard.press("v")
+    open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
     expect(origin).to_be_focused()
@@ -2865,7 +2870,7 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     # nowhere to step — is not offered beside them. Escape is the popover's own
     # dismissal and so is nobody's row to print; what the two presses above assert is
     # that it lands.
-    page.keyboard.press("v")
+    open_versions(page)
     # Both ways out, each saying which way it goes: on a one-version menu the reader is
     # at both boundaries at once and the line prints the pair.
     expect(line).to_contain_text("leave forward")
@@ -2883,7 +2888,7 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-version-row').length > 1"
     )
-    page.keyboard.press("v")
+    open_versions(page)
     expect(menu).to_be_visible()
     expect(line).to_contain_text("walk — marking changes")
     page.keyboard.press("Escape")
@@ -2988,7 +2993,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way g L opens the leaves tray, and lands
+    # g V opens it from anywhere on the page, the way g L opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.
@@ -2998,10 +3003,11 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # read would put the focus and the base on different rows, and the reader's next arrow
     # press would then move the base off the version they marked from — the whole reason
     # the two are one thing (focusVersionRow).
-    page.keyboard.press("v")
+    open_versions(page)
     expect(menu).to_be_visible()
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(btn).to_have_text("Δ v2 ▾")
+    expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
     # And walking back down to the version being read is the way off it, which is the row
     # an open lands on with nothing standing.
     page.keyboard.press("ArrowDown")
@@ -3011,7 +3017,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
 
@@ -3036,7 +3042,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # way. A press away from the menu is not a way back to the chooser — it is the reader
     # going somewhere else — and a close that hands focus to the bar whenever it finds none
     # takes them off the page they just pressed into. Escape says return; this does not.
-    page.keyboard.press("v")
+    open_versions(page)
     expect(menu).to_be_visible()
     page.mouse.click(30, 700)
     expect(menu).to_be_hidden()
@@ -3085,10 +3091,13 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     resized(page, 1207, 900)
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
-    for word in ["threads", "page down / up", "versions"]:
+    for word in ["threads", "page down / up"]:
         expect(line).to_contain_text(word)
+    page.keyboard.press("g")
+    expect(line).to_contain_text("versions")
+    page.keyboard.press("Escape")
 
-    page.keyboard.press("v")
+    open_versions(page)
     expect(menu).to_be_visible()
     row = page.locator('.lf-version-row[data-lf-version="2"]')
     expect(row).to_be_focused()
@@ -3151,7 +3160,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     # A comparison checkbox is the menu's internal Tab stop rather than part of its
     # arrow-key row walk. Reaching it must not be mistaken for leaving the popup.
     compared, compared_errors = open_page(browser, url.replace("/v1.html", "/v2.html"))
-    compared.keyboard.press("v")
+    open_versions(compared)
     compared.locator('.lf-version-row[data-lf-version="1"]').focus()
     compared.keyboard.press("Tab")
     comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
@@ -3178,7 +3187,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
     expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
 
-    compared.keyboard.press("v")
+    open_versions(compared)
     compared.locator('.lf-version-row[data-lf-version="2"]').focus()
     compared.keyboard.down("Shift")
     compared.keyboard.down("Tab")
@@ -3195,7 +3204,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
 
     page, errors = open_page(browser, url, pin=True)
 
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
     # Both keys on both surfaces, off the one declaration.
     expect(page.locator(".lf-keyline")).to_contain_text("⏎ / space")
@@ -3243,11 +3252,11 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     page.close()
 
 
-def test_the_current_page_is_the_chooser_key_twice(browser, serve):
+def test_the_current_page_has_a_menu_local_key(browser, serve):
     """A pinned version stays where the reader put it and offers the current page as a chip. The
-    keyboard reaches that chip's destination through the chooser rather than past it: v
-    opens the menu and the letter again takes the live page, by that row's own press, so
-    the key leaves through the door the pointer uses and the historical URL stays exact.
+    keyboard reaches that chip's destination through the chooser rather than past it: g V
+    opens the menu and its local v takes the live page, by that row's own press, so the key
+    leaves through the door the pointer uses and the historical URL stays exact.
 
     Which is the newest row, not the row the walk stands on — that one is Enter's, and a
     reader who has walked away from where they started must still be able to say "the
@@ -3273,7 +3282,7 @@ def test_the_current_page_is_the_chooser_key_twice(browser, serve):
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
     # which is far longer than a navigation would take to start.
-    page.keyboard.press("v")
+    open_versions(page)
     expect(menu).to_be_visible()
     ticked(page)
     assert page.url.endswith("pin"), "the press that opens the menu navigated"
@@ -3373,7 +3382,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # the span the rail draws and steps down it to the other, where nothing is older to
     # compare against. Landing on the version being read instead would put the base a
     # press away from moving under them.
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowDown")
@@ -3386,7 +3395,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # on, and the list stays up while the page marks behind it — the reader is reading
     # the note and the passages together.
     menu = page.locator(".lf-version-menu")
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 

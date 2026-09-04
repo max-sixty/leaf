@@ -60,6 +60,7 @@ from render_support import (
     mark_edges,
     nudge,
     open_page,
+    open_versions,
     opened_tab,
     page_at_rest,
     page_registry,
@@ -789,7 +790,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     # transient menu, it closes before painting over the next keyboard destination.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.keyboard.press("v")
+    open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
     needs = page.locator(".lf-needs")
@@ -2988,7 +2989,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
 
     # The versions menu, including the first-version case browser Escape now dismisses.
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
     sweep("in the versions menu")
     page.keyboard.press("Escape")
@@ -3945,7 +3946,7 @@ RING_WALKS = (
     # read, which is the last row, and the comparison press beside a row is a Tab forward
     # from the row above it. The walk is clamped, so a second press at the top moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("v", "ArrowUp", "ArrowUp"), ("corpus",)),
+    ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("i",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the

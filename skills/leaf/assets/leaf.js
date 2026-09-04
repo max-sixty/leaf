@@ -127,7 +127,8 @@
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
- * `g M` opens the complete Page map through the same door as the banner's Map control.
+ * `g M` opens the complete Page map, and `g V` opens Versions, each through the same
+ * door as its banner control.
  * A lowercase mnemonic starts a numbered document list, so `g m 3` is the third
  * Page-map location and `g h 3` is the third hyperlink; `g g` and `g G` are the page's
  * top and bottom edges.
@@ -2073,6 +2074,7 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   decisionRows,
   decisionsPanel,
   decisionsOffered,
+  directDestinations: [CHOOSER],
   banner,
   claimsEsc,
   el,
@@ -2719,8 +2721,6 @@ const DESIGN = {
 // Escape is the default promotion over this order, because the way out of a current scene
 // must survive beside its way in. A row can waive only that promotion when two local actions
 // on the current state belong together; the binding remains live and stays in the reference.
-// `CHOOSER` is the chooser's own key, declared beside the control it presses in
-// runtime/version.js and taken into this table by name.
 // Named for the same kind of reason: a mode standing over the page suspends the page's keys
 // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
 // rather than spelling "?" beside it — a fact about a binding written where the binding
@@ -2927,7 +2927,6 @@ const PAGE = {
     // hides a second way to somewhere; the press it was crowding out is the only way back
     // from where a press had just put the reader.
     GOTO,
-    CHOOSER,
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
       // than this row, so while it stands this one is shadowed off the line.
@@ -2991,7 +2990,7 @@ const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
 // the first page rather than going quiet on every one.
 for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
 // A control the keyboard also reaches names its key, and names it off the row. Three
-// tooltips spelled theirs in prose — "(a)", "(o)", "(v v)" — which is the field the key
+// tooltips spelled theirs in prose — "(a)", "(o)", "(g V v)" — which is the field the key
 // line's word used to be, a fact about a binding written somewhere the binding cannot
 // correct. `also` is where a row says which control it duplicates; its projection follows
 // liveness too, so a disabled decision does not advertise a shortcut the dispatcher has
@@ -3007,6 +3006,8 @@ function paintCoreControls() {
     "aria-label",
     returningToMore ? "Back to more shortcuts" : "Close keyboard reference",
   );
+  const controlShortcut = (scope, row) =>
+    [...(word(scope.chord) ?? []), labelOf(row)].filter(Boolean).join(" ");
   for (const scope of CORE)
     for (const row of scope.rows)
       if (row.also) {
@@ -3014,8 +3015,12 @@ function paintCoreControls() {
           row.also.dataset.lfKeyTitle = row.also.title;
         const active = live(row) && bindings(row).length > 0;
         row.also.title =
-          row.also.dataset.lfKeyTitle + (active ? ` (${labelOf(row)})` : "");
-        if (active)
+          row.also.dataset.lfKeyTitle +
+          (active ? ` (${controlShortcut(scope, row)})` : "");
+        // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
+        // alternatives. The complete chord remains in the visible hint and accessible
+        // keyboard reference instead of claiming its final press works alone.
+        if (active && !scope.chord)
           row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
         else row.also.removeAttribute("aria-keyshortcuts");
       }
@@ -3032,7 +3037,7 @@ function paintCoreControls() {
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;
   latestChip.title =
     latestChip.dataset.lfKeyTitle +
-    (latestBound ? ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})` : "");
+    (latestBound ? ` (${controlShortcut(GO, CHOOSER)} ${labelOf(NEWEST)})` : "");
 }
 
 const { availableCommands, executeCommand, readerIn, shadow, stack } = createDispatch({

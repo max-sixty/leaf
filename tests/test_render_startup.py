@@ -54,6 +54,7 @@ from render_support import (
     live_watcher,
     nudge,
     open_page,
+    open_versions,
     panel_settled,
     record_claim,
     refuse,
@@ -1007,7 +1008,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
         page, errors = open_page(
             browser, url.replace("v1.html", "v2.html"), context=context
         )
-        page.keyboard.press("v")
+        open_versions(page)
         expect(page.locator(".lf-version-menu")).to_be_visible()
         assert errors == []
     finally:

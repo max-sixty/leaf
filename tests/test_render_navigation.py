@@ -43,6 +43,7 @@ from render_support import (
     live_url,
     mark_point,
     open_page,
+    open_versions,
     opened_tab,
     page_at_rest,
     painted,
@@ -2139,7 +2140,7 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     # The registered return frame is nearer than the menu's native Tab handoffs, so the
     # shortlist contains the actual Escape return and one directional handoff.
     page.keyboard.press("Escape")
-    page.keyboard.press("v")
+    open_versions(page)
     page.evaluate(RENDERED)
     versions = page.evaluate(KEY_LINE_HINTS)
     assert {"navigation.return", "version.leave-forward"} <= {
@@ -3578,8 +3579,11 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     )
     assert key_faces[0] == key_faces[1], key_faces
     version = page.locator(".lf-version")
-    expect(version).to_have_attribute("aria-keyshortcuts", "v")
-    expect(version).to_have_attribute("title", re.compile(r"\(v\)$"))
+    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
+    expect(page.locator(".lf-latest-chip")).to_have_attribute(
+        "title", re.compile(r"\(g V v\)$")
+    )
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r" · c$")
     )
@@ -3598,10 +3602,10 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     expect(page.locator(".lf-help")).not_to_contain_text("Go to the Threads panel")
 
     page.keyboard.press("Escape")
-    expect(version).not_to_have_attribute("aria-keyshortcuts", "v")
-    expect(version).not_to_have_attribute("title", re.compile(r"\(v\)$"))
+    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).not_to_have_attribute("title", re.compile(r"\(g V\)$"))
     expect(page.locator(".lf-latest-chip")).not_to_have_attribute(
-        "title", re.compile(r"\(v v\)$")
+        "title", re.compile(r"\(g V v\)$")
     )
     expect(page.locator(".lf-general textarea")).not_to_have_attribute(
         "placeholder", re.compile(r" · c$")
@@ -3641,7 +3645,8 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     expect(create).to_have_attribute("data-lf-available", "true")
     create.click()
     expect(page.locator(".lf-help")).to_be_hidden()
-    expect(version).to_have_attribute("aria-keyshortcuts", "v")
+    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
     expect(page.locator(".lf-general textarea")).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$")
@@ -4919,7 +4924,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
             String(Number(control.dataset.shortcutClicks || 0) + 1);
         })"""
     )
-    page.keyboard.press("v")
+    open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
     expect(version).to_have_attribute("data-shortcut-clicks", "1")
     page.keyboard.press("Escape")
@@ -5037,6 +5042,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
     ).to_have_attribute("aria-label", "g then Shift+g")
+    versions_route = help_el.locator(
+        'tr[data-lf-command="version.open"] .lf-key-sequence'
+    )
+    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
+    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
     chord_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(chord_control).to_have_class(re.compile(r"\blf-chord-control\b"))
     expect(chord_control.locator("td").first).to_have_css("border-top-style", "solid")

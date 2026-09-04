@@ -758,7 +758,9 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered tray, and replay leaves
-    the current workspace standing while it paints the accepted state directly.
+    the current workspace standing while it paints the accepted state directly. The one
+    ask is answered by then, so its control comes back as completed progress rather than
+    as a tray the reader did not ask for.
     """
     url = serve(SHORT_SUGGESTION)
     events_model.append_event(
@@ -802,7 +804,9 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-decisions")).to_be_hidden()
+        decisions = page.locator(".lf-decisions")
+        expect(decisions).to_have_text("Asks 1/1")
+        expect(decisions).to_have_attribute("data-lf-complete", "")
         expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-panel")).to_be_visible()
         expect(page.locator("button.lf-decisions-row")).to_have_count(0)

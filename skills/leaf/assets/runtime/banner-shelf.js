@@ -67,14 +67,41 @@ export function createBannerShelf({ el, paintHere }) {
   // address with nothing to say is simply not in the menu. That is not a second rule: it
   // is the same rule asked of a place where taking room costs nothing to give back.
   const newsControls = new Set();
-  function paintPresence(control) {
+  // The presence those two facts state, read as a value rather than written straight
+  // out, so the same rule answers what the control should look like and whether it
+  // already looks like that.
+  function presence(control) {
     const speaking = control.classList.contains("lf-news-shown");
     const holds = control.parentElement === bannerActions && control.dataset.lfReserved;
-    control.style.display = speaking || holds ? "" : "none";
-    control.style.visibility = speaking ? "" : "hidden";
+    return {
+      display: speaking || holds ? "" : "none",
+      visibility: speaking ? "" : "hidden",
+    };
+  }
+  function paintPresence(control) {
+    const { display, visibility } = presence(control);
+    control.style.display = display;
+    control.style.visibility = visibility;
+  }
+  // Whether this reading leaves the row exactly as it found it: the same news, the slot
+  // showing it has already reserved, and the presence both of those paint.
+  function newsStands(control, on) {
+    if (!newsControls.has(control)) return false;
+    if (control.classList.contains("lf-news-shown") !== on) return false;
+    if (on && !control.dataset.lfReserved) return false;
+    const { display, visibility } = presence(control);
+    return control.style.display === display && control.style.visibility === visibility;
   }
 
   function showNews(control, on) {
+    // Most calls are a poll restating the news the row already carries — a page whose
+    // asks are all answered says so on every refresh, once per widget that repaints in
+    // it. Folding on that reading measures the row against a set of addresses nothing
+    // moved, and a measurement after a write is a forced layout, so the heartbeat's cost
+    // grew with the page rather than with what changed on it. A reading that moves
+    // nothing therefore stops here; every fact the fold reads is either written below or
+    // watched by the mutation observer that follows this row's children.
+    if (newsStands(control, on)) return;
     newsControls.add(control);
     // News can arrive while a deferred activation leaves the reader working in this live
     // banner, and a control that settles its own decisions goes away while it still owns

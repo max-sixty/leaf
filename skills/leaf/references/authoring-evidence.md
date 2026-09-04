@@ -29,12 +29,13 @@ Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
 schemas, and small XY plots; Beautiful Mermaid renders that Mermaid-source subset.
-Flowcharts accept Mermaid's classic node shapes. Their `classDef` declarations can
-set `fill`, `stroke`, `color`, and `stroke-width`; other properties are ignored. Apply
-Leaf's semantic tokens directly, for example
-`fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Inspect every rendered
-flowchart: Beautiful Mermaid can interpret an unknown or malformed line as a node, or
-render only the valid part of a malformed statement, instead of reporting an error.
+Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf's
+accent surface. Use `classDef` only for nodes that need to stand apart from that
+baseline, and copy the whole `fill`/`stroke`/`color` set from the registry entry, such
+as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
+honors `stroke-width`; other properties are ignored. Inspect every rendered flowchart:
+Beautiful Mermaid can interpret an unknown or malformed line as a node, or render only
+the valid part of a malformed statement, instead of reporting an error.
 `version check --render` detects renderer failures, not this silent partial output. Use
 `lf-chart` for
 quantities that need Leaf's data-first chart vocabulary: a comparison across a few

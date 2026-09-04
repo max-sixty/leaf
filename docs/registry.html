@@ -595,13 +595,14 @@
                   <code>{parts: ATTR}</code> lets its module map tokens from ATTR to
                   stable generated parts through <code>lfVisualPartAt(target)</code> and
                   <code>lfVisualPart(part)</code>, which returns
-                  <code>{element, label}</code>. The returned element supplies mark,
-                  travel, and aim geometry; aim follows a returned SVG element's painted
-                  primitives and uses the shown box for other elements. Targeting a
-                  mapped part stores its token as <code>anchor.visual</code> while the
-                  widget remains the semantic seat. A missing token or provider detaches
-                  on replay rather than widening to the whole picture. The render gate
-                  requires both provider methods on every matching instance.
+                  <code>{element, label}</code>. The returned element is the semantic
+                  target for marks, travel, and aim. Marks and aim follow a returned SVG
+                  element's painted primitives; other elements use the shown box.
+                  Targeting a mapped part stores its token as
+                  <code>anchor.visual</code> while the widget remains the semantic seat.
+                  A missing token or provider detaches on replay rather than widening to
+                  the whole picture. The render gate requires both provider methods on
+                  every matching instance.
                 </p>
               </details>
             </div>

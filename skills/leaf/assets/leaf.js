@@ -972,6 +972,11 @@ const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
+// Persistent paint for semantic visual parts. The provider supplies one current
+// element; anchors.js derives that element's SVG paint for every anchored state and
+// keeps these pointer-inert projections above the provider's drawing.
+const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
+visualMarkLayer.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
 // drawing geometry, it says nothing to a screen reader and takes nothing from the press
 // it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
@@ -1109,6 +1114,7 @@ chromeRoot.append(
   decisionActionLayer,
   selectionLayer,
   selectionSearch,
+  visualMarkLayer,
   aimBox,
   fabBar,
   liveEl,
@@ -3607,6 +3613,7 @@ anchorRuntime = createAnchors({
   textNodesUnder,
   threadsBox,
   under,
+  visualMarkLayer,
   withdraw,
   worksWithoutTabStopSelector: WORKS_WITHOUT_TAB_STOP,
   runtimeOwnsScrollerStop,

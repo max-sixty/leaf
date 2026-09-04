@@ -3132,17 +3132,23 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.close()
 
 
-def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve):
-    """Over a covering panel the key line stands on the sheet, lifted clear of what the
-    sheet keeps standing at its foot. That foot is two rows once the page offers
+def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
+    browser, serve
+):
+    """The key line clears the panel foot when their rendered rectangles meet.
+
+    That foot is two rows once the page offers
     reactions: the general composer, and the page's own reaction strip above it. A lift
     measured off the composer alone put the line's More on the strip's ellipsis — 8.8px
     of clear space between two things to press, and the reader aiming at the reaction
     got the keyboard reference.
 
-    The list above the foot scrolls, so it takes the line's room the way the trays' lists
-    and the document do: reserved at its end, and given back when the panel steps beside
-    the page and the line is capped clear of it instead."""
+    A covering panel is not itself a collision: at the screenshot's 783px width its
+    footer occupies the right lane while a focused composer's shorter key line fits in
+    the left. The old breakpoint proxy still lifted the line by the footer's full height,
+    marooning it over unrelated page content. The list reserves room on the same actual
+    overlap reading, and a wider chord proves that the decision follows changing content
+    rather than one hand-picked width."""
     page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
     resized(page, 420, 900)
     page.keyboard.press("g")
@@ -3162,6 +3168,8 @@ def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve
             return {keyline: rect(".lf-keyline"), foot: rect(".lf-panel-foot"),
                     general: rect(".lf-general"), list: rect(".lf-threads"),
                     trigger: rect(".lf-page-strip .lf-react-trigger"),
+                    viewportHeight: innerHeight,
+                    listInlinePad: list.style.paddingBottom,
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
@@ -3188,6 +3196,42 @@ def test_a_covering_sheet_lifts_the_key_line_over_all_of_its_foot(browser, serve
     assert covering["listScrollPad"] >= covered, (
         f"a walk to the last thread would stop under the key line: {covering}"
     )
+
+    # At the reported width the panel still has covering posture, but its footer and the
+    # focused composer's key line occupy separate horizontal lanes. Posture alone used to
+    # leave the line floating a whole footer-height above its ordinary position.
+    resized(page, 783, 1004)
+    page.locator(".lf-general textarea").focus()
+    page.evaluate(RENDERED)
+    assert page.evaluate(
+        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden'"
+    ), "the screenshot-width panel no longer has covering posture"
+    separate = boxes()
+    assert separate["keyline"]["right"] < separate["foot"]["left"], separate
+    assert abs(separate["keyline"]["bottom"] - (separate["viewportHeight"] - 14)) < 1, (
+        f"a disjoint footer still lifted the key line: {separate}"
+    )
+    assert separate["listPad"] < 20 and separate["listScrollPad"] < 20, (
+        f"the panel list reserved room for a line in another lane: {separate}"
+    )
+    assert separate["listInlinePad"] == "", (
+        f"the disjoint line overrode the panel list's own inset: {separate}"
+    )
+
+    # The g chord is wider in this same viewport. Once it reaches across the footer's
+    # lane, the line lifts and the list reserves the band it really covers.
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.evaluate(RENDERED)
+    chord = boxes()
+    assert chord["keyline"]["right"] > chord["foot"]["left"], chord
+    assert chord["keyline"]["bottom"] <= chord["foot"]["top"], (
+        f"the intersecting chord stood on the panel foot: {chord}"
+    )
+    chord_cover = chord["list"]["bottom"] - chord["keyline"]["top"]
+    assert chord_cover > 0 and chord["listPad"] >= chord_cover, chord
+    assert chord["listScrollPad"] >= chord_cover, chord
+    page.keyboard.press("Escape")
 
     # Beside the page the line is capped left of the panel, so the list keeps the inset
     # the stylesheet gives it rather than room for a line that never reaches it.

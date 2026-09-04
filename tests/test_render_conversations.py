@@ -49,12 +49,14 @@ pytestmark = pytest.mark.nightly
 
 @pytest.mark.parametrize("resolved", [False, True])
 def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved):
-    """A direct reply link opens the destination even inside the resolved disclosure."""
+    """A direct reply link opens and cues the exact message, even in a long thread or
+    inside the resolved disclosure. The surrounding card can span more than a viewport,
+    so using it as the arrival flash obscures the destination the link named."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    conversation_model.cmd_reply(
+    reply = conversation_model.cmd_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -64,6 +66,17 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-decision>",
     )
+    for i in range(8):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "claude" if i % 2 else "user",
+                "parent": root,
+                "revision": 1,
+                "text": f"Follow-up {i}. " + "This exchange needs its context. " * 5,
+            },
+        )
     if resolved:
         events_model.append_event(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
@@ -72,9 +85,26 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
     page.locator(".lf-conversation-open").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
     expect(thread).to_be_visible()
-    expect(thread.locator("#first-job")).to_be_in_viewport()
-    expect(thread.locator(".lf-msg").last).to_be_focused()
+    expect(destination.locator("#first-job")).to_be_in_viewport()
+    expect(destination).to_be_focused()
+    expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
+    expect(destination).to_have_class(re.compile(r"\bflash\b"))
+    sizes = page.evaluate(
+        """([thread, destination, list]) => ({
+          thread: thread.getBoundingClientRect().height,
+          destination: destination.getBoundingClientRect().height,
+          list: list.getBoundingClientRect().height,
+        })""",
+        [
+            thread.element_handle(),
+            destination.element_handle(),
+            page.locator(".lf-threads").element_handle(),
+        ],
+    )
+    assert sizes["thread"] > sizes["list"], sizes
+    assert sizes["destination"] < sizes["list"], sizes
     page.keyboard.press("Tab")
     expect(page.locator("#mounts [role=checkbox]")).to_be_focused()
     assert errors == []

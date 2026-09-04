@@ -43,6 +43,41 @@ const conversationInputOf = (held) => {
   return box && shownBox(box).height ? box : null;
 };
 
+// Start a long direct arrival on the earliest complete content block that still leaves
+// its reply target in the list's landable band. Native nearest-edge scrolling guarantees
+// the target is visible, but it can put the sticky heading through the middle of a text
+// line. The message bodies already expose their authored block boundaries; use those
+// rather than attempting to infer line boxes from prose.
+const threadLandingStart = (held, target, threadsBox) => {
+  const band = shownBand(threadsBox);
+  if (!band) return target;
+  const style = getComputedStyle(threadsBox);
+  const room =
+    band.bottom -
+    band.top -
+    (parseFloat(style.scrollPaddingTop) || 0) -
+    (parseFloat(style.scrollPaddingBottom) || 0);
+  const targetBox = shownBox(target);
+  const candidates = [
+    ...held.querySelectorAll(
+      ":scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, " +
+        ":scope > .lf-msg .lf-msg-text > *",
+    ),
+    target,
+  ]
+    .map((node) => ({ node, box: shownBox(node) }))
+    .filter(
+      ({ node, box }) =>
+        node === target ||
+        (getComputedStyle(node).display !== "contents" &&
+          box.height > 0 &&
+          box.top <= targetBox.top &&
+          targetBox.bottom - box.top <= room),
+    )
+    .sort((a, b) => a.box.top - b.box.top);
+  return candidates[0]?.node ?? target;
+};
+
 export function conversationInput(node) {
   const held = node && closestAcross(node, SAYS_IN);
   return conversationInputOf(held);
@@ -131,7 +166,7 @@ export function createPanelLanding({
   // Focus is the one fact all of them share, so the landing hangs off that and each of
   // them gives up its copy. Four callers still write this list's scroll, and each says
   // something focus cannot: `stepThread` for the press at either end of the walk, which
-  // moves no focus at all; `showThread` for a deliberate centring, which runs after
+  // moves no focus at all; `showThread` for a deliberate arrival, which runs after
   // the focus it follows and wins; `placeThreadEdge` for an explicit edge placement;
   // and `landIn`, which puts the reader in a thread's box and lands the thread around it,
   // the same correction this makes and the reason a reply box reached by key was never
@@ -211,17 +246,21 @@ export function createPanelLanding({
         node === thread ? (conversationInputOf(thread) ?? thread) : node;
       destination.focus({ preventScroll: true });
     }
-    const target =
-      node === thread && thread.contains(focused())
-        ? landingTarget(thread, focused())
-        : node;
-    target.scrollIntoView({
+    const directThread = node === thread && thread.contains(focused());
+    const target = directThread ? landingTarget(thread, focused()) : node;
+    const scrollTarget =
+      directThread && target !== thread
+        ? threadLandingStart(thread, target, threadsBox)
+        : target;
+    scrollTarget.scrollIntoView({
       behavior: scrollBehavior(),
-      block: target === thread ? "center" : "nearest",
+      // A long thread begins at the clean content boundary chosen above. A short card
+      // is context in full; a requested message keeps the least-moving direct route.
+      block: target === thread ? "center" : directThread ? "start" : "nearest",
     });
     thread.classList.remove("grow");
-    thread.classList.add("flash");
-    setTimeout(() => thread.classList.remove("flash"), 1300);
+    target.classList.add("flash");
+    setTimeout(() => target.classList.remove("flash"), 1300);
   }
 
   return { retainPanelLanding, showThread };

@@ -4639,7 +4639,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Unwrapped, this line runs off the box.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     page.locator("lf-diff .lf-diff-wrap").click()
@@ -4650,7 +4650,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Wrapped, the same words are on screen.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     anchors = [

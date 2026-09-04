@@ -66,7 +66,7 @@ subscriptions;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
-`runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
+`runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, activation serialization,
 state commit, projection, notification, outbox accounting, and rollback;
@@ -522,8 +522,10 @@ prior winner or authored baseline.
 ### Reconciliation
 
 `receiveState` is the only door for a complete server state. Three callers use
-it: a read of `GET /api/state`, an accepted POST answer, and the heartbeat
-re-applying the state the page already holds. It:
+it: a read of `GET /api/state`, an accepted POST answer, and a deferred version
+activation that has become available. The clock retries explicitly deferred widget
+projections without replaying a whole state. An unchanged page performs no state paint.
+It:
 
 1. verifies the layer generation;
 2. rejects an answer taken before the one it holds, and an event sequence
@@ -688,14 +690,17 @@ callback immediately. The same rendering function therefore handles a module
 connected before the first state and one constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
-event list did not grow and the heartbeat's re-application of the state the page
-already holds. The outbox fires it too, for the reconciliation it performs on an
+event list did not grow. The clock dispatches it only after retrying an explicitly
+deferred projection. The outbox fires it too, for the reconciliation it performs on an
 answer of its own — a refused action, or a read event — which withdraws or
 settles a winner without applying a state. Every pass that reconciles is
 therefore heard through this one event, which is what keeps a surface reading the
-projection rather than the DOM current with a withdrawal. It also lets a module
-refresh elapsed time and retry a render deferred by live input without owning a
-timer or a second event cursor.
+projection rather than the DOM current with a withdrawal. Time-dependent paints are
+separate: `presence.js` records synchronous `ago`, `quietSince`, and `clockValue`
+readings inside a `clocked` callback. The shared tick reruns only callbacks whose
+reading changed and drops disconnected owners. Subscription callbacks use this same
+mechanism, so a new widget owes no entry in a kernel list of clock consumers.
+A held state does not reset the measured server clock offset.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchUpdates` when their element disconnects.
 
@@ -1002,7 +1007,10 @@ producers. The browser keeps the accepted data revision independently from
 `lastEventSeq`, because overlapping poll and POST responses can order the authorities
 differently. `watchData(widget, input, callback)` delivers a clone of
 `{contract, updated, value}` for current, a clone with `snapshot`, `label`, and optional
-`lines` for a selected capture, or `null` before a bound current value exists. Modules
+`lines` for a selected capture, or `null` before a bound current value exists. It
+redelivers only when that source revision changes; overlapping reads await the same
+in-flight rendering before stamping readiness. Its synchronous time readings refresh
+independently of data delivery. Modules
 project the result into the authored seat; they do not fetch it, mutate the accepted
 copy, or keep a hidden current-value map of their own.
 

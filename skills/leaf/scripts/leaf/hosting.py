@@ -1,6 +1,7 @@
 """HTTP server binding, process startup, and the in-process serve command."""
 
 import errno
+import selectors
 import socket
 import subprocess
 import sys
@@ -35,49 +36,86 @@ except ImportError:  # pragma: no cover - unsupported non-POSIX platform
 
 
 class LeafHTTPServer(ThreadingHTTPServer):
-    """Every page leaf serves — a session server, a preview, a test's fixture —
-    is served from here, so the suite drives the server the product answers on.
+    """Leaf's HTTP server with prompt, resource-safe lifecycle control.
 
-    The one thing it states is how deep the kernel may queue connections the
-    accept loop has not reached yet. `socketserver` says five, and a queue that
-    overflows does not hold the sixth caller back. Linux drops the handshake's
-    last packet, the client posts into a connection this side has already
-    forgotten, and the reset that comes back reaches the reader as a send that
-    went nowhere. Five is reachable: test_concurrent_posts_never_tear_the_log
-    sends twenty at once to ask about the append itself, and on an emulated
-    Linux box a quarter of them were reset before the log was ever the
-    question. Nothing here wants a shallower queue than the kernel will hold,
-    so the number is the kernel's own."""
+    The request queue uses the kernel's maximum backlog so concurrent browser and
+    event requests are accepted by the same server used in production. A local
+    selector wakeup lets shutdown avoid a periodic idle poll while open news streams
+    can still observe the server's stopping state.
+    """
 
     request_queue_size = socket.SOMAXCONN
 
-    # Whether this server has been told to stop. `socketserver` keeps that fact in a
-    # name-mangled private, and a news stream held open for a tab needs to see it:
-    # the stream otherwise outlives the stop for as long as the tab stays.
+    def __init__(self, *args, **kwargs):
+        # TCPServer.__init__ calls the virtual server_close() if binding fails.
+        # Seed these fields first so that failure preserves the real bind error and
+        # still lets our close override run safely.
+        self._shutdown_wakeup = None
+        self._shutdown_wakeup_peer = None
+        self._shutdown_requested = threading.Event()
+        self._serve_done = threading.Event()
+        self._serve_done.set()
+        super().__init__(*args, **kwargs)
+        try:
+            self._shutdown_wakeup, self._shutdown_wakeup_peer = socket.socketpair()
+        except BaseException:
+            super().server_close()
+            raise
+
+    # Whether this server has been told to stop. A news stream held open for a tab
+    # needs to see it; otherwise the stream outlives the server stop.
     stopping = False
 
     def shutdown(self):
-        self.stopping = True
-        super().shutdown()
+        """Stop promptly while letting the serve loop stay idle.
 
-    def serve_forever(self, poll_interval=0.01):
-        """How long `shutdown` may take to be noticed.
-
-        `socketserver` waits half a second in `select` between checks of the
-        shutdown flag, so a server told to stop keeps its caller for as long as
-        that select still has to run: 489ms measured against 3.2ms at a
-        hundredth. Nothing here waits on the interval for its own sake — the
-        loop wakes on a connection either way — so shortening it buys the stop
-        alone, which the suite pays for once per served fixture and around 580
-        times a run.
-
-        What it costs is wakeups. An idle server spends 0.15% of a core here
-        rather than 0.006%: 1.6ms of CPU for every second it stands, against
-        0.06ms at half a second. The suite's servers are seconds old and the
-        trade is one-sided, but a page server outlives the session that started
-        it, so that is the side to weigh if this number moves again.
+        ``socketserver``'s default loop sleeps in ``select`` for its half-second
+        poll interval before checking the shutdown flag. The serving loop below also
+        watches a local socketpair, so this method records the flag first and then
+        wakes that selector immediately.
         """
-        super().serve_forever(poll_interval)
+        self.stopping = True
+        try:
+            self._shutdown_requested.set()
+            self._shutdown_wakeup_peer.send(b"\0")
+        except OSError:
+            # The wake peer may already be closed during teardown; the completion
+            # event below still gives the standard shutdown contract.
+            pass
+        self._serve_done.wait()
+
+    def serve_forever(self, poll_interval=0.5):
+        """Dispatch requests until shutdown, waking immediately when requested."""
+        self.stopping = False
+        self._serve_done.clear()
+        try:
+            with selectors.DefaultSelector() as selector:
+                selector.register(self, selectors.EVENT_READ)
+                selector.register(self._shutdown_wakeup, selectors.EVENT_READ)
+                while not self._shutdown_requested.is_set():
+                    ready = selector.select(poll_interval)
+                    if self._shutdown_requested.is_set():
+                        break
+                    for key, _ in ready:
+                        if key.fileobj is self:
+                            self._handle_request_noblock()
+                        elif key.fileobj is self._shutdown_wakeup:
+                            # A server object may be reused after a completed
+                            # shutdown; do not leave an old wake byte readable.
+                            self._shutdown_wakeup.recv(1)
+                    self.service_actions()
+        finally:
+            self._shutdown_requested.clear()
+            self._serve_done.set()
+
+    def server_close(self):
+        try:
+            super().server_close()
+        finally:
+            for name in ("_shutdown_wakeup", "_shutdown_wakeup_peer"):
+                wakeup = getattr(self, name, None)
+                if wakeup is not None:
+                    wakeup.close()
 
 
 def _provenance_label(provenance: dict) -> str:

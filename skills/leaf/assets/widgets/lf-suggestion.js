@@ -133,12 +133,14 @@ customElements.define(
     #undoing = false;
     #margin = null;
     #decisionActions = null;
+    #stopActions = null;
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
       // restore this target's contribution to the shared Button cluster.
       if (!once(this)) {
         this.#offer();
+        if (!quoted(this)) this.#watchActions();
         return;
       }
       // Presentation, not input, so an exhibited pending change gets it too:
@@ -179,7 +181,21 @@ customElements.define(
             : "",
       );
       this.#offer();
-      watchActions(this, null, () => {
+      this.#watchActions();
+    }
+
+    disconnectedCallback() {
+      this.#stopActions?.();
+      this.#stopActions = null;
+      this.#margin?.unregister();
+      this.#margin = null;
+      emphasized.delete(this);
+      repaintEmphasis();
+    }
+
+    #watchActions() {
+      if (this.#stopActions) return;
+      this.#stopActions = watchActions(this, null, () => {
         if (!this.dataset.lfState) {
           this.#paintAvailability();
           return;
@@ -187,13 +203,6 @@ customElements.define(
         this.#renderControls();
         this.#margin?.update();
       });
-    }
-
-    disconnectedCallback() {
-      this.#margin?.unregister();
-      this.#margin = null;
-      emphasized.delete(this);
-      repaintEmphasis();
     }
 
     #offer() {

@@ -1069,25 +1069,145 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     assert latest["restores_desired"] is True
 
 
-def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
+def test_undo_offer_keeps_the_doors_active_page_containment():
     """A pinned view paints its own projection but admits undo against live threads."""
     active_within = {"settled-on-live-page": ("live",)}
     view_within = {"settled-on-pinned-view": ("pinned",)}
-    seen = []
-
-    def record_undo_read(_event, _events, within):
-        seen.append(within)
-
-    monkeypatch.setattr(served_document, "undo_error", record_undo_read)
     empty = projection_model.StateProjection({}, {}, {}, {}, {})
     event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
+    undo_reading = event_folds_model.UndoReading([event], active_within)
 
     candidates = served_document._browser_undo_candidates(
-        [event], active_within, view_within, {}, empty, empty
+        [event],
+        active_within,
+        view_within,
+        {},
+        empty,
+        empty,
+        undo_reading=undo_reading,
     )
 
     assert [candidate["event"] for candidate in candidates] == [event]
-    assert seen == [active_within]
+
+
+def test_undo_candidates_keep_only_standing_reader_gestures():
+    """The browser undo list follows the event fold for speech, marks, and closures."""
+    events = [
+        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
+        {
+            "id": "r1",
+            "kind": "resolve",
+            "author": "user",
+            "parent": "c1",
+        },
+        {"id": "u1", "kind": "undo", "author": "user", "undoes": "r1"},
+        {
+            "id": "r2",
+            "kind": "resolve",
+            "author": "user",
+            "parent": "c1",
+        },
+        {"id": "rx1", "kind": "comment", "author": "user", "token": "ok"},
+        {
+            "id": "rx2",
+            "kind": "comment",
+            "author": "user",
+            "token": "ok",
+        },
+        {
+            "id": "reply",
+            "kind": "reply",
+            "author": "claude",
+            "parent": "rx2",
+            "text": "answered",
+        },
+    ]
+    empty = projection_model.StateProjection({}, {}, {}, {}, {})
+    undo_reading = event_folds_model.UndoReading(events, {})
+
+    candidates = served_document._browser_undo_candidates(
+        events, {}, {}, {}, empty, empty, undo_reading=undo_reading
+    )
+
+    assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
+
+
+def test_undo_candidates_restore_another_action_on_the_same_coordinate():
+    """Restoration stays within the selected page or conversation projection."""
+    page_action = {
+        "id": "page-action",
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "page-widget",
+        "action": "choose",
+        "detail": {},
+    }
+    conversation_action = {
+        **page_action,
+        "id": "conversation-action",
+        "widget": "conversation-widget",
+    }
+    page_action_2 = {
+        **page_action,
+        "id": "page-action-2",
+        "widget": "page-widget-2",
+    }
+    separate_action = {
+        **page_action,
+        "id": "separate-action",
+        "widget": "separate-widget",
+    }
+    same_coordinate = ("shared", "shared", "choice")
+    document_projection = projection_model.StateProjection(
+        {},
+        {},
+        {},
+        {},
+        {
+            page_action["id"]: (same_coordinate, (page_action, {})),
+            page_action_2["id"]: (same_coordinate, (page_action_2, {})),
+        },
+    )
+    conversation_projection = projection_model.StateProjection(
+        {},
+        {},
+        {},
+        {},
+        {
+            conversation_action["id"]: (
+                same_coordinate,
+                (conversation_action, {}),
+            ),
+            separate_action["id"]: (
+                ("separate", "separate", "choice"),
+                (separate_action, {}),
+            ),
+        },
+    )
+    events = [page_action, page_action_2, conversation_action, separate_action]
+    undo_reading = event_folds_model.UndoReading(events, {})
+
+    candidates = served_document._browser_undo_candidates(
+        events,
+        {},
+        {},
+        {},
+        document_projection,
+        conversation_projection,
+        undo_reading=undo_reading,
+    )
+
+    restores = {
+        candidate["event"]["id"]: candidate["restores_desired"]
+        for candidate in candidates
+    }
+    assert restores == {
+        "page-action": True,
+        "page-action-2": True,
+        "conversation-action": False,
+        "separate-action": False,
+    }
 
 
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
@@ -2539,6 +2659,126 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     stream.close()
 
 
+def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
+    page_dir, monkeypatch
+):
+    """Several news streams share one presence observation until the page moves.
+
+    The cache is a reading cache, not a second authority: rewriting a page-owned
+    file invalidates it immediately, while a repeated quiet observation does not
+    call the neighboring-page scan again.
+    """
+    real_other_leaves = presence_model.other_leaves
+    calls = 0
+
+    def counted_other_leaves(directory):
+        nonlocal calls
+        calls += 1
+        return real_other_leaves(directory)
+
+    monkeypatch.setattr(presence_model, "other_leaves", counted_other_leaves)
+    first = presence_model.presence_reading(page_dir)
+    assert presence_model.presence_reading(page_dir) == first
+    assert calls == 1
+
+    files_model.write_json(
+        page_dir / "status.json",
+        {"state": "working", "detail": "measuring", "ts": "now"},
+    )
+    refreshed = presence_model.presence_reading(page_dir)
+    assert refreshed == first
+    assert calls == 2
+
+
+def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
+    page_dir, monkeypatch
+):
+    """Neighbor presence reuses its parsed event window while its files are stable."""
+    neighbour = host_model.state_home() / "pages" / "neighbor-cache"
+    neighbour_page(neighbour, title="Cached neighbor")
+    real_read_events = presence_model.read_events
+    reads = 0
+
+    def counted_read_events(directory):
+        nonlocal reads
+        reads += 1
+        return real_read_events(directory)
+
+    monkeypatch.setattr(presence_model, "read_events", counted_read_events)
+    first = presence_model.other_leaves(page_dir)
+    second = presence_model.other_leaves(page_dir)
+    assert second == first
+    assert reads == 1
+
+    real_running_server = presence_model.running_server
+
+    def rotated_running_server(directory):
+        return {**real_running_server(directory), "url": "rotated-url"}
+
+    monkeypatch.setattr(presence_model, "running_server", rotated_running_server)
+    presence_model.other_leaves(page_dir)
+    assert reads == 2
+
+    event_model.append_event(
+        neighbour, {"kind": "comment", "author": "user", "text": "changed"}
+    )
+    presence_model.other_leaves(page_dir)
+    assert reads == 3
+
+
+def test_server_shutdown_wakes_a_long_poll_without_waiting_for_timeout(
+    page_dir, monkeypatch
+):
+    """A selector waiting for a long timeout wakes as soon as shutdown is requested."""
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
+    )
+    waiting = threading.Event()
+    real_select = hosting_model.selectors.DefaultSelector.select
+
+    def watched_select(selector, timeout=None):
+        waiting.set()
+        return real_select(selector, timeout)
+
+    monkeypatch.setattr(
+        hosting_model.selectors.DefaultSelector, "select", watched_select
+    )
+    try:
+        thread = threading.Thread(target=httpd.serve_forever, args=(10.0,), daemon=True)
+        thread.start()
+        assert waiting.wait(timeout=1)
+        httpd.shutdown()
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+    finally:
+        if thread.is_alive():
+            httpd.shutdown()
+            thread.join(timeout=1)
+        httpd.server_close()
+
+
+def test_server_can_restart_after_prompt_shutdown(page_dir):
+    """The wakeup is reusable, so a normal server restart keeps serving requests."""
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
+    )
+    try:
+        for _ in range(2):
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            deadline = time.monotonic() + 1
+            while not thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(0.001)
+            assert (
+                fetch(f"http://127.0.0.1:{httpd.server_address[1]}/api/state")[0] == 200
+            )
+            httpd.shutdown()
+            thread.join(timeout=1)
+            assert not thread.is_alive()
+    finally:
+        httpd.server_close()
+
+
 def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     """U+2028, U+2029 and U+0085 are legal raw in JSON strings and line breaks to
     splitlines(): unescaped, one pasted separator split an event across "lines",
@@ -3006,6 +3246,18 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     assert not (page_dir / "service.json").exists()
 
     assert server_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
+
+
+def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
+    """A failed bind closes partially initialized wake resources without masking EADDRINUSE."""
+    with socket.socket() as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen()
+        with pytest.raises(OSError) as refused:
+            hosting_model.LeafHTTPServer(
+                occupied.getsockname(), http_model.handler_for(page_dir, TOKEN)
+            )
+    assert refused.value.errno == errno.EADDRINUSE
 
 
 def test_the_stated_host_wildcard_serves_both_families(wildcard_server):

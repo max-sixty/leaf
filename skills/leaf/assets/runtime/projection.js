@@ -585,8 +585,13 @@ export function createProjection(runtime, dependencies) {
   // Make the DOM equal the projection. A widget is the application boundary: if any of
   // its coordinates changed, all of its surviving winners are replayed in log order so
   // sibling units sharing an ordered container retain their collective placement.
+  let deferredProjection = false;
+  const projectionDeferred = () => deferredProjection;
+
   function reconcileState() {
+    deferredProjection = false;
     if (document.querySelector(".lf-dragging")) {
+      deferredProjection = true;
       watchProjectionDrag();
       return;
     }
@@ -670,7 +675,10 @@ export function createProjection(runtime, dependencies) {
           }
 
           if (!widget.applyAction) {
-            if (document.body.dataset.lfUpgraded !== "1") continue;
+            if (document.body.dataset.lfUpgraded !== "1") {
+              deferredProjection = true;
+              continue;
+            }
             for (const { commit } of removals)
               if (commit.entry.e.kind === "action")
                 painted = clearSettled(widget, commit.entry.spec.facet) || painted;
@@ -711,7 +719,10 @@ export function createProjection(runtime, dependencies) {
               );
               painted = true;
             }
-            if (deferred) continue;
+            if (deferred) {
+              deferredProjection = true;
+              continue;
+            }
 
             const desired = states
               .map((state) => state.desired)
@@ -748,7 +759,10 @@ export function createProjection(runtime, dependencies) {
               );
               painted = true;
             }
-            if (deferred) continue;
+            if (deferred) {
+              deferredProjection = true;
+              continue;
+            }
           }
 
           widget = elementById(widgetId);
@@ -848,6 +862,7 @@ export function createProjection(runtime, dependencies) {
     paintPending,
     projectedFacet,
     projectionFromView,
+    projectionDeferred,
     projectionCommitted,
     rebuild,
     reconcileKnownState,

@@ -82,6 +82,7 @@
 import {
   DISCLOSE,
   actionAvailable,
+  actionSequence,
   dataBody,
   once,
   offer,
@@ -165,11 +166,14 @@ customElements.define(
     #margin = null;
     #decisionActions = null;
     #buttonReserve = 0;
+    #stopActions = null;
+    #stopDraft = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#offer();
         this.#paintAvailability();
+        if (!quoted(this)) this.#watch();
         return;
       }
 
@@ -269,7 +273,7 @@ customElements.define(
         this.#margin?.update();
         this.#decisionActions.update();
       });
-      watchActions(this, "edit", (actions) => this.#renderHistory(actions));
+      this.#watch();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
       // that the reader rewrites it, so a press anywhere in it opens the editor with the
@@ -295,18 +299,6 @@ customElements.define(
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 
-      // One edit, however many tabs are open on the page. An open box follows what is
-      // typed in another; a closed one stays closed, because news arriving has no gesture
-      // behind it and the box would open under whatever the reader is doing here — it
-      // takes up the words at the next opening either way (#open reads the store). A
-      // settlement is the case that does move this tab: the words are sent or discarded,
-      // so an open box holding them has nothing left to hold, and closing it lets replay
-      // paint whatever the log ends up saying.
-      watchDraft(ctx(this.id), (text) => {
-        if (text === null) this.#close(false);
-        else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
-      });
-
       // A recovered edit outranks the authored text: the user typed it and never
       // got it sent, so it must survive exactly as the composer's drafts do.
       const pending = loadEdit(this.id);
@@ -315,8 +307,26 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.#stopActions?.();
+      this.#stopActions = null;
+      this.#stopDraft?.();
+      this.#stopDraft = null;
       this.#margin?.unregister();
       this.#margin = null;
+    }
+
+    #watch() {
+      if (!this.#stopActions) {
+        this.#stopActions = watchActions(this, "edit", (actions) =>
+          this.#renderHistory(actions),
+        );
+      }
+      if (!this.#stopDraft) {
+        this.#stopDraft = watchDraft(ctx(this.id), (text) => {
+          if (text === null) this.#close(false);
+          else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
+        });
+      }
     }
 
     #offer() {
@@ -554,6 +564,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
+      this.#renderHistory(actionSequence(this, "edit"));
       if (ok) notice(`Restored ${label.toLowerCase()} — recorded`);
     }
 
@@ -649,6 +660,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
+      this.#renderHistory(actionSequence(this, "edit"));
       if (ok) {
         notice(`Edited “${this.id}” — recorded`);
       } else {

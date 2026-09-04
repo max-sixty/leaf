@@ -58,6 +58,8 @@ customElements.define(
         if (!quoted(this)) {
           document.removeEventListener("lf-actions", this.#paintAvailability);
           document.addEventListener("lf-actions", this.#paintAvailability);
+          for (const col of this.querySelectorAll(":scope > lf-column"))
+            this.#sortable(col);
           this.#paintAvailability();
         }
         this.#observeNames();
@@ -167,6 +169,10 @@ customElements.define(
       this.#stopMotion?.();
       this.#stopMotion = null;
       if (this.#grabbed) this.#cancel();
+      this.#superseded = null;
+      dragging(this, false);
+      for (const sortable of this.#sortables) sortable.destroy();
+      this.#sortables.clear();
     }
 
     #observeMotion() {

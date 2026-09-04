@@ -26,9 +26,9 @@
  *
  * Rebuilding is idempotent: applyAction states the absolute attribute, and the common
  * update projection hands the declared activity clause to this row, so a reload, a
- * second tab, and a re-applied report all converge. watchUpdates re-renders on every
- * poll whether or not the log grew, which is what keeps the elapsed line true without
- * a timer of this module's own. */
+ * second tab, and a re-applied report all converge. watchUpdates refreshes on state changes and
+ * when its clock readings change, keeping the elapsed line current without a timer
+ * of this module's own. */
 import {
   ago,
   measure,
@@ -210,14 +210,24 @@ function render(el) {
 customElements.define(
   "lf-agent",
   class extends HTMLElement {
+    #stopUpdates = null;
+
     connectedCallback() {
-      if (!once(this)) return;
-      render(this);
-      // The clock, and nothing else. It runs immediately and again on every poll, so
-      // the elapsed line stays true with no timer of this module's own — and touches
+      if (once(this)) render(this);
+      this.#watchUpdates();
+    }
+
+    disconnectedCallback() {
+      this.#stopUpdates?.();
+      this.#stopUpdates = null;
+    }
+
+    #watchUpdates() {
+      if (this.#stopUpdates) return;
+      // The shared clock refreshes this when its displayed age changes and touches
       // one text node when it does, rather than rebuilding a row the reader may have
       // their pointer in.
-      watchUpdates(this, (updates) => heard(this, updates));
+      this.#stopUpdates = watchUpdates(this, (updates) => heard(this, updates));
     }
 
     applyAction(action, detail) {

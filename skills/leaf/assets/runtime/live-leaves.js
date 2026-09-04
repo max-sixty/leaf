@@ -1,3 +1,5 @@
+import { clocked } from "./presence.js";
+
 export function createLiveLeaves({
   ago,
   el,
@@ -190,5 +192,9 @@ export function createLiveLeaves({
       paintKeys();
   }
 
-  return { leavesOffered, othersLinks, renderOthers };
+  return {
+    leavesOffered,
+    othersLinks,
+    renderOthers: clocked(document.body, renderOthers),
+  };
 }

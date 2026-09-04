@@ -1,4 +1,5 @@
 /* Canonical action and update feeds exposed to widgets and chrome. */
+import { clocked } from "./presence.js";
 let publishedActionSequence;
 let publishedPublishedAt;
 let publishedSaidAt;
@@ -20,13 +21,14 @@ export function createUpdates(runtime, dependencies) {
   const {
     closestAcross,
     coordinateProjectionCommitted,
+    presented,
     projectionCommitted,
     stateProjection,
   } = dependencies;
 
   let claimState = Object.freeze({
     sources: Object.freeze([]),
-    claimsHeld: false,
+    presence: null,
     agentTurnClosed: null,
     claimingSession: null,
   });
@@ -34,14 +36,14 @@ export function createUpdates(runtime, dependencies) {
     const prior = claimState;
     claimState = Object.freeze({
       sources: Object.freeze(structuredClone(next.sources)),
-      claimsHeld: next.claimsHeld,
+      presence: next.presence,
       agentTurnClosed: next.agentTurnClosed,
       claimingSession: next.claimingSession,
     });
     return () => (claimState = prior);
   }
   const workClaimState = () => ({
-    claimsHeld: claimState.claimsHeld,
+    claimsHeld: claimState.presence ? presented(claimState.presence).held : false,
     agentTurnClosed: claimState.agentTurnClosed,
     claimingSession: claimState.claimingSession,
   });
@@ -104,16 +106,21 @@ export function createUpdates(runtime, dependencies) {
       ?.dateTime || publishedAt();
 
   const watch = (owner, callback) => {
+    const paint = clocked(owner, callback);
     const update = () => {
       if (!owner.isConnected) {
         document.removeEventListener("lf-actions", update);
+        paint.stop();
         return;
       }
-      callback();
+      paint();
     };
     document.addEventListener("lf-actions", update);
     update();
-    return () => document.removeEventListener("lf-actions", update);
+    return () => {
+      document.removeEventListener("lf-actions", update);
+      paint.stop();
+    };
   };
 
   const watchActions = (widget, action, callback) =>

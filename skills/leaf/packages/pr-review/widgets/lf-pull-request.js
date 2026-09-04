@@ -3,6 +3,7 @@
  * authority. */
 import {
   ago,
+  clocked,
   highlightBlocks,
   loadMarkdown,
   projectData,
@@ -176,15 +177,38 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (this.stopWatching) return;
+      // Markdown loading is asynchronous, but the card paint itself is synchronous. Keep
+      // the clock dependency on that second half so an unchanged source still refreshes
+      // the observed age when the shared clock crosses a display boundary.
+      this.paintSnapshot = clocked(this, (snapshot) => {
+        const record = snapshot?.value ?? null;
+        const projected = record
+          ? [{ ...record, key: `${record.repository}#${record.number}` }]
+          : [{ key: "unavailable", missing: true }];
+        const descriptionChanged = { value: false };
+        projectData(
+          this,
+          projected,
+          ({ key }) => key,
+          (next, prior) =>
+            next.missing
+              ? renderMissing(prior)
+              : renderCard(next, prior, snapshot, descriptionChanged),
+        );
+        return descriptionChanged.value;
+      });
       this.stopWatching = watchData(this, "request", (snapshot) => this.show(snapshot));
     }
 
     disconnectedCallback() {
       this.stopWatching?.();
       this.stopWatching = null;
+      this.paintSnapshot?.stop();
+      this.paintSnapshot = null;
     }
 
     async show(snapshot) {
+      const painter = this.paintSnapshot;
       const record = snapshot?.value ?? null;
       if (record)
         await loadMarkdown((error) =>
@@ -192,20 +216,11 @@ customElements.define(
             `leaf: pull request Markdown failed to load: ${error?.message ?? error}`,
           ),
         );
-      const projected = record
-        ? [{ ...record, key: `${record.repository}#${record.number}` }]
-        : [{ key: "unavailable", missing: true }];
-      const descriptionChanged = { value: false };
-      projectData(
-        this,
-        projected,
-        ({ key }) => key,
-        (next, prior) =>
-          next.missing
-            ? renderMissing(prior)
-            : renderCard(next, prior, snapshot, descriptionChanged),
-      );
-      if (descriptionChanged.value) await highlightBlocks(this);
+      // The widget may leave the document while the lazy Markdown module is loading.
+      // Keep the painter belonging to this mount and let a later mount own its snapshot.
+      if (this.paintSnapshot !== painter || !this.isConnected) return;
+      const descriptionChanged = painter(snapshot);
+      if (descriptionChanged) await highlightBlocks(this);
     }
   },
 );

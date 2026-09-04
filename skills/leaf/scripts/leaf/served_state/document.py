@@ -2,11 +2,10 @@
 
 from ..decisions import page_decision_inventory, page_decision_projection
 from ..events import (
+    UndoReading,
     action_retracted,
     retractions,
     seats_with_agent,
-    taken_back,
-    undo_error,
 )
 from ..passages import enclosing_of, page_passages
 from ..projection import StateProjection, page_projection, retirement_outcomes
@@ -97,9 +96,7 @@ def _restores_desired(
     event: dict,
     coordinate: tuple,
     projection: StateProjection,
-    withdrawn: set,
-    within: dict,
-    floors: dict,
+    standing_actions: dict[tuple, set[str]],
 ) -> bool:
     """Whether withdrawing one action exposes another durable value there."""
     desired = projection.desired.get(coordinate)
@@ -108,13 +105,27 @@ def _restores_desired(
     if projection.reports.get(coordinate):
         return True
     return any(
-        candidate_coordinate == coordinate
-        and candidate["kind"] == "action"
-        and candidate["id"] != event["id"]
-        and candidate["id"] not in withdrawn
-        and not action_retracted(candidate, floors, within)
-        for candidate_coordinate, (candidate, _spec) in projection.classified.values()
+        candidate_id != event["id"]
+        for candidate_id in standing_actions.get(coordinate, ())
     )
+
+
+def _standing_actions_by_coordinate(
+    classified: dict,
+    withdrawn: set,
+    within: dict,
+    floors: dict,
+) -> dict[tuple, set[str]]:
+    """Index surviving actions by coordinate for one retraction reading."""
+    standing = {}
+    for coordinate, (event, _spec) in classified.values():
+        if (
+            event["kind"] == "action"
+            and event["id"] not in withdrawn
+            and not action_retracted(event, floors, within)
+        ):
+            standing.setdefault(coordinate, set()).add(event["id"])
+    return standing
 
 
 def _browser_undo_candidates(
@@ -124,13 +135,27 @@ def _browser_undo_candidates(
     document_floors: dict,
     document_projection: StateProjection,
     conversation_projection: StateProjection,
+    *,
+    undo_reading: UndoReading,
 ) -> list[dict]:
     classified = {
         **document_projection.classified,
         **conversation_projection.classified,
     }
     candidates = []
-    withdrawn = taken_back(events)
+    withdrawn = undo_reading.withdrawn
+    document_standing = _standing_actions_by_coordinate(
+        document_projection.classified,
+        withdrawn,
+        document_within,
+        document_floors,
+    )
+    conversation_standing = _standing_actions_by_coordinate(
+        conversation_projection.classified,
+        withdrawn,
+        {},
+        {},
+    )
     for event in reversed(events):
         if (
             event.get("author") != "user"
@@ -138,7 +163,7 @@ def _browser_undo_candidates(
             or event["id"] in withdrawn
         ):
             continue
-        if undo_error({"undoes": event["id"]}, events, within):
+        if undo_reading.error({"undoes": event["id"]}):
             continue
         item = {"event": event}
         if event["kind"] == "action" and event["id"] in classified:
@@ -146,19 +171,15 @@ def _browser_undo_candidates(
             item["coordinate"] = list(coordinate)
             if event["id"] in document_projection.classified:
                 projection = document_projection
-                action_within = document_within
-                floors = document_floors
             else:
                 projection = conversation_projection
-                action_within = {}
-                floors = {}
             item["restores_desired"] = _restores_desired(
                 event,
                 coordinate,
                 projection,
-                withdrawn,
-                action_within,
-                floors,
+                document_standing
+                if event["id"] in document_projection.classified
+                else conversation_standing,
             )
         candidates.append(item)
     return candidates

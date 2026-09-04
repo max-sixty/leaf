@@ -447,9 +447,18 @@ clone of `{contract, revision, updated, value}`. `revision` is the data revision
 wrote that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
-and line range. It runs immediately and again when Leaf asks subscribers to restate its
-view. Return the cleanup function from the element's disconnect path. The callback must
+and line range. It runs immediately and again when that source revision changes.
+Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
+
+Time readings made synchronously in `watchData`, `watchActions`, `watchUpdates`, and
+`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
+and `quietSince` refresh the callback only when their result changes. For another
+rounded time reading, use `clockValue(() => reading)`. For a paint outside these
+subscriptions, wrap it with `clocked(element, paint)` and call the returned function
+where state changes; call its `.stop()` on disconnect. Time reads after an `await`
+belong in a separate synchronous `clocked` paint. The timer does not reapply state or
+redeliver unchanged data to keep a timestamp current.
 
 Render the value with `projectData(root, records, keyOf, render)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable

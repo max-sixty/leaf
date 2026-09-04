@@ -90,6 +90,7 @@ from render_support import (
     undo,
     unfolded_button,
     wait_for_revision,
+    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -231,6 +232,89 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="screen")
     assert errors == []
     page.close()
+
+
+def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
+    """The observation time is rendered after Markdown loading, but still follows the
+    shared clock when the source revision remains unchanged."""
+    authored = leaf_page(
+        "pull request clock",
+        '<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>',
+    )
+    url = serve(authored, packages=("pr-review",))
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "pr-1842",
+        {
+            "repository": "acme/leaf",
+            "number": 1842,
+            "title": "Keep observed review evidence current",
+            "author": "mara",
+            "base": "main",
+            "head": "clocked-render",
+            "revision": "8f3b2cd",
+            "status": "open",
+            "description": "The description stays unchanged.",
+            "observedAt": events_model.now_iso(),
+            "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
+            "checks": {"Unit suite": "passed"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    observed = page.locator(".lf-pr-observed")
+    expect(observed).to_have_text(re.compile(r"^Observed just now$"))
+
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    ticked(page)
+    expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
+    assert errors == []
+    page.close()
+
+
+def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
+    """A delayed lazy import cannot paint a widget after its host has disconnected."""
+    authored = leaf_page(
+        "pull request disconnect",
+        '<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>',
+    )
+    url = serve(authored, packages=("pr-review",))
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "pr-1842",
+        {
+            "repository": "acme/leaf",
+            "number": 1842,
+            "title": "Keep delayed rendering safe",
+            "author": "mara",
+            "base": "main",
+            "head": "disconnect-safe",
+            "revision": "8f3b2cd",
+            "status": "open",
+            "description": "The description waits for Markdown.",
+            "observedAt": events_model.now_iso(),
+            "diff": {"files": 1, "additions": 1, "deletions": 0, "commits": 1},
+            "checks": {"Unit suite": "passed"},
+        },
+    )
+    page = browser.new_page(
+        viewport={"width": 1200, "height": 900}, color_scheme="light"
+    )
+    errors = watched(page)
+    held = []
+    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/vendor/marked.esm.js"):
+            page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the lazy Markdown import"
+        page.locator("#reviewed-pr").evaluate("element => element.remove()")
+        held.pop(0).continue_()
+        page.wait_for_timeout(100)
+        assert errors == []
+    finally:
+        while held:
+            held.pop(0).continue_()
+        page.close()
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -1837,26 +1921,12 @@ def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve)
 
 
 def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, serve):
-    """Elapsed time is rendered on the poll, and the poll is the one thing a dead server
-    takes away. `poll()` returns early when the fetch brings nothing, so the sequence
-    consumers heard no tick and every row froze the words it last drew — the banner
-    saying the server is gone while the roster beside it went on reporting a four-minute
-    silence for the rest of the afternoon. That is precisely the authored freshness this
-    widget exists to replace, produced by the widget.
-
-    The tick is what is asserted, and it is sampled from inside the page — the one
-    licensed reason, that the fact is not one the browser reports from out here. Reading
-    it through the words instead would mean waiting out a boundary `ago` crosses, whose
-    only sub-minute one is a second wide; the words are then a pure function of this
-    tick and a clock the platform owns."""
-    url = serve(ROSTER_PAGE)
-    page, errors = open_page(browser, url)
-    page.evaluate(
-        "() => { window.__ticks = 0;"
-        " document.addEventListener('lf-actions', () => window.__ticks++); }"
-    )
+    """A clock advances held state even without a new state response."""
+    page, errors = open_page(browser, serve(ROSTER_PAGE))
     page.route("**/api/state*", refuse)
-    page.wait_for_function("() => window.__ticks >= 2")
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    expect(page.locator("#ag-wren .lf-heard")).to_have_text("last heard 3h ago")
+    expect(page.locator("#ag-wren .lf-cold")).to_have_text("quiet")
     assert errors == []
     page.close()
 

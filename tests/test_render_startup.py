@@ -2882,6 +2882,84 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     page.close()
 
 
+def test_conversation_timestamps_age_without_new_state(browser, serve):
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    page.keyboard.press("c")
+    timestamp = page.locator(".lf-msg-head > time").first
+    expect(timestamp).to_have_text("just now")
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    ticked(page)
+    expect(timestamp).to_have_text("3h ago")
+    assert errors == []
+    page.close()
+
+
+def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    url = serve(LONG_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "An earlier question.",
+            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.keyboard.press("c")
+    timestamp = page.locator(".lf-msg-head > time").first
+    expect(timestamp).to_have_text("1h ago")
+    stale = page.evaluate("async () => (await fetch('/api/state')).json()")
+    stale["taken"] = 0
+    stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
+    page.route("**/api/state*", lambda route: route.fulfill(json=stale))
+    with page.expect_response("**/api/state*"):
+        files_model.write_json(
+            serve.page_dir / "status.json",
+            {"state": "working", "detail": "newer", "ts": events_model.now_iso()},
+        )
+    ticked(page)
+    expect(timestamp).to_have_text("1h ago")
+    assert errors == []
+    page.close()
+
+
+def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
+    """An unchanged clock must not render state or redeliver an unchanged source.
+
+    Observe mutations over two actual timer ticks instead of imposing a machine-speed
+    budget. Clock aging has its own rendered-word test in the projection suite.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    ticked(page)
+    page.evaluate(
+        """async () => {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const {watchData} = await import('/runtime/widget-api.js');
+          window.idleDeliveries = 0;
+          window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
+            window.idleDeliveries++;
+          });
+          window.idleMutations = 0;
+          window.idleObserver = new MutationObserver(records => window.idleMutations += records.length);
+          window.idleObserver.observe(document.documentElement,
+            {subtree: true, childList: true, attributes: true, characterData: true});
+        }"""
+    )
+    ticked(page)
+    ticked(page)
+    assert page.evaluate(
+        """() => {
+          window.idleObserver.disconnect();
+          window.stopIdleData();
+          return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
+        }"""
+    ) == {"mutations": 0, "deliveries": 1}
+    assert errors == []
+    page.close()
+
+
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     browser, serve
 ):
@@ -2933,7 +3011,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "currentRevision": 1,
         "unbound": None,
         "absent": None,
-        "captured": [None, None],
+        "captured": [None],
         "failedCalls": 1,
         "message": "mount failed",
     }
@@ -3035,7 +3113,10 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
               return Promise.reject(new Error('update projection failed'));
           });
           const revision = runtime.data.revision + 1;
-          acceptData({...structuredClone(runtime.data), revision});
+          const next = structuredClone(runtime.data);
+          next.revision = revision;
+          next.sources.deployments.revision = revision;
+          acceptData(next);
           await notifyDataSubscribers();
           stopUpdate();
           return {
@@ -3054,6 +3135,41 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
     )
     assert any("data subscriber failed: update projection failed" in e for e in errors)
+    page.close()
+
+
+def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
+    """Another state read cannot stamp data ready while its first render is held."""
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          let release;
+          let calls = 0;
+          const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
+            if (++calls > 1) return new Promise(resolve => { release = resolve; });
+          });
+          const next = structuredClone(runtime.data);
+          next.revision++;
+          next.sources.deployments.revision = next.revision;
+          acceptData(next);
+          const first = notifyDataSubscribers();
+          while (!release) await new Promise(resolve => setTimeout(resolve, 0));
+          let complete = false;
+          const again = notifyDataSubscribers().then(() => { complete = true; });
+          await new Promise(resolve => setTimeout(resolve, 0));
+          const before = {complete, calls, ready: document.body.dataset.lfDataRevision};
+          release();
+          await Promise.all([first, again]);
+          stop();
+          return {before, after: document.body.dataset.lfDataRevision, revision: next.revision};
+        }"""
+    )
+    assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
+    assert result["after"] == str(result["revision"])
+    assert errors == []
     page.close()
 
 

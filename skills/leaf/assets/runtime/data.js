@@ -1,6 +1,7 @@
 import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
+import { clocked } from "./presence.js";
 
 export function acceptData(candidate) {
   if (
@@ -62,9 +63,9 @@ export async function notifyDataSubscribers() {
 // A source value remains the server snapshot's to own. Subscribers name one input on
 // their own widget; the declaration supplies its contract and the attribute where this
 // page bound a concrete source. They receive a fresh JSON clone immediately, then
-// whenever state asks subscribers to restate their reading, so a module cannot mutate
-// the private accepted snapshot and a newly activated seat need not wait for the next
-// poll.
+// when that source revision changes. Synchronous time readings also refresh the paint
+// when their displayed value changes. A module cannot mutate the accepted snapshot,
+// and a newly activated seat need not wait for a later state read.
 // `projectData` remains the rendering boundary: this helper delivers records but writes no
 // DOM and keeps no widget-specific cache.
 export function watchData(element, input, callback) {
@@ -89,8 +90,17 @@ export function watchData(element, input, callback) {
   const selected = declaration.snapshot
     ? element.getAttribute(declaration.snapshot)
     : null;
+  const paint = clocked(element, callback);
+  let delivered = false;
+  let deliveredRevision;
+  let rendering;
   const deliver = (snapshot, event) => {
-    const rendering = callback(snapshot);
+    const revision = snapshot?.revision ?? null;
+    if (!delivered || deliveredRevision !== revision) {
+      rendering = paint(structuredClone(snapshot));
+      delivered = true;
+      deliveredRevision = revision;
+    }
     if (rendering?.then && Array.isArray(event?.detail?.pending))
       event.detail.pending.push(rendering);
     return rendering;
@@ -116,12 +126,12 @@ export function watchData(element, input, callback) {
           `watchData(${element.localName}, ${input}) source ${source} has no snapshot ${selected}`,
         );
       return deliver(
-        structuredClone({
+        {
           contract: sourceStore.contract,
           revision: Number(selected),
           snapshot: selected,
           ...snapshot,
-        }),
+        },
         event,
       );
     }
@@ -136,7 +146,7 @@ export function watchData(element, input, callback) {
     };
     if (Object.hasOwn(sourceStore, "label")) snapshot.label = sourceStore.label;
     if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
-    return deliver(structuredClone(snapshot), event);
+    return deliver(snapshot, event);
   };
   // Establish the subscription only after its first delivery succeeds. A package that
   // throws while mounting must not leave a listener behind to fail every later poll.
@@ -146,10 +156,14 @@ export function watchData(element, input, callback) {
     initialRenders.push(
       Promise.resolve(initial).catch((error) => {
         document.removeEventListener("lf-data", update);
+        paint.stop();
         throw error;
       }),
     );
-  return () => document.removeEventListener("lf-data", update);
+  return () => {
+    document.removeEventListener("lf-data", update);
+    paint.stop();
+  };
 }
 
 // A fragmented contract keeps its complete value in data.json while page state carries

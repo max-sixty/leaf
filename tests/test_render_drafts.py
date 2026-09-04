@@ -21,6 +21,7 @@ from render_support import (
     KEYS_PAGE,
     LONG_PAGE,
     NOTED_PAGE,
+    SCROLL_SETTLED,
     SEATED_QUESTION_PAGE,
     SENTENCE,
     SMOOTH_LONG_PAGE,
@@ -2665,6 +2666,11 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
     (page_was, threads_was), (page_now, threads_now) = press_down()
     assert threads_now == threads_was, "the panel took a key aimed at the document"
     assert page_now > page_was, "the document did not move for a key of its own"
+    page.evaluate(
+        "() => { window.__lfScroll = document.scrollingElement.scrollTop;"
+        " window.__lfScrollSince = performance.now(); }"
+    )
+    page.wait_for_function(SCROLL_SETTLED, arg=50)
 
     resized(page, 500, 600)
     panel_settled(page)

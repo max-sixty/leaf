@@ -32,7 +32,100 @@ def bare_reaction(thread: dict) -> bool:
     return is_reaction(thread["root"]) and not spoken_turns(thread)
 
 
-def undo_error(event: dict, events: list, within: dict) -> str | None:
+class UndoReading:
+    """Indexed eligibility for the reader's one-step withdrawals.
+
+    The browser exposes every standing gesture in one reading, so checking each
+    candidate by folding the event log again turns a linear state read into a
+    quadratic one. This index computes the shared facts once: event identity,
+    withdrawals, and the reaction's conversation status. The append door uses the
+    same reading for its authoritative check, while callers that only have one
+    candidate can keep using :func:`undo_error`.
+
+    ``threads`` may be supplied by a caller that already folded the same log. It
+    is deliberately a reading rather than another source of state: the event log
+    and page containment remain the authorities, and this object only indexes their
+    validated projection.
+    """
+
+    def __init__(
+        self,
+        events: list,
+        within: dict,
+        threads: dict | None = None,
+        *,
+        withdrawn: set | None = None,
+    ):
+        self.events_by_id = {event["id"]: event for event in events}
+        self.withdrawn = taken_back(events) if withdrawn is None else withdrawn
+        if threads is None:
+            # Only reactions ask about conversation state. Keeping this fold lazy
+            # also preserves the boundary's ability to reject a non-reaction
+            # gesture without interpreting unrelated, already-validated records.
+            threads = (
+                build_threads(events, within, withdrawn=self.withdrawn)
+                if any(
+                    event.get("token")
+                    for event in events
+                    if event["kind"] in MESSAGE_KINDS
+                )
+                else {}
+            )
+        answered_reactions = set()
+        resolved_reactions = set()
+        reaction_ids = {
+            event["id"]
+            for event in events
+            if event["id"] not in self.withdrawn
+            and event["kind"] in MESSAGE_KINDS
+            and is_reaction(event)
+        }
+        for thread in threads.values():
+            messages = thread["msgs"]
+            for message in messages:
+                if not is_reaction(message) and message.get("parent") in reaction_ids:
+                    answered_reactions.add(message["parent"])
+                if thread["resolved"] and message["id"] in reaction_ids:
+                    resolved_reactions.add(message["id"])
+        self.answered_reactions = answered_reactions
+        self.resolved_reactions = resolved_reactions
+
+    def error(self, event: dict) -> str | None:
+        """Return the existing rejection for one proposed ``undo`` event."""
+        target_id = event["undoes"]
+        target = self.events_by_id.get(target_id)
+        if target is None:
+            return f"unknown undoes {target_id!r}"
+        if target["author"] != "user":
+            return f"{target['kind']} {target['id']} is not the reader's own gesture"
+        if target["id"] in self.withdrawn:
+            return f"{target['id']} has already been taken back"
+        if target["kind"] in MESSAGE_KINDS:
+            if not is_reaction(target):
+                return (
+                    f"{target['kind']} {target['id']} is not a reaction; a message "
+                    "with words in it is said rather than unsaid"
+                )
+            if target["id"] in self.answered_reactions:
+                return (
+                    f"reaction {target['id']} has been answered; withdraw it in the "
+                    "thread the answer opened"
+                )
+            if target["id"] in self.resolved_reactions:
+                return f"reaction {target['id']} stands on a resolved thread"
+        elif target["kind"] not in UNDOABLE_KINDS:
+            return (
+                f"{target['kind']} events cannot be taken back (the kinds that can "
+                f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
+            )
+        return None
+
+
+def undo_error(
+    event: dict,
+    events: list,
+    within: dict,
+) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing
@@ -52,47 +145,10 @@ def undo_error(event: dict, events: list, within: dict) -> str | None:
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
     inside that widget reopened, is open here as it is in `page state`."""
-    target = next((e for e in events if e["id"] == event["undoes"]), None)
-    if target is None:
-        return f"unknown undoes {event['undoes']!r}"
-    if target["author"] != "user":
-        return f"{target['kind']} {target['id']} is not the reader's own gesture"
-    # Asked before the kind's own questions rather than after them, because a gesture
-    # already taken back is gone from the folds those questions read: `build_threads`
-    # drops a withdrawn reaction, so the thread walk below found none and raised
-    # StopIteration out of the append door. That is a 500, which the browser is told to
-    # retry against a state that will never change again — the outbox wedges on the
-    # gesture instead of putting it back. Withdrawal is a fact about the target and not
-    # about its kind, and it is the same no-op whichever kind carries it.
-    if target["id"] in taken_back(events):
-        return f"{target['id']} has already been taken back"
-    if target["kind"] in MESSAGE_KINDS:
-        if not is_reaction(target):
-            return (
-                f"{target['kind']} {target['id']} is not a reaction; a message "
-                "with words in it is said rather than unsaid"
-            )
-        thread = next(
-            t
-            for t in build_threads(events, within).values()
-            if any(m["id"] == target["id"] for m in t["msgs"])
-        )
-        if any(m.get("parent") == target["id"] for m in spoken_turns(thread)):
-            return (
-                f"reaction {target['id']} has been answered; withdraw it in the "
-                "thread the answer opened"
-            )
-        if thread["resolved"]:
-            return f"reaction {target['id']} stands on a resolved thread"
-    elif target["kind"] not in UNDOABLE_KINDS:
-        return (
-            f"{target['kind']} events cannot be taken back (the kinds that can "
-            f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
-        )
-    return None
+    return UndoReading(events, within).error(event)
 
 
-def build_threads(events: list, within: dict) -> dict:
+def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
     """Fold the chronological log into comment threads by root id.
 
     `resolved` is the event that currently closes the thread, or None. Either side
@@ -147,7 +203,8 @@ def build_threads(events: list, within: dict) -> dict:
     passes `{}` and says so, that being a fact about the page rather than a
     reader standing down."""
     floors = retractions(events)
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     # widget id -> its last action the log still lets stand: not one the reader
     # took back, and not one a version retracted under it.
     answers = {}

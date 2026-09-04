@@ -103,14 +103,26 @@ function receipt(event, events) {
 customElements.define(
   "lf-record",
   class extends HTMLElement {
+    #stopHistory = null;
+    #signature = null;
+
     connectedCallback() {
-      if (!once(this)) return;
-      let signature = null;
-      watchHistory(this, (events) => {
+      once(this);
+      this.#watchHistory();
+    }
+
+    disconnectedCallback() {
+      this.#stopHistory?.();
+      this.#stopHistory = null;
+    }
+
+    #watchHistory() {
+      if (this.#stopHistory) return;
+      this.#stopHistory = watchHistory(this, (events) => {
         const relevant = events.filter((event) => kinds.has(event.kind));
         const next = JSON.stringify(relevant);
-        if (next === signature) return;
-        signature = next;
+        if (next === this.#signature) return;
+        this.#signature = next;
         const list = document.createElement("ol");
         list.dataset.lfGen = "1";
         if (relevant.length)

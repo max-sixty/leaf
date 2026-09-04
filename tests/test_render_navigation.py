@@ -2499,10 +2499,18 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         == ["pressed", "neutral", "neutral"] * 4
     )
 
-    def sequence_geometry(locator):
-        return locator.evaluate(
-            """sequence => {
+    def sequence_geometry():
+        # Chord progress repaints the key line. Read only a sequence that is standing,
+        # and capture its whole box in that same browser task rather than retaining the
+        # element across the paint that replaces it.
+        return page.wait_for_function(
+            """() => {
+              const sequence = document.querySelector(
+                '.lf-keyline .lf-key[data-lf-commands~="navigation.link"]'
+                + ' > .lf-key-sequence');
+              if (!sequence) return false;
               const box = sequence.getBoundingClientRect();
+              if (!box.width || !box.height) return false;
               return {
                 width: box.width,
                 height: box.height,
@@ -2512,15 +2520,18 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
                 }),
               };
             }"""
-        )
+        ).json_value()
 
     def link_geometry():
-        return page.locator(CHIPS).evaluate_all(
-            """chips => chips.filter(chip => {
+        return page.wait_for_function(
+            """() => {
+              const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')]
+                .filter(chip => {
                 const keys = [...chip.querySelectorAll('kbd')].map(key => key.textContent);
                 return keys[0] === 'g' && keys[1] === 'h';
-              })
-              .map(chip => {
+              });
+              if (chips.length !== 2) return false;
+              const geometry = chips.map(chip => {
                 const box = chip.getBoundingClientRect();
                 return {
                   text: chip.textContent,
@@ -2533,10 +2544,15 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
                     return {left: at.left - box.left, width: at.width, height: at.height};
                   }),
                 };
-              })"""
-        )
+              });
+              return geometry.every(
+                item => item.width && item.height
+                  && item.keys.every(key => key.width && key.height))
+                ? geometry : false;
+            }"""
+        ).json_value()
 
-    initial_legend_geometry = sequence_geometry(legend)
+    initial_legend_geometry = sequence_geometry()
     initial_link_geometry = link_geometry()
     assert len(initial_link_geometry) == 2
 
@@ -2555,7 +2571,7 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         )
         == ["pressed", "pressed", "neutral"] * 2
     )
-    assert sequence_geometry(legend) == initial_legend_geometry, (
+    assert sequence_geometry() == initial_legend_geometry, (
         "the key-line chord moved its keys when h became pressed"
     )
     assert link_geometry() == initial_link_geometry, (

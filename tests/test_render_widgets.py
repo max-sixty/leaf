@@ -12,6 +12,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESS_PAGE,
     ALL_DECISIONS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
@@ -2412,10 +2413,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     everything inside the decision comes after it.
     """
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
-    # Short enough that the decision's first pick falls past the foot of the window once
-    # the decision's opening is at its head, which is the shape the fault has: the walk
-    # cannot both show the question and stand the reader on its answer.
-    resized(page, 900, 300)
+    # Short enough that even the pick in the card's compact header falls past the foot of
+    # the window once the decision's opening is at its head, which is the shape the fault
+    # has: the walk cannot both show the question and stand the reader on its answer.
+    resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -2570,21 +2571,36 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
 
 
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A clamped action chip yields to the legend that explains its digit."""
-    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    """A row address that reaches the key line yields to the legend naming its digit."""
+    page, errors = open_page(browser, serve(ADDRESS_PAGE))
     resized(page, 900, 520)
 
+    # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
+    # key line. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
+    # Put the second row's address one pixel into the key line's band. The first stays a
+    # row above it, so a placement pass that reserves the legend keeps one and removes
+    # the other. Calculate the scroll from their current boxes rather than pinning the
+    # fixture to today's spacing.
+    page.evaluate(
+        """() => {
+          const addresses = document.querySelectorAll(
+            '#rows > lf-option > .lf-address[data-lf-ask-address]'
+          );
+          const last = addresses[addresses.length - 1].getBoundingClientRect();
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          scrollTo(0, scrollY + last.top - line.top - 1);
+        }"""
+    )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {

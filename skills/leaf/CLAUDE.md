@@ -3113,11 +3113,10 @@ scripts. So under that floor and on paper, where no rail is drawn, a copy's marg
 take the docked shape rather than the absolute seat they were exported into, which hangs
 off the page box. Not the rows that same pass withheld: an item whose target is not shown
 wears `lf-waiting` into the file, and a shape taken on the medium's terms would be the
-only thing standing a record beside a passage the file is still folding away. Print is
-where that reads oddly and holds anyway — paper unfolds a shut disclosure, so the passage
-is on the sheet while the row withheld on screen stays withheld — because the live page
-prints the same reading. Whether a withheld row should stand where paper unfolds its
-target is one question about `lf-waiting` in both runtimes, not a copy's to answer alone.
+only thing standing a record beside a passage the file was folding away when exported.
+Paper later unfolds that passage through CSS, but a script-free copy cannot rerun the
+packing pass, so its serialized `lf-waiting` reading remains withheld. Changing that
+behavior belongs to the live and copied layouts together, not to this export override.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,

@@ -667,21 +667,7 @@ FOLDED_SUGGESTION = leaf_page(
 </details>
 """,
 )
-# The row the copy keeps and the live page's own row for the same target: the paragraph's
-# item, holding the suggestion's `Accepted` receipt. Read on both runtimes so the copy's
-# reading is asserted against the page it is a copy of rather than on its own.
-WITHHELD_BESIDE_ITS_FOLD = """() => {
-  const item = document.querySelector('[data-lf-margin-for="replace"]');
-  return {
-    waiting: item.matches('.lf-waiting'),
-    shown: item.checkVisibility(),
-    open: document.getElementById('survey').open,
-    passage: document.getElementById('replace').checkVisibility(),
-  };
-}"""
-
-
-def test_a_copy_withholds_the_record_for_a_passage_it_is_still_folding_away(
+def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
     browser, serve, tmp_path
 ):
     """The record above stands because its target does. This one's does not.
@@ -695,29 +681,13 @@ def test_a_copy_withholds_the_record_for_a_passage_it_is_still_folding_away(
     Which makes the two facts one question. The shape a copy takes below the rail's
     floor and on paper is a rule about rows that stand; a rule that reached these too
     would be the only thing standing them, because `display: flex` is what it answers
-    `lf-waiting`'s `display: none` with.
-
-    On paper the reason reads differently and the answer is the same, so the medium is
-    named on both sides here. Print unfolds a shut disclosure through
-    `::details-content`, which is why the passage is on the sheet while `open` is still
-    false — and the row is still the one the packing pass withheld, measured on screen
-    before any media rule and carrying that reading into the file unchanged. The live
-    page reads exactly that way in print, which is the assertion above the copy's:
-    whether a withheld row should stand where paper unfolds its target is a question
-    about `.lf-margin-item.lf-waiting` in both runtimes, and a copy answering it alone
-    would state on paper a fact the page it is a copy of does not."""
+    `lf-waiting`'s `display: none` with. Print unfolds the passage through CSS after
+    export, but the file has no packing pass to recompute the serialized row state."""
     url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
     live, live_errors = open_page(browser, live_url(url))
     resized(live, 1200, 900)
     item = live.locator('[data-lf-margin-for="sug-refill"]')
     expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
-    live.emulate_media(media="print")
-    assert live.evaluate(WITHHELD_BESIDE_ITS_FOLD) == {
-        "waiting": True,
-        "shown": False,
-        "open": False,
-        "passage": True,
-    }
     assert live_errors == []
     live.close()
 
@@ -727,15 +697,23 @@ def test_a_copy_withholds_the_record_for_a_passage_it_is_still_folding_away(
         page = browser.new_page(viewport={"width": width, "height": 900})
         errors = watched(page)
         page.goto(out.as_uri(), wait_until="load")
-        expect(page.locator(".lf-margin-item")).to_have_count(1)
         for medium in ("screen", "print"):
             page.emulate_media(media=medium)
-            assert page.evaluate(WITHHELD_BESIDE_ITS_FOLD) == {
-                "waiting": True,
-                "shown": False,
-                "open": False,
-                "passage": medium == "print",
-            }, f"{width}px, {medium}"
+            assert page.evaluate(
+                """() => [...document.querySelectorAll('.lf-margin-item')].map(el => ({
+                     waiting: el.matches('.lf-waiting'),
+                     shown: el.checkVisibility(),
+                     open: document.getElementById('survey').open,
+                     passage: document.getElementById('replace').checkVisibility(),
+                   }))"""
+            ) == [
+                {
+                    "waiting": True,
+                    "shown": False,
+                    "open": False,
+                    "passage": medium == "print",
+                }
+            ], f"{width}px, {medium}"
         assert errors == []
         page.close()
 

@@ -137,6 +137,12 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable")
+    before = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
     refreshes = 5
     geometry_reads = page.evaluate(
         """refreshes => {
@@ -154,11 +160,23 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
         }""",
         refreshes,
     )
-    # This is the sharp boundary the optimization owns: every refresh may measure the
-    # page once, independent of how many Page-map locations it carries. CDP's aggregate
-    # layout counters also include unrelated browser work and fluctuate while this
-    # otherwise synchronous dispatch is measured; the layout pass itself is bounded by
-    # the test above.
+    after = {
+        metric["name"]: metric["value"]
+        for metric in session.send("Performance.getMetrics")["metrics"]
+    }
+    session.detach()
+    work = {
+        name: after[name] - before[name]
+        for name in (
+            "LayoutCount",
+            "RecalcStyleCount",
+        )
+    }
+    # Current Chromium performs 33 layouts and 127–128 style recalculations over five
+    # refreshes. These bounds keep that baseline while separating it from the old
+    # interleaved pass, which forced 26 layouts and 44 recalculations per refresh.
+    assert work["LayoutCount"] <= refreshes * 7, work
+    assert work["RecalcStyleCount"] <= refreshes * 26, work
     assert geometry_reads == refreshes, geometry_reads
     assert errors == []
     page.close()

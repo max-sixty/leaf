@@ -1519,15 +1519,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * Not the rows the same pass withheld. `lf-waiting` says the target is not shown — a
  * widget inside a shut fold is the reachable case — and that rule is one class less
  * specific than this one, so a shape taken on the medium's terms would also be the
- * only thing standing a record beside a passage the file is still folding away.
- *
- * On paper that passage is on the sheet: the print block below unfolds a shut
- * disclosure, while `lf-waiting` was measured on screen and rides into the file
- * unchanged. The scope holds there anyway because the live page prints the same
- * reading — the same row, withheld beside the same unfolded passage. Whether a
- * withheld row should stand where paper unfolds its target is a question about the
- * `.lf-margin-item.lf-waiting` rule above, in both runtimes at once; answered here it
- * would only make a copy state on paper what the page it copies does not. */
+ * only thing standing a record beside a passage the file was folding away when
+ * exported. Paper later unfolds that passage through CSS, but a script-free copy
+ * cannot rerun the packing pass; changing the serialized `lf-waiting` reading belongs
+ * to the live and copied layouts together, not to this export override. */
 @media screen and (max-width: 899px), print {
   html.lf-copy .lf-margin-item:not(.lf-waiting) { position: static; display: flex;
       width: fit-content;

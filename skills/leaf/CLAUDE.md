@@ -864,8 +864,9 @@ minimum obligations:
 - A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
   return one token from ATTR and `lfVisualPart(part)` to return its current
   `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element supplies only mark and
-  travel geometry. The render gate refuses either missing method.
+  recorded as `anchor.visual`, and the returned element supplies mark, travel, and aim
+  geometry. Aim follows a returned SVG element's painted primitives and uses the shown
+  box for other elements. The render gate refuses either missing method.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place. A
@@ -1084,7 +1085,7 @@ runtime may write. `focused` descends through retargeted
 
 Hit testing asks two different questions. `elementFromPointAcross` and
 `markAt` may descend into a shadow root when the exact marked text matters.
-`aimedItem` may keep document retargeting when the host is the semantic item.
+`aimedTarget` may keep document retargeting when the host is the semantic item.
 Choose the reading by the question, not by convenience.
 
 The page's widget inventory remains the document's declared inventory. Do not

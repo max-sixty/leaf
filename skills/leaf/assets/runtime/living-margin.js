@@ -570,7 +570,7 @@ export function createLivingMargin(dependencies) {
   let pinnedKey = null;
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
-  let hoveredKey = null;
+  let hoveredHost = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
@@ -2060,20 +2060,19 @@ export function createLivingMargin(dependencies) {
         host.addEventListener("focusin", () => {
           // A new keyboard destination outranks a pointer parked on the previous
           // target. Real pointer movement can take ownership back without a press.
-          hoveredKey = null;
+          hoveredHost = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", () =>
           requestAnimationFrame(refreshHighlight),
         );
-        const hover = () => {
-          hoveredKey = host.lfEntry?.key ?? null;
+        const takePointerOwnership = () => {
+          hoveredHost = host;
           refreshHighlight();
         };
-        host.addEventListener("pointerenter", hover);
-        host.addEventListener("pointermove", hover);
+        host.addEventListener("pointermove", takePointerOwnership);
         host.addEventListener("pointerleave", () => {
-          if (hoveredKey === host.lfEntry?.key) hoveredKey = null;
+          if (hoveredHost === host) hoveredHost = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", (event) => {
@@ -2254,7 +2253,7 @@ export function createLivingMargin(dependencies) {
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const key =
-      hoveredKey ??
+      (hoveredHost?.isConnected ? hoveredHost.lfEntry?.key : null) ??
       focusedHost?.lfEntry?.key ??
       (preview.contains(active) || preview.matches(":popover-open")
         ? previewEntry?.key

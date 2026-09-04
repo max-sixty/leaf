@@ -926,6 +926,100 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     page.close()
 
 
+def test_margin_target_hover_requires_pointer_movement(browser, serve):
+    """Page motion under a parked pointer cannot take ownership from the keyboard."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 720)
+    margins_laid_out(page)
+    host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
+    initial = host.bounding_box()
+    pointer = {"x": int(initial["x"] + initial["width"] / 2), "y": 70}
+    assert not initial["y"] < pointer["y"] < initial["y"] + initial["height"], (
+        "the pointer starts inside the Ask margin host"
+    )
+    page.mouse.move(pointer["x"], pointer["y"])
+
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    page.keyboard.press("1")
+    page.keyboard.press("Escape")
+
+    page.wait_for_function(
+        """({x, y}) => {
+          const host = document.querySelector(
+            '[data-lf-margin-for="bg-choice-ask"]'
+          );
+          const box = host?.getBoundingClientRect();
+          return document.activeElement === document.body && box &&
+            box.left < x && x < box.right && box.top < y && y < box.bottom;
+        }""",
+        arg=pointer,
+    )
+    target = page.locator("#bg-choice-ask")
+    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
+        "moving the margin under a stationary pointer claimed pointer ownership"
+    )
+
+    page.mouse.move(pointer["x"] + 1, pointer["y"])
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    assert errors == []
+    page.close()
+
+
+def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
+    """Replacing a hovered margin host cannot transfer its pointer ownership."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 720)
+    margins_laid_out(page)
+    target = page.locator("#bg-draft")
+    target.scroll_into_view_if_needed()
+    host = page.locator('[data-lf-margin-for="bg-draft"]')
+    box = host.bounding_box()
+    pointer = {
+        "x": int(box["x"] + box["width"] / 2),
+        "y": int(box["y"] + box["height"] / 2),
+    }
+    page.mouse.move(pointer["x"], pointer["y"])
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+
+    draft = target.element_handle()
+    old_host = host.element_handle()
+    assert draft is not None and old_host is not None
+    draft.evaluate("node => node.remove()")
+    assert not old_host.evaluate("node => node.isConnected")
+    page.evaluate(
+        "node => document.querySelector('#bg-replace').after(node)",
+        draft,
+    )
+    page.wait_for_function(
+        """({x, y}) => {
+          const host = document.querySelector('[data-lf-margin-for="bg-draft"]');
+          const box = host?.getBoundingClientRect();
+          return host?.isConnected && host.checkVisibility() && box &&
+            box.bottom > 0 && box.top < innerHeight &&
+            !(box.left < x && x < box.right && box.top < y && y < box.bottom);
+        }""",
+        arg=pointer,
+    )
+    assert page.evaluate(
+        "old => document.querySelector('[data-lf-margin-for=\"bg-draft\"]') !== old",
+        old_host,
+    )
+    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
+        "the replacement host inherited pointer ownership from its disconnected peer"
+    )
+
+    replacement = page.locator('[data-lf-margin-for="bg-draft"]')
+    replacement_box = replacement.bounding_box()
+    page.mouse.move(
+        int(replacement_box["x"] + replacement_box["width"] / 2),
+        int(replacement_box["y"] + replacement_box["height"] / 2),
+    )
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    assert errors == []
+    page.close()
+
+
 def test_g_m_presses_the_first_button_at_each_location(browser, serve):
     """A location address has the same native press as its first available Button."""
     page, errors = open_page(

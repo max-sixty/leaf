@@ -317,6 +317,18 @@ def open_session_turn(
             continue
 
 
+def close_session_turn(session_id: str) -> bool:
+    """Stamp the end of a turn across every page one session still holds."""
+    pages = owned_pages(session_id)
+    for page_dir in pages:
+        try:
+            with PageTransaction(page_dir) as page:
+                page.close_turn(session_id)
+        except FileNotFoundError:
+            continue
+    return bool(pages)
+
+
 def owned_pages(session_id: str | None) -> list:
     """Active pages owned by one session, or by every session when id is None."""
     pages = {

@@ -31,6 +31,7 @@ from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pic
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
+ACTIVE_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -150,6 +151,7 @@ def _append_batch(
             "queued": 0,
             "stop_offered": 0,
             "phase": "waiting" if queue_if_new else "entered",
+            "updated_at": time.time(),
             "batches": [],
         }
     else:
@@ -181,6 +183,7 @@ def _append_batch(
         "receipted": False,
     }
     epoch["batches"].append(entry)
+    epoch["updated_at"] = time.time()
     write_json(epoch_path, epoch)
     return epoch_path, len(epoch["batches"]) - 1, entry
 
@@ -258,6 +261,26 @@ def _recover_delivery(codex_path: str, session_id: str) -> bool:
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         epochs = _epochs(session_id)
+        current = [
+            (path, epoch)
+            for path, epoch in epochs
+            if epoch["phase"] != "closed"
+        ]
+        if len(current) > 1:
+            raise RuntimeError(
+                f"Codex task {session_id} has multiple open Leaf deliveries"
+            )
+        if current:
+            path, epoch = current[0]
+            if (
+                epoch["phase"] == "entered"
+                and len(epoch["batches"]) > epoch["queued"]
+                and time.time() - epoch["updated_at"]
+                >= ACTIVE_DELIVERY_RECOVERY_TIMEOUT
+            ):
+                epoch["phase"] = "waiting"
+                epoch["queue"] = "pending"
+                write_json(path, epoch)
         for path, epoch in epochs:
             _sync_receipts(path, epoch)
         queued = next(
@@ -368,6 +391,7 @@ def open_turn(session_id: str) -> tuple[bool, str | None]:
             if current is not None:
                 epoch_path, epoch = current
                 epoch["phase"] = "entered"
+                epoch["updated_at"] = time.time()
                 if epoch["queue"] == "pending":
                     epoch["queue"] = "none"
                 write_json(epoch_path, epoch)
@@ -398,6 +422,7 @@ def finish_turn(
                 visible = epoch["stop_offered"] if stop_hook_active else epoch["queued"]
                 if len(epoch["batches"]) > visible:
                     epoch["stop_offered"] = len(epoch["batches"])
+                    epoch["updated_at"] = time.time()
                     write_json(epoch_path, epoch)
                     prompt = _prompt(epoch_path)
             should_block = prompt is not None or bool(reasons and not stop_hook_active)

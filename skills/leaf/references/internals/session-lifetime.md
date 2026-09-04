@@ -43,17 +43,20 @@ prompt hook, which fires with the turn already running whatever caused it, and
 by the carrier that delivers a batch — the latter only where that carrier's
 handoff is the opening. A direct wait's is: it exits with the batch in model
 context, so it clears the stamp under the same lock the batch left under. The
-Codex adapter's is not: its pointer waits in a durable queue that a loaded
-client starts and an unloaded task leaves standing, so it leaves the stamp alone
-and the turn that does start carries the claim the ordinary way, by writing a
-status past it. The prompt is what covers the reader who answers where the
-banner sent them — a nudge in the terminal leaves no batch for any carrier to
-hand over. Both stamps are the session's rather than the page's, and both span
-its pages: the Stop hook closes the turn on every page the session holds, so an
-opening reopens that same set, each page under its own transaction. Without that clearing the
-page reads a session that came back and worked as one that walked away, and tells
-the reader to nudge a turn that is running — a leaf whose own batch was never the
-one delivered included.
+Codex adapter's queued handoff is not: its pointer waits in a durable queue that
+a loaded client starts and an unloaded task leaves standing, so it leaves the
+stamp alone. The prompt hook opens the claim when the turn actually starts and
+puts the current delivery epoch in model context. Input that arrives later joins
+that epoch without another queued message. Stop carries the same pointer and
+keeps the claim open; the re-entered Stop confirms that offer and closes the turn
+when no newer batch has arrived. The prompt also covers the reader who answers
+where the banner sent them — a nudge in the terminal leaves no batch for any
+carrier to hand over. Both stamps are the session's rather than the page's, and
+both span its pages: the Stop hook closes the turn on every page the session
+holds, so an opening reopens that same set, each page under its own transaction.
+Without that clearing the page reads a session that came back and worked as one
+that walked away, and tells the reader to nudge a turn that is running — a leaf
+whose own batch was never the one delivered included.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant whose lifetime has ended settles the question
@@ -112,6 +115,9 @@ the same pointer. The prompt hook has no delivery receipt, so Stop offers that i
 again unless an accepted queue already carries it. A Stop offer records how many
 batches it carried. `stop_hook_active` confirms that offer on re-entry; input added
 after it produces another offer, while no newer input closes the epoch and turn.
+An active epoch with input newer than its accepted queue snapshot returns to the
+same queued-pointer path after fifteen minutes without another hook. This recovers
+an interrupted turn; a long-running turn may receive the at-least-once retry.
 
 The Stop hook locks every currently owned page in stable path order before it
 locks the session delivery state. It captures and acknowledges all input already
@@ -139,12 +145,12 @@ carrying the conversations its events land in.
 Codex delivery epochs live under the host state home's session records, not in the
 page. Each file is one transport authority: whether its queue was accepted, how
 many batches that queue covered, how many the last Stop offer covered, whether the
-epoch is closed, and the batches themselves. The sole unclosed file is the current
-epoch. Page claims remain the turn authority and page cursors remain the receipt
-authority during a page's lifetime. Once a cursor advances, its batch records that
-receipt so reinitializing the same page path cannot revive old transport work or block
-receipts still due on another page.
-An uncertain queue command retries the same file pointer. Delivery is therefore at
+epoch is closed, when its last input or hook transition occurred, and the batches
+themselves. The sole unclosed file is the current epoch. Page claims remain the turn
+authority and page cursors remain the receipt authority during a page's lifetime.
+Once a cursor advances, its batch records that receipt so reinitializing the same
+page path cannot revive old transport work or block receipts still due on another
+page. An uncertain queue command retries the same file pointer. Delivery is therefore at
 least once; a repeated turn recognizes the id in the filename and applies the
 page-and-sequence retry rule. Completed files remain as recovery history because queue
 acceptance does not prove that a later turn read them.

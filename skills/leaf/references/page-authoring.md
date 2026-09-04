@@ -82,7 +82,7 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
-shortcuts, live-leaves tray, and open-asks tray. Authors declare reader asks
+shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
 through the registry's decision widgets and regions, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
@@ -123,11 +123,11 @@ chrome belongs inside a tab.
 ## Reading cost
 
 Open words are read; collapsed words are there when the reader wants them. What
-stands open in the column is what the reader has to take from the page, and its
-backing goes under `<details>`: the full argument, a transcript, source and
-output, how a number was reached. Collapsed words stay quotable, and the runtime
-opens the disclosure when a comment or a walk lands inside one. A decision and
-the evidence it turns on never collapse.
+stands open in the column is what the reader has to take from the page. History,
+method, source excerpts, exhaustive support, transcripts, and raw output are
+backing by default and go under `<details>`. Collapsed words stay quotable, and
+the runtime opens the disclosure when a comment or a walk lands inside one. A
+decision and the evidence it turns on never collapse.
 
 The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an
@@ -137,13 +137,15 @@ that reaches a finding says it in the heading, briefly enough to scan in an
 it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.
 
-Give a structure its own shape rather than describing it in sentences. A flow or
-a sequence is a diagram, a comparison is a table, a measurement is a metric and a
-run of them is a chart, a set of movable things is a board, and the prose beside
-one says only what the shape cannot. What is left for prose is the claim, the
-reason it holds, and the question the page is asking. A few sentences hold all
-three. A section that runs longer is carrying either a structure with a shape of
-its own or backing that belongs under `<details>`.
+Show a visible subject with an image instead of describing its appearance. Show
+an interface with a screenshot, and a visual change with a before-and-after
+capture. A relationship, sequence, or system state transition is a diagram; a
+comparison is a table; a measurement is a metric and a run of them is a chart;
+movable things form a board. Use images only when they carry information. The
+prose beside a shape says only what the shape cannot. What is left for prose is
+the claim, the reason it holds, and the question the page is asking. A few
+sentences hold all three. A section that runs longer is carrying either a
+structure with a shape of its own or backing that belongs under `<details>`.
 
 Write for what the reader has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a

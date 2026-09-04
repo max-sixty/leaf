@@ -34,7 +34,9 @@ receipt. The task reads every entry in `batches`, each containing `page`, `url`,
 `threads`, and `events`; it does not wait or acknowledge. If a queue command has an
 uncertain outcome, the adapter retries the same pointer with the same Leaf delivery
 id. This is at-least-once delivery and may create a retry turn; the task applies
-the page-and-sequence retry rule below.
+the page-and-sequence retry rule below. If an active turn produces no later hook
+for fifteen minutes, the adapter queues the same epoch pointer so its stored input
+cannot remain hidden. A long-running turn can therefore produce a duplicate wake.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its events
 enter the same append-only log; the detached Codex adapter still owns wait,

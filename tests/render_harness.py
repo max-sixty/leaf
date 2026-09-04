@@ -1530,6 +1530,38 @@ def panel_settled(page, open=True):
     )
 
 
+def reservations_taken(page):
+    """Wait for the panel's settlement controls to stand at the widths they reserve.
+
+    A control that changes its own word mid-gesture — Resolve to Resolving… to ✓ Resolved
+    — holds room for the widest of them, measured in the face the page is set in rather
+    than stated as a constant. That reading needs a box, and a shut panel is
+    `display: none`, so every control built under one reads zero and holds. Opening the
+    panel is what gives it a box, and the reading comes back a ResizeObserver delivery
+    and a frame later — after the open class is on and after `main` has stopped carrying,
+    which is everything `panel_settled` states. Until it lands, Resolve stands at the
+    width of the word it says now, 28px narrower than the control the reader ends up
+    looking at; a test that measures the actions row on either side of that arrival gets
+    two readings of two different buttons and reports a layout shift the page never made.
+
+    So the geometry tests state the arrival, in the terms the runtime writes it: an
+    inline `min-width` on every settlement control the panel is rendering. Rendering, not
+    `getClientRects()` — the resolved disclosure holds its threads in a subtree Chromium
+    skips, where a boxless control keeps answering with the size it last had, so a Reopen
+    nobody has disclosed reads as drawn while it is still holding for the reading the
+    disclosure will give it. `checkVisibility()` separates the two, and answers for the
+    shut panel as well.
+
+    This is not folded into `panel_settled`, which is a step on the way to a gesture in
+    most of its callers rather than a geometry read: the wait belongs where a test is
+    about to measure a control, not on every path that opens the panel."""
+    page.wait_for_function(
+        """() => [
+          ...document.querySelectorAll('.lf-panel :is(.lf-resolve, .lf-reopen)'),
+        ].every(control => !control.checkVisibility() || control.style.minWidth)"""
+    )
+
+
 def resized(page, width, height):
     """Resize the window, and wait for the page to have handled it.
 

@@ -1,6 +1,10 @@
 """Conversation-scoped browser projection."""
 
-from ..decisions import local_decision_entry, thread_decision_projection
+from ..decisions import (
+    local_decision_entry,
+    thread_decision_inventory,
+    thread_decision_projection,
+)
 from ..events import (
     awaits_agent,
     bare_reaction,
@@ -72,6 +76,13 @@ def _browser_conversation(
         reading=reading,
         request_phases=request_phases(requests),
     )
+    all_decisions = thread_decision_inventory(
+        events,
+        registry,
+        settled,
+        reading=reading,
+        request_phases=request_phases(requests),
+    )
     open_decision_threads = {decision["thread"] for decision in decisions}
     rendered_threads = [
         {
@@ -97,6 +108,7 @@ def _browser_conversation(
                 reading.projection, scope="conversation", within={}, floors={}
             ),
             "decisions": {
+                "all": all_decisions,
                 "reader": decisions,
                 "unanswered": decisions,
                 "awaiting": awaiting,

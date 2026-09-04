@@ -2139,6 +2139,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
             "queued": 0,
             "stop_offered": 0,
             "phase": "closed" if closed else "entered",
+            "updated_at": time.time(),
             "batches": [
                 {
                     "page": str(page),
@@ -2285,6 +2286,47 @@ def test_stop_reoffers_unsettled_input_if_prompt_context_was_lost(
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     stop = json.loads(capsys.readouterr().out)
     assert epoch_path.stem in stop["reason"]
+
+
+def test_an_abandoned_active_epoch_requeues_its_same_pointer(
+    codex_claimed_page, monkeypatch
+):
+    page = codex_claimed_page
+    events_model.append_event(
+        page,
+        {"kind": "comment", "id": "pending", "author": "user", "text": "hi"},
+    )
+    delivered = events_model.read_events(page)[-1]
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch["updated_at"] = 0
+    files_model.write_json(epoch_path, epoch)
+    queued = []
+    monkeypatch.setattr(
+        codex_model,
+        "queue_delivery",
+        lambda _codex, _session, prompt: queued.append(prompt),
+    )
+
+    assert codex_model._recover_delivery("codex", "codex-thread")
+
+    [prompt] = queued
+    recovered = files_model.read_json(epoch_path)
+    assert epoch_path.stem in prompt
+    assert recovered["phase"] == "waiting"
+    assert recovered["queue"] == "accepted"
+    assert recovered["queued"] == 1
 
 
 def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(

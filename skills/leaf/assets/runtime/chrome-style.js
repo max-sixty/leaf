@@ -69,12 +69,12 @@ export function chromeStyle({
       overflow-x: hidden;
       overflow-y: scroll;
       scroll-padding-top: calc(var(--lf-banner-h) + 12px);
-      scroll-padding-bottom: var(--here-ring-room);
-      /* The foot is the same claim the head makes, in the size a ring needs rather than
-         a banner's: a control landed on at the fold had its border box put flush with
-         the window's bottom edge and its ring in the strip past it, so the last row of
-         a page was reached with the ring around it cut off. The panel's own list says
-         the same thing about its own edges. */
+      scroll-padding-bottom: max(var(--here-ring-room), var(--lf-keyline-clear, 0px));
+      /* The foot is the same claim the head makes. Without a key line it keeps the room
+         a focus ring needs. syncLayout raises it to the fixed line's complete band when
+         one is standing there, so native Tab and scrollIntoView cannot land a control
+         behind the keyboard help. The panel's own list says the same thing about its
+         own edges. */
       body { min-height: 100%; }
       /* The banner stands over the head of the document, so the page's first lines get
          room rather than starting under it, and the key line reserves the same at the
@@ -583,6 +583,10 @@ ${MARK_RULES}
      and not the mark's own "open this thread". */
   body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
   body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
+  /* A semantic SVG part keeps these classes for hit-testing and thread ownership, while
+     the chrome layer draws their shared geometry above the package's own paint. Suppress
+     only the rectangular representation; ordinary elements stay on the outline path. */
+  :is(.lf-mark-el, .lf-react-el).lf-shaped-mark { outline: none; }
   /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
      than a role written onto that drawing. Resting it is a conventional clipped control;
      focus gives it a skip-link-style face under the banner. */
@@ -1014,6 +1018,15 @@ ${MARK_RULES}
        questions off before they said which question they were. */
     .lf-decisions-says { display: -webkit-box; -webkit-box-orient: vertical;
       -webkit-line-clamp: 3; overflow: hidden; }
+    .lf-decisions-answer { display: none; margin-top: 3px; color: var(--ink-2);
+      font-size: var(--t-6); font-weight: 600; }
+    .lf-decisions-row[data-lf-answer-state="answered"] .lf-decisions-answer {
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      overflow: hidden; }
+    .lf-decisions-row[data-lf-answer-state="answered"] .lf-decisions-kind {
+      color: var(--ok-ink); }
+    .lf-decisions[data-lf-complete] { border-color: var(--ok);
+      background: var(--ok-tint); color: var(--ok-ink); }
     /* Version news remains a legible address at every width. When the row runs out of
        room the shelf above scrolls; clipping the one control instead left a visible
        eighteen-pixel button containing none of its words. */
@@ -1423,17 +1436,34 @@ ${MARK_RULES}
        box whose border is already the accent the arm changed nothing a reader could
        see, which was reported as no box at all.
        The layer over the page is the runtime's by construction, so the aim is stated
-       there instead, from the aimed element's geometry: a veil that says how much a
-       press takes and a ring that says where it stops, over everything the page can
-       paint — an lf-shot frame flush to its own edges included. pointer-events
-       stands down so the press this box promises, and every elementFromPoint behind
-       the promise, still lands on the item under it. Document-anchored like the
-       floats above (place), so a scroll moves it with the page between the events
-       that re-derive it; under the floats themselves, which are chrome the reader
-       works rather than paint about the page. */
+       there instead. Ordinary items supply their shown rectangle. An SVG element returned
+       for a generated visual part supplies its painted geometry, which the runtime clones
+       so a diamond, circle, or compound shape keeps its contour. Both forms use a veil to
+       say how much a press takes and a ring to say where it stops, over everything the
+       page can paint — an lf-shot frame flush to its own edges included. pointer-events
+       stands down so the press this box promises, and every elementFromPoint behind the
+       promise, still lands on the item under it. Document-anchored like the floats above
+       (place), so a
+       scroll moves it with the page between the events that re-derive it; under the
+       floats themselves, which are chrome the reader works rather than paint about the
+       page. */
     .lf-aim { position: absolute; display: none; pointer-events: none;
+      --lf-shape-ink: var(--accent); --lf-shape-stroke: 2px; --lf-shape-dash: none;
       border: 2px solid var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); }
+    .lf-aim.lf-shaped { border: 0; border-radius: 0 !important; background: none; }
+    .lf-aim-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
+    .lf-visual-marks { display: contents; }
+    .lf-visual-mark { position: absolute; display: none; pointer-events: none;
+      --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
+      --lf-shape-dash: none; }
+    .lf-visual-mark.lf-visual-mark-reaction { --lf-shape-dash: 3px 2px; }
+    .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-here) {
+      --lf-shape-stroke: var(--here-ring-w); }
+    .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {
+      --lf-shape-ink: var(--accent); }
+    .lf-visual-mark.lf-visual-mark-here { --lf-shape-dash: none; }
+    .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
     .lf-composer { display: none; }
     .lf-fab-bar .lf-composer > :not(.lf-fab-input) { display: none !important; }
     .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }

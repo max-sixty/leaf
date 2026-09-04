@@ -15,6 +15,7 @@ from .schema import (
 from .served_state.page import full_state
 from .service import (
     PageTransaction,
+    close_session_turn,
     open_session_turn,
     owned_pages,
     unacknowledged,
@@ -248,12 +249,7 @@ def cmd_hook(payload: dict) -> None:
             # The stamp is not a nudge and does not depend on there being one:
             # the turn that ends cleanly is exactly the one that can leave a
             # `working` claim behind with nobody on it.
-            for page_dir in owned_pages(sid):
-                try:
-                    with PageTransaction(page_dir) as page:
-                        page.close_turn(sid)
-                except FileNotFoundError:
-                    continue
+            close_session_turn(sid)
             # A repeated ordinary debt is the same Stop hook asking again.
             if payload.get("stop_hook_active"):
                 return

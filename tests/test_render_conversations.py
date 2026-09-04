@@ -35,6 +35,7 @@ from render_support import (
     open_page,
     panel_comment,
     panel_settled,
+    reservations_taken,
     resized,
     ring_faults,
     rings_drawn,
@@ -600,6 +601,10 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
         page, errors = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
+        # Both readings are of the reserved Resolve. Taken before it lands, `short` is of
+        # the narrower control the word alone makes, and the test reports the arrival as
+        # a horizontal shift the row never made.
+        reservations_taken(page)
         thread = page.locator(".lf-threads > .lf-thread")
         compose = thread.locator(".lf-compose")
         textarea = compose.locator("textarea")
@@ -2179,6 +2184,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-address",
         "lf-over-mark",
         "lf-mark-el",
+        "lf-shaped-mark",  # a semantic SVG mark projects its contour above the drawing
         "lf-mark-hover",  # the same element mark, for the one the pointer indicates
         "lf-mark-here",  # the same element mark, for the comment the reader is in
         "lf-pending",
@@ -2859,7 +2865,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)

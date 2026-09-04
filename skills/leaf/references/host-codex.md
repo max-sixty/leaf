@@ -60,7 +60,9 @@ by the prompt hook is offered again at Stop because that hook has no delivery
 receipt. After Stop supplies a pointer, its next acknowledged invocation closes the
 epoch unless a newer batch arrived. The adapter owns `leaf wait` and `leaf ack`;
 the task owns replies, revisions, page status, and the handoff back to `waiting` or
-`idle`.
+`idle`. If an active turn produces no later hook for fifteen minutes, the adapter
+queues the same epoch pointer; a legitimately long turn can therefore receive a
+duplicate wake.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

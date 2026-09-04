@@ -35,6 +35,7 @@ from render_support import (
     open_page,
     panel_comment,
     panel_settled,
+    reservations_taken,
     resized,
     ring_faults,
     rings_drawn,
@@ -600,6 +601,10 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
         page, errors = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
+        # Both readings are of the reserved Resolve. Taken before it lands, `short` is of
+        # the narrower control the word alone makes, and the test reports the arrival as
+        # a horizontal shift the row never made.
+        reservations_taken(page)
         thread = page.locator(".lf-threads > .lf-thread")
         compose = thread.locator(".lf-compose")
         textarea = compose.locator("textarea")

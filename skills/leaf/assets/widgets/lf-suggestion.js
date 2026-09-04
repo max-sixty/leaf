@@ -20,8 +20,8 @@ import {
   alignText,
   commands,
   FOLD_MS,
-  marginAction,
-  marginActionState,
+  marginButton,
+  marginButtonState,
   motion,
   offer,
   once,
@@ -243,7 +243,7 @@ customElements.define(
       });
     }
 
-    // Through `offer` like every other injected control, then through marginAction so
+    // Through `offer` like every other injected control, then through marginButton so
     // this widget supplies only the verb and tone. The shared RHS contract supplies
     // its shape, focus treatment, and responsive label behavior.
     #button(outcome) {
@@ -262,7 +262,7 @@ customElements.define(
     #name(btn, state, change) {
       const kind = verb(btn);
       btn.removeAttribute("data-lf-said");
-      marginAction(btn, {
+      marginButton(btn, {
         key: kind,
         ...FACE[kind],
         label: WORDS[kind],
@@ -286,7 +286,7 @@ customElements.define(
     };
 
     #utilityButton({ key, icon, label, tone = "neutral", role, press }) {
-      const button = marginAction(offer("button", ""), {
+      const button = marginButton(offer("button", ""), {
         key,
         icon,
         label,
@@ -314,7 +314,7 @@ customElements.define(
           role: "primary",
           press: () => this.#undoOutcome(),
         });
-        marginActionState(this.#undo, this.#undoing ? "busy" : "settled");
+        marginButtonState(this.#undo, this.#undoing ? "busy" : "settled");
         this.#undo.setAttribute("aria-disabled", String(this.#undoing));
         this.#undo.setAttribute(
           "aria-label",
@@ -355,7 +355,7 @@ customElements.define(
           press: () => this.#cancelFailedDecision(),
         });
         for (const control of [this.#retry, this.#cancelFailure])
-          marginActionState(control, "failed");
+          marginButtonState(control, "failed");
         this.#row.dataset.lfMarginReceipt = "failed";
         this.#replaceControls(this.#retry, this.#cancelFailure, this.#receipt);
         return;
@@ -383,17 +383,17 @@ customElements.define(
       if (held && !wanted.includes(source)) {
         this.#margin?.update({ immediate: true });
         wanted
-          .find((node) => node.matches(".lf-margin-action") && node.checkVisibility())
+          .find((node) => node.matches(".lf-margin-button") && node.checkVisibility())
           ?.focus({ preventScroll: true });
       }
       commands(
         this,
         "On a suggested change",
         wanted
-          .filter((control) => control.matches?.(".lf-margin-action"))
+          .filter((control) => control.matches?.(".lf-margin-button"))
           .map((control) => {
             const label = control.querySelector(
-              ":scope > .lf-margin-action-label",
+              ":scope > .lf-margin-button-label",
             ).textContent;
             return {
               id: `suggestion.${control.dataset.lfButtonKey}`,

@@ -2210,11 +2210,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-item",
         "lf-margin-options",
         "lf-margin-contribution",
-        "lf-margin-action",
-        "lf-margin-action-glyph",
-        "lf-margin-action-icon",
-        "lf-margin-action-space",
-        "lf-margin-action-label",
+        "lf-margin-button",
+        "lf-margin-button-glyph",
+        "lf-margin-button-icon",
+        "lf-margin-button-space",
+        "lf-margin-button-label",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.

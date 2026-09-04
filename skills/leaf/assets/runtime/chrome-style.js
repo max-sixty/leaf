@@ -282,10 +282,10 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-action[hidden] { display: none; }
-  /* A Button carries one of four promises. An action's uniformly heavier ring says
+  /* A Button-shaped fitting carries one of four promises. An action's uniformly heavier ring says
      this press acts now. A disclosure opens context, and the ellipsis unfolds peer
      Buttons in the target cluster. A receipt reports a move already made and offers no
-     press. All four keep one circular fitting and one place in the cluster. */
+     press. All four keep one circular silhouette and one place in the cluster. */
   .lf-margin-action[data-lf-behavior="action"] {
     border-width: 2px;
     color: var(--ink);
@@ -295,8 +295,8 @@ export function chromeStyle({
     background: var(--paper); color: var(--muted); box-shadow: none;
   }
   .lf-margin-action[data-lf-behavior="receipt"] {
-    border-color: transparent; background: none; color: var(--muted); box-shadow: none;
-    cursor: default;
+    border-color: var(--border-2); background: var(--paper); color: var(--ink-2);
+    box-shadow: none; cursor: default;
   }
   /* Tone colours only the icon. Rings, fills, and state marks keep their shared
      neutral treatment through hover, focus, and disabled states. */
@@ -310,7 +310,7 @@ export function chromeStyle({
      nor its tone: engaged is a dot, busy is a moving open ring, failed is a diamond,
      and settled is a square. The witness is decoration: its rotation must not extend
      the Button's pointer target into the gap beside it. */
-  .lf-margin-action:where([data-lf-state]:not([data-lf-state="idle"]))::after {
+  .lf-margin-action:where([data-lf-state]:not([data-lf-state="idle"])):not([data-lf-behavior="receipt"])::after {
     content: ""; position: absolute; z-index: 2; inline-size: 6px; block-size: 6px;
     inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
     border: 1px solid var(--paper); background: currentColor; border-radius: 50%;
@@ -396,16 +396,24 @@ export function chromeStyle({
      that window would be a second flicker put where the first one was removed. Past
      the delay there is something to say, and the cases where there is are the ones
      that need it: a heavy page, or a reader who reached a --host page across a
-     network. So the surface goes quiet only once the wait has run long enough to
-     notice, and a fast answer never shows this rule at all. The reduced-motion guard
-     (theme.css) zeroes the duration and leaves the delay standing, which is the right
-     reading of it: the fade is what a reader asked not to have, the waiting is not.
+     network. So a non-Button surface goes quiet only once the wait has run long enough
+     to notice, and a fast answer never shows this rule at all. A margin Button already
+     carries the separate busy-state ring, so dimming it or replacing its pointer would
+     state the same fact twice and make its hover feedback look disabled. The
+     reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
+     which is the right reading of it: the fade is what a reader asked not to have, the
+     waiting is not.
 
      Opacity and the cursor, never geometry: the line a press is made on holds still
      (lf-suggestion.js), and a busy surface that reflowed would move the control out
      from under the pointer that just pressed it. */
-  [aria-busy="true"] { animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both; }
-  [aria-busy="true"], [aria-busy="true"] :is(button, [role="button"]) { cursor: progress; }
+  [aria-busy="true"]:not(.lf-margin-action) {
+    animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
+  }
+  [aria-busy="true"]:not(.lf-margin-action),
+  [aria-busy="true"] :is(button, [role="button"]) {
+    cursor: progress;
+  }
   /* Standing on a press, in the band everything else the reader stands on is drawn in
      (--here-ring). The two shapes were the last places on the product still wearing the
      browser's own ring: a reader who backed out of the panel landed on Threads in

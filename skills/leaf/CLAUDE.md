@@ -1562,11 +1562,11 @@ activation owner.
 - `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
   place;
 - `receipt` reports a move already made and offers no press. It keeps its icon and its
-  seat in the cluster, but gives up its ring, fill, hover lift, pointer, and tab stop. It
-  remains a `status` in the accessibility tree so the Page map can still land there and
-  name the phase.
+  circular Button silhouette and seat in the cluster, but gives up its hover lift,
+  pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
+  can still land there and name the phase.
 
-Ring weight distinguishes the three controls; a receipt has no ring. The shape stays
+Ring weight distinguishes immediate actions from the other fittings. The shape stays
 shared, with no chevron. A lone non-thread informational Button reveals its target
 directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
@@ -1576,13 +1576,15 @@ it room beside the source, the same press opens the full Threads surface. The th
 card is the only generated contextual pane, not a generic container for alternatives.
 
 Tone is `neutral`, `positive`, or `negative`, expressed through icon color only;
-rings, fills, and state marks keep their shared neutral treatment. State has a
-separate small corner mark: a dot for engaged, an open moving ring for busy (static
-under reduced motion), a diamond for failed, and a square for settled. Busy also sets
-`aria-busy="true"`; failed and settled action receipts need visible words, not color
-or shape alone. Standing reactions reuse the settled square in their margin palette
-and seated marks, so they remain distinct from hover without changing the shared
-ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
+rings, fills, and state marks keep their shared neutral treatment. An interactive
+Button's state has a separate small corner mark: a dot for engaged, an open moving ring
+for busy (static under reduced motion), a diamond for failed, and a square for settled.
+The mark is enough to state that a Button is busy, so the Button itself stays at full
+opacity and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled
+actions need visible words, not color or shape alone. A receipt's phase is its transient
+hover or focus label instead of a corner mark. Standing reactions reuse the settled
+square in their margin palette and seated marks, so they remain distinct from hover
+without changing the shared ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
 withdrawing a token returns its palette Button to idle.
 `marginActionState(control, state)` changes that axis without changing the verb, ring,
 or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
@@ -1619,20 +1621,22 @@ the reader is standing, so taking the focus would throw them onto a cluster they
 have left, and would send a press already on its way to a Button they were not standing
 on.
 
-Every Button keeps one circular fitting, whether or not it draws the circle. Its label
-appears as transient chrome on hover or keyboard focus without changing the cluster's
-geometry. An open disclosure suppresses the label because the context it opened now
-names the Button's result. Labels for `disclosure` and `options` end in an ellipsis
-because they open something; action and receipt labels do not. The complete label
-remains in the DOM, and its accessible name tracks the fitting.
+Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
+hover or keyboard focus without changing the cluster's geometry. An open
+disclosure suppresses the label because the context it opened now names the Button's
+result. Labels for `disclosure` and `options` end in an ellipsis because they open
+something; action and receipt labels do not. The complete label remains in the DOM, and
+its accessible name tracks the control or status.
 
 A marker's accessible name also carries where it stands in the walk: which location of
 how many, and how far down the page. That is how a reader listening places it, and it
 belongs to the name alone. Painted beside the phase, the same words read as progress
 rather than position.
 
-Hover or focus on any fitting illuminates its exact target, including a cluster
-displaced by packing. Labels stay inside the viewport without moving the fitting.
+Hover or focus on any interactive fitting illuminates its exact target, including a
+cluster displaced by packing. Hovering a receipt shows its label without lifting it or
+claiming its target; a numbered Page-map arrival may still focus it and illuminate the
+target deliberately. Labels stay inside the viewport without moving the fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
 action through Page map; counting hidden DOM nodes is not evidence of reachability.
 

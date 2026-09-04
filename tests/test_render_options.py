@@ -490,7 +490,9 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
     option = page.locator("#opt-shim")
     mark = option.locator(":scope > .lf-pick")
-    assert mark.evaluate("el => getComputedStyle(el, '::before').visibility") == "hidden"
+    assert (
+        mark.evaluate("el => getComputedStyle(el, '::before').visibility") == "hidden"
+    )
 
     # And a reader arriving by keyboard can see the exact row they landed on. The
     # permanent group frame stays put, the Decision's external location band stands
@@ -523,12 +525,15 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     address = option.locator(":scope > .lf-address")
     expect(address).to_be_visible()
     assert mark.evaluate("el => getComputedStyle(el).opacity") == "0"
-    assert abs(
-        address.bounding_box()["x"]
-        + address.bounding_box()["width"]
-        - mark.bounding_box()["x"]
-        - mark.bounding_box()["width"]
-    ) < 0.5, "the keyboard address does not replace the card's header state slot"
+    assert (
+        abs(
+            address.bounding_box()["x"]
+            + address.bounding_box()["width"]
+            - mark.bounding_box()["x"]
+            - mark.bounding_box()["width"]
+        )
+        < 0.5
+    ), "the keyboard address does not replace the card's header state slot"
 
     page.evaluate("() => document.activeElement.blur()")
     before = option.bounding_box()
@@ -543,9 +548,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
                     range.selectNodeContents(el);
                     return Math.max(...[...range.getClientRects()].map(r => r.right)); }"""
     )
-    assert state["x"] >= title_end, (
-        "the generated header state covers the option title"
-    )
+    assert state["x"] >= title_end, "the generated header state covers the option title"
     assert state["x"] + state["width"] <= before["x"] + before["width"], (
         "the generated header state hangs outside the card"
     )

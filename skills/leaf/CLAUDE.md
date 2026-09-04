@@ -3061,14 +3061,27 @@ Widget affordances fall into three groups:
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
 
-A receipt is neither kept nor disarmed: a copy drops it. Sent, Waiting for pickup, and
-Picked up report a move an agent is still making, and a file has nothing standing behind
-that claim, so keeping the word would turn provisional news into a statement. Both of its
-seats say so — a thread's own `.lf-receipt` line, and a margin reading `marginAction` has
-given the `receipt` behavior. The marker value cannot answer for the second: a receipt is
-not a press, so `offer` writes the empty value there to stand the pointer hand and the
-lift down on the live page, and the copy's press removal reads that same value to mean
-chrome it keeps.
+A receipt has two seats — a thread's own `.lf-receipt` line, and a margin reading
+`marginAction` has given the `receipt` behavior — and a copy answers both there, since
+the marker value cannot: a receipt is not a press, so `offer` writes the empty value to
+stand the pointer hand and the lift down on the live page, and the copy's press removal
+reads that same value to mean chrome it keeps.
+
+What the copy does with one turns on what the file can stand behind, which is a second
+declaration (`data-lf-standing`) rather than a fourth reading of the behavior. Sent,
+Waiting for pickup, and Picked up report a move an agent is still making, and a file has
+nothing behind that claim, so a copy drops them: keeping the word would turn provisional
+news into a statement. A standing Outcome is the page map's record of a decision the
+document already carries, with the decided state applied in the same file — the fact the
+rail is held open for, and for a widget speaking no receipt of its own the only margin
+record of the choice.
+
+A copy keeps that record, in one seat and disarmed. The status role, the walk's tab stop,
+and the offer marker go, on the same bargain the press removal strikes for a control whose
+words are the page's; unlike those words the marker is not kept, because the reading is
+the runtime's rather than a widget's. The seat is the item itself, since a file can open
+no fold — the `…` that would is a press and leaves with the rest — and a resting seat a
+widget's control held is free again once that control has gone.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,

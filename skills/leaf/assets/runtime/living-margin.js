@@ -15,11 +15,16 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
+  // `standing` is the one indication the document already carries. The other three are
+  // an agent's report on a move still being made; an Outcome is the page map's reading
+  // of a recorded `action` event, with the decided state applied in the same file. A
+  // medium that cannot stand behind a provisional claim — a copy — reads that apart.
   outcome: {
     label: "Outcome",
     icon: "check",
     priority: 3,
     indication: true,
+    standing: true,
     state: "settled",
   },
   sent: {
@@ -196,6 +201,7 @@ export function marginAction(
     key,
     label,
     behavior = "action",
+    standing = false,
     tone = "neutral",
     role = "primary",
     state = "idle",
@@ -220,6 +226,7 @@ export function marginAction(
     icon,
     label: String(label),
     behavior,
+    standing: behavior === "receipt" && standing === true,
     tone,
     role,
     state,
@@ -230,6 +237,13 @@ export function marginAction(
   control.removeAttribute("title");
   control.dataset.lfButtonKey = record.key;
   control.dataset.lfBehavior = record.behavior;
+  // Which of a receipt's two sources this one has. The behavior answers the question
+  // every other reader asks — whether this is a press — and both sources answer it the
+  // same way, so the durability is a second declaration rather than a fifth behavior.
+  // A copy is what needs it: Sent, Waiting for pickup and Picked up are news about a
+  // move an agent is still making and a file has nothing standing behind them, while a
+  // standing Outcome is the record of a decision the same file already carries.
+  control.toggleAttribute("data-lf-standing", record.standing);
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
   control.dataset.lfOffer = behavior === "receipt" ? "" : "button";
@@ -1671,6 +1685,7 @@ export function createLivingMargin(dependencies) {
       icon: face.icon,
       label,
       behavior,
+      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });
@@ -1763,6 +1778,7 @@ export function createLivingMargin(dependencies) {
       icon: face.icon,
       label,
       behavior,
+      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });

@@ -15,6 +15,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import install_payload
 from leaf import cli as cli_model
+from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
@@ -429,6 +430,123 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
 
     expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
+    assert errors == []
+    page.close()
+
+
+RECEIPT_DRAFTS = leaf_page(
+    "drafts",
+    """
+<h1 id="h">Two notes</h1>
+<p id="p-settled">The invitation the author has written in already.</p>
+<lf-draft id="d-settled"><pre>The sample workshop is in the green room.</pre></lf-draft>
+<p id="p-open">The one still on its way.</p>
+<lf-draft id="d-open"><pre>The sample workshop is in the blue room.</pre></lf-draft>
+""",
+)
+SETTLED_EDIT = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "d-settled",
+    "action": "edit",
+    "detail": {"text": "The sample workshop is in the green room."},
+}
+OPEN_EDIT = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "d-open",
+    "action": "edit",
+    "detail": {"text": "The sample workshop is in the red room."},
+}
+
+
+def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
+    browser, serve, tmp_path
+):
+    """Both of these readings are receipts, and only one of them is news.
+
+    `d-open` holds an edit the document has not caught up with, so its reading is the
+    phase an agent is in — Picked up here — and a file has nothing standing behind that
+    sentence. `d-settled` holds one the authored markup already states, which leaves the
+    page map reading a decision this same file carries, with the decided text in it. That
+    is the fact the rail is held open for and, for a widget contributing no receipt text
+    of its own, the only margin record of the choice, so the copy keeps it.
+
+    It keeps it as a word, and in one seat. What a copy must not carry out of a seat that
+    was a Button's before the move was made is the promise: the status role the walk
+    lands on, its tab stop, and the offer marker that said a widget built this box — and
+    no widget did, which is why nothing is left here for the press pass to keep the way
+    it keeps a control's page words. Where the word stands is the same question asked of
+    layout: the draft's own Edit press had taken the resting seat and left the reading
+    under `…`, and the ellipsis that opens a fold goes out with every other press."""
+    url = serve(RECEIPT_DRAFTS, events=[SETTLED_EDIT, OPEN_EDIT])
+    in_flight = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("widget") == "d-open"
+    ][-1]
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
+    )
+
+    reading = ".lf-margin-marker[data-lf-behavior='receipt']"
+    live = browser.new_page(viewport={"width": 1200, "height": 900})
+    live.goto(url, wait_until="load")
+    resized(live, 1200, 900)
+    expect(
+        live.locator(f"[data-lf-margin-for='d-settled'] {reading}")
+    ).to_have_attribute("data-lf-standing", "")
+    expect(
+        live.locator(f"[data-lf-margin-for='d-open'] {reading}")
+    ).not_to_have_attribute("data-lf-standing", "")
+    standing = live.locator(f"[data-lf-margin-for='d-settled'] {reading}")
+    assert standing.get_attribute("role") == "status", (
+        "the live reading is not the status a copy has to disarm"
+    )
+    live.close()
+
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+
+    carried = page.evaluate(
+        """() => [...document.querySelectorAll('[data-lf-behavior="receipt"]')].map(
+             row => ({
+               target: row.closest('[data-lf-margin-for]')?.dataset.lfMarginFor,
+               word: row.querySelector('.lf-margin-action-label').textContent,
+               shown: row.checkVisibility(),
+               folded: Boolean(row.closest('.lf-margin-options')),
+               role: row.getAttribute('role'),
+               tabindex: row.getAttribute('tabindex'),
+               offer: row.getAttribute('data-lf-offer'),
+             }))"""
+    )
+    # One seat, standing in the item. The live page had two — the marker, and the peer
+    # the fold holds once a contributed control takes the resting one — and a copy can
+    # open no fold, so the reading it keeps is the reading it can show.
+    assert carried == [
+        {
+            "target": "d-settled",
+            "word": "Outcome",
+            "shown": True,
+            "folded": False,
+            "role": None,
+            "tabindex": None,
+            "offer": None,
+        }
+    ], carried
+    assert (
+        page.evaluate(
+            """() => [...document.querySelectorAll('main *')]
+                 .filter(el => el.textContent.trim() === 'Picked up').length"""
+        )
+        == 0
+    ), "the copy still says an agent picked up a move it cannot report on"
     assert errors == []
     page.close()
 

@@ -1201,9 +1201,12 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     page.close()
 
 
-def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serve):
-    """A semantic visual provider owns hits inside it even when ordinary figure markup
-    wraps it. The generic fallback must not swallow the provider's stable part API."""
+def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve):
+    """A provider owns hits inside it without swallowing its authored figure wrapper.
+
+    The frame, caption, whole drawing, and declared parts remain separate targets for
+    explicit pointer and keyboard aim.
+    """
     wrapped = PART_DIAGRAM_PAGE.replace(
         '<lf-diagram id="flow"', '<figure id="frame"><lf-diagram id="flow"', 1
     ).replace(
@@ -1215,7 +1218,8 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     start = page.locator('#flow g[data-id="S"]')
 
     page.locator("#caption").click(modifiers=["Alt"])
-    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#frame")).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert page.locator(".lf-visual-action").evaluate_all(
         "controls => controls.map(control => control.lfAnchor)"
@@ -1223,7 +1227,12 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
         {"section": "flow"},
         {"section": "flow", "visual": "node:S"},
         {"section": "flow", "visual": "node:H"},
+        {"section": "frame"},
     ]
+    page.keyboard.press("Escape")
+    page.keyboard.type(hint_code(page, "#caption", 6))
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    page.keyboard.press("Escape")
 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1304,6 +1313,9 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
 <figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
   role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
   <figcaption id="caption">Plain picture</figcaption></figure>
+<section id="outer"><p>Context above an unadorned picture.</p><figure><svg
+  viewBox="0 0 80 40" width="160" height="80" role="img" aria-label="Nested picture">
+  <rect x="2" y="2" width="76" height="36" /></svg></figure></section>
 <section id="source"><figure id="projected-source"><pre>Current instructions.</pre></figure></section>
 """,
     )
@@ -1315,6 +1327,21 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
           lfDatumLabel: 'Captured document',
         })"""
     )
+
+    nested_picture = page.locator('#outer svg[aria-label="Nested picture"]')
+    nested_picture.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    assert page.locator(".lf-aim").bounding_box() == pytest.approx(
+        page.locator("#outer").bounding_box(), abs=1
+    ), "the aim promised the picture box while its anchor resolved to the section"
+    page.keyboard.up("Alt")
+    nested_picture.click(modifiers=["Alt"])
+    expect(page.locator("#outer")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(nested_picture.locator("xpath=..")).not_to_have_class(
+        re.compile(r"\blf-pending\b")
+    )
+    page.keyboard.press("Escape")
 
     page.locator("#caption").click(modifiers=["Alt"])
     expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))

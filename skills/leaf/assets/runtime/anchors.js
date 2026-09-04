@@ -238,9 +238,12 @@ export function createAnchors(dependencies) {
       if (claimsVisualGesture(element)) return false;
     return true;
   };
-  // A declared provider owns every hit inside it, including an inner svg wrapped by a
-  // generic figure. Without one, the outermost ordinary picture is the target. Generated
-  // ids remain implementation details; the nearest authored id is the durable seat.
+  // A declared provider owns every hit inside it, including its inner svg. Outside one,
+  // the outermost ordinary picture is the visual reading. A wrapping figure and a
+  // provider inside it remain separate authored items: explicit aim can name the
+  // figure's caption or frame, while a hit inside the provider names its own target.
+  // Generated ids remain implementation details; the nearest authored id is the durable
+  // seat.
   function visualAt(target, { unclaimed = true } = {}) {
     if (unclaimed && !unclaimedVisualGesture(target)) return null;
     const declared = declaredVisualSelector();
@@ -249,13 +252,6 @@ export function createAnchors(dependencies) {
     else {
       element = closestAcross(target, genericVisualSelector);
       if (element) element = outermostAcross(element, genericVisualSelector);
-      const providers =
-        element && declared ? [...element.querySelectorAll(declared)] : [];
-      // A figure holding one declared visual is its semantic caption/frame. Delegating
-      // the wrapper to that provider gives its padding, caption, drawing, and keyboard
-      // proxy one target. A figure holding several visuals remains a target of its own.
-      if (providers.length === 1 && unclaimedVisualGesture(providers[0]))
-        element = providers[0];
     }
     if (!element) return null;
     const seat = closestAcross(element, '[id]:not(.lf-ui):not([id^="lf-"])');
@@ -516,9 +512,9 @@ export function createAnchors(dependencies) {
     label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
   });
   // One reading for the pointer aim and the keyboard's item hints. A provider's declared
-  // part is the narrowest picture target. A datum or authored item inside an ordinary
-  // picture keeps its stable coordinate; otherwise the picture supplies the shown box
-  // for the broader authored seat around it.
+  // part is the narrowest picture target, then a projected datum, then the innermost
+  // stable authored item. The returned element is always the element that anchor resolves
+  // to, so the aim's box and the eventual mark make the same promise.
   function aimTargetAt(node) {
     const visual = visualAt(node, { unclaimed: false });
     if (visual?.part)
@@ -531,15 +527,7 @@ export function createAnchors(dependencies) {
     const datum = closestAcross(node, DATUM);
     if (datum) return datumAimTarget(datum);
     const item = itemAt(node);
-    if (item && (!visual || containsAcross(visual.element, item)))
-      return itemAimTarget(item);
-    return visual
-      ? {
-          anchor: { section: visual.id },
-          element: visual.element,
-          label: aimLabel(sectionOf({ section: visual.id })),
-        }
-      : null;
+    return item ? itemAimTarget(item) : null;
   }
   function aimTargets() {
     const candidates = [

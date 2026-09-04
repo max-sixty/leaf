@@ -43,12 +43,16 @@ prompt hook, which fires with the turn already running whatever caused it, and
 by the carrier that delivers a batch — the latter only where that carrier's
 handoff is the opening. A direct wait's is: it exits with the batch in model
 context, so it clears the stamp under the same lock the batch left under. The
-Codex adapter's is not: its pointer waits in a durable queue that a loaded
-client starts and an unloaded task leaves standing, so it leaves the stamp alone
-and the turn that does start carries the claim the ordinary way, by writing a
-status past it. The prompt is what covers the reader who answers where the
-banner sent them — a nudge in the terminal leaves no batch for any carrier to
-hand over. Both stamps are the session's rather than the page's, and both span
+Codex adapter's queued handoff is not: its pointer waits in a durable queue that
+a loaded client starts and an unloaded task leaves standing, so it leaves the
+stamp alone. The prompt hook opens the claim when the turn actually starts and
+snapshots anything accumulated behind that wake into hidden delivery pointers
+before the model runs. Input that arrives later in the open turn takes no queued
+handoff either: its first Stop snapshots the pending mailbox and keeps the claim
+open for the continuation; the re-entered Stop receipts that exact snapshot and
+closes the turn. The prompt also covers the reader who answers where the banner
+sent them — a nudge in the terminal leaves no batch for any carrier to hand over.
+Both stamps are the session's rather than the page's, and both span
 its pages: the Stop hook closes the turn on every page the session holds, so an
 opening reopens that same set, each page under its own transaction. Without that clearing the
 page reads a session that came back and worked as one that walked away, and tells
@@ -97,29 +101,48 @@ A session's leaves cost it one long-running carrier between them, and that
 carrier is separate from the page server. Claude Code uses a sequence of direct
 watchers: `leaf wait` exits to put a batch in model context, then `leaf ack`
 advances its cursor and becomes the next watcher. Codex uses one detached
-adapter instead. It holds the same task-wide wait lease, persists the exact
-batch it captured, and hands a bounded pointer in a `leaf-delivery` XML element
-to Codex's durable same-task queue. It advances the cursor after acceptance and
-keeps watching while the foreground turn is over. The already-loaded Desktop
-client keeps the task writer, consumes the shared durable queue, and owns every
-execution or approval request. Leaf's queue command never resumes or starts the
-task. An unloaded task therefore keeps the accepted item standing until the
-Codex client reopens it.
+adapter instead. It holds the same task-wide wait lease and treats the event log as
+a mailbox with an edge-triggered wake. It persists the first exact batch after a
+turn ends and hands a bounded pointer in a `leaf-delivery` XML element to Codex's
+durable same-task queue. The visible pointer is one line in a code block;
+it names the `$leaf` skill, whose current copy owns the processing contract. Its
+payload carries the page URL and exact batch. The adapter advances the cursor after
+acceptance, but keeps one durable wake standing until a later prompt opening. Events
+behind that wake remain pending rather than minting more queue items; the prompt
+hook carries their exact snapshot into the turn before the model runs. While the
+turn is open, its Stop hook carries one later pending snapshot back into a
+continuation of the same turn and acknowledges it at the re-entered Stop. Every
+prompt and Stop advances a durable turn boundary, so either retires a wake the
+adapter was too late to observe directly. A hidden snapshot whose continuation
+never reaches Stop expires after fifteen minutes without acknowledgement; its events
+then return to the visible wake path. Events arriving after a completed snapshot
+remain pending for the next wake: this one-block boundary prevents a hook loop
+without a debounce delay or a lost event. The
+already-loaded Desktop client keeps the task writer, consumes the shared durable
+queue, and owns every execution or approval request. Leaf's queue command never
+resumes or starts the task. An unloaded task therefore keeps the accepted item
+standing until the Codex client reopens it.
 The adapter has a second lease because a generic wait lease cannot prove that
 its output can enter a later Codex turn; the Stop hook trusts only the pair.
 Both carriers watch every page the session holds, re-reading the set on each
 pass, and deliver one page's batch under a first line naming the page and
 carrying the conversations its events land in.
 
-The Codex delivery intent and its immutable payload live under the host state
-home's session records, not in the page. They are transport recovery state: the
-document and event log remain the page authority, while the intent preserves one
-stable Leaf delivery id and exact pointer prompt across queue acceptance before
-cursor acknowledgement. An uncertain queue command is retried with that same
-pointer. The resulting delivery is at least once; a repeated turn recognizes
-the delivery id and applies the page-and-sequence retry rule. Once a queue
-command succeeds, the adapter records pickup, advances the page cursor, and
-removes the intent.
+The Codex delivery intent, accepted-wake marker, turn generation, in-turn delivery
+manifest, and immutable payloads live under the host state home's session records,
+not in the page. They are transport recovery state: the document and event log
+remain the page authority, while the intent preserves one stable Leaf delivery id
+and exact pointer prompt across queue acceptance before cursor acknowledgement. An
+uncertain queue command is retried with that same pointer. The immutable batch fixes
+the page and events; its `url` is refreshed separately because restarting the page
+can give that same batch a new current location. The resulting delivery is
+at least once; a repeated turn recognizes the delivery id and applies the
+page-and-sequence retry rule. Once a queue command succeeds, the adapter records
+pickup, advances the page cursor, removes the intent, and retains the wake marker.
+The prompt hook advances the generation even if the adapter misses the whole turn;
+that proof retires the marker. An in-turn manifest similarly keeps each snapshot
+exact until the next Stop records pickup and advances each page's cursor; a snapshot
+created by that Stop waits for its re-entered Stop.
 The payload stays as conservative recovery state because queue acceptance does
 not prove that a later turn read it.
 

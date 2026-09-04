@@ -282,20 +282,22 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-button[hidden] { display: none; }
-  /* A Button-shaped fitting carries one of three promises. Interactive offers keep an
-     edge: an action's heavier ring says this press acts now, while a disclosure's
-     lighter ring says it opens context. Read-only status gives up that edge and sits on
-     a flat neutral plate instead. All three keep one circular silhouette and one place
-     in the cluster. */
+  /* A Button-shaped fitting carries one of three promises on the same paper surface.
+     An action's heavier ring and lower shadow say this press acts now; a disclosure's
+     firmer single ring says it opens context; read-only status keeps only the page's
+     ghost keyline. All three keep one circular silhouette and one place in the cluster,
+     while the static status alone has no raised or responsive material. */
   .lf-margin-button[data-lf-behavior="action"] {
     border-width: 2px;
     color: var(--ink);
+    box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
   }
   .lf-margin-button[data-lf-behavior="disclosure"] {
-    background: var(--paper); color: var(--ink-2); box-shadow: none;
+    border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
+    color: var(--ink-2); box-shadow: none;
   }
   .lf-margin-button[data-lf-behavior="status"] {
-    border-color: transparent; background: var(--chip); color: var(--ink-2);
+    border-color: var(--rule); color: var(--ink-2);
     box-shadow: none; cursor: default;
   }
   /* Tone colours only the icon. Category and interaction own the ring and fill;
@@ -335,7 +337,7 @@ export function chromeStyle({
   }
   /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
      and tab stop from standing reaction marks, which retain their shape without
-     promising a press. A status keeps its flat plate in the page-map walk, while its
+     promising a press. A status keeps its ghost ring in the page-map walk, while its
      hand and hover response go. Decided suggestions export sibling text receipts. */
   .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
     cursor: pointer;

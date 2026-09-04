@@ -1556,20 +1556,22 @@ painted DOM. Transient native state such as disabled and `aria-expanded` is mirr
 onto a retained proxy, while the original contributor control remains the only
 activation owner.
 
-- `action` has a uniformly heavier ring, carries an imperative verb, and performs its
-  effect immediately;
-- `disclosure` has a lighter ring than an action and the same unfilled surface. It carries
+- `action` has a uniformly heavier ring and a small lower shadow, carries an imperative
+  verb, and performs its effect immediately;
+- `disclosure` has a firmer single ring than status and the same paper surface. It carries
   `aria-expanded`, reveals or hides context without settling it, and includes the
   generated More Button whose ellipsis is its whole face;
 - `status` reports a move already made and offers no press. It keeps its icon and its
-  circular Button silhouette and seat in the cluster on a borderless neutral plate,
-  but gives up its interactive edge, hover response, pointer, and tab stop. It remains a
+  circular Button silhouette and seat in the cluster on the page surface with a ghost
+  keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a
   `status` in the accessibility tree so the Page map can still land there and name the
   phase.
 
 Material and ring weight distinguish immediate actions, disclosures, and statuses:
-interactive offers have an edge, while a read-only report sits on a flat plate. The
-shape stays shared, with no added mark. A lone non-thread informational Button reveals
+Action is raised, Open is outlined, and a read-only report stays flat behind the palest
+ring. Their resting interiors all use the page surface, so fill does not imply that a
+status is selected or pressed. The shape stays shared, with no added mark. A lone
+non-thread informational Button reveals
 its target directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
 All threads at one target share one Thread Button and one conversation card. That card

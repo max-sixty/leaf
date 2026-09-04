@@ -1541,7 +1541,16 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         control.evaluate("el => getComputedStyle(el).borderTopColor")
         for control in (accept, edit, more)
     ]
-    assert len(set(border_colors)) == 1, "action rings should be heavier, not darker"
+    assert border_colors[1] == border_colors[2] != border_colors[0], (
+        "disclosures should share their firmer line while Action uses elevation"
+    )
+    shadows = [
+        control.evaluate("el => getComputedStyle(el).boxShadow")
+        for control in (accept, edit, more)
+    ]
+    assert shadows[0] != "none" and shadows[1:] == ["none", "none"], (
+        "only an immediate Action should rise off the shared paper surface"
+    )
 
     before_hover = edit.bounding_box()
     edit.hover()
@@ -1804,7 +1813,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         )
 
     expected_ink = resolved_color("--ink-2")
-    expected_chip = resolved_color("--chip")
+    expected_paper = resolved_color("--paper")
+    expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
@@ -1825,8 +1835,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "context": context,
             "tabIndex": -1,
             "cursor": "default",
-            "background": expected_chip,
-            "border": "rgba(0, 0, 0, 0)",
+            "background": expected_paper,
+            "border": expected_rule,
             "ink": expected_ink,
             "opacity": "1",
             "width": "32px",

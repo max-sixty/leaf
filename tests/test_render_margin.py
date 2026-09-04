@@ -172,12 +172,11 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             "RecalcStyleCount",
         )
     }
-    # Browser bookkeeping can add a small number of layouts around the measured
-    # dispatches. The old interleaved pass forced 26 layouts and 44 style
-    # recalculations per refresh, so these process-independent bounds still separate
-    # the two architectures without turning shared-runner timing into a contract.
-    assert work["LayoutCount"] <= refreshes * 4, work
-    assert work["RecalcStyleCount"] <= refreshes * 18, work
+    # Current Chromium performs 33 layouts and 127–128 style recalculations over five
+    # refreshes. These bounds keep that baseline while separating it from the old
+    # interleaved pass, which forced 26 layouts and 44 recalculations per refresh.
+    assert work["LayoutCount"] <= refreshes * 7, work
+    assert work["RecalcStyleCount"] <= refreshes * 26, work
     assert geometry_reads == refreshes, geometry_reads
     assert errors == []
     page.close()
@@ -1802,12 +1801,25 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
+    def words_still():
+        """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
+        delay ends on is a box the reader can see drawn at the opacity it is leaving —
+        which is what `to_be_visible` is satisfied by, and what the paint read behind it
+        then reports as the receipt's own ink. Ask the transitions instead: the call
+        flushes pending style, so a reveal that has been started is in the list on the
+        first read and a control that never moves reports empty at once."""
+        page.wait_for_function(
+            """() => [...document.querySelectorAll('.lf-margin-action-label')]
+                 .every((label) => label.getAnimations().length === 0)"""
+        )
+
     def assert_receipt(phase, control=marker):
         if control is marker:
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
         expect(control.locator(":scope > .lf-margin-action-label")).to_be_hidden()
+        words_still()
         current = face(control)
         assert current == {
             "tag": "SPAN",
@@ -1837,6 +1849,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
         }
         control.hover()
         expect(control.locator(":scope > .lf-margin-action-label")).to_be_visible()
+        words_still()
         hovered = face(control)
         assert {
             key: hovered[key] for key in ("background", "border", "ink", "opacity")
@@ -2794,7 +2807,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check the January failure mode.")
     passage_before = page.locator("#mounts-p").bounding_box()
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -2866,7 +2879,7 @@ def send_anchored_comment(page, text):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(text)
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)

@@ -32,7 +32,11 @@ schemas, and small XY plots; Beautiful Mermaid renders that Mermaid-source subse
 Flowcharts accept Mermaid's classic node shapes. Their `classDef` declarations can
 set `fill`, `stroke`, `color`, and `stroke-width`; other properties are ignored. Apply
 Leaf's semantic tokens directly, for example
-`fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Use `lf-chart` for
+`fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Inspect every rendered
+flowchart: Beautiful Mermaid can interpret an unknown or malformed line as a node, or
+render only the valid part of a malformed statement, instead of reporting an error.
+`version check --render` detects renderer failures, not this silent partial output. Use
+`lf-chart` for
 quantities that need Leaf's data-first chart vocabulary: a comparison across a few
 categories, a run over time, a ranking, a composition, or two numbers against each
 other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

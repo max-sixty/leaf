@@ -19,8 +19,6 @@ from render_support import (
     RENDERED,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
-    _traffic,
-    _until,
     key_line,
     open_page,
     panel_comment,
@@ -28,6 +26,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     told,
     undo,
     watched,
@@ -194,8 +193,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
             "el => getComputedStyle(el).stroke === getComputedStyle(el).color"
         )
 
-    surface.locator('.lf-react[data-token="cut"]').click()
-    round_trip(page)
+    with sending(page, "the token the press marks with"):
+        surface.locator('.lf-react[data-token="cut"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "cut" and "text" not in sent
     assert sent["anchor"]["section"] == "how-store"
@@ -259,8 +258,11 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
     expect(bar).to_be_hidden()
-    page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
-    round_trip(page)
+    # The glyph's own take-back in the wire before the log is read: behind a bare trip
+    # the read answers with the comment this press is taking back, which is the shape
+    # run 33845381848 failed in.
+    with sending(page, "the take-back the glyph makes"):
+        page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
@@ -274,8 +276,8 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     settled = page.locator(
         '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="ok"]'
     )
-    settled.click()
-    round_trip(page)
+    with sending(page, "the withdrawal the gallery opens on"):
+        settled.click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
     # choices inside the target's Buttons. A state that lands after that fold is open
     # re-renders the cluster, and the margin says so on `lf-button-options-closed`, which
@@ -292,14 +294,11 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in key_line(page)
 
-    sends = _traffic(page).sends
-    page.keyboard.press("2")
-    # The digit's own gesture in the wire before the log is read. `round_trip` waits on
-    # what the page has sent, and a post the press has not made yet is not pending, so
-    # the read that follows it answers with whatever stood last — here the withdrawal
-    # above, which reads as the digit having chosen a token nobody pressed.
-    _until(page, lambda traffic: traffic.sends > sends, "sent the reaction 2 chose")
-    round_trip(page)
+    # The digit's own gesture in the wire before the log is read; without it the read
+    # answers with whatever stood last — here the withdrawal above, which reads as the
+    # digit having chosen a token nobody pressed.
+    with sending(page, "the reaction 2 chose"):
+        page.keyboard.press("2")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "no"
     assert sent["anchor"]["section"] == "bg-react-ok"
@@ -326,6 +325,19 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
       return {ink: face.color, ring: face.borderTopColor, fill: face.backgroundColor};
     }"""
 
+    # The press applied, and not merely delivered, before the reopen below asks for the row
+    # again. `round_trip` ends on what the page has heard back, and the margin renders that
+    # state after it; a render taken over an open options row says so on
+    # `lf-button-options-closed`, which is what takes the row away. A reopen placed in that
+    # gap presses `r` at a cluster the arriving state is about to rebuild, so the row either
+    # never opens or is closed under the press. The wait on the wire comes first because a
+    # post the browser has not reported yet is not pending, and a trip that ends before the
+    # press is in the wire leaves nothing for `told` to wait on either.
+    def stands(press):
+        with sending(page, "the reaction"):
+            press()
+        told(page)
+
     def assert_selected_face(reaction, reopen, witness):
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
@@ -337,8 +349,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
         assert reaction.evaluate(witness) is False
-        reaction.click()
-        round_trip(page)
+        stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "true")
@@ -349,8 +360,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         reaction.hover()
         assert reaction.evaluate(read) == selected
         assert reaction.evaluate(witness) is True
-        reaction.click()
-        round_trip(page)
+        stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
@@ -635,14 +645,12 @@ def test_spilled_reactions_keep_their_target_and_yield_to_the_map(
     second = sheet.locator(f'[data-lf-map-button="{second_key}"]')
     expect(second).to_be_focused()
     token = second.get_attribute("aria-label").split(" — ")[0]
-    sends = _traffic(page).sends
-    if opener == "click":
-        second.click()
-    else:
-        page.keyboard.press("Enter")
     # Page map forwards the press synchronously; its network trip is still asynchronous.
-    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
-    round_trip(page)
+    with sending(page, "the spilled reaction"):
+        if opener == "click":
+            second.click()
+        else:
+            page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (
         "comment",
@@ -702,10 +710,8 @@ def test_a_map_reopened_before_its_close_lands_still_presses_its_button(browser,
 
     button = sheet.locator("[data-lf-map-button]").nth(1)
     token = button.get_attribute("aria-label").split(" — ")[0]
-    sends = _traffic(page).sends
-    button.click()
-    _until(page, lambda traffic: traffic.sends > sends, "sent the spilled reaction")
-    round_trip(page)
+    with sending(page, "the spilled reaction"):
+        button.click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]) == (
         "comment",
@@ -1781,8 +1787,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
-    strip.locator('.lf-react[data-token="no"]').click()
-    round_trip(page)
+    with sending(page, "the reply the no carries"):
+        strip.locator('.lf-react[data-token="no"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["token"]) == ("reply", reply, "no")
     expect(strip.locator('.lf-react[data-token="no"]')).to_have_attribute(
@@ -1791,8 +1797,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(".lf-thread")).to_have_count(1)  # `no` settles nothing
 
     strip.locator(".lf-react-trigger").click()
-    strip.locator('.lf-react[data-token="ok"]').click()
-    round_trip(page)
+    with sending(page, "the ok that settles the thread"):
+        strip.locator('.lf-react[data-token="ok"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "ok" and ok["parent"] == reply
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")  # none
@@ -1800,8 +1806,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
     expect(page.locator(".lf-thread")).to_have_count(1)
-    strip.locator('.lf-react[data-token="ok"]').click()
-    round_trip(page)
+    with sending(page, "the take-back of the ok"):
+        strip.locator('.lf-react[data-token="ok"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")

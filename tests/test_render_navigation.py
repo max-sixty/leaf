@@ -948,20 +948,26 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
         """() => {
           document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
           document.querySelector('#rail').scrollLeft = 0;
+          window.lfFirstPageScroll = null;
+          document.addEventListener('scroll', (event) => {
+            if (event.target === document && window.lfFirstPageScroll === null)
+              window.lfFirstPageScroll = document.scrollingElement.scrollTop;
+          }, {capture: true});
         }"""
     )
 
     page.keyboard.press("t")
+    page.wait_for_function("() => window.lfFirstPageScroll !== null")
     immediate = page.evaluate(
         """() => ({
-          page: document.scrollingElement.scrollTop,
+          firstPage: window.lfFirstPageScroll,
           rail: document.querySelector('#rail').scrollLeft,
           local: document.querySelector('#local').scrollTop,
           localXFits: document.querySelector('#local').scrollWidth
             <= document.querySelector('#local').clientWidth,
         })"""
     )
-    assert immediate["page"] < 100, (
+    assert immediate["firstPage"] < 100, (
         f"the thread walk jumped the page before its smooth trip began: {immediate}"
     )
     assert immediate["rail"] > 0, (

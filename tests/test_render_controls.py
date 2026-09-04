@@ -3095,22 +3095,17 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     }""")
     page.locator(".lf-quote", has_text="Paragraph 40").click()
     panel_settled(page, open=False)
-    # Arrived where it was aimed, which is the only thing about this the page states. The
-    # click scrolls twice — instantly, to bring the passage's own box into view, then
-    # smoothly to centre the painted range — and the browser fires a scrollend for each,
-    # so the first statement it makes comes 232px short of the rest position. "On screen"
-    # is true there too, and so is stillness sampled between the two, which reads exactly
-    # as it does after both (tests/CLAUDE.md, "A wait consumes a fact the system states");
-    # the hold that used to cover the gap was a duration guessed at. Centring is what the
-    # runtime aimed for, so the mark reaching the middle is arrival, and a glide that
+    # Arrived where it was aimed, which is the only thing about this the page states. A
+    # text-passage destination reveals nested scrollports without writing the document,
+    # then makes one smooth document glide to centre the painted range. Centring is what
+    # the runtime aimed for, so the mark reaching the middle is arrival, and a glide that
     # approaches it passes through no earlier position that could be taken for one.
     page.wait_for_function(
         """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                    return Math.abs(m.top + m.height / 2 - innerHeight / 2) < 1; }"""
     )
-    # Centred, and the glide that centred it over: the first statement names where the
-    # instant scroll stopped, 232px short, so the one that names where the document
-    # stands now is the second and last.
+    # Centred, and the glide that centred it over: scrollend names the document's final
+    # resting position rather than a sampled frame near it.
     page.wait_for_function(
         "() => window.lfRestedAt === document.scrollingElement.scrollTop"
     )

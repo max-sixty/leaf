@@ -1596,12 +1596,12 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     diagram = page.locator("#flow")
 
     unlisted = diagram.locator('g[data-id="U"]')
-    unlisted.click()
+    unlisted.click(modifiers=["Alt"])
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     page.keyboard.press("Escape")
 
     start = diagram.locator('g[data-id="S"]')
-    start.click()
+    start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("name the retry path here")

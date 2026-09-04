@@ -172,6 +172,12 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
+`x-visual` makes a rendered picture one stable Comment target. The value `whole` uses
+the widget's authored id. `{parts: ATTR}` also lets the module map tokens from the named
+attribute to current rendered boxes through `lfVisualPartAt(target)` and
+`lfVisualPart(part)`. The package owns that mapping; core owns the Comment gestures and
+keyboard proxies.
+
 A widget that can be an Ask calls `registerDecisionActions(source, read, answer)` once
 at upgrade. `read` returns its current ordered `{control, label, address?}` actions;
 `answer` returns the concise current answer the Asks tray shows after the Decision is

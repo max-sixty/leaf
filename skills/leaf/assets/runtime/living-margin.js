@@ -944,17 +944,7 @@ export function createLivingMargin(dependencies) {
   const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
 
   function readingControl(className) {
-    const control = offer("span", className);
-    control.addEventListener("keydown", (event) => {
-      if (
-        control.getAttribute("role") !== "button" ||
-        (event.key !== "Enter" && event.key !== " ")
-      )
-        return;
-      event.preventDefault();
-      control.click();
-    });
-    return control;
+    return offer("button", className);
   }
 
   function syncThreadRelation(control, isThread) {

@@ -346,18 +346,21 @@ export function createSelectionSurface({
         ? fabOrigin
         : visualActionAnchor(fabAnchor)
       : null;
-  // The one way an item under a gesture becomes the composer's anchor, so no two routes
-  // can come to write different anchors for the same press.
-  function openOnItem(item) {
-    openComment({ section: item.id }, "", { carry: true });
-  }
-  // Keyboard selection names the target and immediately lands in its Comment field.
-  function selectResponseTarget({ anchor }) {
+  // Every explicit target gesture ends here. The gesture has already resolved its stable
+  // authored anchor; this command owns the one transition from that target into Comment.
+  // Focusing the field drops any older browser selection, and an unsent draft follows the
+  // deliberate move. A visual proxy supplies its origin so Escape can return to it.
+  function commentOnTarget({ anchor }, { origin = null } = {}) {
+    clearTimeout(selectionUpdate);
+    selectionUpdate = null;
+    targetActivation = true;
+    const selection = getSelection();
+    if (selection?.rangeCount) selection.removeAllRanges();
     openComment(anchor, "", { carry: true });
-  }
-  // Alt-click already names Comment, so the field takes focus in the same transaction.
-  function focusTargetComment({ anchor }) {
-    openComment(anchor, "", { carry: true });
+    if (origin) showFab(anchor, null, { origin });
+    setTimeout(() => {
+      targetActivation = false;
+    });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
   // selectionchange out of updateFab: the durable anchor is already captured, and letting
@@ -382,16 +385,9 @@ export function createSelectionSurface({
   // almost anywhere.
   const MIN_QUOTE = 3;
 
-  // A visual activation is an explicit target and therefore outranks a selection retained
-  // from an earlier gesture. Without one, the live selection remains the target.
-  function updateFab(found, { origin = null } = {}) {
+  function updateFab() {
     if (!anchoringIsReady()) {
       showFab(null);
-      return;
-    }
-    if (found) {
-      openComment(found.anchor, "");
-      if (origin) showFab(found.anchor, null, { origin });
       return;
     }
     const sel = pageSelection();
@@ -456,7 +452,6 @@ export function createSelectionSurface({
     deferSelectionUpdate(updateFab);
   };
   let pointerSelecting = false;
-  let selectionChangedDuringPress = false;
   let selectionDragged = false;
   let selectionRangeDuringPress = null;
   let selectionPressPoint = null;
@@ -501,12 +496,9 @@ export function createSelectionSurface({
   document.addEventListener(
     "pointerdown",
     (ev) => {
-      // Capture the old range before the browser's pointerdown default can collapse it.
-      // This is needed when the reader drags across exactly the passage already selected.
       primaryPointerPressed = ev.isPrimary && ev.button === 0;
       if (primaryPointerPressed) pressesBegun++;
-      pointerSelecting = ev.isPrimary && ev.button === 0 && pageWords(ev.target);
-      selectionChangedDuringPress = false;
+      pointerSelecting = primaryPointerPressed && pageWords(ev.target);
       selectionDragged = false;
       selectionRangeDuringPress = null;
       selectionPressPoint = pointerSelecting ? { x: ev.clientX, y: ev.clientY } : null;
@@ -514,10 +506,8 @@ export function createSelectionSurface({
       // makes is measured against what the line already says rather than against nothing.
       selectionStood = Boolean(pageSelection());
       const selection = pointerSelecting ? pageSelection() : null;
-      if (selection) {
-        const range = pageRange(selection);
-        if (range.intersectsNode(ev.target)) rememberPointerSelection();
-      }
+      if (selection && pageRange(selection).intersectsNode(ev.target))
+        rememberPointerSelection();
       actionPress = Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
     },
     true,
@@ -561,7 +551,6 @@ export function createSelectionSurface({
   // places the passage; presses on the action surface must not retract their own target.
   document.addEventListener("selectionchange", () => {
     if (primaryPointerPressed) {
-      selectionChangedDuringPress = true;
       rememberPointerSelection();
       const stands = Boolean(pageSelection());
       if (stands !== selectionStood) {
@@ -584,7 +573,19 @@ export function createSelectionSurface({
     pointerSelecting = false;
     if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
+    const selection = pageSelection();
+    const selected = selection ? selectionAnchor(selection) : null;
+    const completed = selectionDragged
+      ? selected?.quote?.length >= MIN_QUOTE
+        ? pageRange(selection).cloneRange()
+        : selectionRangeDuringPress
+      : null;
     deferSelectionUpdate(() => {
+      if (completed) {
+        const restored = getSelection();
+        restored.removeAllRanges();
+        restored.addRange(completed);
+      }
       if (ev.button === 0) snapSelection();
       updateFab();
     });
@@ -636,10 +637,10 @@ export function createSelectionSurface({
   }
   document.addEventListener("mousedown", (ev) => standDown(ev.target));
 
-  // What a click on the page means, decided once. A mark under the pointer opens its thread;
-  // otherwise a diagram or image is a find handed to updateFab, which raises the same compact
-  // field on an element anchor — the id the visual lives under. A newly dragged passage
-  // outranks the compatibility click at its endpoint; an older retained selection does not.
+  // What a plain click on the page means, decided once. Design mode explicitly changes the
+  // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
+  // browser's native meaning; Comment targeting belongs to Alt-click, `s`, and the visual
+  // proxies instead.
   //
   // Once, because the hit-test reads layout and opening the panel rewrites it. Two handlers
   // each asking `markAt` looked independent and were not: the first one's setPanel() reflowed
@@ -648,18 +649,6 @@ export function createSelectionSurface({
   // midComposition() reads, so the page quietly stopped following new versions. The rule this
   // file already carries covers it: a guard that reads state another function wrote is a sign
   // the two are one function.
-  function activateVisual(anchor, from = null) {
-    clearTimeout(selectionUpdate);
-    selectionUpdate = null;
-    targetActivation = true;
-    const selection = getSelection();
-    if (selection?.rangeCount) selection.removeAllRanges();
-    updateFab({ anchor }, { origin: from });
-    setTimeout(() => {
-      targetActivation = false;
-    });
-  }
-
   document.addEventListener("click", (ev) => {
     if (!pageWords(ev.target)) return;
     // A press design mode did not take at the press is a press on prose: a drag that
@@ -684,55 +673,19 @@ export function createSelectionSurface({
     const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
     const threadId = markAt(point.x, point.y);
     if (threadId) return showThread(threadId);
-    // Native controls, including links, keep their ordinary activation. visualAt applies
-    // the same unclaimed-gesture rule used when keyboard proxies are discovered.
-    const visual = visualAt(ev.target);
-    if (!visual) return;
-    let selection = pageSelection();
-    let selected = selection ? selectionAnchor(selection) : null;
-    // A pointer drag that ends over a diagram label produces a compatibility click too.
-    // Selection mutation or deliberate movement says that passage was this gesture's
-    // target, even when it happens to equal the passage selected before the press.
-    if (
-      ev.detail &&
-      ((selected?.quote?.length >= MIN_QUOTE &&
-        (selectionChangedDuringPress || selectionDragged)) ||
-        (selectionDragged && selectionRangeDuringPress))
-    ) {
-      const completed =
-        selected?.quote?.length >= MIN_QUOTE
-          ? pageRange(selection).cloneRange()
-          : selectionRangeDuringPress;
-      deferSelectionUpdate(() => {
-        const restored = getSelection();
-        restored.removeAllRanges();
-        restored.addRange(completed);
-        snapSelection();
-        updateFab();
-      });
-      return;
-    }
-    activateVisual(
-      visual.part
-        ? { section: visual.id, visual: visual.part.part }
-        : { section: visual.id },
-    );
   });
 
   const fabAnchorAt = () => fabAnchor;
   return {
     BANNER_CLEAR,
-    activateVisual,
+    commentOnTarget,
     dismissFab,
     fabAnchorAt,
     fabOptionsAvailable,
     fabTargetAt,
     fabReturnTo,
     focusFabComment,
-    openOnItem,
-    focusTargetComment,
     refreshFab,
-    selectResponseTarget,
     showFab,
     showFabOptions,
     standDown,

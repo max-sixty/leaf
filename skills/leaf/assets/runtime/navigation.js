@@ -7,9 +7,9 @@ export function createNavigation({
   BANNER_CLEAR,
   reducedMotion,
   scrollBehavior,
+  commentOnTarget,
   inChrome,
   inPanel,
-  openOnItem,
   openThreads,
   pageScroller,
   panelCovers,
@@ -23,7 +23,7 @@ export function createNavigation({
   // Where a comment about this item is written: the composer, on the item, which is what a
   // click through the ⌥ aim already opens. It reached for the widget's own conversation seat
   // first for a while, on the reasoning that a widget holding a box for its conversation
-  // should not be given a second one. That was the wrong shape. `openOnItem` writes
+  // should not be given a second one. That was the wrong shape. `commentOnTarget` writes
   // `{section: item.id}`, which is exactly the anchor `renderConversations` collects into
   // that seat — so the words land in the same conversation by either route, and the seat was
   // buying a focus landing at the price of five separate questions: escaping an
@@ -66,7 +66,7 @@ export function createNavigation({
     // that box against a passage they have not moved.
     const seen = shownRect(item, new Map());
     if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
-    openOnItem(item);
+    commentOnTarget({ anchor: { section: item.id }, element: item });
   }
   // t/T walk the open threads: panel focus and the page highlight move as a pair — they are
   // two views of the same thread. Clamped at the ends, not wrapped; never empty, because the

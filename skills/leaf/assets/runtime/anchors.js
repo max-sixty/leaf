@@ -32,7 +32,7 @@ export function createAnchors(dependencies) {
     DATUM,
     scrollBehavior,
     actionAnchor,
-    activateVisual,
+    commentOnTarget,
     aimBox,
     aimIsOn,
     aimedItem,
@@ -261,10 +261,10 @@ export function createAnchors(dependencies) {
     return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
   }
 
-  // Pointer activation may use the picture itself. Keyboard activation uses controls the
-  // runtime owns beside it, so generated provider markup keeps its own roles and remains
-  // clean when the live layer is removed from an exported copy. Each visual exposes its
-  // whole target and, when declared, each stable part.
+  // Explicit pointer targeting may use the picture itself. Keyboard activation uses
+  // controls the runtime owns beside it, so generated provider markup keeps its own roles
+  // and remains clean when the live layer is removed from an exported copy. Each visual
+  // exposes its whole target and, when declared, each stable part.
   const visualActionHolders = new WeakMap();
   const visualActionAnchor = (anchor) =>
     pageQueryAll(".lf-visual-action").find((control) =>
@@ -346,7 +346,8 @@ export function createAnchors(dependencies) {
               inline: "nearest",
             });
           };
-          control.onclick = () => activateVisual(control.lfAnchor, control);
+          control.onclick = () =>
+            commentOnTarget({ anchor: control.lfAnchor }, { origin: control });
         }
         unused.delete(control);
         control.lfAnchor = anchor;
@@ -367,10 +368,10 @@ export function createAnchors(dependencies) {
   }
 
   // ---------- pointing at an item ----------
-  // One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
-  // only route to an item whose words are all inside controls. A plain click reaches a
-  // visual when it did not finish a passage selection. Two more routes were tried and
-  // cut. A margin rule raised by hovering was too strong for what it offered and sat at
+  // One pointer gesture reaches any item: ⌥-click — direct aim, no selection, no chrome,
+  // and the only route to an item whose words are all inside controls. Plain click keeps
+  // its native meaning. Two more routes were tried and cut. A margin rule raised by
+  // hovering was too strong for what it offered and sat at
   // the item's own left edge, which is the page's margin only when that item happens to
   // be left-aligned. A row of chips beside the 💬 offered the selection's enclosing chain
   // ("⬚ paragraph", "⬚ section") — a correction nobody had asked for, paid in chrome
@@ -513,16 +514,19 @@ export function createAnchors(dependencies) {
     element: datum,
     label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
   });
-  // One reading for the pointer aim and the keyboard's item hints. A declared picture
-  // part outranks the authored item around it; everywhere else the innermost stable id
-  // is the target.
+  // One reading for the pointer aim and the keyboard's item hints. A visual is the whole
+  // picture unless its provider resolves a declared part under the pointer. Datums come
+  // next; everywhere else the innermost stable authored id is the target.
   function aimTargetAt(node) {
     const visual = visualAt(node, { unclaimed: false });
-    if (visual?.part)
+    if (visual)
       return {
-        anchor: { section: visual.id, visual: visual.part.part },
-        element: visual.part.element,
-        label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
+        anchor: {
+          section: visual.id,
+          ...(visual.part && { visual: visual.part.part }),
+        },
+        element: visual.part?.element ?? visual.element,
+        label: aimLabel(sectionOf({ section: visual.id }), visual.part?.label),
       };
     const datum = closestAcross(node, DATUM);
     if (datum) return datumAimTarget(datum);
@@ -530,17 +534,23 @@ export function createAnchors(dependencies) {
     return item ? itemAimTarget(item) : null;
   }
   function aimTargets() {
-    return [
-      ...pageQueryAll(ITEM).filter(isItem).map(itemAimTarget),
-      ...pageQueryAll(DATUM).map(datumAimTarget),
+    const candidates = [
+      ...pageQueryAll(ITEM).filter(isItem),
+      ...pageQueryAll(DATUM),
       ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
         [...declaredVisualParts(visual)].flatMap((token) => {
           const part = visualPart(visual, token);
-          const target = part ? aimTargetAt(part.element) : null;
-          return target?.anchor.visual ? [target] : [];
+          return part ? [part.element] : [];
         }),
       ),
     ];
+    const targets = candidates.map(aimTargetAt).filter(Boolean);
+    return targets.filter(
+      (target, index) =>
+        !targets
+          .slice(0, index)
+          .some(({ anchor }) => sameAnchor(anchor, target.anchor)),
+    );
   }
   function resolveAnchor(anchor, text) {
     // An element anchor asks a different question — whether the section is still on the

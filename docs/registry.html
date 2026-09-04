@@ -587,15 +587,15 @@
           <section class="reference-entry" id="x-visual">
             <h3><code>x-visual</code></h3>
             <div class="reference-copy">
-              <p>How a rendered picture takes comments.</p>
+              <p>How a rendered picture exposes stable Comment targets.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-visual contract">Full contract</summary>
                 <p>
-                  <code>whole</code> anchors every click on the authored widget.
+                  <code>whole</code> anchors the picture on the authored widget.
                   <code>{parts: ATTR}</code> lets its module map tokens from ATTR to
                   stable generated parts through <code>lfVisualPartAt(target)</code> and
                   <code>lfVisualPart(part)</code>, which returns
-                  <code>{element, label}</code>. A click on a mapped part stores its
+                  <code>{element, label}</code>. Targeting a mapped part stores its
                   token as <code>anchor.visual</code> while the widget remains the
                   semantic seat. A missing token or provider detaches on replay rather
                   than widening to the whole picture. The render gate requires both

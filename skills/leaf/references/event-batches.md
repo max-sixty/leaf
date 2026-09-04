@@ -24,12 +24,22 @@ Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer.
 
 In the direct loop, the durable consumer is model context. The Codex adapter
-instead owns its wait and acknowledgement. It acknowledges after Codex's queue
-accepts the batch; the queued turn reads its named delivery payload and does not
-wait or acknowledge. If a queue command has an uncertain outcome, the adapter
-retries the same pointer with the same Leaf delivery id. This is at-least-once
-delivery and may create a retry turn; the task applies the page-and-sequence
-retry rule below.
+instead owns its wait and acknowledgement. The first batch after a turn ends is
+acknowledged after Codex accepts its queued pointer. While a turn is active, the
+delivery machinery acknowledges after atomically adding the batch to that turn's
+durable epoch. Prompt and Stop hooks put the pointer in model context. Stop repeats
+input that was not covered by an accepted queue snapshot or acknowledged Stop
+offer; this includes a prompt-hook pointer, because that hook has no delivery
+receipt. The task reads every entry in `batches`, each containing `page`, `url`,
+`threads`, and `events`; it does not wait or acknowledge. A completed pointer path
+resolves by the same filename under the sibling `history/` directory. If a queue command has an
+uncertain outcome, the adapter retries the same pointer with the same Leaf delivery
+id. This is at-least-once delivery and may create a retry turn; the task applies
+the page-and-sequence retry rule below. Before each queue or hook offer, every batch
+for a page is updated to that page server's one current URL. If an active turn
+produces no later hook for fifteen minutes, the adapter queues the same epoch pointer
+so its stored input cannot remain hidden. A long-running turn can therefore produce
+a duplicate wake.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its events
 enter the same append-only log; the detached Codex adapter still owns wait,
@@ -52,8 +62,8 @@ later delivery also includes newer events.
 
 Start `leaf ack` for a direct batch, set the page `working`, and address every
 event the wait printed while ack waits for the next batch. In a Codex delivery,
-the detached adapter owns ack; set the page `working` and process the persisted
-batch directly.
+the detached adapter owns ack; set each page `working` and process every batch in
+the persisted epoch directly.
 
 - **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
   it in the next version, then resolve it. If the revision depends on the reader,

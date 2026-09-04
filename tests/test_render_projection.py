@@ -402,7 +402,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     lines.nth(2).click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.locator(".lf-composer textarea").fill("Review this added call.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
@@ -2844,7 +2844,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "Refill a feeder when its camera shows it half-empty."
     page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-conversation-body")).to_have_text(
@@ -4853,7 +4853,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     )
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Keep this branch evidence visible.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,

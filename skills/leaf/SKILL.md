@@ -76,24 +76,34 @@ incomplete. A checkout keeps it at `bin/leaf`.
    or that rendering remains unverified.
 
 When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a thread needs work. Read
+`references/conversation-threads.md` when a thread needs work. A
+`leaf-delivery` element names a Codex delivery payload: read its `path` and
+process every entry in `batches`; each carries its page, URL, thread context, and
+events. All batches for one page carry its current URL when the pointer is offered.
+If an at-least-once retry arrives after that path was completed, read the same
+filename under its sibling `history/` directory. The same delivery id may return
+after more input joins its active turn,
+so reread the payload and apply the page-and-sequence retry rule. The detached
+adapter owns acknowledgement. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 
 ## Page contract
 
-Using Leaf should feel like playing a game: the reader can see the objective,
-current state, and available moves before reading supporting detail. A
-quick-decision page puts its first Ask in the initial viewport. The Ask carries
-the short shared premise and alternatives it needs, while backing detail follows
-in a disclosure. A record or system page may expose the whole state and put each
-Ask where that state makes it answerable.
+Unless the user specifies the page's form or depth, a Leaf is a short sequence
+of visually distinct, self-contained views. Each view makes one point, shows one
+state, or offers one move, so the reader can grasp it at a glance and continue.
+This gives the page the pace of browsing a visual feed; disclosures keep
+supporting detail available without putting it in that path. A quick-decision
+page puts its first Ask in the initial viewport. The Ask carries the short shared
+premise and alternatives it needs. A record or system page may expose the whole
+state and put each Ask where that state makes it answerable.
 
-The subject decides the shape. Use options for decisions, boards for movable
-work, milestones for stages, metrics for measurements, and prose where no other
-shape fits. Prose connects the shapes, so keep it short. The page's
-`registry.json` is the authority for the vendored vocabulary and theme; query
-only the entries the page needs.
+The visible page follows the subject's shape rather than a report outline.
+`references/page-authoring.md` owns the concrete choices and reading-cost review.
+Prose connects the shapes, so keep it short. The page's `registry.json` is the
+authority for the vendored vocabulary and theme; query only the entries the page
+needs.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal — the

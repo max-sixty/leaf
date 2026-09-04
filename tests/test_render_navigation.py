@@ -202,7 +202,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     )
     expect(option).not_to_have_attribute("chosen", "")
     page.locator(".lf-composer textarea").fill("The sample option needs less padding.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     design_comment = [
         event
@@ -1567,7 +1567,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.locator(".lf-composer textarea").fill("Too short.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
     c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
         "id"
@@ -5090,7 +5090,9 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     expect(box).not_to_be_focused()
     page.keyboard.press("c")
     expect(box).to_be_focused()
-    expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
+    expect(box).to_have_attribute(
+        "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
+    )
 
     page.keyboard.press("Tab")
     choices = page.locator(".lf-fab-bar")
@@ -5102,12 +5104,16 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
 
     page.keyboard.press("Enter")
     expect(box).to_be_focused()
-    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+    expect(box).to_have_attribute(
+        "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
+    )
     expect(box).to_have_value(
         re.compile("A paragraph carrying bold text and emphasis inside it")
     )
     page.evaluate(RENDERED)
-    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+    expect(box).to_have_attribute(
+        "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
+    )
     assert errors == []
     page.close()
 
@@ -5284,7 +5290,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Anchored Enter sends; the other durable editors retain Mod+Enter."""
+    """Every durable editor inserts a newline with Enter and sends with Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -5312,6 +5318,10 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     )
     field.fill("Send through the compact control.")
     page.keyboard.press("Enter")
+    assert page.locator("body").get_attribute("data-composer-shortcut-clicks") is None
+    expect(field).to_have_value("Send through the compact control.\n")
+    expect(field).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
 

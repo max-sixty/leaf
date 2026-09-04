@@ -353,6 +353,13 @@ export function bake() {
   // the walk lands on, its tab stop, and the marker that said a widget built this box.
   // No widget did: this reading is the runtime's, which is why nothing here is left for
   // the press pass above to keep, the way it keeps a control's page words.
+  //
+  // It keeps its circle and its glyph, though, so what it gives up the status for is the
+  // one role a shape with a collapsed word can hold: `img`, with the word as its text
+  // alternative, the same bargain the reaction mark above strikes and for the same
+  // reason. `aria-label` on a span with no role is a name nothing is obliged to read,
+  // and both seats land here as spans — the marker was one already, and the option seat
+  // gave its own role up above.
   for (const item of document.querySelectorAll(".lf-margin-item")) {
     const seats = new Map();
     for (const record of item.querySelectorAll("[data-lf-standing]")) {
@@ -366,8 +373,7 @@ export function bake() {
     }
     for (const record of seats.values()) {
       record.hidden = false;
-      for (const attr of ["role", "tabindex", "data-lf-offer"])
-        record.removeAttribute(attr);
+      for (const attr of ["tabindex", "data-lf-offer"]) record.removeAttribute(attr);
       // And it stops being a page-map marker, where the live page showed it as one.
       // The class is the rail's seat rather than the reading's: both media rules that
       // stop drawing the page map keep it company (`.lf-living-margin,
@@ -377,9 +383,18 @@ export function bake() {
       // fold stands in all three. The name goes with the class for the same reason it
       // is written: `markerName` speaks the walk — which entry of how many, and how far
       // down the exporter's window the target sat — and a copy has neither the walk nor
-      // that window. What the reading says is the word, which is where it already is.
+      // that window. What replaces it is the reading's own word, restated as the name.
+      // That is how every other seat in the margin is named — `marginAction` writes the
+      // record's label there, and the option seat below it carries `Outcome for …` —
+      // and the word standing in the DOM cannot stand in for it: the chrome stylesheet
+      // rides into the file and styles that span as hover chrome, `visibility: hidden`
+      // until a pointer is on the control, so it is read in no medium and by nothing.
       if (record.classList.replace("lf-margin-marker", "lf-margin-reading-option"))
-        record.removeAttribute("aria-label");
+        record.setAttribute(
+          "aria-label",
+          record.querySelector(":scope > .lf-margin-action-label").textContent,
+        );
+      record.setAttribute("role", "img");
       item.append(record);
     }
   }

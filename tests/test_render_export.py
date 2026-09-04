@@ -537,7 +537,7 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
             "word": "Outcome",
             "shown": True,
             "folded": False,
-            "role": None,
+            "role": "img",
             "tabindex": None,
             "offer": None,
         }
@@ -592,7 +592,10 @@ def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
     and drops on a narrow one or on paper, while the same record kept in a fold stands
     in all three. The spoken name goes with the class: it is the walk's address, which
     counts the page map's entries and measures how far down the exporter's own window
-    the target sat, and a file has neither.
+    the target sat, and a file has neither. The reading's own word takes its place,
+    because the span holding that word cannot: the runtime's stylesheet rides into the
+    file and keeps the span for a hover a file has no other use for, so a record left
+    to it would stand there saying nothing at all.
 
     Where it stands is the second half, and it is one question for both seats. A file
     cannot dock: the packing pass measured the rail at the width the page was exported
@@ -631,6 +634,7 @@ def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
                      word: el.querySelector('.lf-margin-action-label').textContent,
                      shown: el.checkVisibility(),
                      named: el.getAttribute('aria-label'),
+                     role: el.getAttribute('role'),
                      within: el.getBoundingClientRect().right
                        <= document.documentElement.getBoundingClientRect().right,
                      overflow: document.documentElement.scrollWidth > innerWidth,
@@ -640,11 +644,71 @@ def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
                     "marker": False,
                     "word": "Outcome",
                     "shown": True,
-                    "named": None,
+                    "named": "Outcome",
+                    "role": "img",
                     "within": True,
                     "overflow": False,
                 }
             ], f"{width}px, {medium}"
+        assert errors == []
+        page.close()
+
+
+FOLDED_SUGGESTION = leaf_page(
+    "agreed, out of sight",
+    """
+<h1 id="h">One rewrite</h1>
+<details id="survey"><summary>The camera survey</summary>
+<p id="replace">The camera survey found two dead zones.
+  <lf-suggestion id="sug-refill">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
+  </lf-suggestion></p>
+</details>
+""",
+)
+
+
+def test_a_copy_withholds_the_record_for_a_passage_it_is_still_folding_away(
+    browser, serve, tmp_path
+):
+    """The record above stands because its target does. This one's does not.
+
+    The packing pass says so on the live page: a row whose anchor is not shown is left
+    `lf-waiting`, and a shut fold is the ordinary way a target goes unshown while the
+    reading for it is real. The class travels into the file with the row, so the file
+    is the same reading — a record for words the reader has to open the fold to reach,
+    and nothing in a copy opens it.
+
+    Which makes the two facts one question. The shape a copy takes below the rail's
+    floor and on paper is a rule about rows that stand; a rule that reached these too
+    would be the only thing standing them, because `display: flex` is what it answers
+    `lf-waiting`'s `display: none` with."""
+    url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
+    live, live_errors = open_page(browser, live_url(url))
+    resized(live, 1200, 900)
+    item = live.locator('[data-lf-margin-for="sug-refill"]')
+    expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    for width in (1200, 800):
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        errors = watched(page)
+        page.goto(out.as_uri(), wait_until="load")
+        for medium in ("screen", "print"):
+            page.emulate_media(media=medium)
+            assert page.evaluate(
+                """() => [...document.querySelectorAll('.lf-margin-item')].map(el => ({
+                     waiting: el.matches('.lf-waiting'),
+                     shown: el.checkVisibility(),
+                     open: document.getElementById('survey').open,
+                   }))"""
+            ) == [{"waiting": True, "shown": False, "open": False}], (
+                f"{width}px, {medium}"
+            )
         assert errors == []
         page.close()
 

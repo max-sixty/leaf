@@ -3091,7 +3091,9 @@ record of the choice.
 A copy keeps that record, in one seat and disarmed. The status role, the walk's tab stop,
 and the offer marker go, on the same bargain the press removal strikes for a control whose
 words are the page's; unlike those words the marker is not kept, because the reading is
-the runtime's rather than a widget's. The seat is the item itself, since a file can open
+the runtime's rather than a widget's. What it gives the status role up for is `img`, since
+it keeps its circle and its glyph and a shape whose word is collapsed away is named the
+way the reaction mark is named. The seat is the item itself, since a file can open
 no fold — the `…` that would is a press and leaves with the rest — and a resting seat a
 widget's control held is free again once that control has gone.
 
@@ -3101,13 +3103,17 @@ that class is the rail's seat: both rules that stop drawing the rail name it, th
 floor and print, so a record left wearing it would be a fact the file states on a wide
 screen and drops on a narrow one or on paper. Its spoken name goes with the class, being
 the walk's address — which entry of how many, and how far down the exporter's own window
-the target sat.
+the target sat — and the reading's own word is restated in its place. The word standing in
+the DOM cannot serve instead: the runtime's stylesheet rides into the file and styles that
+span as hover chrome, so it is read in no medium.
 
 Where it stands is the same question in every medium, and a file cannot dock: the
 packing pass measured the rail at the width the page was exported at and left with the
 scripts. So under that floor and on paper, where no rail is drawn, a copy's margin items
 take the docked shape rather than the absolute seat they were exported into, which hangs
-off the page box.
+off the page box. Not the rows that same pass withheld: an item whose target is not shown
+wears `lf-waiting` into the file, and a shape taken on the medium's terms would be the
+only thing standing a record beside a passage the file is still folding away.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,

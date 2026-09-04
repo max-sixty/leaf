@@ -7,7 +7,7 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { clampedRow } from "./keyboard/bindings.js";
+import { PRESS, clampedRow } from "./keyboard/bindings.js";
 import { landInConversation } from "./conversation/landing.js";
 
 const KINDS = {
@@ -943,19 +943,14 @@ export function createLivingMargin(dependencies) {
 
   const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
 
-  function readingControl(className) {
-    const control = offer("span", className);
-    control.addEventListener("keydown", (event) => {
-      if (
-        control.getAttribute("role") !== "button" ||
-        (event.key !== "Enter" && event.key !== " ")
-      )
-        return;
-      event.preventDefault();
-      control.click();
-    });
-    return control;
-  }
+  // A reading wears two promises over its life — a Button while there is something to
+  // open, a status once the move is made — and only one element may carry both, or the
+  // seat moves under a reader standing in it. A <button> cannot stop being one, so the
+  // seat is a span and `marginAction` writes whichever promise the reading now makes.
+  // What the platform then does not supply is the press, which the margin's own scope
+  // declares (margin.press) rather than a listener here: a key the register does not
+  // hold is a key no surface can promise.
+  const readingControl = (className) => offer("span", className);
 
   function syncThreadRelation(control, isThread) {
     if (!isThread) {
@@ -1597,6 +1592,20 @@ export function createLivingMargin(dependencies) {
   }
 
   const marginKeys = [
+    // The seat a reading holds is a span, so the platform's own activation is not under
+    // it. Declared here rather than answered by a listener on the control: this is the
+    // register's whole bargain — the line and the reference draw the key off the same row
+    // the press is matched against, so neither can promise what the other does not do.
+    // Only the span-shaped readings, because a native Button in this cluster answers its
+    // own press and a second answer here would be two meanings for one key.
+    {
+      id: "margin.press",
+      keys: PRESS,
+      does: "Work the focused Button",
+      line: "work this Button",
+      when: () => focused()?.matches?.('.lf-margin-action[role="button"]'),
+      run: () => focused().click(),
+    },
     {
       id: "margin.buttons",
       keys: ["ArrowLeft", "ArrowRight"],

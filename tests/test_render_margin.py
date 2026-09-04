@@ -1802,12 +1802,25 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
+    def words_still():
+        """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
+        delay ends on is a box the reader can see drawn at the opacity it is leaving —
+        which is what `to_be_visible` is satisfied by, and what the paint read behind it
+        then reports as the receipt's own ink. Ask the transitions instead: the call
+        flushes pending style, so a reveal that has been started is in the list on the
+        first read and a control that never moves reports empty at once."""
+        page.wait_for_function(
+            """() => [...document.querySelectorAll('.lf-margin-action-label')]
+                 .every((label) => label.getAnimations().length === 0)"""
+        )
+
     def assert_receipt(phase, control=marker):
         if control is marker:
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
         expect(control.locator(":scope > .lf-margin-action-label")).to_be_hidden()
+        words_still()
         current = face(control)
         assert current == {
             "tag": "SPAN",
@@ -1837,6 +1850,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
         }
         control.hover()
         expect(control.locator(":scope > .lf-margin-action-label")).to_be_visible()
+        words_still()
         hovered = face(control)
         assert {
             key: hovered[key] for key in ("background", "border", "ink", "opacity")

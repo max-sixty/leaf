@@ -117,12 +117,24 @@ export function bake() {
   // than under .lf-chrome. Remove it from the document and every open shadow root
   // before those roots are serialized below: a file has no agent behind the claim,
   // so preserving the rendered sentence would turn provisional news into a lie.
+  //
+  // Two ways a receipt says so, because it has two seats. A thread's own line is built
+  // as one (.lf-receipt). A margin reading becomes one in place — Sent, Waiting for
+  // pickup, Picked up — keeping the seat it held as a Button, so what names it is the
+  // behavior `marginAction` writes rather than the tag or the class it kept. The marker's
+  // value cannot answer this: `offer` writes the empty one there precisely because a
+  // receipt is not a press, which is what stands the pointer hand and the lift down on
+  // the live page, and the removal below reads that same value to mean "a box a widget
+  // built" and walks past. Paper drops both on the same reasoning (the chrome
+  // stylesheet's print block), so all three mediums agree on what a file may claim.
   const roots = [document];
   for (const root of roots)
     for (const element of root.querySelectorAll("*"))
       if (element.shadowRoot) roots.push(element.shadowRoot);
   for (const root of roots)
-    root.querySelectorAll(".lf-receipt").forEach((el) => el.remove());
+    root
+      .querySelectorAll('.lf-receipt, [data-lf-behavior="receipt"]')
+      .forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule

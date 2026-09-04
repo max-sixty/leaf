@@ -1566,6 +1566,14 @@ activation owner.
   pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
   can still land there and name the phase.
 
+A generated reading wears more than one of those over its life — a Thread Button while
+there is something to open, a receipt once the move is reported — and one element has to
+carry both, or the seat moves under a reader standing in it. Such a control is therefore
+a span, since a `<button>` cannot stop being one, and the activation the platform then
+does not supply is declared by the page map's own scope (`margin.press`) rather than by a
+listener on the control: a key the register does not hold is a key no surface can
+promise.
+
 Ring weight distinguishes immediate actions from the other fittings. The shape stays
 shared, with no chevron. A lone non-thread informational Button reveals its target
 directly. Each additional non-thread reading gets its own peer Button under `…`;
@@ -3052,6 +3060,15 @@ Widget affordances fall into three groups:
   page words.
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
+
+A receipt is neither kept nor disarmed: a copy drops it. Sent, Waiting for pickup, and
+Picked up report a move an agent is still making, and a file has nothing standing behind
+that claim, so keeping the word would turn provisional news into a statement. Both of its
+seats say so — a thread's own `.lf-receipt` line, and a margin reading `marginAction` has
+given the `receipt` behavior. The marker value cannot answer for the second: a receipt is
+not a press, so `offer` writes the empty value there to stand the pointer hand and the
+lift down on the live page, and the copy's press removal reads that same value to mean
+chrome it keeps.
 
 Paint that promises a gesture — the pointer hand above all — hangs on how a press is
 spelled, never on a control class alone. Export takes the role off and leaves the class,

@@ -366,7 +366,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
 
     start_code = page.evaluate(
         """() => {
-          const part = document.querySelector('#flow g[id*="flowchart-S-"]')
+          const part = document.querySelector('#flow g[data-id="S"]')
             .getBoundingClientRect();
           return [...document.querySelectorAll('.lf-target-hint')]
             .sort((a, b) => {
@@ -380,7 +380,7 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    start = page.locator('#flow g[id*="flowchart-S-"]')
+    start = page.locator('#flow g[data-id="S"]')
     expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Start request")

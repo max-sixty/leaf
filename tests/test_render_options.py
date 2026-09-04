@@ -165,12 +165,31 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         "in the author's order, not overlapping"
     )
 
-    # Crowd the generated selection state's opening band. Its room is held before the
-    # pick and excludes every line rather than hanging off whichever chip comes last, so
-    # wrapping metadata cannot enter the pill's corner.
+    paper = page.locator("#t-paper").bounding_box()
+    gps = page.locator("#t-gps").bounding_box()
+    terse = page.locator("#terse").bounding_box()
+    assert paper["y"] + paper["height"] <= gps["y"], "terse options stack too"
+    assert gps["width"] > terse["width"] * 0.95, "a terse card takes the whole column"
+
+    # lf-compare is the same shape without the decision, and follows it for block
+    # content; an exhibition is looked across, so its terse form keeps the grid.
+    cedar = page.locator("#cv-cedar").bounding_box()
+    pine = page.locator("#cv-pine").bounding_box()
+    assert cedar["y"] + cedar["height"] <= pine["y"], "substantial variants stack too"
+    rail = page.locator("#cv-cedar > dl.facts").bounding_box()
+    assert rail["x"] > cedar["x"] + cedar["width"] / 2, "a variant's facts dock right"
+    oiled = page.locator("#cv-oiled").bounding_box()
+    bare = page.locator("#cv-bare").bounding_box()
+    assert abs(oiled["y"] - bare["y"]) < 1, "terse variants keep the side-by-side grid"
+    assert oiled["x"] + oiled["width"] <= bare["x"], "terse variants share the row"
+
+    # Crowd the generated selection state's opening band at phone width. Its room is
+    # held before the pick and excludes every line rather than hanging off whichever
+    # chip comes last, so wrapping metadata cannot enter the pill's corner.
+    page.set_viewport_size({"width": 390, "height": 900})
     page.locator("#st-sd > strong").evaluate(
         """title => {
-            for (const text of ['owner: platform', 'phase: design', 'recommended']) {
+            for (const text of ['recommended', 'owner: platform', 'phase: design']) {
                 const chip = document.createElement('lf-chip');
                 chip.textContent = text;
                 title.before(chip);
@@ -191,24 +210,6 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
             or state_box["y"] + state_box["height"] <= chip["y"]
         )
         assert separate, "the selected header state covers an authored chip"
-
-    paper = page.locator("#t-paper").bounding_box()
-    gps = page.locator("#t-gps").bounding_box()
-    terse = page.locator("#terse").bounding_box()
-    assert paper["y"] + paper["height"] <= gps["y"], "terse options stack too"
-    assert gps["width"] > terse["width"] * 0.95, "a terse card takes the whole column"
-
-    # lf-compare is the same shape without the decision, and follows it for block
-    # content; an exhibition is looked across, so its terse form keeps the grid.
-    cedar = page.locator("#cv-cedar").bounding_box()
-    pine = page.locator("#cv-pine").bounding_box()
-    assert cedar["y"] + cedar["height"] <= pine["y"], "substantial variants stack too"
-    rail = page.locator("#cv-cedar > dl.facts").bounding_box()
-    assert rail["x"] > cedar["x"] + cedar["width"] / 2, "a variant's facts dock right"
-    oiled = page.locator("#cv-oiled").bounding_box()
-    bare = page.locator("#cv-bare").bounding_box()
-    assert abs(oiled["y"] - bare["y"]) < 1, "terse variants keep the side-by-side grid"
-    assert oiled["x"] + oiled["width"] <= bare["x"], "terse variants share the row"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
     # The pair this replaced could not: each was an absolutely-positioned box sized to
@@ -793,7 +794,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # address. An exhibit can grow neither, so its title keeps that room.
     assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] == "80px", (
         "the exhibit reserves the live card's header state slot: "
-        f"{quoted_card['stateRoom']}"
+        f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
     )
 
     # And under the pointer. A live choose group is a joined control, and a cell that rose

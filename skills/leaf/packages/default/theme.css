@@ -402,7 +402,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > :is(lf-option, .lf-another) { padding-inline-start: var(--sp-3); }
    & > lf-option { padding-bottom: var(--sp-3); }
    /* A float is the exclusion, rather than margin on one authored child: every chip and
-   * title line that reaches the status band wraps around the same reserved rectangle. */
+    * title line that reaches the status band wraps around the same reserved rectangle. */
    & > lf-option::before { content: ""; float: inline-end;
                      width: var(--lf-card-state-room); height: 22px;
                      pointer-events: none; }

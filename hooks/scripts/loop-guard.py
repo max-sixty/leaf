@@ -5,9 +5,10 @@ The loop asks the agent to restart `leaf wait` after every round, and a page
 whose watcher never came back is invisible from the browser: it looks exactly like a
 page whose user has said nothing yet. These hooks make the loop the harness's
 business rather than the model's memory. Stop protects a background wait where the
-host can return its result, and keeps a foreground-only host's page owner inside the
-turn polling the exact wait session. A named wait transfers that duty to the task that
-runs it. UserPromptSubmit surfaces unacknowledged events; SessionEnd releases the
+host can return its result, keeps a foreground-only host's page owner inside the
+turn polling the exact wait session, and carries newer Codex delivery batches
+into the active turn. A named wait transfers that duty to the task that runs it.
+UserPromptSubmit opens the turn and surfaces waiting input; SessionEnd releases the
 session's claims, behind which a session-lifetime server retires once no live
 successor has taken the page.
 

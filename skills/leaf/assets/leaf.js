@@ -3631,6 +3631,7 @@ livingMargin = createLivingMargin({
   itemSays,
   itemWord,
   keys,
+  motion,
   offer,
   openDecisions,
   panelIsOpen: chromeLayout.panelIsOpen,

@@ -22,6 +22,7 @@ from render_support import (
     EDGES,
     EXAMPLES,
     FOCUS_IN_PAGE,
+    HOLD_MOTION,
     LEGEND_TRUE,
     LONG_PAGE,
     NAMED,
@@ -134,6 +135,75 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
         "why here\nbecause every active session must end before support continues"
     )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
+    """The in-place field and the thread are two sizes of one writing surface.
+
+    The field keeps the small footprint that leaves the passage readable, but uses the
+    thread UI's type instead of a smaller caption face. On send, its last rectangle is
+    carried to the inline thread while the real card fades through it; the card must not
+    simply replace the field in one frame.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
+    resized(page, 1440, 900)
+    target = page.locator("#p10")
+    target.scroll_into_view_if_needed()
+    target.click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    compact = field.evaluate(
+        """node => {
+          const style = getComputedStyle(node), box = node.getBoundingClientRect();
+          return { x: box.x, y: box.y, width: box.width, height: box.height,
+                   family: style.fontFamily, size: style.fontSize };
+        }"""
+    )
+    assert compact["height"] == 32
+    field.fill("Carry this comment into its thread.")
+    source = field.bounding_box()
+    page.keyboard.press("Enter")
+    round_trip(page)
+
+    ghost = page.locator(".lf-thread-transition")
+    expect(ghost).to_have_count(1)
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    reply = preview.locator("textarea")
+    expect(reply).to_be_focused()
+    full = reply.evaluate(
+        "node => ({ family: getComputedStyle(node).fontFamily, "
+        "size: getComputedStyle(node).fontSize })"
+    )
+    assert (compact["family"], compact["size"]) == (
+        full["family"],
+        full["size"],
+    )
+
+    # Hold the first frame: the field's submitted box still stands exactly where the
+    # reader left it, and the full card is transparent underneath. Three motions share
+    # the one duration — shell, card, and words — so reduced motion can settle all three
+    # through the same primitive.
+    assert page.evaluate("() => window.__lfHeld.length") == 3
+    carried = ghost.bounding_box()
+    for dimension in ("x", "y", "width", "height"):
+        assert carried[dimension] == pytest.approx(source[dimension], abs=1)
+    expect(preview).to_have_css("opacity", "0")
+    page.evaluate(
+        """() => {
+          const words = window.__lfHeld.find((played) =>
+            played.effect.target.classList.contains('lf-thread-transition-text')
+          );
+          words.currentTime = words.effect.getComputedTiming().duration / 2;
+        }"""
+    )
+    expect(ghost.locator(".lf-thread-transition-text")).to_have_css("opacity", "0")
+
+    page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
+    expect(ghost).to_have_count(0)
+    expect(preview).to_have_css("opacity", "1")
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 

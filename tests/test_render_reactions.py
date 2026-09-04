@@ -806,7 +806,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    item.locator(".lf-margin-options .lf-margin-action:visible").first.focus()
+    item.locator(".lf-margin-options .lf-margin-button:visible").first.focus()
     page.keyboard.press("Escape")
     expect(more).to_be_visible()
     select_paragraph(page, "#replace")

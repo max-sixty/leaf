@@ -6,7 +6,7 @@ import {
   shownParts,
   shownRect,
 } from "./geometry.js";
-import { marginAction, registerMarginItem } from "./living-margin.js";
+import { marginButton, registerMarginItem } from "./living-margin.js";
 import {
   resolvedElement,
   resolvedPassage,
@@ -1066,7 +1066,7 @@ export function createAnchors(dependencies) {
         let mark = seat.querySelector(`:scope > [data-event="${root.id}"]`);
         if (!mark) {
           const entry = registry.$reactions.tokens[root.token];
-          mark = marginAction(offer("button", "lf-react-mark"), {
+          mark = marginButton(offer("button", "lf-react-mark"), {
             key: `take-back:${root.id}`,
             glyph: entry?.glyph ?? root.token,
             label: root.token,

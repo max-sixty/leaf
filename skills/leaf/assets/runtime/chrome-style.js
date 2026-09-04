@@ -21,7 +21,7 @@ const KEY_BOX = `box-sizing: border-box;
    or the other way about — which is how most of these came to be under both. */
 const AIMS = `.lf-btn, .lf-pill:is(button, [role="button"]), .lf-thread-action,
     .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-help-command,
-    .lf-quote, .lf-margin-action`;
+    .lf-quote, .lf-margin-button`;
 
 export function chromeStyle({
   COVERING,
@@ -200,7 +200,7 @@ export function chromeStyle({
   .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
   .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
-     Target actions use .lf-margin-action below: one stricter control type shared by
+     Target actions use .lf-margin-button below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */
   /* Words for a reader listening, silent on screen: real text, the one thing every
      screen reader announces in every mode, clipped to nothing where paint already says
@@ -269,10 +269,10 @@ export function chromeStyle({
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
-  /* The pluggable RHS action. Contributors choose glyph, label, tone, and behavior
-     through marginAction(); this declaration owns every visual and interactive
+  /* The pluggable RHS Button. Contributors choose glyph, label, tone, and behavior
+     through marginButton(); this declaration owns every visual and interactive
      constant that makes unlike verbs read as one family. */
-  .lf-margin-action {
+  .lf-margin-button {
     position: relative; box-sizing: border-box; width: 32px; min-width: 32px;
     height: 32px; min-height: 32px; padding: 0;
     border: 1px solid var(--border-2); border-radius: 50%;
@@ -281,83 +281,88 @@ export function chromeStyle({
     font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
-  .lf-margin-action[hidden] { display: none; }
-  /* A Button-shaped fitting carries one of four promises. An action's uniformly heavier ring says
-     this press acts now. A disclosure opens context, and the ellipsis unfolds peer
-     Buttons in the target cluster. A receipt reports a move already made and offers no
-     press. All four keep one circular silhouette and one place in the cluster. */
-  .lf-margin-action[data-lf-behavior="action"] {
+  .lf-margin-button[hidden] { display: none; }
+  /* A Button-shaped fitting carries one of three promises on the same paper surface.
+     An action's heavier ring and lower shadow say this press acts now; a disclosure's
+     firmer single ring says it opens context; read-only status keeps only the page's
+     ghost keyline. All three keep one circular silhouette and one place in the cluster,
+     while the static status alone has no raised or responsive material. */
+  .lf-margin-button[data-lf-behavior="action"] {
     border-width: 2px;
     color: var(--ink);
+    box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
   }
-  .lf-margin-action[data-lf-behavior="disclosure"],
-  .lf-margin-action[data-lf-behavior="options"] {
-    background: var(--paper); color: var(--muted); box-shadow: none;
+  .lf-margin-button[data-lf-behavior="disclosure"] {
+    border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
+    color: var(--ink-2); box-shadow: none;
   }
-  .lf-margin-action[data-lf-behavior="receipt"] {
-    border-color: var(--border-2); background: var(--paper); color: var(--ink-2);
+  .lf-margin-button[data-lf-behavior="status"] {
+    border-color: var(--rule); color: var(--ink-2);
     box-shadow: none; cursor: default;
   }
-  /* Tone colours only the icon. Rings, fills, and state marks keep their shared
-     neutral treatment through hover, focus, and disabled states. */
-  .lf-margin-action[data-lf-tone="positive"] > :is(.lf-margin-action-icon, .lf-margin-action-glyph) {
+  /* Tone colours only the icon. Category and interaction own the ring and fill;
+     lifecycle state keeps its separate neutral mark. */
+  .lf-margin-button[data-lf-tone="positive"] > :is(.lf-margin-button-icon, .lf-margin-button-glyph) {
     color: var(--ok-ink);
   }
-  .lf-margin-action[data-lf-tone="negative"] > :is(.lf-margin-action-icon, .lf-margin-action-glyph) {
+  .lf-margin-button[data-lf-tone="negative"] > :is(.lf-margin-button-icon, .lf-margin-button-glyph) {
     color: var(--danger-ink);
   }
   /* State has its own small lower-right witness. It changes neither the Button's ring
      nor its tone: engaged is a dot, busy is a moving open ring, failed is a diamond,
      and settled is a square. The witness is decoration: its rotation must not extend
      the Button's pointer target into the gap beside it. */
-  .lf-margin-action:where([data-lf-state]:not([data-lf-state="idle"])):not([data-lf-behavior="receipt"])::after {
+  .lf-margin-button:where([data-lf-state]:not([data-lf-state="idle"])):not([data-lf-behavior="status"])::after {
     content: ""; position: absolute; z-index: 2; inline-size: 6px; block-size: 6px;
     inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
     border: 1px solid var(--paper); background: currentColor; border-radius: 50%;
     pointer-events: none;
   }
-  .lf-margin-action[data-lf-state="busy"]::after {
+  .lf-margin-button[data-lf-state="busy"]::after {
     inline-size: 8px; block-size: 8px; background: var(--paper);
     border: 2px solid currentColor; border-block-start-color: transparent;
     animation: lf-runtime-4f3c2a8d-button-busy 650ms linear infinite;
   }
-  .lf-margin-action[data-lf-state="failed"]::after {
+  .lf-margin-button[data-lf-state="failed"]::after {
     border-radius: 1px; transform: rotate(45deg);
   }
-  .lf-margin-action[data-lf-state="settled"]::after {
+  .lf-margin-button[data-lf-state="settled"]::after {
     border-radius: 1px;
   }
   @keyframes lf-runtime-4f3c2a8d-button-busy { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) {
-    .lf-margin-action[data-lf-state="busy"]::after {
+    .lf-margin-button[data-lf-state="busy"]::after {
       animation: none; border-style: dotted;
     }
   }
   /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
      and tab stop from standing reaction marks, which retain their shape without
-     promising a press. A receipt stays in the page-map walk as a status, while its
-     ring, hand, and hover lift go. Decided suggestions export sibling text receipts. */
-  .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]) {
+     promising a press. A status keeps its ghost ring in the page-map walk, while its
+     hand and hover response go. Decided suggestions export sibling text receipts. */
+  .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
     cursor: pointer;
   }
-  .lf-margin-action:is(button, [role="button"]):not([data-lf-behavior="receipt"]):hover:not([aria-disabled="true"]) {
+  .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
     background: var(--chip);
   }
-  .lf-margin-action:is(:focus-visible, .lf-focus-visible) {
-    outline: var(--here-ring); --lf-here-ring: margin-action; outline-offset: 1px;
+  .lf-margin-button[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+    border-color: var(--accent);
   }
-  .lf-margin-action[aria-disabled="true"] { cursor: default; }
-  .lf-margin-action.lf-react[aria-pressed="true"] {
+  .lf-margin-button:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--here-ring); --lf-here-ring: margin-button; outline-offset: 1px;
+  }
+  .lf-margin-button[aria-disabled="true"] { cursor: default; }
+  .lf-margin-button.lf-react[aria-pressed="true"] {
     background: var(--chip);
   }
-  .lf-margin-action-glyph { line-height: 1; }
-  .lf-margin-action-icon {
+  .lf-margin-button-glyph { line-height: 1; }
+  .lf-margin-button-icon {
     inline-size: 16px; block-size: 16px; overflow: visible;
     fill: none; stroke: currentColor; stroke-width: 1.6;
     stroke-linecap: round; stroke-linejoin: round;
   }
-  .lf-margin-action > .lf-margin-action-space { display: none; }
-  .lf-margin-action > .lf-margin-action-label {
+  .lf-margin-button > .lf-margin-button-space { display: none; }
+  .lf-margin-button > .lf-margin-button-label {
     position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
     inset-inline-end: 0; display: block; width: max-content; max-width: 180px;
     padding: 4px 7px; border-radius: 4px;
@@ -368,20 +373,26 @@ export function chromeStyle({
     transform: translateY(-2px);
     transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
   }
-  .lf-margin-action[data-lf-label-side] > .lf-margin-action-label {
+  .lf-margin-button-label-word,
+  .lf-margin-button-context { display: block; }
+  .lf-margin-button-context {
+    margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
+    font-size: 10px; line-height: 1.25; font-weight: 450;
+  }
+  .lf-margin-button[data-lf-label-side] > .lf-margin-button-label {
     inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
   }
-  .lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
-    > .lf-margin-action-label {
+  .lf-margin-button:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
+    > .lf-margin-button-label {
     opacity: 1; visibility: visible; transform: translateY(0);
     transition-delay: 90ms;
   }
   .lf-margin-item > .lf-margin-contribution >
-    .lf-margin-action:not([data-lf-button-primary]),
-  .lf-margin-item > .lf-margin-action.lf-margin-contribution:not([data-lf-button-primary]) {
+    .lf-margin-button:not([data-lf-button-primary]),
+  .lf-margin-item > .lf-margin-button.lf-margin-contribution:not([data-lf-button-primary]) {
     display: none;
   }
-  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-action):not([data-lf-margin-receipt]):not(:has(> [data-lf-button-primary])) {
+  .lf-margin-item > .lf-margin-contribution:not(.lf-margin-button):not([data-lf-margin-receipt]):not(:has(> [data-lf-button-primary])) {
     display: none;
   }
   .lf-margin-options [data-lf-button-overflow] { display: none; }
@@ -407,10 +418,10 @@ export function chromeStyle({
      Opacity and the cursor, never geometry: the line a press is made on holds still
      (lf-suggestion.js), and a busy surface that reflowed would move the control out
      from under the pointer that just pressed it. */
-  [aria-busy="true"]:not(.lf-margin-action) {
+  [aria-busy="true"]:not(.lf-margin-button) {
     animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
   }
-  [aria-busy="true"]:not(.lf-margin-action),
+  [aria-busy="true"]:not(.lf-margin-button),
   [aria-busy="true"] :is(button, [role="button"]) {
     cursor: progress;
   }
@@ -422,7 +433,7 @@ export function chromeStyle({
 
      Each states its own gap, because they stand at different densities and the ring may
      not reach its neighbour: the standing gap is what a box with room around it takes,
-     the composer's row puts 6px between two buttons, and margin actions sit 4px
+     the composer's row puts 6px between two buttons, and margin Buttons sit 4px
      apart out in the margin. The pill's rule was the suggestion family's, which is a
      family stating a fact about a shape the runtime owns — its own rules there are for
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
@@ -1321,7 +1332,7 @@ ${MARK_RULES}
        raised over the reader's sentence. Where a control stands decides which it
        wears. In the runtime's own furniture — the banner, the panel, the composer — a
        press is a .lf-btn and looks like one; beside page content it is the shared
-       .lf-margin-action.
+       .lf-margin-button.
 
        The shadow is the one thing this control adds, and it earns it: this is the only
        pill that floats over the page's own content rather than standing in the empty
@@ -1793,7 +1804,7 @@ ${MARK_RULES}
          named none at all, so Reopen, the page preview, a version's Δ, a command in the
          reference, a quote and the panel's pills were small under both pointers. They
          are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
-      .lf-margin-action { width: 44px; height: 44px; }
+      .lf-margin-button { width: 44px; height: 44px; }
       .lf-response-control { --lf-response-height: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }

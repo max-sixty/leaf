@@ -1291,6 +1291,49 @@ graph LR
     page.close()
 
 
+def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, serve):
+    """A generic picture supplies its box only when nothing more precise names the hit.
+
+    Authored items remain independently aimable, and a projected datum keeps the
+    coordinate that follows its record across data replacements.
+    """
+    page_markup = leaf_page(
+        "nested visual targets",
+        """
+<h1 id="top">Nested visual targets</h1>
+<figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
+  role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
+  <figcaption id="caption">Plain picture</figcaption></figure>
+<section id="source"><figure id="projected-source"><pre>Current instructions.</pre></figure></section>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+    field = page.locator(".lf-fab-input")
+    page.locator("#projected-source").evaluate(
+        """figure => Object.assign(figure.dataset, {
+          lfProjection: 'source', lfDatum: 'document',
+          lfDatumLabel: 'Captured document',
+        })"""
+    )
+
+    page.locator("#caption").click(modifiers=["Alt"])
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#figure")).not_to_have_class(re.compile(r"\blf-pending\b"))
+    page.keyboard.press("Escape")
+
+    page.locator('[data-lf-datum="document"] pre').click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    with sending(page, "the comment on the projected document"):
+        field.fill("Keep the captured source coordinate.")
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
+        "section": "source",
+        "datum": "document",
+    }
+    assert errors == []
+    page.close()
+
+
 def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
     """A linked picture and a button icon retain their native activation. Leaf adds no
     nested proxy and pointer activation does not raise the visual action bar."""
@@ -1631,6 +1674,47 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     assert page.evaluate("() => getSelection().toString()") == ""
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
+    assert errors == []
+    page.close()
+
+
+def test_the_response_surface_preserves_a_backward_drag(browser, serve):
+    """Painting the response surface must not reverse the browser selection.
+
+    Its direction decides which end a subsequent Shift-click extends.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "backward passage",
+                '<h1 id="top">Backward passage</h1>'
+                '<p id="para">Sentence with plenty of words to select.</p>',
+            )
+        ),
+    )
+    box = page.locator("#para").evaluate(
+        """element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    select(
+        page,
+        (box["right"] - 2, box["top"] + box["height"] / 2),
+        (box["left"] + 2, box["top"] + box["height"] / 2),
+        steps=12,
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    assert page.evaluate(
+        """() => {
+          const selection = getSelection();
+          const range = selection.getRangeAt(0);
+          return selection.anchorNode === range.endContainer
+            && selection.anchorOffset === range.endOffset;
+        }"""
+    ), "the response pass reversed a backward drag before its next extension"
     assert errors == []
     page.close()
 

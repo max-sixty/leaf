@@ -515,25 +515,31 @@ export function createAnchors(dependencies) {
     element: datum,
     label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
   });
-  // One reading for the pointer aim and the keyboard's item hints. A visual is the whole
-  // picture unless its provider resolves a declared part under the pointer. Datums come
-  // next; everywhere else the innermost stable authored id is the target.
+  // One reading for the pointer aim and the keyboard's item hints. A provider's declared
+  // part is the narrowest picture target. A datum or authored item inside an ordinary
+  // picture keeps its stable coordinate; otherwise the picture supplies the shown box
+  // for the broader authored seat around it.
   function aimTargetAt(node) {
     const visual = visualAt(node, { unclaimed: false });
-    if (visual)
+    if (visual?.part)
       return {
-        anchor: {
-          section: visual.id,
-          ...(visual.part && { visual: visual.part.part }),
-        },
-        element: visual.part?.element ?? visual.element,
-        label: aimLabel(sectionOf({ section: visual.id }), visual.part?.label),
-        ...(visual.part && { visual: visual.part }),
+        anchor: { section: visual.id, visual: visual.part.part },
+        element: visual.part.element,
+        label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
+        visual: visual.part,
       };
     const datum = closestAcross(node, DATUM);
     if (datum) return datumAimTarget(datum);
     const item = itemAt(node);
-    return item ? itemAimTarget(item) : null;
+    if (item && (!visual || containsAcross(visual.element, item)))
+      return itemAimTarget(item);
+    return visual
+      ? {
+          anchor: { section: visual.id },
+          element: visual.element,
+          label: aimLabel(sectionOf({ section: visual.id })),
+        }
+      : null;
   }
   function aimTargets() {
     const candidates = [

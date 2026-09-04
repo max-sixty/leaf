@@ -575,11 +575,10 @@ export function createSelectionSurface({
     if (!pageWords(ev.target) && !pageSelection()) return;
     const selection = pageSelection();
     const selected = selection ? selectionAnchor(selection) : null;
-    const completed = selectionDragged
-      ? selected?.quote?.length >= MIN_QUOTE
-        ? pageRange(selection).cloneRange()
-        : selectionRangeDuringPress
-      : null;
+    const completed =
+      selectionDragged && !(selected?.quote?.length >= MIN_QUOTE)
+        ? selectionRangeDuringPress
+        : null;
     deferSelectionUpdate(() => {
       if (completed) {
         const restored = getSelection();

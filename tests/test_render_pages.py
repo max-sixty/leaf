@@ -827,6 +827,8 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
           probe.style.cssText = 'font-family:var(--sans);position:fixed;visibility:hidden';
           document.body.append(probe);
           const expectedFont = getComputedStyle(probe).fontFamily;
+          probe.style.fontFamily = 'var(--mono)';
+          const expectedMonoFont = getComputedStyle(probe).fontFamily;
           probe.remove();
           return {
             count: svgs.length,
@@ -835,7 +837,10 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
             styles: svgs.map(svg => svg.querySelector('style')?.textContent ?? ''),
             fonts: svgs.map(svg => svg.querySelector('text')).filter(Boolean)
               .map(text => getComputedStyle(text).fontFamily),
+            monoFonts: svgs.flatMap(svg => [...svg.querySelectorAll('text.mono')])
+              .map(text => getComputedStyle(text).fontFamily),
             expectedFont,
+            expectedMonoFont,
           };
         }"""
     )
@@ -848,6 +853,8 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
     )
     assert len(readings["fonts"]) == readings["count"]
     assert set(readings["fonts"]) == {readings["expectedFont"]}
+    assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
+    assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
     assert errors == []
     page.close()
 
@@ -872,6 +879,29 @@ flowchart LR
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
     assert errors == []
+    page.close()
+
+
+def test_an_unsupported_click_directive_fails_visibly(browser, serve):
+    """A Mermaid click directive cannot be mistaken for a diagram node."""
+    linked = leaf_page(
+        "diagram click directive",
+        """
+<h1 id="title">Diagram click directive</h1>
+<lf-diagram id="flow"><pre>
+flowchart LR
+  A[Alpha] --&gt; B[Beta]
+  click A href "https://example.com" "Open"
+</pre></lf-diagram>
+""",
+    )
+    page, _ = open_page(browser, serve(linked))
+
+    expect(page.locator("#flow .lf-error")).to_contain_text(
+        "click directives are not supported"
+    )
+    expect(page.locator("#flow svg")).to_have_count(0)
+    expect(page.locator("#flow .lf-error pre")).to_contain_text("click A href")
     page.close()
 
 

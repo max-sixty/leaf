@@ -16,7 +16,16 @@ const loadRenderer = () =>
 const prepareSvg = (svg) =>
   svg
     .replace(/@import url\(['"]https:\/\/fonts\.googleapis\.com\/[^)]*\);\s*/g, "")
-    .replaceAll("'LeafDiagram', system-ui, sans-serif", "var(--sans)");
+    .replaceAll("'LeafDiagram', system-ui, sans-serif", "var(--sans)")
+    .replaceAll(
+      "'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace",
+      "var(--mono)",
+    );
+
+const rejectUnsupportedSource = (source) => {
+  if (/^\s*click(?:\s|$)/im.test(source))
+    throw new Error("click directives are not supported by Leaf diagrams");
+};
 
 /* The renderer uses fixed ids for arrowheads, gradients and masks. Repeated ids make
  * a later diagram's references resolve into an earlier SVG, so each rendering gets a
@@ -60,6 +69,7 @@ customElements.define(
       const source = dataBody(this).trim();
       const renderId = `lf-diagram-${++seq}`;
       try {
+        rejectUnsupportedSource(source);
         const { renderMermaidSVG } = await loadRenderer();
         const declared = new Set(
           (this.getAttribute("parts") ?? "").trim().split(/\s+/).filter(Boolean),

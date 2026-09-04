@@ -27,9 +27,11 @@ def _render_version_attempt(
     applyAction is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once, on the premise the
-    trapped-margin reading shares: the palettes carry no geometry between them), a box
-    drawing one inset and showing another, and, on paper, words the page drops that
-    it says on screen, or draws over each other (print is scheme-blind). Returns human-readable failures; [] is a pass.
+    trapped-margin reading shares: the palettes carry no geometry between them), an SVG
+    paint token that does not resolve to valid paint in that scheme, a box drawing one inset
+    and showing another, and, on paper, words the page drops that it says on screen, or
+    draws over each other (print is scheme-blind). Returns human-readable failures; []
+    is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples

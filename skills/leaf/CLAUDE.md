@@ -3197,6 +3197,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | --- | --- |
 | window-error init channel | no runtime, module, resource, or ResizeObserver error reached the page |
 | `upgraded` and `moving` | upgrade completed and final geometry settled |
+| `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
 | `unmarkableItems` | every pointable item has a visible part for an outline |
 | `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |

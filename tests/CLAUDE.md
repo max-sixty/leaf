@@ -447,6 +447,9 @@ The main causal helpers are:
   definitive outcome: an accepted or final refusal response, or a state response
   containing the attempt. A request failure alone is not final because the page may
   retry the same attempt.
+- `sending(page, what)` encloses a gesture whose own event the assertion behind it
+  reads: it waits for one further send to enter the wire and then for its trip, so
+  the read cannot answer with the event that stood before the gesture.
 - `told(page)` waits until the page has applied the reading the server holds now.
   Use it after the test writes a version, event, status, or lease that the browser
   learns by reading. It names no transport: the page reads when its news stream says
@@ -505,17 +508,23 @@ says which one a test has: with the runtime's disclosure watch removed, an
 `expect(...).to_contain_text(..., timeout=1500)` on the word still passed, and the
 same assertion read once failed.
 
-Read the event log only after `round_trip`. Polling the file until one expected event
-appears can miss an extra send, and it cannot distinguish an unresolved request from
-a settled one. Read browser state after the trip when the returned state is part of
-the assertion. `round_trip` proves delivery; it does not claim every rendered effect
-of the response has completed. When applying the response is itself the subject, wait
-for `data-lf-applied` to cover the expected events before reading the resulting surface
-or making a gesture whose liveness depends on that projection. That stamp counts
-replayed actions, reports, and undos, and no comment: a comment, a reply, or a
-reaction never moves it, so a wait on it for one of those spends the whole timeout.
-The fact such an event states is its paint or its card — wait on that
-(`test_render_reactions.py`'s `painted` reads the highlight and the seated glyphs).
+Read the event log only after `round_trip`, and read the event a gesture just made
+through `sending`. `round_trip` waits on what the page has sent, and the runtime posts
+behind the press or click the driver has already returned from, so a trip waited on
+without `sending` can be over before the gesture's own post exists: the read behind it
+then answers with whatever stood last — the note the page opened on, or the gesture
+before this one — and asserts over an event nobody made. Polling the file until one
+expected event appears is not the alternative: it can miss an extra send, and it
+cannot distinguish an unresolved request from a settled one. Read browser state after
+the trip when the returned state is part of the assertion. `round_trip` proves
+delivery; it does not claim every rendered effect of the response has completed. When
+applying the response is itself the subject, wait for `data-lf-applied` to cover the
+expected events before reading the resulting surface or making a gesture whose
+liveness depends on that projection. That stamp counts replayed actions, reports, and
+undos, and no comment: a comment, a reply, or a reaction never moves it, so a wait on
+it for one of those spends the whole timeout. The fact such an event states is its
+paint or its card — wait on that (`test_render_reactions.py`'s `painted` reads the
+highlight and the seated glyphs).
 
 After changing a file behind a live page, call `told` before reading the page. Letting
 `expect` absorb the page's next read hides which mechanism supplied the wait and

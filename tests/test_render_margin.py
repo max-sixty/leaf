@@ -19,8 +19,6 @@ from render_support import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
-    _traffic,
-    _until,
     compare_with,
     leaf_page,
     live_url,
@@ -31,6 +29,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -564,10 +563,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     )
     take_back = sheet.locator(f'[data-lf-map-button$=":take-back:{reaction["id"]}"]')
     expect(take_back).to_have_attribute("aria-label", "this — take it back")
-    sends = _traffic(page).sends
-    take_back.click()
-    _until(page, lambda traffic: traffic.sends > sends, "withdrew the spilled reaction")
-    round_trip(page)
+    with sending(page, "the withdrawal of the spilled reaction"):
+        take_back.click()
     expect(sheet).to_be_hidden()
     expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]
@@ -951,22 +948,15 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         "button", name="Accept the suggested change: the second phrase", exact=True
     )
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
-    sends = _traffic(page).sends
-
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("1")
-    _until(
-        page, lambda traffic: traffic.sends > sends, "accepted the addressed suggestion"
-    )
-    round_trip(page)
+    with sending(page, "the addressed suggestion's acceptance"):
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        page.keyboard.press("1")
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
-    sends = _traffic(page).sends
-    page.keyboard.press("z")
-    _until(page, lambda traffic: traffic.sends > sends, "undid the addressed action")
-    round_trip(page)
+    with sending(page, "the withdrawal of the addressed action"):
+        page.keyboard.press("z")
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
 

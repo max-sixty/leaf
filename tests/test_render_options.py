@@ -165,19 +165,32 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         "in the author's order, not overlapping"
     )
 
-    # The generated selection state shares this opening band but owns no authored
-    # words. Its room is held before the pick, so the pill neither covers a chip nor
-    # changes the card's measure when it appears.
+    # Crowd the generated selection state's opening band. Its room is held before the
+    # pick and excludes every line rather than hanging off whichever chip comes last, so
+    # wrapping metadata cannot enter the pill's corner.
+    page.locator("#st-sd > strong").evaluate(
+        """title => {
+            for (const text of ['owner: platform', 'phase: design', 'recommended']) {
+                const chip = document.createElement('lf-chip');
+                chip.textContent = text;
+                title.before(chip);
+            }
+        }"""
+    )
     card_before = page.locator("#st-sd").bounding_box()
     page.locator("#st-sd").click()
     state = page.locator("#st-sd > .lf-pick")
     expect(state).to_have_text("selected")
     assert page.locator("#st-sd").bounding_box() == card_before
     state_box = state.bounding_box()
-    for chip in [chips.nth(i).bounding_box() for i in range(2)]:
-        assert chip["x"] + chip["width"] <= state_box["x"], (
-            "the selected header state covers an authored chip"
+    for chip in [chips.nth(i).bounding_box() for i in range(5)]:
+        separate = (
+            chip["x"] + chip["width"] <= state_box["x"]
+            or state_box["x"] + state_box["width"] <= chip["x"]
+            or chip["y"] + chip["height"] <= state_box["y"]
+            or state_box["y"] + state_box["height"] <= chip["y"]
         )
+        assert separate, "the selected header state covers an authored chip"
 
     paper = page.locator("#t-paper").bounding_box()
     gps = page.locator("#t-gps").bounding_box()
@@ -756,9 +769,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # stays unwired. The live pair is the control — without it a theme that had stopped
     # drawing the offer at all would read exactly like one that withholds it.
     offer = """el => { const cs = getComputedStyle(el);
-        const title = getComputedStyle(el.querySelector(':scope > strong'));
+        const stateRoom = getComputedStyle(el, '::before');
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: title.paddingInlineEnd }; }"""
+                 stateRoom: stateRoom.content === 'none' ? 0 : stateRoom.width }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -778,7 +791,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     # The live card reserves one header slot for either its chosen state or keyboard
     # address. An exhibit can grow neither, so its title keeps that room.
-    assert quoted_card["stateRoom"] != live_card["stateRoom"], (
+    assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] == "80px", (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']}"
     )

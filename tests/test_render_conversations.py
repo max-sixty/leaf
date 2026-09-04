@@ -86,18 +86,30 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
     destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
     page.locator(".lf-conversation-open").evaluate(
         """(open, destination) => open.addEventListener(
-          'click', () => destination.classList.add('grow'),
+          'click',
+          () => {
+            destination.classList.add('grow');
+            window.__arrival = null;
+            const arrived = (event) => {
+              if (event.target !== destination) return;
+              window.__arrival = event.animationName;
+              destination.removeEventListener('animationstart', arrived);
+            };
+            destination.addEventListener('animationstart', arrived);
+          },
           {capture: true, once: true},
         )""",
         destination.element_handle(),
     )
     page.locator(".lf-conversation-open").click()
     panel_settled(page)
+    page.wait_for_function("() => window.__arrival !== null")
+    arrival = page.evaluate("() => window.__arrival")
+    assert arrival.endswith("-flash"), arrival
     expect(thread).to_be_visible()
     expect(destination.locator("#first-job")).to_be_in_viewport()
     expect(destination).to_be_focused()
     expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
-    expect(destination).not_to_have_class(re.compile(r"\bgrow\b"))
     expect(destination).to_have_class(re.compile(r"\bflash\b"))
     sizes = page.evaluate(
         """([thread, destination, list]) => ({

@@ -3642,6 +3642,7 @@ livingMargin = createLivingMargin({
   panelIsOpen: chromeLayout.panelIsOpen,
   paintKeys,
   placedAt,
+  PRESS,
   quietSince,
   renderMarginThread: conversationRuntime.renderMarginThread,
   says,

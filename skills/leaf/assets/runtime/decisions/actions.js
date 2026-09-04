@@ -4,8 +4,9 @@
  * Core cannot recover that set by scanning generated controls: an option may contain
  * interactive evidence, while a suggestion's answer Buttons are hoisted outside the
  * widget. Each widget therefore contributes one ordered reading here. The decision view
- * projects that reading into numeric keys and address chips while semantic focus is on
- * the Ask itself; the controls remain the only implementation of the actions themselves.
+ * projects that reading into numeric keys, address chips, and accessible shortcuts while
+ * the reader stands anywhere in the Ask; the controls remain the only implementation of
+ * the actions.
  * A widget that already owns an address face may contribute it as the placement anchor,
  * keeping the Ask projection aligned with the widget's local keyboard scope. */
 

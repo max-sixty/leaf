@@ -536,9 +536,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """At Ask focus a digit picks outright; one Tab enters marks, where ↑/↓ walk the
-    options clamping at the ends. Each option wears its digit while the Ask or one of
-    its marks holds keyboard focus, so nothing appears on a page nobody is answering."""
+    """The Ask's digits stay live while a mark adds only its control-local keys.
+
+    One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends.
+    Moving focus does not replace the Ask's numeric action context with a widget copy.
+    """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
@@ -552,8 +554,17 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
+    assert marks.first.get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 1"
+    )
+    assert marks.nth(1).get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 2"
+    )
 
     page.keyboard.press("ArrowUp")
     expect(marks.first).to_be_focused()
@@ -2784,13 +2795,11 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
     page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
-    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
-        shortcuts
-    )
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space 1")
 
     page.keyboard.press("?")
     page.keyboard.press("?")
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space")
     expect(
         page.locator(
             ".lf-help tr", has_text="Next ask this page is waiting on you for"
@@ -3833,13 +3842,13 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
         "placeholder", re.compile(r" · c$")
     )
     expect(reply).to_have_attribute("placeholder", "Reply")
-    # Space is control activation, not a character shortcut. Offered buttons retain
-    # both native-button keys and advertise both from the same register while letters,
-    # digits, and punctuation are off.
+    # Space is checkbox activation, not a character shortcut. The option's local
+    # navigation and activation remain available while letters, digits, and punctuation
+    # are off.
     mark = page.locator("#live-question .lf-pick").first
     mark.focus()
     shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"Enter", "Space"} <= set(shortcuts), shortcuts
+    assert shortcuts == ["ArrowUp", "ArrowDown", "Space"], shortcuts
     page.keyboard.press("Space")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
 

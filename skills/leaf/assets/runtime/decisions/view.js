@@ -363,16 +363,12 @@ export function createDecisionView({
   }
 
   // The Ask-local numeric map. The widget contributes the exact controls that work its
-  // decision source; this view owns only their stable addresses while semantic focus is
-  // on the Ask itself. Once Tab enters a control, the widget's nearer scope and native
-  // keys take over. The deep focus reading matters for a shadow widget: document focus is
-  // retargeted to its host, but a control inside it is still not the Ask itself.
-  function actionDecision() {
-    const decision = standingIn();
-    return decision && focused() === decision ? decision : null;
-  }
+  // decision source; this view owns their stable addresses wherever focus stands in that
+  // Ask. Tab moves through the controls without minting a second action context. A
+  // control's nearer scope may still own its native or local mechanics, while the
+  // dispatcher's ordinary shadowing keeps digits out of text entry and nested modes.
   const availableActions = () => {
-    const decision = actionDecision();
+    const decision = standingIn();
     if (!decision) return [];
     return decisionActions(decisionSource(decision))
       .filter(
@@ -402,24 +398,32 @@ export function createDecisionView({
     run: (binding) => availableActions()[Number(binding) - 1]?.control.click(),
   };
 
-  // The chips are an eye's projection of the same row. A widget that already owns an
-  // address face lends that face and its exact placement; other actions get chrome at
+  // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
+  // listener-facing projection on each exact action control. A widget that already owns
+  // an address face lends that face and its exact placement; other actions get chrome at
   // the visible Button's corner. Off-screen actions keep their working address and name
-  // on the key line but wear no chip. A nearer keyboard layer suppresses both the row and
-  // these chips through actionReachable, so a digit never stays painted after a chord,
+  // on the key line but wear no chip. A nearer keyboard layer suppresses the row and both
+  // projections through actionReachable, so a digit never stays promised after a chord,
   // text box, or modal has taken it.
   const wornAddresses = new Map();
+  const wornShortcuts = new Map();
   function restoreAddress(address, { display, priority }) {
     address.removeAttribute("data-lf-ask-address");
     if (display) address.style.setProperty("display", display, priority);
     else address.style.removeProperty("display");
   }
-  function clearWornAddresses() {
+  function clearActionProjections() {
     for (const [address, previous] of wornAddresses) restoreAddress(address, previous);
     wornAddresses.clear();
+    for (const [control, { previous, projected }] of wornShortcuts) {
+      if (control.getAttribute("aria-keyshortcuts") !== projected) continue;
+      if (previous === null) control.removeAttribute("aria-keyshortcuts");
+      else control.setAttribute("aria-keyshortcuts", previous);
+    }
+    wornShortcuts.clear();
   }
-  function paintActionAddresses() {
-    clearWornAddresses();
+  function paintActionProjections() {
+    clearActionProjections();
     const actions = availableActions();
     if (!actionReachable() || !bindings(actionRow).length) {
       actionLayer.replaceChildren();
@@ -435,7 +439,16 @@ export function createDecisionView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed key line above it. Hide a face that has no clear visible box, just as the
     // general address pass drops a route chip where the screen cannot say it safely.
-    for (const { address } of actions) {
+    for (const [index, { control, address }] of actions.entries()) {
+      const previousShortcut = control.getAttribute("aria-keyshortcuts");
+      const projectedShortcut = [previousShortcut, String(index + 1)]
+        .filter(Boolean)
+        .join(" ");
+      wornShortcuts.set(control, {
+        previous: previousShortcut,
+        projected: projectedShortcut,
+      });
+      control.setAttribute("aria-keyshortcuts", projectedShortcut);
       if (!address?.isConnected) continue;
       const previous = {
         display: address.style.getPropertyValue("display"),
@@ -521,7 +534,7 @@ export function createDecisionView({
     if (decisionLent && decisionLent !== here && decisionLent !== holder) lend(null);
     for (const marked of wearing)
       marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
-    paintActionAddresses();
+    paintActionProjections();
   }
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
@@ -579,7 +592,7 @@ export function createDecisionView({
   // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
   // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
   // the reader was told to look at one thing and stood on another, off the bottom of the
-  // screen, and their next Enter would have worked a control they could not see.
+  // screen, and their next Space would have worked a control they could not see.
   function standOn(el) {
     const source = decisionSource(el);
     const control =
@@ -592,10 +605,7 @@ export function createDecisionView({
   // the top of the window and what the ring is about to name. Its controls are then the
   // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
   // keeps its place in document order and everything inside a decision comes after it.
-  //
-  // The decision remains the semantic focus. Its widget-contributed actions are already
-  // directly addressable there; Tab is the complementary path into the widget's own
-  // local scope for walking or inspecting its controls.
+  // The decision's action context remains active as Tab moves through those controls.
   function arriveAt(decision) {
     decision.focus({ preventScroll: true });
     if (decision.matches(":focus")) return;

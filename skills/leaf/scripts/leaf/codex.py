@@ -114,12 +114,12 @@ def _epochs(session_id: str) -> list[tuple[Path, dict]]:
     ]
 
 
-def _current_epoch(session_id: str) -> tuple[Path, dict] | None:
-    current = [
-        (path, epoch)
-        for path, epoch in _epochs(session_id)
-        if epoch["phase"] != "closed"
-    ]
+def _current_epoch(
+    session_id: str,
+    epochs: list[tuple[Path, dict]] | None = None,
+) -> tuple[Path, dict] | None:
+    records = _epochs(session_id) if epochs is None else epochs
+    current = [(path, epoch) for path, epoch in records if epoch["phase"] != "closed"]
     if len(current) > 1:
         raise RuntimeError(f"Codex task {session_id} has multiple open Leaf deliveries")
     return current[0] if current else None
@@ -261,17 +261,9 @@ def _recover_delivery(codex_path: str, session_id: str) -> bool:
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         epochs = _epochs(session_id)
-        current = [
-            (path, epoch)
-            for path, epoch in epochs
-            if epoch["phase"] != "closed"
-        ]
-        if len(current) > 1:
-            raise RuntimeError(
-                f"Codex task {session_id} has multiple open Leaf deliveries"
-            )
-        if current:
-            path, epoch = current[0]
+        current = _current_epoch(session_id, epochs)
+        if current is not None:
+            path, epoch = current
             if (
                 epoch["phase"] == "entered"
                 and len(epoch["batches"]) > epoch["queued"]

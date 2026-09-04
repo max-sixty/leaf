@@ -1818,7 +1818,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
     # The verb is discovery chrome; at rest the Button is the canonical circle.
-    expect(accept.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accept.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -1833,7 +1833,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     receipt = row.locator(".lf-sug-receipt")
@@ -2410,7 +2410,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # replay here rather than by a press, which is the only place that path is driven.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
@@ -4838,7 +4838,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Unwrapped, this line runs off the box.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     page.locator("lf-diff .lf-diff-wrap").click()
@@ -4849,7 +4849,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Wrapped, the same words are on screen.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     anchors = [

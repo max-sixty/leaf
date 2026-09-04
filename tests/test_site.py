@@ -580,7 +580,7 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         # own selection is still there for a native copy.
         expect(page.locator(".lf-fab-input")).to_be_visible()
         page.locator(".lf-composer textarea").fill("Does this cover key rotation?")
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
 
         # The thread holding the words just written, rather than whichever is first:
         # an example that ships a log opens with threads already in the panel, and

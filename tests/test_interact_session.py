@@ -16,6 +16,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree
@@ -107,6 +108,23 @@ print("queued")
     )
     program.chmod(0o755)
     return program, log
+
+
+def codex_deliveries(session_id: str) -> list[tuple[Path, dict]]:
+    directory = codex_model.delivery_dir(session_id)
+    return [
+        (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
+    ]
+
+
+def current_codex_delivery(session_id: str) -> tuple[Path, dict]:
+    current = [
+        (path, epoch)
+        for path, epoch in codex_deliveries(session_id)
+        if epoch["phase"] != "closed"
+    ]
+    assert len(current) == 1
+    return current[0]
 
 
 def test_an_active_receipt_says_which_thread_the_agent_is_on(
@@ -2068,16 +2086,26 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     delivered = events_model.read_events(page_dir)[-1]
     session_model.cmd_status(page_dir, "waiting", "successor is listening")
     successor = record_claim(page_dir, id="successor", host="codex", agent="Codex")
-    intent = {
-        "page": str(page_dir),
-        "first_seq": delivered["seq"],
-        "last_seq": delivered["seq"],
-        "sequences": [delivered["seq"]],
-        "event_ids": [delivered["id"]],
-    }
+    with service_model.PageTransaction(page_dir) as page:
+        reading = session_model.PageTick(
+            page_dir,
+            page.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            page,
+        )
+        assert codex_model.capture_batch("original", reading)
+    epoch_path, epoch = current_codex_delivery("original")
+    epoch["queue"] = "accepted"
+    epoch["queued"] = 1
+    files_model.write_json(epoch_path, epoch)
+    batch = epoch["batches"][0]
 
-    codex_model.finish_intent({"id": "original", "host": "codex"}, intent)
-    codex_model.finish_intent({"id": "original", "host": "codex"}, intent)
+    codex_model._finish_batch(batch)
+    codex_model._finish_batch(batch)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": delivered["seq"]}
     assert service_model.page_claim(page_dir) == successor
@@ -2094,7 +2122,328 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     assert len(pickups) == 1 and pickups[0]["events"] == [delivered["id"]]
 
 
-def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
+def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
+    page = codex_claimed_page
+    for event_id in ("first", "second"):
+        events_model.append_event(
+            page,
+            {"kind": "comment", "id": event_id, "author": "user", "text": event_id},
+        )
+    first, second = events_model.read_events(page)[-2:]
+    directory = codex_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+
+    def epoch(event, *, closed):
+        return {
+            "queue": "none",
+            "queued": 0,
+            "stop_offered": 0,
+            "phase": "closed" if closed else "entered",
+            "updated_at": time.time(),
+            "batches": [
+                {
+                    "page": str(page),
+                    "url": None,
+                    "threads": [],
+                    "events": [event],
+                    "receipted": False,
+                }
+            ],
+        }
+
+    # Filename order is deliberately opposite to event order. The cursor is
+    # monotonic, so taking receipt for the second batch first would hide the
+    # first batch before its pickup record is written.
+    files_model.write_json(directory / "z-old.json", epoch(first, closed=True))
+    files_model.write_json(directory / "a-new.json", epoch(second, closed=False))
+
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    pickups = [
+        event for event in events_model.read_events(page) if event["kind"] == "pickup"
+    ]
+    assert [pickup["events"] for pickup in pickups] == [["first"], ["second"]]
+
+
+def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
+    replaced = tmp_path / "a-replaced-page"
+    standing = tmp_path / "z-standing-page"
+    for page, event_id in ((replaced, "old"), (standing, "standing")):
+        vendoring_model.cmd_init(page)
+        events_model.append_event(
+            page,
+            {"kind": "comment", "id": event_id, "author": "user", "text": event_id},
+        )
+        delivered = events_model.read_events(page)[-1]
+        with service_model.PageTransaction(page) as transaction:
+            reading = session_model.PageTick(
+                page,
+                transaction.status,
+                [delivered],
+                True,
+                "watching",
+                False,
+                None,
+                transaction,
+            )
+            assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch["queue"] = "accepted"
+    epoch["queued"] = 2
+    files_model.write_json(epoch_path, epoch)
+
+    shutil.rmtree(replaced)
+    vendoring_model.cmd_init(replaced)
+    events_model.append_event(
+        replaced,
+        {
+            "kind": "comment",
+            "id": "replacement",
+            "author": "user",
+            "text": "new page",
+        },
+    )
+
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    first_pass = files_model.read_json(epoch_path)["batches"]
+    assert [batch["receipted"] for batch in first_pass] == [True, False]
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+
+    assert all(
+        batch["receipted"] for batch in files_model.read_json(epoch_path)["batches"]
+    )
+    assert files_model.read_json(standing / "cursor.json") == {"seq": 1}
+    pickups = [
+        event
+        for event in events_model.read_events(standing)
+        if event["kind"] == "pickup"
+    ]
+    assert [pickup["events"] for pickup in pickups] == [["standing"]]
+
+
+def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
+    codex_claimed_page, tmp_path
+):
+    page = codex_claimed_page
+    other = tmp_path / "other-page"
+    vendoring_model.cmd_init(other)
+
+    for target, event_id in ((page, "old"), (other, "other")):
+        events_model.append_event(
+            target,
+            {
+                "kind": "comment",
+                "id": event_id,
+                "author": "user",
+                "text": event_id,
+            },
+        )
+        delivered = events_model.read_events(target)[-1]
+        with service_model.PageTransaction(target) as transaction:
+            reading = session_model.PageTick(
+                target,
+                transaction.status,
+                [delivered],
+                True,
+                "watching",
+                False,
+                None,
+                transaction,
+            )
+            assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch["queue"] = "accepted"
+    epoch["queued"] = 2
+    files_model.write_json(epoch_path, epoch)
+
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    batches = files_model.read_json(epoch_path)["batches"]
+    [received] = [batch for batch in batches if batch["receipted"]]
+    [pending] = [batch for batch in batches if not batch["receipted"]]
+
+    # Reinitializing a page path starts its cursor again. Its batch is recovery
+    # history, while the other page's batch is still live transport work.
+    files_model.write_json(Path(received["page"]) / "cursor.json", {"seq": 0})
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert files_model.read_json(epoch_path)["batches"] == [
+        {**batch, "receipted": True} for batch in batches
+    ]
+    assert files_model.read_json(Path(pending["page"]) / "cursor.json") == {"seq": 1}
+    assert not codex_model._has_delivery_work("codex-thread")
+
+
+def test_a_prompt_turn_absorbs_a_delivery_before_its_queue_starts(
+    codex_claimed_page,
+):
+    page = codex_claimed_page
+    with service_model.PageTransaction(page) as transaction:
+        transaction.close_turn("codex-thread")
+    events_model.append_event(
+        page,
+        {"kind": "comment", "id": "pending", "author": "user", "text": "hi"},
+    )
+    delivered = events_model.read_events(page)[-1]
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, epoch = current_codex_delivery("codex-thread")
+    assert epoch["queue"] == "pending"
+
+    codex, prompt = codex_model.open_turn("codex-thread")
+
+    assert codex and epoch_path.stem in prompt
+    _, epoch = current_codex_delivery("codex-thread")
+    assert epoch["queue"] == "none"
+    assert service_model.page_claim(page)["turn_closed"] is None
+    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
+
+
+def test_codex_refreshes_every_page_url_before_offering_an_epoch(tmp_path, monkeypatch):
+    page = tmp_path / "page"
+    vendoring_model.cmd_init(page)
+    first_port = available_loopback_port()
+    second_port = first_port + 1 if first_port < 65535 else first_port - 1
+    serving(page, first_port)
+    record_claim(page, id="codex-thread", host="codex", agent="Codex")
+    with service_model.PageTransaction(page) as transaction:
+        transaction.close_turn("codex-thread")
+
+    for event_id in ("first", "second"):
+        events_model.append_event(
+            page,
+            {
+                "kind": "comment",
+                "id": event_id,
+                "author": "user",
+                "text": event_id,
+            },
+        )
+        delivered = events_model.read_events(page)[-1]
+        with service_model.PageTransaction(page) as transaction:
+            reading = session_model.PageTick(
+                page,
+                transaction.status,
+                [delivered],
+                True,
+                "watching",
+                False,
+                None,
+                transaction,
+            )
+            assert codex_model.capture_batch("codex-thread", reading)
+        if event_id == "first":
+            service = files_model.read_json(page / "service.json")
+            files_model.write_json(
+                page / "service.json",
+                {**service, "port": second_port},
+            )
+
+    epoch_path, before = current_codex_delivery("codex-thread")
+    assert len({batch["url"] for batch in before["batches"]}) == 2
+    queued = []
+    monkeypatch.setattr(
+        codex_model,
+        "queue_delivery",
+        lambda _codex, _session, prompt: queued.append(prompt),
+    )
+
+    assert codex_model._recover_delivery("codex", "codex-thread")
+
+    assert len(queued) == 1 and epoch_path.stem in queued[0]
+    current_url = server_model.running_server(page)["url"]
+    assert {batch["url"] for batch in files_model.read_json(epoch_path)["batches"]} == {
+        current_url
+    }
+
+
+def test_stop_reoffers_unsettled_input_if_prompt_context_was_lost(
+    codex_claimed_page, capsys
+):
+    page = codex_claimed_page
+    events_model.append_event(
+        page,
+        {"kind": "comment", "id": "pending", "author": "user", "text": "hi"},
+    )
+    delivered = events_model.read_events(page)[-1]
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, _ = current_codex_delivery("codex-thread")
+
+    hooks_model.cmd_hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+    )
+    prompt_context = json.loads(capsys.readouterr().out)
+    assert epoch_path.stem in prompt_context["hookSpecificOutput"]["additionalContext"]
+
+    # The host can fail open after the delivery state is written but before it
+    # consumes the hook's stdout. Stop must therefore retry unresolved input.
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    stop = json.loads(capsys.readouterr().out)
+    assert epoch_path.stem in stop["reason"]
+
+
+def test_an_abandoned_active_epoch_requeues_its_same_pointer(
+    codex_claimed_page, monkeypatch
+):
+    page = codex_claimed_page
+    events_model.append_event(
+        page,
+        {"kind": "comment", "id": "pending", "author": "user", "text": "hi"},
+    )
+    delivered = events_model.read_events(page)[-1]
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch["updated_at"] = 0
+    files_model.write_json(epoch_path, epoch)
+    queued = []
+    monkeypatch.setattr(
+        codex_model,
+        "queue_delivery",
+        lambda _codex, _session, prompt: queued.append(prompt),
+    )
+
+    assert codex_model._recover_delivery("codex", "codex-thread")
+
+    [prompt] = queued
+    recovered = files_model.read_json(epoch_path)
+    assert epoch_path.stem in prompt
+    assert recovered["phase"] == "waiting"
+    assert recovered["queue"] == "accepted"
+    assert recovered["queued"] == 1
+
+
+def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
     page = codex_claimed_page
@@ -2105,18 +2454,22 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
     )
     delivered = events_model.read_events(page)[-1]
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    codex_model.delivery_path("codex-thread").parent.mkdir(parents=True, exist_ok=True)
-    files_model.write_json(
-        codex_model.delivery_path("codex-thread"),
-        {
-            "page": str(page),
-            "first_seq": delivered["seq"],
-            "last_seq": delivered["seq"],
-            "sequences": [delivered["seq"]],
-            "event_ids": [delivered["id"]],
-            "accepted": True,
-        },
-    )
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch["queue"] = "accepted"
+    epoch["queued"] = 1
+    files_model.write_json(epoch_path, epoch)
     launcher = PLUGIN_ROOT / "bin" / "leaf"
     started = under_codex(
         shlex.join(
@@ -2148,10 +2501,7 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
     try:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if (
-                files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
-                and not codex_model.delivery_path("codex-thread").exists()
-            ):
+            if files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}:
                 break
             time.sleep(0.05)
         else:
@@ -2176,7 +2526,7 @@ def test_codex_restart_finishes_an_accepted_intent_without_queueing_again(
     ids=["steady", "uncertain-queue-retry"],
 )
 def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
-    codex_claimed_page, under_codex, codex_env, tmp_path, delivery_fault
+    codex_claimed_page, under_codex, codex_env, tmp_path, delivery_fault, capsys
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
@@ -2229,29 +2579,41 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         else:
             pytest.fail("the detached Codex carrier did not remain live")
 
-        # The adapter queues only between turns. Input arriving while this
-        # starting turn is open belongs to its Stop hook instead.
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-        comment = events_model.append_event(
+        assert capsys.readouterr().out == ""
+        events_model.append_event(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
+        comments = [events_model.read_events(page)[-1]]
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if (
-                files_model.read_json(page / "cursor.json") == {"seq": 1}
-                and not codex_model.delivery_path("codex-thread").exists()
-            ):
+            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
                 break
             time.sleep(0.05)
         else:
-            intent = files_model.read_json(codex_model.delivery_path("codex-thread"))
+            deliveries = codex_deliveries("codex-thread")
             log_text = codex_model.adapter_log_path("codex-thread").read_text(
                 encoding="utf-8"
             )
             pytest.fail(
                 "the adapter did not acknowledge its batch: "
-                f"intent={intent!r}; log={log_text!r}"
+                f"deliveries={deliveries!r}; log={log_text!r}"
             )
+
+        for text in ("second click", "third click"):
+            events_model.append_event(
+                page, {"kind": "comment", "author": "user", "text": text}
+            )
+            comments.append(events_model.read_events(page)[-1])
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if files_model.read_json(page / "cursor.json") == {
+                "seq": comments[-1]["seq"]
+            }:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("later clicks did not join the standing delivery epoch")
 
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert calls[0] == ["queue", "--help"]
@@ -2261,15 +2623,12 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert len(set(prompts)) == 1
         prompt = prompts[0]
         assert "hello adapter" not in prompt
-        [intent_payload] = codex_model.delivery_payload_path(
-            "codex-thread", "delivery-id"
-        ).parent.glob("*.json")
-        payload = files_model.read_json(intent_payload)
+        payload_path, payload = current_codex_delivery("codex-thread")
         assert prompt.splitlines() == [
             "```xml",
             (
-                f'<leaf-delivery skill="$leaf" id="{payload["delivery_id"]}" '
-                f'path="{intent_payload}" />'
+                f'<leaf-delivery skill="$leaf" id="{payload_path.stem}" '
+                f'path="{payload_path}" />'
             ),
             "```",
         ]
@@ -2277,35 +2636,29 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert delivery.tag == "leaf-delivery"
         assert delivery.attrib == {
             "skill": "$leaf",
-            "id": payload["delivery_id"],
-            "path": str(intent_payload),
+            "id": payload_path.stem,
+            "path": str(payload_path),
         }
-        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        assert payload["queue"] == "accepted"
+        assert payload["queued"] == 1
         assert all(
-            term in skill for term in ("<leaf-delivery", "batch_jsonl", "through")
+            batch["url"] == server_model.running_server(page)["url"]
+            for batch in payload["batches"]
         )
-        batch_contract = (SKILL_ROOT / "references" / "event-batches.md").read_text(
-            encoding="utf-8"
-        )
-        assert "leaf events <page> --after <through>" in batch_contract
-        assert payload["url"] == server_model.running_server(page)["url"]
-        assert Path(payload["contract"]).is_file()
-        assert all(
-            term in payload["instruction"]
-            for term in ("batch_jsonl", "through", "leaf wait", "leaf ack", "url")
-        )
-        assert payload["through"] == next(
-            event["seq"]
-            for event in events_model.read_events(page)
-            if event["id"] == comment["id"]
-        )
-        assert "hello adapter" in payload["batch_jsonl"]
-        assert str(page) in payload["batch_jsonl"]
+        assert [
+            event["id"] for batch in payload["batches"] for event in batch["events"]
+        ] == [comment["id"] for comment in comments]
+        assert payload["batches"][0]["page"] == str(page)
+        assert payload["batches"][0]["events"][0]["text"] == "hello adapter"
+        assert files_model.read_json(page / "cursor.json") == {
+            "seq": comments[-1]["seq"]
+        }
         assert len(prompt.encode()) < 1024
-        assert intent_payload.exists()
+        assert payload_path.exists()
         assert codex_model.adapter_is_live("codex-thread")
 
-        conversation_model.cmd_reply(page, comment["id"], "received", None)
+        for comment in comments:
+            conversation_model.cmd_reply(page, comment["id"], "received", None)
         session_model.cmd_status(page, "idle", "")
     finally:
         with service_model.PageTransaction(page) as transaction:
@@ -2315,23 +2668,16 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     while time.monotonic() < deadline and codex_model.adapter_is_live("codex-thread"):
         time.sleep(0.05)
     assert not codex_model.adapter_is_live("codex-thread")
-    assert intent_payload.exists()
+    assert payload_path.exists()
 
 
-def test_codex_coalesces_late_events_behind_one_visible_wake(
+def test_codex_keeps_events_in_one_epoch_until_the_active_turn_ends(
     codex_claimed_page, under_codex, codex_env, tmp_path, capsys
 ):
-    """The queue is an edge-triggered wake, while the log is the mailbox.
-
-    The first click after a turn ends queues immediately. More clicks before that
-    queued turn opens, and clicks while it runs, remain unacknowledged. Its Stop
-    hook hands their exact snapshot back into the same turn, so none mint another
-    user message. The re-entered Stop is receipt for that snapshot.
-    """
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    session_model.cmd_status(page, "waiting", "choose an option")
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
     started = under_codex(
         shlex.join(
             [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
@@ -2351,6 +2697,8 @@ def test_codex_coalesces_late_events_behind_one_visible_wake(
     files_model.write_json(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
+
+    comments = []
     try:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
@@ -2360,97 +2708,65 @@ def test_codex_coalesces_late_events_behind_one_visible_wake(
         else:
             pytest.fail("the detached Codex carrier did not remain live")
 
-        # Finish the handoff turn. The first reader move now wakes immediately.
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-        assert capsys.readouterr().out == ""
         events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "first click"}
+            page, {"kind": "comment", "author": "user", "text": "first"}
         )
-        first = events_model.read_events(page)[-1]
+        comments.append(events_model.read_events(page)[-1])
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            calls = [json.loads(line) for line in log.read_text().splitlines()]
-            queued = [call for call in calls if "--thread" in call]
-            if (
-                len(queued) == 1
-                and files_model.read_json(page / "cursor.json") == {"seq": first["seq"]}
-                and codex_model.wake_path("codex-thread").exists()
-            ):
+            if files_model.read_json(page / "cursor.json") == {
+                "seq": comments[-1]["seq"]
+            }:
                 break
             time.sleep(0.05)
         else:
-            pytest.fail("the first reader move did not create one durable wake")
+            pytest.fail("the first in-turn event did not reach the mailbox")
 
-        events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "second click"}
-        )
-        second = events_model.read_events(page)[-1]
-        events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "third click"}
-        )
-        third = events_model.read_events(page)[-1]
-        time.sleep(1.2)
-        calls = [json.loads(line) for line in log.read_text().splitlines()]
-        assert len([call for call in calls if "--thread" in call]) == 1
-        assert files_model.read_json(page / "cursor.json") == {"seq": first["seq"]}
-
-        # The queued prompt opens one turn. A further click during its work joins
-        # the same hidden Stop delivery as the two that accumulated behind it.
-        hooks_model.cmd_hook(
-            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
-        )
-        prompt_context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ]
-        assert first["id"] in prompt_context and "same turn" in prompt_context
-        prompt_manifest = files_model.read_json(
-            codex_model.turn_delivery_path("codex-thread")
-        )
-        prompt_payload = files_model.read_json(
-            Path(prompt_manifest["deliveries"][0]["payload"])
-        )
-        assert "first click" not in prompt_payload["batch_jsonl"]
-        assert all(
-            text in prompt_payload["batch_jsonl"]
-            for text in ("second click", "third click")
-        )
-        assert prompt_payload["through"] == third["seq"]
-        conversation_model.cmd_reply(page, first["id"], "processing the choice", None)
-        deadline = time.monotonic() + 10
-        while (
-            time.monotonic() < deadline
-            and codex_model.wake_path("codex-thread").exists()
-        ):
-            time.sleep(0.05)
-        assert not codex_model.wake_path("codex-thread").exists()
-        events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "fourth click"}
-        )
-        fourth = events_model.read_events(page)[-1]
-        refresh = CliRunner().invoke(
-            cli_model.cli,
-            ["events", str(page), "--after", str(prompt_payload["through"])],
-        )
-        assert refresh.exit_code == 0, refresh.output
-        refreshed = [json.loads(line) for line in refresh.output.splitlines()]
-        assert fourth["id"] in {event["id"] for event in refreshed}
-        assert files_model.read_json(page / "cursor.json") == {"seq": first["seq"]}
+        for text in ("second", "third"):
+            events_model.append_event(
+                page, {"kind": "comment", "author": "user", "text": text}
+            )
+            comments.append(events_model.read_events(page)[-1])
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-        answer = json.loads(capsys.readouterr().out)
-        assert answer["decision"] == "block"
-        assert "same turn" in answer["reason"]
-        manifest = files_model.read_json(codex_model.turn_delivery_path("codex-thread"))
-        assert len(manifest["deliveries"]) == 1
-        payload = files_model.read_json(Path(manifest["deliveries"][0]["payload"]))
-        assert "fourth click" in payload["batch_jsonl"]
-        assert "second click" not in payload["batch_jsonl"]
-        assert "third click" not in payload["batch_jsonl"]
-        assert files_model.read_json(page / "cursor.json") == {"seq": third["seq"]}
+        first_stop = json.loads(capsys.readouterr().out)
+        assert first_stop["decision"] == "block"
+        [payload_name] = re.findall(r'path="([^"]+)"', first_stop["reason"])
+        payload_path = Path(payload_name)
+        payload = files_model.read_json(payload_path)
+        assert [
+            event["id"] for batch in payload["batches"] for event in batch["events"]
+        ] == [comment["id"] for comment in comments]
+        epoch_path, _ = current_codex_delivery("codex-thread")
+        delivery_id = epoch_path.stem
         assert service_model.page_claim(page)["turn_closed"] is None
-        time.sleep(1.2)
-        calls = [json.loads(line) for line in log.read_text().splitlines()]
-        assert len([call for call in calls if "--thread" in call]) == 1
+        assert [
+            call
+            for call in map(json.loads, log.read_text().splitlines())
+            if "--thread" in call
+        ] == []
 
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "fourth"}
+        )
+        comments.append(events_model.read_events(page)[-1])
+        hooks_model.cmd_hook(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "stop_hook_active": True,
+            }
+        )
+        second_stop = json.loads(capsys.readouterr().out)
+        assert second_stop["decision"] == "block"
+        assert delivery_id in second_stop["reason"]
+        payload = files_model.read_json(payload_path)
+        assert [
+            event["id"] for batch in payload["batches"] for event in batch["events"]
+        ] == [comment["id"] for comment in comments]
+
+        for comment in comments:
+            conversation_model.cmd_reply(page, comment["id"], "received", None)
+        capsys.readouterr()
         hooks_model.cmd_hook(
             {
                 "hook_event_name": "Stop",
@@ -2459,76 +2775,57 @@ def test_codex_coalesces_late_events_behind_one_visible_wake(
             }
         )
         assert capsys.readouterr().out == ""
-        assert files_model.read_json(page / "cursor.json") == {"seq": fourth["seq"]}
-        assert not codex_model.turn_delivery_path("codex-thread").exists()
+        history_path = payload_path.parent / "history" / payload_path.name
+        assert not payload_path.exists()
+        assert files_model.read_json(history_path)["phase"] == "closed"
         assert service_model.page_claim(page)["turn_closed"]
-        assert second["seq"] < third["seq"] < fourth["seq"]
-    finally:
+
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "after stop"}
+        )
+        last = events_model.read_events(page)[-1]
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            queued = [call for call in calls if "--thread" in call]
+            if len(queued) == 1 and files_model.read_json(page / "cursor.json") == {
+                "seq": last["seq"]
+            }:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the first event after Stop did not queue the next epoch")
+
+        next_path, next_epoch = current_codex_delivery("codex-thread")
+        hooks_model.cmd_hook(
+            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+        )
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        assert next_path.stem in context
+        assert next_epoch["queue"] == "accepted"
+        assert next_epoch["queued"] == 1
+        conversation_model.cmd_reply(page, last["id"], "received", None)
+        capsys.readouterr()
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        assert capsys.readouterr().out == ""
+        next_history = next_path.parent / "history" / next_path.name
+        assert not next_path.exists()
+        assert files_model.read_json(next_history)["phase"] == "closed"
         session_model.cmd_status(page, "idle", "")
+    finally:
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
 
 
-def test_codex_prompt_replays_an_in_turn_snapshot_after_adapter_loss(
-    codex_claimed_page, capsys
-):
-    """Recovery never receipts a snapshot that the next turn did not see."""
-    page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "choose an option")
-    events_model.append_event(
-        page, {"kind": "comment", "author": "user", "text": "survive the adapter"}
-    )
-    delivered = events_model.read_events(page)[-1]
-    manifest = codex_model.capture_turn_delivery("codex-thread")
-    assert manifest is not None
-
-    # No adapter lease is live. The prompt still re-presents the exact durable
-    # snapshot instead of letting its later Stop acknowledge unseen input.
-    hooks_model.cmd_hook(
-        {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
-    )
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-        "additionalContext"
-    ]
-    assert manifest["deliveries"][0]["delivery_id"] in context
-    conversation_model.cmd_reply(page, delivered["id"], "recovered", None)
-    session_model.cmd_status(page, "idle", "")
-
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-    assert capsys.readouterr().out == ""
-    assert files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}
-    assert not codex_model.turn_delivery_path("codex-thread").exists()
-
-
-def test_codex_abandoned_turn_delivery_expires_without_receipt(codex_claimed_page):
-    page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "choose an option")
-    events_model.append_event(
-        page, {"kind": "comment", "author": "user", "text": "recover me"}
-    )
-    delivered = events_model.read_events(page)[-1]
-    manifest = codex_model.capture_turn_delivery("codex-thread")
-    assert manifest is not None
-    files_model.write_json(
-        codex_model.turn_delivery_path("codex-thread"),
-        {**manifest, "captured_at": 0},
-    )
-
-    assert codex_model._turn_delivery_suppression("codex-thread") == "expired"
-    assert not codex_model.turn_delivery_path("codex-thread").exists()
-    assert service_model.page_claim(page)["turn_closed"]
-    assert not codex_model._session_turn_is_open("codex-thread")
-    assert events_model.read_cursor(page) == 0
-    assert delivered in service_model.unacknowledged(events_model.read_events(page), 0)
-
-
-def test_codex_abandoned_turn_delivery_requeues_a_visible_wake(
-    codex_claimed_page, under_codex, codex_env, tmp_path, capsys
+def test_an_event_waiting_behind_codex_stop_opens_the_next_epoch(
+    codex_claimed_page, under_codex, codex_env, tmp_path, monkeypatch, capsys
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     launcher = PLUGIN_ROOT / "bin" / "leaf"
-    session_model.cmd_status(page, "waiting", "choose an option")
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
     started = under_codex(
         shlex.join(
             [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
@@ -2548,118 +2845,143 @@ def test_codex_abandoned_turn_delivery_requeues_a_visible_wake(
     files_model.write_json(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
+
     try:
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if codex_model.adapter_is_live("codex-thread"):
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the detached Codex carrier did not remain live")
+
+        original = codex_model._locked_codex_pages
+        stop_has_page = threading.Event()
+        finish_stop = threading.Event()
+
+        @contextmanager
+        def held_pages(session_id):
+            with original(session_id) as pages:
+                stop_has_page.set()
+                assert finish_stop.wait(timeout=5)
+                yield pages
+
+        monkeypatch.setattr(codex_model, "_locked_codex_pages", held_pages)
+        stopped = threading.Thread(
+            target=lambda: hooks_model.cmd_hook(
+                {"hook_event_name": "Stop", "session_id": "codex-thread"}
+            ),
+            daemon=True,
+        )
+        stopped.start()
+        assert stop_has_page.wait(timeout=5)
+        appended = threading.Thread(
+            target=lambda: events_model.append_event(
+                page,
+                {"kind": "comment", "author": "user", "text": "after boundary"},
+            ),
+            daemon=True,
+        )
+        appended.start()
+        finish_stop.set()
+        stopped.join(timeout=5)
+        appended.join(timeout=5)
+        assert not stopped.is_alive() and not appended.is_alive()
         assert capsys.readouterr().out == ""
-        events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "first wake"}
-        )
-        first = events_model.read_events(page)[-1]
 
+        event = events_model.read_events(page)[-1]
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             calls = [json.loads(line) for line in log.read_text().splitlines()]
             queued = [call for call in calls if "--thread" in call]
-            if len(queued) == 1 and codex_model.wake_path("codex-thread").exists():
+            if len(queued) == 1 and files_model.read_json(page / "cursor.json") == {
+                "seq": event["seq"]
+            }:
                 break
             time.sleep(0.05)
         else:
-            pytest.fail("the first reader move did not create a durable wake")
-
-        hooks_model.cmd_hook(
-            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
-        )
-        capsys.readouterr()
-        conversation_model.cmd_reply(page, first["id"], "handled", None)
-        deadline = time.monotonic() + 10
-        while (
-            time.monotonic() < deadline
-            and codex_model.wake_path("codex-thread").exists()
-        ):
-            time.sleep(0.05)
-        assert not codex_model.wake_path("codex-thread").exists()
-
-        events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "recover me"}
-        )
-        recovered = events_model.read_events(page)[-1]
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-        assert json.loads(capsys.readouterr().out)["decision"] == "block"
-        manifest_path = codex_model.turn_delivery_path("codex-thread")
-        manifest = files_model.read_json(manifest_path)
-        files_model.write_json(manifest_path, {**manifest, "captured_at": 0})
-
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            calls = [json.loads(line) for line in log.read_text().splitlines()]
-            queued = [call for call in calls if "--thread" in call]
-            if len(queued) == 2 and events_model.read_cursor(page) == recovered["seq"]:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the abandoned hidden delivery did not create a visible wake")
-
-        assert not manifest_path.exists()
-        assert service_model.page_claim(page)["turn_closed"]
-    finally:
+            pytest.fail("the event behind Stop did not queue the next epoch")
+        _, payload = current_codex_delivery("codex-thread")
+        assert [
+            event["id"] for batch in payload["batches"] for event in batch["events"]
+        ] == [event["id"]]
+        conversation_model.cmd_reply(page, event["id"], "received", None)
         session_model.cmd_status(page, "idle", "")
+    finally:
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
 
 
-def test_codex_delivery_refreshes_location_without_changing_batch_identity(
-    codex_claimed_page, monkeypatch
+def test_a_stop_crash_cannot_put_later_input_in_the_closed_turn(
+    codex_claimed_page, tmp_path, monkeypatch
 ):
     page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "choose an option")
+    other = tmp_path / "other-page"
+    vendoring_model.cmd_init(other)
+    record_claim(other, id="codex-thread", host="codex", agent="Codex")
     events_model.append_event(
-        page, {"kind": "comment", "author": "user", "text": "same batch"}
+        page,
+        {"kind": "comment", "id": "first", "author": "user", "text": "first"},
     )
-    locations = iter(
-        [{"url": "http://127.0.0.1:1111"}, {"url": "http://127.0.0.1:2222"}]
-    )
-    monkeypatch.setattr(codex_model, "running_server", lambda _page: next(locations))
+    first = events_model.read_events(page)[-1]
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [first],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+    epoch_path, _ = current_codex_delivery("codex-thread")
+    assert codex_model.finish_turn("codex-thread", [], False)
 
-    persisted = []
-    for _ in range(2):
-        with service_model.PageTransaction(page) as transaction:
-            batch = service_model.unacknowledged(transaction.events, transaction.cursor)
-            reading = session_model.PageTick(
-                page,
-                transaction.status,
-                batch,
-                True,
-                "watching",
-                False,
-                None,
-                transaction,
-            )
-            persisted.append(codex_model._persist_payload("codex-thread", reading))
+    write_json = service_model.write_json
+    closed_one = False
 
-    assert persisted[0][0:2] == persisted[1][0:2]
-    assert persisted[0][2] == "http://127.0.0.1:1111"
-    assert persisted[1][2] == "http://127.0.0.1:2222"
-    payload = files_model.read_json(persisted[1][1])
-    assert payload["url"] == "http://127.0.0.1:2222"
-    assert "same batch" in payload["batch_jsonl"]
+    def fail_during_page_close(path, value):
+        nonlocal closed_one
+        if Path(path) in {
+            service_model.claim_path(page),
+            service_model.claim_path(other),
+        } and value.get("turn_closed"):
+            if closed_one:
+                raise RuntimeError("stop interrupted")
+            closed_one = True
+        write_json(path, value)
 
-
-def test_codex_stop_stamps_the_turn_before_delivery_failure(
-    codex_claimed_page, monkeypatch
-):
-    page = codex_claimed_page
-    session_model.cmd_status(page, "working", "handling input")
-    monkeypatch.setattr(hooks_model, "adapter_is_live", lambda _sid: True)
-
-    def fail_roll(_sid):
-        raise RuntimeError("delivery failed")
-
-    monkeypatch.setattr(hooks_model, "roll_turn_delivery", fail_roll)
-
-    with pytest.raises(RuntimeError, match="delivery failed"):
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-
+    monkeypatch.setattr(service_model, "write_json", fail_during_page_close)
+    with pytest.raises(RuntimeError, match="stop interrupted"):
+        codex_model.finish_turn("codex-thread", [], True)
     assert service_model.page_claim(page)["turn_closed"]
+    assert service_model.page_claim(other)["turn_closed"] is None
+
+    events_model.append_event(
+        other,
+        {"kind": "comment", "id": "second", "author": "user", "text": "second"},
+    )
+    with service_model.PageTransaction(other) as transaction:
+        reading = session_model.PageTick(
+            other,
+            transaction.status,
+            service_model.unacknowledged(transaction.events, transaction.cursor),
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_model.capture_batch("codex-thread", reading)
+
+    deliveries = codex_deliveries("codex-thread")
+    assert len(deliveries) == 2
+    assert files_model.read_json(epoch_path)["phase"] == "closed"
+    next_path, next_epoch = current_codex_delivery("codex-thread")
+    assert next_path != epoch_path and next_epoch["queue"] == "pending"
+    assert [event["id"] for event in next_epoch["batches"][0]["events"]] == ["second"]
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
@@ -2672,9 +2994,8 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
 
     So the stamp the Stop hook left is still true after acceptance, and clearing it
     would put "Codex is working" over a task nobody has read the delivery in. The
-    cursor advancing and the intent being spent are what says the delivery went
-    through: the assertion is that a completed queue delivery moved everything except
-    this."""
+    cursor advancing and the accepted epoch are what says the delivery went through:
+    the assertion is that a completed queue delivery moved everything except this."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     launcher = PLUGIN_ROOT / "bin" / "leaf"
@@ -2719,28 +3040,13 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         )
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if (
-                files_model.read_json(page / "cursor.json") == {"seq": 1}
-                and not codex_model.delivery_path("codex-thread").exists()
-            ):
+            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
                 break
             time.sleep(0.05)
         else:
             pytest.fail("the adapter did not acknowledge its batch")
 
         assert service_model.page_claim(page)["turn_closed"] == closed
-
-        # A queued turn still retires the wake if its prompt hook never runs:
-        # its Stop boundary is durable evidence that the turn happened.
-        assert codex_model.wake_path("codex-thread").exists()
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
-        deadline = time.monotonic() + 10
-        while (
-            time.monotonic() < deadline
-            and codex_model.wake_path("codex-thread").exists()
-        ):
-            time.sleep(0.05)
-        assert not codex_model.wake_path("codex-thread").exists()
         session_model.cmd_status(page, "idle", "")
     finally:
         with service_model.PageTransaction(page) as transaction:

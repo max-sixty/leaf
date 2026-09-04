@@ -18,7 +18,7 @@ import {
   offer,
   failSoft,
   keys,
-  marginAction,
+  marginButton,
   paintKeys,
   registerMarginItem,
   settle,
@@ -73,7 +73,7 @@ customElements.define(
       const paint = () => {
         const label = `Show ${box.checked ? "before" : "after"}`;
         this.#button.ariaLabel = `${label} — ${alt}`;
-        marginAction(this.#button, {
+        marginButton(this.#button, {
           key: "toggle",
           icon: box.checked ? "compare-after" : "compare-before",
           label,

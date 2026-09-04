@@ -158,7 +158,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(bar.locator(".lf-fab-input")).not_to_be_focused()
     page.keyboard.press("c")
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
-        "placeholder", re.compile(r"^Comment… .*⏎$")
+        "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
     )
     expect(bar.locator(".lf-fab-input")).to_have_attribute("autocomplete", "off")
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
@@ -806,7 +806,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    item.locator(".lf-margin-options .lf-margin-action:visible").first.focus()
+    item.locator(".lf-margin-options .lf-margin-button:visible").first.focus()
     page.keyboard.press("Escape")
     expect(more).to_be_visible()
     select_paragraph(page, "#replace")
@@ -1081,7 +1081,7 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
-    start.click()
+    start.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
     page.keyboard.press("Tab")
@@ -1135,7 +1135,7 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
         },
     )
     page, errors = open_page(browser, url)
-    page.locator('#flow g[data-id="S"]').click()
+    page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
     expect(page.locator('.lf-fab-bar .lf-react[data-token="this"]')).to_have_attribute(
         "aria-pressed", "false"
     )
@@ -1154,15 +1154,15 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     bar = page.locator(".lf-fab-bar")
 
     box = start.bounding_box()
-    page.mouse.click(box["x"] + 4, box["y"] + box["height"] / 2)
+    start.click(position={"x": 4, "y": box["height"] / 2}, modifiers=["Alt"])
     assert errors == []
     expect(bar).to_be_visible()
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     first = bar.bounding_box()
 
-    page.mouse.click(
-        box["x"] + box["width"] - 4,
-        box["y"] + box["height"] / 2,
+    start.click(
+        position={"x": box["width"] - 4, "y": box["height"] / 2},
+        modifiers=["Alt"],
     )
     second = bar.bounding_box()
     assert abs(second["x"] - first["x"]) <= 1, (first, second)
@@ -1171,9 +1171,9 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     resized(page, 860, 720)
     after_resize = bar.bounding_box()
     box = start.bounding_box()
-    page.mouse.click(
-        box["x"] + box["width"] / 2,
-        box["y"] + box["height"] - 4,
+    start.click(
+        position={"x": box["width"] / 2, "y": box["height"] - 4},
+        modifiers=["Alt"],
     )
     after_reactivation = bar.bounding_box()
     assert abs(after_resize["x"] - after_reactivation["x"]) <= 1, (
@@ -1185,7 +1185,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
         after_reactivation,
     )
 
-    page.locator('#flow g[data-id="U"]').click()
+    page.locator('#flow g[data-id="U"]').click(modifiers=["Alt"])
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     whole = bar.bounding_box()
@@ -1194,7 +1194,7 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
         or abs(whole["y"] - after_reactivation["y"]) > 1
     ), (after_reactivation, whole)
 
-    start.click()
+    start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
 
@@ -1205,9 +1205,12 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     page.close()
 
 
-def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serve):
-    """A semantic visual provider owns hits inside it even when ordinary figure markup
-    wraps it. The generic fallback must not swallow the provider's stable part API."""
+def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve):
+    """A provider owns hits inside it without swallowing its authored figure wrapper.
+
+    The frame, caption, whole drawing, and declared parts remain separate targets for
+    explicit pointer and keyboard aim.
+    """
     wrapped = PART_DIAGRAM_PAGE.replace(
         '<lf-diagram id="flow"', '<figure id="frame"><lf-diagram id="flow"', 1
     ).replace(
@@ -1218,8 +1221,9 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     page, errors = open_page(browser, serve(wrapped))
     start = page.locator('#flow g[data-id="S"]')
 
-    page.locator("#caption").click()
-    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
+    page.locator("#caption").click(modifiers=["Alt"])
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#frame")).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert page.locator(".lf-visual-action").evaluate_all(
         "controls => controls.map(control => control.lfAnchor)"
@@ -1227,14 +1231,136 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
         {"section": "flow"},
         {"section": "flow", "visual": "node:S"},
         {"section": "flow", "visual": "node:H"},
+        {"section": "frame"},
     ]
+    page.keyboard.press("Escape")
+    page.keyboard.type(hint_code(page, "#caption", 6))
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    page.keyboard.press("Escape")
 
-    start.click()
+    start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile("Start request")
     )
     expect(page.get_by_role("button", name="Respond to Start request")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals(
+    browser, serve
+):
+    """Unadorned content does not become a control because it renders as a picture.
+
+    A generic picture and a declared visual part keep the same explicit Comment routes
+    as prose, while a linked picture keeps the authored action its visible control owns.
+    """
+    page_markup = leaf_page(
+        "visual target gestures",
+        """
+<h1 id="top">Visual target gestures</h1>
+<p id="prose">Plain prose remains ordinary page content.</p>
+<figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
+  role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
+  <figcaption>Plain picture</figcaption></figure>
+<lf-diagram id="flow" parts="node:S"><pre>
+graph LR
+  S[Start request] --&gt; H[Handle request]
+</pre></lf-diagram>
+<a id="visit" href="#destination"><svg id="linked-picture" viewBox="0 0 20 20"
+  width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
+<p id="destination">Destination</p>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+    field = page.locator(".lf-fab-input")
+    start = page.locator('#flow g[data-id="S"]')
+
+    for selector in ("#prose", "#figure svg", '#flow g[data-id="S"]'):
+        page.locator(selector).click()
+        expect(field).to_be_hidden()
+    page.locator("#linked-picture").click()
+    expect(page).to_have_url(re.compile(r"#destination$"))
+    expect(field).to_be_hidden()
+
+    page.locator("#figure svg").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile(r"figure"))
+    field.fill("Carry this explicit draft.")
+    page.evaluate("document.activeElement.blur()")
+
+    control = page.get_by_role("button", name="Respond to Start request")
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(field).to_be_focused()
+    expect(field).to_have_value("Carry this explicit draft.")
+    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
+    page.keyboard.press("Escape")
+    expect(control).to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
+def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, serve):
+    """A generic picture supplies its box only when nothing more precise names the hit.
+
+    Authored items remain independently aimable, and a projected datum keeps the
+    coordinate that follows its record across data replacements.
+    """
+    page_markup = leaf_page(
+        "nested visual targets",
+        """
+<h1 id="top">Nested visual targets</h1>
+<figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
+  role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
+  <figcaption id="caption">Plain picture</figcaption></figure>
+<section id="outer"><p>Context above an unadorned picture.</p><figure><svg
+  viewBox="0 0 80 40" width="160" height="80" role="img" aria-label="Nested picture">
+  <rect x="2" y="2" width="76" height="36" /></svg></figure></section>
+<section id="source"><figure id="projected-source"><pre>Current instructions.</pre></figure></section>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+    field = page.locator(".lf-fab-input")
+    page.locator("#projected-source").evaluate(
+        """figure => Object.assign(figure.dataset, {
+          lfProjection: 'source', lfDatum: 'document',
+          lfDatumLabel: 'Captured document',
+        })"""
+    )
+
+    nested_picture = page.locator('#outer svg[aria-label="Nested picture"]')
+    nested_picture.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    assert page.locator(".lf-aim").bounding_box() == pytest.approx(
+        page.locator("#outer").bounding_box(), abs=1
+    ), "the aim promised the picture box while its anchor resolved to the section"
+    page.keyboard.up("Alt")
+    nested_picture.click(modifiers=["Alt"])
+    expect(page.locator("#outer")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(nested_picture.locator("xpath=..")).not_to_have_class(
+        re.compile(r"\blf-pending\b")
+    )
+    page.keyboard.press("Escape")
+
+    page.locator("#caption").click(modifiers=["Alt"])
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#figure")).not_to_have_class(re.compile(r"\blf-pending\b"))
+    page.keyboard.press("Escape")
+
+    page.locator('[data-lf-datum="document"] pre').click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    with sending(page, "the comment on the projected document"):
+        field.fill("Keep the captured source coordinate.")
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
+        "section": "source",
+        "datum": "document",
+    }
     assert errors == []
     page.close()
 
@@ -1532,11 +1658,14 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     page.close()
 
 
-def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node(
+def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(
     browser, serve
 ):
-    """The compatibility click after a drag must not replace freshly selected words
-    with the visual target that happens to contain the drag's endpoint."""
+    """The compatibility click after a drag keeps the selected words as the target.
+
+    A later plain click collapses that native selection without turning the diagram node
+    into a Comment control.
+    """
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     start = page.locator('#flow g[data-id="S"]')
     label = start.get_by_text("Start request", exact=True)
@@ -1563,19 +1692,60 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
         (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
         steps=12,
     )
-    # Focusing the composer collapses the native range, but the durable pending paint
-    # still names the repeated passage captured by the compatibility click.
+    # The repeated drag remains a native selection and restores its response surface.
     page.wait_for_function(
         "() => [...(CSS.highlights.get('lf-pending') ?? [])].some(r => r.toString().includes('Start request'))"
     )
     assert "Start request" in pending_text(page)
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
-    # A plain click is not a drag. It can still choose the visual under the retained
-    # passage, and that explicit target clears the native selection.
+    # Plain click keeps its native meaning: it collapses the selection and the response
+    # surface stands down instead of retargeting to the visual.
     start.click()
     assert page.evaluate("() => getSelection().toString()") == ""
-    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
+    assert errors == []
+    page.close()
+
+
+def test_the_response_surface_preserves_a_backward_drag(browser, serve):
+    """Painting the response surface must not reverse the browser selection.
+
+    Its direction decides which end a subsequent Shift-click extends.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "backward passage",
+                '<h1 id="top">Backward passage</h1>'
+                '<p id="para">Sentence with plenty of words to select.</p>',
+            )
+        ),
+    )
+    box = page.locator("#para").evaluate(
+        """element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    select(
+        page,
+        (box["right"] - 2, box["top"] + box["height"] / 2),
+        (box["left"] + 2, box["top"] + box["height"] / 2),
+        steps=12,
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    assert page.evaluate(
+        """() => {
+          const selection = getSelection();
+          const range = selection.getRangeAt(0);
+          return selection.anchorNode === range.endContainer
+            && selection.anchorOffset === range.endOffset;
+        }"""
+    ), "the response pass reversed a backward drag before its next extension"
     assert errors == []
     page.close()
 

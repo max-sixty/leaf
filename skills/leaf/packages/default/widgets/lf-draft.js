@@ -97,8 +97,8 @@ import {
   saveDraft,
   loadDraft,
   measure,
-  marginAction,
-  marginActionState,
+  marginButton,
+  marginButtonState,
   clearDraft,
   watchDraft,
   alignText,
@@ -250,7 +250,7 @@ customElements.define(
         () =>
           (this.#ta ? [this.#save, this.#cancel] : [this.#pencil]).map((control) => ({
             control,
-            label: control.querySelector(":scope > .lf-margin-action-label")
+            label: control.querySelector(":scope > .lf-margin-button-label")
               ?.textContent,
           })),
         () => this.#body.textContent || "Empty",
@@ -372,7 +372,7 @@ customElements.define(
       role = "primary",
       state = "idle",
     ) {
-      const button = marginAction(offer("button", ""), {
+      const button = marginButton(offer("button", ""), {
         key,
         icon,
         label,
@@ -386,7 +386,7 @@ customElements.define(
     }
 
     #paintButtons({ notify = true } = {}) {
-      marginAction(this.#save, {
+      marginButton(this.#save, {
         key: this.#failed ? "retry" : "save",
         icon: this.#failed ? "retry" : "check",
         label: this.#failed ? "Retry" : "Save",
@@ -395,8 +395,8 @@ customElements.define(
         state: this.#failed ? "failed" : "engaged",
       });
       this.#save.setAttribute("aria-label", this.#failed ? "Retry" : "Save");
-      marginActionState(this.#cancel, this.#failed ? "failed" : "engaged");
-      marginActionState(this.#pencil, this.#sending ? "busy" : "idle");
+      marginButtonState(this.#cancel, this.#failed ? "failed" : "engaged");
+      marginButtonState(this.#pencil, this.#sending ? "busy" : "idle");
       const available = actionAvailable(this, "edit");
       this.#pencil.setAttribute("aria-disabled", String(this.#sending || !available));
       this.#pencil.tabIndex = this.#sending || !available ? -1 : 0;

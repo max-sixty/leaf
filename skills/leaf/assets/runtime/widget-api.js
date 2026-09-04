@@ -11,8 +11,8 @@ export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys, paintKeys, saying } from "./keyboard/scopes.js";
 export {
-  marginAction,
-  marginActionState,
+  marginButton,
+  marginButtonState,
   registerMarginItem,
 } from "./living-margin.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";

@@ -740,12 +740,14 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.close()
 
 
-def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
-    """A rendering has no text of the page's in it to select, so the click anchors on the
-    whole element. Which widgets those are is theirs to declare (x-visual): the runtime
-    names none of them, so a widget added to the vocabulary is clickable on the strength
-    of its entry — the failure this rules out is the quiet one, where a consumer taught
-    one widget by name keeps working on that widget and does nothing for the next."""
+def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
+    browser, serve
+):
+    """A rendering has no text of the page's in it to select, so an explicit Comment
+    gesture anchors on the whole element. Which widgets those are is theirs to declare
+    (x-visual): the runtime names none of them, so a widget added to the vocabulary exposes
+    the target on the strength of its entry. This rules out a consumer that knows one
+    widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
@@ -755,13 +757,13 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
 
     # The inner svg belongs to the renderer and carries generated ids; the anchor
     # belongs to the widget that holds it, which is the element the page gave a name.
-    page.locator("#flow svg").click()
+    page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.keyboard.press("Escape")
 
-    page.locator("#tree").click()
+    page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#tree.lf-mark-el.lf-pending").wait_for()
     page.keyboard.press("Escape")

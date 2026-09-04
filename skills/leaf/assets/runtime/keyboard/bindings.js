@@ -112,7 +112,22 @@ export const commandPresentations = (row, active = bindings(row)) => {
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
 // and folded into the rows that name them when this replaced those labels.
-export const labelOf = (row) => word(row.label) ?? bindings(row).map(spell).join(" / ");
+export function decisionName(row, where = "the command register") {
+  const value = word(row.decision);
+  const name = typeof value === "string" ? value.trim() : "";
+  if (!name)
+    throw new TypeError(
+      `leaf: ${row.id ?? "a command"} in ${where} has no Decision action name`,
+    );
+  return name;
+}
+export const labelOf = (row) => {
+  const label = word(row.label);
+  if (label !== undefined && label !== null) return label;
+  const bound = bindings(row).map(spell).join(" / ");
+  if (bound || declaredBindings(row).length) return bound;
+  return row.decision !== undefined ? decisionName(row) : "";
+};
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
@@ -196,16 +211,11 @@ export function decisionControls(commands, where = "an Ask") {
     for (const { route } of candidates) {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
-      const decision = word(contribution.decision);
-      const label = typeof decision === "string" ? decision.trim() : "";
+      const label = decisionName(contribution, where);
       const address = word(contribution.address ?? row.address) ?? null;
       const active = route ? [route.binding] : bindings(row);
       if (!(control instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
-      if (!label)
-        throw new TypeError(
-          `leaf: ${contribution.id} in ${where} has no Decision action name`,
-        );
       if (address !== null && !(address instanceof Element))
         throw new TypeError(
           `leaf: ${contribution.id} in ${where} has no Element address`,

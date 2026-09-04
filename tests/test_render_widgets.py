@@ -1258,6 +1258,11 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
     )
+    undo_reference = page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
+    expect(undo_reference.locator("kbd")).to_have_text("Undo last swipe")
+    expect(undo_reference.locator(".lf-key-sequence")).to_have_attribute(
+        "aria-label", "Undo last swipe"
+    )
     page.keyboard.press("Escape")
 
     page.keyboard.press("a")

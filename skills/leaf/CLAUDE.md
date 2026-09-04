@@ -2167,8 +2167,9 @@ groups the same scopes for reading.
 A row has these meanings:
 
 - `keys` is a binding or computed list of bindings.
-- `label` optionally overrides the compact keycap in the command's own scope. An Ask
-  instead shows the resolved binding beside its separate `decision` action name, so an
+- `label` optionally overrides the compact keycap in the command's own scope. A keyless
+  Decision command falls back to its `decision` action name in the complete reference.
+  An Ask instead shows the resolved binding beside that separate action name, so an
   inline hint always says what the reader actually presses.
 - `control` is the visible element that activates the capability. `decision` is a
   non-empty action-name string or a function returning one; it includes that command in

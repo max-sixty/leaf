@@ -199,17 +199,19 @@ The dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty
 action-name string—or a function returning one—and give it `control` when that control
 answers, advances, or revises the Ask containing `source`. The action name is separate
-from `label`, which remains the command register's own-scope keycap override. The Ask
-projection always spells the binding it resolved beside the `decision` action name, so
-its inline hint says what the reader actually presses. A row may have zero or one live
-binding in the Decision role: zero receives the Ask's next free contextual `1` through
-`9`, while one keeps its canonical binding, such as `ArrowLeft`. Each action keeps its
-command id as an exact route; that route is the one binding-to-control identity used by
-dispatch, the reference, the key line, its address, and `aria-keyshortcuts`. `address` may
-name an empty face a widget already positions; core writes the resolved binding there, so
-the package does not keep a second key map. Otherwise core paints the binding at the
-visible control. Routes let one parameterized row contribute distinct controls and
-bindings. The control's own `click()` remains the single activation path.
+from `label`, which remains the command register's own-scope keycap override. In the
+complete reference, a keyless Decision command falls back to its action name rather than
+showing a blank keycap. The Ask projection always spells the binding it resolved beside
+the `decision` action name, so its inline hint says what the reader actually presses. A
+row may have zero or one live binding in the Decision role: zero receives the Ask's next
+free contextual `1` through `9`, while one keeps its canonical binding, such as
+`ArrowLeft`. Each action keeps its command id as an exact route; that route is the one
+binding-to-control identity used by dispatch, the reference, the key line, its address,
+and `aria-keyshortcuts`. `address` may name an empty face a widget already positions; core
+writes the resolved binding there, so the package does not keep a second key map.
+Otherwise core paints the binding at the visible control. Routes let one parameterized
+row contribute distinct controls and bindings. The control's own `click()` remains the
+single activation path.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed

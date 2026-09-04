@@ -75,7 +75,11 @@ incomplete. A checkout keeps it at `bin/leaf`.
    or that rendering remains unverified.
 
 When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a thread needs work. Read
+`references/conversation-threads.md` when a thread needs work. A
+`<leaf-delivery skill="$leaf" … path="…" />` element is that arrival's compact
+transport pointer: read the JSON object at its absolute `path` and follow its
+`instruction`; `contract`, `url`, `through`, and `batch_jsonl` supply the files and
+values that instruction names. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 

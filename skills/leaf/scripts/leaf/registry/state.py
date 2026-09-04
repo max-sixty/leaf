@@ -458,6 +458,19 @@ def _validate_awaiting_units(widgets: dict, path) -> None:
                 f"{path}: <{tag}> x-state verbs {non_answers} declare completion "
                 "conditions but are not x-awaits completion verbs"
             )
+        # A widget-scoped answer is itself the whole Decision's value. A part-scoped
+        # answer needs the predicate that lifts one part record to that whole-widget
+        # meaning; without it the first part action would answer the Decision.
+        if unanchored := sorted(
+            verb
+            for verb in completion_verbs
+            if entry["x-state"][verb]["unit"] != "widget"
+            and verb not in declared_conditions
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits completion verbs {unanchored} fold on a "
+                "part rather than the widget, so each needs a completion condition"
+            )
         for verb, completion in declared_conditions.items():
             if entry["x-state"][verb].get("record", {}).get("kind") != "position":
                 raise RegistryError(

@@ -2672,6 +2672,22 @@ def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
     assert "require their own decision to be closed" in result.output
 
 
+def test_a_part_scoped_completion_verb_requires_a_completion_condition(page_dir):
+    """A part record does not answer its whole Decision merely by sharing its verb."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    swipe = json.loads(
+        (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
+    )
+    registry.update(swipe)
+    registry["lf-swipe-deck"]["x-state"]["finish"].pop("completion")
+
+    with pytest.raises(
+        registry_contract.RegistryError,
+        match="fold on a part rather than the widget",
+    ):
+        registry_validation.validate_registry(registry, "test registry")
+
+
 def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     state = {

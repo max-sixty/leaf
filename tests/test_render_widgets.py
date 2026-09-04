@@ -1312,6 +1312,37 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.close()
 
 
+def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
+    """An Ask's generated digit follows the same reader preference as dispatch.
+
+    The settled deck still contributes its non-character arrow commands. Those keep the
+    contextual action row alive, but cannot keep an unavailable digit painted over Undo.
+    """
+    page, errors = open_page(
+        browser,
+        serve(SWIPE_PAGE),
+        init_script="localStorage.setItem('lf-character-shortcuts', '0')",
+    )
+    decision = page.locator("#session-triage-decision")
+
+    for _ in range(4):
+        page.get_by_role("button", name="Keep →", exact=True).click()
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+
+    page.locator(".lf-decisions").click()
+    page.locator("button.lf-decisions-row").click()
+    expect(decision).to_be_focused()
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    assert "Undo last swipe" not in key_line(page)
+
+    before = len(actions(serve.page_dir))
+    page.keyboard.press("1")
+    assert len(actions(serve.page_dir)) == before
+    assert errors == []
+    page.close()
+
+
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
     """Every input route ends at a button click, and quick classifications retain
     gesture order while the outbox serializes their requests."""

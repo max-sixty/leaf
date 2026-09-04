@@ -457,9 +457,14 @@ export function createDecisionView({
     const reserved = new Set(
       actions.map(({ binding }) => binding).filter((binding) => binding !== null),
     );
-    const contextual = Array.from({ length: MAX_NUMBERED_ADDRESSES }, (_, index) =>
-      String(index + 1),
-    ).filter((binding) => !reserved.has(binding));
+    // Generated addresses are bindings too. Read them through the same preference filter
+    // as declared package keys, or non-character actions can keep this row live while a
+    // disabled digit is still painted and never dispatched.
+    const contextual = bindings({
+      keys: Array.from({ length: MAX_NUMBERED_ADDRESSES }, (_, index) =>
+        String(index + 1),
+      ),
+    }).filter((binding) => !reserved.has(binding));
     return actions.flatMap((action) => {
       const resolvedBinding = action.binding ?? contextual.shift();
       return resolvedBinding ? [{ ...action, resolvedBinding }] : [];

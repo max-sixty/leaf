@@ -796,11 +796,11 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.close()
 
 
-def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
+def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     """The page and panel are reciprocal views of a thread. Resting on a card lights
-    its passage; resting on that passage must identify the card too, or the common case
-    where the passage is parked and the card is visible answers on the off-screen side.
-    The signal follows the pointer from one thread to the next and leaves with it."""
+    its passage; resting on that passage must identify the bounded quote naming it too.
+    Filling the card instead turns a long conversation into a viewport-sized wash. The
+    signal follows the pointer from one thread to the next and leaves with it."""
     url = serve(
         INLINE_PAGE,
         anchored=[("p", "bold text"), ("p2", "neighbouring block")],
@@ -816,15 +816,25 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     panel_settled(page)
     first = page.locator(f'.lf-thread[data-id="{first_id}"]')
     second = page.locator(f'.lf-thread[data-id="{second_id}"]')
+    first_quote = first.locator(":scope > .lf-quote")
     resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
-
+    quote_resting = first_quote.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    )
     page.mouse.move(*mark_point(page, "lf-mark", 0))
     expect(first).to_have_class(re.compile(r"\blf-mark-hover\b"))
     expect(second).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
-    lit = first.evaluate("element => getComputedStyle(element).backgroundColor")
-    assert lit != resting, (
-        f"the page named the card in class but its paint stayed {resting!r}"
+    assert (
+        first.evaluate("element => getComputedStyle(element).backgroundColor")
+        == resting
+    ), "pointing at a passage washed the whole thread card instead of its quote"
+    quote_lit = first_quote.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
     )
+    assert quote_lit != quote_resting, (
+        f"the page named the quote in class but its paint stayed {quote_resting!r}"
+    )
+    assert first_quote.bounding_box()["height"] < first.bounding_box()["height"]
 
     page.mouse.move(*mark_point(page, "lf-mark", 1))
     expect(first).not_to_have_class(re.compile(r"\blf-mark-hover\b"))
@@ -841,6 +851,144 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
     expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
     wait_hovered(page, "neighbouring block")
+    assert errors == []
+    page.close()
+
+
+def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
+    """The reciprocal cue stays at the quote when its conversation is taller than the
+    list. A short-card case proves selector routing but cannot reproduce the full-panel
+    slab that made direct navigation visually ambiguous."""
+    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root,
+            "revision": 1,
+            "text": "\n\n".join(
+                f"Consideration {i}: this thread needs its full context."
+                for i in range(18)
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    quote = thread.locator(":scope > .lf-quote")
+    card_resting = thread.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    )
+    quote_resting = quote.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    )
+    assert (
+        thread.bounding_box()["height"]
+        > page.locator(".lf-threads").bounding_box()["height"]
+    ), "the card fits in the list, so this does not reproduce the large wash"
+
+    page.mouse.move(*mark_point(page, "lf-mark"))
+    expect(thread).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    assert (
+        thread.evaluate("element => getComputedStyle(element).backgroundColor")
+        == card_resting
+    )
+    assert (
+        quote.evaluate("element => getComputedStyle(element).backgroundColor")
+        != quote_resting
+    )
+    assert (
+        quote.bounding_box()["height"]
+        < page.locator(".lf-threads").bounding_box()["height"]
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
+    browser, serve
+):
+    """The range travel has two jobs: reveal a passage inside its nested scrollports,
+    then centre it vertically in the document. `scrollIntoView` also moved the document,
+    jumping it to the nearest edge synchronously before the intended smooth centred trip
+    began. Both local axes must remain immediate, while the page makes only one move."""
+    lead = "".join(
+        f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
+    )
+    tail = "".join(
+        f"<p>Reading context after the passage, line {i}.</p>" for i in range(20)
+    )
+    source = leaf_page(
+        "one thread trip",
+        f"""
+<h1>One thread trip</h1>
+{lead}
+<div id="local">
+  {"".join(f"<p>Local context line {i}.</p>" for i in range(16))}
+  <pre id="rail"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
+</div>
+{tail}
+""",
+        head=(
+            "<style>#local { max-height: 240px; overflow-y: auto; "
+            "overflow-x: clip; }</style>"
+        ),
+    )
+    page, errors = open_page(
+        browser,
+        serve(source, anchored=[("far", "Far-side passage")]),
+    )
+    page.evaluate(
+        """() => {
+          document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
+          document.querySelector('#rail').scrollLeft = 0;
+          window.lfFirstPageScroll = null;
+          document.addEventListener('scroll', (event) => {
+            if (event.target === document && window.lfFirstPageScroll === null)
+              window.lfFirstPageScroll = document.scrollingElement.scrollTop;
+          }, {capture: true});
+        }"""
+    )
+
+    page.keyboard.press("t")
+    page.wait_for_function("() => window.lfFirstPageScroll !== null")
+    immediate = page.evaluate(
+        """() => ({
+          firstPage: window.lfFirstPageScroll,
+          rail: document.querySelector('#rail').scrollLeft,
+          local: document.querySelector('#local').scrollTop,
+          localXFits: document.querySelector('#local').scrollWidth
+            <= document.querySelector('#local').clientWidth,
+        })"""
+    )
+    assert immediate["firstPage"] < 100, (
+        f"the thread walk jumped the page before its smooth trip began: {immediate}"
+    )
+    assert immediate["rail"] > 0, (
+        f"the passage stayed beyond its own horizontal scroller: {immediate}"
+    )
+    assert immediate["local"] > 0, (
+        f"the passage stayed beyond its own vertical scroller: {immediate}"
+    )
+    assert immediate["localXFits"], (
+        f"the vertical scrollport also overflowed sideways: {immediate}"
+    )
+    page.wait_for_function(
+        """() => {
+          const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
+          if (!range) return false;
+          const rect = range.getBoundingClientRect();
+          return Math.abs((rect.top + rect.bottom) / 2 - innerHeight / 2) < 2;
+        }"""
+    )
+    expect(page.locator(".lf-thread")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -882,7 +1030,71 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     panel_settled(page)
 
     expect(reply).to_be_focused()
+    if long_thread:
+        expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
+        expect(thread.locator(":scope > .lf-compose")).to_have_class(
+            re.compile(r"\bflash\b")
+        )
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
+    if long_thread:
+        page.wait_for_function(
+            """() => {
+              const list = document.querySelector('.lf-threads');
+              const thread = list.querySelector('.lf-thread:first-of-type');
+              const compose = thread.querySelector(':scope > .lf-compose');
+              const view = list.getBoundingClientRect();
+              const target = compose.getBoundingClientRect();
+              const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
+              const start = view.top + clear;
+              const blocks = [...thread.querySelectorAll(
+                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
+                ':scope > .lf-msg .lf-msg-text > *'), compose];
+              return target.bottom <= view.bottom && blocks.some((block) =>
+                Math.abs(block.getBoundingClientRect().top - start) < 2);
+            }"""
+        )
+        landing = page.evaluate(
+            """() => {
+              const list = document.querySelector('.lf-threads');
+              const thread = list.querySelector('.lf-thread:first-of-type');
+              const compose = thread.querySelector(':scope > .lf-compose');
+              const view = list.getBoundingClientRect();
+              const target = compose.getBoundingClientRect();
+              const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
+              const start = view.top + clear;
+              const head = list.querySelector('.lf-pinned').getBoundingClientRect();
+              const blocks = [...thread.querySelectorAll(
+                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
+                ':scope > .lf-msg .lf-msg-text > *'), compose]
+                .map((block) => ({
+                  name: block.className || block.tagName,
+                  top: block.getBoundingClientRect().top,
+                }));
+              const lines = [];
+              const walker = document.createTreeWalker(thread, NodeFilter.SHOW_TEXT);
+              for (let text; text = walker.nextNode();) {
+                if (!text.data.trim()) continue;
+                for (let i = 0; i < text.length; i++) {
+                  const range = document.createRange();
+                  range.setStart(text, i);
+                  range.setEnd(text, Math.min(i + 1, text.length));
+                  const line = range.getBoundingClientRect();
+                  if (line.width && line.top < head.bottom && line.bottom > head.bottom)
+                    lines.push(line.toJSON());
+                }
+              }
+              return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
+                      crossedLines: lines};
+            }"""
+        )
+        assert landing["target"]["bottom"] <= landing["listBottom"]
+        assert any(
+            block["top"] == pytest.approx(landing["start"], abs=2)
+            for block in landing["blocks"]
+        ), f"the long arrival cut through a content block: {landing}"
+        assert not landing["crossedLines"], (
+            f"the pinned heading cut through a text line: {landing}"
+        )
     wait_standing(page, "bold text")
     assert "back to thread" in key_line(page)
     page.keyboard.press("t")

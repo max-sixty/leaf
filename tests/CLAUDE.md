@@ -540,9 +540,11 @@ event arrived in.
 An observer or protocol record that outlives a motion is read after `moving` says finite
 motion has ended; a fixed number of animation frames only guesses when that record will
 be delivered under load.
-When clicking a quote causes an instant scroll followed by a smooth scroll, the first
-`scrollend` is a real edge but not the destination. Wait for the mark to reach the
-computed position or for the final scroll to stop, then assert where it stopped.
+An element-anchored quote can cause an instant document scroll followed by a smooth
+scroll; its first `scrollend` is a real edge but not the destination. A text-passage
+quote reveals nested scrollports instantly but writes the document only through its
+smooth final move. Wait for the mark to reach the computed position or for the final
+document scroll to stop, then assert where it stopped.
 
 Absence usually has no completion event of its own. Anchor it after the positive edge
 that would have caused the forbidden behavior, then read once. If the mechanism is a

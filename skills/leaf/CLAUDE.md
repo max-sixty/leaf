@@ -173,7 +173,7 @@ Each mutable fact has one writer:
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
-| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate centring |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -1153,22 +1153,23 @@ focus ring and the enclosing thread keeps a subdued outline.
 `lf-mark-hover` answers a different question — which thread the pointer is
 indicating — and reads both surfaces in one frame. A card is the thread's view in
 the list the way a mark is its view in the prose, so resting on the card lights
-the passage exactly as resting on the passage lights it, and a reader sweeping a
-full panel is told what each comment is about without pressing anything. There is
-one answer rather than two because the pointer is in one place: `markAt` refuses a
-point that lands in the chrome, so `hoveredThreadOf` and the page's hit test
-cannot both name a thread. Both are read inside `refreshHover`'s frame, which is
-also what settles `:hover` — asking for it from inside the pointer event that
-moves it asks mid-move — and a second writer to this highlight would be
-overwritten by whichever frame ran last.
+the passage exactly as resting on the passage lights its bounded quote, and a reader
+sweeping a full panel is told what each comment is about without pressing anything. The
+semantic class stays on the card while its quote takes the wash: a long thread can span
+several viewports, while the clamped quote is the panel's compact representation of the
+passage. There is one answer rather than two because the pointer is in one place:
+`markAt` refuses a point that lands in the chrome, so `hoveredThreadOf` and the page's hit
+test cannot both name a thread. Both are read inside `refreshHover`'s frame, which is also
+what settles `:hover` — asking for it from inside the pointer event that moves it asks
+mid-move — and a second writer to this highlight would be overwritten by whichever frame
+ran last.
 
-The whole card answers, not the quote alone, because the card is where the eye is
-while it reads the comment. `body.lf-over-mark` stays with the page's own reading:
-it is the promise that a press here opens something, and over a card the press on
-offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
-question again on the way out as well as in, because the panel is one of the two
-surfaces this reads: closing it from the keyboard, with a hand resting on a card,
-takes that card out from under a pointer that never moved.
+`body.lf-over-mark` stays with the page's own reading: it is the promise that a press
+here opens something, and over a card the press on offer is the card's, which
+`.lf-quote` states for itself. `setPanel` asks the question again on the way out as
+well as in, because the panel is one of the two surfaces this reads: closing it from
+the keyboard, with a hand resting on a card, takes that card out from under a pointer
+that never moved.
 
 Hover state keeps both the semantic id and painted card node because reconciliation
 can replace one without changing the other. `paintAnchors` rebinds replaced ranges
@@ -1279,13 +1280,12 @@ an agent comment is a question and an agent reply's explicit `awaits` field mark
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.
 
-`scrollToThread` is the one travel every "show me that comment's passage" ends
-in. The target's own box first comes into view instantly, including inside a
-sideways scroller, then `moveScrollerBy` glides the exact mark to its final position in
-the region that holds it. The travel owns no standing or arrival state. Focus
-already supplies the durable answer through `paintStanding`, and a transient
-page effect does not observe, restart, or reconcile across the browser's
-scrolling operation.
+`scrollToThread` is the one travel every "show me that comment's passage" ends in. Each
+nested scrollport first reveals the exact range instantly on both axes without writing the
+document's position, then `moveScrollerBy` glides that range to its final position in the
+region that holds it. The travel owns no standing or arrival state. Focus already supplies
+the durable answer through `paintStanding`, and a transient page effect does not observe,
+restart, or reconcile across the browser's scrolling operation.
 
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer
@@ -2916,8 +2916,12 @@ page restores; a look at a list is not one.
 that hides the destination and finishes an outgoing resolution fold before opening
 the resolved disclosure. A thread opens in its reply box, or on its card when
 resolved; a message takes focus at its own words so Tab reaches its controls.
-A thread too tall for its scrollport reveals its reply area. The explicit `t`/`T`
-walk remains on cards; Enter starts a reply and Escape returns to the card.
+A thread too tall for its scrollport starts at the earliest complete content block that
+still leaves its reply area visible. That puts the first visible content on a clean boundary
+instead of leaving an arbitrary partial message line below the pinned heading. The transient
+arrival flash belongs to the revealed target — short card, reply area, message, or oversized
+editor — rather than to a long card spanning beyond the scrollport. The explicit `t`/`T` walk
+remains on cards; Enter starts a reply and Escape returns to the card.
 
 A reply send keeps its editor and actions visible only while the reader remains
 there. Moving to another input, closing the panel, or scrolling away relinquishes

@@ -82,12 +82,13 @@
  * poll adds what arrived and touches nothing the user already holds, so scroll,
  * focus and caret keep themselves because the nodes holding them survive. News moves
  * nothing; a send reveals the message it just landed — the panel scrolls to it and
- * flashes its thread, the same answer a click on a page mark gets — and ends in the
- * composer it was sent from. A composer open on a selection keeps that passage marked
- * in the page until it closes, because focusing the box drops the browser's own
- * selection — and that mark is what says which passage the box is on, so the box only
- * quotes the passage back when this version no longer has one to mark. Whether the box
- * is up is state the stylesheet renders, never state read back off the stylesheet.
+ * flashes that bounded destination, the same answer a click on a page mark gets — and
+ * ends in the composer it was sent from. A composer open on a selection keeps that
+ * passage marked in the page until it closes, because focusing the box drops the
+ * browser's own selection — and that mark is what says which passage the box is on, so
+ * the box only quotes the passage back when this version no longer has one to mark.
+ * Whether the box is up is state the stylesheet renders, never state read back off the
+ * stylesheet.
  *
  * Scrolling: the browser's root is the document scrollport, while body is the layout
  * shell whose margins keep the page clear of a standing panel or tray. Native fragments,

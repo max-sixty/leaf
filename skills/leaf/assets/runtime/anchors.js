@@ -1,6 +1,7 @@
 import {
   clippedRect,
   documentPoint,
+  shownBand,
   shownBox,
   shownParts,
   shownRect,
@@ -1208,7 +1209,38 @@ export function createAnchors(dependencies) {
         : where.startContainer.parentElement;
     if (!holder) return;
     reveal(holder);
-    holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    // Reveal every nested scrollport here, but stop before the document's. Using
+    // `scrollIntoView` as the prelude to the centred page trip wrote that last box too:
+    // it jumped the document to the holder's nearest edge, then glided it somewhere
+    // else. A range inside a clipped widget or wide pre still needs both local axes
+    // revealed before its final box can be read.
+    for (
+      let box = holder;
+      box && box !== pageScroller;
+      box = box.assignedSlot ?? parentAcross(box)
+    ) {
+      if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
+        continue;
+      const band = shownBand(box);
+      if (!band) continue;
+      const style = getComputedStyle(box);
+      const left = band.left + (parseFloat(style.scrollPaddingLeft) || 0);
+      const right = band.right - (parseFloat(style.scrollPaddingRight) || 0);
+      const top = band.top + (parseFloat(style.scrollPaddingTop) || 0);
+      const bottom = band.bottom - (parseFloat(style.scrollPaddingBottom) || 0);
+      const destination = where.getBoundingClientRect();
+      let byX = 0;
+      if (destination.left < left && destination.right <= right)
+        byX = destination.left - left;
+      else if (destination.right > right && destination.left >= left)
+        byX = destination.right - right;
+      let byY = 0;
+      if (destination.top < top && destination.bottom <= bottom)
+        byY = destination.top - top;
+      else if (destination.bottom > bottom && destination.top >= top)
+        byY = destination.bottom - bottom;
+      if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
+    }
     moveScrollerBy(pageScroller, centreBy(where), behavior);
   }
 
@@ -1271,13 +1303,13 @@ export function createAnchors(dependencies) {
   //
   // The pointer can indicate a thread from either surface, and the panel is the other one.
   // A card is the thread's view in the list the way a mark is its view in the prose, so
-  // resting on the card lights the passage exactly as resting on the passage lights it —
-  // the same wash, because it is the same fact, and a second strength would be a third
-  // thing to learn on a page that already asks the reader to tell a mark from a standing
-  // mark. It answers the question a reader scanning a full list keeps asking, which of
-  // these is about what, without a press and without a travel they may not want; the
-  // standing mark answers it for the one comment they chose, and this answers it for the
-  // one under their hand.
+  // resting on the card lights the passage exactly as resting on the passage lights its
+  // bounded quote — the same wash, because it is the same fact, and a second strength
+  // would be a third thing to learn on a page that already asks the reader to tell a mark
+  // from a standing mark. It answers the question a reader scanning a full list keeps
+  // asking, which of these is about what, without a press and without a travel they may
+  // not want; the standing mark answers it for the one comment they chose, and this
+  // answers it for the one under their hand.
   //
   // One answer rather than two, because the pointer is in one place: markAt refuses a point
   // that lands in the chrome, so the panel's reading and the page's cannot both name a
@@ -1285,10 +1317,8 @@ export function createAnchors(dependencies) {
   // a second writer to this highlight would be overwritten by whichever frame ran last, and
   // the hit-test runs on every pointer move.
   //
-  // The whole card and not the quote alone, though the quote is the part that presses. The
-  // card is where the eye is while it reads the comment, and the question arrives there
-  // rather than on the three clamped lines at the top; a reader who wanted the quote's
-  // press would already be on it.
+  // The semantic id stays on the card; paint can then name the bounded quote representing
+  // its passage instead of washing an arbitrarily long conversation.
   const HOVER = "lf-mark-hover";
   const hoveredThreadOf = () => threadsBox.querySelector(".lf-thread:hover");
   let hoverParts = [];
@@ -1298,9 +1328,9 @@ export function createAnchors(dependencies) {
   function paintHover(id) {
     hovering = id;
     // The page and panel are reciprocal views of the thread. The highlight paints the
-    // passage when the pointer is on its card; this class paints the card when the pointer
-    // is on its passage. One writer keeps them on the same id, and keeping the node lets a
-    // sweep touch only the two cards whose answer changed.
+    // passage when the pointer is on its card; this class paints the card's quote when the
+    // pointer is on its passage. One writer keeps them on the same id, and keeping the node
+    // lets a sweep touch only the two cards whose answer changed.
     const thread = hoverCardOf(id);
     if (hoverThread !== thread) {
       hoverThread?.classList.remove(HOVER);
@@ -1327,11 +1357,11 @@ export function createAnchors(dependencies) {
   }
   // Which comment the reader is standing in, said out on the page. The panel has always
   // answered it on its own surface — the thread holds the focus, and a press on a mark
-  // flashes the thread it opens — while the page answered nothing back: every posted mark
-  // wears one wash, so a reader sent from a comment to its passage arrived among a dozen
-  // identical marks with no way to tell which one they had asked to see. The t/T walk's
-  // comment already called the panel and the page "two views of the same thread"; this is
-  // the view that was missing.
+  // flashes the bounded target it opens — while the page answered nothing back: every
+  // posted mark wears one wash, so a reader sent from a comment to its passage arrived
+  // among a dozen identical marks with no way to tell which one they had asked to see.
+  // The t/T walk's comment already called the panel and the page "two views of the same
+  // thread"; this is the view that was missing.
   //
   // Derived from the focus rather than written where the travel put the reader, for the
   // reason markHere gives about the decision ring: a mark written at the arrival says where the

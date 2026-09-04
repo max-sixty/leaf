@@ -1160,11 +1160,13 @@ ${MARK_RULES}
        the outcome said in paint: the box is on its way out and may not also state
        that in metrics the fold is animating. */
     .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; --lf-frame: 1; }
-    /* The panel half of the mark the pointer is indicating (paintHover). The fallback
-       keeps a custom theme without the middle ramp token legible at its strongest mark
-       wash; the shipped theme supplies --mark-hover so indicated and standing stay two
-       distinct distances from the reader. */
-    .lf-thread.lf-mark-hover { background: var(--mark-hover, var(--mark-strong)); }
+    /* The panel half of the mark the pointer is indicating (paintHover). The quote is
+       the bounded panel representation of that passage; painting the card made a long
+       conversation one off-screen wash. The fallback keeps a custom theme without the
+       middle ramp token legible at its strongest mark wash. */
+    .lf-thread.lf-mark-hover > .lf-quote {
+      background: var(--mark-hover, var(--mark-strong));
+    }
     .lf-going { overflow: hidden; box-sizing: border-box; }
     /* The outcome rides the closing edge, so it is legible for the whole fold rather
        than for the frame before the box swallows it: the actions row is the thread's
@@ -1176,7 +1178,11 @@ ${MARK_RULES}
     .lf-going .lf-thread-actions { position: absolute; inset: auto var(--lf-thread-pad) var(--lf-thread-pad); background: var(--card); }
     .lf-going .lf-thread-send { visibility: hidden; }
     .lf-going .lf-resolve { color: var(--ok); }
-    .lf-thread.flash { animation: lf-runtime-4f3c2a8d-flash 1.2s ease-out; }
+    /* Direct navigation cues the same bounded box it revealed: a short card, one
+       message, the reply row, or an oversized editor. */
+    .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose textarea.flash {
+      animation: lf-runtime-4f3c2a8d-flash 1.2s ease-out;
+    }
     /* An arrival the reconcile added while the user was watching. Motion, not a
        jump: nothing above it moves, and the newcomer settles rather than appears. */
     .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }

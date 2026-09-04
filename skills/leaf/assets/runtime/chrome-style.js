@@ -1014,6 +1014,15 @@ ${MARK_RULES}
        questions off before they said which question they were. */
     .lf-decisions-says { display: -webkit-box; -webkit-box-orient: vertical;
       -webkit-line-clamp: 3; overflow: hidden; }
+    .lf-decisions-answer { display: none; margin-top: 3px; color: var(--ink-2);
+      font-size: var(--t-6); font-weight: 600; }
+    .lf-decisions-row[data-lf-answer-state="answered"] .lf-decisions-answer {
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      overflow: hidden; }
+    .lf-decisions-row[data-lf-answer-state="answered"] .lf-decisions-kind {
+      color: var(--ok-ink); }
+    .lf-decisions[data-lf-complete] { border-color: var(--ok);
+      background: var(--ok-tint); color: var(--ok-ink); }
     /* Version news remains a legible address at every width. When the row runs out of
        room the shelf above scrolls; clipping the one control instead left a visible
        eighteen-pixel button containing none of its words. */

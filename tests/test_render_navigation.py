@@ -79,7 +79,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(
         page.get_by_role(
             "heading",
-            name="Asks: unfinished decisions",
+            name="Asks: decisions and answers",
             exact=True,
         )
     ).to_be_visible()
@@ -97,7 +97,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-decisions").click()
     asks = page.locator("button.lf-decisions-row")
-    expect(asks).to_have_count(6)
+    expect(asks).to_have_count(7)
     expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -132,7 +132,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(
         page.get_by_role(
             "heading",
-            name="Asks: unfinished decisions",
+            name="Asks: decisions and answers",
             exact=True,
         )
     ).to_be_in_viewport()
@@ -2016,7 +2016,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(page.locator(".lf-decisions-row").first).to_be_focused()
     # A row is the reader standing at the ask it names, so the banner's count says
     # which of how many from the tray as it does from the page.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks (1/1)")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
     expect(page.locator(CHIPS)).to_have_count(0)
 
     # A direct destination also remembers the workspace it displaced. Threads replaces
@@ -2271,8 +2271,8 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page.close()
 
 
-def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
-    """An open panel remains reachable after working its last row removes that row."""
+def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
+    """An open panel remains reachable after working its last row completes it."""
     page, errors = open_page(
         browser,
         serve(
@@ -2295,17 +2295,14 @@ def test_a_g_panel_destination_survives_an_empty_open_asks_tray(browser, serve):
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    expect(page.locator(".lf-decisions-answer")).to_have_text("First")
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("Asks panel")
     page.keyboard.press("Shift+a")
-    expect(page.locator(".lf-decisions-panel")).to_be_focused()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("walk the asks")
-    assert (
-        page.locator(".lf-decisions-panel").get_attribute("aria-keyshortcuts") is None
-    )
+    expect(page.locator(".lf-decisions-row")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2372,20 +2369,8 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     page.close()
 
 
-def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
-    """A tray that has rendered nothing and a tray that has failed to render look alike.
-
-    The thread panel has said which of the two it is for as long as it has had an empty
-    state — "No threads yet", and then the gesture that would fill it. Asks answered the
-    same question with a blank panel, on the page a reader is most likely to open it from:
-    the one where they have just finished. The second half of the sentence names the agent
-    rather than a gesture, because a reader makes their own threads and does not make
-    their own asks.
-
-    Both states are read, because a note that stands whatever the tray holds is the same
-    fault wearing the other sign — and the tray is opened on a page that has an ask, so a
-    note that never renders at all could not pass either.
-    """
+def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
+    """Finishing a page preserves the tray's route back through the answer."""
     page, errors = open_page(
         browser,
         serve(
@@ -2401,9 +2386,6 @@ def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    note = page.locator(".lf-decisions-panel .lf-empty")
-    expect(note).to_have_count(0)
-
     # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
@@ -2411,10 +2393,9 @@ def test_an_asks_tray_with_nothing_in_it_says_so(browser, serve):
     page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
     expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(note).to_be_visible()
-    expect(note).to_contain_text("Nothing is waiting on you")
+    expect(page.locator(".lf-decisions-answer")).to_have_text("First")
     assert errors == []
     page.close()
 
@@ -5709,27 +5690,27 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     line = page.locator(".lf-keyline")
     decisions = page.locator(".lf-decisions")
 
-    # The premise, from the reader's list itself: the seated ask has left it, the picked
-    # group was never on it, and the suggestion is what remains to be counted.
-    expect(decisions).to_have_text("Asks (1)")
+    # The completion count includes every active Ask: the authored pick is complete;
+    # the seated Ask and suggestion are not.
+    expect(decisions).to_have_text("Asks 1/3")
     decisions.click()
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    # Which row, not just how many: one row is also what a build listing the picked group
-    # and dropping the suggestion would show.
+    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
+    expect(
+        page.locator('.lf-decisions-row[data-lf-at="shape-decision"]')
+    ).to_have_count(1)
+    expect(
+        page.locator('.lf-decisions-row[data-lf-at="picked-decision"]')
+    ).to_have_count(1)
     expect(page.locator('.lf-decisions-row[data-lf-at="sug-window"]')).to_have_count(1)
 
     # The reader is standing in it all the same — and first with the tray still open, the
-    # one state where the ring has a second surface to reach for and this decision has no row
-    # on it. `markHere` looks its row up by id and paints the row too; there is none, and
-    # the scroll that brings a row into view is the tray's own reading. So the decision wears
-    # the ring alone, and the tray goes on listing what the reader owes rather than
-    # gaining a row for where they happen to be standing.
+    # one state where the ring has a second surface to reach: the inventory row.
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    assert page.locator(".lf-decisions-row[data-lf-decision]").count() == 0, (
-        "the tray drew a here-ring on a row for a decision it does not list"
-    )
+    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
+    expect(
+        page.locator('.lf-decisions-row[data-lf-at="shape-decision"]')
+    ).to_have_attribute("data-lf-decision", "1")
     page.evaluate("() => document.activeElement?.blur()")
     decisions.click()
 
@@ -5737,9 +5718,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")
-    # The count says no place for it: a number there is a place in the walk's list, and
-    # this decision is off it while the agent owes the seat its next word.
-    expect(decisions).to_have_text("Asks (1)")
+    # The count is completion, not the open walk's position, so focus leaves it stable.
+    expect(decisions).to_have_text("Asks 1/3")
 
     # Answering hands the question back, and the count moves while the ring does not.
     # Focus is not touched again from here, so the ring read below is the one painted
@@ -5762,9 +5742,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             },
         )
     told(page)
-    # Back on the list, the standing the ring never dropped is now a place in it, so the
-    # count gains the place along with the number.
-    expect(decisions).to_have_text("Asks (1/2)")
+    # Back on the reader's open list, the same Ask is still incomplete, so the
+    # completion count remains stable.
+    expect(decisions).to_have_text("Asks 1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
     expect(line).to_contain_text("comment on the decision")

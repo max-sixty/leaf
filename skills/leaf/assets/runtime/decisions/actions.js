@@ -20,32 +20,43 @@ const words = (value) =>
   String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
+const ANSWER_CAP = 120;
+const answerWords = (value) => {
+  const whole = words(value);
+  if ([...whole].length <= ANSWER_CAP) return whole;
+  const short = [...whole].slice(0, ANSWER_CAP).join("");
+  const at = short.lastIndexOf(" ");
+  return (at > ANSWER_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
+};
 
-/** Register the ordered controls that work one decision source.
+/** Register the ordered controls and current answer for one decision source.
  *
  * `read` is called at projection time because a widget may exchange its controls while
  * keeping the same decision open. Each item is `{control, label, address?}`; the label is
  * the action's short reader-facing name, an optional existing address face supplies its
  * canonical placement, and the control's native `click()` remains the one activation path.
+ * `answer` reads the concise words the tray shows after that decision is answered.
  */
-export function registerDecisionActions(source, read) {
+export function registerDecisionActions(source, read, answer) {
   if (!(source instanceof Element))
     throw new TypeError("Decision actions need an Element source");
   if (typeof read !== "function")
     throw new TypeError("Decision actions need an ordered reading function");
+  if (typeof answer !== "function")
+    throw new TypeError("Decision actions need a current-answer reading function");
   if (registrations.has(source))
     throw new TypeError("A decision source may register its actions only once");
-  registrations.set(source, read);
+  registrations.set(source, { read, answer });
   changed();
   return { update: changed };
 }
 
 export function decisionActions(source) {
-  const read = registrations.get(source);
-  if (!read) return [];
+  const registration = registrations.get(source);
+  if (!registration) return [];
   const seen = new Set();
   const seenAddresses = new Set();
-  return [...read()].map((action, index) => {
+  return [...registration.read()].map((action, index) => {
     const control = action?.control;
     const label = words(action?.label);
     const address = action?.address ?? null;
@@ -62,6 +73,11 @@ export function decisionActions(source) {
     if (address) seenAddresses.add(address);
     return { control, label, address };
   });
+}
+
+export function decisionAnswer(source) {
+  const registration = registrations.get(source);
+  return registration ? answerWords(registration.answer()) : "";
 }
 
 export function watchDecisionActions(listener) {

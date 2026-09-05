@@ -3698,8 +3698,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           const { commands } = await import('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await import('/runtime/keyboard/bindings.js');
-          const { createReturnStack } =
-            await import('/runtime/keyboard/return-stack.js');
+          const { invoke } = await import('/runtime/keyboard/return-stack.js');
           const { paintKeys } = await import('/runtime/keyboard/scopes.js');
           const declare = (id, rows) => {
             const button = document.createElement('button');
@@ -3747,13 +3746,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             return {declaration, paints};
           };
           const malformedFrame = () => {
-            const stack = createReturnStack({
-              focused: () => document.body,
-              paintHere: () => {},
-              readingBlock: () => document.querySelector('main'),
-            });
             try {
-              stack.invoke(
+              invoke(
                 {id: 'test.bad-frame', returnFrame: () => ({active: () => true})},
                 'F8',
                 () => {},

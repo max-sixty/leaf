@@ -104,6 +104,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
 });
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
+export const pagePresented = () =>
+  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 
 // A word for a reader listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -211,7 +213,7 @@ function clearExternalLink(link, state) {
   state.note?.remove();
   externalLinkState.delete(link);
 }
-export function renderExternalLinks(root) {
+function renderExternalLinks(root) {
   const links = [...(root.matches?.("a") ? [root] : []), ...root.querySelectorAll("a")];
   for (const link of links) {
     // SVG links share this selector but not the HTML anchor API, and they have no

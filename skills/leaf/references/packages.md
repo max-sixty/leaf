@@ -117,7 +117,7 @@ or start with `~`. Absolute paths are refused because the vendored registry is p
 The always-present `default` package cannot be selected explicitly. A package may
 contain zero, one, or many widgets. Those cardinalities do not change its contract.
 
-A replacement `leaf.js` must retain the quoted
+A replacement `runtime/layer-client.js` must retain the quoted
 `"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
 with the same fresh epoch it writes into the merged registry; without that pair,
 a runtime loaded before a re-vendor could speak the replacement registry as though

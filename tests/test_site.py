@@ -194,11 +194,14 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     generation = json.loads((site / "registry.json").read_text())["$layer"][
         "generation"
     ]
-    source = (ASSETS / "leaf.js").read_text()
-    assert source.count('"__LEAF_LAYER_GENERATION__"') == 1
-    assert (site / "runtime.js").read_text() == source.replace(
+    assert (site / "runtime.js").read_text() == (ASSETS / "leaf.js").read_text(), (
+        "the runtime the site serves is not the shipped file"
+    )
+    client = (ASSETS / "runtime" / "layer-client.js").read_text()
+    assert client.count('"__LEAF_LAYER_GENERATION__"') == 1
+    assert (site / "runtime" / "layer-client.js").read_text() == client.replace(
         '"__LEAF_LAYER_GENERATION__"', json.dumps(generation)
-    ), "the runtime the site serves is not the shipped file"
+    ), "the layer client the site serves is not the shipped file, stamped"
     for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     site_idioms = json.loads((DOCS / "package" / "registry.json").read_text())[

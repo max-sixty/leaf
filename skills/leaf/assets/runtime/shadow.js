@@ -21,20 +21,69 @@ export const shadowRootsIn = (root) =>
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
+// The parent, crossing a shadow root's boundary on the way up: the one walk every reading
+// that climbs out of a widget takes.
+export const upFrom = (node) =>
+  node?.parentElement ?? node?.getRootNode()?.host ?? null;
+
+// Which layer a node stands in — the runtime's chrome, a declared label, or the
+// document — is asked by every reading that climbs out of a widget, so it is answered
+// here, beside the climb, where geometry.js and widget-elements.js can ask it without
+// importing the passage readings back.
+// Is `node` inside `root`? `Element.contains` stops at a shadow boundary and these
+// readings walk through one, so the climb is the same one `closestAcross` makes.
+export const under = (node, root) => {
+  for (let a = node; a; a = a.parentNode ?? a.host ?? null) if (a === root) return true;
+  return false;
+};
+
+// The chrome over a node, read within one frame: above the frame it is nobody's, and with
+// no frame at all it is the document's own reading, unchanged.
+export const overIn = (el, selector, frame) => {
+  const near = el.closest(selector);
+  return near && (!frame || under(near, frame)) ? near : null;
+};
+// A label a widget declared as the page speaking (relabel), which the anchor pass reads
+// over the chrome it sits in.
+const SAID = "[data-lf-said]";
+// The same question one node at a time: is this the runtime's own chrome rather than the
+// document? Every affordance asks it before acting on where the pointer or the caret is.
+// The nearest element that answers wins: a declared label is the page's words inside the
+// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
+// the answer once, and it is a look — which is how a user ended up reading a heading
+// they could not point at, twice.
+//
+// Bounded or not, by the second argument, and that is the whole difference between the
+// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
+// control is the runtime's apparatus wherever it stands, which is what a pointer or a
+// caret needs to know. Bounded at an element, the answer is about that element's own
+// insides, which is what a reading of one widget needs: the panel holding a widget an
+// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
+// such a widget answers yes, and the widget reads as having nothing of its own left.
+// The text readings took the same seam (quotable, shownParts, settledAway, authored);
+// it is stated once here so
+// that what a mark may hang on, what a settlement has emptied, and what a quote may
+// name cannot come apart.
+export const uiInside = (el, within) => {
+  const near = el && overIn(el, `.lf-ui, ${SAID}`, within);
+  return Boolean(near) && !near.matches(SAID);
+};
+export const inUi = (node) =>
+  uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 
 // The theme's rules for shadow trees, sliced out once at load (see the markers in
 // theme.css). Every layer may contribute a block; concatenating them in theme order
 // preserves the same cascade inside a declared shadow root as in the document. Read
 // from the theme rather than written here so a project override travels with the widget,
 // and fetched during upgrade so the stage below stays synchronous for its callers.
-let shadowRules = "";
+export let shadowRules = "";
 const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
 // A top-layer element no longer composites through its light/shadow ancestors, so the
 // document's rules cannot withhold a dialog or popover promoted out of an x-shadow
 // widget. Every legitimate page shadow tree is built here; repeat that narrow boundary
 // inside it, together with transition suppression. The shadow's ordinary contents still
 // paint before presentation, just like authored light DOM.
-const SHADOW_STARTUP_CSS = `
+export const SHADOW_STARTUP_CSS = `
 @layer {
   @media screen {
     :host-context(body:not([data-lf-presented])) *,
@@ -81,46 +130,3 @@ async function readShadowRules() {
 import marksSheet from "./marks.css" with { type: "css" };
 
 export { marksSheet };
-
-// The stage an x-shadow widget renders into. A module never calls attachShadow itself,
-// because the marks the runtime paints come from a registry that is the document's while
-// the ::highlight() rules styling them are not — they reach no shadow tree. A root
-// attached anywhere else would show words the reader can select and no mark could ever
-// paint, which is the one failure this whole capability exists to avoid.
-//
-// The two sheets arrive differently on purpose. The theme's rules go in as a <style>
-// element, because that is markup and a copy keeps it; the marks are adopted, because
-// they are the live comment layer, which a copy drops with the rest of the chrome — an
-// adopted sheet is in no element's markup and would not survive the export either way.
-//
-// It takes the nodes rather than handing back a root to fill, so the style cannot be
-// left out: a module that wrote its own children would replace the one thing holding its
-// look, and it would look right in exactly the session where someone remembered. Same
-// reasoning as renderSaid — a rule each widget has to remember is a rule that gets
-// forgotten, and the forgetting is invisible until a page ships without it.
-let publishedShadowStage;
-export const shadowStage = (...args) => publishedShadowStage(...args);
-
-export function createShadowStage(watchDisclosures, watchExternalLinks, setChildren) {
-  publishedShadowStage = function stageShadow(host, nodes) {
-    // serializable, because a copy is rendered DOM with the scripts dropped and a shadow
-    // root is in no element's outerHTML: exported without this, a diff leaves an empty
-    // element where its lines were, which is the one medium that cannot be re-rendered
-    // later. With it, `version export` writes a declarative <template shadowrootmode>
-    // the browser rebuilds on open, with nothing running.
-    const root =
-      host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
-    root.adoptedStyleSheets = [marksSheet];
-    // A root is the one place the key line's watch cannot reach on its own: a `toggle`
-    // from inside one is not composed, and a MutationObserver does not cross the
-    // boundary either.
-    watchDisclosures(root);
-    const style = document.createElement("style");
-    style.textContent = SHADOW_STARTUP_CSS + shadowRules;
-    // Fragment hydration can add a sheet while the reader uses an existing control.
-    // Keep retained nodes connected, preserving their focus and widget lifecycle.
-    setChildren(root, [style, ...nodes]);
-    watchExternalLinks(root);
-    return root;
-  };
-}

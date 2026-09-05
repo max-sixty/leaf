@@ -1,8 +1,9 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
-   its domain owner; leaf.js composes those owners and owns boot only. */
+   its domain owner; owners import one another, and leaf.js only boots. */
 export { ARRANGEMENTS } from "./arrangements.js";
 export { itemWord, navigateToDatum } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
+export { inUi, uiInside } from "./shadow.js";
 export {
   answeredContext,
   decisionSource,
@@ -28,18 +29,11 @@ export { announce, notice } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
 export { alignText } from "./text-alignment.js";
-export {
-  inChrome,
-  inUi,
-  renderRetired,
-  says,
-  textNodesUnder,
-  uiInside,
-  wrote,
-} from "./passages.js";
+export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
-export { shallowSigs, standingState, undoableAction, withdraw } from "./projection.js";
-export { shadowStage } from "./shadow.js";
+export { shallowSigs, undoableAction, withdraw } from "./projection.js";
+export { standingState } from "./projection/fold.js";
+export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
 export { loadDataFragment, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";

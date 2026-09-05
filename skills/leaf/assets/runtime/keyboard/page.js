@@ -8,15 +8,9 @@
 import { containsAcross, elementById, inChrome, pageQueryAll } from "../passages.js";
 import { openThreads, threadList } from "../conversation/reconcile.js";
 import { documentFocused, focused, keys } from "./scopes.js";
-import {
-  actionRow,
-  DECISION_CONTROL,
-  decisionPlace,
-  standingIn,
-  stepDecision,
-} from "../decisions/view.js";
+import { actionRow, ASK_CONTROL, askPlace, standingIn, stepAsk } from "../asks/view.js";
 import { anchoringIsReady, itemAt, itemWord } from "../anchors.js";
-import { currentTray, decisionsPanel, othersPanel, showTray } from "../trays.js";
+import { currentTray, asksPanel, othersPanel, showTray } from "../trays.js";
 import {
   findInput,
   generalHint,
@@ -48,7 +42,13 @@ import {
 } from "../conversation/landing.js";
 import { commentOnItem, stepReading, stepThread } from "../navigation.js";
 import { pageSelection } from "../composing/capture.js";
-import { REACT, reactionTokens, setReact, undoSentence } from "../reactions.js";
+import {
+  hasReactionTarget,
+  REACT,
+  reactionTokens,
+  setReact,
+  undoSentence,
+} from "../reactions.js";
 import { current, RETURN } from "./return-stack.js";
 import {
   ariaShortcuts,
@@ -84,7 +84,7 @@ import {
   SELECT,
   startSelecting,
 } from "../composing/targets.js";
-import { openDecisions } from "../decisions/model.js";
+import { openAsks } from "../asks/model.js";
 import { undoable, undoLast } from "../projection.js";
 import { GO, GOTO } from "./address.js";
 import { AIM } from "../composing/aim.js";
@@ -116,10 +116,10 @@ export function focusedThread() {
 // at nothing. The ⌥ aim reaches an item through the pointer and focus used to reach none
 // at all: tabbing to a link in an option left `c` offering the page.
 //
-// The unanswered decision where the reader is standing on a control that works it, and the innermost
+// The unanswered Ask where the reader is standing on a control that works it, and the innermost
 // item everywhere else. The control the walk stands them on is one part of the question
 // (standOn), so a press made
-// from a pick, a ✓ or a mark means the question those answer. Standing *in* a decision is not
+// from a pick, a ✓ or a mark means the question those answer. Standing *in* an Ask is not
 // the same fact: a reader who tabbed to a hyperlink has said
 // something more particular than the question containing it, and answering the question
 // there both overrides what they named and made the same markup answer differently
@@ -127,12 +127,12 @@ export function focusedThread() {
 // option, the identical link in an open one gave the whole group.
 //
 // So the ring `markHere` paints and this are two questions, and the earlier version had
-// them confused. The ring says which decision the reader is in, for the walk and the answering
+// them confused. The ring says which Ask the reader is in, for the walk and the answering
 // keys; this says what a remark made here is about. They agree wherever the reader is
-// working the decision, which is every arrival the decision walk makes.
+// working the Ask, which is every arrival the Ask walk makes.
 //
-// Below that, the innermost item — the aim's own reading — through `decisionPlace`, so a
-// control a widget hoisted into the margin speaks for the decision it points back at rather
+// Below that, the innermost item — the aim's own reading — through `askPlace`, so a
+// control a widget hoisted into the margin speaks for the Ask it points back at rather
 // than for the block it hangs beside.
 //
 // Focus in the chrome is not a place in the page. The banner, the panel and the trays are
@@ -140,15 +140,15 @@ export function focusedThread() {
 // from one means the page whole. A box that takes letters never arrives here at all: the
 // typing scope claims the letter before the page is asked.
 //
-// `documentFocused()` rather than `focused()`, for the reason decisionPosition gives: a control
+// `documentFocused()` rather than `focused()`: a control
 // staged in a shadow tree retargets to its host, and the host is the place in the document
 // both the chrome guard and the item walk want. standingConversation below wants the inner
 // reading, and says so.
 export function standingItem() {
   const held = documentFocused();
   if (!held || held === document.body || inChrome(held)) return null;
-  const working = held.matches?.(DECISION_CONTROL) ? standingIn() : null;
-  return working ?? itemAt(decisionPlace(held));
+  const working = held.matches?.(ASK_CONTROL) ? standingIn() : null;
+  return working ?? itemAt(askPlace(held));
 }
 
 // The conversation the reader is standing in, and the box it is written in. Three
@@ -197,11 +197,11 @@ function commenting(word) {
 
 function workspaceControlRoute(control) {
   if (!control || control === document.body) return () => null;
-  const decision = control?.closest?.(".lf-decisions-row[data-lf-at]");
-  if (decision) {
-    const target = decision.dataset.lfAt;
+  const ask = control?.closest?.(".lf-asks-row[data-lf-at]");
+  if (ask) {
+    const target = ask.dataset.lfAt;
     return () =>
-      [...decisionsPanel.querySelectorAll(".lf-decisions-row[data-lf-at]")].find(
+      [...asksPanel.querySelectorAll(".lf-asks-row[data-lf-at]")].find(
         (row) => row.dataset.lfAt === target,
       ) ?? null;
   }
@@ -312,6 +312,11 @@ export function hasCapturedTarget() {
   return Boolean(fabAnchorAt());
 }
 
+export const responseInstructions = () =>
+  reactionTokens().length
+    ? "Press c to comment, or r to react."
+    : "Press c to comment.";
+
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, an open thread the reader is
 // standing in gets its own reply box, the item they are standing in gets the box belonging
@@ -322,7 +327,7 @@ export function hasCapturedTarget() {
 //
 // Standing outranks the page and not the pointer: a reader who has just selected words or
 // raised the 💬 on something has said what they mean more recently than the focus they left
-// behind, which is the order decisionPosition reads its own answers in.
+// behind, which is the order the target reading below uses.
 function commentKey() {
   updateFab(); // the selection may be newer than the mouseup that last placed the bar
   commentDestination().go();
@@ -332,7 +337,7 @@ function commentKey() {
 // are bare letters stands down wherever a letter is a keystroke. That is the whole of the
 // question, and asking a wider one cost the page its keyboard: every `<input>` counted,
 // so a reader standing on a screenshot's before/after radio — which consumes no letter the
-// platform ever gave it — lost c, page travel, decision travel and the rest, with nothing on screen saying why.
+// platform ever gave it — lost c, page travel, Ask travel and the rest, with nothing on screen saying why.
 // A select is in, its letters jumping its options; a radio, a checkbox, a slider, a colour
 // or file button are out. The platform's set of text-entry types, stated whole: a denylist
 // named the two controls to hand and left a slider swallowing the Escape rung the same way
@@ -364,11 +369,11 @@ export function takesLetters(node) {
 }
 
 // Letting go of what the reader is standing on. One act at both ends of the ladder, and
-// one line of code, because standing on a decision out on the page and standing on a banner
+// one line of code, because standing on an Ask out on the page and standing on a banner
 // button are the same state — the reader holding something — reached from either side of
 // the chrome. What the two rungs do not share is the word, and neither word is the other's:
 // leaving the chrome names where the reader lands, since that is the whole of what the
-// rung is for, and letting go of a decision names the act, since they were on the page all
+// rung is for, and letting go of an Ask names the act, since they were on the page all
 // along.
 //
 // Focus rather than blur, because the two differ in what Space does next: a focused
@@ -396,9 +401,9 @@ function browserDismissesTopLayer() {
 // pointer-opened workspaces, captured targets, and ordinary focus traversal. Commanded
 // entries use the return stack and never infer their inverse from this resulting scene.
 //
-// So the first rung is theirs: out on the page, the innermost thing they are in is the decision
+// So the first rung is theirs: out on the page, the innermost thing they are in is the Ask
 // they are standing on, and a panel behind them is a layer they are not in. Nothing said
-// this before — a reader the walk had brought to a decision could press Escape all day and the
+// this before — a reader the walk had brought to an Ask could press Escape all day and the
 // ring stayed on it, the one place in the runtime a key put the reader somewhere with no
 // key to take them out again.
 //
@@ -426,10 +431,9 @@ function rung() {
   const tray = currentTray();
   if (tray) {
     // The tray's key is the runtime's; the reader knows the strip by the banner's word.
-    const word = tray === "decisions" ? "asks" : tray;
     return {
-      says: `close ${word}`,
-      does: `Close the ${word} tray`,
+      says: `close ${tray}`,
+      does: `Close the ${tray} tray`,
       out: () => showTray(null),
     };
   }
@@ -463,7 +467,7 @@ function rung() {
 // The sentence is the rung's for the reason `c`'s is the anchor's: the reader can see
 // which branch they are in, so a word covering all of them tells them nothing. "Back out
 // one layer" was true while every rung took a layer of chrome off the page, and stopped
-// being true the day the first rung became letting go of a decision, which is no layer at
+// being true the day the first rung became letting go of an Ask, which is no layer at
 // all — the line saying "let go" while the reference said "layer" about the same press.
 const BACK_OUT = {
   id: "navigation.back",
@@ -1097,15 +1101,8 @@ export function pageScopes() {
   const PAGE = {
     rows: [
       actionRow,
-      // The two presses that say something back, first, because the resting line is the
-      // only sentence a reader who has not pressed anything yet will read. It used to open
-      // `/ search page · s select item`, which are both ways of *finding* a thing to act on
-      // and so named no act at all: a page whose whole point is the remark it carries never
-      // said the word "comment" until the reader pressed `?`. The captured-target case had
-      // already worked this out for itself — `s` steps off the line and BACK_OUT gives up
-      // its promotion so that `c` and `r` own the two slots on the thing just chosen — and
-      // this is that same ranking with nothing chosen. Finding is still a press away;
-      // saying something was three.
+      // Comment can act immediately because the page itself is its target. Selecting a
+      // more particular target is the second step; only then does React become an action.
       {
         id: "comment.create",
         keys: ["c"],
@@ -1128,6 +1125,18 @@ export function pageScopes() {
         run: commentKey,
       },
       {
+        id: "selection.open",
+        keys: ["s"],
+        does: "Choose a visible item by hint",
+        line: "select item",
+        // Once a target is in hand, its actions own the two short-line slots. Escape clears
+        // it, while this projection-only gate leaves s live to replace the target and keeps
+        // that capability in the complete reference.
+        lineWhen: () => !hasCapturedTarget(),
+        when: anchoringIsReady,
+        run: (...args) => startSelecting(...args),
+      },
+      {
         // `r` opens the list on the target the reader has already named: the current
         // selection, item, or agent reply. Digits are optional accelerators in the
         // registry's declared order.
@@ -1142,7 +1151,9 @@ export function pageScopes() {
             )} — for the selection, the item you are standing on, or the reply you are reading`,
         line: "react",
         when: () =>
-          reactionTokens().length > 0 && (anchoringIsReady() || !pageSelection()),
+          reactionTokens().length > 0 &&
+          hasReactionTarget() &&
+          (anchoringIsReady() || !pageSelection()),
         run: () => {
           // Selection capture normally follows the pointer gesture in its queued turn.
           // A fast `r` may arrive before that turn even though the native Selection is
@@ -1152,22 +1163,8 @@ export function pageScopes() {
           setReact(true);
         },
       },
-      // Then the two ways of choosing what to say it about. They are one press from the
-      // shelf and named in full by the reference, which is where a capability the reader
-      // has not asked for yet belongs.
+      // Search remains one press from the shelf and named in full by the reference.
       PAGE_SEARCH,
-      {
-        id: "selection.open",
-        keys: ["s"],
-        does: "Choose a visible item by hint, to comment on or react to",
-        line: "select item",
-        // Once a target is in hand, its actions own the two short-line slots. Escape clears
-        // it, while this projection-only gate leaves s live to replace the target and keeps
-        // that capability in the complete reference.
-        lineWhen: () => !hasCapturedTarget(),
-        when: anchoringIsReady,
-        run: (...args) => startSelecting(...args),
-      },
       {
         id: "thread.walk",
         // A walk's letter names its category; Shift reverses it. The two existing
@@ -1184,25 +1181,25 @@ export function pageScopes() {
         run: (binding) => stepThread(binding === "t" ? 1 : -1),
       },
       {
-        id: "decision.walk",
+        id: "ask.walk",
         keys: ["a", "Shift+a"],
         routes: [
           {
-            id: "decision.next",
+            id: "ask.next",
             binding: "a",
             does: "Next ask this page is waiting on you for",
           },
           {
-            id: "decision.previous",
+            id: "ask.previous",
             binding: "Shift+a",
             does: "Previous ask this page is waiting on you for",
           },
         ],
         does: "Next / previous ask this page is waiting on you for",
         line: "asks",
-        when: () => openDecisions().length > 0,
+        when: () => openAsks().length > 0,
         repeat: true,
-        run: (binding) => stepDecision(binding === "a" ? 1 : -1),
+        run: (binding) => stepAsk(binding === "a" ? 1 : -1),
       },
       {
         id: "page.move",
@@ -1280,7 +1277,7 @@ export function pageScopes() {
       // says how to undo the press that put them there.
       BACK_OUT,
       // And the chord below it, having sat among the walks and pushed it off the end of a
-      // 1280px line — the reader standing on a decision, which is the one place the way out was
+      // 1280px line — the reader standing on an Ask, which is the one place the way out was
       // written for. What it costs to yield is small and what it buys is not: `g` opens a
       // door to three lists the walks above already reach one at a time, so a narrow window
       // hides a second way to somewhere; the press it was crowding out is the only way back
@@ -1339,7 +1336,7 @@ function coreScopes() {
 
 // A control the keyboard reaches names its shortcut from the row. `control` is where a
 // row says which control it duplicates; its projection follows liveness too, so a disabled
-// decision does not advertise a shortcut the dispatcher has withdrawn. The latest-version
+// Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
 // chip's route spans two rows, so it is composed from both.
 export function paintCoreControls() {
   const returningToMore = Boolean(keylineExpanded());

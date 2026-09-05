@@ -151,7 +151,7 @@ import { resetAuthoredPage } from "./projection.js";
 import { banner, stateSignoff } from "./banner.js";
 import { importWidgets, rememberPassageParts } from "./widget-loader.js";
 import { syncLayout } from "./chrome-layout.js";
-import { landedAt, setLanded } from "./decisions/view.js";
+import { landedAt, setLanded } from "./asks/view.js";
 import {
   anchoringIsReady,
   fragmentId,
@@ -1334,7 +1334,7 @@ export async function prepareActivation(state) {
 // at the top mid-session, standing nowhere in the walk they were making. Where they are
 // rides across as one semantic view — and through tabStore on document travel, per-tab
 // because a place in a page shouldn't outlive it. Two things are recorded, because
-// decisionPosition reads two the runtime can write down: the passage they were reading, and
+// the runtime records two things it can write down: the passage they were reading, and
 // the ask the a/A walk had stepped them to. The passage travels as a landmark rather
 // than a pixel offset, since content moves between versions: re-find it by its text
 // within its section, then the section alone, and only fall back to the raw offset when
@@ -1345,7 +1345,7 @@ export async function prepareActivation(state) {
 // The page's own text blocks the reader can see, in document order, with the rect of each
 // one's first line — one reading of what is in front of them, for the two questions that
 // ask it: which passage a version change should land them back on (below), and where a
-// walk over the page's decisions starts when they have pointed at nothing (decisionPosition).
+// walk over the page's Asks starts when they have pointed at nothing.
 // A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
 function* blocksOnScreen() {
@@ -1364,7 +1364,7 @@ function* blocksOnScreen() {
   }
 }
 // The one block the reader is on, which is the first the walk above yields. Two
-// things outside ask it — where a decision walk starts, and where the keyboard
+// things outside ask it — where an Ask walk starts, and where the keyboard
 // reference hands a reader back to — and they were asking it in two places with the
 // same expression written out twice.
 export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
@@ -1374,12 +1374,12 @@ export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // to the section, which doesn't absorb content added above the reader inside it.
 function captureView() {
   const view = { revision: runtime.currentRevision, y: pageScroller.scrollTop };
-  // Where the decision walk left off, which is the reader's place stated more exactly than
+  // Where the Ask walk left off, which is the reader's place stated more exactly than
   // any block can state it — the walk put them there on purpose. Its element identity
   // does not survive an authored-main replacement, and the module variable does not
   // survive document travel, so the id is the one form both can restore. The ring is not
   // recorded beside it: it is painted from focus, and another document starts on the page.
-  view.decision = landedAt()?.id;
+  view.ask = landedAt()?.id;
   for (const [block, rect] of blocksOnScreen()) {
     const section = block.closest("[id]");
     if (!view.section && section) {
@@ -1411,14 +1411,14 @@ function captureView() {
 function restoreView(view) {
   // Where the walk left off, put back before the scroll below restores the coarser
   // reading of the same fact — and put back whether or not this version answered that
-  // decision, since a decision the reader has not stepped off is still the one they would step
-  // from. The document's own lookup rather than elementById: the decision list is the
-  // document's (openDecisions), and a landing inside a shadow tree is one decisionStep could never
-  // measure against. A thread's decision is not here yet — the panel is rebuilt from the log
-  // on the first poll, which is behind this — so the record answers for the page's decisions
+  // Ask, since an Ask the reader has not stepped off is still the one they would step
+  // from. The document's own lookup rather than elementById: the Ask list is the
+  // document's (openAsks), and a landing inside a shadow tree is one stepAsk could never
+  // measure against. A thread's Ask is not here yet — the panel is rebuilt from the log
+  // on the first poll, which is behind this — so the record answers for the page's Asks
   // and says nothing about the panel's, rather than restoring a second time later over a
   // walk the reader has made since.
-  setLanded((view.decision && document.getElementById(view.decision)) || null);
+  setLanded((view.ask && document.getElementById(view.ask)) || null);
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   const segments = targetSegments(found);
@@ -1446,7 +1446,7 @@ function restoreView(view) {
 // it back. The Ask's numbered actions remain live over a focused pick mark; those are
 // presses the reader is about to make, and a replacement that dropped the focus onto
 // body took the offer down with it — the digit then picked nothing, silently. Node
-// identity does not survive the swap, so the place is stated the way the decision above
+// identity does not survive the swap, so the place is stated the way the Ask above
 // is, by id: the nearest element carrying one, and within it the control by kind and
 // position, since a grip or a pick mark is the runtime's and carries no id of its own.
 // A control staged in a shadow tree is out of the place's own query and comes back as

@@ -1,9 +1,9 @@
 """Conversation-scoped browser projection."""
 
-from ..decisions import (
-    local_decision_entry,
-    thread_decision_inventory,
-    thread_decision_projection,
+from ..asks import (
+    local_ask_entry,
+    thread_ask_inventory,
+    thread_ask_projection,
 )
 from ..events import (
     awaits_agent,
@@ -24,11 +24,11 @@ def _thread_awaits_reader(
     registry: dict,
     awaiting: dict[str, bool],
     structure,
-    open_decision_threads: set[str],
+    open_ask_threads: set[str],
 ) -> bool:
     if thread["resolved"]:
         return False
-    if thread_id in open_decision_threads:
+    if thread_id in open_ask_threads:
         return True
     turns = spoken_turns(thread)
     if not turns or turns[-1]["author"] != "claude":
@@ -36,15 +36,13 @@ def _thread_awaits_reader(
     last = turns[-1]
     if last["kind"] == "reply":
         fragment = structure.fragments.get(last["id"])
-        decisions = [
+        asks = [
             rec["attrs"].get("id")
             for rec in (fragment.lf_elements if fragment else [])
-            if local_decision_entry(registry.get(rec["tag"]) or {})
+            if local_ask_entry(registry.get(rec["tag"]) or {})
         ]
         structural = (
-            any(awaiting.get(identity, False) for identity in decisions)
-            if decisions
-            else None
+            any(awaiting.get(identity, False) for identity in asks) if asks else None
         )
         if structural is False or (structural is None and not last.get("awaits")):
             return False
@@ -69,21 +67,21 @@ def _browser_conversation(
         registry,
         {"kind": "thread"},
     )
-    decisions, awaiting = thread_decision_projection(
+    asks, awaiting = thread_ask_projection(
         events,
         registry,
         settled,
         reading=reading,
         request_phases=request_phases(requests),
     )
-    all_decisions = thread_decision_inventory(
+    all_asks = thread_ask_inventory(
         events,
         registry,
         settled,
         reading=reading,
         request_phases=request_phases(requests),
     )
-    open_decision_threads = {decision["thread"] for decision in decisions}
+    open_ask_threads = {ask["thread"] for ask in asks}
     rendered_threads = [
         {
             **thread,
@@ -94,7 +92,7 @@ def _browser_conversation(
                 registry,
                 awaiting,
                 reading.structure,
-                open_decision_threads,
+                open_ask_threads,
             ),
             "bare_reaction": bare_reaction(thread),
             "seat": seat_root(thread),
@@ -107,10 +105,10 @@ def _browser_conversation(
             "projection": _browser_projection(
                 reading.projection, scope="conversation", within={}, floors={}
             ),
-            "decisions": {
-                "all": all_decisions,
-                "reader": decisions,
-                "unanswered": decisions,
+            "asks": {
+                "all": all_asks,
+                "reader": asks,
+                "unanswered": asks,
                 "awaiting": awaiting,
             },
             "requests": requests,

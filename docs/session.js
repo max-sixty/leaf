@@ -48,6 +48,12 @@ let VERSION;
 let VERSIONS;
 const realFetch = window.fetch.bind(window);
 
+async function requireFile(path) {
+  const response = await realFetch(path);
+  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
+  return response;
+}
+
 function installIdentity(name, value) {
   const selector = `meta[name="${name}"][data-lf-runtime]`;
   let marker = document.querySelector(selector);
@@ -72,13 +78,10 @@ let LAYER;
 let DATA;
 let events;
 const sessionReady = Promise.all([
-  realFetch("/registry.json").then((response) => response.json()),
-  realFetch(`${PAGE_ROOT}data.json`)
-    .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
-    .catch(() => ({ revision: 0, sources: {} })),
-  realFetch(`${PAGE_ROOT}events.jsonl`)
-    .then((response) => (response.ok ? response.text() : ""))
-    .catch(() => "")
+  requireFile("/registry.json").then((response) => response.json()),
+  requireFile(`${PAGE_ROOT}data.json`).then((response) => response.json()),
+  requireFile(`${PAGE_ROOT}events.jsonl`)
+    .then((response) => response.text())
     .then((text) =>
       text
         .split("\n")
@@ -311,7 +314,7 @@ const quoted = (element) => {
   return false;
 };
 
-function demoDecisions(projection, threads) {
+function demoAsks(projection, threads) {
   const standing = new Set(projection.actions);
   const withAgent = new Set(
     threads
@@ -319,17 +322,17 @@ function demoDecisions(projection, threads) {
       .map((thread) => thread.seat)
       .filter(Boolean),
   );
-  const decisions = { all: [], reader: [], unanswered: [] };
+  const asks = { all: [], reader: [], unanswered: [] };
   const awaiting = {};
   const unansweredAwaiting = {};
   for (const [tag, entry] of Object.entries(REGISTRY)) {
-    const decision = entry?.["x-awaits"];
-    const request = entry?.["x-request"]?.decision;
-    if (tag.startsWith("$") || (!request && (!decision || decision.rollup))) continue;
+    const ask = entry?.["x-awaits"];
+    const request = entry?.["x-request"]?.ask;
+    if (tag.startsWith("$") || (!request && (!ask || ask.rollup))) continue;
     for (const element of document.querySelectorAll(tag)) {
       if (
         !element.id ||
-        (!request && !matchesWhen(element, decision.when)) ||
+        (!request && !matchesWhen(element, ask.when)) ||
         quoted(element)
       )
         continue;
@@ -337,7 +340,7 @@ function demoDecisions(projection, threads) {
         ? events.some(
             (event) => event.kind === "request" && event.widget === element.id,
           )
-        : (decision.answers ?? []).some((verb) =>
+        : (ask.answers ?? []).some((verb) =>
             projection.entries.some(
               (candidate) =>
                 candidate.event.widget === element.id &&
@@ -351,24 +354,24 @@ function demoDecisions(projection, threads) {
       unansweredAwaiting[element.id] = stillUnanswered;
       let surface = element;
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
-        if (REGISTRY[parent.localName]?.["x-decision"]) {
+        if (REGISTRY[parent.localName]?.["x-ask-surface"]) {
           surface = parent;
           break;
         }
       }
       const description = { id: surface.id, tag: surface.localName, thread: null };
-      decisions.all.push(description);
-      if (waitsOnReader) decisions.reader.push(description);
-      if (stillUnanswered) decisions.unanswered.push(description);
+      asks.all.push(description);
+      if (waitsOnReader) asks.reader.push(description);
+      if (stillUnanswered) asks.unanswered.push(description);
     }
   }
-  return { ...decisions, awaiting, unansweredAwaiting };
+  return { ...asks, awaiting, unansweredAwaiting };
 }
 
 function demoBrowser(revision = REVISION) {
   const projection = demoProjection(revision);
   const threads = demoThreads();
-  const decisions = demoDecisions(projection, threads);
+  const asks = demoAsks(projection, threads);
   const throughSeq = events.at(-1)?.seq ?? 0;
   const coverage = events
     .filter((event) => ["action", "report", "undo"].includes(event.kind))
@@ -399,12 +402,12 @@ function demoBrowser(revision = REVISION) {
         document: {
           revision,
           projection,
-          decisions: {
-            all: decisions.all,
-            reader: decisions.reader,
-            unanswered: decisions.unanswered,
-            awaiting: decisions.awaiting,
-            unanswered_awaiting: decisions.unansweredAwaiting,
+          asks: {
+            all: asks.all,
+            reader: asks.reader,
+            unanswered: asks.unanswered,
+            awaiting: asks.awaiting,
+            unanswered_awaiting: asks.unansweredAwaiting,
           },
         },
         updates: [],
@@ -415,7 +418,7 @@ function demoBrowser(revision = REVISION) {
     },
     conversation: {
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      decisions: { all: [], reader: [], unanswered: [], awaiting: {} },
+      asks: { all: [], reader: [], unanswered: [], awaiting: {} },
       threads,
       done: events.filter((event) => event.kind === "done"),
     },

@@ -4,12 +4,7 @@ export { ARRANGEMENTS } from "./arrangements.js";
 export { itemWord, navigateToDatum } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
-export {
-  answeredContext,
-  decisionSource,
-  openDecisions,
-  watchDecisions,
-} from "./decisions/model.js";
+export { answeredContext, askSource, openAsks, watchAsks } from "./asks/model.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox } from "./conversation/box.js";
 export { registerThreadSurface } from "./conversation/surfaces.js";

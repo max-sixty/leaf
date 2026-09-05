@@ -5,7 +5,7 @@
    fitting a Button: like a coat button, it is one consistent piece attached to the
    passage, not a synonym for every HTML `<button>` on the page. The cluster is the single
    place for controls the reader can use on the target, communications they can start
-   about it, and standing information such as comment threads, decisions, changes, or
+   about it, and standing information such as comment threads, Asks, changes, or
    agent activity.
 
    At rest a cluster has a two-Button budget: the primary and one peer, or the primary and
@@ -69,7 +69,7 @@
    twice. Every fitting in a contribution is built with `marginButton(control, {key, icon,
    label, context, behavior, tone, role, state, writesRelation, writesSeat})`; an
    authored reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control type: it owns the circle,
-   size, type, focus, state paint, and glyph/word anatomy shared by decisions, editing,
+   size, type, focus, state paint, and glyph/word anatomy shared by Asks, editing,
    communications, and information triggers. Its behavior states what the fitting
    promises. Behavior, tone, and state are independent axes: never use a heavier border to
    mean positive, busy, selected, or complete.
@@ -306,8 +306,8 @@ import {
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/reconcile.js";
-import { openDecisions } from "./decisions/model.js";
-import { goToDecision } from "./decisions/view.js";
+import { openAsks } from "./asks/model.js";
+import { goToAsk } from "./asks/view.js";
 import { stateProjection } from "./projection/fold.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
@@ -325,7 +325,7 @@ const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
-  decision: { label: "Ask", icon: "question", priority: 2 },
+  ask: { label: "Ask", icon: "question", priority: 2 },
   sent: {
     label: "Sent",
     icon: "sent",
@@ -1319,8 +1319,7 @@ function groupFor(groups, target) {
   let group = groups.get(target);
   if (!group) {
     const key = targetPath(target);
-    const kindWord = itemWord(target);
-    const word = kindWord === "decision" ? "ask" : kindWord;
+    const word = itemWord(target);
     group = {
       key,
       target,
@@ -1407,17 +1406,17 @@ function collectEntries() {
     });
   }
 
-  const decisions = openDecisions();
-  for (const decision of decisions) {
-    const id = decision.id;
-    add(groups, decision, {
-      kind: "decision",
-      id: `decision:${id}`,
-      text: trimmed(`${itemWord(decision)} · ${itemSays(decision) || id}`),
+  const asks = openAsks();
+  for (const ask of asks) {
+    const id = ask.id;
+    add(groups, ask, {
+      kind: "ask",
+      id: `ask:${id}`,
+      text: trimmed(`${itemWord(ask)} · ${itemSays(ask) || id}`),
       activate: () => {
-        const standing = openDecisions();
+        const standing = openAsks();
         const next = standing.find((candidate) => candidate.id === id);
-        if (next) goToDecision(next, standing);
+        if (next) goToAsk(next, standing);
       },
     });
   }

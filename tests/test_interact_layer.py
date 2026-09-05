@@ -539,7 +539,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-decisions.md",
+        "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -801,7 +801,7 @@ def test_every_vendored_stylesheet_parses(page_dir):
 
 def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so chrome.css states the covering
-    widths, the strip-taking tray, the width properties, and the decision stamp as
+    widths, the strip-taking tray, the width properties, and the Ask stamp as
     literals while the runtime lays out and paints by the constants. Held equal here
     rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
@@ -830,7 +830,7 @@ def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
         strip_rule,
         "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
-        "[" + constant(r'^  decision: "([^"]+)",', presentation) + "]",
+        "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"chrome.css no longer spells {spelling}"
 

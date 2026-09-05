@@ -1041,11 +1041,11 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a conversation is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
-    '<lf-decision id="plan-choice-decision">',
+    '<lf-ask id="plan-choice-decision">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
     "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
     "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-    '</lf-suggestion>\n<lf-decision id="plan-choice-decision">',
+    '</lf-suggestion>\n<lf-ask id="plan-choice-decision">',
 )
 SETTLING_DECISION = {
     "kind": "comment",
@@ -1073,9 +1073,7 @@ def _settling_page(page_dir):
     serving(page_dir, 1)
 
 
-def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
-    page_dir, capsys
-):
+def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, capsys):
     """A gesture settles a conversation through `detail.resolves`, and the widget
     it is made on need not stand in that conversation — for the one shipped
     settling verb, `lf-suggestion`'s accept, it stands on the page and in no
@@ -1101,7 +1099,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     assert "the vet reads" in header["threads"][0]["messages"][0]["text"]
 
 
-def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, capsys):
+def test_an_undo_of_a_page_ask_carries_the_thread_it_reopens(page_dir, capsys):
     """Withdrawing that gesture reopens the conversation, so the delivery owes
     the same reading the accept did."""
     _settling_page(page_dir)
@@ -4227,7 +4225,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # An id is all this can name, to a session that may no longer hold a word of
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
-    assert schema_model.ANSWER_DECISION_INSTRUCTION in answer["reason"]
+    assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
 
     # A reply clears it, and the thread stays open behind it: closing one is the
     # reader's to do, so an open thread is not an unanswered one.
@@ -5238,7 +5236,7 @@ def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, cap
     assert page_state(page_dir)["pending"] == 0
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_decision(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the reader put on the agent's answer hand the thread back

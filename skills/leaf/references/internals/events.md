@@ -85,7 +85,7 @@ An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply
 always hands the thread back to the agent, so it needs no parallel declaration.
-When a reply carries a widget with a local `x-awaits` or `x-request.decision`
+When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup.
 
@@ -123,7 +123,7 @@ agent opens a separate comment thread in the same exact-section seat; that
 thread carries the version response through the stop gate while it waits on the
 reader, and their answer hands both back to the agent. The original remains open
 until authored state in a later published version answers an originating open
-decision, or changes the declared answer when the decision was already answered.
+Ask, or changes the declared answer when the Ask was already answered.
 Log actions do not substitute for that version. That is also when `leaf resolve`
 first accepts it.
 

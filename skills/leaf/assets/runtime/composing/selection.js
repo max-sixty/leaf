@@ -358,8 +358,8 @@ function watchComposer() {
 // Hiding keeps the draft and closing discards it, but the mark goes down with the box
 // either way: a marked passage with no composer on screen points at nothing.
 export const hideComposer = () => showComposer(false);
-function closeComposer() {
-  clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
+function leaveComposer(discard) {
+  if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
   composerWatch?.();
   composerWatch = null;
   composerInput.value = "";
@@ -369,6 +369,16 @@ function closeComposer() {
   pendingAbout = null;
   syncSuggestMode(); // after the state it renders, which is now all of it
   hideComposer();
+}
+// Target selection leaves the prior draft in its own context but detaches this view
+// from it. Advancing the generation makes the selection later than both a draft watch
+// and a send already in flight, so neither can reclaim the view when it settles.
+export function detachComposer() {
+  composerEpoch += 1;
+  leaveComposer(false);
+}
+function closeComposer() {
+  leaveComposer(true);
   showFab(null, null, { returnFocus: "none" });
 }
 

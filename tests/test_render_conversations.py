@@ -14,9 +14,9 @@ from leaf import render_checks as render_checks_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    ASK_PAGE,
     BOTH_STAMPS,
     COVERED_TOP,
-    DECISION_PAGE,
     EDGES,
     EXAMPLE_MEDIA,
     EXAMPLES,
@@ -67,11 +67,11 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
         serve.page_dir,
         root,
         "Choose the first job.",
-        '<lf-decision id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-decision>",
+        "</lf-options></lf-ask>",
     )
     for i in range(8):
         events_model.append_event(
@@ -220,7 +220,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     page, errors = open_page(
         browser,
         serve(
-            DECISION_PAGE,
+            ASK_PAGE,
             events=[
                 {
                     "kind": "comment",
@@ -1321,11 +1321,11 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         serve.page_dir,
         answered,
         "Choose the backend here.",
-        '<lf-decision id="backend-decision"><h3>Which backend?</h3>'
+        '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
-        "</lf-options></lf-decision>",
+        "</lf-options></lf-ask>",
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (2)")
@@ -2077,11 +2077,11 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
         serve.page_dir,
         root,
         "Pick the first job.",
-        '<lf-decision id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Mounts</lf-option>'
         '<lf-option id="camera">Camera</lf-option>'
-        "</lf-options></lf-decision>",
+        "</lf-options></lf-ask>",
     )
     page, errors = open_page(browser, url, init_script=HOLD_MOTION)
     page.locator(".lf-threads-toggle").click()
@@ -2558,11 +2558,11 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-decision id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
         '<lf-options id="tv-decision" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
         '<lf-option id="tv-cookie">A signed cookie</lf-option>'
-        "</lf-options></lf-decision>",
+        "</lf-options></lf-ask>",
         "tv-decision",
         chatter=10,
         after=10,
@@ -2843,10 +2843,10 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-decision id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
         '<lf-options id="tv-decision" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></lf-decision>",
+        "</lf-options></lf-ask>",
         "tv-decision",
     )
     events_model.append_event(
@@ -3050,11 +3050,11 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "revision": 1,
             "text": "the answer that survived it",
             "markup": (
-                '<lf-decision id="tv-decision"><h2>Which recovery should we use?</h2>'
+                '<lf-ask id="tv-decision"><h2>Which recovery should we use?</h2>'
                 '<lf-options id="tv-choice" choose>'
                 '<lf-option id="tv-retry">Retry</lf-option>'
                 '<lf-option id="tv-stop">Stop</lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
             ),
         },
     )
@@ -3077,7 +3077,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -3924,13 +3924,13 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     round_trip(page)
     question.locator(".lf-done").click()
     round_trip(page)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/2")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-threads > .lf-thread[hidden]")).to_have_count(1)
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/2")
-    page.locator(".lf-decisions").click()
-    expect(page.locator(".lf-decisions-row")).to_have_count(2)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    page.locator(".lf-asks").click()
+    expect(page.locator(".lf-asks-row")).to_have_count(2)
     assert errors == []
     page.close()
 

@@ -21,7 +21,8 @@ pytestmark = pytest.mark.nightly
 
 def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     """The keyboard target is the same stable item Alt-click would take. Choosing the
-    paragraph focuses its in-place Comment field without making a native selection."""
+    paragraph raises its response surface without choosing Comment or making a native
+    selection."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
 
@@ -61,24 +62,33 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     page.keyboard.type(prose_code)
 
     assert page.evaluate("() => getSelection().toString()") == ""
+    expect(page.locator(".lf-live")).to_contain_text("Selected paragraph:")
     expect(page.locator(".lf-live")).to_contain_text(
-        "Selected paragraph: A paragraph with enough words"
+        "Press c to comment, or r to react."
     )
     expect(hints).to_have_count(0)
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
+    expect(field).to_be_hidden()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
-    expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^(⌘⏎|Ctrl\+⏎)$"))
-    expect(shown.nth(0)).to_contain_text("comment")
-    expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
-    expect(shown.nth(1)).to_contain_text("other responses")
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(0)).to_contain_text("comment on the paragraph")
+    expect(shown.nth(1).locator("kbd")).to_have_text("r")
+    expect(shown.nth(1)).to_contain_text("react")
 
-    # Text entry owns letters. Tab replaces the field with the same-position Comment
-    # action; Escape from that response row restores the same draft.
-    page.keyboard.press("s")
-    expect(field).to_have_value("s")
-    field.fill("")
+    # The visible ellipsis exposes the same choices. Escape returns to the target-only
+    # surface, not to the Comment field the reader has not chosen.
+    responses = page.get_by_role("button", name="Show other responses")
+    responses.click()
+    expect(page.locator(".lf-fab-bar")).to_have_class(re.compile(r"\blf-react-open\b"))
+    page.keyboard.press("Escape")
+    expect(responses).to_be_focused()
+    expect(field).to_be_hidden()
+
+    # The reader chooses Comment before text entry owns letters. Tab then replaces the
+    # field with the same-position response choices; Escape restores it.
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator(".lf-fab-bar")).to_have_class(re.compile(r"\blf-react-open\b"))
     expect(page.locator(".lf-fab-bar > .lf-fab")).to_be_focused()
@@ -93,8 +103,8 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     page.close()
 
 
-def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
-    """Keyboard and pointer Comment gestures make the same explicit re-anchoring."""
+def test_keyboard_target_selection_does_not_carry_an_unsent_comment(browser, serve):
+    """Selecting a target is not a Comment gesture, so an existing draft stays put."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     field = page.locator(".lf-fab-input")
     draft = "Carry these deliberate words."
@@ -118,15 +128,20 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     )
     page.keyboard.type(prose_code)
 
+    expect(field).to_be_hidden()
+    page.keyboard.press("c")
     expect(field).to_be_focused()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_value("")
     assert page.evaluate(DRAFT_MARK) == "prose"
+    page.keyboard.press("Escape")
+    page.locator("h1").click(modifiers=["Alt"])
+    expect(field).to_have_value(draft)
     assert errors == []
     page.close()
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
-    """Without reactions, the focused composer offers no dead Tab route."""
+    """Without reactions, the selected target offers Comment and a way back."""
     registry = json.loads(
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
@@ -136,13 +151,15 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
         serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
     )
     page.keyboard.press("s")
-    code = page.locator(".lf-target-hint").first.get_attribute("data-lf-target")
+    code = page.locator(".lf-target-hint").nth(1).get_attribute("data-lf-target")
     page.keyboard.type(code)
 
     bar = page.locator(".lf-fab-bar")
+    expect(page.locator(".lf-live")).to_contain_text("Press c to comment.")
+    expect(page.locator(".lf-live")).not_to_contain_text("r to react")
     expect(bar).to_be_visible()
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     expect(page.locator(".lf-fab-input")).to_have_attribute(
@@ -224,7 +241,7 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     expect(page.locator(".lf-keyline")).to_contain_text("comment")
     geometry = page.evaluate(
         """() => {
@@ -240,8 +257,8 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
 
     page.keyboard.press("s")
     page.keyboard.type(last)
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
     assert errors == []
     page.close()
@@ -359,7 +376,7 @@ def test_selection_hints_name_only_items_shown_by_a_disclosure(browser, serve):
 
 def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
     """A declared picture part outranks its enclosing item without changing what aim
-    means. Choosing its hint focuses the part-anchored composer."""
+    means. Choosing its hint raises the part-anchored response surface."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).to_have_count(4)
@@ -379,12 +396,14 @@ def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
     page.keyboard.type(start_code)
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     start = page.locator('#flow [data-id="S"]')
-    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Start request")
-    expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", "Respond to diagram · Start request"
+    )
+    expect(start).to_have_class(re.compile(r"\blf-shaped-mark\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert page.evaluate("() => getSelection().toString()") == ""
     assert errors == []
@@ -432,9 +451,8 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     first."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
 
-    # Both keys are named in the reference below rather than on the resting line, which
-    # spends its two chips on the presses that say something back. `to_contain_text` here
-    # would have read the register anyway — renderLine leaves every live row in the DOM.
+    # Selection is named on the resting line and whole-page search in the reference.
+    # `to_contain_text` on the line would read hidden register rows as well.
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
@@ -446,7 +464,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     )
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text(
-        "Choose a visible item by hint, to comment on or react to"
+        "Choose a visible item by hint"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

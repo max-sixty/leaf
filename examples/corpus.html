@@ -57,7 +57,7 @@ catalog.</p>
 
       <section id="session-backlog">
         <h2>Triage the session-store edges</h2>
-        <lf-decision id="session-backlog-decision">
+        <lf-ask id="session-backlog-decision">
           <h3>Which session-store follow-ups should we keep?</h3>
           <p id="session-backlog-intro">
             These are independent follow-ups to the store choice. Pass removes an item
@@ -107,7 +107,7 @@ catalog.</p>
               </lf-swipe-card>
             </lf-swipe-pile>
           </lf-swipe-deck>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="settled-transport">
@@ -182,7 +182,7 @@ catalog.</p>
       </section>
 
       <section id="options">
-        <lf-decision id="session-options-decision">
+        <lf-ask id="session-options-decision">
           <h2 id="session-options-heading">Where should a session live?</h2>
           <lf-options id="session-options" choose>
             <lf-option id="opt-jwt"
@@ -250,7 +250,7 @@ catalog.</p>
               </p>
             </lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="flow">
@@ -373,7 +373,7 @@ chimney with no cap, 120
         </lf-chart>
       </section>
 
-      <lf-decision id="heat-first-decision">
+      <lf-ask id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
         <p id="heat-first-note">
           The three are independent, and doing all of them this year needs the floor to
@@ -410,7 +410,7 @@ chimney with no cap, 120
             </p>
           </lf-option>
         </lf-options>
-      </lf-decision>
+      </lf-ask>
 
       <section id="heat-weather">
         <h2>Against the weather</h2>
@@ -533,7 +533,7 @@ outside average, before, after
             Ledger now; this page stays blocked until the agent runs them and saves the
             result.
           </p>
-          <lf-decision id="lp-finance-decision">
+          <lf-ask id="lp-finance-decision">
             <h3>Which cases should the fixture cover?</h3>
             <lf-options id="lp-finance-cases" choose multiple>
               <lf-option id="lp-finance-partial" for="lp-ms-finance"
@@ -546,7 +546,7 @@ outside average, before, after
                 >A refund settled in a second currency</lf-option
               >
             </lf-options>
-          </lf-decision>
+          </lf-ask>
         </lf-tab>
 
         <lf-tab id="lp-tab-handoffs" label="Handoffs">
@@ -1094,7 +1094,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       </section>
 
       <section id="pr-outcome">
-        <lf-decision id="pr-outcome-decision">
+        <lf-ask id="pr-outcome-decision">
           <h2 id="pr-outcome-heading">What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
             Choose the review the agent should enter on the forge. Each option states
@@ -1121,7 +1121,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               worktree.
             </lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 </lf-tab>
 
@@ -1352,7 +1352,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
               commit; its branch and evidence remain inspectable.
               <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-decision id="dedupe-operations-decision">
+            <lf-ask id="dedupe-operations-decision">
               <h3>What should the host do with the stalled work?</h3>
               <lf-operations
                 id="dedupe-operations"
@@ -1376,7 +1376,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                   40 GB for this rewrite.
                 </lf-operation>
               </lf-operations>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task
             id="parser-zero"
@@ -1385,7 +1385,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
           >
             <strong>Choose the zero-row behavior</strong> This policy is consequential
             enough to wait for an explicit choice.
-            <lf-decision id="decision-zero-region">
+            <lf-ask id="decision-zero-region">
               <h3>What should happen when a nightly imports zero rows?</h3>
               <lf-options id="decision-zero" choose>
                 <lf-option id="zero-alert" for="parser-zero">
@@ -1398,7 +1398,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                   no data.
                 </lf-option>
               </lf-options>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
         </lf-task>
 
@@ -1417,7 +1417,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
               reconciliation evidence.
               <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-decision id="schema-operations-decision">
+            <lf-ask id="schema-operations-decision">
               <h3>What should the host do with the schema branch?</h3>
               <lf-operations
                 id="schema-operations"
@@ -1435,7 +1435,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                   and take one larger review tomorrow.
                 </lf-operation>
               </lf-operations>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task id="schema-backfill" status="planned" needs="schema-choice">
             <strong>Backfill reconciliation fields</strong>
@@ -1449,7 +1449,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
             <strong>Bring one replica-only ledger fixture</strong> Run the exact
             credentialed command, inspect the full cargo below, trim it, then save the
             draft. The edit receipt tells the orchestrator that w-8 can resume.
-            <lf-decision id="decision-ledger-fixture-region">
+            <lf-ask id="decision-ledger-fixture-region">
               <h3>Which replica-only ledger fixture should the worker use?</h3>
               <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
   where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
@@ -1458,7 +1458,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.
 </pre>
               </lf-draft>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task
             id="ledger-variance"
@@ -1485,7 +1485,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               compatibility tests.
               <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-decision id="api-operations-decision">
+            <lf-ask id="api-operations-decision">
               <h3>What should the host do with atlas/public-api?</h3>
               <lf-operations
                 id="api-operations"
@@ -1506,7 +1506,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   standing change request and reap its reviser.
                 </lf-operation>
               </lf-operations>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task id="api-errors" status="planned" needs="api-shape">
             <strong>Map structured failures</strong>
@@ -1598,7 +1598,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <lf-task id="off-t-workaround" status="review" owner="mobile">
               <strong>Keep the resend workaround in the patch</strong> After 20 seconds
               the client resends the queued batch; 500 forced stalls all recovered.
-              <lf-decision id="off-workaround-decision">
+              <lf-ask id="off-workaround-decision">
                 <h3>Is that enough for the first patch?</h3>
                 <lf-options id="off-workaround-review" choose>
                   <lf-option id="off-workaround-approve" for="off-t-resync">
@@ -1608,7 +1608,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     Request another pass — hold the patch for a native fix.
                   </lf-option>
                 </lf-options>
-              </lf-decision>
+              </lf-ask>
             </lf-task>
             <lf-task id="off-t-telemetry" status="done" owner="data">
               <strong>Keep reconnect telemetry</strong> The release cohort retains the
@@ -1732,27 +1732,27 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 
       <section id="bg-core-surfaces">
         <p class="eyebrow bg-feature-elements">
-          Leaf chrome · lf-toc · lf-decision · lf-options · lf-option
+          Leaf chrome · lf-toc · lf-ask · lf-options · lf-option
         </p>
         <h2 id="bg-core-surfaces-heading">
           <strong>Asks</strong
           ><span class="bg-feature-detail">: decisions and answers</span>
         </h2>
         <p id="bg-core-surfaces-guide">
-          An <code>lf-decision</code> is one complete Ask: its heading names the
-          question, and one nested widget owns the answer. This sample uses
+          An <code>lf-ask</code> is one complete Ask: its heading names the question,
+          and one nested widget owns the answer. This sample uses
           <code>lf-options</code>, which records a choice Leaf can replay as page state.
           The banner shows completed/total. Press <kbd>a</kbd> for the next Ask waiting
           on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
           <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
         </p>
-        <lf-decision id="bg-choice-ask">
+        <lf-ask id="bg-choice-ask">
           <h3 id="bg-choice-ask-heading">Which map should the sample team carry?</h3>
           <lf-options id="bg-choice" choose>
             <lf-option id="bg-choice-street">Street map</lf-option>
             <lf-option id="bg-choice-trail">Trail map</lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
         <p id="bg-core-controls-guide">
           The top bar also shows the status line, <strong>Threads</strong>, the version
           picker, <strong>Map</strong> (<kbd>g</kbd> then <kbd>Shift+M</kbd>),
@@ -1801,13 +1801,13 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <lf-old><p>Keep the practice walk indoors.</p></lf-old>
           <lf-new>
             <p>Take the practice walk outside.</p>
-            <lf-decision id="bg-route-ask">
+            <lf-ask id="bg-route-ask">
               <h4 id="bg-route-heading">Which route should the walk follow?</h4>
               <lf-options id="bg-route" choose>
                 <lf-option id="bg-route-garden">Through the garden</lf-option>
                 <lf-option id="bg-route-river">Along the river</lf-option>
               </lf-options>
-            </lf-decision>
+            </lf-ask>
           </lf-new>
         </lf-suggestion>
       </section>
@@ -1916,7 +1916,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-readings">
-        <p class="eyebrow bg-feature-elements">lf-decision · lf-options · lf-option</p>
+        <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
         <h2 id="bg-readings-heading">
           <strong>Decisions</strong
           ><span class="bg-feature-detail">: answers in context</span>
@@ -1925,13 +1925,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           A recorded answer stays visible in the widget that owns it; the page map adds
           no second status.
         </p>
-        <lf-decision id="bg-outcome-ask">
+        <lf-ask id="bg-outcome-ask">
           <h3 id="bg-outcome-ask-heading">Where should the sample group meet?</h3>
           <lf-options id="bg-outcome" choose>
             <lf-option id="bg-outcome-door">At the door</lf-option>
             <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="bg-reader-workflows">
@@ -1980,9 +1980,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-request-guide">
             <code>lf-operations</code> is the answer widget inside an
-            <code>lf-decision</code> when its answer should make the host act. Leaf
-            records one typed, one-shot instruction; the host carries it out and returns
-            a receipt. Failure reopens the Ask, while success closes it. A refused send
+            <code>lf-ask</code> when its answer should make the host act. Leaf records
+            one typed, one-shot instruction; the host carries it out and returns a
+            receipt. Failure reopens the Ask, while success closes it. A refused send
             shows <strong>Retry</strong> and <strong>Cancel</strong>.
           </p>
           <lf-command id="bg-request-command" label="Synthetic request lifecycle">
@@ -1995,7 +1995,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   source="gallery-worktrees"
                 ></lf-worktree>
               </lf-agent>
-              <lf-decision id="bg-request-live-decision">
+              <lf-ask id="bg-request-live-decision">
                 <h4 id="bg-request-live-decision-heading">
                   What should the sample host do?
                 </h4>
@@ -2014,7 +2014,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                     branch.
                   </lf-operation>
                 </lf-operations>
-              </lf-decision>
+              </lf-ask>
             </lf-task>
           </lf-command>
         </section>

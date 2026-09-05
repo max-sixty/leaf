@@ -25,9 +25,9 @@ import { renderThreads } from "./thread-list.js";
 import { paintAcknowledgments, threadList } from "./reconcile.js";
 
 // Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
-// because the banner's decision count asks the same question from the other side: a request
+// because the banner's Ask count asks the same question from the other side: a request
 // whose own conversation is with the agent is not the reader's to deal with. The panel
-// saying so while the banner went on counting the decision was one fact told two ways.
+// saying so while the banner went on counting the Ask was one fact told two ways.
 let finding = "";
 let onlyNeedsYou = false;
 export const narrowed = () => Boolean(finding) || onlyNeedsYou;

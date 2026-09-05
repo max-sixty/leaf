@@ -377,14 +377,13 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     page.close()
 
 
-def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
-    browser, serve
-):
+def test_tab_changes_the_compact_bar_in_place_and_r_requires_a_target(browser, serve):
     """Tab yields the compact field to one visually and semantically stable choice bar.
 
     Comment is the first stop, then Tab and arrows wrap through every visible response.
     Digits remain optional accelerators in declaration order. Once the surface has been
-    dismissed, `r` with no target names what is missing without opening Threads.
+    dismissed, `r` is no longer a live page command; page-wide reactions remain explicit
+    in Threads.
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
@@ -519,11 +518,14 @@ def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).to_be_hidden()
 
-    # Nothing selected: r opens no surface and explains what target is missing.
+    # Nothing selected: React is not a command, so the key opens no surface or notice.
     page.keyboard.press("Escape")
     page.evaluate("() => getSelection().removeAllRanges()")
+    expect(
+        page.locator('.lf-keyline [data-lf-commands~="reaction.open"]')
+    ).to_have_count(0)
     page.keyboard.press("r")
-    expect(page.locator(".lf-notice")).to_have_text("Select something to react to")
+    expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
@@ -543,10 +545,10 @@ def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serv
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(bar.locator(".lf-fab-input")).to_be_focused()
-    bar.locator(".lf-react-trigger").click()
-    bar.locator('.lf-react[data-token="this"]').click()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(bar.locator(".lf-fab-input")).to_be_hidden()
+    page.keyboard.press("r")
+    page.locator('.lf-margin-reactions .lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "this" and sent["anchor"] == {"section": "prose"}
@@ -1196,8 +1198,11 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
     ]
     page.keyboard.press("Escape")
     page.keyboard.type(hint_code(page, "#caption", 6))
-    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-action-target\b"))
     page.keyboard.press("Escape")
+    expect(page.locator("#caption")).not_to_have_class(
+        re.compile(r"\blf-action-target\b")
+    )
 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))

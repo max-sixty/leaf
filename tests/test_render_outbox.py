@@ -1653,12 +1653,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1668,7 +1668,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "undo left more than one control row for the same suggestion"
     )
@@ -1917,7 +1917,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(two.locator(".lf-asks")).to_have_text("Asks 0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -1977,7 +1977,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again, errors = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
     assert errors == []
     again.close()
 

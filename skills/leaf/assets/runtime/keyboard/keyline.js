@@ -4,11 +4,11 @@
    The key line is short help, not the keyboard reference. It walks outward from the
    reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
    the first live row, then a promotable Escape or the next row. At rest on the page that
-   is `c` and `r`, the two presses that say something back, beside the More control.
-   Search, item selection and reading-page movement are ordinary rows ranked below them,
-   named by the shelf and the reference: a glance that spends its room on ways of finding
-   something to act on never names the act, and scrolling is the one capability no page
-   has to advertise. Ranking is a row's place in its scope, so moving the row is how the
+   is `c` for the page itself and `s` to select a more particular target, beside the More
+   control. Once a target is selected, its Comment and React actions replace selection on
+   the short line. Search and reading-page movement remain ordinary rows named by the shelf
+   and the reference; scrolling is the one capability no page has to advertise. Ranking
+   is a row's place in its scope, so moving the row is how the
    line's order changes. An active chord instead shows every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
    reference use. Each destination row keeps its complete chord: already pressed keys take

@@ -503,7 +503,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     target = page.locator("#p30")
     target.evaluate("node => node.scrollIntoView({block: 'center'})")
     page.locator("body").focus()
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     legend = page.locator('.lf-legend-box[data-for="p30"]')
     expect(legend).to_be_visible()
@@ -651,7 +651,7 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     page.keyboard.press("Escape")
 
     page.locator("body").focus()
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     tray_box = tray.bounding_box()
     assert tray_box is not None
@@ -1101,7 +1101,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     option = page.locator("#opt-shim")
     before = page.evaluate(PAGE_MARKUP)
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
 
     page.keyboard.press("?")
@@ -1206,7 +1206,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
             )
         ),
     )
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     slider = page.get_by_role("slider", name="Volume")
     slider.hover()
     expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
@@ -1245,7 +1245,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     """
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
     expect(accept).to_be_visible()
 
@@ -1304,7 +1304,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
     expect(accept).to_be_visible()
 
@@ -1331,7 +1331,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     anchored on the part the runtime named (`lf-banner`), naming the control the press
     landed on — and the button does not do what it does: the panel stays closed."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     threads = page.locator(".lf-banner .lf-threads-toggle")
     said = threads.inner_text()  # "Threads (0)" — the control's word is what it shows
     threads.hover()
@@ -1354,7 +1354,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator(".lf-thread textarea")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread")).to_be_focused()
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
@@ -1369,7 +1369,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
         "() => document.querySelector('.lf-panel').getBoundingClientRect().left"
         " >= document.body.clientWidth"
     )
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     box = page.locator(".lf-panel").bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads")
@@ -1403,7 +1403,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     standing = geometry(page, edge)
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -1434,7 +1434,7 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     page. Prose it leaves to the browser, or "this heading is too small" would have no
     way to quote the heading."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     heading = page.locator("#t")
     box = heading.bounding_box()
     select(
@@ -1465,7 +1465,7 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     mode by news they never asked for is a mode error the page made — so the mode is
     this tab's working state, kept the way the panel's open state is."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
@@ -1493,7 +1493,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     (pageShifted): it once kept its old coordinates through the panel's column motion, a box
     and name floating half a panel to the right of the element they claimed."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     page.wait_for_function(LEGEND_TRUE)
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     p = page.locator("#p20")
@@ -1542,7 +1542,7 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
     both ends as fragments of a word nobody wrote. The later tag steps away by tag
     heights until it stands clear."""
     page, errors = open_page(browser, serve(CORNER_PAGE))
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(
         page.locator('.lf-legend-box[data-for="wrap"] .lf-legend-tag')
     ).to_be_visible()
@@ -1581,7 +1581,7 @@ def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, ser
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "flow")
     page.keyboard.up("Alt")
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     assert set(
         page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
     ) == {"t", "p", "flow", "tree"}
@@ -2077,7 +2077,7 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     handler = diagram.locator('g[data-id="H"]')
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     handler.click()
 
     expect(page.locator("#lf-composer-quote")).to_have_text("layer · lf-diagram · flow")

@@ -101,19 +101,16 @@ def build_threads(events: list, within: dict) -> dict:
     """
     floors = retractions(events)
     withdrawn = taken_back(events)
-    # An admitted answer coordinate keeps its last surviving answer effect.
-    answers = {}
-    settling_actions = set()
+    # Every action at a coordinate competes, including a non-answer. Conversation
+    # settlement and visible state therefore read the same winning gesture.
+    winners = {}
     for e in events:
         if (
             e["kind"] == "action"
             and e["id"] not in withdrawn
             and not action_retracted(e, floors, within)
-            and "answer" in e["meaning"]
         ):
-            answers[tuple(e["meaning"]["coordinate"])] = e
-            if e["meaning"]["answer"]:
-                settling_actions.add(e["id"])
+            winners[tuple(e["meaning"]["coordinate"])] = e
     threads = {}
     thread_for = {}
     messages = {}
@@ -133,11 +130,7 @@ def build_threads(events: list, within: dict) -> dict:
         # resolve remains the latest closure even after an answer is superseded.
         if e["kind"] == "action":
             answered = threads.get(e["meaning"].get("answer"))
-            if (
-                answered
-                and e["id"] in settling_actions
-                and answers.get(tuple(e["meaning"]["coordinate"])) is e
-            ):
+            if answered and winners.get(tuple(e["meaning"]["coordinate"])) is e:
                 answered["resolved"] = e
             continue
         if e["kind"] == "edit":

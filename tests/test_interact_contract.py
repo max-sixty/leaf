@@ -3808,6 +3808,14 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     assert not event_folds_model.action_retracted(
         accepted, {"backfill-first": revision + 1}, moved
     )
+    empty = {
+        **command,
+        "attempt": "empty-dependency",
+        "detail": {**command["detail"], "dependency": ""},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(empty).encode())
+    assert status == 400, body
+    assert "identity fields are invalid" in json.loads(body)["error"]
     assert vocabulary_gaps(page_dir, events, registry) == []
     facet = deepcopy(registry)
     facet["lf-options"]["x-state"]["choose"]["facet"] = "other"
@@ -3819,3 +3827,44 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         assert "changes admitted meaning" in "\n".join(
             vocabulary_gaps(page_dir, events, incoming)
         )
+
+
+@pytest.mark.parametrize("facet", ["settlement", "label"])
+def test_conversation_and_state_use_the_same_winning_coordinate(page_dir, facet):
+    from copy import deepcopy
+
+    from leaf.projection import page_projection
+    from leaf.thread_context import thread_memberships
+
+    registry = registry_storage.require_registry(page_dir)
+    registry = deepcopy(registry)
+    registry["lf-suggestion"]["x-state"]["label"] = {
+        "detail": {"type": "object"},
+        "unit": "widget",
+        "facet": facet,
+    }
+    event = {
+        "kind": "action",
+        "id": "label1",
+        "seq": 3,
+        "author": "user",
+        "revision": 1,
+        "widget": "sug-a",
+        "action": "label",
+        "detail": {},
+        "meaning": {
+            "document": {"kind": "page", "revision": 1},
+            "coordinate": ["sug-a", "sug-a", facet],
+            "depends": ["sug-a"],
+        },
+    }
+    events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
+    html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
+    projection, _, words = page_projection(html, events, registry, 1)
+    winner, _ = projection.actions[("sug-a", "sug-a", "settlement")]
+    threads = event_folds_model.build_threads(
+        events, passages_model.enclosing_of(words)
+    )
+    assert bool(threads["c1"]["resolved"]) == (winner["id"] == "accept1")
+    memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
+    assert memberships["label1"] == (["c1"] if facet == "settlement" else [])

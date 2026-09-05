@@ -9,6 +9,7 @@ from leaf.decisions import (
     quoted_in,
     thread_decision_projection,
 )
+from leaf.event_meaning import direct_dependencies
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids
@@ -64,6 +65,15 @@ def declared_event_error(
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
+    if "resolves" in event["detail"] and not event["detail"]["resolves"]:
+        return f"<{tag}> {kind} {event['action']!r} resolves must name a non-empty thread id"
+    if message := schema_error(
+        {"type": "array", "items": {"type": "string", "minLength": 1}},
+        direct_dependencies(event, spec),
+    ):
+        return (
+            f"<{tag}> {kind} {event['action']!r} identity fields are invalid: {message}"
+        )
     return None
 
 

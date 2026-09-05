@@ -10,10 +10,8 @@ from leaf.structure import parse_revision
 from leaf.thread_context import thread_structure
 
 
-def state_meaning(event: dict, entry: dict, document: dict) -> dict:
-    """Resolve one validated verb using its sending document's declaration."""
-    channel = "x-state" if event["kind"] == "action" else "x-report"
-    spec = entry[channel][event["action"]]
+def direct_dependencies(event: dict, spec: dict) -> list[str]:
+    """The owner, fold unit, and declared direct references before canonical ordering."""
     detail = event["detail"]
     owner = event["widget"]
     unit = owner if spec["unit"] == "widget" else detail[spec["unit"]]
@@ -27,6 +25,15 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
         if value is not None:
             dependencies.extend(value if isinstance(value, list) else [value])
     dependencies.extend(created_children(event, spec))
+    return dependencies
+
+
+def state_meaning(event: dict, entry: dict, document: dict) -> dict:
+    """Resolve one validated verb using its sending document's declaration."""
+    channel = "x-state" if event["kind"] == "action" else "x-report"
+    spec = entry[channel][event["action"]]
+    dependencies = direct_dependencies(event, spec)
+    owner, unit = dependencies[:2]
     meaning = {
         "document": document,
         "coordinate": [owner, unit, spec["facet"]],
@@ -35,7 +42,7 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
     if event["kind"] == "action" and event["action"] in entry.get("x-awaits", {}).get(
         "answers", []
     ):
-        meaning["answer"] = detail.get("resolves")
+        meaning["answer"] = event["detail"].get("resolves")
     return meaning
 
 

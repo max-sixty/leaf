@@ -67,6 +67,8 @@ page-revision or frozen-thread document identity. A declared `x-awaits.answers`
 verb additionally records `answer`: a thread id closes that conversation, null
 states an answer that leaves it open, and an absent field is not an answer.
 Historical conversation folds use this coordinate even after its widget retires.
+Every action at the coordinate competes: a non-answer at that same coordinate
+supersedes its prior answer, while an independent facet leaves it standing.
 
 Dependency identities come from the fold unit, attribute-set and position record
 fields, and optional `references` detail-field declarations. Literal strings do

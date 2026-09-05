@@ -123,10 +123,10 @@ def thread_memberships(
             named = memberships.get(event["request"], [])
         else:
             named = event_threads(event, roots, widgets)
-        if event["kind"] == "action" and "answer" in event["meaning"]:
+        if event["kind"] == "action":
             coordinate = tuple(event["meaning"]["coordinate"])
             named = [*named, *settled_by_coordinate.get(coordinate, [])]
-            if root := event["meaning"]["answer"]:
+            if root := event["meaning"].get("answer"):
                 settled_by_coordinate.setdefault(coordinate, []).append(root)
                 settling_actions.append((event, root))
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):

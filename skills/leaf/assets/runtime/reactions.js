@@ -4,8 +4,9 @@
    Buttons to that target's existing Button options. Those temporary Buttons borrow the
    cluster's room and dock with it when necessary; they do not claim permanent rail
    width. A thread-local `r` opens the conversation-owned row on the latest agent
-   message. With none of those targets, it shows “Select something to react to” and
-   opens nothing. `REACT` claims the keyboard while a list is open. Arrow keys wrap
+   message. The page command exists only while one of those targets stands; selecting a
+   target is the preceding action, not a refusal inside the reaction command. `REACT`
+   claims the keyboard while a list is open. Arrow keys wrap
    through every visible Button in the target's shared cluster, including its primary
    actions and Page-map overflow; floating and message-local rows walk their own choices.
    Tab and Shift-Tab follow that same order. The Page-map dialog remains part of the
@@ -40,7 +41,13 @@ import { CONTROL_WORD_CAP, designOn } from "./design.js";
 import { registry } from "./registry.js";
 import { fabBar, hideComposer, setSuggestionMode } from "./composing/selection.js";
 import { el, offer, responseAction } from "./widget-elements.js";
-import { fabAnchorAt, fabReturnTo, fabTargetAt, showFab } from "./composing/surface.js";
+import {
+  fabAnchorAt,
+  fabReturnTo,
+  fabTargetAt,
+  hasPageSelectionTarget,
+  showFab,
+} from "./composing/surface.js";
 import { cut, elementById } from "./passages.js";
 import { itemWord, visualPartLabel } from "./anchors.js";
 import { undoable, withdraw } from "./projection.js";
@@ -258,9 +265,9 @@ export async function sendReaction(event, pill, where) {
 }
 
 // The react press opens one surface's list. `r` uses the latest agent reply in the
-// thread the reader is standing in, an already raised bar, or the item holding focus.
-// A page with none of those has no reaction target: it says what is missing and leaves
-// Threads alone.
+// thread the reader is standing in, an already raised bar, a completed native
+// selection, or the item holding focus. This same reading decides whether the page
+// command exists, so dispatch cannot advertise a reaction before its target.
 let reactArmed = false;
 let reactRaised = false;
 // Whether this raise is what unfolded the target's cluster, and so whether putting the
@@ -271,6 +278,17 @@ let reactFrom = null;
 let reactSurface = null;
 const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
 const pickerFor = (surface) => surfaces.get(surface);
+
+function reactionTarget() {
+  const said = standingConversation();
+  const strip = said && latestAgentStrip(said.held);
+  if (strip) return { kind: "surface", surface: strip };
+  if (fabAnchorAt()) return { kind: "anchor" };
+  if (hasPageSelectionTarget()) return { kind: "selection" };
+  const item = standingItem();
+  return item ? { kind: "item", item } : null;
+}
+export const hasReactionTarget = () => Boolean(reactionTarget());
 
 function raiseMarginSurface() {
   const anchor = fabAnchorAt();
@@ -345,16 +363,14 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
     reactFrom = focused();
     if (surface) reactSurface = surface;
     else {
-      const said = standingConversation();
-      const strip = said && latestAgentStrip(said.held);
-      const here = !strip && !fabAnchorAt() && standingItem();
-      if (strip) reactSurface = strip;
-      else if (fabAnchorAt() || here) {
-        if (here) {
+      const target = reactionTarget();
+      if (target?.kind === "surface") reactSurface = target.surface;
+      else if (target?.kind === "anchor" || target?.kind === "item") {
+        if (target.kind === "item") {
           // The item may be represented by a docked row after its containing block,
           // with the target itself off screen. Keep the semantic anchor without
           // asking a floating bar to find geometry; the shared item is the surface.
-          showFab({ section: here.id }, null, {
+          showFab({ section: target.item.id }, null, {
             origin: reactFrom,
             place: false,
           });
@@ -372,7 +388,6 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
       } else {
         reactSurface = null;
         reactFrom = null;
-        notice("Select something to react to");
         return;
       }
     }
@@ -417,7 +432,13 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
     lowerMarginSurface();
     if (fabAnchorAt()) showFab(fabAnchorAt());
     if (closingFabChoices && fabAnchorAt()) {
-      fabBar.querySelector(".lf-fab-input")?.focus({ preventScroll: true });
+      const input = fabBar.querySelector(".lf-fab-input");
+      const destination = input?.checkVisibility()
+        ? input
+        : from?.isConnected && from.checkVisibility?.()
+          ? from
+          : trigger;
+      destination?.focus({ preventScroll: true });
     } else if (active?.closest?.(".lf-react-palette")) {
       const destination =
         from?.isConnected && from.checkVisibility?.()

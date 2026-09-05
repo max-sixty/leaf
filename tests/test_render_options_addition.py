@@ -4,8 +4,8 @@ import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
-    DECISION_PAGE,
-    DECISION_WITH_CONTEXT_PAGE,
+    ASK_PAGE,
+    ASK_WITH_CONTEXT_PAGE,
     open_page,
     round_trip,
     sent_events,
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.nightly
 
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader):
     """Moving the widget restores draft delivery without duplicating its form."""
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
 
@@ -44,7 +44,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     The trailing action stays out of an empty row, then submits without borrowing the
     selection mark's circle. It remains a full-sized, aligned pointer target.
     """
-    page, errors = open_page(browser, serve(DECISION_PAGE))
+    page, errors = open_page(browser, serve(ASK_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
@@ -134,7 +134,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     browser, serve
 ):
     """The add form stays in Tab order while c opens a clarification thread."""
-    url = serve(DECISION_WITH_CONTEXT_PAGE)
+    url = serve(ASK_WITH_CONTEXT_PAGE)
     events_model.append_event(
         serve.page_dir,
         {
@@ -177,7 +177,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     answer, not opened a conversation. The standing action carries every generated
     option so a later ordinary pick and a reload retain the same set of alternatives.
     """
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     page, errors = open_page(browser, url)
     d = serve.page_dir
 
@@ -249,7 +249,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     The draft remains part of the decision and still becomes a real option. The thread
     stays separate: adding the option sends an action, not a second comment.
     """
-    page, errors = open_page(browser, serve(DECISION_PAGE))
+    page, errors = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
     first = page.locator("#jobs > .lf-another input")
     draft = "Keep this answer even if another thread arrives first."

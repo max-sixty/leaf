@@ -224,7 +224,7 @@ customElements.define(
                   // Before settlement this contribution is the Ask, so suppress the shared
                   // Ask at the same target. Afterwards the item keeps the receipt and Undo
                   // controls in this cluster without inventing another page-map reading.
-                  kind: this.dataset.lfState ? "action" : "decision",
+                  kind: this.dataset.lfState ? "action" : "ask",
                   ...(this.dataset.lfState ? {} : { represents: true }),
                   text: this.dataset.lfState
                     ? `${this.dataset.lfState === "accept" ? "Accepted" : "Rejected"} suggested change`
@@ -686,7 +686,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the decisions tray, the label on a comment anchored here. The slots are the
+    // a row on the Asks tray, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

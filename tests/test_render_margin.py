@@ -12,8 +12,8 @@ from leaf import service as service_model
 from leaf import session as session_model
 from playwright.sync_api import expect
 from render_support import (
+    ASK_PAGE,
     BOTH_STAMPS,
-    DECISION_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
     GENERIC_VISUAL_LAYER,
@@ -42,14 +42,14 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
-COMMENT_ON_DECISION = {
+COMMENT_ON_ASK = {
     "kind": "comment",
     "author": "user",
     "revision": 1,
     "text": "Check whether these jobs can share one visit.",
     "anchor": {"section": "bracket"},
 }
-ACTION_ON_DECISION = {
+ACTION_ON_ASK = {
     "kind": "action",
     "author": "user",
     "revision": 1,
@@ -1115,7 +1115,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
-            '.lf-margin-marker[data-lf-kinds="decision"] '
+            '.lf-margin-marker[data-lf-kinds="ask"] '
             'svg[data-lf-icon="question"]'
         )
     ).to_be_visible()
@@ -1741,7 +1741,7 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The page map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     markers = page.locator(".lf-margin-marker:visible")
     assert markers.count() > 1, "the page map has no pair of visible markers to walk"
@@ -2148,7 +2148,7 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
     Button in the walk. Painted, the same words read as progress toward something, which
     is not what they say, so they belong to the accessible name alone."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     buttons = page.evaluate(
@@ -2183,7 +2183,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the fitting leaves instead of restating widget state.
     """
-    page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
+    page, errors = open_page(browser, live_url(serve(ASK_PAGE)))
     page_dir = serve.page_dir
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
@@ -2447,7 +2447,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert active["border"] != "rgba(0, 0, 0, 0)"
     expect(page.get_by_role("button", name=re.compile(r"^Active,"))).to_have_count(1)
 
-    honored = DECISION_PAGE.replace(
+    honored = ASK_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
     )
     stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))
@@ -3093,10 +3093,10 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
 def test_one_information_button_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="decision"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()
@@ -3114,7 +3114,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 ):
     """One location groups its thread and engaged handoff without moving the page."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3198,7 +3198,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 ):
     """Ordinary design paint never promises to rise above the browser's top layer."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3229,9 +3229,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     browser, serve
 ):
     """The anchored thread is a complete conversation beside its source."""
-    page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
-    )
+    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-button-icon")).to_have_attribute(
@@ -3267,9 +3265,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     assert first_frame["top"] == pytest.approx(
         float(first_frame["placed"].removesuffix("px")), abs=0.5
     ), first_frame
-    expect(thread.locator(".lf-conversation-body")).to_have_text(
-        COMMENT_ON_DECISION["text"]
-    )
+    expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
     geometry = page.evaluate(
@@ -3342,7 +3338,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     browser, serve, width, panel_open
 ):
     """A send continues in the open panel or beside the passage, keeping the page put."""
-    page, errors = open_page(browser, serve(DECISION_PAGE))
+    page, errors = open_page(browser, serve(ASK_PAGE))
     resized(page, width, 900)
     if panel_open:
         page.locator(".lf-threads-toggle").click()
@@ -3453,10 +3449,10 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     claiming that strip for the first time, the card is placed against a marker the claim
     then slides, and what the read catches is that race rather than this floor.
     """
-    sidebar_page = DECISION_PAGE.replace(
+    sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
-    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_DECISION]))
+    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
@@ -3472,9 +3468,7 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     assert errors == []
     page.close()
 
-    page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
-    )
+    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
@@ -3498,7 +3492,7 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
         "anchor": {"section": "bracket"},
     }
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION, second_comment])
+        browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, second_comment])
     )
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -3611,7 +3605,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(preview).to_be_hidden()
-    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("Escape")
 
     marker.click()
@@ -3696,7 +3690,7 @@ def test_an_open_thread_refresh_keeps_the_current_button_target_highlighted(
 def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
     """Walking the Page map never inserts an unrequested thread into the Tab order."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3825,24 +3819,24 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
 ):
     """A tray or authored sidebar spends room before the contextual thread does."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    page.locator(".lf-decisions").click()
-    expect(page.locator("body")).to_have_attribute("data-lf-tray", "decisions")
+    page.locator(".lf-asks").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-tray", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
-    if page.locator("body").get_attribute("data-lf-tray") == "decisions":
-        page.locator(".lf-decisions").click()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-tray", "decisions")
+    if page.locator("body").get_attribute("data-lf-tray") == "asks":
+        page.locator(".lf-asks").click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-tray", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
@@ -3851,12 +3845,12 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     assert errors == []
     page.close()
 
-    sidebar_page = DECISION_PAGE.replace(
+    sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
     page, errors = open_page(
         browser,
-        serve(sidebar_page, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION]),
+        serve(sidebar_page, events=[ACTION_ON_ASK, COMMENT_ON_ASK]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3889,7 +3883,7 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
 def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3913,7 +3907,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, opener):
     """The rail becomes a touch-sized index when the margin no longer exists."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 390, 760)
     expect(page.locator(".lf-living-margin")).to_be_hidden()
@@ -4000,7 +3994,7 @@ def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
 def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve):
     """A responsive posture exposes one map surface, never both at once."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -4019,7 +4013,7 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
     """The Page map is one destination while its compact rail changes posture."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
@@ -4039,7 +4033,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open sheet is a live projection, not a snapshot from its opening press."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
@@ -4078,10 +4072,10 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     page, errors = open_page(
         browser,
         serve(
-            DECISION_PAGE,
+            ASK_PAGE,
             events=[
-                ACTION_ON_DECISION,
-                {**COMMENT_ON_DECISION, "id": "f" * 32},
+                ACTION_ON_ASK,
+                {**COMMENT_ON_ASK, "id": "f" * 32},
             ],
         ),
     )
@@ -4122,9 +4116,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     the page moved and the card stood beside where its marker had been. The reflow here
     is a section growing, which is what every one of those cases is to the margin.
     """
-    page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
-    )
+    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.click()
@@ -4164,7 +4156,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
 
 def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
-    version_url = serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+    version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -4172,7 +4164,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
     expect(marker).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(
-        DECISION_PAGE.replace("Three jobs", "Four jobs")
+        ASK_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -4184,7 +4176,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     """A retained preview must outline the new document's matching destination."""
-    version_url = serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+    version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -4195,7 +4187,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
 
     (serve.page_dir / "index.html").write_text(
-        DECISION_PAGE.replace("Three jobs", "Four jobs")
+        ASK_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -4209,11 +4201,11 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):
     """Comparison marks are another projection, not DOM scraped by the map."""
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     _publish(
         serve.page_dir,
         2,
-        DECISION_PAGE.replace("Three jobs", "Four jobs"),
+        ASK_PAGE.replace("Three jobs", "Four jobs"),
         "The heading now names four jobs.",
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))

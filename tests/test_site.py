@@ -171,7 +171,7 @@ def test_product_pages_are_published_without_a_rewrite_dialect(site):
         assert target.read_bytes() == source.read_bytes(), source.name
 
 
-def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
+def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     """A page asks for its layer by absolute path, so the layer is the site's root. Any
     one of these missing is a page that opens unstyled, unupgraded, or not at all — and
     a static host reports none of it."""
@@ -721,7 +721,7 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
     _, url = served_example("command-hub")
     page, errors = open_page(browser, url)
     try:
-        decisions = page.locator(".lf-decisions")
+        decisions = page.locator(".lf-asks")
         expect(decisions).to_be_visible()
         expect(decisions).to_have_text("Asks 0/5")
         assert not errors, errors[:3]
@@ -734,7 +734,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     _, url = served_example("design-decision")
     page, errors = open_page(browser, url)
     try:
-        decisions = page.locator(".lf-decisions")
+        decisions = page.locator(".lf-asks")
         expect(decisions).to_be_visible()
         expect(decisions).to_have_text("Asks 0/2")
         chosen = (

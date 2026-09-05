@@ -9,12 +9,12 @@ from playwright.sync_api import expect
 from render_support import (
     ADDRESS_PAGE,
     ADDRESSED_PAGE,
+    ASKS_PAGE,
     BOARD_PAGE,
     CHIPS,
     CLIPPED_BY,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
-    DECISIONS_PAGE,
     DISCLOSED_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -96,16 +96,16 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         expect(guide).to_contain_text(surface)
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
 
-    page.locator(".lf-decisions").click()
-    asks = page.locator("button.lf-decisions-row")
+    page.locator(".lf-asks").click()
+    asks = page.locator("button.lf-asks-row")
     expect(asks).to_have_count(9)
-    expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
-    expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
+    expect(asks.first.locator(".lf-asks-kind")).to_have_text("ask")
+    expect(asks.first.locator(".lf-asks-says")).to_contain_text(
         "Which map should the sample team carry?"
     )
     asks.first.click()
     expect(page.locator("#bg-choice-ask")).to_be_focused()
-    page.locator(".lf-decisions").click()
+    page.locator(".lf-asks").click()
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -628,13 +628,13 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends.
     Moving focus does not replace the Ask's numeric action context with a widget copy.
     """
-    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(ASKS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
-    # The arrival stands on the decision, which wears its options' digits; the marks
+    # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
@@ -708,7 +708,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["r-now", "r-later"], "row"),
     ]:
         page.keyboard.press("a")
-        # The arrival stands on the decision; the digits are drawn once a mark holds the
+        # The arrival stands on the Ask; the digits are drawn once a mark holds the
         # focus, one Tab in.
         page.keyboard.press("Tab")
         for id_ in options:
@@ -1952,7 +1952,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
             "Threads panel",
         ),
         (
-            "navigation.panel.decisions",
+            "navigation.panel.asks",
             ["g", "A"],
             ["pressed", "neutral"],
             "Asks panel",
@@ -2112,23 +2112,23 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     # The Asks chord follows the same contract: show the panel and land on its first row.
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
-    expect(page.locator(".lf-decisions-panel")).to_be_visible()
-    expect(page.locator(".lf-decisions-row").first).to_be_focused()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    expect(page.locator(".lf-asks-row").first).to_be_focused()
     # A row is the reader standing at the ask it names, so the banner's count says
     # which of how many from the tray as it does from the page.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(page.locator(CHIPS)).to_have_count(0)
 
     # A direct destination also remembers the workspace it displaced. Threads replaces
     # Asks while it stands; one Escape restores both that tray and its exact focused row.
-    ask = page.locator(".lf-decisions-row").first
+    ask = page.locator(".lf-asks-row").first
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-panel")).to_be_visible()
-    expect(page.locator(".lf-decisions-panel")).not_to_be_visible()
+    expect(page.locator(".lf-asks-panel")).not_to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-panel")).not_to_be_visible()
-    expect(page.locator(".lf-decisions-panel")).to_be_visible()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
     expect(ask).to_be_focused()
 
     # Page map has its own close step, but that does not waive the same workspace
@@ -2155,7 +2155,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     )
     page.keyboard.press("Escape")
     page.wait_for_function("() => window.__lfPageMapClosed")
-    expect(page.locator(".lf-decisions-panel")).to_be_visible()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
     expect(ask).to_be_focused()
 
     page.keyboard.press("?")
@@ -2169,7 +2169,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-decisions-panel")).not_to_be_visible()
+    expect(page.locator(".lf-asks-panel")).not_to_be_visible()
 
     # Uppercase M opens the complete Page map rather than the numbered prefix.
     page.keyboard.press("g")
@@ -2378,31 +2378,31 @@ def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
         serve(
             leaf_page(
                 "One decision",
-                '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+                '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
                 '<lf-options id="only" choose>'
                 '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
             )
         ),
     )
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
-    expect(page.locator("button.lf-decisions-row")).to_be_focused()
+    expect(page.locator("button.lf-asks-row")).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator("#only-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    expect(page.locator(".lf-decisions-answer")).to_have_text("First")
-    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    expect(page.locator(".lf-asks-answer")).to_have_text("First")
+    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("Asks panel")
     page.keyboard.press("Shift+a")
-    expect(page.locator(".lf-decisions-row")).to_be_focused()
+    expect(page.locator(".lf-asks-row")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2476,16 +2476,16 @@ def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
         serve(
             leaf_page(
                 "One decision",
-                '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+                '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
                 '<lf-options id="only" choose>'
                 '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
             )
         ),
     )
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
     # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
@@ -2493,9 +2493,9 @@ def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
     page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-decisions-answer")).to_have_text("First")
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-asks-answer")).to_have_text("First")
     assert errors == []
     page.close()
 
@@ -2504,17 +2504,17 @@ def test_an_asks_tray_says_when_a_revision_removes_its_last_ask(browser, serve):
     """An empty inventory says the tray rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
-        '<h1>One decision</h1><lf-decision id="only-decision"><h2>Pick one</h2>'
+        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
         '<lf-options id="only" choose>'
         '<lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></lf-decision>',
+        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
     )
     url = serve(source)
     page, errors = open_page(browser, live_url(url))
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
-    expect(page.locator("button.lf-decisions-row")).to_have_count(1)
-    note = page.locator(".lf-decisions-panel .lf-empty")
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    note = page.locator(".lf-asks-panel .lf-empty")
     expect(note).to_have_count(0)
 
     stamp_page(
@@ -2523,8 +2523,8 @@ def test_an_asks_tray_says_when_a_revision_removes_its_last_ask(browser, serve):
         "remove the last ask",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("button.lf-decisions-row")).to_have_count(0)
-    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator("button.lf-asks-row")).to_have_count(0)
+    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(note).to_be_visible()
     expect(note).to_contain_text("Nothing is waiting on you")
     assert errors == []
@@ -2906,7 +2906,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
 
 def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     """Each Ask digit is a distinct command when invoked without a keydown."""
-    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(ASKS_PAGE))
 
     page.keyboard.press("a")
     page.keyboard.press("?")
@@ -2917,7 +2917,7 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     expect(first).to_have_text("Activate the “Keep the store” action")
     expect(second).to_have_text("Activate the “Signed tokens” action")
     expect(
-        page.locator('.lf-help-command[data-lf-command="decision.activate-nth"]')
+        page.locator('.lf-help-command[data-lf-command="ask.activate-nth"]')
     ).to_have_count(0)
 
     second.click()
@@ -2938,9 +2938,9 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
                 "draft ask",
                 """
 <h1 id="h">Release note</h1>
-<lf-decision id="note-decision"><h2>How should the note read?</h2>
+<lf-ask id="note-decision"><h2>How should the note read?</h2>
   <lf-draft id="note" needed><pre>Keep this text editable.</pre></lf-draft>
-</lf-decision>
+</lf-ask>
 """,
             )
         ),
@@ -2975,7 +2975,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
-    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(ASKS_PAGE))
 
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-keyshortcuts", "?"
@@ -3004,12 +3004,12 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     ).to_have_text("A")
     page.keyboard.press("Escape")
 
-    assert page.locator(".lf-decisions").get_attribute("aria-keyshortcuts") is None
-    page.locator(".lf-decisions").click()
-    expect(page.locator(".lf-decisions-panel")).to_have_attribute(
+    assert page.locator(".lf-asks").get_attribute("aria-keyshortcuts") is None
+    page.locator(".lf-asks").click()
+    expect(page.locator(".lf-asks-panel")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown"
     )
-    expect(page.locator(".lf-decisions-row").first).to_have_attribute(
+    expect(page.locator(".lf-asks-row").first).to_have_attribute(
         "aria-keyshortcuts", "Enter Space"
     )
     page.keyboard.press("Escape")
@@ -3991,7 +3991,7 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
 
     The visible More button remains a native keyboard route back to the preference;
     Enter, Escape, and other non-character controls keep their ordinary meanings."""
-    url = serve(DECISIONS_PAGE)
+    url = serve(ASKS_PAGE)
     events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "A note."},
@@ -4317,8 +4317,8 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
 
     # The row the line holds rather than the one it paints. Both are the same projection —
     # renderLine builds every live row and then hides what it has no room for — and the
-    # resting line now spends both chips on the two presses that say something back, so
-    # asking for a painted chip would be asking about the width instead of the shadowing.
+    # The resting line spends both chips on Comment and target selection, so asking for
+    # a painted chip would be asking about the width instead of the shadowing.
     line = page.locator(".lf-keyline")
     up = line.locator('.lf-key[data-lf-commands="page.up"]')
     expect(up).to_have_count(1)
@@ -4393,7 +4393,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     browser, serve, live_leaf
 ):
     """A held key repeats keydown where a real button fires once. A walk wants that — t
-    down threads, d down decisions, arrows down the tray — and a press that toggles or navigates
+    down threads, a down Asks, arrows down the tray — and a press that toggles or navigates
     does not: a held `]` was a page navigation per repeat, and a held pick a `choose` per
     repeat, each of them one decision the reader made once. So a row says whether it
     repeats and the default is no, where before only `offer`'s own listener had thought
@@ -4404,7 +4404,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page installed; the tap below it, dispatched the same way and answered, is what says
     so rather than leaving the held press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page, errors = open_page(browser, serve(DECISIONS_PAGE, comments=3))
+    page, errors = open_page(browser, serve(ASKS_PAGE, comments=3))
     press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
         new KeyboardEvent('keydown',
           {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
@@ -4415,9 +4415,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
 
     page.keyboard.press("a")
-    expect(page.locator("#live-question-decision[data-lf-decision]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
     page.evaluate(press, ["a", True])  # the same grammar repeats for asks
-    expect(page.locator("#sug-refill[data-lf-decision]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
 
     tray = page.locator(".lf-others-panel")
     page.keyboard.press("g")
@@ -4450,16 +4450,16 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
             "asks over a panel",
             """
 <h1 id="h">Open questions</h1>
-<lf-decision id="first-decision"><h2>Where should the feeders go?</h2>
+<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
 <lf-options id="first" choose>
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
-</lf-options></lf-decision>
-<lf-decision id="second-decision"><h2>Who fills them?</h2>
+</lf-options></lf-ask>
+<lf-ask id="second-decision"><h2>Who fills them?</h2>
 <lf-options id="second" choose>
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 """,
         ),
         comments=2,
@@ -4471,11 +4471,11 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
             "author": "claude",
             "revision": 1,
             "text": "And one for you in here.",
-            "markup": '<lf-decision id="reply-decision"><h3>Which baffle?</h3>'
+            "markup": '<lf-ask id="reply-decision"><h3>Which baffle?</h3>'
             '<lf-options id="reply-ask" choose>'
             '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
             '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         },
     )
     page, errors = open_page(browser, live_url(url))
@@ -4639,14 +4639,12 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.close()
 
 
-def test_the_resting_key_line_names_the_presses_that_say_something_back(browser, serve):
+def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):
     """The sentence a reader reads before they have pressed anything.
 
-    It used to be `/ search page · s select item · ? more · d / u page down / up`: two
-    ways of finding something to act on, one way of scrolling a page that scrolls under
-    any wheel, and not one word about the remark the page exists to collect — `c` and `r`
-    were display: none until `?`. The two presses that say something back lead it now,
-    and the ways of choosing what to say it about are what `?` unfolds.
+    Comment can act immediately because the page itself is its target. React cannot: the
+    reader first selects an item, then chooses the response. Whole-page search and page
+    movement remain in the complete reference.
 
     Read off `:not([hidden])`, because renderLine leaves every live row in the DOM and
     hides the ones it will not paint: `to_contain_text` on the line answers about the
@@ -4657,16 +4655,18 @@ def test_the_resting_key_line_names_the_presses_that_say_something_back(browser,
     expect(shown).to_have_count(2)
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
-    assert key_line(page) == "c\ncomment on the page\nr\nreact\n?\nmore", key_line(page)
+    assert key_line(page) == "c\ncomment on the page\ns\nselect item\n?\nmore", (
+        key_line(page)
+    )
 
-    # Still declared, and off the glance nobody asked for. Each is in the DOM and each is
-    # hidden — the pair of counts is what separates a row the line declined to paint from
-    # a row that stopped existing.
-    for command in ("page.search.open", "selection.open", "page.down"):
+    # Search and page movement are still declared but off the glance nobody asked for.
+    # React has no row at all until a target makes that capability live.
+    for command in ("page.search.open", "page.down"):
         expect(line.locator(f'.lf-key[data-lf-commands~="{command}"]')).to_have_count(1)
         expect(
             line.locator(f'.lf-key:not([hidden])[data-lf-commands~="{command}"]')
         ).to_have_count(0)
+    expect(line.locator('[data-lf-commands~="reaction.open"]')).to_have_count(0)
 
     # And named in full by the reference, which lists every live capability rather than
     # the ones the current width has room for.
@@ -4675,9 +4675,8 @@ def test_the_resting_key_line_names_the_presses_that_say_something_back(browser,
     help_el = page.locator(".lf-help")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text(
-        "Choose a visible item by hint, to comment on or react to"
-    )
+    expect(help_el).to_contain_text("Choose a visible item by hint")
+    expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
     assert errors == []
@@ -4755,11 +4754,11 @@ def test_a_coarse_pointer_is_given_no_key_line_and_keeps_no_room_for_one(
 FOOT_CONTROL_PAGE = NOTED_PAGE.replace(
     "</main>",
     '<div style="height: 2400px"></div>'
-    '<lf-decision id="foot-d"><h2 id="foot-h">The last question</h2>'
+    '<lf-ask id="foot-d"><h2 id="foot-h">The last question</h2>'
     '<lf-options id="foot-o" choose>'
     '<lf-option id="foot-keep">Keep it</lf-option>'
     '<lf-option id="foot-change">Change it</lf-option>'
-    "</lf-options></lf-decision></main>",
+    "</lf-options></lf-ask></main>",
 )
 
 # The band the line stands in, and the room the document keeps for it. `footprint` is the
@@ -5149,22 +5148,22 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         "label focus",
         """
 <h1 id="frames">Choose a frame</h1>
-<lf-decision id="first-question-decision"><h2>Which first frame?</h2>
+<lf-ask id="first-question-decision"><h2>Which first frame?</h2>
 <lf-options id="first-question" choose>
   <lf-option id="first-frame"><strong>First</strong>
     <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
   </lf-option>
   <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
-</lf-options></lf-decision>
-<lf-decision id="frame-question-decision"><h2>Which next frame?</h2>
+</lf-options></lf-ask>
+<lf-ask id="frame-question-decision"><h2>Which next frame?</h2>
 <lf-options id="frame-question" choose>
   <lf-option id="after-frame"><strong>After</strong>
     <label id="frame-label"><input id="frame" type="radio" name="frame">
       <span>after state</span></label>
   </lf-option>
   <lf-option id="before-frame"><strong>Before</strong></lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 """,
     )
     page, errors = open_page(
@@ -5176,7 +5175,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     first.focus()
     standing = key_line(page)
     assert "let go" in standing
-    expect(page.locator("#first-question-decision[data-lf-decision]")).to_have_count(1)
+    expect(page.locator("#first-question-decision[data-lf-ask]")).to_have_count(1)
 
     # A secondary contact does not drive native label activation, so it must not
     # start the logical transaction either.
@@ -5214,13 +5213,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert key_line(page) == standing
-    held_decision = page.locator("#first-question-decision[data-lf-decision]")
-    expect(held_decision).to_have_count(1)
-    expect(held_decision).to_have_css("--lf-here-ring", "decision")
+    held_ask = page.locator("#first-question-decision[data-lf-ask]")
+    expect(held_ask).to_have_count(1)
+    expect(held_ask).to_have_css("--lf-here-ring", "ask")
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
-    expect(page.locator("#frame-question-decision[data-lf-decision]")).to_have_count(1)
+    expect(page.locator("#frame-question-decision[data-lf-ask]")).to_have_count(1)
 
     # The press has its own frame and the drag comes after it, so the line's only route
     # to the word is the selection the drag makes: the reader is taking words out of a
@@ -5889,11 +5888,11 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     # A decision: the composer opens on the question rather than on the option the
     # walk happens to stand the reader on, and rather than on the page.
     page.keyboard.press("a")
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
-    expect(line).to_contain_text("comment on the decision")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("decision")
+    expect(page.locator(".lf-composer")).to_contain_text("ask")
     drop()
 
     # A settled group: not a decision at all, and the conversation seat it still holds is
@@ -5913,7 +5912,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     rewrite_action = page.locator('[data-lf-margin-for="sug-window"] .lf-sug-accept')
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
-    expect(page.locator("#sug-window")).to_have_attribute("data-lf-decision", "1")
+    expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("comment on the rewrite")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -5986,13 +5985,13 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             "mid-sentence",
             """
 <h1 id="t">Mid-sentence</h1>
-<lf-decision id="shape-decision"><h2>Galvanised steel for the frame?</h2>
-<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-decision>
-<lf-decision id="picked-decision"><h2>Should we keep it?</h2>
+<lf-ask id="shape-decision"><h2>Galvanised steel for the frame?</h2>
+<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-ask>
+<lf-ask id="picked-decision"><h2>Should we keep it?</h2>
 <lf-options id="picked" choose>
   <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
   <lf-old>Refill every feeder each morning.</lf-old>
@@ -6017,36 +6016,32 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")
-    decisions = page.locator(".lf-decisions")
+    decisions = page.locator(".lf-asks")
 
     # The completion count includes every active Ask: the authored pick is complete;
     # the seated Ask and suggestion are not.
     expect(decisions).to_have_text("Asks 1/3")
     decisions.click()
-    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
-    expect(
-        page.locator('.lf-decisions-row[data-lf-at="shape-decision"]')
-    ).to_have_count(1)
-    expect(
-        page.locator('.lf-decisions-row[data-lf-at="picked-decision"]')
-    ).to_have_count(1)
-    expect(page.locator('.lf-decisions-row[data-lf-at="sug-window"]')).to_have_count(1)
+    expect(page.locator("button.lf-asks-row")).to_have_count(3)
+    expect(page.locator('.lf-asks-row[data-lf-at="shape-decision"]')).to_have_count(1)
+    expect(page.locator('.lf-asks-row[data-lf-at="picked-decision"]')).to_have_count(1)
+    expect(page.locator('.lf-asks-row[data-lf-at="sug-window"]')).to_have_count(1)
 
     # The reader is standing in it all the same — and first with the tray still open, the
     # one state where the ring has a second surface to reach: the inventory row.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
-    expect(page.locator("button.lf-decisions-row")).to_have_count(3)
-    expect(
-        page.locator('.lf-decisions-row[data-lf-at="shape-decision"]')
-    ).to_have_attribute("data-lf-decision", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("button.lf-asks-row")).to_have_count(3)
+    expect(page.locator('.lf-asks-row[data-lf-at="shape-decision"]')).to_have_attribute(
+        "data-lf-ask", "1"
+    )
     page.evaluate("() => document.activeElement?.blur()")
     decisions.click()
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
-    expect(line).to_contain_text("comment on the decision")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the ask")
     # The count is completion, not the open walk's position, so focus leaves it stable.
     expect(decisions).to_have_text("Asks 1/3")
 
@@ -6075,8 +6070,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # completion count remains stable.
     expect(decisions).to_have_text("Asks 1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-decision", "1")
-    expect(line).to_contain_text("comment on the decision")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the ask")
     page.evaluate("() => document.activeElement?.blur()")
 
     # The picked group is the control on the other side: answered, so off both readings,
@@ -6087,7 +6082,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # through to the innermost item, which from a pick is the option and not the question.
     page.locator("#picked .lf-pick").first.focus()
     expect(line).to_contain_text(re.compile(r"comment on the option(?!s)"))
-    assert page.locator("[data-lf-decision]").count() == 0, (
+    assert page.locator("[data-lf-ask]").count() == 0, (
         "an answered group wears the ring the switch was not about"
     )
 
@@ -6183,11 +6178,11 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             "seated",
             """
 <h1 id="t">Seated</h1>
-<lf-decision id="shape-decision"><h2>Which material?</h2>
+<lf-ask id="shape-decision"><h2>Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-command id="hub" label="The rail">
   <lf-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
   Either crew can take it, and neither has said which week.</lf-task>
@@ -6228,7 +6223,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     # The control: standing on a widget that seats nothing, so the press has no thread
     # to prefer and opens the composer on the widget itself.
     page.locator("#shape .lf-pick").first.focus()
-    expect(line).to_contain_text("comment on the decision")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")

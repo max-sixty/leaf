@@ -27,7 +27,7 @@ def _browser_document(
                 within=document.within,
                 floors=document.floors,
             ),
-            "decisions": document.decisions,
+            "asks": document.asks,
             "requests": document.requests,
         },
         document.projection,

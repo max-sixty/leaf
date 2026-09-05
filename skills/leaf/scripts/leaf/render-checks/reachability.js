@@ -133,7 +133,7 @@ export function tinyBoxes(widgets) {
 }
 
 // An element the reader can see and no mark can be shown on. The gate presses no keys, so
-// it never watches the decision walk paint a ring or a comment paint an outline. It can still
+// it never watches the Ask walk paint a ring or a comment paint an outline. It can still
 // read whether either would have had anywhere to land, which is the same fault one step
 // earlier, before it turns into a mark nobody can see.
 //

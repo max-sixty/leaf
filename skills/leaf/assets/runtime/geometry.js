@@ -12,7 +12,7 @@ import { uiInside } from "./shadow.js";
    using the element that owns the Range as the start of the walk. Use:
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
-   - `shownParts` for decision rings and element-anchor outlines;
+   - `shownParts` for Ask rings and element-anchor outlines;
    - `shownRect` for visible placement of floating chrome and address chips;
    - `clippedRect` only when the subject has no element box of its own.
 

@@ -3,7 +3,7 @@
    stacks them, and puts the root in the document. */
 import { banner, mountBanner, reserveBannerControls } from "./banner.js";
 import { versionMenu } from "./version.js";
-import { decisionsPanel, othersPanel } from "./trays.js";
+import { asksPanel, othersPanel } from "./trays.js";
 import { panel, wireGeneralBox } from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { helpEl } from "./keyboard/reference.js";
@@ -12,7 +12,7 @@ import { el, focusDestination, offer } from "./widget-elements.js";
 import { overflowMenu } from "./banner-shelf.js";
 import { inspectEl, legendRoot } from "./design.js";
 import { addressLayer } from "./keyboard/address.js";
-import { decisionActionLayer } from "./decisions/view.js";
+import { askActionLayer } from "./asks/view.js";
 import { selectionLayer, selectionSearch } from "./composing/targets.js";
 import { mountTargetPaint, visualMarkLayer } from "./target-paint.js";
 import { marginTraceBox, mountMargin } from "./living-margin.js";
@@ -83,7 +83,7 @@ export function mountChrome() {
     [banner, "lf-banner"],
     [versionMenu, "lf-versions"],
     [othersPanel, "lf-leaves"],
-    [decisionsPanel, "lf-decisions"],
+    [asksPanel, "lf-asks"],
     [panel, "lf-threads"],
     [fab, "lf-comment-button"],
     [composer, "lf-composer"],
@@ -98,11 +98,11 @@ export function mountChrome() {
     overflowMenu,
     versionMenu,
     othersPanel,
-    decisionsPanel,
+    asksPanel,
     panel,
     legendRoot,
     addressLayer,
-    decisionActionLayer,
+    askActionLayer,
     selectionLayer,
     selectionSearch,
     visualMarkLayer,

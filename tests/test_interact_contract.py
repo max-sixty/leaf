@@ -407,10 +407,10 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -458,10 +458,10 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -645,10 +645,10 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
 def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
-        '<lf-decision id="route-decision"><h2>Which route?</h2>'
+        '<lf-ask id="route-decision"><h2>Which route?</h2>'
         '<lf-options id="route" choose>'
         '<lf-option id="route-authored">Authored route</lf-option>'
-        "</lf-options></lf-decision>"
+        "</lf-options></lf-ask>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -704,10 +704,10 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
     """
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
-        '<lf-decision id="run-status-decision"><h2>Which run status?</h2>'
+        '<lf-ask id="run-status-decision"><h2>Which run status?</h2>'
         '<lf-options id="run-status" choose>'
         '<lf-option id="rs-column">Column</lf-option>'
-        "</lf-options></lf-decision>"
+        "</lf-options></lf-ask>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1014,10 +1014,10 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<lf-decision id="thread-choice-decision"><h3>Which option?</h3>'
+        '<lf-ask id="thread-choice-decision"><h3>Which option?</h3>'
         '<lf-options id="thread-choice" choose>'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></lf-decision>"
+        "</lf-options></lf-ask>"
     )
     conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
 
@@ -1816,9 +1816,7 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert (
-        "version response but declares no x-awaits standing decision" in result.output
-    )
+    assert "version response but declares no x-awaits standing Ask" in result.output
 
     del registry["lf-diagram"]["x-conversation"]["response"]
     registry["lf-diagram"]["x-awaits"] = {"rollup": True}
@@ -2010,8 +2008,8 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         ("unknown-offered-verb", "names undeclared verbs ['explode']"),
         ("unoffered-verb", "verbs ['restart'] cannot be offered"),
-        ("self-framing-decision", "declares both x-decision and x-request.decision"),
-        ("dual-decision-source", "declares both x-request.decision and x-awaits"),
+        ("self-framing-decision", "declares both x-ask-surface and x-request.ask"),
+        ("dual-decision-source", "declares both x-request.ask and x-awaits"),
     ],
 )
 def test_an_x_request_declaration_closes_its_widget_boundary(
@@ -2060,7 +2058,7 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
     elif mutation == "unoffered-verb":
         registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
     elif mutation == "self-framing-decision":
-        operations["x-decision"] = True
+        operations["x-ask-surface"] = True
         operations["x-content"] = "prose"
     elif mutation == "dual-decision-source":
         operations["x-awaits"] = {"rollup": True}
@@ -2689,14 +2687,14 @@ def test_an_aggregate_only_rollup_declaration_is_valid(page_dir):
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
-        ({}, "local decision declares no answer verbs"),
+        ({}, "local Ask declares no answer verbs"),
         (
             {"rollup": True, "when": {"status": ["review"]}},
-            "rollup also declares local decision fields ['when']",
+            "rollup also declares local Ask fields ['when']",
         ),
     ],
 )
-def test_an_awaits_declaration_has_one_decision_role(page_dir, declaration, message):
+def test_an_awaits_declaration_has_one_ask_role(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2724,7 +2722,7 @@ def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
 
 
 def test_a_part_scoped_completion_verb_requires_a_completion_condition(page_dir):
-    """A part record does not answer its whole Decision merely by sharing its verb."""
+    """A part record does not answer its whole Ask merely by sharing its verb."""
     registry = json.loads((page_dir / "registry.json").read_text())
     swipe = json.loads(
         (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
@@ -4040,7 +4038,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     """Keeping a position record must not reinterpret whether it completed its Ask."""
     from copy import deepcopy
 
-    from leaf.decisions import answered_decision
+    from leaf.asks import answered_ask
     from leaf.files import latest_revision
     from leaf.projection import page_projection
     from leaf.validation.compatibility import vocabulary_gaps
@@ -4082,7 +4080,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
 
     def answered(layer):
         projection, parser, words = page_projection(source, events, layer, revision)
-        return answered_decision(
+        return answered_ask(
             parser.by_id["session-triage"],
             layer["lf-swipe-deck"],
             projection,

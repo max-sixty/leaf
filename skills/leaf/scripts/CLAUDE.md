@@ -26,7 +26,7 @@ The main owners are:
   delivery context, and conversation writes;
 - `acknowledgments` and `work`: growing delivery receipts, transient work
   claims, and widget work seats;
-- `decisions`: declaration-driven page and thread decision projections;
+- `asks`: declaration-driven page and thread Ask projections;
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;

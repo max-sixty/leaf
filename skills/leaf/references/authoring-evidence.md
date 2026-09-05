@@ -30,7 +30,7 @@ measurement definition.
 ## Interactive and visual evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task's nested Decision takes a pick.
+drag, an options group takes a click, or a review task's nested Ask takes a pick.
 Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for flows, state machines, sequences, class relationships, ER

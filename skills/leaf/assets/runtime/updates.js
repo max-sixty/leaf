@@ -38,7 +38,7 @@
    `actionSequence` traverses the classified events in the installed server view, then
    returns structured clones so modules cannot mutate the reading. `updateSequence`
    filters the server-normalized update feed. `watchActions`, `watchUpdates`, and
-   `watchDecisions` subscribe their public semantic readings to the runtime's projection
+   `watchAsks` subscribe their public semantic readings to the runtime's projection
    invalidation and invoke the callback immediately. The same rendering function
    therefore handles a module connected before the first state and one constructed by a
    later thread reconcile.

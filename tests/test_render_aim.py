@@ -16,9 +16,9 @@ from render_support import (
     AIM_SEAM,
     AIM_SEAM_PAGE,
     AIMED,
+    ASKS_PAGE,
     BOTH_STAMPS,
     CORNER_PAGE,
-    DECISIONS_PAGE,
     DRAFT_MARK,
     EDGES,
     EXAMPLES,
@@ -238,7 +238,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     leave its reading of the page behind. Keep the whole comment route on the item the
     reader pointed at.
     """
-    source = DECISIONS_PAGE.replace(
+    source = ASKS_PAGE.replace(
         "</head>",
         "<style>html { position: relative; margin-left: 40px; "
         "border-left: 30px solid transparent; } "
@@ -253,7 +253,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the shell moves
     # underneath it. The target is wide enough to remain under that point throughout.
-    page.locator(".lf-decisions").evaluate("node => node.click()")
+    page.locator(".lf-asks").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
         """() => {
@@ -553,7 +553,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
 
 def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve):
     """A left tray and right panel can move the shell without changing its width."""
-    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     tray = EDGES[1]
     tray.stand(page)
@@ -603,14 +603,14 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     inside Leaf's chrome rises above it. The target decides the plane, so the same aim and
     response bar can serve both without a viewport-width z-index exception.
     """
-    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 560, 900)
     # A window this narrow folds the row's destinations into the banner's one menu, so
     # the address is asked for where the page has put it rather than where a wider
     # window would have left it.
-    banner_address(page, ".lf-decisions").click()
+    banner_address(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
-    tray = page.locator(".lf-decisions-panel")
+    tray = page.locator(".lf-asks-panel")
     expect(tray).to_be_visible()
 
     target = page.locator("#lq-keep")
@@ -625,7 +625,7 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     page_plane = page.evaluate(
         """() => {
-          const tray = document.querySelector('.lf-decisions-panel');
+          const tray = document.querySelector('.lf-asks-panel');
           const aim = document.querySelector('.lf-aim');
           return {tray: Number(getComputedStyle(tray).zIndex),
                   aim: Number(getComputedStyle(aim).zIndex),
@@ -642,7 +642,7 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     response_plane = page.locator(".lf-fab-bar").evaluate(
         "node => ({plane: node.dataset.lfPaintPlane, "
         "z: Number(getComputedStyle(node).zIndex), "
-        "tray: Number(getComputedStyle(document.querySelector('.lf-decisions-panel')).zIndex)})"
+        "tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex)})"
     )
     assert (
         response_plane["plane"] == "page"
@@ -659,7 +659,7 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     expect(page.locator(".lf-aim")).to_be_visible()
     chrome_plane = page.evaluate(
         """() => {
-          const tray = document.querySelector('.lf-decisions-panel');
+          const tray = document.querySelector('.lf-asks-panel');
           const aim = document.querySelector('.lf-aim');
           const inspect = document.querySelector('.lf-inspect');
           const target = document.getElementById(aim.dataset.for);
@@ -695,7 +695,7 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     chrome_response = page.locator(".lf-fab-bar").evaluate(
         "node => ({plane: node.dataset.lfPaintPlane, "
         "z: Number(getComputedStyle(node).zIndex), "
-        "tray: Number(getComputedStyle(document.querySelector('.lf-decisions-panel')).zIndex)})"
+        "tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex)})"
     )
     assert (
         chrome_response["plane"] == "chrome"

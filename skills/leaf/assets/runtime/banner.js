@@ -12,7 +12,7 @@ import {
   unfoldShelf,
 } from "./banner-shelf.js";
 import { latestChip, versionBtn, versionLabels } from "./version.js";
-import { decisionsBtn, othersBtn } from "./trays.js";
+import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING, syncLayout } from "./chrome-layout.js";
 import { needsBtn } from "./conversation/panel.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -261,7 +261,7 @@ function renderStatusNow(state) {
     text = `${agentName()} is working${detail ? " — " + detail : ""}`;
   } else if (kind === "listening") {
     // Attendance is half the news; the other half is what the page wants back. The
-    // Decisions count beside it says how many things are unanswered and nothing about what
+    // Asks count beside it says how many things are unanswered and nothing about what
     // any of them is, so the claim's detail says that here in the agent's own words,
     // the way a `working` claim's says what it is doing. With nothing declared it is
     // the standing instruction, which is what a page asking nothing wanted anyway.
@@ -269,9 +269,9 @@ function renderStatusNow(state) {
     // "awaits" while the judged kind stays `listening`: they name different things.
     // The kind and the server field behind it are the evidence — a watcher live on the
     // other end — and the words are the stance it supports, which is the registry's
-    // own word for a standing decision for the reader (x-awaits). Wording is the seat's,
+    // own word for a standing Ask for the reader (x-awaits). Wording is the seat's,
     // per `presented`, so a row in the leaves panel leads with the bare word and
-    // carries the same decision behind it.
+    // carries the same Ask behind it.
     text = `${agentName()} awaits — ${detail || "select text to comment"}`;
   } else if (kind === "stalled") {
     // The claim stands, dated, with no remedy attached: a watcher is live, so the
@@ -355,10 +355,10 @@ function arrangeBannerControls() {
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
 export function mountBanner() {
-  for (const control of [decisionsBtn, othersBtn]) showNews(control, false);
+  for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
   // around it and later preserves any registry-declared controls added among these three.
-  bannerActions.append(latestChip, decisionsBtn, versionBtn);
+  bannerActions.append(latestChip, asksBtn, versionBtn);
 
   arrangeBannerControls();
   banner.append(bannerStatus, bannerActions);
@@ -412,7 +412,7 @@ export function reserveBannerControls() {
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Asks 999/999"]);
+  reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   foldShelf();
   reservedCovering = covering().matches;

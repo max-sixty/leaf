@@ -103,9 +103,9 @@ import { inPanel, panelCovers, panelIsOpen, setPanel } from "../chrome-layout.js
 import { threadsBox } from "../conversation/panel.js";
 import {
   currentTray,
-  decisionRows,
-  decisionsOffered,
-  decisionsPanel,
+  askRows,
+  asksOffered,
+  asksPanel,
   othersPanel,
   showTray,
 } from "../trays.js";
@@ -231,16 +231,16 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     active: (...args) => panelIsOpen(...args),
   },
   {
-    id: "navigation.panel.decisions",
+    id: "navigation.panel.asks",
     key: "Shift+a",
     does: "Go to the Asks panel",
     line: "Asks panel",
-    when: (...args) => decisionsOffered(...args),
+    when: (...args) => asksOffered(...args),
     go: () => {
-      showTray("decisions");
-      (decisionRows()[0] ?? decisionsPanel).focus({ preventScroll: true });
+      showTray("asks");
+      (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
     },
-    active: () => currentTray() === "decisions",
+    active: () => currentTray() === "asks",
   },
   {
     id: "navigation.panel.leaves",

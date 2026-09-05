@@ -112,7 +112,22 @@ export const commandPresentations = (row, active = bindings(row)) => {
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
 // and folded into the rows that name them when this replaced those labels.
-export const labelOf = (row) => word(row.label) ?? bindings(row).map(spell).join(" / ");
+export function decisionName(row, where = "the command register") {
+  const value = word(row.decision);
+  const name = typeof value === "string" ? value.trim() : "";
+  if (!name)
+    throw new TypeError(
+      `leaf: ${row.id ?? "a command"} in ${where} has no Decision action name`,
+    );
+  return name;
+}
+export const labelOf = (row) => {
+  const label = word(row.label);
+  if (label !== undefined && label !== null) return label;
+  const bound = bindings(row).map(spell).join(" / ");
+  if (bound || declaredBindings(row).length) return bound;
+  return row.decision !== undefined ? decisionName(row) : "";
+};
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
@@ -175,6 +190,67 @@ export const validateRows = (rows, where = "a scope") =>
 export function activeRows(rows, where = "a scope") {
   const active = rows.filter((row) => live(row) && bindings(row).length > 0);
   return validateActive(active, where, bindings);
+}
+
+// The controls one ordered command set contributes to an Ask. `decision` names the
+// command's action in that Ask; it is not another command registry. The dispatcher, key
+// line, reference and Ask projection all read the same row. Routes may name distinct
+// controls when one compact row owns a family of parameterized bindings (numbered
+// options). A command with no binding receives its contextual number from the Ask
+// projection.
+export function decisionControls(commands, where = "an Ask") {
+  const controls = new Map();
+  for (const { source, row } of commands) {
+    const routes = commandRoutes(row);
+    const candidates = [
+      ...(row.decision !== undefined ? [{ row, route: null }] : []),
+      ...routes
+        .filter((route) => route.decision !== undefined)
+        .map((route) => ({ row, route })),
+    ];
+    for (const { route } of candidates) {
+      const contribution = route ?? row;
+      const control = word(contribution.control ?? row.control);
+      const label = decisionName(contribution, where);
+      const address = word(contribution.address ?? row.address) ?? null;
+      const active = route ? [route.binding] : bindings(row);
+      if (!(control instanceof Element))
+        throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
+      if (address !== null && !(address instanceof Element))
+        throw new TypeError(
+          `leaf: ${contribution.id} in ${where} has no Element address`,
+        );
+      if (active.length > 1)
+        throw new TypeError(
+          `leaf: ${contribution.id} in ${where} has ${active.length} live bindings; ` +
+            "an Ask control needs zero or one",
+        );
+      const record = {
+        id: contribution.id,
+        source,
+        control,
+        label,
+        binding: active[0] ?? null,
+        address,
+      };
+      const prior = controls.get(control);
+      if (prior) {
+        if (
+          prior.id !== record.id ||
+          prior.label !== record.label ||
+          prior.binding !== record.binding ||
+          prior.address !== record.address
+        )
+          throw new TypeError(
+            `leaf: one control has two Decision commands in ${where}: ` +
+              `${prior.id} and ${record.id}`,
+          );
+        continue;
+      }
+      controls.set(control, record);
+    }
+  }
+  return [...controls.values()];
 }
 
 // The register's machine-readable spelling for assistive technology. `Mod` is the one
@@ -246,6 +322,21 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
+    if (
+      row.decision !== undefined &&
+      !(
+        (typeof row.decision === "string" && row.decision.trim()) ||
+        typeof row.decision === "function"
+      )
+    )
+      throw new Error(
+        `leaf: ${row.id ?? `row ${i} of ${where}`} has invalid Decision action name ` +
+          `${String(row.decision)}; expected a non-empty string or function returning one`,
+      );
+    if (row.decision !== undefined && row.control == null)
+      throw new Error(
+        `leaf: ${row.id ?? `row ${i} of ${where}`} is a Decision command with no control`,
+      );
     if (row.returnFrame !== undefined && typeof row.returnFrame !== "function")
       throw new Error(
         `leaf: ${row.id ?? `row ${i} of ${where}`} has a returnFrame that is not a function`,
@@ -269,6 +360,21 @@ export function checked(rows, where) {
     const routes = commandRoutes(row);
     const routed = new Set();
     for (const route of routes) {
+      if (
+        route.decision !== undefined &&
+        !(
+          (typeof route.decision === "string" && route.decision.trim()) ||
+          typeof route.decision === "function"
+        )
+      )
+        throw new Error(
+          `leaf: route ${route.id ?? "without an id"} of ${row.id} has invalid Decision ` +
+            `action name ${String(route.decision)}; expected a non-empty string or function returning one`,
+        );
+      if (route.decision !== undefined && route.control == null && row.control == null)
+        throw new Error(
+          `leaf: route ${route.id ?? "without an id"} of ${row.id} is a Decision command with no control`,
+        );
       if (!route?.id || typeof route.id !== "string" || !COMMAND_ID.test(route.id))
         throw new Error(
           `leaf: route of ${row.id} names ${String(route?.id)}, which is not a stable command id`,

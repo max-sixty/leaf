@@ -96,8 +96,10 @@ export function createScopes({ paintHere, upFrom }) {
   /** Declare a scope's keys where the code implementing them is.
    *
    * `where` is the element focus must be inside, `title` names the scope in the "?" overlay
-   * (null for one the reference has no room to name), `rows` are its bindings, and `when` is
-   * whether the page has this scope at all.
+   * (null for one the reference has no room to name), `rows` are its bindings, and the
+   * optional configuration carries `when` (whether the page has this scope at all) and
+   * `answer` (the concise current answer when this scope belongs to an Ask). A function in
+   * the fourth position is shorthand for `{when: function}`.
    *
    * A scope's `when` and a row's `when` are different questions, and keeping them apart is
    * what lets one declaration feed both surfaces. The scope's is the capability — does this
@@ -123,12 +125,20 @@ export function createScopes({ paintHere, upFrom }) {
    * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
    * grabbed card answers — reads them back off the declaration rather than restating them.
    */
-  function keys(where, title, rows, when) {
+  function keys(where, title, rows, options) {
+    const configuration =
+      typeof options === "function" ? { when: options } : (options ?? {});
+    if (typeof configuration !== "object")
+      throw new TypeError("A command scope's options must be an object");
+    const { when, answer } = configuration;
+    if (answer !== undefined && typeof answer !== "function")
+      throw new TypeError("A command scope's answer must be a function");
     const scope = {
       title,
       el: where,
       rows: checked(rows, title ?? "a scope"),
       when,
+      answer,
     };
     // Validate before publishing to either index. A rejected declaration must not leave a
     // bad scope installed where every later paint fails on it. A capability-gated scope may
@@ -149,6 +159,47 @@ export function createScopes({ paintHere, upFrom }) {
     paintHere();
     return rows;
   }
+
+  // Commands whose scope stands in one widget, in declaration order. Preserve the
+  // declaring scope beside each row: a control presentation may be hoisted elsewhere,
+  // while Decision ownership still belongs to the source that declared the command.
+  // This is the shared capability reading: the dispatcher, key line and reference use
+  // the same rows directly, while projections such as Asks select the role they need.
+  // A scope may sit on a nested control rather than the widget itself, so containment
+  // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
+  function scopesWithin(root, activeOnly) {
+    pruneScopedElements();
+    const found = [];
+    for (const ref of scopeRefs) {
+      const scoped = ref.deref();
+      if (!scoped?.isConnected) continue;
+      let inside = false;
+      for (let node = scoped; node; node = upFrom(node))
+        if (node === root) {
+          inside = true;
+          break;
+        }
+      if (!inside) continue;
+      const scope = elementScopes.get(scoped);
+      if (!scope || (activeOnly && scope.when && !scope.when())) continue;
+      found.push({ source: scoped, scope });
+    }
+    return found;
+  }
+  function commandsWithin(root) {
+    return scopesWithin(root, true).flatMap(({ source, scope }) =>
+      scope.rows.filter(live).map((row) => ({ source, row })),
+    );
+  }
+  // Command-scope metadata under one widget, in declaration order. The action rows and
+  // the current-answer reading are different projections of the same package
+  // declaration: row liveness controls what can be pressed now, while an answer remains
+  // readable after those controls have settled or become unavailable.
+  const commandScopesWithin = (root) =>
+    scopesWithin(root, false).map(({ source, scope }) => ({
+      source,
+      answer: scope.answer,
+    }));
   function reflectShortcuts(scope) {
     const available = !scope.when || scope.when();
     try {
@@ -324,6 +375,8 @@ export function createScopes({ paintHere, upFrom }) {
   const scopes = {
     byCommand,
     claimsEsc,
+    commandScopesWithin,
+    commandsWithin,
     documentFocused,
     elementScopes,
     focused,

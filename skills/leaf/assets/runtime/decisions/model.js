@@ -1,3 +1,5 @@
+import { watchProjection } from "../projection-watch.js";
+
 let publishedDecisionModel;
 export const answeredContext = (...args) =>
   publishedDecisionModel.answeredContext(...args);
@@ -5,6 +7,8 @@ export const decisionSource = (...args) =>
   publishedDecisionModel.decisionSource(...args);
 export const allDecisions = (...args) => publishedDecisionModel.allDecisions(...args);
 export const openDecisions = (...args) => publishedDecisionModel.openDecisions(...args);
+export const watchDecisions = (...args) =>
+  publishedDecisionModel.watchDecisions(...args);
 
 /* Server-projected decision state, resolved onto the browser's live DOM. */
 export function createDecisionModel({
@@ -106,6 +110,17 @@ export function createDecisionModel({
   const openDecisions = () => decisions("reader");
   const unansweredDecisions = () => decisions("unanswered");
 
+  // A package subscribes to the semantic projection, never to the transport's broad
+  // invalidation event. The first reading is synchronous, which lets a connected
+  // widget paint one complete state without a separate setup path. The owner exists
+  // only to bind lifetime; the reading stays page-wide because a command hub observes
+  // decisions elsewhere in the document.
+  function watchDecisions(owner, callback) {
+    if (typeof callback !== "function")
+      throw new TypeError("A decision watcher needs a callback");
+    return watchProjection(owner, () => callback(openDecisions()));
+  }
+
   const model = {
     allDecisions,
     answeredContext,
@@ -115,6 +130,7 @@ export function createDecisionModel({
     openDecisions,
     projectedParent,
     unansweredDecisions,
+    watchDecisions,
   };
   publishedDecisionModel = model;
   return model;

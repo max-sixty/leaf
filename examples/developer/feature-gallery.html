@@ -577,7 +577,8 @@ gallery/
 
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option
+            lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
+            lf-swipe-pile · lf-swipe-card
           </p>
           <h3 id="bg-quoted-and-visual-heading">
             <strong>Specimen</strong> and <strong>Shot</strong
@@ -592,6 +593,20 @@ gallery/
                 <strong>Display signs</strong> Easy to update.
               </lf-option>
             </lf-options>
+          </lf-specimen>
+          <lf-specimen id="bg-swipe-specimen" label="a classified swipe deck">
+            <lf-swipe-deck id="bg-swipe-completed">
+              <lf-swipe-pile id="bg-swipe-completed-queue" verdict="unseen">
+              </lf-swipe-pile>
+              <lf-swipe-pile id="bg-swipe-completed-pass" verdict="pass">
+              </lf-swipe-pile>
+              <lf-swipe-pile id="bg-swipe-completed-keep" verdict="keep">
+                <lf-swipe-card id="bg-swipe-completed-card">
+                  <strong>Keep the explicit expiry bound</strong>
+                  <p>The card's pile carries its recorded classification.</p>
+                </lf-swipe-card>
+              </lf-swipe-pile>
+            </lf-swipe-deck>
           </lf-specimen>
           <p id="bg-shot-guide">
             Specimen labels invented content. Press the Shot Button or image to switch

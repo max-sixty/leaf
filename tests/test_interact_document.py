@@ -857,6 +857,35 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     assert "loose text" in result.output
 
 
+def test_check_requires_one_child_for_each_declared_role(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-milestones"]["x-children"] = {"lf-milestone": {"one-each": "status"}}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "<lf-options>",
+            """<lf-milestones>
+  <lf-milestone id="role-planned" status="planned">Planned</lf-milestone>
+  <lf-milestone id="role-active" status="active">Active</lf-milestone>
+  <lf-milestone id="role-done" status="done">Done</lf-milestone>
+  <lf-milestone id="role-blocked" status="blocked">Blocked</lf-milestone>
+</lf-milestones>
+<lf-options>""",
+        )
+    )
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+
+    version.write_text(
+        version.read_text().replace('status="blocked"', 'status="planned"')
+    )
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "exactly one direct <lf-milestone> for each `status` value" in result.output
+    assert "missing ['blocked'], repeated ['planned']" in result.output
+
+
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')

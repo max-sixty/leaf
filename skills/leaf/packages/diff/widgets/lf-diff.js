@@ -9,7 +9,7 @@ import {
   failSoft,
   focused,
   inChrome,
-  keys,
+  commands,
   langForPath,
   layoutChanged,
   loadDataFragment,
@@ -24,6 +24,7 @@ import {
   shadowStage,
   standingState,
   notice,
+  watchActions,
   watchData,
 } from "/runtime/widget-api.js";
 // Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
@@ -189,7 +190,7 @@ function summaryNode(file, open) {
     }),
     stat,
   );
-  keys(summary, "On a diff", [
+  commands(summary, "On a diff", [
     {
       id: "diff.toggle",
       keys: () => DISCLOSE(summary),
@@ -400,8 +401,7 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     connectedCallback() {
-      document.removeEventListener("lf-actions", this.paintReviewAvailability);
-      document.addEventListener("lf-actions", this.paintReviewAvailability);
+      this.stopActions ??= watchActions(this, null, this.paintReviewAvailability);
       if (!this.threadSurface)
         this.threadSurface = registerThreadSurface(this, {
           begin: () => this.beginThreadSurface(),
@@ -415,7 +415,7 @@ customElements.define(
       // the module answers it once with the layer's own predicate and paints the answer.
       if (!inChrome(this)) this.dataset.lfDiffPinned = "";
       if (!this.reviewKeys) {
-        this.reviewKeys = keys(
+        this.reviewKeys = commands(
           this,
           "In a diff review",
           [
@@ -553,7 +553,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      document.removeEventListener("lf-actions", this.paintReviewAvailability);
+      this.stopActions?.();
+      this.stopActions = null;
       this.rendering = (this.rendering ?? 0) + 1;
       this.stopWatching?.();
       this.stopWatching = null;

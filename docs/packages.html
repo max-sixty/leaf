@@ -6,32 +6,47 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
     <title>leaf packages</title>
     <meta
       name="description"
       content="Build a small Leaf package with a reusable theme and widget."
     />
-    <link rel="icon" href="../skills/leaf/assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="leaf packages" />
     <meta
       property="og:description"
       content="Build a reusable theme or widget with the same package contract Leaf uses for its defaults."
     />
-    <meta property="og:url" content="https://leaf.page/packages.html" />
-    <meta property="og:image" content="https://leaf.page/session-light.png" />
+    <meta property="og:url" content="https://leaf.page/packages/" />
+    <meta property="og:image" content="https://leaf.page/media/b570d38114308294.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="../skills/leaf/assets/theme.css" />
-    <link rel="stylesheet" href="../skills/leaf/packages/default/theme.css" />
-    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="/theme.css" />
+    <style>
+      .package-next {
+        margin-top: var(--sp-4);
+      }
+      .package-next dt {
+        margin-top: var(--sp-2);
+      }
+      .package-next dd {
+        color: var(--ink-2);
+      }
+    </style>
+    <script type="module" src="/leaf.js"></script>
   </head>
-  <body>
+  <body class="site-page">
     <main>
       <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="index.html">leaf</a>
-        <a href="examples.html">Examples</a>
-        <a href="how-it-works.html">How it works</a>
-        <a href="packages.html" aria-current="page">Packages</a>
+        <a class="brand" href="/">leaf</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/packages/" aria-current="page">Packages</a>
+        <a href="/registry/">Registry</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
@@ -45,24 +60,39 @@
         </p>
       </header>
 
+      <aside class="sidebar" id="package-route">
+        <lf-toc id="package-contents"></lf-toc>
+      </aside>
+
       <section id="start">
         <h2>Start with two files</h2>
         <p>Create a package in the project, then check the empty composition:</p>
-        <pre><code>$ leaf package init packages/callout
+        <pre
+          id="package-init-command"
+        ><code class="language-bash">$ leaf package init packages/callout
 $ leaf package check packages/callout</code></pre>
         <p>The widget in this tutorial needs only these files:</p>
-        <pre><code>packages/callout/
-├── registry.json
-└── theme.css</code></pre>
+        <lf-tree id="callout-files">
+          <pre>
+packages/callout/
+  registry.json
+  theme.css
+</pre>
+        </lf-tree>
         <p>
           A project-wide package conventionally lives at <code>.leaf/</code>. A package
           kept elsewhere joins a page with <code>--package</code>. In the commands
           below, <code>PAGE</code> is the page directory to create or update:
         </p>
-        <pre><code>$ leaf page init --package packages/callout PAGE</code></pre>
+        <pre
+          id="page-init-command"
+        ><code class="language-bash">$ leaf page init --package packages/callout PAGE</code></pre>
         <p>
           The
-          <a href="../skills/leaf/references/packages.md">complete package contract</a>
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+            >complete package contract</a
+          >
           covers user packages, bundled packages, contribution directories, composition
           order, and replacement rules.
         </p>
@@ -75,7 +105,9 @@ $ leaf package check packages/callout</code></pre>
           To start with behavior instead, name the first element while creating the
           package:
         </p>
-        <pre><code>$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
+        <pre
+          id="widget-init-command"
+        ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
         <p>
           Leaf writes a valid prose-widget registry entry and its one-shot browser
           module, then checks the complete candidate before changing the package. The
@@ -94,7 +126,7 @@ $ leaf package check packages/callout</code></pre>
           A package's <code>theme.css</code> joins Leaf's existing cascade. This package
           only styles the element it introduces:
         </p>
-        <pre><code>lf-callout {
+        <pre id="callout-theme"><code class="language-css">lf-callout {
   display: block;
   padding: var(--sp-3);
   border: 1px solid var(--rule);
@@ -105,7 +137,10 @@ $ leaf package check packages/callout</code></pre>
         <p>
           <code>--lf-frame: 1</code> tells the shared layout that this rule draws the
           widget's inset. The opening
-          <a href="../skills/leaf/assets/theme.css">theme token block</a>
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/assets/theme.css"
+            >theme token block</a
+          >
           lists values such as <code>--accent</code> that a package may override for the
           whole page. Presentation used by only one page stays in that version's own
           <code>&lt;style&gt;</code>.
@@ -115,7 +150,9 @@ $ leaf package check packages/callout</code></pre>
       <section id="widget">
         <h2>Declare the element</h2>
         <p>The page will author the callout as ordinary readable markup:</p>
-        <pre><code>&lt;lf-callout id="migration-warning"&gt;
+        <pre
+          id="callout-markup"
+        ><code class="language-html">&lt;lf-callout id="migration-warning"&gt;
   &lt;strong&gt;Migration window&lt;/strong&gt;
   Writes pause for about two minutes.
 &lt;/lf-callout&gt;</code></pre>
@@ -124,7 +161,7 @@ $ leaf package check packages/callout</code></pre>
           tells Leaf that the body is prose. <code>x-example</code> is the specimen an
           author queries with the entry:
         </p>
-        <pre><code>{
+        <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
     "type": "object",
@@ -148,14 +185,16 @@ $ leaf package check packages/callout</code></pre>
           merged registry useful to an author.
         </p>
         <p>
-          The <a href="registry.html">registry-key reference</a> lists every
+          The <a href="/registry/">registry-key reference</a> lists every
           <code>x-*</code> declaration. A CSS-only widget stops here.
         </p>
       </section>
 
       <section id="check">
         <h2>Compose and check the page</h2>
-        <pre><code>$ leaf package check packages/callout
+        <pre
+          id="package-check-command"
+        ><code class="language-bash">$ leaf package check packages/callout
 $ leaf page init --package packages/callout PAGE
 $ jq '.["lf-callout"], .["$keys"]' PAGE/registry.json
 $ leaf version check PAGE --render</code></pre>
@@ -164,13 +203,16 @@ $ leaf version check PAGE --render</code></pre>
           Pages that are not re-initialized keep their vendored layer unchanged.
         </p>
         <dl class="package-next">
-          <dt><a href="registry.html">Registry keys</a></dt>
+          <dt><a href="/registry/">Registry keys</a></dt>
           <dd>
             The generated reference for declarations such as <code>x-data</code> and
             <code>x-request</code>.
           </dd>
           <dt>
-            <a href="../skills/leaf/references/packages.md">Package contract</a>
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+              >Package contract</a
+            >
           </dt>
           <dd>
             Composition, guidance, browser modules, external data, requests, and
@@ -186,11 +228,11 @@ $ leaf version check PAGE --render</code></pre>
         </dl>
       </section>
 
-      <footer id="colophon">
+      <footer class="site-footer" id="colophon">
         <p id="links">
-          <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
-          <a href="how-it-works.html">How it works</a> ·
-          <a href="packages.html">Packages</a> · <a href="registry.html">Registry</a> ·
+          <a href="/">Tour</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/packages/">Packages</a> · <a href="/registry/">Registry</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-The site is the pages the repo already holds. `docs/` is written to be opened from
-a checkout — the worn assets (`WORN`) arrive by relative paths into the plugin
-payload, and payload and example links point into the checkout — so publishing is
-those substitutions plus the files the paths then name. An example keeps its authored
-document unchanged, so the files in the tree remain the specimens of the theme.
+Every product document under `docs/` is a Leaf source: it carries the exact scaffold
+the version checker accepts, uses root-absolute public routes, and is published without
+rewriting. The five sources become live-root directory routes, so the same runtime
+addressing used by a served Leaf applies without a site-only exception.
 
-The examples are the files in the tree too, and they are live. A static build
-materializes the version addresses that Leaf's live server resolves from revision
-records; the one thing it hasn't got is the process behind /api/state,
-/api/event, and /api/news. So the build lays one vendored layer at the site's root,
-where a page's absolute /theme.css and /leaf.js resolve, and puts each current example
-at examples/<name>/. Earlier immutable versions remain under that page's versions/,
-and every published document gets the same revision and version markers as a document
-served by Leaf. The Authored HTML paints before this
-site's JavaScript arrives, as it does on a served Leaf page. What answers the three
-paths is `docs/session.js`, loaded in front of the runtime by `docs/leaf.js`: the log
-lives in the reader's own tab. Every control on the page is then the shipped one,
-working — the banner, the thread panel, a board that takes a drag and holds it. The half
-no host can supply is the agent at the other end: the page reports itself unattended
-and the banner says so in the runtime's own words, and `docs/sitenote.js` says the whole
-of it in the site's own label above the document.
+The examples are complete Leaf page directories under examples/<name>/. The same
+preparation path that serves a local example vendors each page's selected layer,
+stamps its authored versions, applies its companion event log and data, and closes the
+finished page without claiming it for an agent. A host can therefore route each clean
+example URL through Leaf's ordinary page server instead of maintaining a second
+browser-side session implementation. Product routes remain exact authored drafts and
+continue to use the site's static session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -32,7 +23,6 @@ Usage: uv run scripts/site.py [--serve]
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -43,10 +33,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from example_data import data_operations, example_versions
-from leaf.event_log import read_events
-from leaf.files import revision_path, version_revisions
-from leaf.http import runtime_document
+from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
@@ -57,9 +44,7 @@ OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the workflow uploads it as the Pages artifact
 
-REPO = "https://github.com/max-sixty/leaf"
-
-# The one name the site changes on the way past. /leaf.js is the door a page and every
+# The one layer name the site changes on the way past. /leaf.js is the door a page and every
 # widget module import comes through, and on this site that door is `docs/leaf.js` — the
 # runtime with a session in front of it — so the vendored runtime is published beside it
 # under the name that file imports. Everything else in the page directory keeps its name,
@@ -67,48 +52,15 @@ REPO = "https://github.com/max-sixty/leaf"
 # it gains is a file the site serves rather than one it silently leaves behind.
 RUNTIME = "runtime.js"
 
-# The payload files a docs page is *wearing* rather than pointing at: the stylesheet it
-# is styled by and the icon its tab shows. Every other path into the payload is source to
-# read and becomes a GitHub link (PAYLOAD_SOURCE); these have to resolve on the host, so
-# link is rewritten to name the site's own copy — which is the vendored layer's, so the
-# site is styled by the file its examples are styled by rather than by a second copy of
-# the same rules. Rewritten first and on their own, and the rule has to say *the link
-# element's* href — `packages.html` also links the stylesheet as source to read, and a
-# match on the path alone would send a reader after the token block to the copy the site
-# serves instead of to the source.
-#
-# A pattern rather than a literal, because the literal is the same rule with a
-# formatter's opinion baked into it. It read as the whole <link> tag until prettier
-# started writing the void element `<link … />` and splitting this one over four lines;
-# the literal quietly stopped matching, the generic ../skills/ rule below took the href
-# instead, and every page shipped with its stylesheet pointing at a GitHub blob view —
-# a link that resolves, so the dead-link check has nothing to say, over a page with no
-# theme on it.
-PAYLOAD = "../skills/leaf"
-WORN = {
-    f"{PAYLOAD}/assets/theme.css": "theme.css",
-    f"{PAYLOAD}/assets/icon.svg": "icon.svg",
+PRODUCT_ROUTES = {
+    "index.html": "/",
+    "examples.html": "/examples/",
+    "how-it-works.html": "/how-it-works/",
+    "packages.html": "/packages/",
+    "registry.html": "/registry/",
 }
-WORN_LINKS = {
-    name: re.compile(rf'(<link\b[^>]*?)"{re.escape(source)}"')
-    for source, name in WORN.items()
-}
-# The one link a page loses here. A checkout has no merged stylesheet to link, so a docs
-# page names both halves of the theme; the site serves the merged file a page directory
-# vendors, which already holds this one — linked again it would restate the default half
-# over the top of itself.
-DEFAULT_THEME = re.compile(
-    rf'\s*<link\b[^>]*?"{re.escape(f"{PAYLOAD}/packages/default/theme.css")}"[^>]*>'
-)
-
-# Everything else a page reaches into the payload for is source to read, and becomes the
-# link that reads it. Both sides are literal, so a page naming something else keeps what
-# it named and the link check below is what notices.
-PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
-# An example is a page directory here, so its link is the directory rather than a file:
-# examples/triage-board/, where the index is the current stamped document. Earlier
-# versions keep the same subordinate addresses a served page uses.
-EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
+SITE_SUPPORT = ("leaf.js", "session.js", "sitenote.js")
+SITE_PACKAGE = "./docs/package"
 
 
 class Links(HTMLParser):
@@ -203,119 +155,76 @@ def example_sources() -> list[Path]:
     return sources
 
 
+def product_sources() -> list[Path]:
+    """The complete product-page set, held to the public route map."""
+    sources = sorted(DOCS.glob("*.html"))
+    found = {source.name for source in sources}
+    expected = set(PRODUCT_ROUTES)
+    if found != expected:
+        missing = sorted(expected - found)
+        extra = sorted(found - expected)
+        sys.exit(
+            f"product pages disagree with their routes: missing={missing}, extra={extra}"
+        )
+    return sources
+
+
+def product_target(out: Path, route: str) -> Path:
+    """The index file a canonical trailing-slash route serves."""
+    return out / "index.html" if route == "/" else out / route.strip("/") / "index.html"
+
+
+def publish_product_pages(page: Path, out: Path, env: dict) -> None:
+    """Check each product document as a Leaf, then publish its exact source bytes."""
+    empty_data = json.dumps({"revision": 0, "sources": {}}) + "\n"
+    for source in product_sources():
+        markup = source.read_text(encoding="utf-8")
+        (page / "index.html").write_text(markup, encoding="utf-8")
+        leaf(env, "version", "check", str(page))
+        target = product_target(out, PRODUCT_ROUTES[source.name])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(markup, encoding="utf-8")
+        (target.parent / "data.json").write_text(empty_data, encoding="utf-8")
+        (target.parent / "events.jsonl").write_text("", encoding="utf-8")
+
+
 def publish_pages(out: Path, env: dict) -> None:
-    """The corpus's vendored layer and every authored example at the site root."""
+    """The site's vendored layer, product documents, and authored examples."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
         selection_args = [arg for name in packages for arg in ("--package", name)]
+        selection_args.extend(("--package", SITE_PACKAGE))
         leaf(env, "page", "init", *selection_args, str(page))
         # The page's content, named by the hash of its bytes and served from the root the
         # markup names it at (/media/…). It goes in the page directory rather than
         # straight to the site, because `version check` refuses a reference the directory
         # can't answer — and from there it is published with everything else below.
         shutil.copytree(EXAMPLES / "media", page / "media", dirs_exist_ok=True)
+        product_media = sorted(
+            path
+            for pattern in ("*.gif", "*.jpg", "*.png")
+            for path in DOCS.glob(pattern)
+        )
+        leaf(env, "page", "media", str(page), *(str(path) for path in product_media))
         for item in sorted(page.iterdir()):
             target = out / (RUNTIME if item.name == "leaf.js" else item.name)
             (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
 
+        for name in SITE_SUPPORT:
+            shutil.copy2(DOCS / name, out / name)
+        publish_product_pages(page, out, env)
+
         for source in example_sources():
-            # The temporary page is reused only for its vendored layer. Reset its
-            # authored history so every independently published example starts at
-            # r1/v1, then let the real stamp boundary create the immutable revisions.
-            revisions = page / "revisions"
-            revisions.mkdir(exist_ok=True)
-            for old in revisions.iterdir():
-                old.unlink()
-            log = page / "events.jsonl"
-            log.write_text("", encoding="utf-8")
-            # The data door validates a source against the page's markup, and the
-            # current version is the one that has to bind it, so the newest version
-            # goes in before the stamping loop below walks back to the oldest.
-            (page / "index.html").write_text(
-                source.read_text(encoding="utf-8"), encoding="utf-8"
-            )
-            # External data is complete replaceable source state, not a log. The
-            # temporary page is reused for the corpus, so remove the prior example's
-            # sources before setting this one's through the same validating door a
-            # host uses.
-            data_file = page / "data.json"
-            data_file.unlink(missing_ok=True)
-            for operation in data_operations(source):
-                if operation["kind"] == "set":
-                    args = ["data", "set", str(page), operation["source"]]
-                    if operation["capture_label"] is not None:
-                        args.extend(("--capture-label", operation["capture_label"]))
-                    leaf(env, *args, input_text=json.dumps(operation["value"]))
-                    continue
-                args = [
-                    "data",
-                    "capture",
-                    str(page),
-                    operation["source"],
-                    "--file",
-                    str(operation["input_file"]),
-                    "--format",
-                    operation["format"],
-                ]
-                if operation["label"] is not None:
-                    args.extend(("--label", operation["label"]))
-                if operation["lines"] is not None:
-                    args.extend(("--lines", operation["lines"]))
-                leaf(env, *args)
-            # The example's companion log, where it ships one (examples/CLAUDE.md).
-            # Written rather than appended, because one page directory serves every
-            # example here and an appended seed would hand the next one the last one's
-            # thread. Laid after the first stamp and before any later one, so a revised
-            # example's exchange reads in the order it happened, and before the check,
-            # so what the gate reads is what the reader gets — an id resolving a
-            # comment is a claim about this log.
-            seed = source.with_suffix(".jsonl")
-            seed_text = seed.read_text(encoding="utf-8") if seed.exists() else ""
-            # Each authored version through the real stamp boundary, oldest first, so a
-            # revised example has the same stamped history as a served page. The build
-            # below publishes prior documents at their immutable addresses and the
-            # current document at the page root.
-            for order, authored in enumerate(example_versions(source)):
-                (page / "index.html").write_text(
-                    authored.read_text(encoding="utf-8"), encoding="utf-8"
-                )
-                leaf(
-                    env,
-                    "version",
-                    "stamp",
-                    str(page),
-                    "--text",
-                    "As published" if authored == source else "Earlier draft",
-                )
-                if order == 0 and seed_text:
-                    with log.open("a", encoding="utf-8") as event_log:
-                        event_log.write(seed_text)
             published = out / "examples" / source.stem
-            published.mkdir(parents=True)
-            mapped = sorted(version_revisions(read_events(page)).items())
-            prior_versions = mapped[:-1]
-            if prior_versions:
-                (published / "versions").mkdir(parents=True)
-            for version, revision in prior_versions:
-                markup = revision_path(page, revision).read_text(encoding="utf-8")
-                document = runtime_document(markup, revision, version)
-                (published / "versions" / f"v{version}.html").write_bytes(document)
-            version, revision = mapped[-1]
-            markup = revision_path(page, revision).read_text(encoding="utf-8")
-            (published / "index.html").write_bytes(
-                runtime_document(markup, revision, version)
-            )
-            # The thread the page opens on. A served page hands its log to the browser
-            # through /api/state, which is `docs/session.js`'s answer here. The static
-            # output keeps that seed beside its materialized version addresses, and the
-            # session puts it in the runtime's first answer.
-            (published / "events.jsonl").write_text(seed_text, encoding="utf-8")
-            (published / "data.json").write_text(
-                data_file.read_text(encoding="utf-8")
-                if data_file.exists()
-                else json.dumps({"revision": 0, "sources": {}}) + "\n",
-                encoding="utf-8",
+            prepare(
+                source,
+                published,
+                LEAF,
+                ROOT,
+                env=env,
+                final_status="idle",
+                current_note="As published",
             )
             print(f"  {source.stem}")
 
@@ -323,19 +232,6 @@ def publish_pages(out: Path, env: dict) -> None:
 def build(out: Path, *, verify_links: bool = True) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-
-    for source in sorted(DOCS.iterdir()):
-        target = out / source.name
-        if source.suffix == ".html":
-            text = source.read_text(encoding="utf-8")
-            for name, pattern in WORN_LINKS.items():
-                text = pattern.sub(rf'\1"{name}"', text)
-            text = DEFAULT_THEME.sub("", text)
-            text = EXAMPLE_LINK.sub(r"examples/\1/", text)
-            text = text.replace(*PAYLOAD_SOURCE)
-            target.write_text(text, encoding="utf-8")
-        else:
-            shutil.copy2(source, target)
 
     # The layer a visitor gets is the shipped one, plus this project's: a page dir
     # vendors the user's ~/.config/leaf overlay too, and that one belongs to
@@ -349,6 +245,7 @@ def build(out: Path, *, verify_links: bool = True) -> None:
     # the session's claim — and a build runs neither.
     env = {k: v for k, v in os.environ.items() if not k.startswith("LEAF_")}
     env.pop("CLAUDE_CODE_SESSION_ID", None)
+    env.pop("CODEX_THREAD_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
         publish_pages(out, env)
@@ -365,7 +262,7 @@ def main() -> None:
     if sys.argv[1:] == ["--serve"]:
         handler = partial(QuietPreview, directory=str(OUT))
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples.html")
+        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples/")
         try:
             server.serve_forever()
         except KeyboardInterrupt:

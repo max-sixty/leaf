@@ -16,14 +16,13 @@
  * difference. What it can't have is the other half of the loop: no agent reads this log,
  * so a comment is recorded and answered by nobody.
  *
- * Three seats say so, because a reader meets the page at three moments and only one of
- * them is reading a line at the top. The banner says it in the runtime's own words, which
- * is what `unattended` below is for: this page reports that nobody is behind it and the
- * chrome states the consequence, where a page that wrote itself a claim could only then
- * talk the reader out of it. The label above the document says what the whole thing is,
- * on arrival, with room for it (`docs/sitenote.js`). And the demo replies once, in the
- * panel, because a reader who has just typed into a box deserves the answer where they
- * typed rather than where they stopped reading ten minutes ago.
+ * The banner says so in the runtime's own words, which is what `unattended` below is for:
+ * this page reports that nobody is behind it and the chrome states the consequence,
+ * where a page that wrote itself a claim could only then talk the reader out of it. A
+ * published example also wears that boundary in a label above the document
+ * (`docs/sitenote.js`). And the demo replies once, in the panel, because a reader who has
+ * just typed into a box deserves the answer where they typed rather than where they
+ * stopped reading ten minutes ago.
  *
  * Nothing here validates what the runtime posts. The server's door is strict because it
  * guards a record an agent will act on and a machine anything on the network can reach;
@@ -32,20 +31,30 @@
  */
 
 // The builder injects the same identity markers as Leaf's HTTP server. That lets the
-// current document keep its page-root URL while immutable historical versions retain
-// their versions/vN.html addresses.
+// current example keep its page-root URL while immutable historical versions retain
+// their versions/vN.html addresses. Product documents are live drafts, so the static
+// session supplies their revision marker and leaves their version unset.
 const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 const PAGE_ROOT = new URL(
   VERSION_PATH.test(location.pathname) ? "../" : "./",
   location.href,
 ).pathname;
 const DOCUMENT_URL = location.pathname;
-const REVISION = Number(
-  document.querySelector('meta[name="lf-revision"][data-lf-runtime]')?.content,
+const revisionMarker =
+  document.querySelector('meta[name="lf-revision"][data-lf-runtime]') ??
+  Object.assign(document.createElement("meta"), {
+    name: "lf-revision",
+    content: "1",
+  });
+if (!revisionMarker.isConnected) {
+  revisionMarker.dataset.lfRuntime = "";
+  document.head.append(revisionMarker);
+}
+const REVISION = Number(revisionMarker.content);
+const versionMarker = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
 );
-const VERSION = Number(
-  document.querySelector('meta[name="lf-version"][data-lf-runtime]')?.content,
-);
+const VERSION = versionMarker ? Number(versionMarker.content) : null;
 const realFetch = window.fetch.bind(window);
 
 // Begin every file read before installing the runtime. The local API below awaits this
@@ -97,7 +106,7 @@ let answered = false;
 
 const ANSWER = `This demo has no agent, so nobody will read your comment.
 
-[Install Leaf](/index.html#install) to get replies from your agent.`;
+[Install Leaf](/#install) to get replies from your agent.`;
 
 // What the page opens on, for an example that ships a thread beside it: the log the
 // build laid in the page directory, which a served page would hand over on the first
@@ -398,22 +407,20 @@ function demoBrowser() {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // This static session projects the document being read. Historical documents retain
-  // their own addresses; the current document stands at the page root.
+  // A product route is a live draft. Built examples carry their version identity;
+  // historical documents retain their own addresses and the current document stands at
+  // the page root.
   active: {
     revision: REVISION,
     version: VERSION,
     url: DOCUMENT_URL,
-    label: `v${VERSION}`,
+    label: VERSION === null ? "Draft" : `v${VERSION}`,
     activated_at: null,
   },
-  versions: [
-    {
-      version: VERSION,
-      revision: REVISION,
-      url: DOCUMENT_URL,
-    },
-  ],
+  versions:
+    VERSION === null
+      ? []
+      : [{ version: VERSION, revision: REVISION, url: DOCUMENT_URL }],
   source_error: null,
   // Nobody is behind this page and nobody is coming, which the runtime has a word for
   // and reads before it weighs anything else. Everything below it is then the honest

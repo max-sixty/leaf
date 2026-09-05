@@ -403,7 +403,7 @@ customElements.define(
           notice(
             `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(
               "label",
-            )} — recorded`,
+            )} — sent`,
           );
       });
     }

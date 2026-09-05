@@ -446,7 +446,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     )
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text(
-        "Select a visible item by hint"
+        "Comment on a visible item, chosen by hint"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

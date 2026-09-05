@@ -176,7 +176,10 @@ export function createConversation(dependencies) {
   // than a record kept beside them: a thread the log settles is renamed out of them in
   // that frame (foldOut), which takes it out of the walk and out of x's press in one
   // stroke.
-  const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+  // Cards a narrowing hid keep their nodes (thread-list.js) and are walked by nothing.
+  const openThreads = () => [
+    ...threadsBox.querySelectorAll(":scope > .lf-thread:not([hidden])"),
+  ];
   const placement = createThreadPlacement({
     inChrome,
     itemSays,

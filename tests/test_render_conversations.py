@@ -16,6 +16,7 @@ from render_support import (
     COVERED_TOP,
     DECISION_PAGE,
     EDGES,
+    EXAMPLES,
     FEATURE_GALLERY,
     FRAME_BY_FRAME,
     HOLD_MOTION,
@@ -549,7 +550,9 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    ta = page.locator(".lf-threads > .lf-thread").first.locator("textarea")
+    ta = page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator(
+        "textarea"
+    )
     ta.click()
     ta.type("half a thought")
     page.evaluate("""() => {
@@ -606,7 +609,7 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
         # the narrower control the word alone makes, and the test reports the arrival as
         # a horizontal shift the row never made.
         reservations_taken(page)
-        thread = page.locator(".lf-threads > .lf-thread")
+        thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
         compose = thread.locator(".lf-compose")
         textarea = compose.locator("textarea")
         send = thread.get_by_role("button", name="Send", exact=True)
@@ -951,7 +954,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-find-box")).to_be_focused()
 
     page.keyboard.type("megabytes")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 3")
     # The page's own count is the log's and says so throughout.
@@ -960,9 +963,9 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     # The part of the page a thread is on is one of its words: a reader looking for the
     # merge rule finds the thread under that heading without its message saying so.
     page.fill(".lf-find-box", "merge rule")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{merge}"]')).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(0)
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]:not([hidden])')).to_have_count(0)
 
     # Asked for a thread the narrowing hides, the panel shows it rather than nothing:
     # the press came from the page, where no narrowing was ever visible.
@@ -970,15 +973,15 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(1)
     expect(page.locator(".lf-find-box")).to_have_value("")
     expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
 
     # Escape spends one rung on the narrowing and the next on the box, rather than
     # both on one press: the reader can see which of the two they are backing out of.
     page.locator(".lf-find-box").click()
     page.keyboard.type("megabytes")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
     expect(page.locator(".lf-find-box")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -1034,8 +1037,15 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
     page.keyboard.press("w")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
+    # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
+    # instantiated once, in that card, and the banner's Asks count and the tray find it by
+    # id in the document — hidden is the list's business, gone would be a claim about the
+    # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
+    ).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
@@ -1062,7 +1072,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     expect(page.locator(".lf-empty")).to_have_text("Nothing is waiting on you.")
     # The reader was standing in the thread that just left. Focus lands on the list
     # rather than falling to body, where the next Space would scroll the page behind
@@ -1073,7 +1083,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     # is standing: a list that is not the whole conversation is a layer they put on.
     expect(page.locator(".lf-keyline")).to_contain_text("show all")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
 
@@ -1321,7 +1331,9 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     elif kind in {"reply", "unresolve"}:
         expect(thread.locator("textarea")).to_be_focused()
     else:
-        expect(page.locator(".lf-threads > .lf-thread").first).to_be_focused()
+        expect(
+            page.locator(".lf-threads > .lf-thread:not([hidden])").first
+        ).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2912,7 +2924,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         page, errors = open_page(browser, url, context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        threads = page.locator(".lf-threads > .lf-thread").count()
+        threads = page.locator(".lf-threads > .lf-thread:not([hidden])").count()
         assert threads == 16, (
             f"the fixture built {threads} threads, not the 16 it needs"
         )
@@ -3017,9 +3029,9 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     find = page.locator(".lf-find-box")
     find.focus()
     page.keyboard.type("capacity")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads > .lf-thread")).to_be_focused()
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_be_focused()
 
     page.keyboard.press("g")
     page.keyboard.press("p")
@@ -3028,7 +3040,7 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     )
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(find).to_have_value("capacity")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -3046,7 +3058,7 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
         page, errors = open_page(browser, url, context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        thread = page.locator(".lf-threads > .lf-thread")
+        thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
         thread.focus()
 
         page.keyboard.press("g")
@@ -3079,7 +3091,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         box = page.locator(".lf-threads")
-        target = page.locator(".lf-threads > .lf-thread").nth(8)
+        target = page.locator(".lf-threads > .lf-thread:not([hidden])").nth(8)
         assert box.evaluate("el => el.scrollHeight > el.clientHeight"), (
             "the list does not scroll, so its edges are not distinct places"
         )
@@ -3289,7 +3301,7 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
 
         # Stand in the card first, then carry the list under it — which is the order the
         # reader does it in, and the one where no later focus event is coming.
-        first = page.locator(".lf-threads > .lf-thread").first
+        first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
         first.focus()
         page.evaluate(RENDERED)
         page.evaluate(BURY, page.evaluate(UNDER_HEADING)["ring"])
@@ -3347,7 +3359,7 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
-        first = page.locator(".lf-threads > .lf-thread").first
+        first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
         first.evaluate("el => el.focus({preventScroll: true})")
         page.evaluate(RENDERED)
         page.evaluate(BURY, 20)
@@ -3686,5 +3698,67 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
 
+    assert errors == []
+    page.close()
+
+
+def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
+    browser, serve
+):
+    """The banner's Asks count and the tray read the log; the panel's narrowing is a view.
+
+    A question an agent asks in a reply is a widget instantiated once, in the panel's
+    card, and every other reading of it finds that widget by id in the document. So
+    when "Waiting on you" took the answered thread's card out of the list, it took the
+    question out of the page: Asks 2/2 became 1/1, the tray listed one ask, and a
+    minute later — the narrowing let go — both came back, with nothing in the log
+    having moved. A blind drive spent a locator timeout on the flip.
+
+    The card the narrowing hides is hidden, not gone, so the count and the tray hold."""
+    page, errors = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    question = page.locator(".lf-panel lf-options[choose]").first
+    question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
+    round_trip(page)
+    question.locator(".lf-done").click()
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/2")
+    page.locator(".lf-needs").click()
+    expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-threads > .lf-thread[hidden]")).to_have_count(1)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 2/2")
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-row")).to_have_count(2)
+    assert errors == []
+    page.close()
+
+
+def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
+    """A reply box grows under the reader; its Send and Resolve go with it.
+
+    Landing in a reply reveals the composer with its actions. Typing eight lines then
+    grew the box past the list's foot and left the blue Send a sliver at the
+    scrollport's edge — reachable by the send key the placeholder happened to name,
+    and by nothing a pointer could find. Growth is the landing's claim made again.
+
+    On a card taller than the list — the shipped example's second thread, two long
+    turns and the reply — because a short card's Send never leaves the scrollport
+    whatever the box does."""
+    page, errors = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(".lf-threads > .lf-thread:not([hidden])").last
+    thread = card.get_attribute("data-id")
+    reply = card.locator("textarea")
+    reply.click()
+    for line in range(8):
+        page.keyboard.type(f"line {line} of a reply that keeps growing the box")
+        page.keyboard.press("Enter")
+    in_threads_scrollport(page, f'.lf-thread[data-id="{thread}"] .lf-thread-send')
     assert errors == []
     page.close()

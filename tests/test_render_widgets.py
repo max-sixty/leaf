@@ -2393,7 +2393,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-notice")).to_have_text(
-        f"{verb} “Retry three times.” — recorded"
+        f"{verb} “Retry three times.” — sent"
     )
     assert errors == []
     page.close()

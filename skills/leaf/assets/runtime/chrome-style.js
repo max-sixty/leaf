@@ -188,6 +188,11 @@ export function chromeStyle({
     .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
   }
   .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
+  /* The banner, the key line and the panel's head are apparatus, not words the page says:
+     a drag that starts in a paragraph and ends past the top of the window swept "All
+     leaves (6) · Asks 0/2 · v1" into the copy. Messages and quotes stay selectable — a
+     reply is words the reader may want. */
+  .lf-banner, .lf-keyline, .lf-panel-head, .lf-tray-panel > :not(.lf-tray-list) { user-select: none; -webkit-user-select: none; }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
      Target actions use .lf-margin-button below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */
@@ -271,6 +276,7 @@ export function chromeStyle({
     scroll-margin-block: var(--here-ring-room);
   }
   .lf-margin-button[hidden] { display: none; }
+  .lf-thread[hidden] { display: none; }
   /* A Button-shaped fitting carries one of three promises on the same paper surface.
      An action's heavier ring and lower shadow say this press acts now; a disclosure's
      firmer single ring says it opens context; read-only status keeps only the page's

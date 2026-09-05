@@ -187,7 +187,7 @@ export function createReference({
     if (open) {
       helpEl.textContent = "";
       const head = el("div", "lf-help-head");
-      head.append(el("div", "lf-help-title", "Keyboard commands"), helpClose);
+      head.append(el("div", "lf-help-title", "All keyboard shortcuts"), helpClose);
       helpEl.append(head);
       const search = document.createElement("input");
       search.type = "search";
@@ -232,7 +232,7 @@ export function createReference({
       const results = el("div", "lf-help-results");
       results.id = "lf-help-results";
       results.setAttribute("role", "grid");
-      results.setAttribute("aria-label", "Keyboard commands");
+      results.setAttribute("aria-label", "All keyboard shortcuts");
       search.setAttribute("aria-controls", results.id);
       const emptyRow = document.createElement("div");
       emptyRow.setAttribute("role", "row");

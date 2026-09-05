@@ -381,12 +381,14 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
 /* The mark the upgrade injects is both the keyboard path and the state. Each form gives
  * that element one place of its own.
  *
- * A live titled card is already the whole pointer target, so an empty radio in a footer
- * only restates the offer after the argument has ended. Its open single-pick state draws
- * no mark; the joined frame, card divisions, pointer, and aim wash carry the offer. Once
- * picked, the same control becomes a compact status chip at the card's opening edge.
- * Multiple-choice cards keep their empty squares there too: unlike a radio, those boxes
- * say that more than one answer may stand and let the reader count the choices left.
+ * A live titled card is the whole pointer target, and for a while its open single-pick
+ * state drew no mark at all — the joined frame, card divisions, pointer, and aim wash were
+ * to carry the offer. A reader who has not hovered sees none of those: a blind drive read
+ * three cards, found nothing on them that looked like a control, and chose only after a
+ * hover happened to shade one. So the empty ring stands in the state slot at the card's
+ * opening edge, the same slot the pick becomes a chip in and the same empty box a
+ * multiple-choice card already wears, saying the slot is untaken and where the press
+ * lands.
  *
  * The Ask's action address temporarily takes that same opening-edge slot in either arity.
  * The slot is reserved beside the author's chip band and title on every card, so neither
@@ -409,8 +411,6 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-pick {
                      left: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); bottom: auto; z-index: 1; }
-   &:not([multiple]) > lf-option:not([chosen]) > .lf-pick::before {
-                     visibility: hidden; }
    & > lf-option[chosen] > .lf-pick {
                      padding: 2px 8px; border-radius: 999px;
                      background: var(--ok); color: var(--card);
@@ -528,6 +528,12 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
  * a set question in. */
 lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
+/* Its Ask address stands where the rows' do: on the address column, centred on the
+ * press, inside the cell rather than hung off its corner. */
+lf-options > .lf-done { position: relative; }
+lf-options > .lf-done > .lf-address { position: absolute;
+                     inset-inline-start: var(--lf-address-start);
+                     top: 0; bottom: 0; margin: auto 0; }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
  * answer is the group rather than another thing drawn on every member: a group offers and

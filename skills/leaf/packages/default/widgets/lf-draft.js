@@ -570,7 +570,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
-      if (ok) notice(`Restored ${label.toLowerCase()} — recorded`);
+      if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
     #open(seed, at) {
@@ -678,7 +678,7 @@ customElements.define(
       this.removeAttribute("aria-busy");
       this.#paintButtons();
       if (ok) {
-        notice(`Edited “${this.id}” — recorded`);
+        notice(`Edited “${this.id}” — sent`);
       } else {
         const standing = loadEdit(this.id);
         // Null means the same shared generation was settled by the other tab while

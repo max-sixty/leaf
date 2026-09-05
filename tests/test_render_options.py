@@ -21,6 +21,7 @@ from render_support import (
     DECISION_PAGE,
     DECISION_SHAPES_PAGE,
     DECISION_WITH_CONTEXT_PAGE,
+    EXAMPLES,
     EXHIBIT_EXTENT,
     INLINE_CASE_PAGE,
     NESTED_DECISION_PAGE,
@@ -455,9 +456,12 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
     A card group under `choose` draws the border and its options become cells inside it,
     sharing hairlines: a set of alternatives at one size is what says a decision is
-    waiting, so a single-choice card needs no radio in every cell. Its generated mark
-    stays as the keyboard control but is visually empty until the choice turns it into
-    a compact header state. Selection also keeps the quiet cell tint.
+    waiting. Each card's generated mark stands in the state slot at its opening edge
+    as an empty ring — the same slot the pick turns it into a compact header state
+    in — because a reader who has not hovered sees none of the frame's other
+    promises: a blind drive read three cards, found nothing that looked like a
+    control, and chose only after a hover happened to shade one. Selection also
+    keeps the quiet cell tint.
 
     Pinned because the rules making the group one control are ranked against the ones
     making each option a card, and losing that race leaves a page that looks exactly as it
@@ -491,9 +495,16 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
     option = page.locator("#opt-shim")
     mark = option.locator(":scope > .lf-pick")
-    assert (
-        mark.evaluate("el => getComputedStyle(el, '::before').visibility") == "hidden"
+    ring = mark.evaluate(
+        """el => { const s = getComputedStyle(el, '::before');
+                  const box = el.getBoundingClientRect(), card = el.parentElement.getBoundingClientRect();
+                  return {visibility: s.visibility, width: parseFloat(s.width),
+                          atOpeningEdge: box.right <= card.right && box.top - card.top < 24}; }"""
     )
+    assert ring["visibility"] == "visible" and ring["width"] > 0, (
+        f"an untaken card draws no ring: {ring}"
+    )
+    assert ring["atOpeningEdge"], f"the ring is not in the card's state slot: {ring}"
 
     # And a reader arriving by keyboard can see the exact row they landed on. The
     # permanent group frame stays put, the Decision's external location band stands
@@ -2376,5 +2387,46 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         )
         == 0
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
+    browser, serve
+):
+    """Done is a cell of the joined control, and the reader's newest move is its receipt.
+
+    The Ask projection writes each option's key into the address slot the row keeps
+    for it; Done kept none, so its chip was hung at the button's corner, half outside
+    the group's frame — a stray `4` a blind drive could not place. And a tick followed
+    by Done are two coordinates, each of which minted a receipt: "✓ Sent · just now"
+    twice under one question. The newer move supersedes the older for what the reader
+    is owed."""
+    page, errors = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
+    )
+    page.locator(".lf-threads-toggle").click()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-panel').classList.contains('open')"
+    )
+    question = page.locator(".lf-panel lf-options[choose]").first
+    question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
+    round_trip(page)
+    done = question.locator(".lf-done")
+    done.focus()
+    chip = done.locator(":scope > .lf-address")
+    expect(chip).to_be_visible()
+    frame = question.bounding_box()
+    box = chip.bounding_box()
+    assert (
+        frame["x"] <= box["x"]
+        and box["x"] + box["width"] <= frame["x"] + frame["width"]
+    ), f"Done's address chip {box} stands outside the group {frame}"
+    expect(page.locator(".lf-ask-addresses .lf-ask-address")).to_have_count(0)
+    done.click()
+    round_trip(page)
+    receipts = question.locator(".lf-receipt")
+    expect(receipts).to_have_count(1)
+    expect(receipts).to_contain_text("Sent")
     assert errors == []
     page.close()

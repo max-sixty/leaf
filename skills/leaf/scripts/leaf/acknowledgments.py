@@ -161,4 +161,23 @@ def canonical_acknowledgments(
                 "session": claim.get("session"),
             }
         )
+    # One receipt per widget, for the reader's newest move on it. A tick and the Done
+    # press that followed it are two coordinates, and each minted a line: the thread
+    # showed "✓ Sent · just now" twice under one question. The later move supersedes the
+    # earlier for what the reader is owed — that the press landed — and the margin reads
+    # one Button per target either way. Claims are not moves and keep their own lines.
+    newest: dict[str, dict] = {}
+    for item in acknowledgments:
+        if item["target"]["kind"] != "widget" or item["event"] is None:
+            continue
+        held = newest.get(item["target"]["id"])
+        if held is None or item["seq"] > held["seq"]:
+            newest[item["target"]["id"]] = item
+    acknowledgments = [
+        item
+        for item in acknowledgments
+        if item["target"]["kind"] != "widget"
+        or item["event"] is None
+        or newest[item["target"]["id"]] is item
+    ]
     return sorted(acknowledgments, key=lambda item: (item["seq"], item["id"]))

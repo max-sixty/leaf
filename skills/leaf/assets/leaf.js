@@ -1026,7 +1026,7 @@ const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 const helpEl = document.createElement("dialog");
 helpEl.className = "lf-ui lf-help";
-helpEl.setAttribute("aria-label", "Keyboard reference");
+helpEl.setAttribute("aria-label", "All keyboard shortcuts");
 helpEl.setAttribute("aria-modal", "true");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
 const helpClose = el("button", "lf-btn lf-help-close", "Close");
@@ -1877,12 +1877,15 @@ function rung() {
   // Whichever tray holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the tray" over two of them.
   const tray = currentTray();
-  if (tray)
+  if (tray) {
+    // The tray's key is the runtime's; the reader knows the strip by the banner's word.
+    const word = tray === "decisions" ? "asks" : tray;
     return {
-      says: `close ${tray}`,
-      does: `Close the ${tray} tray`,
+      says: `close ${word}`,
+      does: `Close the ${word} tray`,
       out: () => showTray(null),
     };
+  }
   // A narrowing is a layer of the panel the way a tray is a layer of the page: the
   // reader put it on, and the list in front of them is not the whole of the conversation
   // until it comes off. So it unwinds before the panel does, and from wherever they are
@@ -2334,8 +2337,11 @@ const COMPOSER = {
     {
       id: "composer.close",
       keys: ["Escape"],
-      does: "Close the composer, keeping the draft",
-      line: "close — draft kept",
+      does: () =>
+        fabInput.value.trim()
+          ? "Close the composer, keeping the draft"
+          : "Close the composer",
+      line: () => (fabInput.value.trim() ? "close — draft kept" : "close"),
       promoteEscape: false,
       run: dismissFab,
     },
@@ -2756,7 +2762,7 @@ const REFERENCE = {
   runFromReference: false,
   keys: ["?"],
   does: () =>
-    keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
+    keyline?.expanded ? "All keyboard shortcuts" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
   control: keylineMore,
   run: () => keylineMore.click(),
@@ -2825,7 +2831,7 @@ const PAGE = {
     {
       id: "selection.open",
       keys: ["s"],
-      does: "Select a visible item by hint",
+      does: "Comment on a visible item, chosen by hint",
       line: "select item",
       // Once a target is in hand, its actions own the two short-line slots. Escape clears
       // it, while this projection-only gate leaves s live to replace the target and keeps

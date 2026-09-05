@@ -3768,6 +3768,39 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     page.close()
 
 
+def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_list(
+    browser, serve
+):
+    """A hidden card is a removal to the reader standing in it.
+
+    The narrowing keeps the card, hidden, and the browser drops a focus inside a hidden
+    element to body only at its next rendering step, after the reconcile has run. Read
+    as still in the list, the reader was left to that drop, and the next Space went to
+    the page behind the panel. The disarm test in `test_render_reactions.py` covers a
+    reaction list moving the focus itself; this is the plain case, with nothing in the
+    card but the reply box the reader is typing in."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "claude")
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-needs").click()
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+    card = page.locator(f'.lf-thread[data-id="{theirs}"]')
+    card.locator("textarea").click()
+    expect(card.locator("textarea")).to_be_focused()
+    # A remote reaction answers the question, so the narrowing no longer shows the card.
+    events_model.append_event(
+        d, {"kind": "reply", "author": "user", "parent": theirs, "token": "ok"}
+    )
+    told(page)
+    expect(card).to_be_hidden()
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     """A reply box grows under the reader; its Send and Resolve go with it.
 

@@ -37,5 +37,5 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   if (!SESSION_ID.test(sessionId)) throw new Error("invalid Leaf website session id");
   const name = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;
   const security = secure ? "; Secure" : "";
-  return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Strict`;
+  return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }

@@ -75,7 +75,9 @@ jobs:
       # window while Cloudflare provisions the application and custom domain.
       - name: Verify public example server
         run: |
+          COOKIE="__Host-leaf-example=$(openssl rand -hex 16)"
           curl --fail --silent --show-error \
+            --cookie "$COOKIE" \
             --retry 30 --retry-all-errors --retry-delay 10 --max-time 10 \
             https://leaf.page/examples/design-decision/api/state \
             | jq --exit-status \

@@ -41,10 +41,10 @@ describe("website example routing", () => {
     const id = newSessionId(Uint8Array.from({ length: 16 }, (_, index) => index));
     expect(id).toBe("000102030405060708090a0b0c0d0e0f");
     expect(sessionCookie(id, true)).toBe(
-      `${SESSION_COOKIE}=${id}; Path=/; Secure; HttpOnly; SameSite=Strict`,
+      `${SESSION_COOKIE}=${id}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
     expect(sessionCookie(id, false)).toBe(
-      `${HTTP_SESSION_COOKIE}=${id}; Path=/; HttpOnly; SameSite=Strict`,
+      `${HTTP_SESSION_COOKIE}=${id}; Path=/; HttpOnly; SameSite=Lax`,
     );
   });
 });

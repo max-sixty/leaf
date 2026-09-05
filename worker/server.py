@@ -16,10 +16,9 @@ from urllib.parse import urlsplit
 
 from leaf.event_endpoint import EventEndpoint
 from leaf.hosting import server_at
-from leaf.http import Handler
+from leaf.http import Handler, canonical_script_offset
 from leaf.registry.storage import layer_metadata
 from leaf.server import preview_metadata
-from leaf.structure import parse_structure
 
 PORT = 8080
 EXAMPLE_PRESENTATION = {"install_url": "/#install"}
@@ -38,17 +37,9 @@ def page_binding(page_dir: Path) -> tuple[EventEndpoint, dict, str, dict | None]
 
 
 def with_sitenote(document: bytes, page_root: str) -> bytes:
-    """Insert website chrome before the canonical module, independent of formatting."""
+    """Insert website chrome at the canonical runtime boundary."""
     source = document.decode()
-    scripts = [
-        script
-        for script in parse_structure(source).external_scripts
-        if script["attrs"] == {"src": "/leaf.js", "type": "module"}
-    ]
-    if len(scripts) != 1:
-        raise ValueError("served example has no canonical Leaf script")
-    line, column = scripts[0]["position"]
-    offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+    offset = canonical_script_offset(source)
     site_script = (
         f'<script type="module" src="{page_root}/sitenote.js" data-lf-site></script>'
     )

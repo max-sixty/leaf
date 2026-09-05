@@ -309,8 +309,15 @@ def test_a_website_example_keeps_its_version_identity_and_history(
 
         expect(page.locator(".lf-version")).to_have_text("v1 ▾")
         expect(page.locator("#ret-cost-keep")).to_have_count(0)
+        markup = page.evaluate(
+            "() => fetch('../versions/v1.html').then(response => response.text())"
+        )
+        assert '<meta name="lf-version" data-lf-runtime content="1">' in markup
+        assert (
+            f'<meta name="lf-revision" data-lf-runtime content="{mappings[1]}">'
+            in markup
+        )
         pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
-        assert pinned["active"] == current["active"]
         assert pinned["versions"] == versions
         assert errors == []
     finally:

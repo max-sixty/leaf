@@ -175,8 +175,8 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
-    """Inject immutable document identity, including non-HTTP delivery surfaces."""
+def canonical_script_offset(source: str) -> int:
+    """Locate the one authored module script that enters Leaf's runtime."""
     parsed = parse_structure(source)
     scripts = [
         script
@@ -186,7 +186,12 @@ def runtime_document(source: str, revision: int, version: int | None = None) -> 
     if len(scripts) != 1:
         raise ValueError("document has no canonical script")
     line, column = scripts[0]["position"]
-    offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+    return sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+
+
+def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+    """Inject immutable document identity, including non-HTTP delivery surfaces."""
+    offset = canonical_script_offset(source)
     markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
         f'<meta name="lf-version" data-lf-runtime content="{version}">'
         if version is not None

@@ -1,3 +1,6 @@
+/* This module owns anchor resolution, anchor paint, anchor-specific travel, and
+ * cross-widget projected-datum travel. `sameAnchor` is the one shared reading of
+ * whether two anchors name the same place. */
 import {
   clippedRect,
   documentPoint,

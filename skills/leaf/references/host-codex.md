@@ -46,11 +46,15 @@ The loaded Desktop client starts that later turn and keeps ownership of executio
 and approvals. If the task has been unloaded, the item stays queued until Codex
 reopens it; the adapter never resumes the task or answers client requests on the
 user's behalf. The small queued message is a `leaf-delivery` XML element shown as
-one line in a code block. It names the `$leaf` skill and points to the persisted
-epoch. Each batch carries its page, URL, thread context, and exact events rather
-than copying instructions or an arbitrarily large batch into Codex's bounded text
-input. Every pointer offer first gives all batches for a page its current server URL,
-so a restarted page does not leave an older batch pointing at its former location.
+one line in a code block. It names the `$leaf` skill and its `path` points to the
+persisted epoch. Read that file and process every entry in `batches`; each
+carries its `page`, current `url`, `threads`, `handling`, and exact `events`, the
+same readings a direct wait prints. Do not wait or acknowledge: the adapter owns
+both. If a retry arrives after that path was completed, read the same filename
+under its sibling `history/`. The same delivery id may return after more input
+joined its active turn, so reread the payload and treat a page-and-sequence pair
+already handled in this task as a retry, even when a later delivery also holds
+newer events.
 
 Input arriving while the turn is active adds a batch to that same payload and
 creates no queued message. The prompt and Stop hooks carry its pointer into the

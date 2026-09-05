@@ -1,3 +1,5 @@
+/* This module owns the panel's message and page reaction surfaces, rendered in every
+ * complete Thread view. */
 import { paintReactionStanding } from "../reactions.js";
 
 /* Reaction surfaces rendered in every complete Thread view.

@@ -76,7 +76,8 @@ Read the reference that owns the boundary before changing it:
   process-scoped page server, snapshot fallback, and Codex return carrier.
 
 `../references/packages.md` owns the public package contract. The browser's
-parallel projection, passage, registry, and render rules live in `../CLAUDE.md`.
+parallel projection, passage, registry, and render rules live in
+`../assets/CLAUDE.md`.
 
 ## Boundaries
 

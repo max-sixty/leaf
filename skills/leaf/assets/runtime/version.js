@@ -73,7 +73,7 @@
  * activation, and a selection may refer to words the new version replaced. The saved
  * decision landmark preserves directional continuity without claiming the reader still
  * stands there. A live activation is the other case: the reader's own standing carries
- * across it (the startup order in skills/leaf/CLAUDE.md), so the next press means what
+ * across it (the startup order in skills/leaf/assets/CLAUDE.md), so the next press means what
  * it meant
  * before the swap.
  *

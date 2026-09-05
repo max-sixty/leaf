@@ -3138,6 +3138,8 @@ def test_data_set_can_capture_a_structured_value(page_dir, tmp_path):
     assert "captured data source 'builds' at revision 1" in result.output
     source = data_model.read_data(page_dir)["sources"]["builds"]
     assert source["revision"] == 1
+    # The printed instant is the one an author pins in `at`, so it is the stored one.
+    assert f"updated {source['updated']}" in result.output
     assert source["value"] == {"main": "passing"}
     assert source["snapshots"]["1"] == {
         "updated": source["updated"],

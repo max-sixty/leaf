@@ -1,3 +1,7 @@
+/* This module owns typed authored initial values and anchor parentage: the authored
+ * initial condition, read once after upgrade and before projection. Those values are
+ * inputs to the complete widget projection; no cloned DOM, inverse action, or
+ * restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 
 /* The authored initial condition, read once after upgrade and before projection.

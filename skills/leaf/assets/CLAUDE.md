@@ -6,14 +6,11 @@ layer-wide UI laws, the rows `leaf.js` still composes itself, what a copy or pri
 keeps, the render gates, and how to work on the runtime. Everything one module
 owns is stated in that module's header comment, and the map below names the owner of
 each concern, so read the header before changing the module. Page-authoring commands
-and markup rules live in `references/page-authoring.md`; package authoring lives in
-`references/packages.md`. The repository-level `AGENTS.md` owns the rules that cross
-the JavaScript and Python runtimes:
-
-- the document is the initial state and the event log outranks it;
-- one representation serves each concept;
-- the file's reading never claims more than the rendered page's reading;
-- the widget vocabulary is open.
+and markup rules live in `../references/page-authoring.md`; package authoring lives in
+`../references/packages.md`. The repository-level `CLAUDE.md` owns the rules that cross
+the JavaScript and Python runtimes, under "Cross-runtime invariants": the document
+starts state and the log changes it, each input is validated once and its reading
+shared, and the widget vocabulary stays open.
 
 Keep this file about the boundaries between modules. Put an invariant beside the code
 it constrains when that code is the only consumer. Put a cross-runtime invariant in the
@@ -117,7 +114,7 @@ of the containing-block chain for document-positioned chrome. It also keeps page
 paint below covering workspaces and paint for chrome targets above them.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
-`assets/theme.css` is the default theme: tokens, element styles, class idioms, and the
+`theme.css` is the default theme: tokens, element styles, class idioms, and the
 element-widgets CSS alone renders, with the shadow slice widgets adopt; a package's
 `theme.css` is appended after it;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor

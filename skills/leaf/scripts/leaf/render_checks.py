@@ -140,11 +140,10 @@ def wait_for_probe(page, name: str, *args) -> None:
 
     The wait is the driver's, bounded by `timeoutMs`: `page.evaluate` takes no timeout
     in any binding, so a promise awaited inside it — an animation's `finished`, a
-    module's load, a listener's next call — is a wait nothing bounds, and one that never
-    settles spends a CI job's whole step rather than failing in thirty seconds naming
-    its test. A probe therefore states synchronous readiness and is polled from outside
-    the page; `_load_probes` starts the module import without awaiting it for the same
-    reason, and a probe that returns a Promise is refused.
+    module's load, a listener's next call — is a wait nothing bounds. A probe therefore
+    states synchronous readiness and is polled from outside the page; `_load_probes`
+    starts the module import without awaiting it for the same reason, and a probe that
+    returns a Promise is refused.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 

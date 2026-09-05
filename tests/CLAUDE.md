@@ -7,8 +7,8 @@ green result could only have come from the behavior named by the test.
 
 This file owns the laws a test author needs before choosing a mechanism, and the
 map to the helpers that carry each one. How a helper works — what it waits on, why
-it reads what it reads, the failure that made it worth writing — is its docstring's,
-so read the helper before copying its pattern. The runtime's `CLAUDE.md` and
+it reads what it reads, the failure that made it worth writing — belongs in its
+docstring, so read the helper before copying its pattern. The runtime's `CLAUDE.md` and
 `skills/leaf/references/internals/` own the product protocols. Keep implementation
 rules there; state here only what a test must observe or control.
 
@@ -58,9 +58,9 @@ from this checkout editable, dev group included. So a test importing `leaf`
 gets the checkout directly, and nothing puts a directory on the import path.
 
 A test that runs leaf as a process of its own has two addresses and they answer
-different questions: `LEAF_COMMAND` in `conftest.py` is what a command's behavior
-is tested through, and `PLUGIN_ROOT / "bin" / "leaf"` is what a host runs; the
-comment on `LEAF_COMMAND` says which subject takes which. `shipped_payload()` and
+different questions: `LEAF_COMMAND` in `conftest.py` tests what a command does, and
+`PLUGIN_ROOT / "bin" / "leaf"` tests what a host runs; the comment on `LEAF_COMMAND`
+says which subject takes which. `shipped_payload()` and
 `install_payload()` in `interact_support.py` are the tree a completed change would
 ship, read from git rather than the filesystem.
 
@@ -99,17 +99,21 @@ whether a reading needs a box. A reading of text or attributes may cross into th
 thread panel, and several do: a widget an agent sent in a reply is a widget, and
 `unreachableWords`, `silentWords` and `undeclaredAttrs` answer for it. A reading of
 geometry may not, because the gate never opens the panel and a shut one has no boxes
-at all; `trappedMargins` (`render-checks/framing.js`) says at the line that splits
-it why the suite takes the layer's half. The suite opens the panel, where such a
+at all. Most stop there by construction — at `.lf-chrome`, or by starting from
+`main` — and `tinyBoxes` and `clippedControls` stop at `checkVisibility()`.
+`trappedMargins` is the exception: inside `display: none` margins still resolve, so
+it reads the shut panel and gets numbers that are not the panel's (its header in
+`render-checks/framing.js` says why). It tags each finding with the document it is
+in, and the gate takes the page's half. The suite opens the panel, where such a
 widget has a box at last, and puts the product's own readings to it — `tinyBoxes`,
-`clippedControls`, and that layer half. Each asserts its population first, and a
-planted fault is scoped to `.lf-chrome`, so a clean result cannot come from a
-reading that never arrived.
+`clippedControls`, and `trappedMargins`'s layer half. Each asserts its population
+first, and a planted fault is scoped to `.lf-chrome`, so a clean result cannot come
+from a reading that never arrived.
 
 A reading that asks what keeps a box from being seen should not be a second answer
-to a question the product already answers: `shownBand` is the layer's own reading,
-`version check --render` imports it, and `RINGS_DRAWN` (`render_cases_layout.py`)
-is a third consumer of it rather than a third copy. The comment on `RINGS_DRAWN`
+to a question the product already answers: `shownBand` is the layer's own reading of
+the band a box shows, `version check --render` imports it, and `RINGS_DRAWN`
+(`render_cases_layout.py`) is a third consumer of it rather than a third copy. The comment on `RINGS_DRAWN`
 carries the ring reading's whole contract — which box wears a ring, what counts as
 the reader seeing the keyboard, how a reading proves it is not blind.
 
@@ -269,12 +273,18 @@ The causal helpers, each with its mechanism in its docstring:
   `ticked(page)` waits for the page's next local re-application.
 - `undo(page)` takes the last gesture back from the moment the key line offers to.
 - `key_line(page)` reads what the key line says, once, after the repaint's own frame.
-- `panel_settled`, `edge_settled`, `reservations_taken`, `margins_laid_out`, and
-  `resized` each name the final fact of a layout or motion precisely; `moving` says
-  when finite motion has ended.
-- `wait_for_pending_mark` waits on what an anchor pass painted, never on the
-  highlight registry holding a name — every pass registers every name, empty ranges
-  included.
+- `panel_settled`, `reservations_taken`, `margins_laid_out`, and `resized` in
+  `render_harness.py`, and `edge_settled` in `render_cases_layout.py`, each name the
+  final fact of a layout or motion precisely; `moving`, a render-check probe
+  (`render-checks/runtime.js`), says when finite motion has ended.
+- `wait_for_pending_mark` (`render_cases_navigation.py`) waits on what an anchor pass
+  painted, never on the highlight registry holding a name — every pass registers
+  every name, empty ranges included.
+- An element-anchored quote can cause an instant document scroll followed by a smooth
+  one; its first `scrollend` is a real edge but not the destination. A text-passage
+  quote reveals nested scrollports instantly but writes the document only through its
+  smooth final move. Wait for the mark to reach the computed position or for the
+  final document scroll to stop, then assert where it stopped.
 
 A surface that reads the same before and after the press cannot be its own wait.
 `expect(...).to_have_text(...)` is satisfied by the frame the press has not reached
@@ -398,7 +408,9 @@ within one final state proves nothing about motion between those reads.
 
 A frame is one held state. `HOLD_MOTION` pauses animations so a short-lived midpoint
 can remain available while Playwright inspects it; its comment says what
-`window.__lfHeld` holds and how a held motion is stepped or released. A gesture on
+`window.__lfHeld` holds. Step or release every held animation after the assertion so
+completion handlers run and teardown is not left waiting on a promise that cannot
+settle. A gesture on
 the way to the one under test still has to reach its end state under that hold, and
 the harness helper for the gesture owns it — `panel_settled` and `edge_settled`
 finish the shell carry rather than waiting out a clock the test has stopped. Every

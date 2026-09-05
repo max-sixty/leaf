@@ -422,7 +422,10 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
     first and appended the second's events to a log already holding the first's,
-    which reads as a page rather than failing."""
+    which reads as a page rather than failing.
+
+    `serve(example, seed_log=False)` is for a test where only the shipped conversation
+    would be noise; the external data still belongs to the example."""
 
     def go(
         source,
@@ -630,7 +633,8 @@ class Traffic:
     product fact asserted on the surface that needs it.
 
     The count is the document's: a navigation starts it over with the page that carries
-    it, and a page that has not booted reads as nothing sent."""
+    it, and a page that has not booted reads as nothing sent. `sends` counts posts as
+    issued, so a retry is a second send — the edge `sending` waits on."""
 
     KEYS = ("sends", "acked", "asked", "heard", "pending")
 
@@ -720,11 +724,7 @@ def _until(page, fact, wanted):
 def round_trip(page):
     """Wait for what this page has sent to have come back to it.
 
-    A trip is over when the response names the accepted attempt, definitively refuses
-    it, or a state response contains the attempt. A request failure alone is not final
-    because the page may retry the same attempt. This proves delivery; it does not claim
-    every rendered effect of the response has completed. When applying the response is
-    itself the subject, wait for `data-lf-applied` to cover the expected events before
+    Delivery is all this proves. When applying the response is itself the subject, wait for `data-lf-applied` to cover the expected events before
     reading the resulting surface or making a gesture whose liveness depends on that
     projection. That stamp counts replayed actions, reports, and undos, and no comment:
     a comment, a reply, or a reaction never moves it, so a wait on it for one of those
@@ -789,11 +789,9 @@ def told(page):
     """Wait until the page has taken in everything the server now holds.
 
     Use it after the test writes a version, event, status, or lease that the browser
-    learns by reading. It names no transport: the page reads when its news stream says
-    the page has moved, and this compares what the page painted with what the server
-    says, so it is neither early by a request nor late by an interval. Letting `expect`
-    absorb the page's next read instead hides which mechanism supplied the wait and
-    spends its timeout budget on transport rather than on the assertion.
+    learns by reading. Letting `expect` absorb the page's next read instead hides which
+    mechanism supplied the wait and spends its timeout budget on transport rather than
+    on the assertion.
     """
     deadline = time.monotonic() + 30
     began = None
@@ -921,9 +919,8 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 def undo(page):
     """Take the last gesture back, from the moment the line offers to.
 
-    Waits until the key line offers undo, presses `z`, observes the new send enter the
-    wire, and waits for its round trip. A visible changed widget is not enough: undo can
-    be refused while the preceding gesture is still unresolved.
+    A visible changed widget is not enough to press on: undo can be refused while the
+    preceding gesture is still unresolved.
     """
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     with sending(page, "the withdrawal"):
@@ -932,9 +929,8 @@ def undo(page):
 
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
-# The console can tell them apart, which is what the reason is chosen for:
-# tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
-# request remains unresolved, deliberately: the outbox keeps its attempt and retries.
+# A refused event request remains unresolved, deliberately: the outbox keeps its attempt
+# and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report.
 
@@ -1300,7 +1296,11 @@ NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
 
 
 def arm_interception(page):
-    """Turn request interception on before any request this page will make."""
+    """Turn request interception on before any request this page will make.
+
+    A page made another way is unarmed, and a request already in flight is past holding
+    either way — both remain `primed`'s.
+    """
     page.route(NEVER_ASKED_FOR, lambda route: route.abort())
 
 
@@ -1368,8 +1368,8 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "a fixed
-    number of animation frames only guesses"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "A wait
+    consumes a fact the system states"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 
@@ -1546,13 +1546,8 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
 
 
 def select(page, start, end, steps=8):
-    """Drag and release a selection.
-
-    Floors the starting coordinates to a whole pixel because a fractional point can
-    straddle a glyph's caret boundary and leave an otherwise valid drag with an empty
-    selection. Preserve the end coordinate: changing its precision can move the selected
-    character.
-    """
+    """Drag and release a selection. The drag is `hold_selection`'s, whole-pixel
+    start and all; this releases it."""
     hold_selection(page, start, end, steps)
     page.mouse.up()
 

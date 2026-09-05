@@ -1036,11 +1036,10 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     the suite starts ends with the run").
 
     Autouse fixtures set up outermost first — a `pytest_plugins` module's before the
-    conftest's — and tear down in reverse, which is why a sweep with no dependency on
-    the isolation would read `state_home()` before it is applied at setup and after
-    `monkeypatch` has undone it at teardown.
-    `test_a_run_ends_only_the_servers_it_started` runs a nested suite against a planted
-    home and requires the planted page untouched and the run's own leftover stopped.
+    conftest's — and tear down in reverse, which is when the environment is wrong at
+    both ends. `test_a_run_ends_only_the_servers_it_started` runs a nested suite against
+    a planted home and requires the planted page untouched and the run's own leftover
+    stopped.
     """
     yield
     while HELD_LEASES:

@@ -483,6 +483,9 @@ SHORT_SUGGESTION = leaf_page(
 # is the other way to end one, and it stays: `motion()` cancels its own last frame after
 # the caller's cleanup, and a cancelled motion is the positive control for a gesture the
 # page took back, which the board's refusal case reads out of this list by play state.
+#
+# Step or release every held animation after the assertion, so completion handlers run
+# and teardown is not left waiting on a promise that cannot settle.
 HOLD_MOTION = """
   window.__lfHeld = [];
   const inner = Element.prototype.animate;

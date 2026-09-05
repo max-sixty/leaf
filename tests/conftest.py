@@ -194,7 +194,7 @@ def browser():
     The scope does not reach isolation, which is per context: `new_page` opens a
     fresh context per call, and a fresh context has empty `localStorage` and
     `sessionStorage` — the state a `goto` inside one would carry over
-    (tests/CLAUDE.md, "Reloading is not resetting")."""
+    (tests/CLAUDE.md, "Fixtures own the world they create")."""
     with sync_playwright() as p:
         b = p.chromium.launch()
         yield b

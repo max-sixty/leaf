@@ -584,7 +584,7 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `select`'s reason (tests/CLAUDE.md): a press on a fractional point
+    Whole pixels, per `hold_selection`'s reason: a press on a fractional point
     is a press the browser is free to round somewhere else. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region
@@ -1561,13 +1561,10 @@ RING_NAMES = """() => {
 # `Tab` then `Shift+Tab` back onto it, and asserting the ring is there comes before
 # asserting anything about its shape.
 #
-# Which rule drew a ring is the other question, and the rule answers it where it draws
-# (`--lf-here-ring`, theme.css), so the population the floor divides by is read out of
-# the page's own composed stylesheets rather than from a list kept beside them. What
-# keeps a box from being seen is the product's own reading too: `shownBand` names all
-# three ways a box draws nothing past its edge — overflow, paint containment, and
-# `content-visibility` — and this is its third consumer rather than a third copy, asking
-# the window on the same terms as any other box.
+# Which rule drew a ring is a separate question from which box wears it, and the rule
+# answers it where it draws (`--lf-here-ring`, theme.css), so the population the floor
+# divides by is read out of the page's own composed stylesheets rather than from a list
+# kept beside them.
 #
 # A reading blind to one mechanism does not report that it is blind — it returns the
 # same clean result it returns when nothing is wrong — so a green corpus is not evidence
@@ -1596,18 +1593,20 @@ RING_NAMES = """() => {
 # and the accent twice: a `color-mix` resolves into a different space than a plain
 # token, so the ring's `rgb(...)` and the shadow's `color(srgb ...)` are one colour
 # spelled two ways. The general fact the walk keeps: any outline an element wears for a
-# reason other than focus silently costs it the ring it would otherwise have had — an
-# author's outline on a focusable element takes the platform's ring away, and a 1px
-# hairline mark drawn whether or not anything is focused changes nothing on screen when
-# the keyboard lands.
+# reason other than focus silently costs it the ring it would otherwise have had. An
+# author's outline on a focusable element takes the platform's ring away, and the
+# element mark's 1px hairline, drawn whether or not anything is focused, once left
+# tabbing onto a commented diagram changing nothing on screen; the mark now answers the
+# keyboard the way it answers the pointer, which is why its ink counts above.
 #
 # A Tab walk needs its starting point said as well as its end. `blur()` does not supply
 # one: the sequential focus navigation starting point stays where the blurred control
 # stood, so the next Tab carries on from there, runs off the end of the order and never
 # enters the page. `document.body.focus()` resets it.
 #
-# `RING_FAULTS` can go blind in what it reads rather than in what it walks, and
-# silently. Its excuse for a control standing behind something has to step past the
+# The fault reading (`ring_faults`, over what this measured) can go blind in what it
+# reads rather than in what it walks, and silently. Its excuse for a control standing
+# behind something has to step past the
 # ring's own band to ask the question, which is `grow + w`; written as one pixel it
 # cleared an outward ring and landed inside an inset one, so every covered inset ring
 # answered that the control was behind the same thing — and the panel's list draws

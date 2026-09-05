@@ -695,11 +695,6 @@ def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     around it. It declines the developer's own index settings, in their
     environment and in their `uv.toml` alike, since either would serve the run and
     read as leaf ignoring the port it was pointed at.
-
-    A test of where `bin/leaf` looks for a dependency asks the host's index for every
-    one of them, so it needs the network the nightly run holds. It also needs a cache
-    directory of its own (`UV_CACHE_DIR`): a wheel already in the developer's cache
-    answers before any index is consulted, so the run would prove nothing.
     """
     installed = install_payload(tmp_path / "leaf")
 

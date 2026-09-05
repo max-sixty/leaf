@@ -557,6 +557,12 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     ).to_be_visible()
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+    refused_generation = json.loads((directory / "registry.json").read_text())[
+        "$layer"
+    ]["generation"]
+    expect(page.locator("script[data-lf-runtime]")).to_have_attribute(
+        "data-lf-layer", refused_generation, timeout=30000
+    )
 
     source.write_text(
         revised.replace("A watched source revision", "Recovered watched source"),

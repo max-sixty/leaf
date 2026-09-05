@@ -1540,7 +1540,7 @@ fitting a Button: like a coat button, it is one consistent piece attached to the
 passage, not a synonym for every HTML `<button>` on the page. The cluster is the
 single place for controls the reader can use on the target, communications they can
 start about it, and standing information such as comment threads, decisions,
-outcomes, changes, or agent activity.
+changes, or agent activity.
 
 At rest a cluster has a two-Button budget: the primary and one peer, or the primary
 and `…` when there are at least two peers. Hiding one peer costs the same fitting as
@@ -1579,14 +1579,15 @@ than the arrival's, and Escape still lets go of where the press left the reader.
 An unsettled reader action reuses that same Button rather than growing a status row
 inside authored content. Its information face advances from **Sent** or **Waiting for
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
-action's standing outcome supplies the same retained target cluster throughout. The
-first three phases and the standing outcome report a move already made, so the Button
-wears the flat `status` behavior below. **Active** raises it back into a disclosure. A
-thread's existing Thread Button remains the page-edge route to the exact receipt in
-the full conversation; an **Active** claim joins that engaged cluster as an exposed
-peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
-the full thread panel or a widget frozen into conversation chrome—the compact
-`.lf-receipt` remains the local fallback.
+acknowledgment keeps the same retained target cluster throughout that live handoff. The
+first three phases report a move already made, so the Button wears the flat `status`
+behavior below. **Active** raises it back into a disclosure. Once no receipt or claim is
+live, the generated Button disappears; the widget and action projection carry the
+durable state. A thread's existing Thread Button remains the page-edge route to the
+exact receipt in the full conversation; an **Active** claim joins that engaged cluster
+as an exposed peer. A standalone page-widget claim gets an **Active** Button directly.
+When no page edge exists—inside the full thread panel or a widget frozen into
+conversation chrome—the compact `.lf-receipt` remains the local fallback.
 
 Content modules contribute through `registerMarginItem({key, target, controls, subject,
 state, ...})`; they own their verbs and events, never placement or control styling. `key`
@@ -1599,17 +1600,16 @@ item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
 Every fitting in a contribution is built with
-`marginButton(control, {key, icon, label, context, behavior, tone, standing, role,
+`marginButton(control, {key, icon, label, context, behavior, tone, role,
 state})`; an authored reaction can supply `glyph` instead of `icon`, never both.
-`standing` is read only from a `status`, and says the report is one the file itself
-carries. That is the one RHS control
-type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
+That is the one RHS control type: it owns the circle, size, type, focus, state paint,
+and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
 what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
 `marginButton` also establishes the canonical Button record: key, face, label, context,
-behavior, standing durability, tone, role, and lifecycle state. Registration assigns its stable owner and
+behavior, tone, role, and lifecycle state. Registration assigns its stable owner and
 rejects duplicate Button keys within that owner. The compact rail and complete Page map
 both render from this record; neither infers semantics by scraping the contributor's
 painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
@@ -1625,9 +1625,7 @@ activation owner.
   circular Button silhouette and seat in the cluster on the page surface with a ghost
   keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a
   `status` in the accessibility tree so the Page map can still land there and name the
-  phase. A status is provisional unless it declares
-  `standing: true`, which says the document itself carries what the report claims; a
-  copy drops the provisional ones and keeps a standing one disarmed (above).
+  phase. Status is live-session information, so a copy drops it.
 
 A generated reading wears more than one of those over its life — a Thread Button while
 there is something to open, a status once the move is reported — and one element has to
@@ -3162,46 +3160,20 @@ Widget affordances fall into three groups:
   `html:not(.lf-copy)`.
 
 A report has two seats — a thread's own `.lf-receipt` line, and a margin reading
-`marginButton` has given the `status` behavior — and a copy answers both there, since
-the marker value cannot: a status is not a press, so `offer` writes the empty value to
-stand the pointer hand and the lift down on the live page, and the copy's press removal
-reads that same value to mean chrome it keeps.
+`marginButton` has given the `status` behavior. Both are live-session information:
+Sent, Waiting for pickup, and Picked up report a move an agent is still making, and a
+file has nothing behind that claim. A copy drops both seats rather than turning
+provisional news into a statement. The durable action remains applied in the widget's
+serialized state; the page map does not add another record for the copy to carry.
 
-What the copy does with one turns on what the file can stand behind, which is a second
-declaration (`data-lf-standing`) rather than another behavior. Sent,
-Waiting for pickup, and Picked up report a move an agent is still making, and a file has
-nothing behind that claim, so a copy drops them: keeping the word would turn provisional
-news into a statement. A standing Outcome is the page map's record of a decision the
-document already carries, with the decided state applied in the same file — the fact the
-rail is held open for, and for a widget speaking no receipt of its own the only margin
-record of the choice.
-
-A copy keeps that record, in one seat and disarmed. The status role, the walk's tab stop,
-and the offer marker go, on the same bargain the press removal strikes for a control whose
-words are the page's; unlike those words the marker is not kept, because the reading is
-the runtime's rather than a widget's. What it gives the status role up for is `img`, since
-it keeps its circle and its glyph and a shape whose word is collapsed away is named the
-way the reaction mark is named. The seat is the item itself, since a file can open
-no fold — the `…` that would is a press and leaves with the rest — and a resting seat a
-widget's control held is free again once that control has gone.
-
-Whichever seat the live page showed it in, the record stops being a page-map marker. The
-reading sits on the marker itself wherever a widget contributes no shown control, and
-that class is the rail's seat: both rules that stop drawing the rail name it, the 900px
-floor and print, so a record left wearing it would be a fact the file states on a wide
-screen and drops on a narrow one or on paper. Its spoken name goes with the class, being
-the walk's address — which entry of how many, and how far down the exporter's own window
-the target sat — and the reading's own word is restated in its place. The word standing in
-the DOM cannot serve instead: the runtime's stylesheet rides into the file and styles that
-span as hover chrome, so it is read in no medium.
-
-Where it stands is the same question in every medium, and a file cannot dock: the
-packing pass measured the rail at the width the page was exported at and left with the
-scripts. So under that floor and on paper, where no rail is drawn, a copy's margin items
-take the docked shape rather than the absolute seat they were exported into, which hangs
-off the page box. Not the rows that same pass withheld: an item whose target is not shown
-wears `lf-waiting` into the file, and a shape taken on the medium's terms would be the
-only thing standing a record beside a passage the file was folding away when exported.
+Where a durable margin item stands is the same question in every medium, and a file
+cannot dock: the packing pass measured the rail at the width the page was exported at
+and left with the scripts. So under that floor and on paper, where no rail is drawn, a
+copy's remaining margin items take the docked shape rather than the absolute seat they
+were exported into, which hangs off the page box. Not the rows that same pass withheld:
+an item whose target is not shown wears `lf-waiting` into the file, and a shape taken on
+the medium's terms would be the only thing standing a record beside a passage the file
+was folding away when exported.
 Paper later unfolds that passage through CSS, but a script-free copy cannot rerun the
 packing pass, so its serialized `lf-waiting` reading remains withheld. Changing that
 behavior belongs to the live and copied layouts together, not to this export override.

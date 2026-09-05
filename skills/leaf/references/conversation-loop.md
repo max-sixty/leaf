@@ -50,17 +50,17 @@ same Target Button beside an action or widget subject progresses through:
 - **Picked up** once a direct wait flushes it or Codex's durable queue accepts it;
 - **Active** only after `status … --on` supplies real work detail.
 
-The first three phases, and the standing outcome that follows them, report a move the
-reader has already made, so the Button is sewn flat there: the check keeps its place in
-muted ink, and the raised circle, the pointer, and the tab stop go. A keyboard reader
-still walks onto it and hears the phase. **Active** raises the circle again.
+The first three phases report a move the reader has already made, so the Button is sewn
+flat there: the icon keeps its place in muted ink, and the raised circle, the pointer,
+and the tab stop go. A keyboard reader still walks onto it and hears the phase.
+**Active** raises the circle again.
 
 Pickup is automatic and never changes the page-wide status. The Button cluster keeps
-one identity as its phase changes, then returns to the standing outcome or disappears
-when a reply or authored version answers the move. In the full thread panel and inside
-conversation-frozen widgets, where no page edge is available, the same projection uses
-a compact local row; the page's Thread Button opens that exact conversation rather than
-duplicating its transport phase. Requests keep their own terminal receipt lifecycle.
+one identity as its phase changes, then disappears when no receipt or claim is live.
+The widget and action log still carry the recorded state. In the full thread panel and
+inside conversation-frozen widgets, where no page edge is available, the same projection
+uses a compact local row; the page's Thread Button opens that exact conversation rather
+than duplicating its transport phase. Requests keep their own terminal receipt lifecycle.
 
 A `working` claim is believed while the turn that wrote it is open. The page is
 told when that turn ends, so a claim nothing has renewed within a couple of

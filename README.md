@@ -106,5 +106,5 @@ loop behind it, preserving reader feedback across edits. Add `--background` to k
 watching between commands, or `--stop` to stop that preview.
 Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
-`scripts/preview.py feature-gallery --automation` serves that developer playground
-through the browser harness's process-owned server.
+`scripts/preview.py feature-gallery` serves that developer playground without adding
+it to the public catalog.

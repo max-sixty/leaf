@@ -10,7 +10,12 @@
 
    Neither is stored. A remembered narrowing greets a returning reader with part of a
    conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the page
-   restores; a look at a list is not one. */
+   restores; a look at a list is not one.
+
+   Neither takes a card out of the document. An open thread the narrowing hides keeps
+   its node, `hidden`: a widget an agent sent in a reply is instantiated once, in that
+   card, and the banner's Asks count, the tray's rows and the `a`/`A` walk all find it
+   by id. `openThreads` and the `t`/`T` walk read only the cards that show. */
 export function createConversationNarrowing(dependencies) {
   const {
     anchorLabel,

@@ -48,7 +48,10 @@
    layer, the page rung stands down and browser Escape closes it; Leaf updates from the
    resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
    distinct inner step, such as leaving a text box before closing its dialog or collapsing
-   the keyboard reference's expanded shelf.
+   the keyboard reference's expanded shelf — or, as a `native: true` row, to name the
+   platform's own press on the key line where nothing else does (the versions menu opened
+   by pointer): the row runs the same close, leaves the platform's half alone, and a
+   return frame standing nearer names the key first.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker

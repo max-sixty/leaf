@@ -39,11 +39,13 @@
             account-takeover response.
           </li>
           <li>
-            Session writes happen on every request (<lf-gloss
+            Session writes happen on every request —
+            <lf-gloss
               id="session-rolling-expiry"
               tip="Extending a session's expiration time whenever it is used."
               >rolling expiry</lf-gloss
-            >), so the store sees full request volume.
+            >
+            — so the store sees full request volume.
           </li>
           <li>
             The team already operates Redis for rate limiting; nobody runs Dynamo-style

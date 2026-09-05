@@ -681,7 +681,7 @@ lf-options > .lf-done > .lf-address { position: absolute;
     /* A cell has no border of its own. Selection gets one quiet ground here; the mark's
      * check is its compact second channel. The vertical status bar that used to sit
      * beside both only repeated the same fact and made green read like focus. */
-    & > lf-option { --fill: var(--card); background: var(--fill); }
+    & > lf-option { --fill: var(--card); background-color: var(--fill); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the reader — this one is being weighed — so both wear one paint. It
      * deepens whatever the cell is filled with, rather than lifting it: a cell that

@@ -3,12 +3,12 @@ import { paintReactionStanding } from "../reactions.js";
 /* Reaction surfaces rendered in every complete Thread view.
 
    `paintReactStrips` puts one reaction surface under each agent message and marks the
-   latest one `lf-open`, which keeps its ellipsis visible and makes it the thread's `r`
-   target. Older ellipses appear while the reader is in the thread. A closed surface
-   shows only standing tokens, pressed and wearing their word; opening it replaces the
-   ellipsis with the complete list. `paintPageStrip` builds the explicit page-wide
-   surface above the general box. A token press closes the list and returns focus to
-   the ellipsis; any standing mark remains visible as its own eraser. */
+   latest one `lf-open`, which keeps its `React…` trigger visible and makes it the
+   thread's `r` target. Older triggers appear while the reader is in the thread. A
+   closed surface shows only standing tokens, pressed and wearing their word; opening it
+   replaces the trigger with the complete list. `paintPageStrip` builds the explicit
+   page-wide surface above the general box. A token press closes the list and returns
+   focus to the trigger; any standing mark remains visible as its own eraser. */
 export function createConversationReactionStrips(dependencies) {
   const {
     bareReaction,
@@ -26,7 +26,7 @@ export function createConversationReactionStrips(dependencies) {
   } = dependencies;
 
   // The strip under each agent message keeps the reader's standing marks visible and
-  // offers one ellipsis. The latest reply offers it at rest; older replies reveal theirs
+  // offers one trigger. The latest reply offers it at rest; older replies reveal theirs
   // while the reader is in the thread. A list opens only on the surface the reader chose.
   // Rebuilt from the thread on each reconcile rather than from the press, so a reaction
   // arriving from another tab and an undo land the same way. A resolved thread offers none.

@@ -3734,7 +3734,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.close()
 
 
-def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):
+@pytest.mark.parametrize("scheme", ("light", "dark"))
+def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
+    browser, serve, scheme
+):
     """The diff owns only the row. Core's shared Thread view keeps replies,
     reactions, settlement, and the compact resolved disclosure working inside it."""
     authored = leaf_page(
@@ -3779,7 +3782,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
             "text": "The guard now covers the replacement path.",
         },
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, url, color_scheme=scheme)
     thread = page.locator(
         f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
     )
@@ -3806,6 +3809,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     assert palette["cardBorder"] == palette["replyBorder"]
     assert palette["cardPadding"] > 0
     assert palette["row"] == palette["page"]
+
     note = page.locator("lf-diff .lf-mark-note")
     expect(note).to_have_count(1)
     assert note.evaluate(
@@ -3817,6 +3821,44 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     assert note.evaluate("el => el.getBoundingClientRect().width > 1")
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     page.keyboard.press("Escape")
+
+    # The same draft has two views, across the shadow boundary. Empty Sends keep the
+    # paper's neutral ground; typing enables the same primary face in either view.
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    inline_send = thread.get_by_role("button", name="Send", exact=True)
+    panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
+    button_face = """button => {
+      const style = getComputedStyle(button);
+      return Object.fromEntries([
+        'backgroundColor', 'color', 'borderTopColor', 'borderRadius', 'padding',
+        'opacity', 'cursor', 'filter',
+      ].map(property => [property, style[property]]));
+    }"""
+    expect(inline_send).to_be_disabled()
+    expect(panel_send).to_be_disabled()
+    quiet = inline_send.evaluate(button_face)
+    assert quiet == panel_send.evaluate(button_face)
+    assert quiet["backgroundColor"] == palette["page"]
+    assert quiet["opacity"] == "1"
+    assert quiet["filter"] == "none"
+    for send in (inline_send, panel_send):
+        send.hover()
+        assert send.evaluate(button_face) == quiet
+    page.mouse.move(0, 0)
+    thread.locator("textarea").fill("One draft in both views.")
+    expect(panel_thread.locator("textarea")).to_have_value("One draft in both views.")
+    expect(inline_send).to_be_enabled()
+    expect(panel_send).to_be_enabled()
+    ready = inline_send.evaluate(button_face)
+    assert ready == panel_send.evaluate(button_face)
+    assert ready["backgroundColor"] != quiet["backgroundColor"]
+    assert ready["cursor"] == "pointer"
+    panel_thread.locator("textarea").fill("")
+    expect(inline_send).to_be_disabled()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, False)
 
     claimed = CliRunner().invoke(
         cli_model.cli,

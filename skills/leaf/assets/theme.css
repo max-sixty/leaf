@@ -1200,17 +1200,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread[open] > .lf-conversation-summary { margin-bottom: var(--sp-2);
           border-bottom: 1px solid var(--rule); }
 .lf-conversation-thread > .lf-conversation-summary[hidden] { display: none; }
-.lf-conversation-thread .lf-btn { display: inline-block; padding: 4px 10px;
-          border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
-          color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
-.lf-conversation-thread .lf-btn:hover { background: var(--chip); }
-.lf-conversation-thread .lf-btn.primary { color: var(--paper); background: var(--accent);
-          border-color: var(--accent); }
-.lf-conversation-thread .lf-btn:is(:disabled, [aria-disabled="true"]) {
-          opacity: .55; cursor: default; }
-.lf-conversation-thread .lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
-          opacity: 1; color: var(--muted); background: var(--paper);
-          border-color: var(--border-2); }
+.lf-conversation-thread .lf-btn { font: inherit; }
 .lf-conversation-thread textarea { box-sizing: border-box; padding: 8px 10px;
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
           color: inherit; font: inherit; resize: none; field-sizing: content;
@@ -1707,5 +1697,8 @@ html.lf-versioning::view-transition-new(root) {
    buttons, and the attribute wireInput sets, which is the only one a span press can
    wear. */
 .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
+.lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
+          opacity: 1; color: var(--muted); background: var(--paper);
+          border-color: var(--border-2); filter: none; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* lf-shadow:end */

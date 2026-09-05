@@ -971,7 +971,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
             "revision": 1,
             "text": "\n\n".join(
                 f"Consideration {i}: this thread needs its full context."
-                for i in range(18)
+                for i in range(24)
             ),
         },
     )

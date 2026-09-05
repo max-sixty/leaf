@@ -465,6 +465,13 @@ const movedTo = (box, left, top) => ({
 // each is legible. Read every face before moving one, keeping the pass to one layout.
 function spreadHints(hints) {
   const gap = 2;
+  // The band the browsed hint wears reaches this far past its box (--here-shadow,
+  // theme.css), so a seat against the line or the foot clears the band as well as the
+  // face. Seated to the gap alone it cleared by coincidence, both being 2px.
+  const band =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
+    ) || 0;
   const measured = hints.map(({ chip, target }) => {
     const start = chip.getBoundingClientRect();
     const line = keylineEl.getBoundingClientRect();
@@ -501,9 +508,9 @@ function spreadHints(hints) {
         Math.max(...collisions.map((other) => other.bottom)) + gap,
       );
     const meetsLine = lineBand.bottom > lineBand.top && overlaps(box, lineBand);
-    if (meetsLine || box.bottom > innerHeight) {
+    if (meetsLine || box.bottom + band > innerHeight) {
       const upperEdge = meetsLine ? lineBand.top : innerHeight;
-      box = movedTo(box, box.left, upperEdge - gap - box.height);
+      box = movedTo(box, box.left, upperEdge - gap - band - box.height);
       for (
         let collisions = placed.filter((other) => overlaps(box, other));
         collisions.length;

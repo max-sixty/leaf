@@ -24,6 +24,7 @@ from render_support import (
     DEEP_FOCUS,
     DEFINE_BOXES,
     DIFF_PAGE,
+    EXAMPLE_MEDIA,
     EXAMPLES,
     FEATURE_GALLERY,
     HERE_SHADOW,
@@ -4121,6 +4122,8 @@ RING_WALKS = (
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
+# The image the walk's pasted reply refers to, served from the page the way a paste is.
+PASTED_IMAGE = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
 
 
 # Whether the page is offering a banner address at all, which is not the same question as
@@ -4401,7 +4404,28 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         # on. One of those threads is anchored to an element rather than a passage,
         # which is the only way a ring is painted on the page for a focus held in the
         # panel.
-        url = serve(example, comments=2)
+        url = serve(
+            example,
+            comments=2,
+            media={"/media/051bee487bfb5d13.png": PASTED_IMAGE},
+        )
+        # A pasted image in a reply, laid in the log the same way: the button a message
+        # carries it in opens the viewer and wears its own ring, and no example's markup
+        # can hold a message.
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": next(
+                    event["id"]
+                    for event in events_model.read_events(serve.page_dir)
+                    if event["kind"] == "comment"
+                ),
+                "revision": 1,
+                "text": "Here it is.\n\n![Pasted image](/media/051bee487bfb5d13.png)",
+            },
+        )
         # A version to compare against, published the way a page gets one. Serving v2
         # rather than letting the open page follow keeps the walk out of an activation.
         _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")

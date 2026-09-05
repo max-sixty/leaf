@@ -18,8 +18,13 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // reads — a repaint of every key on the page. `toggleAttribute` keeps that rule for the
 // flags by construction; these two are the same rule for the names, states, and words
 // that have no such door.
+// The comparison is against what the attribute would read back as, not what the caller
+// held: `getAttribute` answers with a string and `setAttribute` stringifies, so a
+// boolean or a count compared raw is never equal to the attribute already standing and
+// rewrites on every pass — the defect this closes, wearing the shape of the guard.
 export function keeps(node, name, value) {
-  if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
+  const said = String(value);
+  if (node && node.getAttribute(name) !== said) node.setAttribute(name, said);
 }
 
 export function keepsHidden(node, hidden) {

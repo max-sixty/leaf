@@ -205,6 +205,14 @@ export function marginButton(
     tone = "neutral",
     role = "primary",
     state = "idle",
+    // Whether this call writes the disclosure's relation. True for every disclosure the
+    // layer draws, which carries `aria-expanded` from the moment it appears. False says
+    // another writer owns it: the margin's readings, whose `aria-controls` and
+    // `aria-expanded` `syncThreadRelation` decides together from whether the reading
+    // opens a thread and takes off together when it opens none. The declaration names
+    // the writer rather than the role, because `marginButton` is published through the
+    // widget API and a module reaching it brings no second writer with it.
+    writesRelation = true,
   },
 ) {
   if (!(control instanceof Element))
@@ -249,18 +257,19 @@ export function marginButton(
   keeps(control, "data-lf-offer", behavior === "status" ? "" : "button");
   marginButtonState(control, state);
   const opens = behavior === "disclosure";
-  // A reading's relation is `syncThreadRelation`'s alone to write: it decides
-  // `aria-controls` and `aria-expanded` together from whether this reading opens a
-  // thread, and takes both off when it opens none. A default written here would be a
-  // second writer that the same pass then strips — an add and a remove per heartbeat,
-  // and the remove reads as news to the document's disclosure watch, so an untouched
-  // page repaints its keys at the refresh rate.
-  if (opens && role !== "reading" && !control.hasAttribute("aria-expanded"))
+  // A default written where another writer owns the relation is a second writer the
+  // same pass then strips — an add and a remove per heartbeat, and the remove reads as
+  // news to the document's disclosure watch, so an untouched page repaints its keys at
+  // the refresh rate.
+  if (opens && writesRelation && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
   if (!opens) control.removeAttribute("aria-expanded");
   if (behavior === "status") {
     keeps(control, "role", "status");
-    control.tabIndex = -1;
+    // The attribute rather than the property: a span with no `tabindex` already reads
+    // `tabIndex === -1`, so a property guard would never write the one that makes the
+    // seat programmatically focusable, while an unguarded write restates it every pass.
+    keeps(control, "tabindex", -1);
   } else if (!(control instanceof HTMLButtonElement)) {
     keeps(control, "role", "button");
     if (control.tabIndex < 0) control.tabIndex = 0;
@@ -357,7 +366,7 @@ export function marginButtonState(control, state) {
   if (!BUTTON_STATES.has(state)) throw new TypeError(`Unknown Button state: ${state}`);
   buttonRecord(control).state = state;
   keeps(control, "data-lf-state", state);
-  if (state === "busy") control.setAttribute("aria-busy", "true");
+  if (state === "busy") keeps(control, "aria-busy", "true");
   else control.removeAttribute("aria-busy");
   return control;
 }
@@ -1011,7 +1020,7 @@ export function createLivingMargin(dependencies) {
     const opensBeside =
       !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
     keeps(control, "aria-controls", opensBeside ? preview.id : threadPanel.id);
-    if (opensBeside) keeps(control, "aria-expanded", String(previewButton === control));
+    if (opensBeside) keeps(control, "aria-expanded", previewButton === control);
     else control.removeAttribute("aria-expanded");
   }
   let postureFrame = 0;
@@ -1603,7 +1612,7 @@ export function createLivingMargin(dependencies) {
         return distance < nearest.distance ? { row, distance } : nearest;
       }, null)?.row;
     }
-    for (const row of rows.values()) row.tabIndex = row === stop ? 0 : -1;
+    for (const row of rows.values()) keeps(row, "tabindex", row === stop ? 0 : -1);
   }
 
   function syncRoving() {
@@ -1738,6 +1747,7 @@ export function createLivingMargin(dependencies) {
       standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
+      writesRelation: false,
     });
     row.onclick = behavior === "status" ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
@@ -1833,12 +1843,14 @@ export function createLivingMargin(dependencies) {
       standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
+      writesRelation: false,
     });
     node.lfEntry = entry;
     node.lfChoice = choice;
     syncThreadRelation(node, choice.kind === "comment");
-    node.dataset.lfKinds = choice.kind;
-    node.setAttribute(
+    keeps(node, "data-lf-kinds", choice.kind);
+    keeps(
+      node,
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
@@ -1925,7 +1937,7 @@ export function createLivingMargin(dependencies) {
         role: "overflow",
         state: "idle",
       });
-      keeps(spill, "data-lf-spill-count", String(hidden));
+      keeps(spill, "data-lf-spill-count", hidden);
       spill.lfFirstSpilledOption = unique[visibleCapacity];
       keeps(spill, "aria-label", `Show ${hidden} more in Page map`);
       spill.onclick = () => openSheet(entry, { invoker: spill, focusSpill: true });
@@ -1972,7 +1984,7 @@ export function createLivingMargin(dependencies) {
     keepsHidden(more, !hasOptions || optionsOpen);
     more.lfEntry = entry;
     keeps(more, "aria-label", `More options for ${entry.title}`);
-    keeps(more, "aria-expanded", String(optionsOpen));
+    keeps(more, "aria-expanded", optionsOpen);
     host.toggleAttribute("data-lf-options-open", optionsOpen);
     keeps(host, "data-lf-state", entryState(entry));
     // Replacing a focused proxy fires focusout synchronously. The render already owns
@@ -2027,9 +2039,9 @@ export function createLivingMargin(dependencies) {
         host.setAttribute("role", "group");
         inlineHosts.set(target, host);
       }
-      host.dataset.lfMarginFor = target.id || targetPath(target);
+      keeps(host, "data-lf-margin-for", target.id || targetPath(target));
       host.lfTarget = target;
-      host.setAttribute("aria-label", `Actions for ${itemWord(target)}`);
+      keeps(host, "aria-label", `Actions for ${itemWord(target)}`);
       const controls = (side) =>
         offers
           .filter((offered) => offered.side === side)
@@ -2235,6 +2247,7 @@ export function createLivingMargin(dependencies) {
           label: "Open page details",
           behavior: "disclosure",
           role: "reading",
+          writesRelation: false,
         });
         keys(
           host,
@@ -2428,8 +2441,8 @@ export function createLivingMargin(dependencies) {
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
     const title = trimmed(targetHeading || entry.title, 72);
-    preview.setAttribute("data-lf-thread", "");
-    preview.setAttribute("aria-label", `Thread for ${title}`);
+    keeps(preview, "data-lf-thread", "");
+    keeps(preview, "aria-label", `Thread for ${title}`);
     previewTitle.textContent = title;
     const nodes = threadItems.map(previewItemNode);
     const keep = new Set(nodes);

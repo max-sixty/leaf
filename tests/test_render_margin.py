@@ -182,7 +182,34 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     page.close()
 
 
-def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
+HEARTBEAT_PAGES = (
+    # The corpus is the widest margin the examples draw: 28 items on this viewport,
+    # more than half of them docked out in the document beside their targets.
+    pytest.param(
+        next(example for example in EXAMPLES if example.stem == "corpus"),
+        {".lf-margin-item": 15},
+        id="corpus",
+    ),
+    # The gallery draws the fittings the corpus has none of, and the writers that only
+    # run for those are watched nowhere else: a reading option under an entry holding
+    # several readings, and the readings whose move is made, which wear the `status`
+    # behavior on a span seat rather than a button.
+    pytest.param(
+        FEATURE_GALLERY,
+        {
+            ".lf-margin-item": 10,
+            ".lf-margin-reading-option": 1,
+            '.lf-margin-button[data-lf-behavior="status"]': 2,
+        },
+        id="gallery",
+    ),
+)
+
+
+@pytest.mark.parametrize("page_source, population", HEARTBEAT_PAGES)
+def test_an_unchanged_heartbeat_restates_no_margin_name(
+    browser, serve, page_source, population
+):
     """The heartbeat must not rewrite a name, state, or word it is not changing.
 
     `render` is bound to `lf-actions`, so an unconditional write here restates
@@ -193,11 +220,18 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
     carried the value being written, so a real change is still free.
 
     The margin is not the nav: `render` docks every host with offers beside its
-    own perch out in the document, which on this corpus is more of the margin
-    than the nav holds. So the watch is rooted at every host as well, and the
-    reach is asserted the way the population is — a run where the docked hosts
-    stopped being watched would otherwise return the same clean `[]` it returns
-    when nothing is wrong.
+    own perch out in the document, which on both pages is more of the margin than
+    the nav holds, and `syncInlineOffers` builds another host in place wherever an
+    offer's target stands in chrome. So the watch is rooted at every host of
+    either kind, and the reach is asserted the way the population is — a run where
+    the docked hosts stopped being watched would otherwise return the same clean
+    `[]` it returns when nothing is wrong. No shipped page draws an inline host at
+    rest, so that second root is reach rather than a reading taken here.
+
+    One page cannot state the reach on its own either: the corpus draws no reading
+    option and no status reading, so the writers those two fittings reach ran
+    unwatched until the gallery was read beside it. Each page therefore names the
+    population it is here for.
 
     A second reading covers what a restatement cannot: two writers taking turns
     over one attribute say something different each time, so no record of theirs
@@ -205,15 +239,17 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
     and repaints the page's keys on every heartbeat. `open` and `aria-expanded`
     are the attributes that watch reads, and an untouched page must give it none.
     """
-    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
-    page, errors = open_page(browser, serve(corpus))
+    page, errors = open_page(browser, serve(page_source))
     resized(page, 1440, 900)
     margins_laid_out(page)
-    assert page.locator(".lf-margin-item").count() >= 15
+    for selector, least in population.items():
+        assert page.locator(selector).count() >= least, selector
     heartbeat = page.evaluate(
         """refreshes => {
           const text = nodes => [...nodes].map(node => node.textContent).join('');
-          const hosts = [...document.querySelectorAll('.lf-margin-item')];
+          const hosts = [...document.querySelectorAll('.lf-margin-item'),
+            ...document.querySelectorAll(
+              'div.lf-ui[data-lf-margin-for]:not(.lf-margin-item)')];
           const roots = [document.querySelector('nav.lf-living-margin'),
                          document.querySelector('.lf-page-map-toggle'), ...hosts];
           const observer = new MutationObserver(() => {});
@@ -259,7 +295,7 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
     assert heartbeat["restated"] == [], heartbeat["restated"]
     assert heartbeat["news"] == [], heartbeat["news"]
     # The reach the two readings above are worth: the nav alone would leave more
-    # than half the corpus's hosts, and every writer under them, unwatched.
+    # than half of either page's hosts, and every writer under them, unwatched.
     assert heartbeat["docked"] >= heartbeat["hosts"] / 2, heartbeat
     assert errors == []
     page.close()

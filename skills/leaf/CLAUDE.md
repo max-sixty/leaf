@@ -857,7 +857,9 @@ minimum obligations:
   visible control state and its gesture guard. `sendAction` and POST repeat that
   declared check at their respective doors.
 - Write a name or state through `keeps(node, name, value)` wherever the render runs on
-  the `lf-actions` heartbeat. A `watchActions` callback paints every two seconds on a
+  the `lf-actions` heartbeat. It compares against what the attribute reads back as, so
+  hand it a boolean or a count raw rather than stringifying at the call site. A
+  `watchActions` callback paints every two seconds on a
   page nobody has touched, and an unconditional `setAttribute` restates itself at that
   rate: a mutation record a screen reader rebuilds its buffer from, and — for `open` and
   `aria-expanded` — a repaint of every key on the page. `toggleAttribute` already keeps
@@ -1566,7 +1568,8 @@ item that sets `represents` and names its
 reading of the same kind at that exact target rather than showing the fact twice.
 Every fitting in a contribution is built with
 `marginButton(control, {key, icon, label, context, behavior, tone, standing, role,
-state})`; an authored reaction can supply `glyph` instead of `icon`, never both.
+state, writesRelation})`; an authored reaction can supply `glyph` instead of `icon`,
+never both.
 `standing` is read only from a `status`, and says the report is one the file itself
 carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
@@ -1586,7 +1589,13 @@ activation owner.
   verb, and performs its effect immediately;
 - `disclosure` has a firmer single ring than status and the same paper surface. It carries
   `aria-expanded`, reveals or hides context without settling it, and includes the
-  generated More Button whose ellipsis is its whole face;
+  generated More Button whose ellipsis is its whole face. `marginButton` writes that
+  attribute's default unless the call says `writesRelation: false`, which declares that
+  another writer decides the disclosure's relation — the margin's own readings, whose
+  `aria-controls` and `aria-expanded` are settled together from whether the reading opens
+  a thread. Two writers over one attribute say something different each pass, so no
+  record of theirs restates anything while the document's disclosure watch reads the pair
+  as news;
 - `status` reports a move already made and offers no press. It keeps its icon and its
   circular Button silhouette and seat in the cluster on the page surface with a ghost
   keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a

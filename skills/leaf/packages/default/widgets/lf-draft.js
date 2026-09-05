@@ -390,7 +390,7 @@ customElements.define(
       // The action sequence this paint follows arrives on every heartbeat, so each of
       // these states is written on a page nobody has touched. State only what changed.
       const reach = (control, blocked) => {
-        keeps(control, "aria-disabled", String(blocked));
+        keeps(control, "aria-disabled", blocked);
         const stop = blocked ? -1 : 0;
         if (control.tabIndex !== stop) control.tabIndex = stop;
       };

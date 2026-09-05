@@ -22,13 +22,14 @@ export function createUpdates(runtime, dependencies) {
   const {
     closestAcross,
     coordinateProjectionCommitted,
+    presented,
     projectionCommitted,
     stateProjection,
   } = dependencies;
 
   let claimState = Object.freeze({
     sources: Object.freeze([]),
-    claimsHeld: false,
+    presence: null,
     agentTurnClosed: null,
     claimingSession: null,
   });
@@ -36,14 +37,14 @@ export function createUpdates(runtime, dependencies) {
     const prior = claimState;
     claimState = Object.freeze({
       sources: Object.freeze(structuredClone(next.sources)),
-      claimsHeld: next.claimsHeld,
+      presence: next.presence,
       agentTurnClosed: next.agentTurnClosed,
       claimingSession: next.claimingSession,
     });
     return () => (claimState = prior);
   }
   const workClaimState = () => ({
-    claimsHeld: claimState.claimsHeld,
+    claimsHeld: claimState.presence ? presented(claimState.presence).held : false,
     agentTurnClosed: claimState.agentTurnClosed,
     claimingSession: claimState.claimingSession,
   });

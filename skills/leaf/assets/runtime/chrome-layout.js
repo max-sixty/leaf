@@ -1,3 +1,5 @@
+import { scheduleMarginLayout } from "./margin-layout.js";
+
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
 // scale its width away, and 360 crowded them. A default rather than the width, because
@@ -277,6 +279,9 @@ export function createChromeLayout({
     if (played) {
       const settled = () => {
         if (shellMotion === played) shellMotion = null;
+        // The carry changes position without another resize. Rows measured before
+        // it finishes may have docked outside the final shell's available margin.
+        scheduleMarginLayout();
         scheduleShellRepaint();
       };
       played.finished.then(settled, settled);

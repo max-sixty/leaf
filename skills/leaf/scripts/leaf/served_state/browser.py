@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
-from ..events import build_threads
+from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
 from ..passages import enclosing_of
 from ..projection import canonical_updates, page_projection
@@ -34,7 +34,9 @@ def browser_state(
         active_html, events, registry, active_revision
     )
     active_within = enclosing_of(active_spk)
-    threads = build_threads(events, active_within)
+    withdrawn = taken_back(events)
+    threads = build_threads(events, active_within, withdrawn=withdrawn)
+    undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
     conversation, conversation_reading = _browser_conversation(
         events, registry, threads
     )
@@ -43,7 +45,7 @@ def browser_state(
     views = {}
     for revision in sorted(view_revisions):
         html = documents[revision]
-        document, projection, within, floors = _browser_document(
+        document, projection = _browser_document(
             html,
             events,
             registry,
@@ -87,11 +89,9 @@ def browser_state(
             "updates": canonical_updates(projection, claims, threads, events),
             "undo": _browser_undo_candidates(
                 events,
-                active_within,
-                within,
-                floors,
                 projection,
                 conversation_projection,
+                undo_reading=undo_reading,
             ),
             "coverage": coverage,
             "published_at": published_at,

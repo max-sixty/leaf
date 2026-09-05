@@ -493,6 +493,7 @@ export function createTargetSelection({
       if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
       return;
     }
+    const wasActive = hintActive >= 0;
     const refreshed = !searching && !prefix && !scrolling;
     const heard = hinted()[hintActive];
     if (refreshed) {
@@ -541,6 +542,8 @@ export function createTargetSelection({
         }
     }
     if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
+    // The key line was painted before geometry retired the browsed hint.
+    if (wasActive && hintActive < 0) paintHere();
     selectionLayer.replaceChildren(...drawn);
     if (!searching) spreadHints(hints);
   }

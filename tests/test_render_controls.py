@@ -95,6 +95,15 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
 </lf-options></lf-decision>
+<lf-decision id="stable-swipe-decision"><h2>Which proof should stay?</h2>
+<lf-swipe-deck id="stable-swipe">
+  <lf-swipe-pile id="stable-swipe-queue" verdict="unseen">
+    <lf-swipe-card id="stable-swipe-a"><strong>Keep the first proof</strong></lf-swipe-card>
+    <lf-swipe-card id="stable-swipe-b"><strong>Keep the second proof</strong></lf-swipe-card>
+  </lf-swipe-pile>
+  <lf-swipe-pile id="stable-swipe-pass" verdict="pass"></lf-swipe-pile>
+  <lf-swipe-pile id="stable-swipe-keep" verdict="keep"></lf-swipe-pile>
+</lf-swipe-deck></lf-decision>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
@@ -141,6 +150,13 @@ CONTROL_ARCHETYPES = (
         "name": "option-pick",
         "coverage": "lf-option > [role=checkbox]",
         "target": "#stable-choice-a .lf-pick",
+    },
+    {
+        # Classifying the penultimate card removes the decorative backing card;
+        # the verdict row must keep its place when that extra surface disappears.
+        "name": "swipe-verdict",
+        "coverage": ".lf-swipe-controls > button",
+        "target": "#stable-swipe .lf-swipe-keep",
     },
     {
         "name": "tab",

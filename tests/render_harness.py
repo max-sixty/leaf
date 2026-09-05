@@ -937,18 +937,14 @@ def nudge(page_dir):
 
 
 def ticked(page):
-    """Wait for the page's next re-application of what it holds, by whichever door.
+    """Wait for the shared clock and any deferred projection to finish a tick.
 
-    The poll used to supply this, so a test that wanted the page's next local pass —
-    a deferred correction applied once an editor closed — waited for the next request.
-    The pass is the heartbeat now, or a read, or a POST's answer, and none of them
-    marks the wire for it; `lf-actions` is what every one dispatches when it has run,
-    and the listener is put on before the wait so a pass already past cannot answer.
+    This is independent of network reads and does not imply a state repaint.
     """
     page.evaluate(
         """() => {
           window.__lfTicked = false;
-          document.addEventListener('lf-actions', () => { window.__lfTicked = true; },
+          document.addEventListener('lf-tick', () => { window.__lfTicked = true; },
                                     { once: true });
         }"""
     )

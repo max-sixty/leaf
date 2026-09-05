@@ -2140,12 +2140,17 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into); } };
         collect(sheet.cssRules, global_);
+        // Shared page vocabulary also lives in the shipped theme. It is intentionally
+        // global even when the chrome uses the same class inside its private scope.
+        const shared = new Set(global_);
+        for (const other of document.styleSheets)
+            if (other !== sheet) collect(other.cssRules, shared);
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
         // (lf-address, worn by the chord's own layer and by an option's corner alike)
         // is named by the scoped rule that says when to paint it, and it would answer
         // this question with the reach it was given rather than with a leak.
-        probe.className = [...scoped].filter(c => !global_.has(c)).join(" ");
+        probe.className = [...scoped].filter(c => !shared.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
         document.getElementById("s").append(plain, probe);
         const cs = el => { const c = getComputedStyle(el), out = {};
@@ -2216,6 +2221,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-button-icon",
         "lf-margin-button-space",
         "lf-margin-button-label",
+        "lf-margin-button-label-word",
+        "lf-margin-button-context",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.

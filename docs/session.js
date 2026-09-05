@@ -149,7 +149,7 @@ const valueOf = (event) => {
   return value ?? null;
 };
 
-function demoProjection(without = null) {
+function demoProjection() {
   const withdrawn = new Set(
     events.filter((event) => event.undoes).map((event) => event.undoes),
   );
@@ -169,7 +169,7 @@ function demoProjection(without = null) {
       restated: [],
     });
     if (event.kind === "action") {
-      if (!withdrawn.has(event.id) && event.id !== without) actions.set(key, event.id);
+      if (!withdrawn.has(event.id)) actions.set(key, event.id);
     } else {
       const standing = reports.get(key) ?? [];
       standing.push(event.id);
@@ -328,18 +328,6 @@ function demoBrowser() {
     .map((event) => ({
       event,
       ...(coordinateOf(event) && { coordinate: coordinateOf(event) }),
-      ...(event.kind === "action" && {
-        restores_desired: (() => {
-          const coordinate = JSON.stringify(coordinateOf(event));
-          const projection = demoProjection(event.id);
-          const desired = new Set(projection.desired);
-          return projection.entries.some(
-            (entry) =>
-              desired.has(entry.event.id) &&
-              JSON.stringify(entry.coordinate) === coordinate,
-          );
-        })(),
-      }),
     }));
   return {
     basis: { through_seq: throughSeq },

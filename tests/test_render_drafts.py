@@ -22,6 +22,7 @@ from render_support import (
     KEYS_PAGE,
     LONG_PAGE,
     NOTED_PAGE,
+    SCROLL_SETTLED,
     SEATED_QUESTION_PAGE,
     SENTENCE,
     SMOOTH_LONG_PAGE,
@@ -208,6 +209,32 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT, (
         "the user's editor opened on text the runtime had written into"
     )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("section", ["draft-ops", None])
+def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, section):
+    """A passage's generated body is not the owner of the reaction's margin control."""
+    url = serve(JOURNEY_V1)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "ok",
+            "anchor": {
+                **({"section": section} if section else {}),
+                "quote": "Run the migration before deploying.",
+            },
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
+    expect(page.locator('.lf-reacts[data-lf-for="draft-ops"]')).to_have_count(1)
+    page.locator("#draft-ops .lf-draft-body").dblclick()
+    assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT
     assert errors == []
     page.close()
 
@@ -2667,6 +2694,11 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
     (page_was, threads_was), (page_now, threads_now) = press_down()
     assert threads_now == threads_was, "the panel took a key aimed at the document"
     assert page_now > page_was, "the document did not move for a key of its own"
+    page.evaluate(
+        "() => { window.__lfScroll = document.scrollingElement.scrollTop;"
+        " window.__lfScrollSince = performance.now(); }"
+    )
+    page.wait_for_function(SCROLL_SETTLED, arg=50)
 
     resized(page, 500, 600)
     panel_settled(page)

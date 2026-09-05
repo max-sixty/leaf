@@ -5,7 +5,7 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
-| `comment` | user or agent | `POST /api/event`, `leaf comment` | `text` or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
+| `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; `awaits` and `markup` (CLI only) | answers a thread without closing it |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
@@ -27,6 +27,16 @@ projection names an external input, `source` and `data_revision`; `visual` names
 a declared part of a picture and `part` the control a design comment landed on.
 `response: {kind: version, verb}` on a comment says the originating widget
 requires the agent to revise its declared answer state rather than reply.
+
+A `drawing` is one bounded freehand stroke attached to an ordinary comment and may be
+that comment's only content. When the drag starts over a semantic item or in the margin
+alongside it, its element anchor remains the thread coordinate and points are CSS-pixel
+offsets from that target's top-left origin. A drag starting where no item shares its line
+has no anchor and its points are offsets from the document origin. Either stroke may
+continue anywhere across the page. Leaf derives the stroke's frame and owns ink, weight,
+SVG construction, and replay. A drawing is immutable once sent, follows the thread's
+resolution state, and is omitted from the default standalone export with the rest of
+discussion chrome.
 
 ## Undo
 

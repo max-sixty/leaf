@@ -66,6 +66,11 @@ ALIVE_S = 5.0
 PRESENCE_S = presence_model.PRESENCE_CACHE_S
 
 
+def reject_json_constant(value: str) -> None:
+    """Reject Python's non-standard NaN and infinity JSON extensions."""
+    raise ValueError(f"invalid JSON constant {value}")
+
+
 _ROOTED_PAGE_ROUTE = re.compile(
     rb'(?P<before>["\'`(])/(?P<path>'
     rb"(?:api|runtime|widgets|vendor|media)/|"
@@ -512,7 +517,7 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError, MemoryError):
             return {}, "invalid Content-Length"
         try:
-            posted = json.loads(body)
+            posted = json.loads(body, parse_constant=reject_json_constant)
         except (ValueError, RecursionError):
             return {}, "invalid JSON"
         if not isinstance(posted, dict):

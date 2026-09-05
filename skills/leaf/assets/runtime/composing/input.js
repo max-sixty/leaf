@@ -51,6 +51,7 @@ export function wireInput(
     altSend = null,
     allowsMedia = () => true,
     busy = () => false,
+    hasContent = (raw) => Boolean(raw.trim()),
     layout = () => {},
   },
 ) {
@@ -128,7 +129,9 @@ export function wireInput(
   // submit() is the behavioral guard and aria-disabled exposes the same state.
   const refresh = () => {
     repaint();
-    const disabled = String(sending || uploading || busy() || !draftValue().trim());
+    const disabled = String(
+      sending || uploading || busy() || !hasContent(draftValue()),
+    );
     sendBtn.setAttribute("aria-disabled", disabled);
     altBtn?.setAttribute("aria-disabled", disabled);
     layout();
@@ -152,7 +155,7 @@ export function wireInput(
     // (the notice announces too).
     const raw = draftValue();
     const text = raw.trim();
-    if (!text) return notice("Nothing to send — the box is empty");
+    if (!hasContent(raw)) return notice("Nothing to send — the box is empty");
     sending = true;
     refresh();
     try {

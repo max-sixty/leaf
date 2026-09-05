@@ -657,6 +657,9 @@ customElements.define(
       this.#row.replaceChildren(this.#pencil);
       this.#paintButtons();
       if (stood) this.#pencil.focus();
+      // Replay may have been held by this editor. Its close is the generic projection
+      // invalidation that lets the state feed retry the complete reading now.
+      document.dispatchEvent(new Event("lf-projection"));
     }
 
     async #commit() {

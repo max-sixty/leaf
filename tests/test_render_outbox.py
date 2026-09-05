@@ -1817,10 +1817,10 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     told(two)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
-    # Let go, and the withdrawal it could not take yet lands on the next poll.
+    # Let go, and the withdrawal it could not take yet lands from the editor's close.
     two.keyboard.press("Escape")
     expect(two.locator("lf-draft textarea")).to_have_count(0)
-    expect(two.locator(body)).to_have_text(authored)
+    assert two.locator(body).inner_text() == authored
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )

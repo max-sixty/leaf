@@ -2,7 +2,13 @@
  * not prose — the theme shows it as source until the SVG replaces it, so a page
  * degrades readably if rendering fails. The optional renderer loads lazily, once, and
  * only on pages that use this package. */
-import { dataBody, once, failSoft, settle } from "/runtime/widget-api.js";
+import {
+  dataBody,
+  once,
+  failSoft,
+  registerVisualParts,
+  settle,
+} from "/runtime/widget-api.js";
 
 let rendererReady;
 const loadRenderer = () =>
@@ -68,6 +74,9 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       this.visualParts = new Map();
+      this.visualPartRegistration = registerVisualParts(this, () =>
+        [...this.visualParts].map(([id, part]) => ({ id, ...part })),
+      );
       // Registered with settle() so the runtime holds view restore and the first
       // anchor pass until the SVG is in and the page's geometry is final.
       settle(this.render());
@@ -79,9 +88,6 @@ customElements.define(
       try {
         rejectUnsupportedSource(source);
         const { renderMermaidSVG } = await loadRenderer();
-        const declared = new Set(
-          (this.getAttribute("parts") ?? "").trim().split(/\s+/).filter(Boolean),
-        );
         const svg = renderMermaidSVG(source, {
           bg: "var(--lf-diagram-paper)",
           fg: "var(--lf-diagram-ink)",
@@ -113,31 +119,17 @@ customElements.define(
           boxes.set(id, boxes.has(id) ? null : element);
         }
         this.visualParts.clear();
-        for (const part of declared) {
-          const id = part.slice("node:".length);
-          const element = boxes.get(id);
+        for (const [id, element] of boxes) {
           if (!element) continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           const label = element.getAttribute("data-label") || says || id;
-          this.visualParts.set(part, { element, label });
+          this.visualParts.set(`node:${id}`, { element, label });
         }
-        const missing = [...declared].filter((part) => !this.visualParts.has(part));
-        if (missing.length)
-          throw new Error(`commentable diagram boxes not found: ${missing.join(", ")}`);
         this.classList.add("lf-rendered");
+        this.visualPartRegistration.update();
       } catch (err) {
         failSoft(this, err, source);
       }
-    }
-
-    lfVisualPart(part) {
-      return this.visualParts.get(part) ?? null;
-    }
-
-    lfVisualPartAt(target) {
-      for (const [part, record] of this.visualParts)
-        if (record.element === target || record.element.contains(target)) return part;
-      return null;
     }
   },
 );

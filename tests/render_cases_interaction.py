@@ -1060,6 +1060,15 @@ STANDING_PAGE = leaf_page(
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
+<lf-decision id="ab-triage-decision"><h2>Which edge cases survive?</h2>
+<lf-swipe-deck id="ab-triage">
+  <lf-swipe-pile id="ab-queue" verdict="unseen">
+    <lf-swipe-card id="ab-expiry"><strong>Buffer expiry writes</strong></lf-swipe-card>
+    <lf-swipe-card id="ab-capacity"><strong>Partition capacity</strong></lf-swipe-card>
+  </lf-swipe-pile>
+  <lf-swipe-pile id="ab-pass" verdict="pass"></lf-swipe-pile>
+  <lf-swipe-pile id="ab-keep" verdict="keep"></lf-swipe-pile>
+</lf-swipe-deck></lf-decision>
 <lf-diff id="ab-patch"><pre>
 diff --git a/ab/bracket.py b/ab/bracket.py
 --- a/ab/bracket.py
@@ -1090,6 +1099,12 @@ STANDING_ACTIONS = [
     ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
     ("ab-sug-410", "accept", {}),
     ("ab-sug-logs", "reject", {}),
+    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "index": 0}),
+    (
+        "ab-triage",
+        "finish",
+        {"card": "ab-capacity", "to": "ab-keep", "index": 0},
+    ),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(

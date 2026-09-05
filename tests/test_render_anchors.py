@@ -649,21 +649,24 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     page.keyboard.press("s")
     target = page.locator(".lf-target-hint").first
     expect(target).to_be_visible()
-    # The hints repaint after keyboard/focus changes. Select and sample together,
-    # rather than reading the computed style of a handle retired between RPCs.
-    target_key = target.evaluate_all(
-        """([el]) => { const s = getComputedStyle(el);
-          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
-            "border-top-width", "border-top-style", "border-radius", "font-family",
-            "font-size", "line-height", "text-align"]
-            .map(p => [p, s.getPropertyValue(p)])); }"""
+    # The standing paint can replace the hint layer between browser round trips. Read
+    # the one rendered face in one task so geometry and emphasis cannot come from two
+    # successive hint elements.
+    target_face = page.evaluate(
+        """() => { const s = getComputedStyle(
+          document.querySelector('.lf-target-hint'));
+          return {
+            key: Object.fromEntries(
+              ["min-width", "height", "padding", "box-sizing", "border-top-width",
+               "border-top-style", "border-radius", "font-family", "font-size",
+               "line-height", "text-align"]
+              .map(p => [p, s.getPropertyValue(p)])),
+            emphasis: {
+              border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
+          }; }"""
     )
-    assert target_key == option_key
-    target_emphasis = target.evaluate_all(
-        """([el]) => { const s = getComputedStyle(el); return {
-          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
-    )
-    assert target_emphasis == option_emphasis
+    assert target_face["key"] == option_key
+    assert target_face["emphasis"] == option_emphasis
     assert errors == []
     page.close()
 
@@ -2761,7 +2764,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-action-icon").count() >= 2
+    assert page.locator("main .lf-margin-button-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)

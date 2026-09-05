@@ -87,8 +87,12 @@ def stored_meaning_error(
         return f"{event['kind']} {event['id']} changes admitted meaning from {event['meaning']!r} to {expected!r}"
     if event["kind"] in {"action", "report"}:
         channel = "x-state" if event["kind"] == "action" else "x-report"
-        before = prior_registry[record["tag"]][channel][event["action"]].get("record")
-        after = entry[channel][event["action"]].get("record")
-        if before != after:
-            return f"{event['kind']} {event['id']} changes its admitted record form"
+        before = prior_registry[record["tag"]][channel][event["action"]]
+        after = entry[channel][event["action"]]
+        for field, label in (
+            ("record", "record form"),
+            ("completion", "completion condition"),
+        ):
+            if before.get(field) != after.get(field):
+                return f"{event['kind']} {event['id']} changes its admitted {label}"
     return None

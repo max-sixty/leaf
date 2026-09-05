@@ -818,13 +818,13 @@ OPEN_EDIT = {
 def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
     browser, serve, tmp_path
 ):
-    """Both of these readings are receipts, and only one of them is news.
+    """Both readings are status reports, and only one of them is news.
 
     `d-open` holds an edit the document has not caught up with, so its reading is the
     phase an agent is in — Picked up here — and a file has nothing standing behind that
     sentence. `d-settled` holds one the authored markup already states, which leaves the
     page map reading a decision this same file carries, with the decided text in it. That
-    is the fact the rail is held open for and, for a widget contributing no receipt text
+    is the fact the rail is held open for and, for a widget contributing no status text
     of its own, the only margin record of the choice, so the copy keeps it.
 
     It keeps it as a word, and in one seat. What a copy must not carry out of a seat that
@@ -845,7 +845,7 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
         {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
     )
 
-    reading = ".lf-margin-marker[data-lf-behavior='receipt']"
+    reading = ".lf-margin-marker[data-lf-behavior='status']"
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")
     resized(live, 1200, 900)
@@ -868,10 +868,10 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
     page.goto(out.as_uri(), wait_until="load")
 
     carried = page.evaluate(
-        """() => [...document.querySelectorAll('[data-lf-behavior="receipt"]')].map(
+        """() => [...document.querySelectorAll('[data-lf-behavior="status"]')].map(
              row => ({
                target: row.closest('[data-lf-margin-for]')?.dataset.lfMarginFor,
-               word: row.querySelector('.lf-margin-action-label').textContent,
+               word: row.querySelector('.lf-margin-button-label').textContent,
                shown: row.checkVisibility(),
                folded: Boolean(row.closest('.lf-margin-options')),
                role: row.getAttribute('role'),
@@ -960,7 +960,7 @@ def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
     measured is off the page box — 115px past an 800px window, and away on a sheet
     narrower than the export — so the item takes the docked shape there instead."""
     url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
-    reading = ".lf-margin-action[data-lf-behavior='receipt']"
+    reading = ".lf-margin-button[data-lf-behavior='status']"
     item = '[data-lf-margin-for="sug-refill"]'
     live, live_errors = open_page(browser, live_url(url))
     resized(live, 1200, 900)
@@ -986,9 +986,9 @@ def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
         for medium in ("screen", "print"):
             page.emulate_media(media=medium)
             assert page.evaluate(
-                """() => [...document.querySelectorAll('.lf-margin-action')].map(el => ({
+                """() => [...document.querySelectorAll('.lf-margin-button')].map(el => ({
                      marker: el.matches('.lf-margin-marker'),
-                     word: el.querySelector('.lf-margin-action-label').textContent,
+                     word: el.querySelector('.lf-margin-button-label').textContent,
                      shown: el.checkVisibility(),
                      named: el.getAttribute('aria-label'),
                      role: el.getAttribute('role'),

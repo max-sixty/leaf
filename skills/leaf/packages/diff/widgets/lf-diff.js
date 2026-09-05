@@ -9,7 +9,7 @@ import {
   failSoft,
   focused,
   inChrome,
-  keys,
+  commands,
   langForPath,
   layoutChanged,
   loadDataFragment,
@@ -23,6 +23,7 @@ import {
   shadowStage,
   standingState,
   notice,
+  watchActions,
   watchData,
 } from "/runtime/widget-api.js";
 // Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
@@ -188,7 +189,7 @@ function summaryNode(file, open) {
     }),
     stat,
   );
-  keys(summary, "On a diff", [
+  commands(summary, "On a diff", [
     {
       id: "diff.toggle",
       keys: () => DISCLOSE(summary),
@@ -216,7 +217,7 @@ function fileRow(row) {
 }
 
 function reviewButton(entry, changed) {
-  const button = offer("button", "lf-diff-review");
+  const button = offer("button", "lf-btn lf-diff-review");
   button.addEventListener("click", () => changed(entry, !entry.reviewed));
   return button;
 }
@@ -252,7 +253,7 @@ function reviewTools(host) {
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
-  const next = offer("button", "lf-diff-next", "Next unreviewed");
+  const next = offer("button", "lf-btn lf-diff-next", "Next unreviewed");
   next.addEventListener("click", () => settle(host.nextUnreviewed()));
   const wrap = wrapSwitch();
   tools.append(label, progress, wrap.node, next);
@@ -399,8 +400,7 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     connectedCallback() {
-      document.removeEventListener("lf-actions", this.paintReviewAvailability);
-      document.addEventListener("lf-actions", this.paintReviewAvailability);
+      this.stopActions ??= watchActions(this, null, this.paintReviewAvailability);
       if (this.stopWatching) return;
       // A page diff's file header pins under the banner; one an agent sent in a reply
       // scrolls inside the panel's own list, whose pinned slot already belongs to the
@@ -408,7 +408,7 @@ customElements.define(
       // the module answers it once with the layer's own predicate and paints the answer.
       if (!inChrome(this)) this.dataset.lfDiffPinned = "";
       if (!this.reviewKeys) {
-        this.reviewKeys = keys(
+        this.reviewKeys = commands(
           this,
           "In a diff review",
           [
@@ -532,7 +532,7 @@ customElements.define(
           : null;
         if (this.boundStamp === stamp) return this.boundRendering ?? Promise.resolve();
         this.boundStamp = stamp;
-        const rendering = this.render(source, true);
+        const rendering = this.render(source, true, snapshot?.origin);
         this.boundRendering = rendering;
         rendering.finally(() => {
           if (this.boundRendering === rendering) this.boundRendering = null;
@@ -546,7 +546,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      document.removeEventListener("lf-actions", this.paintReviewAvailability);
+      this.stopActions?.();
+      this.stopActions = null;
       this.rendering = (this.rendering ?? 0) + 1;
       this.stopWatching?.();
       this.stopWatching = null;
@@ -558,7 +559,7 @@ customElements.define(
       this.sharedStyles = null;
     }
 
-    async render(source, bound) {
+    async render(source, bound, origin = null) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -580,7 +581,7 @@ customElements.define(
           return;
         }
         if (bound && typeof source === "object") {
-          await this.renderManifest(source, rendering);
+          await this.renderManifest(source, rendering, origin);
           return;
         }
         if (typeof source !== "string")
@@ -628,7 +629,7 @@ customElements.define(
             entries.flatMap(({ lines }) => lines),
             lineKey,
             ({ node }) => node,
-            { nested: true, labelOf: lineLabel },
+            { nested: true, labelOf: lineLabel, originOf: () => origin },
           );
         this.paintHeadRoom();
         this.watchHeadRoom();
@@ -653,7 +654,7 @@ customElements.define(
       }
     }
 
-    async renderManifest(source, rendering) {
+    async renderManifest(source, rendering, origin) {
       if (!Array.isArray(source.files) || !source.files.length)
         throw new Error("empty diff manifest");
       const entries = [];
@@ -714,6 +715,7 @@ customElements.define(
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) node.dataset.lfGen = "1";
       this.manifestEntries = entries;
+      this.manifestOrigin = origin;
       this.fileEntries = entries;
       this.sharedStyles = new Map();
       this.reviewTools = reviewTools(this);
@@ -744,10 +746,15 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap(({ lines }) => lines),
+        (this.manifestEntries ?? []).flatMap(({ lines }, index) =>
+          lines.map((line) => ({
+            ...line,
+            origin: { ...this.manifestOrigin, path: ["files", index, "patch"] },
+          })),
+        ),
         lineKey,
         ({ node }) => node,
-        { nested: true, labelOf: lineLabel },
+        { nested: true, labelOf: lineLabel, originOf: ({ origin }) => origin },
       );
     }
 

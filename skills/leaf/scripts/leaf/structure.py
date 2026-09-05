@@ -226,6 +226,39 @@ class _StructParser(HTMLParser):
         # is a list that goes on admitting the next one it coins.
         self.reserved_markers = []
         self._svg_depth = 0
+        # The same parse retains ordinary HTML, exact text, and construction
+        # locations for inspection. Widget validation keeps its specialized index;
+        # content is one tree, with no parent objects or reconstructed HTML.
+        self.content = []
+        self.nodes = []
+        self._nodes_at_depth = {}
+        self._source = ""
+        self._svg_source = None
+
+    def feed(self, data):
+        self._source += data
+        super().feed(data)
+
+    def _source_offset(self):
+        line, column = self.getpos()
+        return (
+            sum(len(part) + 1 for part in self._source.split("\n")[: line - 1]) + column
+        )
+
+    def _content_node(self, tag, attrs, *, push=True):
+        parent = self._nodes_at_depth.get(len(self.stack) - 1)
+        node = {
+            "tag": tag,
+            "attrs": dict(attrs),
+            "line": self.getpos()[0],
+            "column": self.getpos()[1] + 1,
+            "content": [],
+        }
+        (parent["content"] if parent is not None else self.content).append(node)
+        self.nodes.append(node)
+        if push:
+            self._nodes_at_depth[len(self.stack)] = node
+        return node
 
     @property
     def ids(self) -> set:
@@ -378,6 +411,11 @@ class _StructParser(HTMLParser):
         self._harvest(tag, attrs_d)
         if tag == "svg":
             self._record_outside_main(tag)
+            if not self._svg_depth:
+                self._svg_source = (
+                    self._content_node(tag, attrs_d),
+                    self._source_offset(),
+                )
             self._svg_depth += 1
             self.stack.append((tag, self.getpos()[0], None, attrs_d.get("id")))
             return
@@ -386,6 +424,7 @@ class _StructParser(HTMLParser):
         # Before the void check: <hr> is void and closes an open <p>, and a void tag
         # left inside a paragraph it ended puts the rest of the section in it.
         self._implicit_close(tag)
+        self._content_node(tag, attrs_d, push=tag not in VOID_TAGS)
         parent = self.stack[-1][0] if self.stack else None
         if tag == "head":
             self.head_elements.append((self.getpos()[0], parent == "html"))
@@ -455,6 +494,8 @@ class _StructParser(HTMLParser):
         self._harvest(tag, attrs_d)
         if self._svg_depth:  # SVG has real self-closing syntax
             return
+        self._implicit_close(tag)
+        self._content_node(tag, attrs_d, push=False)
         self._record_outside_main(tag)
         if tag not in VOID_TAGS:
             self.errors.append(
@@ -467,6 +508,9 @@ class _StructParser(HTMLParser):
             self.stack[-1][2]["direct"].append(tag)
 
     def handle_data(self, data):
+        node = self._nodes_at_depth.get(len(self.stack) - 1)
+        if not self._svg_depth:
+            (node["content"] if node is not None else self.content).append(data)
         ancestors = {open_tag for open_tag, *_ in self.stack}
         holder = self.stack[-1][0] if self.stack else None
         if (
@@ -494,6 +538,14 @@ class _StructParser(HTMLParser):
             if self.stack:
                 self.stack.pop()
             self._svg_depth = max(0, self._svg_depth - 1)
+            if not self._svg_depth and self._svg_source is not None:
+                # Keep foreign markup as exact source. SVG and foreignObject
+                # have their own structure rules; the HTML reading exposes the
+                # construction without inventing a second rendering of it.
+                node, start = self._svg_source
+                end = self._source.index(">", self._source_offset()) + 1
+                node["markup"] = self._source[start:end]
+                self._svg_source = None
             return
         if self._svg_depth or tag in VOID_TAGS:
             return

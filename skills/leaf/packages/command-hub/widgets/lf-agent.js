@@ -210,14 +210,20 @@ function render(el) {
 customElements.define(
   "lf-agent",
   class extends HTMLElement {
+    #stop = null;
+
     connectedCallback() {
-      if (!once(this)) return;
-      render(this);
+      if (once(this)) render(this);
       // The clock, and nothing else. It runs immediately and again on every poll, so
       // the elapsed line stays true with no timer of this module's own — and touches
       // one text node when it does, rather than rebuilding a row the reader may have
       // their pointer in.
-      watchUpdates(this, (updates) => heard(this, updates));
+      this.#stop ??= watchUpdates(this, (updates) => heard(this, updates));
+    }
+
+    disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
     }
 
     renderState(state) {

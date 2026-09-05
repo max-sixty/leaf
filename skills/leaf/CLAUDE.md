@@ -35,10 +35,12 @@ first presentation boundary;
 and page-error channel;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
-`runtime/decisions/model.js` owns request discovery and folding;
-`runtime/decisions/actions.js` owns widgets' exact ordered action contribution;
+`runtime/decisions/model.js` owns request discovery, folding, and the semantic Decision
+subscription;
 `runtime/decisions/view.js` owns decision chrome, marking, the decision walk, and
-Ask-local numeric action projection;
+Ask-local contextual command projection;
+`runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
+by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
@@ -471,7 +473,12 @@ projections. `x-awaits.answers` says which actions actually close the decision;
 orthogonal actions do not, and neither does a conversation standing in the widget's
 declared `x-conversation` seat — that takes the decision off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
-it. An answer or thread-completion verb cannot require its own awaiting value, or
+it. An answer with a position record may declare
+`completion: {empty: {within, when}}`: POST applies the candidate position to the
+authoritative holder relation and admits it only when the one matching item container
+inside the answering widget is empty. The same predicate decides whether a standing
+record answers the Decision, so no private completion flag can diverge from the durable
+arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
 while the decision stands. `x-awaits.rollup` carries the logical OR of its nearest
 local decisions and child roll-ups in Python; the aggregate owner never originates
@@ -586,7 +593,7 @@ per-render DOM write history is kept. Text has the passage and restatement check
 
 `authoredStates` holds the one typed initial condition per owner. Comparison readings
 come from those same values, collapsing body whitespace and omitting position indexes
-only where pending/diff checks require those comparisons.
+only where origin/diff checks require those comparisons.
 
 | Record kind | Complete initial value |
 | --- | --- |
@@ -615,11 +622,12 @@ handles it without replacing the owner, its independent children, or their contr
 facet's winning action paints the outcome, and its null baseline clears it. A module
 may render the same marks as part of its animation choreography.
 
-`paintPending` compares each desired record with its authored facet. It paints
-`data-lf-pending` for reader actions and `data-lf-reported` for reports only
+`paintStateOrigins` compares each desired record with its authored facet. It paints
+`data-lf-reader-override` for reader actions and `data-lf-reported` for reports only
 while the log differs from this version's authored state. Recordless decisions
-remain pending while their holder remains in the document. These marks are
-renderings of the projection, never inputs to it.
+retain the reader-origin mark while their holder remains in the document. These
+marks describe origin, not unfinished work; receipts own processing and completion.
+They are renderings of the projection, never inputs to it.
 
 ### Version and conversation windows
 
@@ -685,10 +693,11 @@ downstream code sees private status storage.
 
 `actionSequence` traverses the classified events in the installed server view,
 then returns structured clones so modules cannot mutate the reading.
-`updateSequence` filters the server-normalized update feed. `watchActions` and
-`watchUpdates` subscribe the two public readings to `lf-actions` and invoke the
-callback immediately. The same rendering function therefore handles a module
-connected before the first state and one constructed by a later thread reconcile.
+`updateSequence` filters the server-normalized update feed. `watchActions`,
+`watchUpdates`, and `watchDecisions` subscribe their public semantic readings to the
+runtime's projection invalidation and invoke the callback immediately. The same
+rendering function therefore handles a module connected before the first state and one
+constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
 event list did not grow and the heartbeat's re-application of the state the page
@@ -737,6 +746,7 @@ The extension keys describe general behavior:
 | --- | --- |
 | `x-upgrade` | import this tag's module |
 | `x-content` | the element contains prose, items, data, or no authored content |
+| `x-children` | fixed item roles: exactly one direct child for every value of a required child enum |
 | `x-inline` | the widget stands in an inline run |
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
@@ -861,16 +871,26 @@ minimum obligations:
 - Read authored or user-facing words with `says`, never raw `textContent`.
 - Build injected controls with `offer`. Use `relabel` when a control's label is
   also one of the page's words.
-- Register keys with `keys(el, title, rows)` during upgrade, not at module load.
+- Register capabilities with `commands(el, title, rows)` during upgrade, not at module
+  load. Set `decision` to the concise action name and add `control` to the same row or
+  route when that control answers or advances the containing Ask; call `paintKeys` when
+  its liveness or computed fields change. Do not maintain a second Ask-control list.
+- Subscribe to the page-wide open Ask projection with `watchDecisions(el, callback)`
+  only when a package needs that reading. It invokes immediately, returns cleanup, and
+  keeps packages off the internal `lf-actions` signal.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
-- A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
-  return one token from ATTR and `lfVisualPart(part)` to return its current
-  `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element is the semantic target for marks,
-  travel, and aim. Marks and aim follow a returned SVG element's painted
-  primitives; other elements use the shown box. The render gate refuses either missing
-  method.
+- A visual declaring `{parts: ATTR}` calls `registerVisualParts(source, read)` once.
+  `read` returns its complete current `{id, element, label, surface?}` inventory; core
+  admits only tokens authored in ATTR and derives both token lookup and the deepest hit.
+  `surface` defaults to `element` and may name one descendant whose native paint excludes
+  decoration from the target contour. It changes paint only: the returned element remains
+  the hit and travel target. The authored widget remains the comment seat, and `id` is
+  recorded as `anchor.visual`. Marks and aim follow an SVG surface's painted geometry
+  primitives; a surface with none, and every other element, uses the shown box. Call the
+  registration's `update()` after any rendering or geometry change, including an in-place
+  attribute or style change. The render gate validates the inventory and requires every
+  authored token to resolve.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place. A
@@ -1002,10 +1022,17 @@ and every standing selection. `page state` exposes those bindings and consumers 
 producers. The browser keeps the accepted data revision independently from
 `lastEventSeq`, because overlapping poll and POST responses can order the authorities
 differently. `watchData(widget, input, callback)` delivers a clone of
-`{contract, updated, value}` for current, a clone with `snapshot`, `label`, and optional
-`lines` for a selected capture, or `null` before a bound current value exists. Modules
+`{contract, revision, updated, value, origin}` for current, a clone with `snapshot`,
+`label`, and optional `lines` for a selected capture, or `null` before a bound current
+value exists. Modules
 project the result into the authored seat; they do not fetch it, mutate the accepted
 copy, or keep a hidden current-value map of their own.
+
+The watcher constructs `origin` from the accepted source binding. Emitters pass it to
+`projectData`'s `originOf`, adding a source-value path only where construction knows that
+coordinate. The helper writes `data-lf-origin` beside each datum and clears it when an
+origin or nested datum retires. The package reference owns the origin fields; no reading
+infers them from a datum key or rendered text.
 
 Keys identify facts, not renderings or display strings. They are non-empty strings,
 unique within one projection, and must remain with the same logical datum across
@@ -1020,11 +1047,16 @@ quote in the thread; it never follows the old string to an equal value elsewhere
 missing or duplicate key detaches rather than guessing. Selections crossing datum
 boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-`data-lf-projection`, `data-lf-datum`, and `data-lf-gen` are written by `projectData`,
-never authored in a version. A custom widget joins through the helper alone; no
+`data-lf-projection`, `data-lf-datum`, `data-lf-origin`, and `data-lf-gen` are written by
+`projectData`, never authored in a version. A custom widget joins through the helper alone; no
 consumer names its tag. Export preserves the rendered elements and their labels as a
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.
+
+Ordinary action controls use `.lf-btn`, whose shared theme rules also enter
+declared shadow trees. Packages may set placement and density, but keep its
+shape, border, hover, and disabled treatment. Margin Buttons, reaction chips,
+and status labels retain their own forms.
 
 The three visual voices are prose, apparatus, and evidence. Body prose uses the
 serif; labels, controls, and annotations embedded in evidence use the sans; and
@@ -1525,7 +1557,7 @@ inside authored content. Its information face advances from **Sent** or **Waitin
 pickup** to **Picked up**, then to **Active** only when a typed local claim exists; an
 action's standing outcome supplies the same retained target cluster throughout. The
 first three phases and the standing outcome report a move already made, so the Button
-wears the flat `receipt` behavior below. **Active** raises it back into a press. A
+wears the flat `status` behavior below. **Active** raises it back into a disclosure. A
 thread's existing Thread Button remains the page-edge route to the exact receipt in
 the full conversation; an **Active** claim joins that engaged cluster as an exposed
 peer. A standalone page-widget claim gets an **Active** Button directly. When no page edge exists—inside
@@ -1542,47 +1574,51 @@ plain text concatenation loses a relation the widget paints visually, such as a 
 item that sets `represents` and names its
 `kind` is also the visible reading of that state, so the margin suppresses a generated
 reading of the same kind at that exact target rather than showing the fact twice.
-Every press in a contribution is built with
-`marginAction(control, {key, icon, label, behavior, tone, standing, role, state})`; an
-authored reaction can supply `glyph` instead of `icon`, never both. `standing` is read
-only from a `receipt`, and says the report is one the file itself carries. That is the one RHS control
+Every fitting in a contribution is built with
+`marginButton(control, {key, icon, label, context, behavior, tone, standing, role,
+state})`; an authored reaction can supply `glyph` instead of `icon`, never both.
+`standing` is read only from a `status`, and says the report is one the file itself
+carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
 by decisions, editing, communications, and information triggers. Its behavior states
 what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
-`marginAction` also establishes the canonical Button record: key, face, label,
-behavior, tone, role, and lifecycle state. Registration assigns its stable owner and
+`marginButton` also establishes the canonical Button record: key, face, label, context,
+behavior, standing durability, tone, role, and lifecycle state. Registration assigns its stable owner and
 rejects duplicate Button keys within that owner. The compact rail and complete Page map
 both render from this record; neither infers semantics by scraping the contributor's
 painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
 onto a retained proxy, while the original contributor control remains the only
 activation owner.
 
-- `action` has a uniformly heavier ring, carries an imperative verb, and performs its
-  effect immediately;
-- `disclosure` has the ordinary ring, carries `aria-expanded` when it controls
-  persistent context, and opens or closes that context without settling it;
-- `options` is the ordinary-ring `…` Button and unfolds the cluster's secondary Buttons in
-  place;
-- `receipt` reports a move already made and offers no press. It keeps its icon and its
-  circular Button silhouette and seat in the cluster, but gives up its hover lift,
-  pointer, and tab stop. It remains a `status` in the accessibility tree so the Page map
-  can still land there and name the phase. A receipt is provisional unless it declares
+- `action` has a uniformly heavier ring and a small lower shadow, carries an imperative
+  verb, and performs its effect immediately;
+- `disclosure` has a firmer single ring than status and the same paper surface. It carries
+  `aria-expanded`, reveals or hides context without settling it, and includes the
+  generated More Button whose ellipsis is its whole face;
+- `status` reports a move already made and offers no press. It keeps its icon and its
+  circular Button silhouette and seat in the cluster on the page surface with a ghost
+  keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a
+  `status` in the accessibility tree so the Page map can still land there and name the
+  phase. A status is provisional unless it declares
   `standing: true`, which says the document itself carries what the report claims; a
   copy drops the provisional ones and keeps a standing one disarmed (above).
 
 A generated reading wears more than one of those over its life — a Thread Button while
-there is something to open, a receipt once the move is reported — and one element has to
+there is something to open, a status once the move is reported — and one element has to
 carry both, or the seat moves under a reader standing in it. Such a control is therefore
 a span, since a `<button>` cannot stop being one, and the activation the platform then
 does not supply is declared by the page map's own scope (`margin.press`) rather than by a
 listener on the control: a key the register does not hold is a key no surface can
 promise.
 
-Ring weight distinguishes immediate actions from the other fittings. The shape stays
-shared, with no chevron. A lone non-thread informational Button reveals its target
-directly. Each additional non-thread reading gets its own peer Button under `…`;
+Material and ring weight distinguish immediate actions, disclosures, and statuses:
+Action is raised, Open is outlined, and a read-only report stays flat behind the palest
+ring. Their resting interiors all use the page surface, so fill does not imply that a
+status is selected or pressed. The shape stays shared, with no added mark. A lone
+non-thread informational Button reveals
+its target directly. Each additional non-thread reading gets its own peer Button under `…`;
 pressing one reveals that reading directly rather than collecting readings in a card.
 All threads at one target share one Thread Button and one conversation card. That card
 opens only on a press, never merely on focus or hover; when the document cannot leave
@@ -1595,12 +1631,12 @@ Button's state has a separate small corner mark: a dot for engaged, an open movi
 for busy (static under reduced motion), a diamond for failed, and a square for settled.
 The mark is enough to state that a Button is busy, so the Button itself stays at full
 opacity and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled
-actions need visible words, not color or shape alone. A receipt's phase is its transient
+actions need visible words, not color or shape alone. A status's phase is its transient
 hover or focus label instead of a corner mark. Standing reactions reuse the settled
 square in their margin palette and seated marks, so they remain distinct from hover
 without changing the shared ring or fill. Reaction toggles retain their vocabulary labels and `aria-pressed`;
 withdrawing a token returns its palette Button to idle.
-`marginActionState(control, state)` changes that axis without changing the verb, ring,
+`marginButtonState(control, state)` changes that axis without changing the verb, ring,
 or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
 emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
 declared by the layer and retain their declared vocabulary order.
@@ -1638,8 +1674,9 @@ on.
 Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
 hover or keyboard focus without changing the cluster's geometry. An open
 disclosure suppresses the label because the context it opened now names the Button's
-result. Labels for `disclosure` and `options` end in an ellipsis because they open
-something; action and receipt labels do not. The complete label remains in the DOM, and
+result. A disclosure label ends in an ellipsis because it opens something; action and
+status labels do not. A status may add a quieter context line, such as how long ago its
+phase began. The complete label remains in the DOM, and
 its accessible name tracks the control or status.
 
 A marker's accessible name also carries where it stands in the walk: which location of
@@ -1648,7 +1685,7 @@ belongs to the name alone. Painted beside the phase, the same words read as prog
 rather than position.
 
 Hover or focus on any interactive fitting illuminates its exact target, including a
-cluster displaced by packing. Hovering a receipt shows its label without lifting it or
+cluster displaced by packing. Hovering a status shows its label without lifting it or
 claiming its target; a numbered Page-map arrival may still focus it and illuminate the
 target deliberately. Labels stay inside the viewport without moving the fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
@@ -2056,7 +2093,7 @@ thread, for example—does not push another frame, so Escape still returns throu
 entry that opened the surface.
 
 The register owns capabilities, not controls. Every capability the chrome offers
-has a row, and each control that reaches one names its key through `also`; a
+has a row, and each control that reaches one is named by `control`; a
 control is a route to a capability rather than a capability of its own, so a
 second route needs no second row. A run heading in the thread panel presses the
 page to where that run is about. That travel is a capability, just as `w` and `/`
@@ -2070,10 +2107,12 @@ Directional category walks use the category's letter, with case stating directio
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
 is often repeated or held. While the reader stands anywhere in an Ask, its widget's
-ordered actions take `1`–`9`; the core projects that exact list into the key line and
-visible control chips. Each numbered action is a command route; that route is the one
+ordered actions keep a canonical binding where they declare one and otherwise take the
+next free `1`–`9`. Core projects that exact list into the key line and visible control
+chips. Each action is a command route; that route is the one
 binding-to-control identity used by dispatch, the reference, the key line, its address,
-and `aria-keyshortcuts`. Tab walks the real controls without replacing that action map;
+and `aria-keyshortcuts`; core does not mint a second identity for the projection. Tab
+walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
@@ -2082,7 +2121,7 @@ from words the surface says: `w` narrows to threads waiting on the reader, while
 [Go-to chord](#go-to-chord) uses case to separate complete destinations from numbered
 lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
-native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
+native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
 a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
@@ -2153,8 +2192,9 @@ them in. Inside a text box the letter is a character, Enter writes a newline, an
 arrows move the caret. The typing scope claims those text-editing keys, so a reader
 reaches a surface's letters and walks from its list rather than from its composer.
 
-Widgets register through `keys(el, title, rows)` in
-`connectedCallback`. A module loaded on a page with no instance must contribute
+Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
+the same register as `commands(el, title, rows)` in `connectedCallback`. A module loaded
+on a page with no instance must contribute
 no scope or help section. Runtime scopes live in `SCOPES`; `merge` is the only
 function that gathers scope sections. Preserve the order of that list because
 the dispatcher and key line walk inward to outward while the full reference
@@ -2163,6 +2203,16 @@ groups the same scopes for reading.
 A row has these meanings:
 
 - `keys` is a binding or computed list of bindings.
+- `label` optionally overrides the compact keycap in the command's own scope. A keyless
+  Decision command falls back to its `decision` action name in the complete reference.
+  An Ask instead shows the resolved binding beside that separate action name, so an
+  inline hint always says what the reader actually presses.
+- `control` is the visible element that activates the capability. `decision` is a
+  non-empty action-name string or a function returning one; it includes that command in
+  its containing Ask. The row may carry an existing `address` and has zero or one live
+  binding. A keyless decision command receives its contextual number from the Ask
+  projection. Routes may carry the same fields when one row describes a parameterized
+  family of controls.
 - `does` is the sentence for the press, or a function when the current state
   changes the sentence.
 - `when` says whether the capability exists. When a destination surface is available
@@ -2360,7 +2410,7 @@ is derived on each paint; it does not store the decision walk's position.
 
 A control that draws the band on itself draws it only where nothing else holds
 that box's one outline. A decision written out around the control wears the band
-already, and the log's news about the content — `restated`, `pending`,
+already, and the log's news about the content — `restated`, `reader-override`,
 `reported` — has no second carrier, while the band also has the washed cell and
 the address chips.
 
@@ -2551,12 +2601,12 @@ key it disables.
 
 `aria-keyshortcuts` is another projection of the register. Element scopes expose
 their currently available rows, including the scope's capability gate, and a
-row's `also` control exposes the key that duplicates it. `Mod` expands to both
+row's `control` exposes the key that duplicates it. `Mod` expands to both
 Meta and Control because the dispatcher accepts both. The attribute cannot express a
-sequential chord: spaces separate alternatives. An `also` control in a chord scope
-therefore omits it and exposes the complete route through its title and the keyboard
-reference. Call `paintKeys` when a state change moves row liveness so this projection
-and the visible surfaces change together.
+sequential chord: spaces separate alternatives. An associated `control` in a chord
+scope therefore omits `aria-keyshortcuts` and exposes the complete route through its
+title and the keyboard reference. Call `paintKeys` when a state change moves row
+liveness so this projection and the visible surfaces change together.
 
 An overlay may become stale while open. If a row goes dead, its dispatch no
 longer runs. A newly live row may wait until the reference is reopened. Do not
@@ -2623,15 +2673,16 @@ Decision rows come from every active local `x-awaits` source and holder declarin
 `x-request.decision`, answered or open, not from a list of decision tags. Where a source
 is nested in an `x-decision` region, the row names the region: its heading, context, and
 evidence are the decision the reader is being sent to, while the source remains the
-owner of the answer. `itemSays` supplies each row's own label and the widget's
-decision-action registration supplies its current answer. Selecting a tray row travels
-through the same decision-arrival function as `a` and `A`, so the panel and directional
-walk agree about focus, reveal, arrival placement, and `landed`; only the tray's list is
-wider, preserving answered routes for review and revision.
+owner of the answer. `itemSays` supplies each row's own label and the owned command
+scope's `options.answer` supplies its current answer. Selecting a tray row travels through
+the same decision-arrival function as `a` and `A`, so the panel and directional walk agree
+about focus, reveal, arrival placement, and `landed`; only the tray's list is wider,
+preserving answered routes for review and revision.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
 aligned and the one the ring names. The widget's contributed actions are addressable
-there as `1`–`9`; its controls remain the next Tab stops, a stop at `tabindex: -1`
+there by their declared bindings, with `1`–`9` as the default; its controls remain the
+next Tab stops, a stop at `tabindex: -1`
 keeping its place in document order. Landing the answering control
 instead puts them as far down the decision as its context and evidence are long, off
 the screen the same gesture arranged. A decision a page styles boxless has nothing to
@@ -3079,14 +3130,14 @@ Widget affordances fall into three groups:
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
 
-A receipt has two seats — a thread's own `.lf-receipt` line, and a margin reading
-`marginAction` has given the `receipt` behavior — and a copy answers both there, since
-the marker value cannot: a receipt is not a press, so `offer` writes the empty value to
+A report has two seats — a thread's own `.lf-receipt` line, and a margin reading
+`marginButton` has given the `status` behavior — and a copy answers both there, since
+the marker value cannot: a status is not a press, so `offer` writes the empty value to
 stand the pointer hand and the lift down on the live page, and the copy's press removal
 reads that same value to mean chrome it keeps.
 
 What the copy does with one turns on what the file can stand behind, which is a second
-declaration (`data-lf-standing`) rather than a fourth reading of the behavior. Sent,
+declaration (`data-lf-standing`) rather than another behavior. Sent,
 Waiting for pickup, and Picked up report a move an agent is still making, and a file has
 nothing behind that claim, so a copy drops them: keeping the word would turn provisional
 news into a statement. A standing Outcome is the page map's record of a decision the

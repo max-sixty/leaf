@@ -275,9 +275,9 @@ def record(
 
     select_text(page, "#p2", "Backfill history")
     # The selection raises the response bar with its field already open and focused,
-    # so the demo types into it directly and sends with Mod+Enter. The Comment button the
-    # bar used to show is now one Tab away, and the composer around the field draws
-    # nothing of its own.
+    # so the demo types into it directly and sends with the durable editors' shared
+    # Mod+Enter chord. The Comment button the bar used to show is now one Tab away, and
+    # the composer around the field draws nothing of its own.
     field = page.locator(".lf-fab-input")
     field.fill("Can the backfill stay online?")
     page.wait_for_function(

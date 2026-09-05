@@ -189,15 +189,16 @@ def test_page_round_trip(browser, serve):
     page.close()
 
 
-def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(browser, serve):
+@pytest.mark.parametrize("section", ["draft-ops", None])
+def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
+    browser, serve, section
+):
     """The line that tells a screen reader a block carries a comment is chrome, and chrome
     inside a widget's own content is chrome in the user's text: lf-draft seeds the
     editor they type into from its body div, so a line left in there arrives in the
     textarea and posts with the edit. It goes on the block the passage sits in, or on the
     element the anchor names — never on the inline run or body div in between."""
-    url = serve(
-        JOURNEY_V1, anchored=[("draft-ops", "Run the migration before deploying.")]
-    )
+    url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert page.locator("#draft-ops > .lf-mark-note").count() == 1, (
@@ -2096,7 +2097,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
-    expect(draft).to_have_attribute("data-lf-pending", "1")
+    expect(draft).to_have_attribute("data-lf-reader-override", "1")
 
     events = [
         json.loads(line)
@@ -2812,6 +2813,11 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     page.keyboard.press("=")
     expect(page.locator(".lf-version-menu")).to_be_hidden()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
+    page.keyboard.press("g")
+    expect(line).to_contain_text("versions")
+    page.keyboard.press("Shift+v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    page.keyboard.press("Escape")
 
     # The door, and it marks the same passage the key used to.
     compare_with(page)

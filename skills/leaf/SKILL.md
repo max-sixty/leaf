@@ -33,15 +33,16 @@ path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
 `PATH`. If the resolved file is absent, report that the plugin payload is
 incomplete. A checkout keeps it at `bin/leaf`.
 
-1. Run `leaf page init <page>`. Their renderers are large and most pages want
-   neither, so a Mermaid diagram or a unified diff needs its package named here:
-   `leaf page init --package diagram --package diff <page>`. Re-running
-   `page init` with the selection adds it to a page already written.
+1. Run `leaf page init <page>`. Optional shapes need their packages named here:
+   use `diagram` for Mermaid, `diff` for a unified diff, and `swipe` for rapid
+   pass-or-keep triage — for example,
+   `leaf page init --package diagram --package diff <page>`. Re-running `page init`
+   with the selection adds it to a page already written.
 2. Read `references/page-authoring.md`, including its selective `registry.json`
    queries. Read `references/authoring-decisions.md` while authoring a new,
    unanswered ask or sign-off; read `references/authoring-revisions.md` before
    changing a handed-over page, proposing a rewrite, using a reader-owned draft,
-   or carrying standing state. Read
+   or revising standing state. Read
    `references/authoring-evidence.md` only for measured, visual, source, or media
    evidence. Write `<page>/index.html` using only the registry's vocabulary. A
    valid save becomes the active immutable revision; an invalid save leaves the
@@ -135,7 +136,7 @@ so a phase does not depend on discovering a chain of references.
 - `references/authoring-decisions.md`: while authoring a new, unanswered ask or
   sign-off.
 - `references/authoring-revisions.md`: before changing a handed-over page,
-  proposing a rewrite, using a reader-owned draft, or carrying standing state.
+  proposing a rewrite, using a reader-owned draft, or revising standing state.
 - `references/authoring-evidence.md`: before using measured facts, diagrams,
   charts, source files, images, or before/after captures.
 

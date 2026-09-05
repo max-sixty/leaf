@@ -1,4 +1,6 @@
 /* Durable one-shot requests projected by the server for their owning document. */
+import { watchProjection } from "./projection-watch.js";
+
 let publishedRequests;
 
 export const requestAvailable = (...args) =>
@@ -65,16 +67,11 @@ export function createRequests(runtime, dependencies) {
   }
 
   const watchRequestLifecycle = (owner, callback) => {
-    const update = () => {
-      if (!owner.isConnected) {
-        document.removeEventListener("lf-actions", update);
-        return;
-      }
-      callback(structuredClone(projectedLifecycle(owner)));
-    };
-    document.addEventListener("lf-actions", update);
-    update();
-    return () => document.removeEventListener("lf-actions", update);
+    if (typeof callback !== "function")
+      throw new TypeError("A request watcher needs a callback");
+    return watchProjection(owner, () =>
+      callback(structuredClone(projectedLifecycle(owner))),
+    );
   };
 
   publishedRequests = {

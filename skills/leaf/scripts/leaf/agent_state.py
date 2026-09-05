@@ -2,12 +2,13 @@
 
 import json
 from pathlib import Path
-from typing import NamedTuple, Protocol
 
+from .construction import constructed_content
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .decisions import page_decisions, thread_decisions
-from .events import bare_reaction, build_threads, is_reaction, seats_with_agent
+from .decisions import thread_decisions
+from .document_reading import DocumentReading, read_document
+from .events import bare_reaction, build_threads, is_reaction
 from .files import (
     active_descriptor,
     latest_revision,
@@ -18,11 +19,9 @@ from .passages import enclosing_of, page_passages
 from .presence import presence
 from .projection import (
     FrozenThreadReading,
-    StateProjection,
     canonical_updates,
     frozen_thread_reading,
     page_projection,
-    record_lag_entries,
     retirement_outcomes,
 )
 from .registry.reactions import described
@@ -39,8 +38,7 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
 
     `revision` is the exact document the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
-    frozen in the log, so no version bounds one of these and none can ever record
-    it, which is why `lag` says nothing about them.
+    frozen in the log, so no page version bounds one of these.
     """
     widget, unit, facet = coordinate
     return {
@@ -55,24 +53,11 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     }
 
 
-def cmd_page_state(page_dir: Path) -> None:
+def cmd_page_state(page_dir: Path, *, thread_id: str | None = None) -> None:
     """Print the agent-side state from one transaction-consistent snapshot."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, page.events)
-        _write_page_state(page_dir, page.events, activation.error)
-
-
-class _DocumentParser(Protocol):
-    by_id: dict
-    title: str
-    lf_elements: list[dict]
-
-
-class _DocumentReading(NamedTuple):
-    html: str
-    parser: _DocumentParser
-    projection: StateProjection
-    spoken: dict
+        _write_page_state(page_dir, page.events, activation.error, thread_id=thread_id)
 
 
 def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | None]:
@@ -91,12 +76,13 @@ def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | N
 
 def _read_active_document(
     page_dir: Path, events: list, registry: dict, revision: int | None
-) -> _DocumentReading | None:
+) -> DocumentReading | None:
     if revision is None:
         return None
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    projection, parser, spoken = page_projection(html, events, registry, revision)
-    return _DocumentReading(html, parser, projection, spoken)
+    prepared = page_projection(html, events, registry, revision)
+    threads = build_threads(events, enclosing_of(prepared[2]))
+    return read_document(html, events, registry, revision, threads, prepared=prepared)
 
 
 def _base_state(
@@ -132,6 +118,7 @@ def _base_state(
         "event_seq": events[-1]["seq"] if events else 0,
         "server": running_server(page_dir),
         "elements": [],
+        "content": [],
         "state": [],
         "updates": [],
         "requests": requests,
@@ -176,13 +163,12 @@ def _base_state(
             for message in thread["msgs"]
             if is_reaction(message)
         ],
-        "lag": [],
     }
 
 
 def _apply_document_state(
     state: dict,
-    document: _DocumentReading,
+    document: DocumentReading,
     events: list,
     revision: int,
     threads: dict,
@@ -191,7 +177,6 @@ def _apply_document_state(
 ) -> None:
     parser = document.parser
     projection = document.projection
-    byid = parser.by_id
     state["title"] = parser.title.strip()
     state["elements"] = [
         {
@@ -206,32 +191,25 @@ def _apply_document_state(
         standing_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
-    # A decision standing in a slot the log has retired — a group inside the lf-new
-    # of a rejected suggestion — left the page with the slot, so it is nobody's
-    # to answer; the passage reading already knows which ids a decision dropped.
-    passages = page_passages(
-        document.html, registry, retirement_outcomes(projection.actions, registry)
-    )
-    lifecycles = request_lifecycles_for(
-        events,
-        parser.lf_elements,
-        registry,
-        {"kind": "page", "revision": revision},
-    )
-    state["decisions"] = page_decisions(
+    state["decisions"] = document.decisions["reader"]
+    page_dir = Path(state["page"])
+    state["content_source"] = {
+        "file": str(page_dir / state["active"]["file"]),
+        "revision": revision,
+        "edit_file": str(page_dir / "index.html"),
+        "matches_active": state["source"]["live"],
+        "vocabulary": str(page_dir / "registry.json"),
+    }
+    state["content"] = constructed_content(
         parser,
         projection,
-        byid,
         document.spoken,
         registry,
-        set(passages.retired) | set(passages.gone),
-        # A session picking the page up wants the reader's list, so a request
-        # whose own seat conversation is with this agent is not on it: the next
-        # word there is owed by the agent, and the stop hook says so.
-        seats_with_agent(threads),
-        request_phases=request_phases(lifecycles),
+        stored_data,
+        page_dir,
+        editable=state["source"]["live"],
+        retired=set(document.passages.retired) | set(document.passages.gone),
     )
-    state["lag"] = record_lag_entries(projection, byid, document.spoken, registry)
     state["measurement_lag"] = measurement_lag_entries(
         parser.lf_elements, registry, stored_data
     )
@@ -275,14 +253,18 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 
 
 def _write_page_state(
-    page_dir: Path, events: list, source_error: str | None = None
+    page_dir: Path,
+    events: list,
+    source_error: str | None = None,
+    *,
+    thread_id: str | None = None,
 ) -> None:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf events` is how a standing decision
     gets missed. So this prints the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
-    channel, where the record lags either (`record_lag_entries`), authored
+    channel, the effective construction and its mutation owners, authored
     measurements whose live source has run again (`measurement_lag_entries`), the
     open decisions on the page and in threads (the banner's own count), each comment
     thread's current state,
@@ -340,4 +322,43 @@ def _write_page_state(
         events,
     )
     _apply_thread_state(state, thread_reading)
+    if thread_id is not None:
+        if thread_id not in threads:
+            raise SystemExit(f"unknown thread {thread_id!r}")
+        state["content"] = []
+        state["selection"] = {"kind": "thread", "id": thread_id}
+        state["content_source"] = {
+            "kind": "conversation",
+            "thread": thread_id,
+            "vocabulary": str(page_dir / "registry.json"),
+        }
+    for event in threads[thread_id]["msgs"] if thread_id is not None else []:
+        fragment = thread_reading.structure.fragments.get(event["id"])
+        message = {
+            "message": event["id"],
+            "text": event.get("text", ""),
+            "source": {"kind": "message", "event": event["id"], "seq": event["seq"]},
+            "edit": {"kind": "conversation", "thread": thread_id},
+            "content": [],
+        }
+        state["content"].append(message)
+        if fragment is None:
+            continue
+        passages = page_passages(
+            event["markup"],
+            registry,
+            retirement_outcomes(thread_reading.projection.actions, registry),
+        )
+        content = constructed_content(
+            fragment,
+            thread_reading.projection,
+            thread_reading.spoken,
+            registry,
+            stored_data,
+            page_dir,
+            editable=False,
+            retired=set(passages.retired) | set(passages.gone),
+            thread=thread_id,
+        )
+        message["content"] = content
     print(json.dumps(state, indent=2, ensure_ascii=False))

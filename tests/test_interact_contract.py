@@ -1707,6 +1707,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
         ("x-conversation", False),
+        ("x-children", []),
         ("x-content", "words"),
         ("x-parent", []),
         # Each of these names attributes, so an empty one declares nothing while
@@ -1760,6 +1761,41 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
 def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     mutate(registry)
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("unknown-child", "x-children names unknown widget <lf-missing>"),
+        ("wrong-parent", "does not name it in x-parent"),
+        ("optional-role", "must name a required, non-empty string enum"),
+        ("open-role", "must name a required, non-empty string enum"),
+        ("prose-parent", "x-children requires x-content: items"),
+    ],
+)
+def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, message):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    option = registry["lf-option"]
+    option["properties"]["role"] = {"type": "string", "enum": ["first", "second"]}
+    option["required"].append("role")
+    registry["lf-options"]["x-children"] = {"lf-option": {"one-each": "role"}}
+
+    if mutation == "unknown-child":
+        registry["lf-options"]["x-children"] = {"lf-missing": {"one-each": "role"}}
+    elif mutation == "wrong-parent":
+        option["x-parent"] = ["lf-board"]
+    elif mutation == "optional-role":
+        option["required"].remove("role")
+    elif mutation == "open-role":
+        option["properties"]["role"] = {"type": "string"}
+    else:
+        registry["lf-options"]["x-content"] = "prose"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2685,6 +2721,22 @@ def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
     assert "require their own decision to be closed" in result.output
 
 
+def test_a_part_scoped_completion_verb_requires_a_completion_condition(page_dir):
+    """A part record does not answer its whole Decision merely by sharing its verb."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    swipe = json.loads(
+        (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
+    )
+    registry.update(swipe)
+    registry["lf-swipe-deck"]["x-state"]["finish"].pop("completion")
+
+    with pytest.raises(
+        registry_contract.RegistryError,
+        match="fold on a part rather than the widget",
+    ):
+        registry_validation.validate_registry(registry, "test registry")
+
+
 def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     state = {
@@ -2829,6 +2881,67 @@ def test_a_self_position_record_stays_within_the_declared_parent_relation(page_d
     assert result.exit_code != 0
     assert "records its own position within <lf-column>" in result.output
     assert "x-parent does not admit" in result.output
+
+
+def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page_dir):
+    """A recursive content model permits moving a widget between peer containers,
+    never into itself or a descendant. Admission reads the standing holder relation so
+    a valid registry cannot turn an impossible DOM insertion into durable state.
+    """
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["properties"]["restated"] = {"type": "boolean"}
+    registry["lf-task"]["x-state"] = {
+        "move": {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "widget",
+            "record": {
+                "kind": "position",
+                "within": "lf-task",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+    tasks = (
+        '<lf-command id="commands"><lf-task id="parent-task" status="active">'
+        "<strong>Parent</strong>"
+        '<lf-task id="child-task" status="active"><strong>Child</strong></lf-task>'
+        "</lf-task></lf-command>"
+    )
+    html = re.sub(r"<main>.*?</main>", f"<main>{tasks}</main>", PAGE, flags=re.DOTALL)
+    (page_dir / "index.html").write_text(html)
+    fixture_version_path(page_dir, 1).write_text(html)
+    publish(page_dir)
+    revision = events_model.read_events(page_dir)[-1]["revision"]
+
+    for destination in ("parent-task", "child-task"):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": revision,
+                    "widget": "parent-task",
+                    "action": "move",
+                    "detail": {"to": destination, "index": 0},
+                }
+            ).encode(),
+        )
+        assert status == 400, body
+        assert "inside itself or its descendant" in json.loads(body)["error"]
 
 
 @pytest.mark.parametrize(
@@ -3299,6 +3412,31 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
         )
     )
     assert check(page_dir).exit_code == 0
+
+
+def test_source_reading_preserves_foreign_graphics_as_exact_markup():
+    graphic = (
+        '<svg id="plot" viewBox="0 0 10 10">\n'
+        '<circle cx="5" cy="5" r="4"/>\n'
+        '<svg><text x="0">A &amp; B</text></svg>'
+        "<foreignObject><p>HTML <strong>inside</strong></p></foreignObject>\n"
+        "</svg >"
+    )
+    html = "<main>\n" + graphic + '<p id="after">After</p></main>'
+    parser = structure_model._StructParser()
+    # The HTML parser also accepts chunked input; source positions refer to the
+    # whole document even when an SVG closing tag crosses a feed boundary.
+    split = html.index("</svg >") + 4
+    parser.feed(html[:split])
+    parser.feed(html[split:])
+    parser.close()
+    [main] = parser.content
+    _, image, after = main["content"]
+    assert image["markup"] == graphic
+    assert image["content"] == []
+    assert image["line"] == 2
+    assert after["attrs"]["id"] == "after"
+    assert after["content"] == ["After"]
 
 
 def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
@@ -3822,6 +3960,69 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         assert "changes admitted meaning" in "\n".join(
             vocabulary_gaps(page_dir, events, incoming)
         )
+
+
+def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
+    """Keeping a position record must not reinterpret whether it completed its Ask."""
+    from copy import deepcopy
+
+    from leaf.decisions import answered_decision
+    from leaf.files import latest_revision
+    from leaf.projection import page_projection
+    from leaf.validation.compatibility import vocabulary_gaps
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry.update(
+        json.loads(
+            (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
+        )
+    )
+    shutil.copyfile(
+        schema_model.BUNDLED_PACKAGES / "swipe" / "widgets" / "lf-swipe-deck.js",
+        page_dir / "widgets" / "lf-swipe-deck.js",
+    )
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    source = PAGE.replace(
+        "</section>", registry["lf-swipe-deck"]["x-example"] + "</section>"
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+    publish(page_dir)
+    revision = latest_revision(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "session-triage",
+            "action": "finish",
+            "detail": {"card": "session-expiry", "to": "session-keep", "index": 0},
+        },
+    )
+    events = events_model.read_events(page_dir)
+    incoming = deepcopy(registry)
+    incoming["lf-swipe-deck"]["x-state"]["finish"]["completion"]["empty"]["when"] = {
+        "verdict": ["keep"]
+    }
+    registry_validation.validate_registry(incoming, "changed completion")
+
+    def answered(layer):
+        projection, parser, words = page_projection(source, events, layer, revision)
+        return answered_decision(
+            parser.by_id["session-triage"],
+            layer["lf-swipe-deck"],
+            projection,
+            parser.by_id,
+            words,
+            layer,
+        )
+
+    assert answered(registry)
+    assert not answered(incoming)
+    assert vocabulary_gaps(page_dir, events, registry) == []
+    assert "changes its admitted completion condition" in "\n".join(
+        vocabulary_gaps(page_dir, events, incoming)
+    )
 
 
 @pytest.mark.parametrize("facet", ["settlement", "label"])

@@ -315,6 +315,50 @@ def test_an_edited_draft_reads_as_the_users_words(page_dir):
     assert across.exit_code == 0, across.output
 
 
+def test_comments_reach_reader_generated_choices_without_source_copying(page_dir):
+    html = PAGE.replace("<lf-options>", '<lf-options id="routes" choose>')
+    (page_dir / "index.html").write_text(html)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
+    publish(page_dir)
+    identity = "routes-option-reader"
+    words = "Use <a literal> & keep the source unchanged."
+    for options in ([identity], ["flag-first"]):
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "routes",
+                "action": "choose",
+                "detail": {"options": options, "additions": {identity: words}},
+            },
+        )
+
+    element = comment(page_dir, "--section", identity, "--text", "Clarify this route.")
+    assert element.exit_code == 0, element.output
+    assert json.loads(element.output)["anchor"] == {"section": identity}
+    quote = comment(page_dir, "--quote", words, "--text", "These exact words.")
+    assert quote.exit_code == 0, quote.output
+    assert json.loads(quote.output)["anchor"] == {
+        "section": identity,
+        "quote": words,
+    }
+
+    # A later source version still omits the generated option. The open anchored
+    # conversation and the option's words must both remain reachable.
+    (page_dir / ".fixture-versions" / "v2.html").write_text(
+        html.replace("The cutoff lives", "The active cutoff lives")
+    )
+    published = stamp(page_dir, 2, "Clarified the cutoff.")
+    assert published.exit_code == 0, published.output
+    later = comment(
+        page_dir, "--section", identity, "--quote", words, "--text", "Still here."
+    )
+    assert later.exit_code == 0, later.output
+    assert json.loads(later.output)["anchor"]["section"] == identity
+
+
 def test_a_quote_of_words_an_edit_replaced_is_refused_naming_the_edit(page_dir):
     """The authored body is still in the file, but the user is no longer reading
     it — posted, the comment would detach in front of them. Refused at write time
@@ -848,9 +892,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     the question answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
-    It is named by its thread rather than by a version, because thread markup is frozen
-    in the log: no version bounds one of these and none can ever record it, which is
-    also why `lag` has nothing to say about it."""
+    It is named by its thread rather than by a version, because thread markup is
+    frozen in the log and page versions do not bound its state."""
     published(page_dir)
     assert (
         comment(
@@ -884,9 +927,6 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     assert [
         (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
-    # The page's own widgets are unrecorded either way, so the debt reading stays quiet
-    # about one nothing could ever record.
-    assert state["lag"] == []
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):

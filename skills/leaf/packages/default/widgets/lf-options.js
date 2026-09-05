@@ -14,10 +14,10 @@
  * `choose` takes the reader's pick. Every option carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
- * the option's cell takes a quiet tint. There is no visible status caption: check, tint,
- * and text all saying the same thing made the chosen row louder without making it clearer.
- * The checkbox state carries the same fact for a reader listening. Outside a `choose`
- * group the mark renders as an image-like span, so authored state keeps the check and an
+ * the option's cell takes a quiet tint. Presentation follows the form: a titled live card
+ * exposes "selected" as compact header state, while a row keeps only its check. The
+ * checkbox state carries the same fact for a reader listening. Outside a `choose` group
+ * the mark renders as an image-like span, so authored state keeps the check and an
  * accessible name without pretending it can be pressed.
  *
  * The pick is a set, whatever the group allows. `multiple` lets it hold more than one
@@ -101,17 +101,17 @@ import {
   conversationInput,
   focused,
   inChrome,
-  keys,
+  commands,
   landInConversation,
   offer,
   once,
   quoted,
   reachedForWords,
-  registerDecisionActions,
   relabel,
   selectableOffer,
   sendAction,
   notice,
+  watchActions,
   walkRows,
   worksInside,
   wrote,
@@ -124,14 +124,11 @@ import {
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
 
-// The offer, and how many of the group it takes. The mark is the whole of what says that,
-// a group's prose being deliberately silent — captioning a control the reader can already
-// read is exactly what the corner shape is for — and the corner is paint, which reaches
-// nobody listening. So the mark states the arity twice, once in each register one control
-// has: the shape for the eye, and this word, which goes into the aria-label below and is
-// drawn at font-size 0 (theme.css) so the offer stays silent on screen. A reader who hears
-// "choose any" knows the next press adds where "choose one" would have replaced, and
-// knows it while the question is still open rather than after answering it.
+// The offer, and how many of the group it takes. A group's prose stays deliberately silent,
+// while the control states arity in the two registers it has: corner shape for the eye and
+// this word in the aria-label below. The open word stays visually silent in every form. A
+// reader who hears "choose any" knows the next press adds where "choose one" would have
+// replaced, and knows it while the question is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
@@ -141,8 +138,7 @@ customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
-      document.removeEventListener("lf-actions", this.#paintAvailability);
-      document.addEventListener("lf-actions", this.#paintAvailability);
+      this.#stop ??= watchActions(this, null, this.#paintAvailability);
       if (!once(this)) {
         this.#addition?.connect();
         this.#settled?.connect();
@@ -171,21 +167,6 @@ customElements.define(
       if (choosable) {
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
-        this.#decisionActions = registerDecisionActions(
-          this,
-          () => [
-            ...this.#marks().map((control) => ({
-              control,
-              label: label(control.parentElement) || control.parentElement.id,
-              address: control.parentElement.querySelector(":scope > .lf-address"),
-            })),
-            ...(this.#done ? [{ control: this.#done, label: "Done" }] : []),
-          ],
-          () =>
-            [...this.#picked()]
-              .map((option) => label(option) || option.id)
-              .join(", ") || "No options selected",
-        );
       }
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
@@ -232,7 +213,7 @@ customElements.define(
     #settled = null;
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
-    #decisionActions = null;
+    #stop = null;
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
@@ -322,40 +303,41 @@ customElements.define(
       }
     };
 
-    // From a mark, ↑/↓ walk the options and Space toggles. Declared on the mark,
-    // so those keys typed in the box stay text and a nested group's marks stay its own.
-    // Digits belong to the Ask across the whole question, so this scope does not repeat
-    // them or replace their address projection when Tab moves focus into a mark.
+    // From a mark, ↑/↓ walk the options and Space toggles. The mark's own scope
+    // declares only those local mechanics (plus the thread's existing reply route).
+    // The group contributes its ordered answer controls once, and core assigns their
+    // contextual Ask bindings without the package maintaining a second digit map.
     #keys() {
       for (const address of this.querySelectorAll(":scope > lf-option > .lf-address"))
         address.remove();
       const marks = this.#marks();
-      for (const [i, mark] of marks.entries()) {
-        if (i < 9) {
-          // Chrome like the § reference: a thing to work rather than a word the
-          // page says, so the gate, the anchor pass, and paper all read it as the
-          // control apparatus it is. The key line speaks the keys; this is the
-          // eye's copy, hence aria-hidden.
-          // Into the column the option reserves for it, which is what lets a digit
-          // arrive without moving anything and land on nobody's words (theme).
-          // Prepended, which puts it before the mark the module also puts first. Order
-          // between the two decides nothing: the digit is out of flow in a column of its
-          // own, so it is a corner badge wherever it sits in the DOM, and it is
-          // aria-hidden, so it is not a stop the reading order can put in the wrong
-          // place. What matters is that both stand before the option's own words.
-          // The widget owns this placement anchor; the Ask route writes the binding it
-          // currently represents. Keeping the number out of the widget prevents a local
-          // option index from becoming a second keyboard map.
-          const num = offer("span", "lf-address");
-          num.setAttribute("aria-hidden", "true");
-          mark.parentElement.prepend(num);
+      const answerRows = [];
+      for (const [index, mark] of marks.entries()) {
+        const option = mark.parentElement;
+        let address = null;
+        if (index < 9) {
+          // The widget owns the card-local placement anchor; the Ask projection writes
+          // whichever binding this action receives and removes it when the action is not
+          // reachable. Keeping the face empty here keeps one keyboard map.
+          address = offer("span", "lf-address");
+          address.setAttribute("aria-hidden", "true");
+          option.prepend(address);
         }
-        // Declared on the mark rather than on the group, because the group holds the
+        answerRows.push({
+          id: `option.choose-${index + 1}`,
+          keys: [],
+          control: mark,
+          decision: label(option) || option.id,
+          address,
+          does: `Toggle option ${index + 1}`,
+          line: label(option) || option.id,
+          run: () => mark.click(),
+        });
+
+        // Declared on the mark rather than the group, because the group holds the
         // option's own argument too — a link, a say-box, a tabbed exhibit — and a scope
-        // over the whole subtree would promise to work an option with focus on any of them.
-        // Every mark says the same sentences, so the reference gathers them into one
-        // section however many options the page holds.
-        keys(mark, SECTION, [
+        // over the whole subtree would promise local mechanics from any of them.
+        commands(mark, SECTION, [
           {
             id: "option.reply",
             keys: ["Enter"],
@@ -395,7 +377,6 @@ customElements.define(
             line: "walk the options",
             lineWhen: false,
             repeat: true,
-            // Clamped at the ends, and the page must not scroll out from under the walk.
             run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
           },
           {
@@ -406,8 +387,6 @@ customElements.define(
             lineWhen: false,
             run: () => mark.click(),
           },
-          // Tab is the platform's, and reaching the mark is what a reader has to know
-          // before any of the above is any use. No binding, so the line never offers it.
           {
             id: "option.reach",
             keys: [],
@@ -416,7 +395,21 @@ customElements.define(
           },
         ]);
       }
-      this.#decisionActions?.update();
+      if (this.#done)
+        answerRows.push({
+          id: "option.done",
+          keys: [],
+          control: this.#done,
+          decision: "Done",
+          does: "Finish choosing options",
+          line: "done",
+          run: () => this.#done.click(),
+        });
+      commands(this, SECTION, answerRows, {
+        answer: () =>
+          [...this.#picked()].map((option) => label(option) || option.id).join(", ") ||
+          "No options selected",
+      });
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it
@@ -448,9 +441,9 @@ customElements.define(
         mark.dataset.lfGen = "1";
       }
       // First, so the row form's table puts it in the cell before the words. A card
-      // places its mark out of flow and cannot see this, so one insertion serves both
-      // forms and the theme states each form's placement as it already did. The mark
-      // ends every row at the column the label opens at, which is where the reader is
+      // places its mark out of flow in the header and cannot see this, so one insertion
+      // serves both forms and the theme states each form's placement as it already did.
+      // The mark ends every row at the column the label opens at, where the reader is
       // reading; it stood at the line's end, ~620px away from the words it answers for
       // in a full-width group, and a group that took several answers drew its boxes
       // there while a single-pick card drew none at all.
@@ -472,9 +465,10 @@ customElements.define(
       document.dispatchEvent(new CustomEvent("lf-answered"));
     }
 
-    // The mark's text is an accessible fallback rather than a visible status caption.
-    // The check and cell tint carry selection on screen; aria-checked carries it on the
-    // live control. An authored, inert mark becomes an image with the same plain name.
+    // The mark's text is first an accessible label. The theme may expose the selected
+    // word as a titled card's compact header state; rows and inert document marks keep
+    // it visually silent. aria-checked carries the fact on every live control, and an
+    // authored inert mark becomes an image with the same plain name.
     #label(option) {
       const mark = option.querySelector(":scope > .lf-pick");
       if (!mark) return;
@@ -502,7 +496,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      document.removeEventListener("lf-actions", this.#paintAvailability);
+      this.#stop?.();
+      this.#stop = null;
       this.#addition?.disconnect();
       this.#settled?.disconnect();
     }

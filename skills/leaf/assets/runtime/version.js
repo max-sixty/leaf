@@ -32,6 +32,7 @@ import {
 import { MARKED_IN_PAGE, dress, markDeclared } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
+import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { LIVE_ROOT, PAGE_SCOPE, versionUrl } from "./storage.js";
 import { focusDestination, quoted } from "./widget-elements.js";
@@ -381,7 +382,7 @@ export function createVersion({
     keys: ["Shift+v"],
     does: "The versions, and what each one changed",
     line: "versions",
-    also: versionBtn,
+    control: versionBtn,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
@@ -1121,15 +1122,16 @@ export function createVersion({
     setLanded((view.decision && document.getElementById(view.decision)) || null);
     const text = pageText();
     const found = view.quote && resolveAnchor(view, text);
-    if (found?.segments) {
-      reveal(found.segments[0].node.parentElement); // the passage may sit behind a tab
+    const segments = targetSegments(found);
+    if (segments.length) {
+      reveal(segments[0].node.parentElement); // the passage may sit behind a tab
       moveScrollerBy(
         pageScroller,
-        rangeOf(found.segments).getBoundingClientRect().top - view.quoteTop,
+        rangeOf(segments).getBoundingClientRect().top - view.quoteTop,
       );
       return;
     }
-    const section = resolveAnchor({ section: view.section }, text)?.element;
+    const section = targetElement(resolveAnchor({ section: view.section }, text));
     if (section) {
       reveal(section);
       // The shown reading on both sides of the subtraction, because the landmark is
@@ -1218,7 +1220,7 @@ export function createVersion({
     function landArrival() {
       const aimed =
         navigationType === "navigate" &&
-        resolveAnchor({ section: fragmentId(location.hash) })?.element;
+        targetElement(resolveAnchor({ section: fragmentId(location.hash) }));
       if (aimed) scrollToElement(aimed, "instant");
       else if (
         navigationType === "navigate" &&

@@ -247,7 +247,7 @@ import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
 import { createReturnStack } from "./runtime/keyboard/return-stack.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
-import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
+import { createLivingMargin, marginButton } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, notice } from "./runtime/notifications.js";
@@ -486,6 +486,8 @@ createShadowStage(watchDisclosures, watchExternalLinks);
 const {
   byCommand,
   claimsEsc,
+  commandScopesWithin,
+  commandsWithin,
   documentFocused,
   elementScopes,
   focused,
@@ -918,7 +920,7 @@ findInput.type = "search";
 findInput.className = "lf-find-box";
 findInput.placeholder = "Find in threads";
 findInput.setAttribute("aria-label", "Find in threads");
-// The register appends the key that reaches it (`also`), so the control and the row
+// The register appends the key that reaches it (`control`), so the control and the row
 // cannot spell the binding differently.
 findInput.title = "Find in threads";
 // What is waiting on the reader: an agent comment, an explicit question in a reply, or a
@@ -977,9 +979,8 @@ const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
-// Persistent paint for semantic visual parts. The provider supplies one current
-// element; anchors.js derives that element's SVG paint for every anchored state and
-// keeps these pointer-inert projections above the provider's drawing.
+// Persistent paint for semantic visual parts. target-paint.js owns these pointer-inert
+// projections and keeps every anchored state above the package drawing.
 const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
@@ -1062,9 +1063,9 @@ legendRoot.setAttribute("aria-hidden", "true");
 // so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
-// Numeric actions for the Ask the reader is standing in. These share the address face
+// Contextual actions for the Ask the reader is standing in. These share the address face
 // but not the g chord's lifecycle: the decision view paints them whenever its semantic
-// focus and the dispatch stack leave the digit row reachable.
+// focus and the dispatch stack leave the contributed action row reachable.
 const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
 decisionActionLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
@@ -2016,6 +2017,8 @@ const {
   banner,
   readingBlock,
   closeTray: () => showTray(null),
+  commandScopesWithin,
+  commandsWithin,
   el,
   elementById: (...args) => elementById(...args),
   focusForNavigation: (control) => {
@@ -2260,7 +2263,7 @@ const HELP = {
       does: () =>
         keyline?.expanded ? "Back to more keyboard shortcuts" : "Close this reference",
       line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
-      also: helpClose,
+      control: helpClose,
       runFromReference: false,
       run: () => helpClose.click(),
     },
@@ -2478,7 +2481,7 @@ const PANEL = {
           ? "Show every thread again"
           : "Show only the threads waiting on you",
       line: () => (conversationRuntime.needsYou ? "all threads" : "waiting on you"),
-      also: needsBtn,
+      control: needsBtn,
       when: () =>
         runtime.statePhase === "ready" &&
         (conversationRuntime.needsYou ||
@@ -2499,7 +2502,7 @@ const PANEL = {
       keys: ["/"],
       does: "Find in the threads",
       line: "find",
-      also: findInput,
+      control: findInput,
       returnFrame: () => ({
         active: () => panelIsOpen() && (findInput === documentFocused() || narrowed()),
         close: () => {
@@ -2745,7 +2748,7 @@ const REFERENCE = {
   does: () =>
     keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
-  also: keylineMore,
+  control: keylineMore,
   run: () => keylineMore.click(),
 };
 const PAGE = {
@@ -3001,7 +3004,7 @@ const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
 // upgrade, so a row here that presses with nothing to say for itself takes down the layer on
 // the first page rather than going quiet on every one.
 for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
-// A control the keyboard also reaches names its shortcut from the row. `also` is where a
+// A control the keyboard reaches names its shortcut from the row. `control` is where a
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // decision does not advertise a shortcut the dispatcher has withdrawn. The latest-version
 // chip's route spans two rows, so it is composed from both.
@@ -3021,19 +3024,19 @@ function paintCoreControls() {
       .join(" ");
   for (const scope of CORE)
     for (const row of scope.rows)
-      if (row.also) {
-        if (!("lfKeyTitle" in row.also.dataset))
-          row.also.dataset.lfKeyTitle = row.also.title;
+      if (row.control) {
+        if (!("lfKeyTitle" in row.control.dataset))
+          row.control.dataset.lfKeyTitle = row.control.title;
         const active = live(row) && bindings(row).length > 0;
-        row.also.title =
-          row.also.dataset.lfKeyTitle +
+        row.control.title =
+          row.control.dataset.lfKeyTitle +
           (active ? ` (${controlShortcut(scope, row)})` : "");
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.
         if (active && !scope.chord)
-          row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
-        else row.also.removeAttribute("aria-keyshortcuts");
+          row.control.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
+        else row.control.removeAttribute("aria-keyshortcuts");
       }
   const referenceBound = bindings(REFERENCE).length > 0;
   keylineMoreKey.hidden = !referenceBound;
@@ -3420,7 +3423,7 @@ const {
   coordinateProjectionCommitted,
   domFacet,
   matchesProjectedWhen,
-  paintPending,
+  paintStateOrigins,
   projectedFacet,
   projectionFromView,
   projectionCommitted,
@@ -3608,6 +3611,7 @@ anchorRuntime = createAnchors({
 const { ITEM, NOTE } = anchorRuntime;
 
 livingMargin = createLivingMargin({
+  ago,
   anchorLabel,
   acknowledgments: () => runtime.browser?.acknowledgments ?? [],
   announce,

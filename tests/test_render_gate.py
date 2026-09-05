@@ -32,6 +32,9 @@ from render_support import (
     FAINT_CODE_PAGE,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
     LONG_PAGE,
@@ -699,11 +702,11 @@ def test_the_render_gate_requires_a_declared_conversations_host(
 def test_the_render_gate_requires_a_visual_parts_provider(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A part declaration without both browser methods cannot silently fall back.
+    """A part declaration without a registered inventory cannot silently fall back.
 
     The CLI can validate authored tokens without rendering them, so the browser gate
-    holds the other half: every matching instance must implement the generic lookup in
-    both directions before a page carrying semantic visual anchors can publish.
+    holds the other half: every matching instance must register the inventory from which
+    Leaf derives both lookup directions before semantic visual anchors can publish.
     """
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
@@ -719,10 +722,63 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
     assert any(
-        "declares addressable visual parts but its module does not provide "
-        "lfVisualPart, lfVisualPartAt" in failure
+        "declares addressable visual parts but its module did not call "
+        "registerVisualParts" in failure
         for failure in failures
     ), failures
+
+
+def test_the_render_gate_validates_a_registered_visual_inventory(browser, serve):
+    """The gate resolves every authored token through the generic package contract."""
+    assert (
+        render_gate_model.render_version(
+            browser,
+            serve(
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("markup", "module", "message"),
+    [
+        (
+            GENERIC_VISUAL_PAGE.replace(
+                'parts="outer inner html"', 'parts="outer absent"'
+            ),
+            GENERIC_VISUAL_WIDGETS,
+            "did not register declared parts absent",
+        ),
+        (
+            GENERIC_VISUAL_PAGE,
+            {
+                "lf-test-visual.js": GENERIC_VISUAL_WIDGETS[
+                    "lf-test-visual.js"
+                ].replace(
+                    "surface: outerSurface",
+                    "surface: document.querySelector('#title')",
+                )
+            },
+            "Visual part outer has no descendant Element surface",
+        ),
+    ],
+)
+def test_the_render_gate_rejects_invalid_visual_inventory_records(
+    browser, serve, markup, module, message
+):
+    failures = render_gate_model.render_version(
+        browser,
+        serve(
+            markup,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=module,
+        ),
+    )
+    assert any(message in failure for failure in failures), failures
 
 
 def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(

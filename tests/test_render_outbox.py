@@ -1763,7 +1763,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     returns false while an editor stands, so the reader's unsent words are not yanked
     out from under them — and a pass that drops that answer and marks the withdrawal
     answered leaves the tab holding the withdrawn text for the rest of its life, with
-    the pending mark cleared because the fold agrees the edit is gone. A reload would
+    the reader-origin mark cleared because the fold agrees the edit is gone. A reload would
     show the authored words; this tab never would again."""
     url = serve(UNDO_PAGE)
     one, errors_one = open_page(browser, url)
@@ -1943,7 +1943,10 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     # proposal on the page with nothing marking what it changes.
     assert one.evaluate(marks, "sug-refill") == pending
     assert (
-        one.evaluate("() => document.querySelectorAll('[data-lf-pending]').length") == 0
+        one.evaluate(
+            "() => document.querySelectorAll('[data-lf-reader-override]').length"
+        )
+        == 0
     )
 
     unfolded_button(two.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).click()

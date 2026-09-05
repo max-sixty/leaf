@@ -4,7 +4,7 @@
 import {
   DISCLOSE,
   ago,
-  keys,
+  commands,
   projectData,
   relabel,
   selectableOffer,
@@ -69,7 +69,7 @@ function renderDatum(tree, record, prior) {
     // markup the disclosure scope refuses to reach — its `at` asks `!inChrome` — and a
     // span has no platform half to fall back on the way `details > summary` does, so
     // without this the frozen head names ⏎ / space and nothing runs them.
-    keys(head, "On worktree evidence", [
+    commands(head, "On worktree evidence", [
       {
         id: "worktree.toggle",
         keys: () => DISCLOSE(head),
@@ -180,6 +180,12 @@ customElements.define(
         [record],
         ({ id }) => id,
         (next, prior) => renderDatum(this, next, prior),
+        {
+          originOf: () =>
+            snapshot
+              ? { ...snapshot.origin, ...(present ? { path: [this.id] } : {}) }
+              : null,
+        },
       );
     }
   },

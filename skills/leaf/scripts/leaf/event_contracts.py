@@ -4,6 +4,7 @@ from pathlib import Path
 
 from leaf.decisions import (
     asking,
+    completion_met,
     page_awaiting_values,
     projected_action_holders,
     quoted_in,
@@ -14,7 +15,12 @@ from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids
 from leaf.projection import frozen_thread_reading, page_projection
-from leaf.registry.contract import created_children, schema_error, visual_parts
+from leaf.registry.contract import (
+    created_children,
+    schema_error,
+    state_specs,
+    visual_parts,
+)
 from leaf.requests import request_lifecycles_for, request_phases
 from leaf.structure import parse_revision
 
@@ -144,6 +150,84 @@ def declared_action_error(
     return None
 
 
+def position_record_error(
+    event: dict,
+    spec: dict,
+    current: dict,
+    by_id: dict,
+    registry: dict,
+    projected_holders: dict[str, dict],
+):
+    """Why a position record does not name one real relation owned by its sender."""
+    record = spec.get("record") or {}
+    if record.get("kind") != "position":
+        return None
+
+    unit_id = (
+        event["widget"] if spec["unit"] == "widget" else event["detail"][spec["unit"]]
+    )
+    unit = current if spec["unit"] == "widget" else by_id.get(unit_id)
+    if unit is None:
+        return f"position record names unknown {spec['unit']} {unit_id!r}"
+
+    target_id = event["detail"][record["value"]]
+    target = by_id.get(target_id)
+    if target is None:
+        return f"position record names unknown destination {target_id!r}"
+    if target["tag"] != record["within"]:
+        return (
+            f"position record destination {target_id!r} is <{target['tag']}>, "
+            f"not <{record['within']}>"
+        )
+
+    def holder(node: dict):
+        return projected_holders.get(node["attrs"].get("id"), node.get("holder"))
+
+    def inside(node: dict, owner: dict) -> bool:
+        seen = set()
+        while node is not None and id(node) not in seen:
+            if node is owner:
+                return True
+            seen.add(id(node))
+            node = holder(node)
+        return False
+
+    def recording_owner(node: dict):
+        """Nearest enclosing widget whose declaration records durable state."""
+        while node is not None:
+            entry = registry.get(node["tag"], {})
+            if any(spec.get("record") for _, _, spec in state_specs(entry)):
+                return node
+            node = node["holder"]
+        return None
+
+    if recording_owner(unit) is not current:
+        return (
+            f"position record unit {unit_id!r} is not owned by action widget "
+            f"{event['widget']!r}"
+        )
+    if inside(target, unit):
+        return (
+            f"position record cannot put {unit_id!r} inside itself or its descendant "
+            f"{target_id!r}"
+        )
+    # A part record repositions something inside its owning widget, so its
+    # destination belongs there too. A self-position record instead moves the
+    # widget among containers admitted by its x-parent (often siblings of its
+    # current parent), and the registry relation below is its complete boundary.
+    if unit is not current and not inside(target, current):
+        return (
+            f"position record destination {target_id!r} is outside action widget "
+            f"{event['widget']!r}"
+        )
+    if target["tag"] not in (registry.get(unit["tag"]) or {}).get("x-parent", []):
+        return (
+            f"position record cannot put <{unit['tag']}> {unit_id!r} within "
+            f"<{target['tag']}> {target_id!r}"
+        )
+    return None
+
+
 def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     """Why one comment cannot hold the exact command goal it names."""
     target = event.get("holds")
@@ -239,7 +323,9 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
     requirement = spec.get("requires")
-    if not requirement:
+    completion = spec.get("completion")
+    position = (spec.get("record") or {}).get("kind") == "position"
+    if not requirement and not completion and not position:
         return None
 
     if page_rec:
@@ -290,6 +376,33 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         )
 
     holders = projected_action_holders(projection, byid, registry)
+    if error := position_record_error(event, spec, current, byid, registry, holders):
+        return f"<{tag}> action {event['action']!r} is invalid: {error}"
+    if completion:
+        record = spec.get("record") or {}
+        after_holders = dict(holders)
+        if record.get("kind") == "position":
+            unit_id = (
+                event["widget"]
+                if spec["unit"] == "widget"
+                else event["detail"][spec["unit"]]
+            )
+            after_holders[unit_id] = byid[event["detail"][record["value"]]]
+        if not completion_met(
+            current,
+            spec,
+            projection,
+            byid,
+            registry,
+            positioned_holders=after_holders,
+        ):
+            return (
+                f"<{tag}> {event['widget']!r} action {event['action']!r} is "
+                "unavailable: its recorded result does not satisfy its completion "
+                "condition"
+            )
+    if not requirement:
+        return None
     target = (
         current
         if requirement["target"] == "self"

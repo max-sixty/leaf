@@ -178,11 +178,11 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             "RecalcStyleCount",
         )
     }
-    # Current Chromium performs 33 layouts and 127–128 style recalculations over five
-    # refreshes. These bounds keep that baseline while separating it from the old
-    # interleaved pass, which forced 26 layouts and 44 recalculations per refresh.
-    assert work["LayoutCount"] <= refreshes * 7, work
-    assert work["RecalcStyleCount"] <= refreshes * 26, work
+    # The write-on-change guards keep the corpus at 8 layouts and 57–58 style
+    # recalculations over five refreshes. These bounds leave room for browser
+    # bookkeeping while refusing the 33 / 127–128 regression from unconditional writes.
+    assert work["LayoutCount"] <= refreshes * 4, work
+    assert work["RecalcStyleCount"] <= refreshes * 18, work
     assert geometry_reads == refreshes, geometry_reads
     assert errors == []
     page.close()
@@ -236,12 +236,12 @@ def test_a_docked_cluster_keeps_later_margin_buttons_beside_their_targets(
     page, errors = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           for (const [id, count] of [['first', 8], ['second', 1]]) {
             const controls = document.createElement('span');
             for (let i = 0; i < count; i++) controls.append(
-              marginAction(offer('button', ''), {
+              marginButton(offer('button', ''), {
                 key: `action-${i}`, icon: 'dot', label: `Action ${i} for ${id}`,
                 role: i ? 'secondary' : 'primary'
               })
@@ -283,11 +283,11 @@ def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           for (const id of ['first', 'second']) {
             registerMarginItem({key: id, target: document.getElementById(id),
-              controls: marginAction(offer('button', ''), {
+              controls: marginButton(offer('button', ''), {
                 key: 'act', icon: 'dot', label: `Act on ${id}`
               })});
           }
@@ -298,7 +298,7 @@ def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
     button = first.get_by_role("button", name="Act on first", exact=True)
     button.hover()
     expect(button).to_have_attribute("data-lf-label-side", re.compile(".+"))
-    label = button.locator(".lf-margin-action-label")
+    label = button.locator(".lf-margin-button-label")
     expect(label).to_be_visible()
     button_box, label_box, second_box = [
         locator.bounding_box() for locator in (button, label, second)
@@ -334,7 +334,7 @@ def test_dense_suggestion_labels_cover_no_neighboring_button(browser, serve, wid
     page.locator("#bg-neighbors").scroll_into_view_if_needed()
     for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
         buttons = page.locator(
-            f'[data-lf-margin-for="{target}"] .lf-margin-action:visible'
+            f'[data-lf-margin-for="{target}"] .lf-margin-button:visible'
         )
         for index in range(buttons.count()):
             button = buttons.nth(index)
@@ -342,12 +342,12 @@ def test_dense_suggestion_labels_cover_no_neighboring_button(browser, serve, wid
             expect(button).to_have_attribute("data-lf-label-side", re.compile(".+"))
             reading = button.evaluate(
                 """control => {
-                  const label = control.querySelector('.lf-margin-action-label');
+                  const label = control.querySelector('.lf-margin-button-label');
                   const box = label.getBoundingClientRect();
                   const overlap = (left, right) => left.left < right.right &&
                     left.right > right.left && left.top < right.bottom &&
                     left.bottom > right.top;
-                  const neighbors = [...document.querySelectorAll('.lf-margin-action')]
+                  const neighbors = [...document.querySelectorAll('.lf-margin-button')]
                     .filter(candidate => candidate !== control && candidate.checkVisibility())
                     .map(candidate => candidate.getBoundingClientRect());
                   return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
@@ -376,7 +376,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_button_press(browser, serve):
     page, errors = open_page(browser, serve(PANEL_PAGE, events=[comment, another]))
     resized(page, 1280, 900)
     marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
-    icon = marker.locator(":scope > .lf-margin-action-icon")
+    icon = marker.locator(":scope > .lf-margin-button-icon")
     badge = marker.locator(":scope > .lf-margin-count")
     icon.evaluate("node => { window.__heldButtonIcon = node; }")
     badge.evaluate("node => { window.__heldButtonBadge = node; }")
@@ -554,9 +554,9 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
-    expect(crowded.locator(".lf-margin-action:visible")).to_have_count(2)
+    expect(crowded.locator(".lf-margin-button:visible")).to_have_count(2)
     crowded.locator(".lf-margin-more").click()
-    expect(crowded.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(crowded.locator(".lf-margin-button:visible")).to_have_count(6)
     spill = crowded.locator(".lf-margin-spill")
     spill.click()
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
@@ -631,7 +631,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     headings = page.locator("main section :is(h2, h3)").all_text_contents()
     assert [
         " ".join(heading.split()) for heading in headings if "Button" in heading
-    ] == ["Buttons: actions, disclosures, and states"]
+    ] == ["Buttons: action, disclosure, and status"]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
 
     feature_headings = page.locator(
@@ -677,17 +677,18 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     examples = {
         "action": page.locator(f"{button_sample} .lf-sug-accept"),
         "disclosure": page.locator(f"{button_sample} .lf-margin-marker"),
-        "options": page.locator(f"{button_sample} > .lf-margin-more"),
+        "more": page.locator(f"{button_sample} > .lf-margin-more"),
         "settled": page.locator(f"{button_sample} .lf-react-mark").first,
     }
-    for behavior in ("action", "disclosure", "options"):
-        expect(examples[behavior]).to_have_attribute("data-lf-behavior", behavior)
+    expect(examples["action"]).to_have_attribute("data-lf-behavior", "action")
+    for disclosure in (examples["disclosure"], examples["more"]):
+        expect(disclosure).to_have_attribute("data-lf-behavior", "disclosure")
     expect(examples["action"]).to_have_attribute("data-lf-tone", "positive")
     expect(examples["settled"]).to_have_attribute("data-lf-state", "settled")
     expect(
         page.locator(
             '[data-lf-margin-for="bg-react-lost"] '
-            '.lf-react-mark[data-token="lost"] > .lf-margin-action-glyph'
+            '.lf-react-mark[data-token="lost"] > .lf-margin-button-glyph'
         )
     ).to_have_text("??")
     expect(
@@ -714,11 +715,11 @@ def test_margin_registration_rejects_ambiguous_button_identity(browser, serve):
     page, errors = open_page(browser, serve(PANEL_PAGE))
     message = page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (const label of ['First', 'Second'])
-            controls.append(marginAction(offer('button', ''), {
+            controls.append(marginButton(offer('button', ''), {
               key: 'same', icon: 'dot', label
             }));
           try {
@@ -742,9 +743,9 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {offer, marginAction, marginActionState, registerMarginItem} =
+          const {offer, marginButton, marginButtonState, registerMarginItem} =
             await import('/runtime/widget-api.js');
-          const control = marginAction(offer('button', ''), {
+          const control = marginButton(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
             behavior: 'disclosure', tone: 'negative', role: 'reading',
             state: 'engaged'
@@ -761,7 +762,7 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
               key: 'fixture', target: document.querySelector('#how-cap'), controls: control
             }),
             update() {
-              marginActionState(control, 'busy');
+              marginButtonState(control, 'busy');
               control.setAttribute('aria-expanded', 'false');
               control.setAttribute('aria-haspopup', 'menu');
               control.removeAttribute('aria-pressed');
@@ -1180,10 +1181,10 @@ def test_tab_into_a_button_cluster_replaces_ellipsis_with_all_buttons(browser, s
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           registerMarginItem({key: 'extra', target: document.querySelector('#sug-refill'),
-            controls: marginAction(offer('button', ''), {
+            controls: marginButton(offer('button', ''), {
               key: 'details', icon: 'comment', label: 'Details',
               behavior: 'disclosure', role: 'reading'
             })});
@@ -1209,7 +1210,7 @@ def test_tab_into_a_button_cluster_replaces_ellipsis_with_all_buttons(browser, s
     page.locator("#after-buttons").focus()
     page.keyboard.press("Shift+Tab")
     expect(
-        item.locator(":scope > .lf-margin-options .lf-margin-action:visible").last
+        item.locator(":scope > .lf-margin-options .lf-margin-button:visible").last
     ).to_be_focused()
     more = item.locator(":scope > .lf-margin-more")
     options = item.locator(":scope > .lf-margin-options")
@@ -1265,7 +1266,7 @@ def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
     expect(
         options.get_by_role("status", name=re.compile(r"^Sent for "))
     ).to_be_visible()
-    expect(item.locator(".lf-margin-action:visible")).to_have_count(2)
+    expect(item.locator(".lf-margin-button:visible")).to_have_count(2)
     expect(
         item.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     ).to_be_focused()
@@ -1276,7 +1277,7 @@ def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
 CLUSTER_SHAPE = """() => [...document.querySelectorAll('.lf-margin-item')].map(
   (host) => [
     host.dataset.lfMarginFor,
-    host.querySelectorAll('.lf-margin-action').length,
+    host.querySelectorAll('.lf-margin-button').length,
     Boolean(host.querySelector('.lf-margin-options')?.hidden),
   ])"""
 
@@ -1355,12 +1356,12 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, marginActionState} =
+          const {offer, marginButton, marginButtonState} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('div');
           controls.className = 'lf-ui';
           for (const tone of ['neutral', 'positive', 'negative']) {
-            controls.append(marginAction(offer('button', ''), {
+            controls.append(marginButton(offer('button', ''), {
               key: tone, icon: 'check', label: tone, tone
             }));
           }
@@ -1368,7 +1369,7 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
           document.querySelector('main').append(controls);
           window.setToneState = state => {
             for (const button of buttons) {
-              marginActionState(button, state);
+              marginButtonState(button, state);
               button.setAttribute('aria-disabled', String(state === 'busy'));
             }
           };
@@ -1452,9 +1453,9 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     more = suggestion_item.locator(":scope > .lf-margin-more")
     expect(more).to_be_visible()
     for button in (suggestion_item.locator(".lf-sug-accept"), more):
-        expect(button).to_have_class(re.compile(r"lf-margin-action"))
+        expect(button).to_have_class(re.compile(r"lf-margin-button"))
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+        suggestion_item.locator(".lf-sug-accept .lf-margin-button-label")
     ).to_be_hidden()
     expect(suggestion_item.locator(".lf-sug-accept")).to_have_attribute(
         "data-lf-behavior", "action"
@@ -1462,7 +1463,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(suggestion_item.locator(".lf-sug-accept")).not_to_have_attribute(
         "aria-expanded", re.compile(".+")
     )
-    expect(more).to_have_attribute("data-lf-behavior", "options")
+    expect(more).to_have_attribute("data-lf-behavior", "disclosure")
     expect(more).to_have_attribute("aria-expanded", "false")
 
     more.click()
@@ -1501,7 +1502,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(draft_item.locator(".lf-draft-pencil")).to_be_visible()
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(draft_item.locator(".lf-draft-pencil")).to_have_class(
-        re.compile(r"lf-margin-action")
+        re.compile(r"lf-margin-button")
     )
     expect(draft_item.locator(".lf-draft-pencil")).to_have_attribute(
         "data-lf-behavior", "disclosure"
@@ -1509,20 +1510,25 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(draft_item.locator(".lf-draft-pencil")).to_have_attribute(
         "aria-expanded", "false"
     )
-    expect(draft_item.locator(".lf-draft-pencil .lf-margin-action-label")).to_have_text(
+    expect(draft_item.locator(".lf-draft-pencil .lf-margin-button-label")).to_have_text(
         "Edit…"
     )
-    expect(page.locator(".lf-margin-action-cue")).to_have_count(0)
-    expect(page.locator(".lf-margin-action[title]")).to_have_count(0)
+    edit = draft_item.locator(".lf-draft-pencil")
+    accept = suggestion.locator(".lf-sug-accept")
+    expect(edit.locator(":scope > .lf-margin-button-icon")).to_be_visible()
+    expect(edit.locator(":scope > *:visible")).to_have_count(1)
+    expect(page.locator(".lf-margin-button[title]")).to_have_count(0)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
-    accept = suggestion.locator(".lf-sug-accept")
-    edit = draft_item.locator(".lf-draft-pencil")
     expect(accept).to_have_attribute("data-lf-tone", "positive")
     expect(edit).to_have_attribute("data-lf-tone", "neutral")
-    assert edit.evaluate("el => getComputedStyle(el).backgroundColor") == more.evaluate(
-        "el => getComputedStyle(el).backgroundColor"
-    ), "disclosure and overflow no longer share the same circular face"
+    offer_backgrounds = [
+        control.evaluate("el => getComputedStyle(el).backgroundColor")
+        for control in (accept, edit, more)
+    ]
+    assert len(set(offer_backgrounds)) == 1, (
+        "interactive offers should share one unfilled resting surface"
+    )
     borders = [
         control.evaluate(
             "el => { const s = getComputedStyle(el); "
@@ -1540,14 +1546,23 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         control.evaluate("el => getComputedStyle(el).borderTopColor")
         for control in (accept, edit, more)
     ]
-    assert len(set(border_colors)) == 1, "action rings should be heavier, not darker"
+    assert border_colors[1] == border_colors[2] != border_colors[0], (
+        "disclosures should share their firmer line while Action uses elevation"
+    )
+    shadows = [
+        control.evaluate("el => getComputedStyle(el).boxShadow")
+        for control in (accept, edit, more)
+    ]
+    assert shadows[0] != "none" and shadows[1:] == ["none", "none"], (
+        "only an immediate Action should rise off the shared paper surface"
+    )
 
     before_hover = edit.bounding_box()
     edit.hover()
-    expect(edit.locator(".lf-margin-action-label")).to_be_visible()
+    expect(edit.locator(".lf-margin-button-label")).to_be_visible()
     assert edit.bounding_box() == before_hover, "the transient label moved its Button"
     page.mouse.move(0, 0)
-    expect(edit.locator(".lf-margin-action-label")).to_be_hidden()
+    expect(edit.locator(".lf-margin-button-label")).to_be_hidden()
 
     shapes = page.locator(
         ".lf-sug-accept:visible, .lf-draft-pencil:visible, .lf-margin-more:visible, "
@@ -1606,15 +1621,15 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     reactions = options.locator(".lf-margin-reactions")
     expect(options).to_be_visible()
     expect(preview).to_be_hidden()
-    expect(suggestion_item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(reactions.locator(".lf-react").first).to_have_class(
-        re.compile(r"lf-margin-action")
+        re.compile(r"lf-margin-button")
     )
     ok = reactions.locator('.lf-react[data-token="ok"]')
     expect(ok).to_have_attribute("aria-label", "ok — settled — no change asked")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
-    expect(ok.locator(".lf-margin-action-label")).to_have_text(
+    expect(ok.locator(".lf-margin-button-label")).to_have_text(
         "ok — settled — no change asked"
     )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
@@ -1638,20 +1653,20 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+        suggestion_item.locator(".lf-sug-accept .lf-margin-button-label")
     ).to_be_visible()
     page.evaluate("() => document.activeElement.blur()")
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+        suggestion_item.locator(".lf-sug-accept .lf-margin-button-label")
     ).to_be_hidden()
     accept.hover()
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+        suggestion_item.locator(".lf-sug-accept .lf-margin-button-label")
     ).to_be_visible()
     page.mouse.move(0, 0)
     accept.focus()
     page.keyboard.press("r")
-    expect(suggestion_item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
     more.click()
@@ -1677,7 +1692,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     # suggestion: focusing the draft's resting Edit action extends that same item.
     draft_controls.locator(".lf-draft-pencil").focus()
     page.keyboard.press("r")
-    expect(draft_item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(draft_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
     # On a narrow screen each item docks directly after the rendered block that owns its
@@ -1696,7 +1711,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     ), "the draft's Edit action no longer follows the draft"
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     page.keyboard.press("r")
-    expect(suggestion_item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
     reactions.locator('.lf-react[data-token="ok"]').click()
     round_trip(page)
@@ -1716,9 +1731,9 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
     )
     resized(page, 1440, 900)
     buttons = page.evaluate(
-        """() => [...document.querySelectorAll('.lf-margin-action')].map(control => ({
+        """() => [...document.querySelectorAll('.lf-margin-button')].map(control => ({
           name: control.getAttribute('aria-label'),
-          word: control.querySelector(':scope > .lf-margin-action-label').textContent,
+          word: control.querySelector(':scope > .lf-margin-button-label').textContent,
         }))"""
     )
     placed = [button for button in buttons if re.search(r"\d+ of \d+", button["name"])]
@@ -1732,18 +1747,18 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
     page.close()
 
 
-def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
+def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
     browser, serve
 ):
-    """A fitting keeps the Button family visible without promising a receipt press.
+    """A fitting keeps the Button family visible without promising a press.
 
     Sent, Waiting for pickup, Picked up, and the standing Outcome all report a move
-    already made. Their fitting therefore keeps the circular silhouette and full ink,
-    while leaving the accessibility tree as a status rather than a control and showing
-    no hover lift. The walk still arrives, because the phase is what a reader listening
-    came for. A real claim — work the reader can watch — restores the same fitting's
-    activation semantics, in the same seat, so the cluster's identity survives the
-    change of promise.
+    already made. Their status fitting therefore keeps the circular silhouette and
+    full ink, while leaving the accessibility tree as a status rather than a control
+    and showing no hover fill. The walk still arrives, because the phase is what a
+    reader listening came for. A real claim — work the reader can watch — restores the
+    same fitting's activation semantics, in the same seat, so the cluster's identity
+    survives the change of promise.
     """
     page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
     page_dir = serve.page_dir
@@ -1763,16 +1778,17 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
         return control.evaluate(
             """node => {
               const style = getComputedStyle(node);
-              const word = node.querySelector(':scope > .lf-margin-action-label');
+              const word = node.querySelector(':scope > .lf-margin-button-label');
               const wordStyle = getComputedStyle(word);
               return {
                 tag: node.tagName,
                 offer: node.dataset.lfOffer,
                 behavior: node.dataset.lfBehavior,
                 role: node.getAttribute('role'),
-                icon: node.querySelector(':scope > .lf-margin-action-icon')
+                icon: node.querySelector(':scope > .lf-margin-button-icon')
                   .dataset.lfIcon,
-                word: node.querySelector(':scope > .lf-margin-action-label').textContent,
+                word: word.querySelector(':scope > .lf-margin-button-label-word').textContent,
+                context: word.querySelector(':scope > .lf-margin-button-context')?.textContent ?? null,
                 tabIndex: node.tabIndex,
                 cursor: style.cursor,
                 background: style.backgroundColor,
@@ -1803,7 +1819,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
 
     expected_ink = resolved_color("--ink-2")
     expected_paper = resolved_color("--paper")
-    expected_border = resolved_color("--border-2")
+    expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
@@ -1811,33 +1827,34 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
         """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
         delay ends on is a box the reader can see drawn at the opacity it is leaving —
         which is what `to_be_visible` is satisfied by, and what the paint read behind it
-        then reports as the receipt's own ink. Ask the transitions instead: the call
+        then reports as the status's own ink. Ask the transitions instead: the call
         flushes pending style, so a reveal that has been started is in the list on the
         first read and a control that never moves reports empty at once."""
         page.wait_for_function(
-            """() => [...document.querySelectorAll('.lf-margin-action-label')]
+            """() => [...document.querySelectorAll('.lf-margin-button-label')]
                  .every((label) => label.getAnimations().length === 0)"""
         )
 
-    def assert_receipt(phase, control=marker):
+    def assert_status(phase, context, control=marker):
         if control is marker:
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(control.locator(":scope > .lf-margin-action-label")).to_be_hidden()
+        expect(control.locator(":scope > .lf-margin-button-label")).to_be_hidden()
         words_still()
         current = face(control)
         assert current == {
             "tag": "SPAN",
             "offer": "",
-            "behavior": "receipt",
+            "behavior": "status",
             "role": "status",
             "icon": RECEIPT_PHASES[phase],
             "word": phase,
+            "context": context,
             "tabIndex": -1,
             "cursor": "default",
             "background": expected_paper,
-            "border": expected_border,
+            "border": expected_rule,
             "ink": expected_ink,
             "opacity": "1",
             "width": "32px",
@@ -1854,8 +1871,10 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
-        expect(control.locator(":scope > .lf-margin-action-label")).to_be_visible()
+        label = control.locator(":scope > .lf-margin-button-label")
+        expect(label).to_be_visible()
         words_still()
+        expect(label).to_have_css("opacity", "1")
         hovered = face(control)
         assert {
             key: hovered[key] for key in ("background", "border", "ink", "opacity")
@@ -1864,7 +1883,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
 
-    assert_receipt("Sent")
+    assert_status("Sent", "just now")
     result = Axe().run(
         page,
         options={
@@ -1889,7 +1908,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader
-    # leaves the rail's one stop on a Button that acts, and the receipt without one.
+    # leaves the rail's one stop on a Button that acts, and the status without one.
     page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame("
@@ -1899,7 +1918,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     stops = page.locator(".lf-margin-marker:visible").evaluate_all(
         "rows => rows.map(row => [row.dataset.lfBehavior, row.tabIndex])"
     )
-    assert ["receipt", -1] in stops, stops
+    assert ["status", -1] in stops, stops
     assert [behavior for behavior, index in stops if index == 0] == ["disclosure"], (
         stops
     )
@@ -1907,22 +1926,22 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
     page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
-    assert_receipt("Waiting for pickup")
+    assert_status("Waiting for pickup", "Sent 3m ago")
 
     with service_model.PageTransaction(page_dir) as transaction:
         session_model.record_pickup(transaction, [logged_action])
     told(page)
-    assert_receipt("Picked up")
+    assert_status("Picked up", "just now")
 
     # A direct action makes the acknowledgment a secondary reading. It keeps the same
-    # receipt semantics and full-strength circular fitting instead of falling back to a
+    # status semantics and full-strength circular fitting instead of falling back to a
     # dim disclosure with an ellipsis, which is the feature gallery's Edit + Picked up
     # arrangement.
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
-          const control = marginAction(offer('button', ''), {
+          const control = marginButton(offer('button', ''), {
             key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
           });
           control.classList.add('lf-receipt-primary-probe');
@@ -1937,7 +1956,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     )
     expect(marker).to_be_hidden()
     expect(secondary).to_be_visible()
-    assert_receipt("Picked up", secondary)
+    assert_status("Picked up", "just now", secondary)
 
     page.evaluate("() => document.activeElement.blur()")
     page.mouse.move(0, 0)
@@ -1970,6 +1989,8 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     assert active["behavior"] == "disclosure"
     assert active["role"] == "button"
     assert active["icon"] == "activity"
+    assert active["word"] == "Active…"
+    assert active["context"] == "Checked in just now · checking the mounts"
     assert active["cursor"] == "pointer"
     assert active["opacity"] == "1"
     assert active["background"] != "rgba(0, 0, 0, 0)"
@@ -1981,7 +2002,7 @@ def test_a_receipt_keeps_button_shape_and_an_active_claim_remains_a_button(
     )
     stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))
     wait_for_revision(page, 2)
-    assert_receipt("Outcome")
+    assert_status("Outcome", None)
 
     assert errors == []
     page.close()
@@ -1992,19 +2013,19 @@ def test_secondary_button_proxies_preserve_disabled_and_focus_contract(browser, 
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('span');
-          const primary = marginAction(offer('button', ''), {
+          const primary = marginButton(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
           });
-          const backup = marginAction(offer('button', ''), {
+          const backup = marginButton(offer('button', ''), {
             key: 'backup', glyph: 'B', label: 'Backup', behavior: 'action', role: 'secondary'
           });
-          const locked = marginAction(offer('button', ''), {
+          const locked = marginButton(offer('button', ''), {
             key: 'locked', glyph: 'L', label: 'Locked', behavior: 'action', role: 'secondary'
           });
-          const details = marginAction(offer('button', ''), {
+          const details = marginButton(offer('button', ''), {
             key: 'details', glyph: 'D', label: 'Details', behavior: 'disclosure', role: 'reading'
           });
           details.setAttribute('aria-expanded', 'true');
@@ -2095,18 +2116,18 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
     resized(page, width, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, marginActionState, registerMarginItem} =
+          const {offer, marginButton, marginButtonState, registerMarginItem} =
             await import('/runtime/widget-api.js');
           window.buttonFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
             const ordinary = document.createElement('span');
             const editor = document.createElement('span');
-            const act = marginAction(offer('button', ''), {
+            const act = marginButton(offer('button', ''), {
               key: 'act', icon: 'check', label: `Act ${id}`, role: 'primary'
             });
             const details = Array.from({length: 5}, (_, n) => {
-              const button = marginAction(offer('button', ''), {
+              const button = marginButton(offer('button', ''), {
                 key: `detail-${n + 1}`, icon: 'dot',
                 label: `Detail ${n + 1} ${id}` + (n === 1
                   ? ' with a longer explanation that must remain inside its tooltip' : ''),
@@ -2115,11 +2136,11 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
               button.onclick = () => target.dataset.lastAction = String(n + 1);
               return button;
             });
-            const save = marginAction(offer('button', ''), {
+            const save = marginButton(offer('button', ''), {
               key: 'save', icon: 'check', label: `Save ${id}`, role: 'complete',
               tone: 'positive', state: 'engaged'
             });
-            const cancel = marginAction(offer('button', ''), {
+            const cancel = marginButton(offer('button', ''), {
               key: 'cancel', icon: 'cross', label: `Cancel ${id}`, role: 'escape',
               state: 'engaged'
             });
@@ -2139,15 +2160,15 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
               details.slice(1).forEach(button => button.hidden = true);
               fixture.registrations.forEach(registration => registration.update());
             };
-            fixture.busy = () => marginActionState(save, 'busy');
+            fixture.busy = () => marginButtonState(save, 'busy');
             window.buttonFixtures.push(fixture);
           }
         }"""
     )
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
-        expect(item.locator(".lf-margin-action:visible")).to_have_count(6)
-        assert item.locator(".lf-margin-action:visible").evaluate_all(
+        expect(item.locator(".lf-margin-button:visible")).to_have_count(6)
+        assert item.locator(".lf-margin-button:visible").evaluate_all(
             "buttons => buttons.map(button => button.dataset.lfButtonKey.replace(/:proxy$/, ''))"
         ) == ["save", "cancel", "act", "detail-1", "detail-2", "all-options"]
         expect(item.locator(".lf-margin-more")).to_be_hidden()
@@ -2159,14 +2180,14 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
             re.compile(r"lf-margin-target")
         )
         item.get_by_role("button", name=f"Save {target}", exact=True).hover()
-        label = item.locator('[data-lf-button-key="save"] .lf-margin-action-label')
+        label = item.locator('[data-lf-button-key="save"] .lf-margin-button-label')
         expect(label).to_be_visible()
         box = label.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
         detail = item.locator('[data-lf-button-key="detail-2:proxy"]')
         detail.hover()
-        expect(detail.locator(".lf-margin-action-label")).to_be_visible()
-        assert detail.locator(".lf-margin-action-label").evaluate(
+        expect(detail.locator(".lf-margin-button-label")).to_be_visible()
+        assert detail.locator(".lf-margin-button-label").evaluate(
             "label => label.scrollWidth <= label.clientWidth"
         )
         item.locator(".lf-margin-spill").click()
@@ -2203,7 +2224,7 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
     page.evaluate("() => window.buttonFixtures.forEach(fixture => fixture.rest())")
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
-        expect(item.locator(".lf-margin-action:visible")).to_have_count(2)
+        expect(item.locator(".lf-margin-button:visible")).to_have_count(2)
         expect(item.locator(".lf-margin-more")).to_be_hidden()
         expect(
             item.get_by_role("button", name=f"Act {target}", exact=True)
@@ -2222,11 +2243,11 @@ def test_a_reading_marker_counts_toward_the_expanded_button_budget(browser, serv
     page, errors = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let index = 0; index < 6; index += 1)
-            controls.append(marginAction(offer('button', ''), {
+            controls.append(marginButton(offer('button', ''), {
               key: `peer-${index}`, icon: 'dot', label: `Peer ${index}`,
               role: 'secondary'
             }));
@@ -2238,7 +2259,7 @@ def test_a_reading_marker_counts_toward_the_expanded_button_budget(browser, serv
     )
     item = page.locator('[data-lf-margin-for="how-cap"]')
     item.locator(":scope > .lf-margin-more").click()
-    expect(item.locator(".lf-margin-action:visible")).to_have_count(6)
+    expect(item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(item.locator(":scope > .lf-margin-marker")).to_be_visible()
     expect(item.locator(".lf-margin-spill")).to_have_attribute(
         "data-lf-spill-count", "2"
@@ -2257,10 +2278,10 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('span');
-          for (let i = 0; i < 5; i++) controls.append(marginAction(offer('button', ''), {
+          for (let i = 0; i < 5; i++) controls.append(marginButton(offer('button', ''), {
             key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`, role: 'secondary'
           }));
           registerMarginItem({key: 'details', target: document.getElementById('sug-refill'),
@@ -2294,9 +2315,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginAction, registerMarginItem} =
+          const {offer, marginButton, registerMarginItem} =
             await import('/runtime/widget-api.js');
-          const primary = marginAction(offer('button', ''), {
+          const primary = marginButton(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
           });
           window.lfThreadOwner = {
@@ -2424,7 +2445,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     page, errors = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-          const { marginAction, registerMarginItem } =
+          const { marginButton, registerMarginItem } =
             await import('/runtime/living-margin.js');
           const makeRecord = label => {
             const shell = document.createElement('div');
@@ -2432,7 +2453,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             const target = document.createElement('p');
             target.textContent = `${label} target`;
             root.append(target);
-            const controls = marginAction(document.createElement('button'), {
+            const controls = marginButton(document.createElement('button'), {
               key: label, glyph: '!', label: `${label} controls`
             });
             return {label, shell, target, controls};
@@ -2448,7 +2469,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             const target = document.createElement('p');
             target.slot = slot;
             target.textContent = `${label} target`;
-            const controls = marginAction(document.createElement('button'), {
+            const controls = marginButton(document.createElement('button'), {
               key: label, glyph: '!', label: `${label} controls`
             });
             return {label, shell: slottedShell, target, controls};
@@ -2471,11 +2492,11 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             ownsTarget: controls.parentElement?.lfEntry?.target === target,
             inDocument: controls.getRootNode() === document,
             itemCount: shell.shadowRoot.querySelectorAll('.lf-margin-item').length,
-            commonAction: controls.matches('.lf-margin-action'),
+            commonAction: controls.matches('.lf-margin-button'),
             width: getComputedStyle(controls).width,
             minHeight: getComputedStyle(controls).minHeight,
             radius: getComputedStyle(controls).borderRadius,
-            visibleWord: controls.querySelector('.lf-margin-action-label')?.textContent,
+            visibleWord: controls.querySelector('.lf-margin-button-label')?.textContent,
           }));
           const testTargets = new Set(records.map(({target}) => target));
           const itemOrder = [...main.querySelectorAll(':scope > .lf-margin-item')]
@@ -2588,7 +2609,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     claim = marker.locator("xpath=..").evaluate(
         """item => {
           const style = getComputedStyle(item);
-          const buttons = [...item.querySelectorAll(':scope > .lf-margin-action')]
+          const buttons = [...item.querySelectorAll(':scope > .lf-margin-button')]
             .filter(button => button.checkVisibility());
           const needed = buttons.reduce(
             (total, button) => total + button.getBoundingClientRect().width, 0
@@ -2608,14 +2629,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     marker.hover()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_hidden()
-    expect(marker.locator(".lf-margin-action-label")).to_be_visible()
+    expect(marker.locator(".lf-margin-button-label")).to_be_visible()
     marker.focus()
     expect(preview).to_be_hidden()
 
     marker.click()
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
-    expect(marker.locator(".lf-margin-action-label")).to_be_hidden()
+    expect(marker.locator(".lf-margin-button-label")).to_be_hidden()
     expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()
@@ -2695,7 +2716,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-    expect(marker.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(marker.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "comment"
     )
     first_frame = marker.evaluate(

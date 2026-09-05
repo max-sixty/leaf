@@ -126,25 +126,37 @@ def spawn_probe(spawn, page_dir, body, **environment):
 
 
 def shipped_payload():
-    """Every git-tracked path in the repo — what a host's copy carries whole.
+    """Every candidate payload path in the working tree.
 
-    Git is the source of truth for what ships rather than a filesystem walk with an
-    exclusion list: `.venv`, `__pycache__`, and every other build tool's cache now
-    live under this same root the checkout and the payload share, and none of them
-    is tracked.
+    Git is the source of truth rather than a filesystem walk with an exclusion list:
+    cached and not-ignored untracked paths are the tree a completed change would ship,
+    while a cached path deleted by that change no longer exists. This lets an install
+    boundary test exercise additions and removals before the change is staged, without
+    sweeping in `.venv`, `__pycache__`, or another ignored build cache.
     """
     listed = subprocess.run(
-        ["git", "-C", str(PLUGIN_ROOT), "ls-files"],
+        [
+            "git",
+            "-C",
+            str(PLUGIN_ROOT),
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    return [PLUGIN_ROOT / relative for relative in listed.splitlines()]
+    return [
+        path
+        for relative in listed.splitlines()
+        if (path := PLUGIN_ROOT / relative).exists()
+    ]
 
 
 def install_payload(destination):
-    """Copy the payload into `destination` the way a host installs it — the tracked
-    tree, whole — and say where it landed."""
+    """Copy the candidate payload the way a host installs the committed tree."""
     for path in shipped_payload():
         target = destination / path.relative_to(PLUGIN_ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)

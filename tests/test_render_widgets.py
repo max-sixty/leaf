@@ -13,6 +13,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESS_PAGE,
     ALL_DECISIONS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
@@ -67,6 +68,7 @@ from render_support import (
     live_url,
     open_page,
     panel_settled,
+    post_event,
     refuse,
     resized,
     round_trip,
@@ -80,6 +82,31 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+SWIPE_PAGE = leaf_page(
+    "session backlog triage",
+    """
+<h1>Session-store follow-ups</h1>
+<lf-decision id="session-triage-decision">
+  <h2>Which session-store follow-ups should we keep?</h2>
+  <p>Pass removes an item from this design; Keep carries it into implementation.</p>
+  <lf-swipe-deck id="session-triage">
+    <lf-swipe-pile id="session-queue" verdict="unseen">
+      <lf-swipe-card id="swipe-a"><strong>Buffer rolling expiry</strong><p>Refresh once a minute.</p></lf-swipe-card>
+      <lf-swipe-card id="swipe-b"><strong>Bound fallback lifetime</strong><p>Refuse snapshots after 90 seconds.</p></lf-swipe-card>
+      <lf-swipe-card id="swipe-c"><strong>Partition capacity</strong><p>Separate rate-limit eviction.</p></lf-swipe-card>
+      <lf-swipe-card id="swipe-d"><strong>Index account sessions</strong><p>Make device-wide revocation bounded.</p></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="session-pass" verdict="pass">
+      <lf-swipe-card id="already-passed"><strong>Add Dynamo</strong><p>A new operating model.</p></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="session-keep" verdict="keep">
+      <lf-swipe-card id="already-kept"><strong>Delete session keys</strong><p>The revocation primitive.</p></lf-swipe-card>
+    </lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-decision>
+""",
+)
 
 
 def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
@@ -138,7 +165,8 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ) == ["first-change", "second-change", "third-change"]
     page.locator("#first-change").evaluate(
         "el => { const parent = el.parentNode; const next = el.nextSibling;"
-        "        el.remove(); parent.insertBefore(el, next); }"
+        "        el.remove(); document.dispatchEvent(new Event('lf-actions'));"
+        "        parent.insertBefore(el, next); }"
     )
     assert page.locator(".lf-sug-actions").evaluate_all(
         "rows => rows.map(row => row.dataset.lfFor)"
@@ -147,6 +175,12 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         "second-change",
         "third-change",
     ], "reconnecting the first suggestion moved its controls after later source rows"
+    first_accept = page.locator("[data-lf-for='first-change'] .lf-sug-accept")
+    first_accept.evaluate(
+        "control => { control.setAttribute('aria-disabled', 'true');"
+        "  document.dispatchEvent(new Event('lf-actions')); }"
+    )
+    expect(first_accept).to_have_attribute("aria-disabled", "false")
     page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
     walked = []
     for _ in range(3):
@@ -1188,7 +1222,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     expect(
         board.get_by_role(
             "button",
-            name="Move: Squirrel baffle — Done — awaiting next version",
+            name="Move: Squirrel baffle — Done — your move",
             exact=True,
         )
     ).to_be_visible()
@@ -1201,10 +1235,574 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Done — awaiting next version\"': ⠿"
+        "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
     )
     assert errors == []
     page.close()
+
+
+def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
+    """a lands on the authored question and exposes the deck's own bindings there.
+
+    The last classification both places its card and closes the Ask, so one undo
+    reopens the question with that card back in the queue.
+    """
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    decision = page.locator("#session-triage-decision")
+
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    # Outside the Ask projection, the package command still spells its real binding;
+    # the Decision action name is not a keycap override.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    pass_reference = page.locator('.lf-help tr[data-lf-command="swipe.pass"]')
+    expect(pass_reference.locator("kbd")).to_have_text("←")
+    expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
+        "aria-label", "ArrowLeft"
+    )
+    undo_reference = page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
+    expect(undo_reference.locator("kbd")).to_have_text("Undo last swipe")
+    expect(undo_reference.locator(".lf-key-sequence")).to_have_attribute(
+        "aria-label", "Undo last swipe"
+    )
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("a")
+    expect(decision).to_be_focused()
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["←", "→"])
+    assert "← / →\nPass / Keep" in key_line(page)
+
+    page.keyboard.press("Tab")
+    assert "←\npass the active card" in key_line(page)
+    assert "Pass\npass the active card" not in key_line(page)
+    page.keyboard.press("a")
+    expect(decision).to_be_focused()
+
+    # The reference exposes the same exact routes as their inline bindings.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator('.lf-help-command[data-lf-command="swipe.pass"]')).to_have_text(
+        "Activate the “Pass” action"
+    )
+    expect(page.locator('.lf-help-command[data-lf-command="swipe.keep"]')).to_have_text(
+        "Activate the “Keep” action"
+    )
+    expect(
+        page.locator('.lf-help-command[data-lf-command="decision.activate-nth"]')
+    ).to_have_count(0)
+    page.keyboard.press("Escape")
+
+    for binding in ("ArrowRight", "ArrowLeft", "ArrowRight", "ArrowLeft"):
+        page.keyboard.press(binding)
+    round_trip(page)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("1")
+    assert "1\nUndo last swipe" in key_line(page)
+    assert [event["action"] for event in actions(serve.page_dir)] == [
+        "swipe",
+        "swipe",
+        "swipe",
+        "finish",
+    ]
+
+    page.reload(wait_until="load")
+    expect(page.locator("#session-pass > #swipe-d")).to_have_count(1)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    row = page.locator("button.lf-decisions-row")
+    expect(row).to_be_focused()
+    expect(row.locator(".lf-decisions-answer")).to_have_text("3 kept · 3 passed")
+    page.keyboard.press("Enter")
+    assert "1\nUndo last swipe" in key_line(page)
+
+    # At strip width the tray and the chosen Ask can remain visible together. If the
+    # window then narrows until that same tray covers the page, its nearer keyboard
+    # scope must remove the already-painted package action address. Widening restores
+    # the same canonical route; no package-specific repaint owns either transition.
+    resized(page, 420, 900)
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    resized(page, 1200, 900)
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("1")
+
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    page.keyboard.press("a")
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    assert errors == []
+    page.close()
+
+
+def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
+    """A live arrow cannot keep filtered contextual actions on the key line."""
+    page, errors = open_page(
+        browser,
+        serve(SHORT_SUGGESTION),
+        init_script="localStorage.setItem('lf-character-shortcuts', '0')",
+    )
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect';
+          inspect.onclick = () => { inspect.dataset.activated = '1'; };
+          suggestion.append(inspect);
+          commands(inspect, 'Explicit non-character action', [{
+            id: 'test.inspect-left',
+            keys: ['ArrowLeft'],
+            control: inspect,
+            decision: 'Inspect',
+            does: 'Inspect this suggestion',
+            line: 'Inspect',
+            run: () => inspect.click(),
+          }]);
+        }"""
+    )
+
+    page.locator(".lf-decisions").click()
+    page.locator("button.lf-decisions-row").click()
+    expect(page.locator("#sug")).to_be_focused()
+    assert "←\nInspect" in key_line(page)
+    assert "Accept / Reject" not in key_line(page)
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("←")
+
+    before = len(actions(serve.page_dir))
+    page.keyboard.press("1")
+    assert len(actions(serve.page_dir)) == before
+    page.keyboard.press("ArrowLeft")
+    expect(page.get_by_role("button", name="Inspect", exact=True)).to_have_attribute(
+        "data-activated", "1"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
+    """Every input route ends at a button click, and quick classifications retain
+    gesture order while the outbox serializes their requests."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    deck = page.locator("#session-triage")
+    passed = deck.locator("#session-pass > lf-swipe-card")
+    kept = deck.locator("#session-keep > lf-swipe-card")
+    buttons = deck.locator(".lf-swipe-controls button:visible")
+
+    expect(buttons).to_have_count(2)
+    expect(deck).to_have_attribute("aria-keyshortcuts", "ArrowLeft ArrowRight")
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    expect(passed).to_have_count(2)
+    round_trip(page)
+
+    page.locator("#swipe-b").focus()
+    page.keyboard.press("ArrowRight")
+    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
+    expect(page.locator("#swipe-c")).to_be_focused()
+    round_trip(page)
+
+    # No wait between these activations: the arrow's button click exposes the next
+    # card synchronously while its network attempt is still the outbox's head.
+    page.locator("#swipe-c").focus()
+    page.keyboard.press("ArrowLeft")
+    deck.get_by_role("button", name="Keep →", exact=True).click()
+    expect(passed).to_have_count(3)
+    expect(kept).to_have_count(3)
+    expect(deck.locator(".lf-swipe-progress")).to_be_focused()
+    round_trip(page)
+
+    logged = actions(serve.page_dir)
+    assert [event["action"] for event in logged] == [
+        "swipe",
+        "swipe",
+        "swipe",
+        "finish",
+    ]
+    assert [event["detail"] for event in logged] == [
+        {"card": "swipe-a", "to": "session-pass", "index": 1},
+        {"card": "swipe-b", "to": "session-keep", "index": 1},
+        {"card": "swipe-c", "to": "session-pass", "index": 2},
+        {
+            "card": "swipe-d",
+            "to": "session-keep",
+            "index": 2,
+        },
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card(browser, serve):
+    """The answer verb carries the final position itself. Its references are
+    validated before the verb can settle the Ask, so a crafted but schema-valid
+    finish cannot leave an answered deck whose final classification never existed."""
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, url)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+
+    early = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "finish",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
+    )
+    assert early.status == 400
+    assert "does not satisfy its completion condition" in early.json()["error"]
+
+    refused = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "finish",
+            "detail": {"card": "not-a-card", "to": "session-keep", "index": 2},
+        },
+    )
+
+    assert refused.status == 400
+    assert "unknown card 'not-a-card'" in refused.json()["error"]
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    assert actions(serve.page_dir) == []
+    assert errors == []
+    page.close()
+
+
+def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
+    """Optimistic cards are an outbox overlay, not snapshots of one another. If an
+    older swipe is refused, its card returns while a later queued verdict still lands."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#swipe-a").focus()
+
+    with page.expect_request("**/api/event"):
+        page.keyboard.press("ArrowLeft")
+    expect(page.locator("#swipe-b")).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(page.locator("#swipe-c")).to_be_focused()
+    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
+    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
+    assert len(held) == 1, (
+        "the outbox sent a later gesture before its predecessor settled"
+    )
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("attempt") != attempt
+        )
+    ):
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    _until(page, lambda _traffic: len(held) == 2, "sent the surviving swipe")
+    held[1].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
+    expect(page.locator("#swipe-a")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    round_trip(page)
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "swipe-b",
+        "swipe-a",
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, serve):
+    """The browser may mint the fourth rapid gesture as finish while all four local
+    moves look complete. If the first move is refused, the append door must judge the
+    later finish against authoritative post-action positions and leave the Ask open.
+    """
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#swipe-a").focus()
+
+    with page.expect_request("**/api/event"):
+        for binding in ("ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"):
+            page.keyboard.press(binding)
+    expect(page.locator(".lf-swipe-progress")).to_be_focused()
+    assert len(held) == 1
+
+    first_attempt = held[0].request.post_data_json["attempt"]
+    held[0].fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "attempt": first_attempt,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    for index in range(1, 4):
+        _until(
+            page,
+            lambda _traffic, index=index: len(held) > index,
+            f"sent gesture {index + 1}",
+        )
+        held[index].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "swipe-b",
+        "swipe-c",
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
+    """Pointer Events preserve a vertical/tentative read and cancel cleanly; only a
+    horizontal drag beyond the deck's threshold reaches a verdict button."""
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, url)
+    card = page.locator("#swipe-a")
+    box = card.bounding_box()
+    assert box
+    x = box["x"] + box["width"] / 2
+    y = box["y"] + box["height"] / 2
+
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 24, y)
+    page.mouse.up()
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(card).not_to_have_class(re.compile(r"\blf-swipe-dragging\b"))
+    assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
+
+    page.mouse.move(x, y)
+    page.evaluate(
+        """() => document.addEventListener('pointerdown', event => {
+          window.__swipePointerId = event.pointerId;
+        }, {capture: true, once: true})"""
+    )
+    page.mouse.down()
+    page.mouse.move(x + 80, y)
+    pointer_id = page.evaluate("window.__swipePointerId")
+    assert isinstance(pointer_id, int)
+    card.dispatch_event("pointercancel", {"pointerId": pointer_id})
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(card).not_to_have_class(re.compile(r"\blf-swipe-dragging\b"))
+    expect(page.locator("#session-triage")).not_to_have_class(
+        re.compile(r"\blf-dragging\b")
+    )
+    assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
+    page.mouse.up()
+
+    card.locator("p").first.evaluate(
+        """element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+        }"""
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    assert page.evaluate("() => getSelection().toString().trim()")
+
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - 30, y)
+    page.mouse.up()
+    # The selection surface defers its release update by one task. Read only after that
+    # task: before the claim boundary existed, a swipe the deck let go of restored the
+    # range captured on pointerdown and raised the Comment bar again.
+    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert not page.locator(".lf-fab-bar").is_visible()
+
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - box["width"] * 0.35, y)
+    page.mouse.up()
+    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
+    round_trip(page)
+    assert errors == []
+    page.close()
+
+    context = browser.new_context(
+        viewport={"width": 420, "height": 900}, has_touch=True
+    )
+    touch, touch_errors = open_page(browser, url, context=context)
+    touch_card = touch.locator("#swipe-b")
+    touch_box = touch_card.bounding_box()
+    assert touch_box
+    tx = round(touch_box["x"] + touch_box["width"] / 2)
+    ty = round(touch_box["y"] + touch_box["height"] / 2)
+    cdp = context.new_cdp_session(touch)
+    cdp.send(
+        "Input.dispatchTouchEvent",
+        {"type": "touchStart", "touchPoints": [{"x": tx, "y": ty}]},
+    )
+    for step in range(1, 8):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": "touchMove",
+                "touchPoints": [
+                    {
+                        "x": tx + round(touch_box["width"] * 0.35 * step / 7),
+                        "y": ty,
+                    }
+                ],
+            },
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(touch.locator("#session-keep > #swipe-b")).to_have_count(1)
+    round_trip(touch)
+    assert touch_errors == []
+    touch.close()
+    context.close()
+
+
+def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
+    """The Tinder-like exit continues from the held card instead of gaining its
+    padding and border a second time when the fixed-position echo is sized."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE), init_script=HOLD_MOTION)
+    card = page.locator("#swipe-a")
+    box = card.bounding_box()
+    assert box
+    x = box["x"] + box["width"] / 2
+    y = box["y"] + box["height"] / 2
+
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - box["width"] * 0.35, y)
+    dragged = card.bounding_box()
+    assert dragged
+    page.mouse.up()
+
+    echo = page.locator(".lf-swipe-exit")
+    expect(echo).to_have_count(1)
+    echo_box = echo.bounding_box()
+    assert echo_box
+    assert echo_box == pytest.approx(dragged, abs=0.02)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(echo).to_have_count(0)
+    round_trip(page)
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve):
+    """The pile position is durable state, not module memory: reload reconstructs it,
+    and undo restores the card to its authored queue position."""
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name="Keep →", exact=True).click()
+    round_trip(page)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+
+    page.reload(wait_until="load")
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    assert page.evaluate(
+        """async () => {
+          const {standingState} = await import('/runtime/widget-api.js');
+          const deck = document.getElementById('session-triage');
+          const {state} = standingState().find(({widget}) => widget === deck);
+          window.swipeCards = [...deck.querySelectorAll('lf-swipe-card')];
+          deck.renderState(state);
+          deck.renderState(state);
+          return window.swipeCards.every(card => document.getElementById(card.id) === card);
+        }"""
+    )
+    assert page.eval_on_selector_all(
+        "#session-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["already-kept", "swipe-a"]
+    undo(page)
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    assert page.eval_on_selector_all(
+        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
+    assert page.evaluate(
+        "window.swipeCards.every(card => document.getElementById(card.id) === card)"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
+    source = SWIPE_PAGE.replace(
+        '<lf-decision id="session-triage-decision">',
+        '<lf-specimen id="swipe-example" label="session triage">',
+    ).replace("</lf-decision>", "</lf-specimen>")
+    page, errors = open_page(browser, serve(source))
+    deck = page.locator("#session-triage")
+
+    expect(deck.locator(".lf-swipe-controls")).to_have_count(0)
+    expect(deck.get_by_role("button")).to_have_count(0)
+    expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
+    expect(deck.locator("lf-swipe-card:visible")).to_have_count(6)
+    assert deck.get_by_role("list").count() == 3
+    resized(page, 420, 900)
+    passed = page.locator("#session-pass").bounding_box()
+    kept = page.locator("#session-keep").bounding_box()
+    assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
+    assert errors == []
+    page.close()
+
+
+def test_a_swipe_deck_export_is_a_static_labeled_copy(browser, serve, tmp_path):
+    url = serve(SWIPE_PAGE)
+    out = tmp_path / "swipe-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page(viewport={"width": 1200, "height": 900})
+    copy.goto(out.as_uri(), wait_until="load")
+    deck = copy.locator("#session-triage")
+
+    expect(copy.locator("script")).to_have_count(0)
+    expect(deck.locator(".lf-swipe-controls")).to_be_hidden()
+    expect(deck.get_by_role("button")).to_have_count(0)
+    expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
+    expect(deck.locator("lf-swipe-card:visible")).to_have_count(6)
+    assert deck.locator(".lf-swipe-pile-label").all_inner_texts() == [
+        "QUEUE · 4",
+        "PASSED · 1",
+        "KEPT · 1",
+    ]
+    copy.close()
+
+
+def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
+    context = browser.new_context(reduced_motion="reduce")
+    page, errors = open_page(browser, serve(SWIPE_PAGE), context=context)
+    page.get_by_role("button", name="← Pass", exact=True).click()
+
+    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+    round_trip(page)
+    assert errors == []
+    page.close()
+    context.close()
 
 
 def test_composer_grows_with_its_text_without_script(browser, serve):
@@ -1623,7 +2221,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
     # The verb is discovery chrome; at rest the Button is the canonical circle.
-    expect(accept.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accept.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -1638,7 +2236,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     receipt = row.locator(".lf-sug-receipt")
@@ -2215,7 +2813,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # replay here rather than by a press, which is the only place that path is driven.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
@@ -2404,10 +3002,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     everything inside the decision comes after it.
     """
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
-    # Short enough that the decision's first pick falls past the foot of the window once
-    # the decision's opening is at its head, which is the shape the fault has: the walk
-    # cannot both show the question and stand the reader on its answer.
-    resized(page, 900, 300)
+    # Short enough that even the pick in the card's compact header falls past the foot of
+    # the window once the decision's opening is at its head, which is the shape the fault
+    # has: the walk cannot both show the question and stand the reader on its answer.
+    resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -2524,6 +3122,157 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.close()
 
 
+def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve):
+    """A package's own digit keeps its meaning beside keyless Decision commands."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    resized(page, 900, 900)
+
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect';
+          inspect.onclick = () => { inspect.dataset.activated = '1'; };
+          suggestion.append(inspect);
+          commands(inspect, 'Explicit numeric action', [{
+            id: 'test.inspect',
+            keys: ['1'],
+            control: inspect,
+            label: 'I',
+            decision: 'Inspect',
+            does: 'Inspect this suggestion',
+            line: 'Inspect',
+            run: () => inspect.click(),
+          }]);
+        }"""
+    )
+
+    # The source scope keeps its presentation override in the global reference. Once the
+    # reader enters the Ask, that projection presents the binding it actually resolves.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    inspect_reference = page.locator('.lf-help tr[data-lf-command="test.inspect"]')
+    expect(inspect_reference.locator("kbd")).to_have_text("I")
+    expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
+        "aria-label", "I"
+    )
+    page.keyboard.press("Escape")
+
+    inspect = page.get_by_role("button", name="Inspect")
+    inspect.focus()
+    assert "I\nInspect" in key_line(page)
+
+    page.keyboard.press("a")
+    expect(page.locator("#sug")).to_be_focused()
+    assert "2 / 3 / 1\nAccept / Reject / Inspect" in key_line(page)
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "1")
+
+    page.keyboard.press("1")
+    expect(inspect).to_have_attribute("data-activated", "1")
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_action_name_functions_must_return_text(browser, serve):
+    """Computed row and route names fail with the command-scoped contract error."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+
+    messages = page.evaluate(
+        """async () => {
+          const {decisionControls} = await import('/runtime/keyboard/bindings.js');
+          const source = document.getElementById('sug');
+          const control = document.createElement('button');
+          source.append(control);
+          const read = (row) => {
+            try {
+              decisionControls([{source, row}], 'the test Ask');
+            } catch (error) {
+              return error.message;
+            }
+            return null;
+          };
+          return {
+            row: read({
+              id: 'test.invalid-row-name', keys: [], control,
+              decision: () => true,
+            }),
+            route: read({
+              id: 'test.route-family', keys: ['ArrowLeft'], control,
+              routes: [{
+                id: 'test.invalid-route-name', binding: 'ArrowLeft',
+                decision: () => true,
+              }],
+            }),
+          };
+        }"""
+    )
+
+    assert messages == {
+        "row": "leaf: test.invalid-row-name in the test Ask has no Decision action name",
+        "route": (
+            "leaf: test.invalid-route-name in the test Ask has no Decision action name"
+        ),
+    }
+    assert errors == []
+    page.close()
+
+
+def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, serve):
+    """Only keyless Decision commands count against the nine numeric addresses."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    resized(page, 900, 900)
+
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          for (const [index, key] of [...'bcdefghij'].entries()) {
+            const binding = `Alt+${key}`;
+            const control = document.createElement('button');
+            control.textContent = `Explicit ${key}`;
+            suggestion.append(control);
+            commands(control, `Explicit ${key}`, [{
+              id: `test.explicit-${index}`,
+              keys: [binding],
+              control,
+              decision: `Explicit ${key}`,
+              does: `Run explicit command ${key}`,
+              line: `Explicit ${key}`,
+              run: () => control.click(),
+            }]);
+          }
+          const later = document.createElement('button');
+          later.textContent = 'Later keyless';
+          later.onclick = () => { later.dataset.activated = '1'; };
+          suggestion.append(later);
+          commands(later, 'Later keyless action', [{
+            id: 'test.later-keyless',
+            keys: [],
+            control: later,
+            decision: 'Later keyless',
+            does: 'Run the later keyless command',
+            line: 'Later keyless',
+            run: () => later.click(),
+          }]);
+        }"""
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#sug")).to_be_focused()
+
+    # Accept and Reject take 1 and 2; nine explicitly bound commands consume no numeric
+    # address, so the keyless command declared after all of them still receives 3.
+    page.keyboard.press("3")
+    expect(page.get_by_role("button", name="Later keyless")).to_have_attribute(
+        "data-activated", "1"
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
     browser, serve
 ):
@@ -2562,21 +3311,36 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
 
 
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A clamped action chip yields to the legend that explains its digit."""
-    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    """A row address that reaches the key line yields to the legend naming its digit."""
+    page, errors = open_page(browser, serve(ADDRESS_PAGE))
     resized(page, 900, 520)
 
+    # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
+    # key line. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
+    # Put the second row's address one pixel into the key line's band. The first stays a
+    # row above it, so a placement pass that reserves the legend keeps one and removes
+    # the other. Calculate the scroll from their current boxes rather than pinning the
+    # fixture to today's spacing.
+    page.evaluate(
+        """() => {
+          const addresses = document.querySelectorAll(
+            '#rows > lf-option > .lf-address[data-lf-ask-address]'
+          );
+          const last = addresses[addresses.length - 1].getBoundingClientRect();
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          scrollTo(0, scrollY + last.top - line.top - 1);
+        }"""
+    )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {
@@ -3491,6 +4255,45 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
         "Drop the oldest documents"
     )
     assert errors == []
+    page.close()
+
+
+def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
+    source = leaf_page(
+        "empty option answer",
+        """<h1>Choose the unnamed route</h1>
+<lf-decision id="empty-decision"><h2>Which route?</h2>
+  <lf-options id="empty-options" choose>
+    <lf-option id="empty" chosen></lf-option>
+    <lf-option id="named"><strong>Named route</strong></lf-option>
+  </lf-options>
+</lf-decision>""",
+    )
+    page, errors = open_page(browser, serve(source))
+
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-answer")).to_have_text("empty")
+
+    assert errors == []
+    page.close()
+
+
+def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const options = document.getElementById('honored');
+          const extra = document.createElement('span');
+          options.append(extra);
+          commands(extra, 'Duplicate answer', [], {answer: () => 'Two-tier gates'});
+        }"""
+    )
+
+    with page.expect_event("pageerror") as raised:
+        page.locator(".lf-decisions").click()
+    assert "honored-decision has more than one answer reader" in str(raised.value)
+    assert any("more than one answer reader" in error for error in errors)
     page.close()
 
 

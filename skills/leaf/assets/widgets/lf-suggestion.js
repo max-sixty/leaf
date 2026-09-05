@@ -698,6 +698,13 @@ customElements.define(
       return cut && put ? "rewrite" : put ? "insertion" : "deletion";
     }
 
+    // Its words, for the same askers: the slots' text nodes run together away from the
+    // strike and insert paint, and a thread on a rewrite was quoted as
+    // "courtyardcovered terrace".
+    lfSays() {
+      return this.#subject();
+    }
+
     renderState(state) {
       const outcome = state.settlement.value;
       if (outcome) return this.#settle(outcome);

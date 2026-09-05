@@ -3797,3 +3797,23 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     ), "the walk landed outside the card it named"
     assert errors == []
     page.close()
+
+
+def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):
+    """A rewrite's slots are two words apart on the page and no characters apart in
+    the text, so a thread anchored on one was quoted as "redblue". The module that
+    names its own kind (x-word) names its own words the same way."""
+    url = serve(
+        leaf_page(
+            "rewrite",
+            '<p id="p">The wall is <lf-suggestion id="swap">'
+            "<lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion> now.</p>",
+        )
+    )
+    panel_comment(serve.page_dir, "Neither.", {"section": "swap"})
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-quote-label")).to_have_text("§ rewrite · red → blue")
+    assert errors == []
+    page.close()

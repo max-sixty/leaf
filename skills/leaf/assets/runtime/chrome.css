@@ -10,6 +10,66 @@
    tray that takes a strip, `[data-lf-tray="decisions"]`, is trays.js's STRIP_TRAYS. A
    container or media query cannot read a custom property, which is why each query is a
    literal rather than the --lf-panel-w the runtime writes. */
+/* `.lf-chrome` is one fixed runtime root containing the banner and its notice, the tray
+   panel, thread panel, composer, floating comment control, live region, key line, help,
+   inspection paint, legend, and address layer. The page and panel are separate scroll
+   regions.
+
+   The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
+   names do not escape that root. The global vocabulary is deliberately small: shared
+   `.lf-ui`, `.lf-btn`, `.lf-pill`, `.lf-address`, `.lf-skip`, and the markers the runtime
+   paints on page elements. Adding a global selector widens the widget contract and must
+   be covered by the render suite.
+
+   A shared class owns only the look shared on both sides of the scope line. Placement
+   remains with each surface. For example, an address chip may share type, border, and
+   color while a reply box and an option reserve and position it differently.
+
+   Typography follows Data projections. An authored `lf-note` inside `lf-code` takes
+   `--sans` because the module presents it as a review row inside evidence; its words
+   remain selectable page prose. `.lf-ui` also reads `--sans`. Form-control normalization
+   lives in the `lf-reset` cascade layer so an unlayered semantic type choice can override
+   it without specificity contests.
+
+   A control that draws the band on itself draws it only where nothing else holds that
+   box's one outline. A decision written out around the control wears the band already,
+   and the log's news about the content — `restated`, `reader-override`, `reported` — has
+   no second carrier, while the band also has the washed cell and the address chips.
+
+   Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
+   (theme.css carries why). Whether a box wears a ring is the outline's answer; the name
+   says which rule drew it, so nothing re-runs the layer's selectors to find that out. The
+   property is registered non-inheriting, so a name means the box rather than each of its
+   words.
+
+   The ring is drawn outside the box it names, so wherever the reader can be standing,
+   something has to have kept room for it. Two rules cover every case, and which one
+   applies is the same question theme.css already answers about the ring's gap. A box that
+   stands on its own draws its ring outside itself, and every scroll region that box can
+   land in reserves `--here-ring-room` at its edges through `scroll-padding` — the
+   document does this for its foot, the thread list for both of its own, where the outward
+   rings are the controls inside a card. A box whose own edge touches something that
+   paints draws its ring inset instead, because nothing outside it is free: a thread
+   touches the heading above it in flow, and no scroll position separates them. A box a
+   sticky offset holds against its scroller's own edge is that case with the scroll taken
+   out of it, which is why a run heading insets too. Where a module decides whether a
+   control fits somewhere, the room is part of what has to fit; the suggestion row carries
+   it as trailing padding so that the fit is still one measured box rather than a length
+   read out of CSS.
+
+   `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight` paints
+   glyphs, so a box takes no wash; the element mark says the same rank in the property it
+   has, one weight up from the posted hairline (`.lf-mark-el.lf-mark-hover`). Without
+   that, an element-anchored comment answered the pointer with nothing at all — which from
+   the panel, where there is no page cursor to change, reads as a broken hover rather than
+   as a passage with no words.
+
+   The response bar (`.lf-fab-bar`): `.lf-response-control` keeps the field and every
+   choice on one baseline with one type, border, corner, and elevation; the bar keeps its
+   DOM owner and accessible name while its contents change. Comment restores the field and
+   Suggest restores it in replacement-text mode. Their structural icons use the same
+   stroked SVG vocabulary as Target Buttons; only authored reaction tokens supply text
+   glyphs. */
 /* Workspace state changes the shell's size immediately; only this presentation
    offset moves. Registering the length lets Web Animations interpolate it while
    container queries continue to read the one final shell width. */

@@ -1,3 +1,20 @@
+// The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
+// complete outcome for leaves and asks. The leaves tray overlays the document because its
+// rows leave the page. The asks tray takes a strip because its rows travel within the
+// page and the reader must keep the target visible. Both entry controls call the same
+// tray setter.
+//
+// `restoreTray` runs after all declarations exist and after the first projection can
+// populate state-dependent rows. It calls its supplied `beforeOpen` policy to retire
+// Threads, then presents the remembered tray directly without replaying opening motion.
+//
+// A handle lives inside the region it draws, so a drawn region must not be its own scroll
+// container: a scroller clips a handle straddling its border and carries it away with the
+// content. A tray is a shell holding a `.lf-tray-list`, and every tray list reserves the
+// key line's room where their horizontal spans meet. Wide content reads the shell's CSS
+// value directly; there is no observed measurement loop or second number system to
+// reconcile during a transition.
+
 // The trays' edge, on the left, and everything said above said again for it: the width
 // it stands at until the reader moves it, how narrow they may draw it, and the window
 // under which a tray covers the page rather than standing beside it. The same bargain at

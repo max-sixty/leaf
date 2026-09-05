@@ -49,6 +49,74 @@
  * is a closed vocabulary wherever it appears, and one layer's tag written into another
  * layer's stylesheet is that plus a leak. */
 
+/* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
+   shadow trees. Packages may set placement and density, but keep its shape, border,
+   hover, and disabled treatment. Margin Buttons, reaction chips, and status labels retain
+   their own forms.
+
+   Typography is presentation, not passage permission. A chip or code annotation may look
+   like apparatus and still be a page word the reader can quote.
+
+   Which question a floor asks belongs to the posture it grants. A floor asking how much
+   room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
+   for the sidebar and sidenote strips, 1208 and 1472 for the thread's beside posture. The
+   living margin's 900 asks the window instead, because it is half of a pair — `@media
+   screen and (max-width: 899px)` stops drawing the margin at all, and a marker's presence
+   is not something a container can be asked about without the answer depending on the
+   strip the marker is asking for. Both halves of such a pair ask the same medium, or a
+   panel narrowing `body` under the floor withdraws the strip while the window keeps the
+   markers on screen with nothing reserved for them.
+
+   Text may break at any character needed to keep the page inside its column.
+   `overflow-wrap` is inherited from the page. Any token that must remain one unit, such
+   as a small badge or key chip, declares `white-space: nowrap` locally. Test long
+   identifiers and paths, not only ordinary prose.
+
+   A wide widget reads the room declared by `x-wide`:
+
+   - `box` fills the available box and clamps its contents there;
+   - `drawing` may size from its source up to the room available to it.
+
+   `markDeclared` exposes this declaration and CSS computes room after chrome strips and
+   claimed margins. A drawing inside a framed box uses that box's room, not the outer
+   page's. Size the widget's box with `contain: inline-size` where its contents would
+   otherwise make the box itself wider.
+
+   Every box that frames authored block flow declares `--lf-frame: 1` where the frame is
+   drawn. The declaration may belong to a nested-state selector or a generated internal
+   box rather than the tag's base rule. Widgets with `x-content: prose` or `items` can
+   admit authored flow; data-only, empty, and inline widgets do not automatically owe a
+   frame declaration.
+
+   The shared style query trims the outer margins of the first and last non-generated
+   children inside a frame. It ignores `GENERATED` because a positioned pick mark or
+   clipped spoken word must not become the visible content edge. A transparent wrapper
+   that lets a grandchild's margin collapse through it declares the frame at the wrapper
+   level only when it is the boundary responsible for that flow.
+
+   Put a layout grant in a selector strong enough to override the withheld base rule. Put
+   a standalone-only affordance guard in `:where(html:not(.lf-copy))` so the guard does
+   not add specificity to every rule inside it.
+
+   The live-page scrolling and chrome reservations stay under the live guard. A copy with
+   no panel uses an ordinary centered document and must not retain room for absent runtime
+   furniture.
+
+   Print asks a stricter question than export because nothing on paper is interactive.
+   `data-lf-offer` identifies injected controls to remove, while `data-lf-said` preserves
+   a decision word the page speaks through a control and `data-lf-echo` a name a control
+   copies off the row it routes to. What the two word markers keep is the word and not the
+   shape: a control that survives paper gives up its ground, corner, border, underline,
+   marker and pointer hand, because nothing on a sheet can answer the press they promise.
+   Colour stays, being part of what the control says.
+
+   Paper opens what a page puts behind a gesture, for the same reason: a settled group's
+   cards, an inactive tab's panel, and a shut `<details>` all print open. A page that
+   means a disclosure to stay shut on paper says so in its own stylesheet. `paperWords`
+   compares the screen and print readings across the whole page. `coveredWords` runs again
+   in print. A wrong offer/said declaration is fixed where the label is created, not by
+   naming its widget in print CSS. */
+
 :root {
   color-scheme: light dark;
   /* The document is warm paper. Code uses a white editor canvas and quiet gray chrome

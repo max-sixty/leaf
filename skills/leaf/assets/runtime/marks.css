@@ -51,6 +51,11 @@
    reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
    Dashed against the comment's solid, the pair the element anchors already draw
    (.lf-mark-el solid, .lf-react-el dashed) — same relation, said on glyphs. */
+/* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
+   higher one supplies only the properties it states, so a standing mark under the pointer
+   keeps its own wash and its own ink and takes nothing from the hover. Pointing at one
+   comment while standing in another therefore says both, in two washes a reader can tell
+   apart. */
 ::highlight(lf-mark) { background-color: var(--mark);
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 ::highlight(lf-mark-hover) { background-color: var(--mark-hover); }

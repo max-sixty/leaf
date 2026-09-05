@@ -1,3 +1,7 @@
+/* `ARRANGEMENTS` declares each stored runtime arrangement the render suite must visit,
+   and supplies one for each persisted tray. Add a new remembered surface here when the
+   surface is introduced. */
+
 let publishedArrangements = [];
 export { publishedArrangements as ARRANGEMENTS };
 

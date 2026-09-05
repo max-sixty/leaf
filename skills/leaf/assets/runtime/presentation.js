@@ -407,6 +407,8 @@ function* elementsIn(root, selector) {
   yield* root.querySelectorAll(selector);
 }
 
+// `markDeclared` exposes a declaration such as x-wide as paint, and CSS computes the
+// room after chrome strips and claimed margins.
 export function markDeclared(root, painted) {
   for (const [key, attr] of Object.entries(painted))
     for (const tag of tagsDeclaring((entry) => entry[key])) {

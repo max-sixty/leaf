@@ -3592,13 +3592,114 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["draft", "async-body"])
+def test_thread_body_initial_state_waits_for_upgrade(browser, serve, asynchronous):
+    """Frozen widgets start and undo to their upgraded body, including async capture."""
+    tag = "lf-delayed-body" if asynchronous else "lf-draft"
+    layer = {}
+    if asynchronous:
+        layer = {
+            "layer_registry": {
+                tag: {
+                    "description": "A body normalized by an asynchronous renderer.",
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "restated": {"type": "boolean"},
+                    },
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "data",
+                    "x-upgrade": True,
+                    "x-verbatim": True,
+                    "x-state": {
+                        "edit": {
+                            "unit": "widget",
+                            "facet": "body",
+                            "record": {"kind": "body", "value": "text"},
+                            "detail": {
+                                "type": "object",
+                                "properties": {"text": {"type": "string"}},
+                                "required": ["text"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    },
+                    "x-example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
+                },
+            },
+            "layer_widgets": {
+                f"{tag}.js": """
+import {once, settle} from '/runtime/widget-api.js';
+customElements.define('lf-delayed-body', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    settle(new Promise(resolve => requestAnimationFrame(() => {
+      this.querySelector('pre').textContent = 'First line.\\nSecond line.';
+      resolve();
+    })));
+  }
+  renderState(state) { this.querySelector('pre').textContent = state.body.value; }
+});
+"""
+            },
+        }
+    url = serve(REPLY_HOST_PAGE, **layer)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "body-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please draft it.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "body-question",
+            "text": "Edit these words.",
+            "markup": f'<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    widget = page.locator("#reply-body")
+    original = widget.element_handle()
+    body = widget.locator("pre" if asynchronous else ".lf-draft-body")
+    assert body.text_content() == "First line.\nSecond line."
+    response = post_event(
+        page,
+        live_url(url).split("?")[0] + "api/event",
+        data={
+            "kind": "action",
+            "widget": "reply-body",
+            "action": "edit",
+            "detail": {"text": "Reader's exact words.\n"},
+            "revision": 1,
+        },
+    )
+    assert response.ok, response.text()
+    told(page)
+    assert body.text_content() == "Reader's exact words.\n"
+    undo(page)
+    assert body.text_content() == "First line.\nSecond line."
+    assert original.evaluate("node => node === document.getElementById('reply-body')")
+    assert errors == []
+    page.close()
+
+
 def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     """A widget inside a reply exists only once the panel has rendered the log,
     which is later than everything on the page — so the replay runs at the end of
     a poll, after that render, and an action naming a widget it doesn't find is
     one no version will ever hold (an honored suggestion, whose id the honoring
     version dropped) rather than one to look for again on the next poll. Its authored
-    record is banked while the reply body is still detached, so withdrawing the action
+    record is captured after the connected reply has upgraded, so withdrawing the action
     restores that baseline without authored version markup for the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir

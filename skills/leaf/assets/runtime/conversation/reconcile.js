@@ -124,7 +124,6 @@ export function createConversation(dependencies) {
   } = createConversationMessages({
     MARKED_ANYWHERE,
     ago,
-    captureAuthoredFacets,
     designName,
     el,
     elementById,
@@ -362,10 +361,11 @@ export function createConversation(dependencies) {
     // disagree with the first over a page that changed between them — and it would walk the
     // document's whole text again to say it.
     paintAnchors(threads);
-    renderThreads(threads);
+    const prepared = renderThreads(threads);
     renderConversations(threadList);
     paintPageStrip(threads);
     paintAcknowledgments();
+    return prepared;
   }
 
   return {

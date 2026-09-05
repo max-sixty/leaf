@@ -68,7 +68,7 @@ subscriptions;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
-`runtime/state-application.js` owns stale-answer ordering, activation serialization,
+`runtime/state-application.js` owns stale-answer ordering, application serialization,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
@@ -156,7 +156,7 @@ Each mutable fact has one writer:
 
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
-| authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredParents` capture it; neither changes it |
+| authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateVersion` advances `currentVersion`; a public version address derives the version number from its URL |
@@ -248,7 +248,10 @@ module exists at all stays `package check`'s.
 `rememberAuthoredParents` records parent identities before imports for anchor ownership.
 `captureAuthoredFacets` runs after upgrade because widgets may arrange authored state
 in `connectedCallback`. It records typed initial values before projection changes them.
-The first server answer stays buffered until these initial readings exist.
+The first server answer stays buffered until these initial readings exist. Frozen
+thread widgets use the same boundary: the list connects them, waits for their
+registered upgrades, and captures initial values before the state application
+projects any winners. Concurrent applications wait for this whole boundary.
 
 The served page root is a stable live document. Its first response projects the
 latest immutable revision and carries a runtime-only version marker. On a later
@@ -268,7 +271,7 @@ The chrome, browser document, module globals, panel, and address remain standing
 That activation is one presentation boundary. Its async work runs in a
 `startViewTransition` update callback where the platform supplies one, including
 for reduced motion (whose transition duration collapses in the theme). Concurrent
-state responses serialize behind `activatingState`; none may capture or replace a
+state responses serialize behind the active application; none may capture or replace a
 half-upgraded main. A runtime without the API applies the same ordered boundary
 without animation. If activation fails after advancing the document, reload the
 stable root rather than leaving a mixed version. A layer-generation change always
@@ -525,14 +528,14 @@ re-applying the state the page already holds. It:
    older than `lastEventSeq`;
 3. loads the Markdown renderer before any message body needs it;
 4. installs candidate `events` and renders all log-derived surfaces;
-5. calls `reconcileState` after thread widgets exist;
+5. awaits thread-widget upgrades and initial capture, then calls `reconcileState`;
 6. advances `lastEventSeq` only after the whole state renders;
 7. accounts for outbox attempts;
 8. dispatches `lf-actions` after replay.
 
 If any required render throws, `receiveState` restores the prior event list,
 phase, sequence, and held answer. A candidate history may be visible only during its own
-synchronous application. Focus, undo, draft settlement, and later asynchronous
+application. Focus, undo, draft settlement, and later asynchronous
 wakeups must not consume a log tail the page did not adopt.
 
 `reconcileKnownState` protects those wakeups. It permits reconciliation only
